@@ -912,8 +912,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       prepared.references.map((reference) => ({
         assetId: reference.assetId, url: reference.url!, mediaType: reference.mediaType
       })), jobId),
-    async wait(providerJobId, _request, signal) {
-      const output = await openArtConnection!.waitForGeneration(providerJobId, signal);
+    async wait(providerJobId, request, signal) {
+      const output = await openArtConnection!.waitForGeneration(
+        providerJobId, request.kind === 'video' ? 'video' : 'image', signal
+      );
       return [{ url: output.url, mediaType: output.mediaType }];
     }
   });

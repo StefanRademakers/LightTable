@@ -9,31 +9,147 @@ import {
   type GenAiWorkflowDefinition,
   type GenAiWorkflowId
 } from '@lighttable/genai-core';
+import { canonicalOpenArtMode } from './openArtModes';
 const OPENART_ID = 'openart';
 
 const OPENART_FIELD_ROLES: Readonly<Record<string, GenAiFieldRole>> = {
   prompt: 'prompt',
+  text: 'prompt',
+  description: 'prompt',
+  negativePrompt: 'negative-prompt',
+  negative_prompt: 'negative-prompt',
   visualReferences: 'references',
   references: 'references',
   images: 'references',
   inputImages: 'references',
+  startFrame: 'first-frame',
+  start_frame: 'first-frame',
+  firstFrame: 'first-frame',
+  first_frame: 'first-frame',
+  endFrame: 'last-frame',
+  end_frame: 'last-frame',
+  lastFrame: 'last-frame',
+  last_frame: 'last-frame',
   aspectRatio: 'aspect-ratio',
+  aspect_ratio: 'aspect-ratio',
   resolution: 'output-size',
   resolutionTier: 'output-size',
+  outputResolution: 'output-size',
+  output_resolution: 'output-size',
   quality: 'quality',
-  imageCount: 'output-count'
+  imageCount: 'output-count',
+  videoCount: 'output-count',
+  outputCount: 'output-count',
+  output_count: 'output-count',
+  duration: 'duration',
+  durationSeconds: 'duration',
+  duration_seconds: 'duration',
+  generateAudio: 'sound',
+  generate_audio: 'sound',
+  generateSound: 'sound',
+  sound: 'sound',
+  seed: 'seed',
+  width: 'width',
+  height: 'height'
 };
 
-const mapOpenArtFieldRoles = (fields: readonly GenAiFieldDefinition[]): readonly GenAiFieldDefinition[] =>
-  fields.map((field) => {
+const mapOpenArtFieldRoles = (fields: readonly GenAiFieldDefinition[]): readonly GenAiFieldDefinition[] => {
+  const mapped = fields.map((field) => {
     const role = OPENART_FIELD_ROLES[field.key];
-    return role ? { ...field, role } : field;
+    return role ? {
+      ...field,
+      role,
+      ...((role === 'first-frame' || role === 'last-frame') ? { kind: 'asset' as const } : {})
+    } : field;
   });
+  const hasFrameSlots = mapped.some(({ role }) => role === 'first-frame' || role === 'last-frame');
+  return hasFrameSlots
+    ? mapped.map((field) => field.role === 'references' ? { ...field, required: false } : field)
+    : mapped;
+};
 
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+
+const mergeSchemas = (
+  left: Readonly<Record<string, unknown>>,
+  right: Readonly<Record<string, unknown>>
+): Record<string, unknown> => ({
+  ...left,
+  ...right,
+  properties: { ...(object(left.properties) ?? {}), ...(object(right.properties) ?? {}) },
+  required: [...new Set([
+    ...(Array.isArray(left.required) ? left.required.filter((key): key is string => typeof key === 'string') : []),
+    ...(Array.isArray(right.required) ? right.required.filter((key): key is string => typeof key === 'string') : [])
+  ])]
+});
+
+const resolveJsonPointer = (root: Readonly<Record<string, unknown>>, pointer: string): unknown => {
+  if (!pointer.startsWith('#/')) return undefined;
+  return pointer.slice(2).split('/').reduce<unknown>((current, segment) => object(current)?.[
+    segment.replace(/~1/gu, '/').replace(/~0/gu, '~')
+  ], root);
+};
+
+const dereferenceSchema = (
+  value: unknown,
+  root: Readonly<Record<string, unknown>>,
+  seen: ReadonlySet<string> = new Set()
+): Record<string, unknown> => {
+  const source = object(value) ?? {};
+  const reference = typeof source.$ref === 'string' ? source.$ref : undefined;
+  let resolved = { ...source };
+  if (reference && !seen.has(reference)) {
+    resolved = mergeSchemas(
+      dereferenceSchema(resolveJsonPointer(root, reference), root, new Set([...seen, reference])),
+      Object.fromEntries(Object.entries(source).filter(([key]) => key !== '$ref'))
+    );
+  }
+  const properties = object(resolved.properties);
+  if (properties) resolved.properties = Object.fromEntries(
+    Object.entries(properties).map(([key, field]) => [key, dereferenceSchema(field, root, seen)])
+  );
+  if (resolved.items) resolved.items = dereferenceSchema(resolved.items, root, seen);
+  return resolved;
+};
+
+const branchScore = (schema: Readonly<Record<string, unknown>>, canonicalMode: string): number => {
+  const properties = object(schema.properties) ?? {};
+  const keys = new Set(Object.keys(properties));
+  const creationMode = object(properties.creationMode)?.const;
+  if (canonicalMode === 'frames2video') {
+    return ['startFrame', 'start_frame', 'firstFrame', 'first_frame']
+      .some((key) => keys.has(key)) ? 100 : -10;
+  }
+  if (canonicalMode === 'references2video') {
+    return (['visualReferences', 'references', 'images', 'inputImages'].some((key) => keys.has(key)) ? 60 : 0)
+      + (creationMode === 'element' ? 40 : 0);
+  }
+  if (canonicalMode === 'text2video') return creationMode === 'text' ? 100
+    : [...keys].some((key) => /reference|frame|image/iu.test(key)) ? -20 : 20;
+  return 0;
+};
+
+const normalizeOpenArtFormSchema = (schema: Record<string, unknown>, requestedMode: string) => {
+  const canonicalMode = canonicalOpenArtMode(requestedMode);
+  const visit = (value: unknown): Record<string, unknown> => {
+    let resolved = dereferenceSchema(value, schema);
+    const allOf = Array.isArray(resolved.allOf) ? resolved.allOf : [];
+    delete resolved.allOf;
+    for (const branch of allOf) resolved = mergeSchemas(resolved, visit(branch));
+    for (const keyword of ['oneOf', 'anyOf'] as const) {
+      const branches = Array.isArray(resolved[keyword]) ? resolved[keyword] : [];
+      delete resolved[keyword];
+      const selected = branches.map((branch) => dereferenceSchema(branch, schema))
+        .sort((left, right) => branchScore(right, canonicalMode) - branchScore(left, canonicalMode))[0];
+      if (selected) resolved = mergeSchemas(resolved, visit(selected));
+    }
+    return resolved;
+  };
+  return visit(schema);
+};
 
 const parseJsonObjects = (value: unknown): unknown[] => {
   const results: unknown[] = [];
@@ -102,7 +218,7 @@ export const normalizeOpenArtModels = (payload: unknown): readonly GenAiModelSum
   return candidates.flatMap((raw) => {
     const model = object(raw);
     if (!model || typeof model.id !== 'string') return [];
-    const modes = modesOf(model);
+    const modes = [...new Set(modesOf(model).map(canonicalOpenArtMode))];
     return [{
       id: model.id as GenAiModelId,
       providerId: OPENART_ID as GenAiProviderId,
@@ -131,13 +247,15 @@ export const normalizeOpenArtWorkflow = (
       ?? object(possibleForm?.schema);
     if (!possibleForm || !possibleSchema) continue;
     const defaults = object(possibleForm.defaults) ?? findDefaults(payload);
-    const fields = mapOpenArtFieldRoles(normalizeGenAiJsonSchema(possibleSchema, defaults));
+    const fields = mapOpenArtFieldRoles(normalizeGenAiJsonSchema(
+      normalizeOpenArtFormSchema(possibleSchema, requestedMode), defaults
+    ));
     if (fields.length > (best?.fields.length ?? 0)) best = { form: possibleForm, fields };
   }
   if (!best?.fields.length) throw new Error('OpenArt returned a model form without usable fields.');
   const { form, fields } = best;
   const model = typeof form.model === 'string' ? form.model : requestedModel;
-  const mode = typeof form.mode === 'string' ? form.mode : requestedMode;
+  const mode = canonicalOpenArtMode(typeof form.mode === 'string' ? form.mode : requestedMode);
   return {
     id: `${OPENART_ID}:${model}:${mode}` as GenAiWorkflowId,
     providerId: OPENART_ID as GenAiProviderId,

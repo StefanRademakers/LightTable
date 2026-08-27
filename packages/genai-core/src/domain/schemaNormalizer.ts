@@ -49,9 +49,11 @@ export const normalizeGenAiJsonSchema = (
       kind,
       required: required.has(key),
       advanced: sourceSchema['x-lighttable-advanced'] === true,
+      ...('const' in sourceSchema ? { locked: true } : {}),
       ...(typeof sourceSchema.description === 'string' ? { description: sourceSchema.description } : {}),
-      ...((key in defaults || 'default' in sourceSchema)
-        ? { defaultValue: key in defaults ? defaults[key] : sourceSchema.default }
+      ...((key in defaults || 'default' in sourceSchema || 'const' in sourceSchema)
+        ? { defaultValue: key in defaults ? defaults[key]
+          : 'default' in sourceSchema ? sourceSchema.default : sourceSchema.const }
         : {}),
       ...(typeof sourceSchema.minimum === 'number' ? { minimum: sourceSchema.minimum } : {}),
       ...(typeof sourceSchema.maximum === 'number' ? { maximum: sourceSchema.maximum } : {}),

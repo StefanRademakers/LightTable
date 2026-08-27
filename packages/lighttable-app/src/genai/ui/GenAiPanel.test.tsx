@@ -64,14 +64,20 @@ describe('GenAiPanel visual references', () => {
     const videoWorkflow = {
       ...workflow('frames2video'), id: 'higgsfield:seedance_2_0:frames2video' as GenAiWorkflowId,
       providerId: videoModel.providerId, modelId: videoModel.id,
-      fields: workflow('frames2video').fields.map((field) => field.role === 'references'
-        ? { ...field, sourceSchema: { type: 'array', minItems: 1, maxItems: 2 } } : field)
+      fields: [
+        workflow('frames2video').fields[0]!,
+        { key: 'startFrame', role: 'first-frame' as const, label: 'Start frame', kind: 'asset' as const,
+          required: true, advanced: false, sourceSchema: { type: 'object' } },
+        { key: 'endFrame', role: 'last-frame' as const, label: 'End frame', kind: 'asset' as const,
+          required: false, advanced: false, sourceSchema: { type: 'object' } }
+      ]
     };
     const markup = renderToStaticMarkup(<GenAiPanel providerName="Higgsfield" status="connected"
       projectName="Project" models={[videoModel]} workflow={videoWorkflow} selectedModelId={videoModel.id}
-      selectedMode="frames2video" values={{ prompt: 'Animate', visualReferences: [asset] }} />);
-    expect(markup).toContain('aria-label="Generation mode"');
-    expect(markup).toContain('Video Create');
+      selectedMode="frames2video" values={{ prompt: 'Animate', startFrame: asset }} />);
+    expect(markup).toContain('aria-label="Content type"');
+    expect(markup).toContain('aria-label="Video input"');
+    expect(markup).toContain('Video');
     expect(markup).toContain('Frames');
     expect(markup).toContain('1/2');
     expect(markup).not.toContain('Add base image');

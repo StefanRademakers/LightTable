@@ -136,6 +136,16 @@ result delivery and the managed local-provider process. Local workflows support
 create/edit/inpaint; Remove Object submits a full-frame base plus selection mask
 through the same provider-neutral boundary.
 
+Provider transport modes are normalized before they reach the panel. OpenArt
+`image2video` is the canonical Frames variant and `element2video` is References;
+the adapter translates those names back only for schema, cost and generation
+tool calls. Live OpenArt schemas are dereferenced and their mode-relevant
+`allOf`/`oneOf`/`anyOf` branch is projected through existing LightTable panel
+controls. Provider-fixed `const` fields remain recorded and submitted but are
+not presented as editable controls. OpenArt image and video generation share
+the same proven desktop publication cache and at-most-once job runtime; video
+completion is stored in AI History and opens through the typed Video workspace.
+
 Generation is currently hard-gated by an active project because submission,
 jobs, outputs and recreate history use the project stores. Form/model discovery,
 reference preparation, provider authentication and local provider lifecycle can

@@ -56,6 +56,40 @@ export interface GenAiSetupSnapshot {
 }
 
 const DEFAULT_IMAGE_MODEL_ID = 'nano-banana-pro';
+const VIDEO_MODES = ['text2video', 'references2video', 'frames2video'] as const;
+
+const siblingModes = (mode: string): readonly string[] => mode === 'text2image' ? ['text2image']
+  : mode === 'image2image' ? ['image2image'] : VIDEO_MODES;
+
+const workflowReferences = (
+  workflow: GenAiWorkflowDefinition | undefined,
+  values: Readonly<Record<string, unknown>>
+): readonly GenAiAssetReference[] => {
+  if (!workflow) return [];
+  const fields = workflow.fields.filter(({ kind }) => kind === 'asset');
+  const collected = fields.flatMap((field) => {
+    const value = values[field.key];
+    return Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
+  }).filter((value): value is GenAiAssetReference => 'id' in value && typeof value.id === 'string');
+  return [...new Map(collected.map((reference) => [reference.id, reference])).values()];
+};
+
+const assignWorkflowReferences = (
+  workflow: GenAiWorkflowDefinition | undefined,
+  values: Readonly<Record<string, unknown>>,
+  references: readonly GenAiAssetReference[]
+): Readonly<Record<string, unknown>> => {
+  if (!workflow) return values;
+  const firstFrame = workflow.fields.find(({ role }) => role === 'first-frame');
+  const lastFrame = workflow.fields.find(({ role }) => role === 'last-frame');
+  const general = workflow.fields.find(({ role }) => role === 'references');
+  return {
+    ...values,
+    ...(firstFrame ? { [firstFrame.key]: references[0] } : {}),
+    ...(lastFrame ? { [lastFrame.key]: references[1] } : {}),
+    ...(general ? { [general.key]: firstFrame || lastFrame ? [] : references } : {})
+  };
+};
 
 export const useGenAiSetupController = (
   service: LightTableGenAiService | undefined,
@@ -142,7 +176,8 @@ export const useGenAiSetupController = (
     setSelectedModelId(model.id);
     setSelectedMode((current) => model.capabilities.includes(current)
       ? current
-      : model.capabilities.includes('text2image') ? 'text2image' : model.capabilities[0] ?? current);
+      : siblingModes(current).find((mode) => model.capabilities.includes(mode))
+        ?? model.capabilities[0] ?? current);
   }, [models]);
 
   const restoreRequest = React.useCallback((request: GenAiGenerationRequest) => {
@@ -192,17 +227,13 @@ export const useGenAiSetupController = (
       const previousWorkflow = workflowRef.current;
       const previousValues = valuesRef.current;
       const previousPromptField = previousWorkflow?.fields.find(({ role }) => role === 'prompt');
-      const previousReferenceField = previousWorkflow?.fields.find(({ role }) => role === 'references');
       const nextPromptField = nextWorkflow.fields.find(({ role }) => role === 'prompt');
-      const nextReferenceField = nextWorkflow.fields.find(({ role }) => role === 'references');
       const previousPrompt = previousPromptField ? previousValues[previousPromptField.key] : previousValues.prompt;
-      const previousReferences = previousReferenceField ? previousValues[previousReferenceField.key] : undefined;
       nextValues = {
         ...nextValues,
-        ...(nextPromptField && typeof previousPrompt === 'string' ? { [nextPromptField.key]: previousPrompt } : {}),
-        ...(nextReferenceField && Array.isArray(previousReferences)
-          ? { [nextReferenceField.key]: previousReferences } : {})
+        ...(nextPromptField && typeof previousPrompt === 'string' ? { [nextPromptField.key]: previousPrompt } : {})
       };
+      nextValues = assignWorkflowReferences(nextWorkflow, nextValues, workflowReferences(previousWorkflow, previousValues));
       const activeDocument = documentContextRef.current;
       setValues(activeDocument
         ? matchGenAiValuesToDocument(nextWorkflow, nextValues, activeDocument)
@@ -276,17 +307,15 @@ export const useGenAiSetupController = (
     const option = mentionOptions.find(({ asset }) => asset.id === assetId);
     if (!option) return;
     setValues((current) => {
-      const currentPrompt = String(current.prompt ?? '');
-      const referenceField = workflow?.fields.find(({ role }) => role === 'references');
-      const currentReferences = referenceField && Array.isArray(current[referenceField.key])
-        ? current[referenceField.key] as GenAiAssetReference[] : [];
+      const promptKey = workflow?.fields.find(({ role }) => role === 'prompt')?.key ?? 'prompt';
+      const currentPrompt = String(current[promptKey] ?? '');
+      const currentReferences = workflowReferences(workflow, current);
       const references = currentReferences.some(({ id }) => id === assetId)
         ? currentReferences : [...currentReferences, option.asset];
       const hasToken = new RegExp(`(^|\\s)${option.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'iu').test(currentPrompt);
-      return { ...current,
-        ...(referenceField ? { [referenceField.key]: references } : {}),
-        prompt: hasToken ? currentPrompt
-          : `${currentPrompt}${currentPrompt && !/\s$/u.test(currentPrompt) ? ' ' : ''}${option.token}` };
+      return assignWorkflowReferences(workflow, { ...current,
+        [promptKey]: hasToken ? currentPrompt
+          : `${currentPrompt}${currentPrompt && !/\s$/u.test(currentPrompt) ? ' ' : ''}${option.token}` }, references);
     });
   }, [mentionOptions, workflow]);
   const importAssetReference = React.useCallback(async (file: File) => {
@@ -321,12 +350,10 @@ export const useGenAiSetupController = (
         });
         setAssetPreviews((current) => ({ ...current, [imported.id]: preview }));
       }
-      const referenceField = workflow?.fields.find(({ role }) => role === 'references');
-      if (referenceField) setValues((current) => {
-        const references = Array.isArray(current[referenceField.key])
-          ? current[referenceField.key] as GenAiAssetReference[] : [];
+      if (workflow?.fields.some(({ kind }) => kind === 'asset')) setValues((current) => {
+        const references = workflowReferences(workflow, current);
         return references.some(({ id }) => id === imported.id) ? current
-          : { ...current, [referenceField.key]: [...references, imported] };
+          : assignWorkflowReferences(workflow, current, [...references, imported]);
       });
       previewRequests.current.delete(imported.id);
       return imported;
@@ -339,19 +366,14 @@ export const useGenAiSetupController = (
     }
   }, [projectId, service, workflow]);
   const removeAssetReference = React.useCallback((assetId: GenAiAssetId) => {
-    const referenceField = workflow?.fields.find(({ role }) => role === 'references');
-    if (!referenceField) return;
-    setValues((current) => ({
-      ...current,
-      [referenceField.key]: Array.isArray(current[referenceField.key])
-        ? (current[referenceField.key] as GenAiAssetReference[]).filter(({ id }) => id !== assetId)
-        : []
-    }));
+    if (!workflow?.fields.some(({ kind }) => kind === 'asset')) return;
+    setValues((current) => assignWorkflowReferences(
+      workflow, current, workflowReferences(workflow, current).filter(({ id }) => id !== assetId)
+    ));
   }, [workflow]);
-  const prompt = String(values.prompt ?? '');
-  const referenceField = workflow?.fields.find(({ role }) => role === 'references');
-  const selectedReferences = React.useMemo(() => referenceField && Array.isArray(values[referenceField.key])
-    ? values[referenceField.key] as GenAiAssetReference[] : [], [referenceField, values]);
+  const promptKey = workflow?.fields.find(({ role }) => role === 'prompt')?.key ?? 'prompt';
+  const prompt = String(values[promptKey] ?? '');
+  const selectedReferences = React.useMemo(() => workflowReferences(workflow, values), [values, workflow]);
   const resolvedMentions = React.useMemo(
     () => resolveGenAiPromptMentions(prompt, mentionOptions, selectedReferences),
     [mentionOptions, prompt, selectedReferences]
@@ -359,9 +381,8 @@ export const useGenAiSetupController = (
   const validationValues = React.useMemo(() => {
     if (!workflow) return values;
     const next = { ...values };
-    for (const field of workflow.fields) {
-      if (field.kind === 'asset') next[field.key] = selectedReferences;
-    }
+    const generalReferences = workflow.fields.find(({ role }) => role === 'references');
+    if (generalReferences) next[generalReferences.key] = values[generalReferences.key] ?? [];
     return next;
   }, [selectedReferences, values, workflow]);
   const validationIssues = workflow ? validateGenAiWorkflowValues(workflow, validationValues) : [];

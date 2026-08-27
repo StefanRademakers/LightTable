@@ -490,14 +490,14 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 32,
+      "productionUsageCount": 31,
       "internalUsageCount": 1,
       "contextCount": 15,
       "overrideCount": 1,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -640,11 +640,16 @@
     {
       "id": "panel-select",
       "metadataDeclared": true,
-      "productionUsageCount": 10,
+      "productionUsageCount": 11,
       "internalUsageCount": 0,
-      "contextCount": 4,
+      "contextCount": 5,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
           "count": 1,
@@ -739,14 +744,14 @@
     {
       "id": "segmented-control",
       "metadataDeclared": true,
-      "productionUsageCount": 13,
+      "productionUsageCount": 14,
       "internalUsageCount": 0,
       "contextCount": 10,
       "overrideCount": 1,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -878,7 +883,7 @@
     {
       "id": "adjustment-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 43,
+      "productionUsageCount": 46,
       "internalUsageCount": 5,
       "contextCount": 14,
       "overrideCount": 0,
@@ -945,7 +950,7 @@
         },
         {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
-          "count": 6,
+          "count": 9,
           "kind": "product"
         },
         {
@@ -1136,7 +1141,7 @@
     {
       "id": "context-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 8,
+      "productionUsageCount": 9,
       "internalUsageCount": 0,
       "contextCount": 7,
       "overrideCount": 0,
@@ -1168,7 +1173,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 2,
+          "count": 3,
           "kind": "product"
         },
         {

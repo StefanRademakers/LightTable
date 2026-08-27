@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readOpenArtSignedUpload } from './openArtConnectionController';
+import { findBestOpenArtOutputUrl, readOpenArtSignedUpload } from './openArtConnectionController';
 
 describe('readOpenArtSignedUpload', () => {
   it('reads the explicit signed PUT descriptor and its required headers', () => {
@@ -36,5 +36,14 @@ describe('readOpenArtSignedUpload', () => {
       url: 'https://cdn.example.test/object',
       accessURL: 'https://cdn.example.test/object'
     })).toBeNull();
+  });
+});
+
+describe('findBestOpenArtOutputUrl', () => {
+  it('prefers the requested video result over a nested image preview', () => {
+    expect(findBestOpenArtOutputUrl({
+      previewUrl: 'https://cdn.example.test/preview.png',
+      result: { outputUrl: 'https://cdn.example.test/render.mp4' }
+    }, 'video')).toBe('https://cdn.example.test/render.mp4');
   });
 });

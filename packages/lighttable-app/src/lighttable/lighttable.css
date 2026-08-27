@@ -3690,6 +3690,18 @@
   pointer-events: none;
 }
 
+.genai-panel__model-description {
+  margin: -5px 2px 12px;
+  color: var(--lt-text-subtle);
+  font-size: var(--lt-type-small);
+  line-height: 1.35;
+}
+
+.genai-panel__variant-switch {
+  align-self: stretch;
+  margin: 0 0 12px;
+}
+
 .lighttable-layer__clipping-mark img {
   width: 12px;
   height: 12px;

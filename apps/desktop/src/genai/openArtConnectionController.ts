@@ -25,6 +25,8 @@ import {
   normalizeOpenArtCost,
   buildOpenArtGenerationParams,
   openArtBootstrapWorkflow,
+  canonicalOpenArtMode,
+  providerOpenArtMode,
   type OpenArtResolvedReference
 } from '@lighttable/genai-openart';
 import type { OpenArtConnectionHost } from '@lighttable/genai-openart';
@@ -87,6 +89,8 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
         : undefined)
       .then(() => {
         if (generation !== this.connectGeneration) return this.snapshotValue;
+        this.models = null;
+        this.workflows.clear();
         this.publish(transitionGenAiProvider(this.snapshotValue, 'connected', {
           message: undefined,
           connectedAt: Date.now()
@@ -136,6 +140,8 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
     ++this.connectGeneration;
     this.operation = null;
     await this.connection.disconnect(true);
+    this.models = null;
+    this.workflows.clear();
     this.publish(transitionGenAiProvider(this.snapshotValue, 'disconnected', {
       message: undefined
     }));
@@ -151,7 +157,10 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
       await this.catalogStore?.saveModels(models);
       return models;
     } catch (reason) {
-      const cached = (await this.catalogStore?.load())?.models ?? [];
+      const cached = ((await this.catalogStore?.load())?.models ?? []).map((model) => ({
+        ...model,
+        capabilities: [...new Set(model.capabilities.map(canonicalOpenArtMode))]
+      }));
       if (cached.length) { this.models = cached; return cached; }
       throw reason;
     }
@@ -165,9 +174,10 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
     const bootstrap = openArtBootstrapWorkflow(modelId, mode);
     const fallback = cached?.fields.length ? cached : bootstrap;
     const refresh = this.workflowRefreshes.get(workflowId) ?? (async () => {
-      const result = await this.connection.callTool('openart_model_form_get', { model: modelId, mode });
+      const providerMode = providerOpenArtMode(mode);
+      const result = await this.connection.callTool('openart_model_form_get', { model: modelId, mode: providerMode });
       const workflow = normalizeOpenArtWorkflow(
-        mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]), modelId, mode
+        mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]), modelId, providerMode
       );
       this.workflows.set(workflow.id, workflow);
       await this.catalogStore?.saveWorkflow(workflow);
@@ -192,7 +202,12 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
   ): Promise<GenAiCostEstimate | null> {
     if (!this.costEstimateSupported) return null;
     try {
-      const result = await this.connection.callTool('openart_model_cost', { model: modelId, mode, params });
+      const workflow = this.workflows.get(`${OPENART_PROVIDER_ID}:${modelId}:${mode}`);
+      const costParams: Record<string, unknown> = { ...params };
+      for (const field of workflow?.fields ?? []) if (field.kind === 'asset') delete costParams[field.key];
+      const result = await this.connection.callTool('openart_model_cost', {
+        model: modelId, mode: providerOpenArtMode(mode), params: costParams
+      });
       return normalizeOpenArtCost(mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]));
     } catch (reason) {
       // Pricing is optional presentation metadata. Some OpenArt MCP versions
@@ -219,11 +234,13 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
         + 'The host-only upload picker cannot publish local LightTable assets.'
       );
     }
+    const mediaKind = asset.mediaType.startsWith('video/') ? 'video'
+      : asset.mediaType.startsWith('audio/') ? 'audio' : 'image';
     const signResult = mcpToolPayload(await this.connection.callTool(signTool.name, buildToolArguments(
       signTool,
       {
         filename: asset.name,
-        mediaType: 'image',
+        mediaType: mediaKind,
         contentType: asset.mediaType,
         fileSize: asset.bytes.byteLength
       }
@@ -263,7 +280,7 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
     ]);
     const metadataResult = mcpToolPayload(await this.connection.callTool(metadataTool.name, buildToolArguments(
       metadataTool,
-      { mediaUrl: accessUrl, uploadId, mediaType: 'image', label: asset.name }
+      { mediaUrl: accessUrl, uploadId, mediaType: mediaKind, label: asset.name }
     )) as Parameters<typeof mcpToolPayload>[0]);
     const visualReference = findNamedValue(metadataResult, ['visualReference', 'visual_reference']);
     const url = findNamedString(visualReference, [
@@ -294,9 +311,11 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
     const mode = request.workflowId.split(':').at(-1) ?? 'text2image';
     const workflow = this.workflows.get(request.workflowId)
       ?? await this.loadWorkflow(request.modelId, mode);
-    const result = await this.connection.callTool('openart_generate_image', {
+    const providerMode = providerOpenArtMode(mode);
+    const result = await this.connection.callTool(request.kind === 'video'
+      ? 'openart_generate_video' : 'openart_generate_image', {
       model: request.modelId,
-      mode,
+      mode: providerMode,
       params: buildOpenArtGenerationParams(request, workflow, resolvedReferences)
     });
     const payload = mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]);
@@ -307,6 +326,7 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
 
   async waitForGeneration(
     providerJobId: string,
+    expectedKind: 'image' | 'video' = 'image',
     signal?: AbortSignal
   ): Promise<{ readonly url: string; readonly mediaType: string }> {
     for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -321,9 +341,9 @@ export class OpenArtConnectionController implements DesktopGenAiProviderControll
       if (status === 'FAILED') throw new Error(findString(payload, ['errorMessage', 'error_message', 'error', 'message']) ?? 'OpenArt generation failed.');
       if (status === 'CANCELLED' || status === 'CANCELED') throw new Error('OpenArt generation was cancelled.');
       if (status === 'COMPLETED') {
-        const url = findBestHttpUrl(payload);
+        const url = findBestOpenArtOutputUrl(payload, expectedKind);
         if (!url) throw new Error('OpenArt completed the generation without an output URL.');
-        return { url, mediaType: 'image/png' };
+        return { url, mediaType: expectedKind === 'video' ? 'video/mp4' : 'image/png' };
       }
       await abortableDelay(Math.min(8_000, 500 * 1.5 ** attempt), signal);
     }
@@ -565,25 +585,38 @@ const findString = (value: unknown, keys: readonly string[], depth = 0): string 
   return null;
 };
 
-const findBestHttpUrl = (value: unknown, depth = 0): string | null => {
-  if (depth > 8 || value === null || value === undefined) return null;
-  if (typeof value === 'string') {
-    if (/^https?:\/\//iu.test(value)) return value;
-    const source = value.trim();
-    if ((source.startsWith('{') && source.endsWith('}')) || (source.startsWith('[') && source.endsWith(']'))) {
-      try { return findBestHttpUrl(JSON.parse(source), depth + 1); } catch { return null; }
+export const findBestOpenArtOutputUrl = (
+  value: unknown,
+  expectedKind: 'image' | 'video'
+): string | null => {
+  const candidates: Array<{ readonly url: string; readonly score: number }> = [];
+  const visit = (entry: unknown, path: readonly string[] = [], depth = 0): void => {
+    if (depth > 10 || entry === null || entry === undefined) return;
+    if (typeof entry === 'string') {
+      const source = entry.trim();
+      if (/^https?:\/\//iu.test(source)) {
+        const location = path.join('.').toLocaleLowerCase('en-US');
+        let score = /(resource|result|output|asset)/u.test(location) ? 10 : 0;
+        if (/(thumbnail|preview|input|source)/u.test(location)) score -= 20;
+        if (expectedKind === 'video' && /\.(mp4|webm|mov)(\?|#|$)/iu.test(source)) score += 20;
+        if (expectedKind === 'image' && /\.(png|jpe?g|webp)(\?|#|$)/iu.test(source)) score += 20;
+        candidates.push({ url: source, score });
+        return;
+      }
+      if ((source.startsWith('{') && source.endsWith('}')) || (source.startsWith('[') && source.endsWith(']'))) {
+        try { visit(JSON.parse(source), path, depth + 1); } catch { /* Not embedded JSON. */ }
+      }
+      return;
     }
-    return null;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) { const found = findBestHttpUrl(item, depth + 1); if (found) return found; }
-    return null;
-  }
-  if (typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  for (const key of ['resourceUrl', 'resource_url', 'outputUrl', 'output_url', 'url']) {
-    if (typeof record[key] === 'string' && /^https?:\/\//iu.test(record[key])) return record[key] as string;
-  }
-  for (const item of Object.values(record)) { const found = findBestHttpUrl(item, depth + 1); if (found) return found; }
-  return null;
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => visit(item, [...path, String(index)], depth + 1));
+      return;
+    }
+    if (typeof entry === 'object') {
+      Object.entries(entry as Record<string, unknown>)
+        .forEach(([key, item]) => visit(item, [...path, key], depth + 1));
+    }
+  };
+  visit(value);
+  return candidates.sort((left, right) => right.score - left.score)[0]?.url ?? null;
 };

@@ -43,6 +43,7 @@ export type GenAiFieldKind =
  */
 export type GenAiFieldRole =
   | 'prompt'
+  | 'negative-prompt'
   | 'references'
   | 'aspect-ratio'
   | 'output-size'
@@ -54,7 +55,10 @@ export type GenAiFieldRole =
   | 'first-frame'
   | 'last-frame'
   | 'source-video'
-  | 'source-audio';
+  | 'source-audio'
+  | 'seed'
+  | 'width'
+  | 'height';
 
 export interface GenAiFieldDefinition {
   readonly key: string;
@@ -63,6 +67,8 @@ export interface GenAiFieldDefinition {
   readonly kind: GenAiFieldKind;
   readonly required: boolean;
   readonly advanced: boolean;
+  /** Provider-fixed value retained in requests but intentionally not user-editable. */
+  readonly locked?: boolean;
   readonly description?: string;
   readonly defaultValue?: unknown;
   readonly minimum?: number;

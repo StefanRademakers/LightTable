@@ -10,11 +10,13 @@ const featuredRoles = new Set(['aspect-ratio', 'output-size', 'quality', 'output
 const advancedFields = new Set([
   'autoEnhancePrompt', 'seed', 'negativePrompt', 'guidanceScale', 'steps', 'sampler', 'scheduler'
 ]);
+const advancedRoles = new Set(['negative-prompt', 'seed', 'width', 'height']);
 
 export const genAiFieldPlacement = (field: GenAiFieldDefinition): GenAiFieldPlacement => (
   field.role && featuredRoles.has(field.role)
     ? 'featured'
     : field.advanced || field.kind === 'unknown' || advancedFields.has(field.key)
+      || Boolean(field.role && advancedRoles.has(field.role))
       ? 'advanced'
       : 'basic'
 );

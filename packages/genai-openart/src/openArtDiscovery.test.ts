@@ -12,6 +12,58 @@ describe('OpenArt discovery normalization', () => {
     });
   });
 
+  it('projects OpenArt video transport modes into stable LightTable variants', () => {
+    expect(normalizeOpenArtModels({ models: [{
+      id: 'seedance', displayName: 'Seedance',
+      modes: ['text2video', 'image2video', 'element2video']
+    }] })[0]?.capabilities).toEqual(['text2video', 'frames2video', 'references2video']);
+    expect(normalizeOpenArtWorkflow({
+      model: 'seedance', mode: 'image2video',
+      schemaCore: { type: 'object', required: ['prompt', 'startFrame'], properties: {
+        prompt: { type: 'string' }, startFrame: { type: 'object' }, endFrame: { type: 'object' },
+        duration: { type: 'integer', minimum: 4, maximum: 15 }
+      } }
+    }, 'seedance', 'image2video')).toMatchObject({
+      id: 'openart:seedance:frames2video', mode: 'frames2video', fields: [
+        { key: 'prompt', role: 'prompt' },
+        { key: 'startFrame', role: 'first-frame', kind: 'asset', required: true },
+        { key: 'endFrame', role: 'last-frame', kind: 'asset' },
+        { key: 'duration', role: 'duration', kind: 'integer' }
+      ]
+    });
+  });
+
+  it('selects and dereferences the schema branch belonging to the requested video variant', () => {
+    const schemaCore = {
+      type: 'object',
+      properties: { prompt: { type: 'string' } },
+      required: ['prompt'],
+      oneOf: [
+        { $ref: '#/$defs/frames' },
+        { $ref: '#/$defs/references' }
+      ],
+      $defs: {
+        frames: { type: 'object', required: ['startFrame'], properties: { startFrame: { type: 'object' } } },
+        references: { type: 'object', properties: {
+          creationMode: { const: 'element' }, visualReferences: { type: 'array', maxItems: 7 }
+        } }
+      }
+    };
+    const frames = normalizeOpenArtWorkflow({ model: 'video', mode: 'image2video', schemaCore }, 'video', 'image2video');
+    const references = normalizeOpenArtWorkflow(
+      { model: 'video', mode: 'element2video', schemaCore }, 'video', 'element2video'
+    );
+    expect(frames.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'startFrame', role: 'first-frame', required: true })
+    ]));
+    expect(frames.fields.some(({ key }) => key === 'visualReferences')).toBe(false);
+    expect(references.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'creationMode', locked: true, defaultValue: 'element' }),
+      expect.objectContaining({ key: 'visualReferences', role: 'references' })
+    ]));
+    expect(references.fields.some(({ key }) => key === 'startFrame')).toBe(false);
+  });
+
   it('normalizes the live form instead of hardcoding Nano Banana fields', () => {
     const workflow = normalizeOpenArtWorkflow({
       model: 'nano-banana-pro', mode: 'text2image',

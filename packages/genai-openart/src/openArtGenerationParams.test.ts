@@ -94,4 +94,38 @@ describe('buildOpenArtGenerationParams', () => {
       assetId, url: 'https://assets.example/face.png', mediaType: 'image/png'
     }])).toMatchObject({ text: 'Use @image1', inputImages: [{ url: 'https://assets.example/face.png' }] });
   });
+
+  it('maps ordered frame references into provider-owned first and last frame fields', () => {
+    const secondAssetId = 'asset-end' as GenAiAssetId;
+    const frameWorkflow = {
+      ...workflow,
+      id: 'openart:seedance:frames2video' as GenAiWorkflowId,
+      mode: 'frames2video',
+      fields: [
+        workflow.fields[1]!,
+        { key: 'startFrame', role: 'first-frame', label: 'Start frame', kind: 'asset', required: true,
+          advanced: false, sourceSchema: { type: 'object' } },
+        { key: 'endFrame', role: 'last-frame', label: 'End frame', kind: 'asset', required: false,
+          advanced: false, sourceSchema: { type: 'object' } }
+      ]
+    } satisfies GenAiWorkflowDefinition;
+    const frameRequest = {
+      ...request,
+      workflowId: frameWorkflow.id,
+      kind: 'video' as const,
+      fields: { startFrame: request.references[0], endFrame: { id: secondAssetId } },
+      references: [
+        { ...request.references[0], purpose: 'first_frame' as const },
+        { id: secondAssetId, projectId: 'project', label: 'end.png', mediaType: 'image/png', purpose: 'last_frame' as const }
+      ]
+    } satisfies GenAiGenerationRequest;
+    expect(buildOpenArtGenerationParams(frameRequest, frameWorkflow, [
+      { assetId, url: 'https://assets.example/start.png', mediaType: 'image/png' },
+      { assetId: secondAssetId, url: 'https://assets.example/end.png', mediaType: 'image/png' }
+    ])).toMatchObject({
+      prompt: 'Use @image1',
+      startFrame: { id: 'image1', url: 'https://assets.example/start.png' },
+      endFrame: { id: 'image2', url: 'https://assets.example/end.png' }
+    });
+  });
 });

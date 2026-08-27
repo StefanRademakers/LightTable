@@ -18,6 +18,9 @@ export const buildOpenArtGenerationParams = (
 ): Readonly<Record<string, unknown>> => {
   const promptField = workflow.fields.find((field) => field.role === 'prompt')?.key ?? 'prompt';
   const params: Record<string, unknown> = { ...request.fields, [promptField]: request.providerPrompt };
+  // Media fields are reconstructed from desktop-published provider URLs below.
+  // Never leak renderer-side asset objects or arrays into the provider form.
+  for (const field of workflow.fields) if (field.kind === 'asset') delete params[field.key];
   if (!request.references.length) return params;
 
   const byAssetId = new Map(resolvedReferences.map((reference) => [reference.assetId, reference]));
@@ -51,10 +54,22 @@ export const buildOpenArtGenerationParams = (
     };
   });
 
+  const firstFrameField = workflow.fields.find((field) => field.role === 'first-frame')?.key;
+  const lastFrameField = workflow.fields.find((field) => field.role === 'last-frame')?.key;
   const referenceField = workflow.fields.find((field) => field.role === 'references')?.key;
-  if (!referenceField) {
+  const firstFrame = request.references.find(({ purpose }) => purpose === 'first_frame');
+  const lastFrame = request.references.find(({ purpose }) => purpose === 'last_frame');
+  const byRequestId = new Map(request.references.map((reference, index) => [reference.id, providerReferences[index]!]));
+  if (firstFrameField && firstFrame) params[firstFrameField] = byRequestId.get(firstFrame.id);
+  if (lastFrameField && lastFrame) params[lastFrameField] = byRequestId.get(lastFrame.id);
+
+  if (referenceField) {
+    params[referenceField] = providerReferences.filter((_reference, index) => {
+      const purpose = request.references[index]?.purpose;
+      return (purpose !== 'first_frame' || !firstFrameField) && (purpose !== 'last_frame' || !lastFrameField);
+    });
+  } else if (!firstFrameField && !lastFrameField) {
     throw new Error(`${workflow.label} does not accept visual references.`);
   }
-  params[referenceField] = providerReferences;
   return params;
 };

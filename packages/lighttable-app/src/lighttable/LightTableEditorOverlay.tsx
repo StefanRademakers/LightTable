@@ -8498,6 +8498,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               },
               genAi: {
                 interactionActive: active,
+                providerId: genAiProvider.id,
                 providerName: genAiProvider.label,
                 status: genAiProvider.status,
                 message: genAiProvider.message,
@@ -8509,8 +8510,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 selectedMode: genAiSetup.selectedMode,
                 onModeChange: (mode) => {
                   setGenAiBaseImageSelected(mode === 'image2image');
-                  setSelectedGenAiProviderId(mode === 'image2image'
-                    ? editGenAiProviderId : createGenAiProviderId);
                   genAiSetup.setMode(mode);
                 },
                 loading: genAiSetup.loading,
