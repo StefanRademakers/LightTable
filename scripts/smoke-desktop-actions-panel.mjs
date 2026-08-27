@@ -130,6 +130,23 @@ try {
     || historyGeometry.stateRadius !== historyGeometry.layerRadius) {
     throw new Error(`History drifts from the shared panel UI: ${JSON.stringify(historyGeometry)}`);
   }
+  const historyOverflow = await window.evaluate(() => {
+    const states = document.querySelector('.lighttable-history-panel__states');
+    const label = document.querySelector('.lighttable-history-panel__state > span:last-child');
+    if (!(states instanceof HTMLElement) || !(label instanceof HTMLElement)) return null;
+    const original = label.textContent;
+    label.textContent = 'A deliberately very long document name that must stay inside the History panel.psd';
+    const style = getComputedStyle(label);
+    const result = { clipped: label.scrollWidth > label.clientWidth,
+      noHorizontalScroll: states.scrollWidth <= states.clientWidth,
+      textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
+    label.textContent = original;
+    return result;
+  });
+  if (!historyOverflow?.clipped || !historyOverflow.noHorizontalScroll
+    || historyOverflow.textOverflow !== 'ellipsis' || historyOverflow.whiteSpace !== 'nowrap') {
+    throw new Error(`History labels do not ellipsize cleanly: ${JSON.stringify(historyOverflow)}`);
+  }
 
   await window.screenshot({ path: path.join(output, 'actions-history-panels.png') });
   if (pageErrors.length) throw new Error(`Actions page errors: ${pageErrors.join(' | ')}`);
