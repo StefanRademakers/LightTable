@@ -60,4 +60,14 @@ describe('semantic selection command contract', () => {
       ...command, point: { x: Number.POSITIVE_INFINITY, y: 1 }
     })).toHaveProperty('message');
   });
+
+  it('parses Select Similar as a bounded selection modification', () => {
+    const command = {
+      kind: 'modify', operation: 'similar', layerId: 'layer-photo',
+      tolerance: 24, antiAlias: true, sampleAllLayers: false
+    };
+    expect(parseSemanticSelectionCommand(command)).toEqual(command);
+    expect(parseSemanticSelectionCommand({ ...command, tolerance: 256 })).toHaveProperty('message');
+    expect(parseSemanticSelectionCommand({ ...command, contiguous: false })).toHaveProperty('message');
+  });
 });

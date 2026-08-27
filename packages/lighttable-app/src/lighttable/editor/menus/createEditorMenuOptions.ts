@@ -99,6 +99,7 @@ export interface EditorMenuCommands {
   selectAll: () => void;
   clearSelection: () => void;
   invertSelection: () => void;
+  selectSimilar: () => void;
   borderSelection: () => void;
   smoothSelection: () => void;
   expandSelection: () => void;
@@ -498,6 +499,12 @@ export const createEditorMenuOptions = (
             disabled: !state.hasSelection || state.saving
           }
         ]
+      },
+      {
+        value: 'select-similar',
+        label: 'Similar',
+        onClick: commands.selectSimilar,
+        disabled: !state.hasSelection || !state.layer || state.saving
       },
       {
         value: 'remove-object',

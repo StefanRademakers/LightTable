@@ -185,10 +185,14 @@
         "required": ["kind", "operation"],
         "properties": {
           "kind": { "type": "string", "title": "Selection kind", "const": "modify", "default": "modify" },
-          "operation": { "type": "string", "title": "Operation", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract"], "default": "all" },
+          "operation": { "type": "string", "title": "Operation", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract", "similar"], "default": "all" },
           "radius": { "type": "number", "title": "Radius", "minimum": 0, "maximum": 500, "default": 1 },
           "width": { "type": "integer", "title": "Width", "minimum": 1, "maximum": 200, "default": 1 },
-          "applyAtCanvasBounds": { "type": "boolean", "title": "Apply effect at canvas bounds", "default": false }
+          "applyAtCanvasBounds": { "type": "boolean", "title": "Apply effect at canvas bounds", "default": false },
+          "layerId": { "type": "string", "title": "Source layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "tolerance": { "type": "integer", "title": "Magic Wand tolerance", "minimum": 0, "maximum": 255, "default": 20 },
+          "antiAlias": { "type": "boolean", "title": "Anti-alias", "default": true },
+          "sampleAllLayers": { "type": "boolean", "title": "Sample all layers", "default": false }
         },
         "oneOf": [
           {
@@ -225,6 +229,12 @@
             "type": "object",
             "maxProperties": 2,
             "properties": { "operation": { "enum": ["all", "clear", "invert"] } }
+          },
+          {
+            "type": "object",
+            "maxProperties": 6,
+            "required": ["layerId", "tolerance", "antiAlias", "sampleAllLayers"],
+            "properties": { "operation": { "const": "similar" } }
           }
         ]
       },
@@ -233,10 +243,14 @@
         "additionalProperties": false,
         "required": ["operation"],
         "properties": {
-          "operation": { "type": "string", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract"] },
+          "operation": { "type": "string", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract", "similar"] },
           "radius": { "type": "number", "minimum": 0, "maximum": 500 },
           "width": { "type": "integer", "minimum": 1, "maximum": 200 },
-          "applyAtCanvasBounds": { "type": "boolean" }
+          "applyAtCanvasBounds": { "type": "boolean" },
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "tolerance": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "antiAlias": { "type": "boolean" },
+          "sampleAllLayers": { "type": "boolean" }
         },
         "oneOf": [
           {
@@ -273,6 +287,12 @@
             "type": "object",
             "maxProperties": 2,
             "properties": { "operation": { "enum": ["all", "clear", "invert"] } }
+          },
+          {
+            "type": "object",
+            "maxProperties": 6,
+            "required": ["layerId", "tolerance", "antiAlias", "sampleAllLayers"],
+            "properties": { "operation": { "const": "similar" } }
           }
         ]
       }

@@ -36,6 +36,12 @@ export interface MagicWandOptions {
   sampleAllLayers: boolean;
 }
 
+export interface SimilarSelectionOptions {
+  tolerance: number;
+  antiAlias: boolean;
+  sampleAllLayers: boolean;
+}
+
 export interface SmartSelectionOptions {
   mode: 'object-finder' | 'rectangle' | 'lasso';
   sampleAllLayers: boolean;
@@ -81,6 +87,12 @@ export interface SelectionOperation {
         documentRevision: number;
       }
     | {
+        kind: 'similar';
+        options: SimilarSelectionOptions;
+        layerId: LayerId;
+        documentRevision: number;
+      }
+    | {
         kind: 'raster-mask';
         mask: RasterSelectionMask;
         documentRevision: number;
@@ -115,6 +127,26 @@ export const createMagicWandSelectionOperation = (
   source: {
     kind: 'magic-wand',
     point: { ...point },
+    options: {
+      ...options,
+      tolerance: Math.max(0, Math.min(255, Math.round(options.tolerance)))
+    },
+    layerId,
+    documentRevision
+  },
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createSimilarSelectionOperation = (
+  layerId: LayerId,
+  documentRevision: number,
+  width: number,
+  height: number,
+  options: SimilarSelectionOptions
+): SelectionOperation => ({
+  mode: 'add',
+  source: {
+    kind: 'similar',
     options: {
       ...options,
       tolerance: Math.max(0, Math.min(255, Math.round(options.tolerance)))

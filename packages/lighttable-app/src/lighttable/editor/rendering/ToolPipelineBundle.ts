@@ -33,6 +33,12 @@ import {
   MAGIC_WAND_RELAX_WGSL,
   MAGIC_WAND_SAMPLE_WGSL
 } from './magicWandShaders';
+import {
+  SELECT_SIMILAR_CLEAR_WGSL,
+  SELECT_SIMILAR_DILATE_WGSL,
+  SELECT_SIMILAR_FINAL_WGSL,
+  SELECT_SIMILAR_MARK_WGSL
+} from './selectSimilarShaders';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 export interface BrushPipelineBundle {
@@ -79,6 +85,10 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   magicWandRelax: GPUComputePipeline;
   magicWandCompress: GPUComputePipeline;
   magicWandFinal: GPURenderPipeline;
+  selectSimilarClear: GPUComputePipeline;
+  selectSimilarMark: GPUComputePipeline;
+  selectSimilarDilate: GPUComputePipeline;
+  selectSimilarFinal: GPURenderPipeline;
 }
 
 const brushCache = new WeakMap<GPUDevice, BrushPipelineBundle>();
@@ -286,7 +296,11 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     magicWandInitialize: computePipeline('LightTable Magic Wand candidates', MAGIC_WAND_INITIALIZE_WGSL),
     magicWandRelax: computePipeline('LightTable Magic Wand component relaxation', MAGIC_WAND_RELAX_WGSL),
     magicWandCompress: computePipeline('LightTable Magic Wand component compression', MAGIC_WAND_COMPRESS_WGSL),
-    magicWandFinal: fullscreenPipeline('LightTable Magic Wand mask', MAGIC_WAND_FINAL_WGSL, SELECTION_TEXTURE_FORMAT)
+    magicWandFinal: fullscreenPipeline('LightTable Magic Wand mask', MAGIC_WAND_FINAL_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectSimilarClear: computePipeline('LightTable Select Similar clear color grid', SELECT_SIMILAR_CLEAR_WGSL),
+    selectSimilarMark: computePipeline('LightTable Select Similar mark colors', SELECT_SIMILAR_MARK_WGSL),
+    selectSimilarDilate: computePipeline('LightTable Select Similar expand tolerance', SELECT_SIMILAR_DILATE_WGSL),
+    selectSimilarFinal: fullscreenPipeline('LightTable Select Similar mask', SELECT_SIMILAR_FINAL_WGSL, SELECTION_TEXTURE_FORMAT)
   };
   cache.set(device, bundle);
   return bundle;

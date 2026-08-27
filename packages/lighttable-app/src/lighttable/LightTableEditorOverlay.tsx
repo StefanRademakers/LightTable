@@ -3549,6 +3549,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       kind: 'modify', operation: 'invert'
     })) invertCurrentSelectionOwner();
   };
+  const selectSimilarColors = () => {
+    const document = imageDocumentRef.current;
+    if (!document?.activeLayerId || !editorSessionRef.current.selection.length) return;
+    const magicWand = editorSessionRef.current.magicWand;
+    const parameters = {
+      kind: 'modify' as const,
+      operation: 'similar' as const,
+      layerId: document.activeLayerId,
+      tolerance: magicWand.tolerance,
+      antiAlias: magicWand.antiAlias,
+      sampleAllLayers: magicWand.sampleAllLayers
+    };
+    if (!executeRegisteredCommand('selection.modify', parameters)) {
+      void selectionSessionController.selectSimilar(parameters.layerId, {
+        tolerance: parameters.tolerance,
+        antiAlias: parameters.antiAlias,
+        sampleAllLayers: parameters.sampleAllLayers
+      });
+    }
+  };
   const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
     if (!executeRegisteredCommand('selection.modify', {
       kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
@@ -5551,6 +5571,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeSelectionCommand: async (command) => {
         if (command.kind === 'modify') {
+          if (command.operation === 'similar') {
+            const applied = await selectionSessionController.selectSimilar(command.layerId, {
+              tolerance: command.tolerance,
+              antiAlias: command.antiAlias,
+              sampleAllLayers: command.sampleAllLayers
+            });
+            return applied ? {
+              operation: command.operation,
+              layerId: command.layerId,
+              tolerance: command.tolerance,
+              antiAlias: command.antiAlias,
+              sampleAllLayers: command.sampleAllLayers
+            } : null;
+          }
           const applied = command.operation === 'feather'
             ? await selectionSessionController.feather(
                 command.radius!,
@@ -6862,6 +6896,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectAll: selectAllContent,
       clear: clearCurrentSelection,
       invert: invertCurrentSelection,
+      selectSimilar: selectSimilarColors,
       removeObject: removeSelectedObject,
       removeBackground: backgroundRemovalController.request
     },

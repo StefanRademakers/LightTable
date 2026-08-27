@@ -27,6 +27,7 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     clearSelection: vi.fn(),
     transformSelection: vi.fn(async () => true),
     applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
+    applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
     applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true)
   };
   const dependencies: SelectionSessionDependencies = {
@@ -90,6 +91,27 @@ describe('selection session controller', () => {
       expect.arrayContaining([expect.objectContaining({ mode: 'feather', amount: 18 })])
     );
     expect(state.history.at(-1)?.documentMutation).toBe(false);
+  });
+
+  it('adds Select Similar through the raster selection owner and labels its history', async () => {
+    const state = setup();
+    expect(await state.controller.selectSimilar(document.activeLayerId!, {
+      tolerance: 20, antiAlias: true, sampleAllLayers: false
+    })).toBe(false);
+    await state.controller.applyState('all');
+
+    await expect(state.controller.selectSimilar(document.activeLayerId!, {
+      tolerance: 20, antiAlias: true, sampleAllLayers: false
+    })).resolves.toBe(true);
+
+    expect(state.renderer.applySelectSimilar).toHaveBeenCalledOnce();
+    expect(state.selection.at(-1)?.source).toMatchObject({
+      kind: 'similar', layerId: document.activeLayerId,
+      options: { tolerance: 20, antiAlias: true, sampleAllLayers: false }
+    });
+    expect(state.history.at(-1)).toMatchObject({
+      label: 'Select Similar', type: 'selection.similar', documentMutation: false
+    });
   });
 
   it('applies one final semantic shape without replaying pointer samples', async () => {

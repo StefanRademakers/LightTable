@@ -24,6 +24,15 @@ export interface SemanticSelectionModifyCommand {
   readonly applyAtCanvasBounds?: boolean;
 }
 
+export interface SemanticSelectionSimilarCommand {
+  readonly kind: 'modify';
+  readonly operation: 'similar';
+  readonly layerId: LayerId;
+  readonly tolerance: number;
+  readonly antiAlias: boolean;
+  readonly sampleAllLayers: boolean;
+}
+
 export interface SemanticSelectionMagicWandCommand {
   readonly kind: 'magic-wand';
   readonly layerId: LayerId;
@@ -35,6 +44,7 @@ export interface SemanticSelectionMagicWandCommand {
 export type SemanticSelectionCommand =
   | SemanticSelectionApplyShapeCommand
   | SemanticSelectionModifyCommand
+  | SemanticSelectionSimilarCommand
   | SemanticSelectionMagicWandCommand;
 
 const MAX_POINTS = 4096;
@@ -49,6 +59,27 @@ export const parseSemanticSelectionCommand = (
   value: unknown
 ): SemanticSelectionCommand | { readonly message: string } => {
   if (record(value) && value.kind === 'modify') {
+    if (value.operation === 'similar') {
+      const allowed = new Set([
+        'kind', 'operation', 'layerId', 'tolerance', 'antiAlias', 'sampleAllLayers'
+      ]);
+      if (typeof value.layerId !== 'string' || !value.layerId || value.layerId.length > 512
+        || typeof value.tolerance !== 'number' || !Number.isFinite(value.tolerance)
+        || value.tolerance < 0 || value.tolerance > 255
+        || typeof value.antiAlias !== 'boolean'
+        || typeof value.sampleAllLayers !== 'boolean'
+        || Object.keys(value).some((key) => !allowed.has(key))) {
+        return { message: 'Select Similar requires a source layer, tolerance, anti-alias and sample-all-layers settings.' };
+      }
+      return {
+        kind: 'modify',
+        operation: 'similar',
+        layerId: value.layerId as LayerId,
+        tolerance: Math.round(value.tolerance),
+        antiAlias: value.antiAlias,
+        sampleAllLayers: value.sampleAllLayers
+      };
+    }
     if (value.operation !== 'all' && value.operation !== 'clear'
       && value.operation !== 'invert' && value.operation !== 'feather'
       && value.operation !== 'border' && value.operation !== 'smooth'

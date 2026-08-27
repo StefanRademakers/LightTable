@@ -13,6 +13,7 @@ import {
   createMorphologySelectionOperation,
   createSmoothSelectionOperation,
   createRasterMaskSelectionOperation,
+  createSimilarSelectionOperation,
   createTranslateSelectionOperation,
   type CompositeSelectionChannel,
   type MagicWandOptions,
@@ -22,6 +23,7 @@ import {
   type SelectionOperation,
   type SelectionPoint,
   type SelectionShape,
+  type SimilarSelectionOptions,
   type GeometricSelectionToolId
 } from '../../../editor/selection/selectionTypes';
 import {
@@ -60,6 +62,7 @@ export interface SelectionRendererPort {
   clearSelection(): void;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
+  applySelectSimilar(operation: SelectionOperation): Promise<boolean>;
   applyRasterSelection(operation: SelectionOperation): Promise<boolean>;
 }
 
@@ -147,6 +150,7 @@ export interface SelectionSessionController {
     mode: SelectionCombineMode,
     options: MagicWandOptions
   ): Promise<boolean>;
+  selectSimilar(layerId: LayerId, options: SimilarSelectionOptions): Promise<boolean>;
   rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
   applyShape(
     shape: SelectionShape,
@@ -171,6 +175,8 @@ export const cloneSelectionOperations = (
         point: { ...operation.source.point },
         options: { ...operation.source.options }
       }
+    : operation.source?.kind === 'similar'
+      ? { ...operation.source, options: { ...operation.source.options } }
     : operation.source?.kind === 'raster-mask'
       ? { ...operation.source, mask: operation.source.mask }
       : operation.source ? { ...operation.source } : undefined,
@@ -227,7 +233,7 @@ const selectionContainsPoint = (
     }
     if (operation.mode === 'feather' || operation.mode === 'border'
       || operation.mode === 'smooth' || operation.mode === 'expand'
-      || operation.mode === 'contract') return;
+      || operation.mode === 'contract' || operation.source?.kind === 'similar') return;
     if (operation.mode === 'invert') {
       sample = (target) => !previous(target);
       return;
@@ -327,9 +333,11 @@ export const createSelectionSessionController = (
   ) => {
     const previous = cloneSelectionOperations(before);
     const next = cloneSelectionOperations(after);
-    const mode = next.at(-1)?.mode;
+    const finalOperation = next.at(-1);
+    const mode = finalOperation?.mode;
     const label = next.length === 0 ? 'Deselect'
-      : mode === 'invert' ? 'Inverse'
+      : finalOperation?.source?.kind === 'similar' ? 'Select Similar'
+        : mode === 'invert' ? 'Inverse'
         : mode === 'feather' ? 'Feather Selection'
           : mode === 'border' ? 'Border Selection'
             : mode === 'smooth' ? 'Smooth Selection'
@@ -339,7 +347,9 @@ export const createSelectionSessionController = (
                     : 'Make Selection';
     resolveDependencies().pushHistoryEntry({
       label,
-      type: `selection.${mode ?? 'deselect'}`,
+      type: finalOperation?.source?.kind === 'similar'
+        ? 'selection.similar'
+        : `selection.${mode ?? 'deselect'}`,
       documentMutation: false,
       undo: () => replaceSnapshot(previous, document.id),
       redo: () => replaceSnapshot(next, document.id)
@@ -629,6 +639,42 @@ export const createSelectionSessionController = (
     }
   };
 
+  const runSelectSimilar = async (
+    layerId: LayerId,
+    options: SimilarSelectionOptions
+  ): Promise<boolean> => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const before = cloneSelectionOperations(dependencies.getSelection());
+    if (!document || !renderer || !before.length || !findDocumentLayer(document, layerId)) {
+      return false;
+    }
+    const operation = createSimilarSelectionOperation(
+      layerId,
+      document.revision,
+      document.width,
+      document.height,
+      options
+    );
+    const after = [...before, operation];
+    try {
+      const applied = await renderer.applySelectSimilar(operation);
+      if (!applied || !isCurrent(document, renderer)) return false;
+      const latest = resolveDependencies();
+      latest.publishSelection(after, null);
+      pushHistory(document, before, after);
+      latest.setError(null);
+      return true;
+    } catch (reason) {
+      if (!isCurrent(document, renderer)) return false;
+      resolveDependencies().setError(
+        reason instanceof Error ? reason.message : 'Similar colors could not be selected.'
+      );
+      return false;
+    }
+  };
+
   return {
     get active() {
       return gesture.pointerId !== null || polygonGesture.active || translation !== null;
@@ -776,6 +822,7 @@ export const createSelectionSessionController = (
     },
     applyMagicWand: (layerId, point, mode, options) =>
       runMagicWand(layerId, point, mode, options, false),
+    selectSimilar: runSelectSimilar,
     rasterMask: async (mask, mode) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();

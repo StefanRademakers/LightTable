@@ -1351,6 +1351,37 @@ export class WebGpuEngine {
     return changed;
   }
 
+  private async applySelectSimilarNow(operation: SelectionOperation) {
+    const source = operation.source;
+    if (source?.kind !== 'similar' || !this.imageDocument || !this.documentRenderer
+      || source.documentRevision !== this.imageDocument.revision
+      || !findDocumentLayer(this.imageDocument, source.layerId)) return false;
+    this.device.pushErrorScope('validation');
+    let changed = false;
+    if (source.options.sampleAllLayers) {
+      this.settleInteractiveRenderQuality();
+      this.renderScheduler.flush();
+      await this.device.queue.onSubmittedWorkDone();
+      changed = Boolean(this.imageResources.finalTexture)
+        && this.documentRenderer.applySelectSimilarToTexture(
+          this.imageResources.finalTexture!,
+          source.options
+        );
+    } else {
+      changed = this.documentRenderer.applySelectSimilarToActiveLayer(
+        this.imageDocument,
+        source.layerId,
+        source.options
+      );
+    }
+    const validationError = await this.device.popErrorScope();
+    if (validationError) {
+      this.callbacks.onDeviceLost?.(`LightTable Select Similar validation failed: ${validationError.message}`);
+      return false;
+    }
+    return changed;
+  }
+
   applyMagicWand(operation: SelectionOperation) {
     const task = this.selectionQueue.then(() => this.applyMagicWandNow(operation));
     this.selectionQueue = task.then(() => undefined, () => undefined);
@@ -1359,6 +1390,12 @@ export class WebGpuEngine {
 
   applyRasterSelection(operation: SelectionOperation) {
     const task = this.selectionQueue.then(() => this.applyRasterSelectionNow(operation));
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  applySelectSimilar(operation: SelectionOperation) {
+    const task = this.selectionQueue.then(() => this.applySelectSimilarNow(operation));
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
@@ -1446,6 +1483,8 @@ export class WebGpuEngine {
           )) return false;
         } else if (operation.source?.kind === 'magic-wand') {
           if (!await this.applyMagicWandNow(operation)) return false;
+        } else if (operation.source?.kind === 'similar') {
+          if (!await this.applySelectSimilarNow(operation)) return false;
         } else if (operation.source?.kind === 'raster-mask') {
           if (!await this.applyRasterSelectionNow(operation)) return false;
         } else if (operation.mode === 'feather') {

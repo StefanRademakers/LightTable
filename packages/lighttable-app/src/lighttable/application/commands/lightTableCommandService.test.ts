@@ -1894,6 +1894,31 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('records and replays Select Similar with an explicit source and Wand settings', async () => {
+    const executeSelectionCommand = vi.fn(async (_documentId, command) =>
+      command.kind === 'modify' && command.operation === 'similar'
+        ? { operation: command.operation, layerId: command.layerId,
+            tolerance: command.tolerance, antiAlias: command.antiAlias,
+            sampleAllLayers: command.sampleAllLayers }
+        : null);
+    const state = setup({ executeSelectionCommand });
+    const parameters = {
+      kind: 'modify', operation: 'similar',
+      layerId: state.session.getSnapshot().document!.activeLayerId,
+      tolerance: 20, antiAlias: true, sampleAllLayers: false
+    };
+    state.service.startActionRecording('Select similar colors');
+    await expect(state.service.execute(request('selection.modify', state.session.id, parameters)))
+      .resolves.toMatchObject({ status: 'completed', value: { operation: 'similar' } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.modify', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeSelectionCommand).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates, records and replays a bounded selection feather', async () => {
     const executeSelectionCommand = vi.fn(async (_documentId, command) => ({
       operation: command.kind === 'modify' ? command.operation : command.kind,

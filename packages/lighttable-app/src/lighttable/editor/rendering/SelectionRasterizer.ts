@@ -5,7 +5,8 @@ import type {
   SelectionCombineMode,
   SelectionMode,
   SelectionPoint,
-  SelectionShape
+  SelectionShape,
+  SimilarSelectionOptions
 } from '../selection/selectionTypes';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
@@ -24,6 +25,8 @@ const selectionModeValue: Record<SelectionMode, number> = {
   border: 9,
   smooth: 10
 };
+
+const SELECT_SIMILAR_GRID_SIZE = 64;
 
 export interface SelectionShapeBuffers {
   points: Float32Array<ArrayBuffer>;
@@ -151,6 +154,9 @@ export class SelectionRasterizer {
   private magicWandLabelCapacity = 0;
   private magicWandSettings: GPUBuffer | null = null;
   private magicWandReference: GPUBuffer | null = null;
+  private selectSimilarColors: [GPUBuffer, GPUBuffer] | null = null;
+  private selectSimilarAlpha: [GPUBuffer, GPUBuffer] | null = null;
+  private selectSimilarSettings: [GPUBuffer, GPUBuffer, GPUBuffer, GPUBuffer] | null = null;
 
   constructor(private readonly options: SelectionRasterizerOptions) {}
 
@@ -183,6 +189,37 @@ export class SelectionRasterizer {
       labels: this.magicWandLabels,
       settings: this.magicWandSettings,
       reference: this.magicWandReference
+    };
+  }
+
+  private ensureSelectSimilarBuffers() {
+    const { device } = this.options;
+    const storage = GPUBufferUsage.STORAGE;
+    const uniform = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
+    const colorBytes = SELECT_SIMILAR_GRID_SIZE ** 3 * Uint32Array.BYTES_PER_ELEMENT;
+    const alphaBytes = SELECT_SIMILAR_GRID_SIZE * Uint32Array.BYTES_PER_ELEMENT;
+    if (!this.selectSimilarColors) this.selectSimilarColors = [0, 1].map((index) =>
+      device.createBuffer({
+        label: `LightTable Select Similar color grid ${index}`,
+        size: colorBytes,
+        usage: storage
+      })) as [GPUBuffer, GPUBuffer];
+    if (!this.selectSimilarAlpha) this.selectSimilarAlpha = [0, 1].map((index) =>
+      device.createBuffer({
+        label: `LightTable Select Similar alpha grid ${index}`,
+        size: alphaBytes,
+        usage: storage
+      })) as [GPUBuffer, GPUBuffer];
+    if (!this.selectSimilarSettings) this.selectSimilarSettings = [0, 1, 2, 3].map((index) =>
+      device.createBuffer({
+        label: `LightTable Select Similar settings ${index}`,
+        size: 48,
+        usage: uniform
+      })) as [GPUBuffer, GPUBuffer, GPUBuffer, GPUBuffer];
+    return {
+      colors: this.selectSimilarColors,
+      alpha: this.selectSimilarAlpha,
+      settings: this.selectSimilarSettings
     };
   }
 
@@ -331,6 +368,115 @@ export class SelectionRasterizer {
       { r: 0, g: 0, b: 0, a: 1 }
     );
     if (!this.combineShapeMask(encoder, mode, combineBuffer)) {
+      combineBuffer.destroy();
+      return false;
+    }
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    textures.active = true;
+    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
+    return true;
+  }
+
+  selectSimilar(source: GPUTexture, similarOptions: SimilarSelectionOptions) {
+    this.options.ensureTargets();
+    const { textures, device } = this.options;
+    if (!textures.active || !textures.mask || !textures.result || !textures.shape) return false;
+    const { width, height } = this.options.dimensions();
+    if (width < 1 || height < 1) return false;
+    const resources = this.ensureSelectSimilarBuffers();
+    const tolerance = Math.max(0, Math.min(255, similarOptions.tolerance));
+    const radius = Math.min(
+      SELECT_SIMILAR_GRID_SIZE - 1,
+      Math.ceil(tolerance / 255 * (SELECT_SIMILAR_GRID_SIZE - 1))
+    );
+    resources.settings.forEach((buffer, index) => {
+      const data = new ArrayBuffer(48);
+      new Uint32Array(data).set([
+        width,
+        height,
+        SELECT_SIMILAR_GRID_SIZE,
+        Math.max(0, index - 1),
+        radius,
+        radius,
+        similarOptions.antiAlias ? 1 : 0,
+        0
+      ]);
+      new Float32Array(data)[8] = tolerance;
+      device.queue.writeBuffer(buffer, 0, data);
+    });
+    const pipelines = this.options.pipelines();
+    const clearBindings = device.createBindGroup({
+      label: 'LightTable Select Similar clear bindings',
+      layout: pipelines.selectSimilarClear.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: resources.settings[0] } },
+        { binding: 1, resource: { buffer: resources.colors[0] } },
+        { binding: 2, resource: { buffer: resources.alpha[0] } }
+      ]
+    });
+    const markBindings = device.createBindGroup({
+      label: 'LightTable Select Similar mark bindings',
+      layout: pipelines.selectSimilarMark.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: textures.mask.createView() },
+        { binding: 2, resource: { buffer: resources.settings[0] } },
+        { binding: 3, resource: { buffer: resources.colors[0] } },
+        { binding: 4, resource: { buffer: resources.alpha[0] } }
+      ]
+    });
+    const dilationBindings = [0, 1, 2].map((axis) => {
+      const input = axis % 2;
+      const output = 1 - input;
+      return device.createBindGroup({
+        label: `LightTable Select Similar tolerance axis ${axis}`,
+        layout: pipelines.selectSimilarDilate.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: resources.settings[axis + 1] } },
+          { binding: 1, resource: { buffer: resources.colors[input] } },
+          { binding: 2, resource: { buffer: resources.alpha[input] } },
+          { binding: 3, resource: { buffer: resources.colors[output] } },
+          { binding: 4, resource: { buffer: resources.alpha[output] } }
+        ]
+      });
+    });
+    const finalBindings = device.createBindGroup({
+      label: 'LightTable Select Similar final bindings',
+      layout: pipelines.selectSimilarFinal.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: resources.settings[0] } },
+        { binding: 2, resource: { buffer: resources.colors[1] } },
+        { binding: 3, resource: { buffer: resources.alpha[1] } }
+      ]
+    });
+    const combineBuffer = device.createBuffer({
+      label: 'LightTable Select Similar combine settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable GPU Select Similar' });
+    const dispatch = (pipeline: GPUComputePipeline, bindings: GPUBindGroup, x: number, y = 1) => {
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindings);
+      pass.dispatchWorkgroups(x, y);
+      pass.end();
+    };
+    const gridCells = SELECT_SIMILAR_GRID_SIZE ** 3;
+    dispatch(pipelines.selectSimilarClear, clearBindings, Math.ceil(gridCells / 256));
+    dispatch(pipelines.selectSimilarMark, markBindings, Math.ceil(width / 8), Math.ceil(height / 8));
+    dilationBindings.forEach((bindings) =>
+      dispatch(pipelines.selectSimilarDilate, bindings, Math.ceil(gridCells / 256)));
+    this.options.drawFullscreen(
+      encoder,
+      pipelines.selectSimilarFinal,
+      finalBindings,
+      textures.shape.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    if (!this.combineShapeMask(encoder, 'add', combineBuffer)) {
       combineBuffer.destroy();
       return false;
     }
@@ -931,9 +1077,15 @@ export class SelectionRasterizer {
     this.magicWandLabels?.destroy();
     this.magicWandSettings?.destroy();
     this.magicWandReference?.destroy();
+    this.selectSimilarColors?.forEach((buffer) => buffer.destroy());
+    this.selectSimilarAlpha?.forEach((buffer) => buffer.destroy());
+    this.selectSimilarSettings?.forEach((buffer) => buffer.destroy());
     this.magicWandLabels = null;
     this.magicWandSettings = null;
     this.magicWandReference = null;
+    this.selectSimilarColors = null;
+    this.selectSimilarAlpha = null;
+    this.selectSimilarSettings = null;
     this.magicWandLabelCapacity = 0;
   }
 

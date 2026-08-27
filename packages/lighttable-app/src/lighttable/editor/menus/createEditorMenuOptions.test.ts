@@ -448,9 +448,12 @@ describe('createEditorMenuOptions', () => {
       'invert-selection',
       'clear-selection',
       'select-modify',
+      'select-similar',
       'remove-object',
       'remove-background'
     ]);
+    const similar = options.find((option) => option.value === 'select-similar');
+    expect(similar).toMatchObject({ label: 'Similar', disabled: false });
   });
 
   it('routes Select and Layer background removal through one command', () => {

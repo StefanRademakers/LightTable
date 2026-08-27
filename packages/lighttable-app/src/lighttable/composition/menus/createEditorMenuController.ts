@@ -64,6 +64,7 @@ export interface EditorMenuControllerOptions {
     selectAll(): void;
     clear(): void;
     invert(): void;
+    selectSimilar(): void;
     removeObject(): void;
     removeBackground(): void;
   };
@@ -205,6 +206,7 @@ export const createEditorMenuController = ({
       selectAll: selection.selectAll,
       clearSelection: selection.clear,
       invertSelection: selection.invert,
+      selectSimilar: selection.selectSimilar,
       borderSelection: dialogs.openBorder,
       smoothSelection: dialogs.openSmooth,
       expandSelection: dialogs.openExpand,

@@ -818,6 +818,13 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
   }
 
+  applySelectSimilarToTexture(
+    source: GPUTexture,
+    options: import('../selection/selectionTypes').SimilarSelectionOptions
+  ) {
+    return this.runtime.selectionRasterizer.selectSimilar(source, options);
+  }
+
   applyRasterSelectionMask(
     mask: import('../selection/selectionTypes').RasterSelectionMask,
     mode: SelectionCombineMode
@@ -844,6 +851,27 @@ export class LayerDocumentRenderer {
     });
     this.device.queue.submit([encoder.finish()]);
     const applied = this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
+    this.releaseSubmittedResources();
+    return applied;
+  }
+
+  applySelectSimilarToActiveLayer(
+    document: ImageDocument,
+    layerId: LayerId,
+    options: import('../selection/selectionTypes').SimilarSelectionOptions
+  ) {
+    const layer = findDocumentLayer(document, layerId);
+    if (!layer) return false;
+    const encoder = this.device.createCommandEncoder({
+      label: 'LightTable isolate active layer for Select Similar'
+    });
+    const source = this.encodeComposite(encoder, {
+      ...document,
+      layers: [layer],
+      activeLayerId: layer.id
+    });
+    this.device.queue.submit([encoder.finish()]);
+    const applied = this.runtime.selectionRasterizer.selectSimilar(source, options);
     this.releaseSubmittedResources();
     return applied;
   }
