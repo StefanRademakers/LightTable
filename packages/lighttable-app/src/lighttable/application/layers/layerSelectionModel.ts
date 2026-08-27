@@ -61,17 +61,17 @@ export const resolveLayerSelectionGesture = (
   };
 };
 
-export class LayerNameRenameGestureController {
+export class LayerNameRenameGestureController<ItemId extends string = LayerId> {
   private static readonly doubleClickWindowMs = 500;
   private gesture: {
-    layerId: LayerId;
+    layerId: ItemId;
     firstStartedAt: number;
     lastStartedAt: number;
     pointerDownCount: number;
     eligible: boolean;
   } | null = null;
 
-  begin(layerId: LayerId, activeLayerId: LayerId | null, startedAt: number): void {
+  begin(layerId: ItemId, activeLayerId: ItemId | null, startedAt: number): void {
     if (!this.gesture || this.gesture.layerId !== layerId
       || startedAt - this.gesture.lastStartedAt > LayerNameRenameGestureController.doubleClickWindowMs) {
       this.gesture = {
@@ -90,7 +90,7 @@ export class LayerNameRenameGestureController {
     };
   }
 
-  consume(layerId: LayerId, completedAt: number): boolean {
+  consume(layerId: ItemId, completedAt: number): boolean {
     const eligible = this.gesture?.layerId === layerId
       && this.gesture.eligible
       && this.gesture.pointerDownCount >= 2

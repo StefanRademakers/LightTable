@@ -23,8 +23,8 @@
   --lt-layer-row-gap: 2px;
   --lt-layer-row-padding-inline: 5px;
   --lt-layer-row-padding-block: 0;
-  --lt-layer-thumbnail-slot: 42px;
-  --lt-layer-thumbnail-content-max: 40px;
+  --lt-layer-thumbnail-slot: 18px;
+  --lt-layer-thumbnail-content-max: 16px;
   flex: 1 1 auto;
   min-height: 72px;
   display: flex;
@@ -59,8 +59,11 @@
 }
 
 .lighttable-action-tree__thumbnail {
-  width: 40px;
-  height: 40px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   cursor: inherit;
 }
 

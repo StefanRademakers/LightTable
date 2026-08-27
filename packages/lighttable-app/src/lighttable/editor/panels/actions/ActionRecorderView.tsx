@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
@@ -7,6 +7,7 @@ import {
   type LightTableCommandId
 } from '@lighttable/command-contract';
 import { lightTableIcon } from '../../../../assets/icons';
+import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import { ContextMenu, type ContextMenuOption } from '../../../../ui/ContextMenu';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
@@ -116,6 +117,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dialog, setDialog] = useState<NameDialog | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
+  const renameGestureRef = useRef(new LayerNameRenameGestureController<string>());
   const [menu, setMenu] = useState<{ readonly x: number; readonly y: number;
     readonly selection: Selection } | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
@@ -189,6 +191,14 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     }
     setMenu(null);
   };
+  const beginNameRenameGesture = (id: string): void => {
+    const selectedId = selection?.kind === 'set' || selection?.kind === 'action'
+      ? selection.id : null;
+    renameGestureRef.current.begin(id, selectedId, performance.now());
+  };
+  const consumeNameRenameGesture = (id: string): boolean => (
+    renameGestureRef.current.consume(id, performance.now())
+  );
   const submitDialog = async (value: string): Promise<void> => {
     if (!dialog || !value.trim() || dialogBusy) return;
     setDialogBusy(true);
@@ -270,7 +280,6 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
               setSelection({ kind: 'set', id: set.id });
               if (library.selectedSetId !== set.id) props.onSelectSet(set.id);
             }}
-            onDoubleClick={() => beginRename({ kind: 'set', id: set.id })}
             onKeyDown={activateTreeRow}
             onContextMenu={(event) => openMenu(event, { kind: 'set', id: set.id })}>
             <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
@@ -288,7 +297,12 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
             <span className="lighttable-layer__thumbnail-slot"><span
               className="lighttable-layer__thumbnail lighttable-action-tree__thumbnail"><img
                 className="lighttable-layer__type-icon" src={lightTableIcon('layer_group.png')}
-                alt="" aria-hidden="true" /></span></span><strong>{set.name}</strong>
+                alt="" aria-hidden="true" /></span></span><strong
+              onPointerDown={() => beginNameRenameGesture(set.id)}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                if (consumeNameRenameGesture(set.id)) beginRename({ kind: 'set', id: set.id });
+              }}>{set.name}</strong>
           </PanelStackRow>
           {setOpen ? <div role="group">
             {actions.map((action) => {
@@ -304,7 +318,6 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                     event.stopPropagation();
                     chooseAction(action.id);
                   }}
-                  onDoubleClick={() => beginRename({ kind: 'action', id: action.id })}
                   onKeyDown={activateTreeRow}
                   onContextMenu={(event) => openMenu(event, { kind: 'action', id: action.id })}>
                   <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
@@ -323,7 +336,14 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                   <span className="lighttable-layer__thumbnail-slot"><span
                     className="lighttable-layer__thumbnail lighttable-action-tree__thumbnail"><img
                       className="lighttable-layer__type-icon" src={lightTableIcon('play.png')}
-                      alt="" aria-hidden="true" /></span></span><span>{action.name}</span>
+                      alt="" aria-hidden="true" /></span></span><span
+                    onPointerDown={() => beginNameRenameGesture(action.id)}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      if (consumeNameRenameGesture(action.id)) {
+                        beginRename({ kind: 'action', id: action.id });
+                      }
+                    }}>{action.name}</span>
                 </PanelStackRow>
                 {actionOpen ? <div role="group">
                   {shown.steps.map((step) => {

@@ -56,6 +56,19 @@ try {
   if (!(await emptySetEnabled.isEnabled()) || !(await emptySetEnabled.isChecked())) {
     throw new Error('A new empty Action Set is not enabled by default.');
   }
+  await emptySetEnabled.dblclick();
+  if (await window.getByRole('dialog', { name: 'Rename Action Set' }).count()) {
+    throw new Error('Double-clicking an Action Set checkbox incorrectly opened rename.');
+  }
+  const setThumbnail = selectedSet.locator('.lighttable-action-tree__thumbnail');
+  await setThumbnail.dblclick();
+  if (await window.getByRole('dialog', { name: 'Rename Action Set' }).count()) {
+    throw new Error('Double-clicking an Action Set icon incorrectly opened rename.');
+  }
+  await smokeSet.dblclick();
+  const renameSetDialog = window.getByRole('dialog', { name: 'Rename Action Set' });
+  await renameSetDialog.waitFor();
+  await renameSetDialog.getByRole('button', { name: 'Cancel' }).click();
   await emptySetEnabled.click();
   await window.waitForFunction(() => {
     const input = Array.from(document.querySelectorAll('label')).find((label) =>
@@ -151,21 +164,35 @@ try {
   });
 
   const geometry = await window.evaluate(() => {
-    const action = document.querySelector('.lighttable-action-tree__row');
+    const action = document.querySelector('.lighttable-action-tree__row.is-action');
     const layer = document.querySelector('.lighttable-layer');
     const layerName = document.querySelector('.lighttable-layer__name');
+    const actionThumbnail = action?.querySelector('.lighttable-action-tree__thumbnail');
+    const setThumbnail = document.querySelector('.lighttable-action-tree__row.is-set .lighttable-action-tree__thumbnail');
     if (!(action instanceof HTMLElement) || !(layer instanceof HTMLElement)
+      || !(actionThumbnail instanceof HTMLElement) || !(setThumbnail instanceof HTMLElement)
       || !(layerName instanceof HTMLElement)) return null;
     const a = getComputedStyle(action); const l = getComputedStyle(layer);
     const name = getComputedStyle(layerName);
+    const actionIcon = getComputedStyle(actionThumbnail);
+    const setIcon = getComputedStyle(setThumbnail);
+    const controlHeight = Number.parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--lt-control-height'));
     return { actionHeight: action.getBoundingClientRect().height,
       layerHeight: layer.getBoundingClientRect().height,
+      controlHeight,
       actionFont: a.fontSize, layerFont: name.fontSize,
-      actionRadius: a.borderRadius, layerRadius: l.borderRadius };
+      actionRadius: a.borderRadius, layerRadius: l.borderRadius,
+      actionIcon: [actionIcon.backgroundColor, actionIcon.borderTopWidth],
+      setIcon: [setIcon.backgroundColor, setIcon.borderTopWidth] };
   });
-  if (!geometry || Math.abs(geometry.actionHeight - geometry.layerHeight) > 0.5
+  if (!geometry || Math.abs(geometry.actionHeight - geometry.controlHeight) > 0.5
     || geometry.actionFont !== geometry.layerFont || geometry.actionRadius !== geometry.layerRadius) {
     throw new Error(`Actions rows drift from the Layers UI geometry: ${JSON.stringify(geometry)}`);
+  }
+  if (geometry.actionIcon.join('|') !== 'rgba(0, 0, 0, 0)|0px'
+    || geometry.setIcon.join('|') !== 'rgba(0, 0, 0, 0)|0px') {
+    throw new Error(`Actions icons retained a thumbnail background: ${JSON.stringify(geometry)}`);
   }
   await window.screenshot({ path: path.join(output, 'actions-panel.png') });
 
