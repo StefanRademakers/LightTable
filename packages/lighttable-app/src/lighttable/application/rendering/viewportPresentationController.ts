@@ -7,8 +7,8 @@ import {
 
 export type ViewportSampling = 'linear' | 'nearest';
 
-/** At four screen pixels per image pixel, pixel structure becomes intentional. */
-export const PIXEL_ACCURATE_SAMPLING_SCALE = 4;
+/** At three screen pixels per image pixel, pixel structure becomes intentional. */
+export const PIXEL_ACCURATE_SAMPLING_SCALE = 3;
 
 interface ViewportPresentationPorts {
   writeViewport(uniforms: Float32Array<ArrayBuffer>): void;

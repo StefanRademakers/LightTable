@@ -36,8 +36,8 @@ describe('ViewportPresentationController', () => {
     harness.controller.resize(100, 800, 600, 1, {
       x: 0,
       y: 0,
-      width: 500,
-      height: 500
+      width: 300,
+      height: 300
     });
     expect(harness.controller.sampling).toBe('nearest');
     expect(harness.invalidateViewport).toHaveBeenCalledOnce();
