@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
-  LIGHTTABLE_COMMAND_SCHEMAS,
-  type LightTableCommandDefinition,
-  type LightTableCommandId
+  type LightTableCommandDefinition
 } from '@lighttable/command-contract';
 import { lightTableIcon } from '../../../../assets/icons';
 import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
@@ -15,7 +12,8 @@ import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
   PanelStackDisclosure,
   PanelStackFooter,
-  PanelStackRow
+  PanelStackRow,
+  handlePanelCollectionNavigation
 } from '../../ui/PanelStackPrimitives';
 import type {
   ActionRecordingEditResult,
@@ -26,7 +24,6 @@ import type { SemanticActionLibrarySnapshot } from '../../../application/actions
 import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
 import { ActionStepParameterEditor } from './ActionStepParameterEditor';
 import { ActionStepRationaleEditor } from './ActionStepRationaleEditor';
-import { CommandParameterEditor } from './CommandParameterEditor';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -40,15 +37,15 @@ export interface ActionRecorderViewProps {
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
-  readonly onCreateSet: (name: string) => void;
+  readonly onCreateSet: (name: string) => Promise<string | null>;
   readonly onCreateAction: (setId: string, name: string) => Promise<string | null>;
-  readonly onRenameSet: (id: string, name: string) => void;
+  readonly onRenameSet: (id: string, name: string) => Promise<boolean>;
   readonly onSelectSet: (id: string) => void;
   readonly onDeleteSet: (id: string) => void;
   readonly onMoveSet: (id: string, direction: -1 | 1) => void;
   readonly onLoad: (id: string) => void;
   readonly onDelete: (id: string) => void;
-  readonly onRename: (id: string, name: string) => void;
+  readonly onRename: (id: string, name: string) => Promise<boolean>;
   readonly onDuplicate: (id: string) => void;
   readonly onMove: (id: string, direction: -1 | 1) => void;
   readonly onSetActionEnabled: (id: string, enabled: boolean) => void;
@@ -64,12 +61,9 @@ export interface ActionRecorderViewProps {
     parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
   readonly onUpdateStepRationale: (sequence: number, rationale: string) => ActionRecordingEditResult;
   readonly onSetStepEnabled: (sequence: number, enabled: boolean) => ActionRecordingEditResult;
-  readonly onSetStepInteractive: (sequence: number, interactive: boolean) => ActionRecordingEditResult;
   readonly onDeleteStep: (sequence: number) => ActionRecordingEditResult;
   readonly onDuplicateStep: (sequence: number) => ActionRecordingEditResult;
   readonly onMoveStep: (sequence: number, direction: -1 | 1) => ActionRecordingEditResult;
-  readonly onContinueInteractivePlayback: (parameters: Readonly<Record<string, unknown>>) => void;
-  readonly onCancelInteractivePlayback: () => void;
 }
 
 type Selection = { readonly kind: 'set' | 'action' | 'step'; readonly id: string; readonly sequence?: number };
@@ -77,29 +71,10 @@ type NameDialog = { readonly kind: 'new-set' | 'new-action' | 'rename-set' | 're
   readonly id?: string; readonly title: string; readonly value: string };
 
 const activateTreeRow = (event: React.KeyboardEvent<HTMLElement>): void => {
+  if (handlePanelCollectionNavigation(event, '[role="treeitem"]')) return;
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
   event.currentTarget.click();
-};
-
-const PromptDialog: React.FC<{
-  readonly playback: ActionPlaybackSnapshot;
-  readonly onContinue: (parameters: Readonly<Record<string, unknown>>) => void;
-  readonly onCancel: () => void;
-}> = ({ playback, onContinue, onCancel }) => {
-  const prompt = playback.prompt;
-  const schema = prompt ? LIGHTTABLE_COMMAND_SCHEMAS[prompt.command as LightTableCommandId]?.input : undefined;
-  if (!prompt) return null;
-  return createPortal(<div className="modal-backdrop lighttable-dialog-backdrop lighttable-action-prompt" role="presentation">
-    <section className="lighttable-action-prompt__dialog" role="dialog" aria-modal="true"
-      aria-label={`Action step ${prompt.sequence}`}>
-      <header><strong>{prompt.command}</strong><span>Step {prompt.sequence}</span></header>
-      {schema ? <CommandParameterEditor schema={schema} initialParameters={prompt.parameters}
-        disabled={false} running={false} runLabel="Continue"
-        onRun={onContinue} /> : <p>This command has no editable parameters.</p>}
-      <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
-    </section>
-  </div>, document.body);
 };
 
 export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => {
@@ -134,6 +109,13 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     ?? playback.results.at(-1)?.message;
   const selectedStep = selection?.kind === 'step'
     ? recording.steps.find((step) => step.sequence === selection.sequence) ?? null : null;
+  const selectedSavedAction = recording.id
+    ? library.actions.find((action) => action.id === recording.id) : null;
+  const selectedActionSet = selectedSavedAction
+    ? library.sets.find((set) => set.id === selectedSavedAction.setId) : null;
+  const actionHierarchyEnabled = selectedSavedAction
+    ? selectedSavedAction.enabled !== false && selectedActionSet?.enabled !== false
+    : true;
 
   useEffect(() => {
     if (library.selectedSetId) {
@@ -203,7 +185,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     setDialogBusy(true);
     setEditError(null);
     let completed = true;
-    if (dialog.kind === 'new-set') props.onCreateSet(value);
+    if (dialog.kind === 'new-set') completed = Boolean(await props.onCreateSet(value));
     if (dialog.kind === 'new-action') {
       const selectedAction = selection?.kind === 'action' || selection?.kind === 'step'
         ? library.actions.find((action) => action.id === selection.id) : null;
@@ -213,10 +195,10 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       completed = Boolean(actionId);
       if (actionId) setSelection({ kind: 'action', id: actionId });
     }
-    if (dialog.kind === 'rename-set' && dialog.id) props.onRenameSet(dialog.id, value);
-    if (dialog.kind === 'rename-action' && dialog.id) props.onRename(dialog.id, value);
+    if (dialog.kind === 'rename-set' && dialog.id) completed = await props.onRenameSet(dialog.id, value);
+    if (dialog.kind === 'rename-action' && dialog.id) completed = await props.onRename(dialog.id, value);
     if (completed) setDialog(null);
-    else setEditError('The Action could not be created.');
+    else setEditError(`The ${dialog.kind.includes('set') ? 'Action Set' : 'Action'} could not be saved.`);
     setDialogBusy(false);
   };
   const contextMenuOptions: ContextMenuOption<string>[] = menu ? [
@@ -259,6 +241,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   return <section className="lighttable-action-recorder" aria-label="Actions"
     onClick={() => setMenu(null)}>
     <div className="lighttable-action-tree" role="tree" aria-label="Action Sets"
+      data-panel-keyboard-collection
       data-editor-native-tab-navigation="tab-only">
       {library.sets.map((set) => {
         const setOpen = expandedSets.has(set.id);
@@ -434,6 +417,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
         disabled={busy || recording.status === 'recording'}><span>●</span></ButtonBase>
       <ButtonBase type="button" aria-label="Play" onClick={props.onPlay}
         disabled={busy || recording.status === 'recording'
+          || !actionHierarchyEnabled
           || !recording.steps.some((step) => step.replayable && step.enabled !== false)}><img
           src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></ButtonBase>
       <span className="lighttable-action-recorder__footer-spacer" />
@@ -460,7 +444,5 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       initialValue={dialog?.value ?? ''} selectAllOnOpen compact
       backdropClassName="lighttable-dialog-backdrop"
       onCancel={() => setDialog(null)} onConfirm={submitDialog} />
-    <PromptDialog playback={playback} onContinue={props.onContinueInteractivePlayback}
-      onCancel={props.onCancelInteractivePlayback} />
   </section>;
 };

@@ -78,9 +78,6 @@ export class SemanticActionWorkflowController {
     this.recorder.updateRationale(sequence, rationale)
   );
   setStepEnabled = (sequence: number, enabled: boolean) => this.recorder.setStepEnabled(sequence, enabled);
-  setStepInteractive = (sequence: number, interactive: boolean) => (
-    this.recorder.setStepInteractive(sequence, interactive)
-  );
   deleteStep = (sequence: number) => this.recorder.deleteStep(sequence);
   duplicateStep = (sequence: number) => this.recorder.duplicateStep(sequence);
   moveStep = (sequence: number, direction: -1 | 1) => this.recorder.moveStep(sequence, direction);
@@ -184,24 +181,31 @@ export class SemanticActionWorkflowController {
 
   playbackSnapshot = (): ActionPlaybackSnapshot => this.playback.snapshot();
   subscribePlayback = (listener: () => void): (() => void) => this.playback.subscribe(listener);
-  play = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => this.playback.play(
-    this.recorder.snapshot(), this.ports.activeDocumentId(), overrides
-  );
-  playAtomic = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => (
-    this.playback.playAtomic(this.recorder.snapshot(), this.ports.activeDocumentId(), overrides)
-  );
-  playStep = (sequence: number): Promise<ActionPlaybackSnapshot> => this.playback.playStep(
-    this.recorder.snapshot(), sequence, this.ports.activeDocumentId()
-  );
-  playFrom = (sequence: number): Promise<ActionPlaybackSnapshot> => this.playback.playFrom(
-    this.recorder.snapshot(), sequence, this.ports.activeDocumentId()
-  );
+  play = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => {
+    const unavailable = this.playbackUnavailableReason();
+    return unavailable
+      ? Promise.resolve(this.playback.reject(unavailable))
+      : this.playback.play(this.recorder.snapshot(), this.ports.activeDocumentId(), overrides);
+  };
+  playAtomic = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => {
+    const unavailable = this.playbackUnavailableReason();
+    return unavailable
+      ? Promise.resolve(this.playback.reject(unavailable))
+      : this.playback.playAtomic(this.recorder.snapshot(), this.ports.activeDocumentId(), overrides);
+  };
+  playStep = (sequence: number): Promise<ActionPlaybackSnapshot> => {
+    const unavailable = this.playbackUnavailableReason();
+    return unavailable
+      ? Promise.resolve(this.playback.reject(unavailable))
+      : this.playback.playStep(this.recorder.snapshot(), sequence, this.ports.activeDocumentId());
+  };
+  playFrom = (sequence: number): Promise<ActionPlaybackSnapshot> => {
+    const unavailable = this.playbackUnavailableReason();
+    return unavailable
+      ? Promise.resolve(this.playback.reject(unavailable))
+      : this.playback.playFrom(this.recorder.snapshot(), sequence, this.ports.activeDocumentId());
+  };
   stopPlayback = (): void => this.playback.stop();
-  continueInteractivePlayback = (parameters: Readonly<Record<string, unknown>>): void => (
-    this.playback.continueInteractive(parameters)
-  );
-  cancelInteractivePlayback = (): void => this.playback.cancelInteractive();
-
   record(request: LightTableCommandRequest, result: LightTableCommandResult,
     startedAt: number, recordingId: string | null,
     origin: LightTableCommandOrigin): void {
@@ -223,5 +227,16 @@ export class SemanticActionWorkflowController {
       this.recordingSetId = null;
       this.recorder.clear();
     }
+  }
+
+  private playbackUnavailableReason(): string | null {
+    const recording = this.recorder.snapshot();
+    if (!recording.id) return null;
+    const library = this.library.snapshot();
+    const action = library.actions.find((candidate) => candidate.id === recording.id);
+    if (!action) return null;
+    const set = library.sets.find((candidate) => candidate.id === action.setId);
+    if (set?.enabled === false) return `Action Set ${set.name} is disabled.`;
+    return action.enabled === false ? `Action ${action.name} is disabled.` : null;
   }
 }

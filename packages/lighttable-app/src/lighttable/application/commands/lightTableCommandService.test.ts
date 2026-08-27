@@ -571,6 +571,34 @@ describe('LightTableCommandService action recording', () => {
     first.workspace.dispose();
   });
 
+  it('refuses playback when the saved Action or its Set is disabled', async () => {
+    const state = setup();
+    const set = await state.service.createActionSet('Disabled workflows');
+    const action = await state.service.createSavedAction(set!.id, 'Disabled action');
+    await state.service.execute(request('layer.createRaster', state.session.id));
+    state.service.stopActionRecording();
+    await state.service.saveActionRecording(action!.name);
+    const createRasterLayer = vi.mocked(state.ports.createRasterLayer);
+    const executions = createRasterLayer.mock.calls.length;
+
+    await state.service.setActionSetEnabled(set!.id, false);
+    await state.service.playActionRecording();
+    expect(createRasterLayer).toHaveBeenCalledTimes(executions);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'failed', results: [{ message: expect.stringMatching(/set .* disabled/i) }]
+    });
+
+    await state.service.setActionSetEnabled(set!.id, true);
+    await state.service.setSavedActionEnabled(action!.id, false);
+    await state.service.playActionRecording();
+    expect(createRasterLayer).toHaveBeenCalledTimes(executions);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'failed', results: [{ message: expect.stringMatching(/action .* disabled/i) }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('records one already-committed UI owner result without executing it twice', () => {
     const state = setup();
     state.service.startActionRecording('Observed UI commit');

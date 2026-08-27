@@ -21,15 +21,15 @@ export interface ActionsPanelProps {
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
-  readonly onCreateActionSet: (name: string) => void;
+  readonly onCreateActionSet: (name: string) => Promise<string | null>;
   readonly onCreateAction: (setId: string, name: string) => Promise<string | null>;
-  readonly onRenameActionSet: (id: string, name: string) => void;
+  readonly onRenameActionSet: (id: string, name: string) => Promise<boolean>;
   readonly onSelectActionSet: (id: string) => void;
   readonly onDeleteActionSet: (id: string) => void;
   readonly onMoveActionSet?: (id: string, direction: -1 | 1) => void;
   readonly onLoadAction: (id: string) => void;
   readonly onDeleteAction: (id: string) => void;
-  readonly onRenameAction?: (id: string, name: string) => void;
+  readonly onRenameAction?: (id: string, name: string) => Promise<boolean>;
   readonly onDuplicateAction?: (id: string) => void;
   readonly onMoveAction?: (id: string, direction: -1 | 1) => void;
   readonly onSetActionEnabled?: (id: string, enabled: boolean) => void;
@@ -45,12 +45,9 @@ export interface ActionsPanelProps {
     parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
   readonly onUpdateStepRationale?: (sequence: number, rationale: string) => ActionRecordingEditResult;
   readonly onSetStepEnabled?: (sequence: number, enabled: boolean) => ActionRecordingEditResult;
-  readonly onSetStepInteractive?: (sequence: number, interactive: boolean) => ActionRecordingEditResult;
   readonly onDeleteStep?: (sequence: number) => ActionRecordingEditResult;
   readonly onDuplicateStep?: (sequence: number) => ActionRecordingEditResult;
   readonly onMoveStep?: (sequence: number, direction: -1 | 1) => ActionRecordingEditResult;
-  readonly onContinueInteractivePlayback?: (parameters: Readonly<Record<string, unknown>>) => void;
-  readonly onCancelInteractivePlayback?: () => void;
   readonly definitions?: readonly LightTableCommandDefinition[];
 }
 
@@ -73,7 +70,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onMoveActionSet = () => undefined,
   onLoadAction,
   onDeleteAction,
-  onRenameAction = () => undefined,
+  onRenameAction = async () => false,
   onDuplicateAction = () => undefined,
   onMoveAction = () => undefined,
   onSetActionEnabled = () => undefined,
@@ -87,12 +84,9 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onReplaceStepParameters = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onUpdateStepRationale = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onSetStepEnabled = () => ({ ok: false, error: 'Action editing is unavailable.' }),
-  onSetStepInteractive = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onDeleteStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onDuplicateStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onMoveStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
-  onContinueInteractivePlayback = () => undefined,
-  onCancelInteractivePlayback = () => undefined,
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS
 }) => {
   return <aside className="lighttable-panel lighttable-actions-panel" aria-label="Actions">
@@ -113,9 +107,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
           onBindResult={onBindResult} onRestoreLiteral={onRestoreLiteral}
           onReplaceStepParameters={onReplaceStepParameters}
           onUpdateStepRationale={onUpdateStepRationale}
-          onSetStepEnabled={onSetStepEnabled} onSetStepInteractive={onSetStepInteractive}
-          onDeleteStep={onDeleteStep} onDuplicateStep={onDuplicateStep} onMoveStep={onMoveStep}
-          onContinueInteractivePlayback={onContinueInteractivePlayback}
-          onCancelInteractivePlayback={onCancelInteractivePlayback} />
+          onSetStepEnabled={onSetStepEnabled}
+          onDeleteStep={onDeleteStep} onDuplicateStep={onDuplicateStep} onMoveStep={onMoveStep} />
   </aside>;
 };

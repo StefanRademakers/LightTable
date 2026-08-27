@@ -33,17 +33,17 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   onPlayStep: (sequence: number) => { void service?.playActionStep(sequence); },
   onPlayFromStep: (sequence: number) => { void service?.playActionFromStep(sequence); },
   onStopPlayback: () => { service?.stopActionPlayback(); },
-  onCreateActionSet: (name: string) => { void service?.createActionSet(name); },
+  onCreateActionSet: async (name: string) => (await service?.createActionSet(name))?.id ?? null,
   onCreateAction: async (setId: string, name: string) => (
     (await service?.createSavedAction(setId, name))?.id ?? null
   ),
-  onRenameActionSet: (id: string, name: string) => { void service?.renameActionSet(id, name); },
+  onRenameActionSet: async (id: string, name: string) => Boolean(await service?.renameActionSet(id, name)),
   onSelectActionSet: (id: string) => { void service?.selectActionSet(id); },
   onDeleteActionSet: (id: string) => { void service?.deleteActionSet(id); },
   onMoveActionSet: (id: string, direction: -1 | 1) => { void service?.moveActionSet(id, direction); },
   onLoadAction: (id: string) => { void service?.loadSavedAction(id); },
   onDeleteAction: (id: string) => { void service?.deleteSavedAction(id); },
-  onRenameAction: (id: string, name: string) => { void service?.renameSavedAction(id, name); },
+  onRenameAction: async (id: string, name: string) => Boolean(await service?.renameSavedAction(id, name)),
   onDuplicateAction: (id: string) => { void service?.duplicateSavedAction(id); },
   onMoveAction: (id: string, direction: -1 | 1) => { void service?.moveSavedAction(id, direction); },
   onSetActionEnabled: (id: string, enabled: boolean) => { void service?.setSavedActionEnabled(id, enabled); },
@@ -73,17 +73,10 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   onSetStepEnabled: (sequence: number, enabled: boolean) => edit(
     (owner) => owner.setActionStepEnabled(sequence, enabled)
   ),
-  onSetStepInteractive: (sequence: number, interactive: boolean) => edit(
-    (owner) => owner.setActionStepInteractive(sequence, interactive)
-  ),
   onDeleteStep: (sequence: number) => edit((owner) => owner.deleteActionStep(sequence)),
   onDuplicateStep: (sequence: number) => edit((owner) => owner.duplicateActionStep(sequence)),
   onMoveStep: (sequence: number, direction: -1 | 1) => edit(
     (owner) => owner.moveActionStep(sequence, direction)
   ),
-  onContinueInteractivePlayback: (parameters: Readonly<Record<string, unknown>>) => {
-    service?.continueInteractiveActionPlayback(parameters);
-  },
-  onCancelInteractivePlayback: () => { service?.cancelInteractiveActionPlayback(); }
   });
 };

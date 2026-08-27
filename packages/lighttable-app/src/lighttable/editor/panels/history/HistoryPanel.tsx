@@ -3,7 +3,11 @@ import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import { ContextMenu } from '../../../../ui/ContextMenu';
 import type { DocumentCommandHistorySnapshot } from '../../../application/commands/documentCommandHistory';
-import { PanelStackButtonRow, PanelStackFooter } from '../../ui/PanelStackPrimitives';
+import {
+  PanelStackButtonRow,
+  PanelStackFooter,
+  handlePanelCollectionNavigation
+} from '../../ui/PanelStackPrimitives';
 import './historyPanel.css';
 
 export interface HistoryPanelProps {
@@ -25,11 +29,13 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   const current = history.states.find((state) => state.current) ?? history.states[0];
   return <aside className="lighttable-panel lighttable-history-panel" aria-label="History">
     <div className="lighttable-history-panel__states" role="listbox" aria-label="Document history"
+      data-panel-keyboard-collection
       data-editor-native-tab-navigation="tab-only">
       {history.states.map((state) => <PanelStackButtonRow key={`${state.id}:${state.position}`}
         className={`lighttable-history-panel__state${state.future ? ' is-future' : ''}`}
         selected={state.current} active={state.current}
         role="option" aria-selected={state.current} disabled={history.busy}
+        onKeyDown={(event) => handlePanelCollectionNavigation(event, '[role="option"]')}
         onClick={() => onNavigate(state.position)}>
         <span className="lighttable-history-panel__state-marker" aria-hidden="true">
           {state.current ? '▸' : ''}

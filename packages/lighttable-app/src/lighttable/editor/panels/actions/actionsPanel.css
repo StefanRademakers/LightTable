@@ -227,15 +227,3 @@
 .lighttable-action-recorder__footer-spacer { flex: 1; }
 .lighttable-action-recorder__record { color: var(--lt-danger); }
 .lighttable-action-recorder__stop { width: 7px; height: 7px; display: block; background: currentColor; }
-
-.lighttable-action-prompt__dialog {
-  width: min(420px, 90vw);
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-dialog);
-  background: var(--lt-surface-panel-raised);
-  box-shadow: var(--lt-shadow-dialog);
-}
-.lighttable-action-prompt__dialog header { display: flex; justify-content: space-between; gap: 8px; }

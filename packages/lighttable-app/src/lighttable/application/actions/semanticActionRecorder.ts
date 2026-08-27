@@ -36,7 +36,6 @@ export interface RecordedActionStep {
   readonly note: string | null;
   readonly rationale: string | null;
   readonly enabled?: boolean;
-  readonly interactive?: boolean;
 }
 
 export interface ActionRecordingSnapshot {
@@ -275,10 +274,6 @@ export class SemanticActionRecorder {
     return this.updateStep(sequence, (step) => ({ ...step, enabled }));
   }
 
-  setStepInteractive(sequence: number, interactive: boolean): ActionRecordingEditResult {
-    return this.updateStep(sequence, (step) => ({ ...step, interactive }));
-  }
-
   deleteStep(sequence: number): ActionRecordingEditResult {
     const referenced = this.snapshotValue.steps.some((step) => step.sequence !== sequence
       && this.referencesStep(step.parameters, sequence));
@@ -451,8 +446,7 @@ export class SemanticActionRecorder {
       replayable,
       note,
       rationale: null,
-      enabled: true,
-      interactive: false
+      enabled: true
     };
     const steps = [...this.snapshotValue.steps];
     const insertionIndex = Math.max(0, Math.min(this.insertAfterSequence ?? steps.length, steps.length));

@@ -109,6 +109,13 @@ reference was fetched directly from Adobe.
 6. Later: batch source/destination policy as a separate host-owned workflow,
    never as unvalidated paths embedded in recorded steps.
 
+Action Set and Action enabled state gates playback without rewriting the
+individual enabled state of recorded steps. Library mutations are published
+optimistically for responsive tree updates, but a failed durable write rolls
+back to the last stored snapshot and name dialogs remain open until persistence
+has succeeded. Actions and History collections support Arrow, Home and End
+keyboard focus navigation using the shared panel-row vocabulary.
+
 ### Improve rather than copy
 
 - Recording stores semantic command IDs and validated parameters, not DOM

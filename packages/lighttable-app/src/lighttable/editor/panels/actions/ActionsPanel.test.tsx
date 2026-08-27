@@ -21,9 +21,9 @@ const renderPanel = (overrides: Partial<ActionsPanelProps> = {}) => renderToStat
   onStartRecording={() => undefined} onStopRecording={() => undefined}
   onClearRecording={() => undefined} onPlay={() => undefined}
   onPlayStep={() => undefined} onPlayFromStep={() => undefined}
-  onStopPlayback={() => undefined} onCreateActionSet={() => undefined}
+  onStopPlayback={() => undefined} onCreateActionSet={async () => null}
   onCreateAction={async () => null}
-  onRenameActionSet={() => undefined} onSelectActionSet={() => undefined}
+  onRenameActionSet={async () => false} onSelectActionSet={() => undefined}
   onDeleteActionSet={() => undefined} onLoadAction={() => undefined}
   onDeleteAction={() => undefined} {...overrides} />);
 

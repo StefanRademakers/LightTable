@@ -117,8 +117,12 @@ describe('document history controller', () => {
       redo: () => undefined
     });
     await state.controller.undo();
+    const clear = vi.spyOn(state.history, 'clear');
     state.controller.clear();
     expect(state.finishOpenTransactions).toHaveBeenCalledTimes(2);
+    expect(state.finishOpenTransactions.mock.invocationCallOrder[1]).toBeLessThan(
+      clear.mock.invocationCallOrder[0]!
+    );
   });
 
   it('publishes undo errors without rejecting the editor event loop', async () => {

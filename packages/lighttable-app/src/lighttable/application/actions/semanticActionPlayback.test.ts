@@ -78,27 +78,24 @@ describe('SemanticActionPlaybackController', () => {
     });
   });
 
-  it('skips disabled steps and pauses interactive steps for edited parameters', async () => {
+  it('skips individually disabled steps', async () => {
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'completed' as const, value: { created: true, layerId: 'new-layer' },
       revisions: { workspace: 1 } }));
     const controller = new SemanticActionPlaybackController(execute);
-    const interactive: ActionRecordingSnapshot = { ...recording(), steps: [
+    const withDisabledStep: ActionRecordingSnapshot = { ...recording(), steps: [
       { ...recording().steps[0]!, enabled: false },
-      { ...recording().steps[1]!, sequence: 2, interactive: true,
+      { ...recording().steps[1]!, sequence: 2,
         parameters: { layerId: 'existing-layer', name: 'Recorded' } }
     ] };
 
-    const playing = controller.play(interactive);
-    await vi.waitFor(() => expect(controller.snapshot().prompt?.sequence).toBe(2));
-    controller.continueInteractive({ layerId: 'existing-layer', name: 'Changed' });
-    await playing;
+    await controller.play(withDisabledStep);
 
     expect(execute).toHaveBeenCalledOnce();
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({
-      command: 'layer.rename', parameters: { layerId: 'existing-layer', name: 'Changed' }
+      command: 'layer.rename', parameters: { layerId: 'existing-layer', name: 'Recorded' }
     }));
-    expect(controller.snapshot()).toMatchObject({ status: 'completed', prompt: null });
+    expect(controller.snapshot()).toMatchObject({ status: 'completed' });
   });
 
   it('retargets every document-scoped step to the current active document', async () => {

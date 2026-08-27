@@ -129,8 +129,8 @@ export const createDocumentHistoryController = (
     },
     clear: () => {
       const dependencies = resolveDependencies();
-      dependencies.history.clear();
       dependencies.finishOpenTransactions();
+      dependencies.history.clear();
       pruneResources();
     },
     undo: () => runHistoryOperation('undo'),

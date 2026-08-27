@@ -79,7 +79,7 @@ type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contra
 const STEP_KEYS = new Set([
   'sequence', 'requestId', 'origin', 'command', 'contract', 'documentId', 'parameters',
   'outcome', 'result', 'startedAt', 'durationMs', 'replayable', 'note', 'rationale',
-  'enabled', 'interactive'
+  'enabled'
 ]);
 const LIBRARY_KEYS = new Set(['format', 'selectedSetId', 'selectedId', 'sets', 'actions']);
 const ACTION_KEYS = new Set(['id', 'setId', 'name', 'createdAt', 'updatedAt', 'enabled', 'recording']);
@@ -100,8 +100,7 @@ const parseStep = (value: unknown, sequence: number): StoredActionStep | null =>
     || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))
     || (value.rationale !== null && (typeof value.rationale !== 'string'
       || value.rationale.trim() !== value.rationale || value.rationale.length > 280))
-    || (value.enabled !== undefined && typeof value.enabled !== 'boolean')
-    || (value.interactive !== undefined && typeof value.interactive !== 'boolean')) return null;
+    || (value.enabled !== undefined && typeof value.enabled !== 'boolean')) return null;
   try {
     if (jsonBytes(value.parameters) > 256 * 1024 || jsonBytes(value.result) > 256 * 1024) return null;
   } catch { return null; }
@@ -175,25 +174,36 @@ const nextId = (prefix: string, existing: ReadonlySet<string>): string => {
 
 export class SemanticActionLibrary {
   private snapshotValue: SemanticActionLibrarySnapshot;
+  private durableSnapshotValue: SemanticActionLibrarySnapshot;
   private readonly listeners = new Set<() => void>();
   private readonly readyValue: Promise<void>;
   private writeValue: Promise<void> = Promise.resolve();
+  private writeRevision = 0;
   private disposed = false;
 
   constructor(private readonly storage?: SemanticActionLibraryStorage) {
     this.snapshotValue = empty();
+    this.durableSnapshotValue = this.snapshotValue;
     try {
       const loaded = storage?.read() ?? null;
       if (loaded instanceof Promise) {
         this.readyValue = loaded.then((serialized) => {
-          this.publish(this.restore(serialized));
-        }, () => { this.publish(empty('Saved Actions could not be read.')); });
+          const restored = this.restore(serialized);
+          this.durableSnapshotValue = restored;
+          this.publish(restored);
+        }, () => {
+          const failed = empty('Saved Actions could not be read.');
+          this.durableSnapshotValue = failed;
+          this.publish(failed);
+        });
       } else {
         this.snapshotValue = this.restore(loaded);
+        this.durableSnapshotValue = this.snapshotValue;
         this.readyValue = Promise.resolve();
       }
     } catch {
       this.snapshotValue = empty('Saved Actions could not be read.');
+      this.durableSnapshotValue = this.snapshotValue;
       this.readyValue = Promise.resolve();
     }
   }
@@ -370,9 +380,7 @@ export class SemanticActionLibrary {
     await this.readyValue;
     const existing = this.snapshotValue.actions.find((action) => action.id === id);
     if (!existing) return null;
-    const updated: SavedSemanticAction = { ...existing, enabled, updatedAt: Date.now(),
-      recording: { ...existing.recording,
-        steps: existing.recording.steps.map((step) => ({ ...step, enabled })) } };
+    const updated: SavedSemanticAction = { ...existing, enabled, updatedAt: Date.now() };
     const actions = this.snapshotValue.actions.map((action) => action.id === id ? updated : action);
     return await this.persist({ ...this.snapshotValue, actions, error: null }) ? updated : null;
   }
@@ -383,10 +391,7 @@ export class SemanticActionLibrary {
     const now = Date.now();
     const sets = this.snapshotValue.sets.map((set) => set.id === setId
       ? { ...set, enabled, updatedAt: now } : set);
-    const updated = this.snapshotValue.actions.map((action): SavedSemanticAction => action.setId === setId
-      ? { ...action, enabled, updatedAt: now, recording: { ...action.recording,
-          steps: action.recording.steps.map((step) => ({ ...step, enabled })) } }
-      : action);
+    const updated = this.snapshotValue.actions;
     return await this.persist({ ...this.snapshotValue, sets, actions: updated, error: null })
       ? updated.filter((action) => action.setId === setId) : null;
   }
@@ -451,14 +456,23 @@ export class SemanticActionLibrary {
 
   private async persist(snapshot: SemanticActionLibrarySnapshot): Promise<boolean> {
     const serialized = this.serialize(snapshot);
-    if (!serialized) return false;
+    if (!serialized) {
+      this.publish({ ...this.snapshotValue, error: 'Saved Actions exceed the storage boundary.' });
+      return false;
+    }
     // Publish synchronously so a second rapid mutation builds on this snapshot,
     // then serialize storage writes to preserve that same order on disk.
     this.publish(snapshot);
+    const revision = ++this.writeRevision;
     const write = this.writeValue.then(async () => { await this.storage?.write(serialized); });
     this.writeValue = write.catch(() => undefined);
-    try { await write; } catch {
-      this.publish({ ...this.snapshotValue, error: 'Saved Actions could not be written.' });
+    try {
+      await write;
+      this.durableSnapshotValue = snapshot;
+    } catch {
+      if (revision === this.writeRevision) {
+        this.publish({ ...this.durableSnapshotValue, error: 'Saved Actions could not be written.' });
+      }
       return false;
     }
     return true;

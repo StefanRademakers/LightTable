@@ -58,6 +58,35 @@ describe('semantic Action library', () => {
     expect(library.snapshot().actions.map(({ name }) => name)).toEqual(['Product setup']);
   });
 
+  it('keeps individual step choices intact when an Action or Set is toggled', async () => {
+    const library = new SemanticActionLibrary();
+    const saved = await library.save({ ...recording(), steps: [
+      { ...recording().steps[0]!, enabled: false }
+    ] }, 'Selective');
+    expect(saved).not.toBeNull();
+
+    await library.setEnabled(saved!.id, false);
+    await library.setEnabled(saved!.id, true);
+    await library.setSetEnabled(saved!.setId, false);
+    await library.setSetEnabled(saved!.setId, true);
+
+    expect(library.snapshot().actions[0]).toMatchObject({ enabled: true,
+      recording: { steps: [{ enabled: false }] } });
+  });
+
+  it('rolls an optimistic mutation back when its storage write fails', async () => {
+    const library = new SemanticActionLibrary({
+      read: () => null,
+      write: () => { throw new Error('quota'); }
+    });
+
+    expect(await library.createSet('Will not persist')).toBeNull();
+    expect(library.snapshot()).toMatchObject({
+      sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID }],
+      error: 'Saved Actions could not be written.'
+    });
+  });
+
   it('enforces the Action Set boundary', async () => {
     const library = new SemanticActionLibrary();
     for (let index = 1; index < 16; index += 1) {

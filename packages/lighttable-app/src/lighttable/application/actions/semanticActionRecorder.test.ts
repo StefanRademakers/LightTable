@@ -158,7 +158,6 @@ describe('SemanticActionRecorder', () => {
     recorder.stop();
 
     expect(recorder.setStepEnabled(2, false)).toEqual({ ok: true });
-    expect(recorder.setStepInteractive(2, true)).toEqual({ ok: true });
     expect(recorder.duplicateStep(2)).toEqual({ ok: true });
     expect(recorder.snapshot().steps.map(({ sequence }) => sequence)).toEqual([1, 2, 3]);
     expect(recorder.moveStep(2, -1)).toMatchObject({ ok: false });

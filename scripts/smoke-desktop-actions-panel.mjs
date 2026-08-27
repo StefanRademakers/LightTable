@@ -122,6 +122,11 @@ try {
     element.classList.contains('lighttable-panel-stack-row--active')))) {
     throw new Error('Clicking an Action did not make its row active.');
   }
+  await selectedSet.focus();
+  await window.keyboard.press('ArrowDown');
+  if (await window.locator(':focus').getAttribute('aria-level') !== '2') {
+    throw new Error('Arrow Down did not move focus from the Action Set to its first Action.');
+  }
   const setEnabled = panel.getByRole('checkbox', { name: 'Enable Smoke Set' });
   await window.waitForFunction(() => {
     const input = document.querySelector('input[aria-label="Enable Smoke Set"]')
@@ -131,6 +136,9 @@ try {
   });
   await setEnabled.click();
   if (await setEnabled.isChecked()) throw new Error('Action Set enable control did not switch off.');
+  if (!(await panel.getByRole('button', { name: 'Play', exact: true }).isDisabled())) {
+    throw new Error('A disabled Action Set still allows playback.');
+  }
   await setEnabled.click();
   if (!(await setEnabled.isChecked())) throw new Error('Action Set enable control did not switch on.');
   const actionEnabled = panel.getByRole('checkbox', { name: 'Enable Layer setup' });
@@ -140,6 +148,9 @@ try {
       label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
     return input instanceof HTMLInputElement && !input.checked;
   });
+  if (!(await panel.getByRole('button', { name: 'Play', exact: true }).isDisabled())) {
+    throw new Error('A disabled Action still allows playback.');
+  }
   await actionEnabled.click();
   await window.waitForFunction(() => {
     const input = Array.from(document.querySelectorAll('label')).find((label) =>
@@ -248,6 +259,14 @@ try {
   await history.waitFor();
   if (await history.getByText(/Document Change|Edit document/i).count()) {
     throw new Error(`History still contains generic edit labels: ${await history.innerText()}`);
+  }
+  const historyOptions = history.getByRole('option');
+  if (await historyOptions.count() > 1) {
+    await historyOptions.first().focus();
+    await window.keyboard.press('ArrowDown');
+    if (!(await historyOptions.nth(1).evaluate((element) => element === document.activeElement))) {
+      throw new Error('Arrow Down did not move focus to the next History state.');
+    }
   }
   const historyGeometry = await window.evaluate(() => {
     const historyButton = document.querySelector('.lighttable-history-panel__footer button');

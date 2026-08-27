@@ -40,9 +40,6 @@ export const atomicActionEligibility = (recording: ActionRecordingSnapshot): Ato
   if (steps.length > 64) {
     return { eligible: false, reason: 'Atomic playback supports at most 64 steps.' };
   }
-  const interactive = steps.find((step) => step.interactive);
-  if (interactive) return { eligible: false,
-    reason: `Step ${interactive.sequence} requests a dialog; use normal stepwise Play.` };
   const nonReplayable = steps.find(({ replayable, outcome }) => !replayable || outcome !== 'completed');
   if (nonReplayable) return { eligible: false,
     reason: `Step ${nonReplayable.sequence} is diagnostic or asynchronous; use normal stepwise Play.` };

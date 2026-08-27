@@ -25,11 +25,6 @@ export interface ActionPlaybackSnapshot {
   readonly currentSequence: number | null;
   readonly results: readonly ActionPlaybackStepResult[];
   readonly taskProgress: number | null;
-  readonly prompt?: {
-    readonly sequence: number;
-    readonly command: string;
-    readonly parameters: Readonly<Record<string, unknown>>;
-  } | null;
 }
 
 export type ActionTaskWaitResult =
@@ -103,7 +98,6 @@ export class SemanticActionPlaybackController {
   private readonly listeners = new Set<() => void>();
   private stopRequested = false;
   private taskAbort: AbortController | null = null;
-  private promptResolver: ((parameters: Readonly<Record<string, unknown>> | null) => void) | null = null;
   private disposed = false;
 
   constructor(private readonly execute: ExecuteCommand,
@@ -120,9 +114,7 @@ export class SemanticActionPlaybackController {
     this.disposed = true;
     this.stop();
     this.taskAbort?.abort();
-    this.promptResolver?.(null);
     this.taskAbort = null;
-    this.promptResolver = null;
     this.listeners.clear();
   }
 
@@ -219,20 +211,19 @@ export class SemanticActionPlaybackController {
     if (this.snapshotValue.status === 'running') {
       this.stopRequested = true;
       this.taskAbort?.abort();
-      this.promptResolver?.(null);
-      this.promptResolver = null;
     }
   }
 
-  continueInteractive(parameters: Readonly<Record<string, unknown>>): void {
-    this.promptResolver?.(structuredClone(parameters));
-    this.promptResolver = null;
-  }
-
-  cancelInteractive(): void { this.stop(); }
-
   clear(): void {
     if (this.snapshotValue.status !== 'running') this.publish(initialSnapshot());
+  }
+
+  reject(message: string): ActionPlaybackSnapshot {
+    if (this.snapshotValue.status === 'running') return this.snapshotValue;
+    this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+      results: [{ sequence: 0, command: 'action.play', status: 'binding-error',
+        message, durationMs: 0 }] });
+    return this.snapshotValue;
   }
 
   private async run(recording: ActionRecordingSnapshot,
@@ -286,21 +277,7 @@ export class SemanticActionPlaybackController {
           results: [...this.snapshotValue.results, result], taskProgress: null });
         return this.snapshotValue;
       }
-      let executionParameters = parameters.value;
-      if (step.interactive && typeof executionParameters === 'object' && executionParameters !== null
-        && !Array.isArray(executionParameters)) {
-        this.publish({ ...this.snapshotValue, prompt: { sequence: step.sequence,
-          command: step.command, parameters: executionParameters as Readonly<Record<string, unknown>> } });
-        executionParameters = await new Promise<Readonly<Record<string, unknown>> | null>((resolve) => {
-          this.promptResolver = resolve;
-        });
-        if (!executionParameters || this.stopRequested) {
-          this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
-            taskProgress: null, prompt: null });
-          return this.snapshotValue;
-        }
-        this.publish({ ...this.snapshotValue, prompt: null });
-      }
+      const executionParameters = parameters.value;
       const resolvedDocumentId = step.documentId
         ? replayDocumentIds.get(step.documentId) ?? targetDocumentId ?? step.documentId
         : undefined;

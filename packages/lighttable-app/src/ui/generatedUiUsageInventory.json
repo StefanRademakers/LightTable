@@ -160,7 +160,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 153,
+      "productionUsageCount": 152,
       "internalUsageCount": 0,
       "contextCount": 45,
       "overrideCount": 0,
@@ -202,7 +202,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 9,
+          "count": 8,
           "kind": "product"
         },
         {
@@ -396,16 +396,11 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 8,
+      "productionUsageCount": 7,
       "internalUsageCount": 2,
-      "contextCount": 4,
+      "contextCount": 3,
       "overrideCount": 0,
       "locations": [
-        {
-          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 1,
-          "kind": "product"
-        },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
           "count": 5,

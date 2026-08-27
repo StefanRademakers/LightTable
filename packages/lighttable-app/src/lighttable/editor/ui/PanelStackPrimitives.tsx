@@ -66,3 +66,23 @@ export const PanelStackFooter: React.FC<PropsWithChildren<{
     {children}
   </footer>
 );
+
+export const handlePanelCollectionNavigation = (
+  event: React.KeyboardEvent<HTMLElement>,
+  selector: string
+): boolean => {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return false;
+  const collection = event.currentTarget.closest<HTMLElement>('[data-panel-keyboard-collection]');
+  if (!collection) return false;
+  const rows = Array.from(collection.querySelectorAll<HTMLElement>(selector))
+    .filter((row) => row.getAttribute('aria-disabled') !== 'true');
+  const current = rows.indexOf(event.currentTarget);
+  if (current < 0 || rows.length === 0) return false;
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? rows.length - 1
+      : event.key === 'ArrowDown' ? Math.min(rows.length - 1, current + 1)
+        : Math.max(0, current - 1);
+  event.preventDefault();
+  rows[next]?.focus();
+  return true;
+};

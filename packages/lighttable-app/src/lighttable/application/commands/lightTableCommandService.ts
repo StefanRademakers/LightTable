@@ -588,9 +588,6 @@ export class LightTableCommandService {
   setActionStepEnabled = (sequence: number, enabled: boolean) => (
     this.actions.setStepEnabled(sequence, enabled)
   );
-  setActionStepInteractive = (sequence: number, interactive: boolean) => (
-    this.actions.setStepInteractive(sequence, interactive)
-  );
   deleteActionStep = (sequence: number) => this.actions.deleteStep(sequence);
   duplicateActionStep = (sequence: number) => this.actions.duplicateStep(sequence);
   moveActionStep = (sequence: number, direction: -1 | 1) => this.actions.moveStep(sequence, direction);
@@ -656,11 +653,6 @@ export class LightTableCommandService {
   playActionStep = (sequence: number) => this.actions.playStep(sequence);
   playActionFromStep = (sequence: number) => this.actions.playFrom(sequence);
   stopActionPlayback = (): void => this.actions.stopPlayback();
-  continueInteractiveActionPlayback = (parameters: Readonly<Record<string, unknown>>) => (
-    this.actions.continueInteractivePlayback(parameters)
-  );
-  cancelInteractiveActionPlayback = (): void => this.actions.cancelInteractivePlayback();
-
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'
       ? this.ports.queryRenderTelemetry?.(documentId) ?? null
