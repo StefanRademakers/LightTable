@@ -3735,6 +3735,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           brush: { ...current.brush, [target]: percent / 100 }
         }));
       },
+      setActiveLayerOpacity: (percent) => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) layerPanelController.setOpacity(layerId, percent / 100);
+      },
       nudge: (x, y) => {
         if (transformActiveRef.current()) nudgeTransformRef.current(x, y);
         else selectionSessionController.translate(x, y);

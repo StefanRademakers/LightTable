@@ -261,6 +261,24 @@ describe('editor keymap', () => {
     )).toBeNull();
   });
 
+  it('routes number keys to active layer opacity outside paint tools', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '1', code: 'Digit1' }),
+      context({ activeTool: 'view' })
+    )).toEqual({ type: 'set-layer-opacity-percent', digit: 1 });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '0', code: 'Digit0' }),
+      context({ activeTool: 'view' })
+    )).toEqual({ type: 'set-layer-opacity-percent', digit: 0 });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '5', code: 'Digit5' }),
+      context({ activeTool: 'view', hasActiveLayer: false })
+    )).toBeNull();
+  });
+
   it('resets and swaps the editor colors with D and X', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

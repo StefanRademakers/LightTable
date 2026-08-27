@@ -47,6 +47,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   changeBrushHardness: vi.fn(),
   openBrushSettings: vi.fn(),
   inputBrushPercent: vi.fn(),
+  setActiveLayerOpacity: vi.fn(),
   nudge: vi.fn(),
   activateAdjacentDocument: vi.fn(),
   closeActiveDocument: vi.fn(),
@@ -169,6 +170,16 @@ describe('executeEditorKeyboardCommand', () => {
     executeEditorKeyboardCommand('open-brush-settings', target);
 
     expect(target.openBrushSettings).toHaveBeenCalledOnce();
+  });
+
+  it('maps number keys to active layer opacity percentages', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand({ type: 'set-layer-opacity-percent', digit: 4 }, target);
+    executeEditorKeyboardCommand({ type: 'set-layer-opacity-percent', digit: 0 }, target);
+
+    expect(target.setActiveLayerOpacity).toHaveBeenNthCalledWith(1, 40);
+    expect(target.setActiveLayerOpacity).toHaveBeenNthCalledWith(2, 100);
   });
 
   it('routes workspace and layer commands through explicit ports', () => {

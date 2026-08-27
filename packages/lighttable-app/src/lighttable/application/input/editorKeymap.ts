@@ -83,6 +83,7 @@ export type EditorKeyboardCommand =
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
   | { readonly type: 'apply-adjustment'; readonly kind: AdjustmentLayerKind }
   | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
+  | { readonly type: 'set-layer-opacity-percent'; readonly digit: number }
   | { readonly type: 'nudge'; readonly x: number; readonly y: number };
 
 export interface EditorKeyChord {
@@ -161,16 +162,20 @@ const toolGroupBindings: readonly EditorKeyBinding[] = TOOL_SHORTCUT_GROUPS
     })
   })));
 
-const brushPercentBindings: readonly EditorKeyBinding[] = Array.from({ length: 10 }, (_, digit) => (
+const percentBindings: readonly EditorKeyBinding[] = Array.from({ length: 10 }, (_, digit) => (
   [false, true].map((flow) => ({
     id: `brush.${flow ? 'flow' : 'opacity'}.${digit}`,
     chord: { key: String(digit), primary: false, alt: false, shift: flow },
-    when: (context: EditorKeyboardContext) => usesBrushSize(context.activeTool),
-    resolve: (): EditorKeyboardCommand => ({
-      type: 'set-brush-percent',
-      target: flow ? 'flow' : 'opacity',
-      digit
-    })
+    when: (context: EditorKeyboardContext) => usesBrushSize(context.activeTool)
+      || (!flow && context.hasActiveLayer),
+    resolve: (context: EditorKeyboardContext): EditorKeyboardCommand =>
+      !flow && !usesBrushSize(context.activeTool)
+        ? { type: 'set-layer-opacity-percent', digit }
+        : {
+            type: 'set-brush-percent',
+            target: flow ? 'flow' : 'opacity',
+            digit
+          }
   }))
 )).flat();
 
@@ -352,7 +357,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('brush.open-settings', { key: 'f5', primary: false, alt: false, shift: false }, 'open-brush-settings', {
       when: (context) => context.activeTool === 'brush'
     }),
-    ...brushPercentBindings,
+    ...percentBindings,
     command(
       'workspace.previous-document',
       { key: 'tab', primary: true, alt: false, shift: true },

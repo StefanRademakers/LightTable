@@ -44,6 +44,7 @@ export interface EditorKeyboardCommandPorts {
   changeBrushHardness(direction: -1 | 1): void;
   openBrushSettings(): void;
   inputBrushPercent(target: 'opacity' | 'flow', digit: number): void;
+  setActiveLayerOpacity(percent: number): void;
   nudge(x: number, y: number): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
@@ -71,6 +72,10 @@ export const executeEditorKeyboardCommand = (
     }
     if (command.type === 'set-brush-percent') {
       ports.inputBrushPercent(command.target, command.digit);
+      return;
+    }
+    if (command.type === 'set-layer-opacity-percent') {
+      ports.setActiveLayerOpacity(command.digit === 0 ? 100 : command.digit * 10);
       return;
     }
     if (command.type === 'nudge') {
