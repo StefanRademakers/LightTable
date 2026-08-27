@@ -124,6 +124,7 @@ export const duplicateLayeredDocumentArtifact = async (
     duplicate.document,
     duplicate.adjustmentStack,
     assets,
-    name
+    name,
+    { previewKind: parsed.previewKind }
   );
 };

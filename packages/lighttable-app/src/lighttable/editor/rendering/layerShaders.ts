@@ -2481,6 +2481,31 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Replaces one document-space mask rectangle directly from an encoded clipboard texture. */
+export const MASK_CLIPBOARD_PASTE_WGSL = /* wgsl */ `
+struct MaskClipboardPasteSettings {
+  origin: vec2i,
+  padding: vec2i,
+}
+
+@group(0) @binding(0) var previousMask: texture_2d<f32>;
+@group(0) @binding(1) var clipboardTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: MaskClipboardPasteSettings;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  let pixel = vec2i(input.position.xy);
+  let sourcePixel = pixel - settings.origin;
+  let sourceSize = vec2i(textureDimensions(clipboardTexture));
+  let inside = all(sourcePixel >= vec2i(0)) && all(sourcePixel < sourceSize);
+  if (!inside) {
+    return textureLoad(previousMask, pixel, 0).r;
+  }
+  let source = textureLoad(clipboardTexture, sourcePixel, 0);
+  return clamp(dot(source.rgb, vec3f(0.2126, 0.7152, 0.0722)) * source.a, 0.0, 1.0);
+}
+`;
+
 export const SELECTION_CONTENT_COVERAGE_WGSL = /* wgsl */ `
 struct SelectionContentSettings {
   layerOpacity: f32,

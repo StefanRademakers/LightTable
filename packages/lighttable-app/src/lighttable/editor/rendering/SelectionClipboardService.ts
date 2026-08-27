@@ -24,23 +24,6 @@ export interface ClipboardCrop {
   height: number;
 }
 
-/** Converts straight sRGB clipboard pixels to grayscale mask values. */
-export const clipboardRgbaToMask = (pixels: Uint8ClampedArray) => {
-  for (let index = 0; index < pixels.length; index += 4) {
-    const alpha = pixels[index + 3] / 255;
-    const value = Math.max(0, Math.min(255, Math.round((
-      pixels[index] * 0.2126
-      + pixels[index + 1] * 0.7152
-      + pixels[index + 2] * 0.0722
-    ) * alpha)));
-    pixels[index] = value;
-    pixels[index + 1] = value;
-    pixels[index + 2] = value;
-    pixels[index + 3] = 255;
-  }
-  return pixels;
-};
-
 export const selectionClipboardCrop = (
   bounds: Rect,
   canvasWidth: number,
@@ -260,72 +243,74 @@ export class SelectionClipboardService {
     requestedPosition: { x: number; y: number } | null,
     channel: 'pixels' | 'mask' = 'pixels'
   ) {
-    const {
-      layerResources,
-      textureCodec,
-      invalidateLayer
-    } = this.options;
-    const raster = layerResources.raster(layerId);
-    const destination = channel === 'mask'
-      ? layerResources.maskTexture(layerId)
-      : raster?.texture ?? null;
+    const { device, layerResources, invalidateLayer } = this.options;
+    if (channel !== 'mask') return false;
+    const destination = layerResources.maskTexture(layerId);
     if (!destination) return false;
     const { width, height } = this.options.dimensions();
+    const generation = this.options.generation();
     const decoded = await decodeNativeImage(blob);
+    let sourceTexture: GPUTexture | null = null;
+    let previousMask: GPUTexture | null = null;
+    let settingsBuffer: GPUBuffer | null = null;
     try {
+      if (generation !== this.options.generation()) return false;
       const x = requestedPosition
         ? Math.round(requestedPosition.x)
         : Math.round((width - decoded.descriptor.width) / 2);
       const y = requestedPosition
         ? Math.round(requestedPosition.y)
         : Math.round((height - decoded.descriptor.height) / 2);
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Clipboard image placement could not be created.');
-      if (channel === 'mask') {
-        const currentMask = await textureCodec.encodeUnchecked(destination, true, width, height);
-        const current = await decodeNativeImage(currentMask);
-        try {
-          context.drawImage(current.bitmap, 0, 0);
-        } finally {
-          current.close();
-        }
-        const sourceCanvas = document.createElement('canvas');
-        sourceCanvas.width = decoded.descriptor.width;
-        sourceCanvas.height = decoded.descriptor.height;
-        const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sourceContext) throw new Error('Clipboard mask conversion could not be created.');
-        sourceContext.drawImage(decoded.bitmap, 0, 0);
-        const maskPixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-        clipboardRgbaToMask(maskPixels.data);
-        sourceContext.putImageData(maskPixels, 0, 0);
-        context.drawImage(sourceCanvas, x, y);
-      } else {
-        context.clearRect(0, 0, width, height);
-        context.drawImage(decoded.bitmap, x, y);
+      const sourceWidth = decoded.descriptor.width;
+      const sourceHeight = decoded.descriptor.height;
+      if (sourceWidth > device.limits.maxTextureDimension2D
+        || sourceHeight > device.limits.maxTextureDimension2D) {
+        throw new RangeError('Clipboard mask dimensions exceed the GPU texture limit.');
       }
-      const normalized = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (result) => result
-            ? resolve(result)
-            : reject(new Error('Clipboard image placement could not be encoded.')),
-          'image/png'
-        );
+      sourceTexture = device.createTexture({
+        label: 'LightTable clipboard mask source',
+        size: [sourceWidth, sourceHeight],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
       });
-      const generation = this.options.generation();
-      await textureCodec.decode(
-        normalized,
-        destination,
-        channel === 'mask',
-        width,
-        height,
-        () => generation === this.options.generation()
+      previousMask = device.createTexture({
+        label: 'LightTable mask before clipboard paste',
+        size: [width, height],
+        format: destination.format,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      });
+      settingsBuffer = device.createBuffer({
+        label: 'LightTable clipboard mask paste settings',
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      device.queue.copyExternalImageToTexture(
+        { source: decoded.bitmap }, { texture: sourceTexture }, [sourceWidth, sourceHeight]
       );
+      device.queue.writeBuffer(settingsBuffer, 0, new Int32Array([x, y, 0, 0]));
+      const pipeline = this.options.pipelines().maskClipboardPaste;
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: previousMask.createView() },
+          { binding: 1, resource: sourceTexture.createView() },
+          { binding: 2, resource: { buffer: settingsBuffer } }
+        ]
+      });
+      const encoder = device.createCommandEncoder({ label: 'LightTable clipboard mask paste' });
+      encoder.copyTextureToTexture({ texture: destination }, { texture: previousMask }, [width, height]);
+      this.options.drawFullscreen(
+        encoder, pipeline, bindGroup, destination.createView(), { r: 0, g: 0, b: 0, a: 0 }
+      );
+      device.queue.submit([encoder.finish()]);
+      await device.queue.onSubmittedWorkDone();
+      if (generation !== this.options.generation()) return false;
       invalidateLayer(layerId);
       return true;
     } finally {
+      sourceTexture?.destroy();
+      previousMask?.destroy();
+      settingsBuffer?.destroy();
       decoded.close();
     }
   }

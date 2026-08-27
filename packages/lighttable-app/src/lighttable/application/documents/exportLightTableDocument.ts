@@ -63,14 +63,17 @@ export interface ExportLightTableRuntimeOptions {
   readonly forceLayered?: boolean;
 }
 
-const lightweightPreview = async (
-  document: ImageDocument,
-  renderer: DocumentExportRenderer
-): Promise<Blob> => {
-  if (typeof OffscreenCanvas === 'undefined') return renderer.exportPng();
-  const canvas = new OffscreenCanvas(document.width, document.height);
-  if (!canvas.getContext('2d')) return renderer.exportPng();
-  return canvas.convertToBlob({ type: 'image/png' });
+const lightweightPreview = async (): Promise<Blob> => {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(1, 1).convertToBlob({ type: 'image/png' });
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  return new Promise((resolve, reject) => canvas.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error('Recovery placeholder encoding failed.')),
+    'image/png'
+  ));
 };
 
 export const buildLightTableOutputName = (base: string) =>
@@ -99,11 +102,11 @@ export const exportLightTableDocument = async ({
   fontAssets = []
 }: ExportLightTableDocumentOptions, runtime: ExportLightTableRuntimeOptions = {}): Promise<ExportedLightTableDocument> => {
   const preview = runtime.lightweightPreview
-    ? await lightweightPreview(document, renderer)
+    ? await lightweightPreview()
     : await renderer.exportPng();
   const outputName = buildLightTableOutputName(fileNameBase);
 
-  if (!runtime.forceLayered && canExportAsFlatRecipe(document)) {
+  if (!runtime.forceLayered && !runtime.lightweightPreview && canExportAsFlatRecipe(document)) {
     return {
       file: new File([preview], outputName, { type: 'image/png' }),
       recipe: createLightTableRecipe(recipeSourceKey, flatAdjustments, undefined, globalGradeStrength)
@@ -125,7 +128,8 @@ export const exportLightTableDocument = async ({
       document,
       adjustmentStack,
       assets,
-      outputName
+      outputName,
+      { previewKind: runtime.lightweightPreview ? 'placeholder' : 'composite' }
     ),
     recipe: createLightTableRecipe(
       recipeSourceKey,

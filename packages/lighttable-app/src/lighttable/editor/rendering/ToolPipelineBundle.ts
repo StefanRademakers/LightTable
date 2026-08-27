@@ -8,6 +8,7 @@ import {
   LAYER_FILL_COLOR_WGSL,
   LAYER_FILL_GRADIENT_WGSL,
   LAYER_INVERT_COLORS_WGSL,
+  MASK_CLIPBOARD_PASTE_WGSL,
   RED_CHANNEL_COPY_WGSL,
   SELECTION_COMBINE_WGSL,
   SELECTION_CONTENT_COVERAGE_WGSL,
@@ -75,6 +76,7 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   selectionResample: GPURenderPipeline;
   selectionCopy: GPURenderPipeline;
   selectionDisplayCopy: GPURenderPipeline;
+  maskClipboardPaste: GPURenderPipeline;
   coverageToByte: GPURenderPipeline;
   coverageCopy: GPURenderPipeline;
   channelToSelection: GPURenderPipeline;
@@ -287,6 +289,9 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionResample: fullscreenPipeline('LightTable selection feather upscale', SELECTION_RESAMPLE_WGSL, SELECTION_TEXTURE_FORMAT),
     selectionCopy: fullscreenPipeline('LightTable selected pixel copy', SELECTION_COPY_WGSL),
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
+    maskClipboardPaste: fullscreenPipeline(
+      'LightTable clipboard mask paste', MASK_CLIPBOARD_PASTE_WGSL, LAYER_MASK_TEXTURE_FORMAT
+    ),
     coverageToByte: fullscreenPipeline('LightTable coverage readback conversion', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     coverageCopy: fullscreenPipeline('LightTable editable coverage copy', RED_CHANNEL_COPY_WGSL, SELECTION_TEXTURE_FORMAT),
     channelToSelection: fullscreenPipeline('LightTable source channel to selection', COLOR_CHANNEL_COPY_WGSL, SELECTION_TEXTURE_FORMAT),

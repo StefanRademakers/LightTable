@@ -4,6 +4,7 @@ import {
   createImageDocument
 } from '../../editor/document/documentTypes';
 import type { DocumentAssetBlob } from '../../editor/persistence/layeredDocumentFormat';
+import { parseLayeredDocumentFile } from '../../editor/persistence/layeredDocumentFormat';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../../types';
 import {
@@ -84,5 +85,38 @@ describe('LightTable document export policy', () => {
 
     expect(output.recipe.documentFormat).toBe('embedded-layered-png');
     expect(renderer.exportLayerAssets).toHaveBeenCalledWith(document);
+  });
+
+  it('uses a 1x1 placeholder instead of a document-sized recovery preview', async () => {
+    const created: Array<{ width: number; height: number }> = [];
+    vi.stubGlobal('OffscreenCanvas', class {
+      constructor(public width: number, public height: number) {
+        created.push({ width, height });
+      }
+      convertToBlob = vi.fn(async () => new Blob(['placeholder'], { type: 'image/png' }));
+    });
+    try {
+      const document = createImageDocument('Recovery', 12_000, 8_000, 'asset');
+      const renderer = rendererFixture();
+      vi.mocked(renderer.exportLayerAssets).mockResolvedValue([{
+        layerId: document.layers[0]!.id,
+        pixels: new Blob(['layer'], { type: 'image/png' }),
+        mask: null
+      }]);
+      const settings = createDefaultAdjustments();
+      const output = await exportLightTableDocument({
+        document, renderer, recipeSourceKey: 'source-key', fileNameBase: 'recovery.png',
+        flatAdjustments: settings, documentAdjustments: settings,
+        effectiveLayeredAdjustments: settings, preservedSourceAssets: []
+      }, { lightweightPreview: true });
+
+      expect(created).toEqual([{ width: 1, height: 1 }]);
+      expect(renderer.exportPng).not.toHaveBeenCalled();
+      await expect(parseLayeredDocumentFile(output.file)).resolves.toMatchObject({
+        previewKind: 'placeholder'
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

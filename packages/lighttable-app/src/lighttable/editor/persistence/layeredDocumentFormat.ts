@@ -142,6 +142,7 @@ interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
   version: typeof MANIFEST_VERSION;
   previewLength: number;
+  previewKind?: 'composite' | 'placeholder';
   document: {
     id: string;
     name: string;
@@ -225,6 +226,7 @@ export interface ParsedLayeredDocument {
   document: ImageDocument;
   adjustmentStack: AdjustmentStack;
   preview: Blob;
+  previewKind?: 'composite' | 'placeholder';
   assets: LayerAssetBlobs[];
   patternAssets: PatternAssetBlob[];
   colorLookupAssets: ColorLookupAssetBlob[];
@@ -254,7 +256,8 @@ export const buildLayeredDocumentFile = (
   document: ImageDocument,
   adjustmentStack: AdjustmentStack,
   assets: DocumentAssetBlob[],
-  fileName: string
+  fileName: string,
+  options: { readonly previewKind?: 'composite' | 'placeholder' } = {}
 ) => {
   const assetsByLayer = new Map(
     assets
@@ -517,6 +520,7 @@ export const buildLayeredDocumentFile = (
     format: 'lighttable-layered-png',
     version: MANIFEST_VERSION,
     previewLength: preview.size,
+    previewKind: options.previewKind ?? 'composite',
     document: {
       id: document.id,
       name: document.name,
@@ -811,10 +815,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const width = source.width;
   const height = source.height;
   const previewLength = raw.previewLength;
+  const previewKind = raw.previewKind ?? 'composite';
   if (typeof source.id !== 'string' || !source.id || typeof source.name !== 'string'
     || (source.activeLayerId !== null && typeof source.activeLayerId !== 'string')
     || !Number.isInteger(width) || !Number.isInteger(height) || Number(width) <= 0 || Number(height) <= 0 ||
-    !Number.isInteger(previewLength) || Number(previewLength) <= 0 || Number(previewLength) > manifestStart || !Array.isArray(source.layers)) {
+    !Number.isInteger(previewLength) || Number(previewLength) <= 0 || Number(previewLength) > manifestStart
+    || (previewKind !== 'composite' && previewKind !== 'placeholder') || !Array.isArray(source.layers)) {
     throw new Error('The LightTable document dimensions or preview are invalid.');
   }
   const adjustmentStack = parseAdjustmentStack(raw.adjustmentStack);
@@ -1444,6 +1450,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     document,
     adjustmentStack,
     preview: blob.slice(0, Number(previewLength), 'image/png'),
+    previewKind,
     assets,
     patternAssets,
     colorLookupAssets,

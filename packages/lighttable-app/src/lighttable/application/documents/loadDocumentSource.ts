@@ -282,11 +282,21 @@ export const loadDocumentSource = async (
     : null;
 
   const decodeStartedAt = dependencies.now();
+  const placeholderLayeredPreview = layered?.previewKind === 'placeholder';
   const loadedMetadata: LightTableImageMetadata = svgPlan ? {
     name: request.name, width: svgPlan.width, height: svgPlan.height,
     contentType: 'image/svg+xml', decoder: 'native-svg', sourceBitDepth: 32,
     sourceFormat: 'SVG', sourceInterpretation: 'Editable normalized SVG subset',
     decodeDurationMs: sourceDecodeMs
+  } : placeholderLayeredPreview ? {
+    name: request.name,
+    width: layered.document.width,
+    height: layered.document.height,
+    contentType: 'application/vnd.mediavibe.lighttable.document',
+    decoder: layered.document.importProvenance?.decoder ?? 'browser',
+    sourceBitDepth: layered.document.colorSettings.bitDepth,
+    sourceFormat: 'LightTable',
+    sourceInterpretation: 'Native layered recovery document'
   } : await request.renderer.loadImage(imageBlob, request.name, {
     decodeMode:
       psdImport || layered
@@ -412,7 +422,7 @@ export const loadDocumentSource = async (
   // Retire the transient SVG raster and its layer runtime immediately before
   // the editable canonical document takes ownership. Both operations occur in
   // one JS turn, so no transparent intermediate frame can be presented.
-  if (svgPlan) request.renderer.initializeDocumentSurface(metadata);
+  if (svgPlan || placeholderLayeredPreview) request.renderer.initializeDocumentSurface(metadata);
   request.renderer.armStartupPresentation();
   request.renderer.setDocument(document);
   if (layered) {

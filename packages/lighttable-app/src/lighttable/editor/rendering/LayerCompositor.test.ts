@@ -781,7 +781,11 @@ describe('LayerCompositor', () => {
       submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
       transformSessions: { current: null } as never,
       pixelEditSessions: { current: null } as never,
-      geometryPreviews: { resolve: vi.fn(() => translationMatrix(13, 17)) } as never,
+      geometryPreviews: {
+        resolve: vi.fn((layerId: string) => layerId === textLayer.id
+          ? translationMatrix(13, 17)
+          : null)
+      } as never,
       layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
       vectors: { encode: encodeVector, retainLayerIds: vi.fn() } as never,
       texts: { resolvePresentation: resolve } as never,
@@ -804,6 +808,58 @@ describe('LayerCompositor', () => {
     expect(encodeVector).not.toHaveBeenCalled();
     const values = vi.mocked(writeBuffer).mock.calls[0][2] as Float32Array;
     expect([...values.slice(12, 14)]).toEqual([20, 10]);
+  });
+
+  it('does not draw moving atlas text into the immutable geometry checkpoint', () => {
+    const document = createImageDocument('Moving text', 64, 32, 'source');
+    const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    document.layers = [document.layers[0]!, textLayer];
+    const compositeA = texture();
+    const compositeB = texture();
+    const checkpoint = texture();
+    const copyTextureToTexture = vi.fn();
+    const encodeAtlasPresentation = vi.fn(() => true);
+    const compositor = new LayerCompositor({
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: {} as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: {} as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: {
+        resolve: vi.fn((layerId: string) => layerId === textLayer.id
+          ? translationMatrix(13, 17)
+          : null)
+      } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn(), retainLayerIds: vi.fn() } as never,
+      texts: {
+        isTransparent: vi.fn(() => false),
+        encodeAtlasPresentation
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(() => checkpoint),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+    const encoder = { copyTextureToTexture } as unknown as GPUCommandEncoder;
+
+    compositor.encode(encoder, document);
+
+    expect(encodeAtlasPresentation).toHaveBeenCalledWith(
+      encoder,
+      expect.objectContaining({ id: textLayer.id, transform: translationMatrix(13, 17) }),
+      expect.anything(),
+      { texture: compositeA, width: 64, height: 32 }
+    );
+    expect(copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: checkpoint }, { texture: compositeA }, { width: 64, height: 32 }
+    );
   });
 
   it('treats settled empty text as transparent instead of drawing a placeholder', () => {

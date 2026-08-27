@@ -8,6 +8,8 @@ import {
   svgAllowsIsolatedRawPreview,
   type DocumentSourceRenderer
 } from './loadDocumentSource';
+import { createImageDocument } from '../../editor/document/documentTypes';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 
 const metadata: LightTableImageMetadata = {
   name: 'source.png',
@@ -121,6 +123,41 @@ describe('loadDocumentSource', () => {
       decodeAndUploadMs: 1,
       documentInitMs: 1
     });
+  });
+
+  it('opens a recovery placeholder without decoding it as a document-sized image', async () => {
+    const renderer = createRenderer();
+    const document = createImageDocument('Recovered', 12_000, 8_000, 'asset');
+    const preview = new Blob(['placeholder'], { type: 'image/png' });
+    const result = await loadDocumentSource({
+      renderer,
+      blob: new Blob(['layered']),
+      name: 'Recovered.lighttable.png',
+      cacheKey: 'recovery:1',
+      decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
+      dependencies: {
+        probe: async () => ({
+          format: 'png', codec: 'lighttable', decodeMode: 'fast', bitDepth: 8
+        }),
+        parseLayered: async () => ({
+          document,
+          adjustmentStack: createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+          preview,
+          previewKind: 'placeholder',
+          assets: [], patternAssets: [], colorLookupAssets: [],
+          preservedSourceAssets: [], fontAssets: []
+        }),
+        now: () => 0
+      }
+    });
+
+    expect(renderer.loadImage).not.toHaveBeenCalled();
+    expect(renderer.initializeDocumentSurface).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 12_000, height: 8_000 })
+    );
+    expect(renderer.setDocument).toHaveBeenCalledWith(document);
+    expect(result?.metadata).toMatchObject({ width: 12_000, height: 8_000 });
   });
 
   it('shows a transient SVG preview before publishing editable native vectors', async () => {

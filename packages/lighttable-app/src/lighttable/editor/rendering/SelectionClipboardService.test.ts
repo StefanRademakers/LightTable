@@ -1,25 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../document/documentTypes';
 import {
-  clipboardRgbaToMask,
   SelectionClipboardService,
   selectionClipboardCrop
 } from './SelectionClipboardService';
-
-describe('clipboardRgbaToMask', () => {
-  it('uses luminance multiplied by alpha and writes an opaque grayscale mask', () => {
-    const pixels = new Uint8ClampedArray([
-      255, 255, 255, 128,
-      255, 0, 0, 255,
-      0, 0, 0, 0
-    ]);
-    expect([...clipboardRgbaToMask(pixels)]).toEqual([
-      128, 128, 128, 255,
-      54, 54, 54, 255,
-      0, 0, 0, 255
-    ]);
-  });
-});
 
 describe('selectionClipboardCrop', () => {
   it('rounds outward and clips a selection to the document', () => {
@@ -126,5 +110,74 @@ describe('SelectionClipboardService copy orchestration', () => {
       true,
       { format: 'png' }
     );
+  });
+
+  it('pastes a clipboard mask entirely on the GPU without an image roundtrip', async () => {
+    const close = vi.fn();
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 5, height: 3, close })));
+    vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2 });
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    try {
+      const destination = { format: 'r16float', createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+      const source = { createView: vi.fn(() => ({})), destroy: vi.fn() } as unknown as GPUTexture;
+      const previous = { createView: vi.fn(() => ({})), destroy: vi.fn() } as unknown as GPUTexture;
+      const settings = { destroy: vi.fn() } as unknown as GPUBuffer;
+      const copyTextureToTexture = vi.fn();
+      const encoder = {
+        copyTextureToTexture,
+        finish: vi.fn(() => ({}))
+      } as unknown as GPUCommandEncoder;
+      const textureCodec = { encodeUnchecked: vi.fn(), decode: vi.fn() };
+      const pipeline = { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline;
+      const invalidateLayer = vi.fn();
+      const drawFullscreen = vi.fn();
+      const device = {
+        limits: { maxTextureDimension2D: 16_384 },
+        createTexture: vi.fn()
+          .mockReturnValueOnce(source)
+          .mockReturnValueOnce(previous),
+        createBuffer: vi.fn(() => settings),
+        createBindGroup: vi.fn(() => ({})),
+        createCommandEncoder: vi.fn(() => encoder),
+        queue: {
+          copyExternalImageToTexture: vi.fn(),
+          writeBuffer: vi.fn(),
+          submit: vi.fn(),
+          onSubmittedWorkDone: vi.fn(async () => undefined)
+        }
+      } as unknown as GPUDevice;
+      const service = new SelectionClipboardService({
+        device,
+        textures: {} as never,
+        layerResources: {
+          raster: vi.fn(() => null),
+          maskTexture: vi.fn(() => destination)
+        } as never,
+        textureCodec: textureCodec as never,
+        dimensions: () => ({ width: 64, height: 32 }),
+        generation: () => 1,
+        pipelines: () => ({ maskClipboardPaste: pipeline } as never),
+        invalidateLayer,
+        drawFullscreen
+      });
+
+      await expect(service.pasteExternalImage(
+        'layer' as never, new Blob(['pixels']), { x: -2, y: 4 }, 'mask'
+      )).resolves.toBe(true);
+
+      expect(textureCodec.encodeUnchecked).not.toHaveBeenCalled();
+      expect(textureCodec.decode).not.toHaveBeenCalled();
+      expect(copyTextureToTexture).toHaveBeenCalledWith(
+        { texture: destination }, { texture: previous }, [64, 32]
+      );
+      expect(drawFullscreen).toHaveBeenCalledWith(
+        encoder, pipeline, expect.anything(), expect.anything(),
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
+      expect(invalidateLayer).toHaveBeenCalledWith('layer');
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -614,13 +614,25 @@ export class LayerCompositor {
           && !textNode.clipping
           && !textNode.mask?.enabled
           && !layerStyleStackIsActive(textNode.styleStack);
-        if (directEligible && this.options.texts?.encodeAtlasPresentation?.(
-          encoder,
-          textNode,
-          inheritedTransform,
-          { texture: background, width, height }
-        )) {
-          return [background, target];
+        if (directEligible && this.options.texts?.encodeAtlasPresentation) {
+          // A transient geometry checkpoint passes its immutable cached base as
+          // the background. Atlas text renders in-place, so drawing into that
+          // texture would permanently accumulate every transform preview frame.
+          // Fork the base on-GPU before rendering the moving text.
+          const atlasTarget = background === this.topmostBaseTexture ? target : background;
+          if (atlasTarget !== background) {
+            encoder.copyTextureToTexture(
+              { texture: background }, { texture: atlasTarget }, { width, height }
+            );
+          }
+          if (this.options.texts.encodeAtlasPresentation(
+            encoder,
+            textNode,
+            inheritedTransform,
+            { texture: atlasTarget, width, height }
+          )) {
+            return atlasTarget === background ? [background, target] : [target, background];
+          }
         }
         const source = this.options.texts?.resolvePresentation(textNode, inheritedTransform) ?? null;
         if (!source) {
