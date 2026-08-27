@@ -120,7 +120,7 @@ const parseAction = (value: unknown): ParsedAction => {
   if (recording.status !== 'stopped' || recording.id !== value.id
     || Object.keys(recording).some((key) => !RECORDING_KEYS.has(key))
     || recording.name !== value.name || !finite(recording.startedAt) || !finite(recording.stoppedAt)
-    || !Array.isArray(recording.steps) || recording.steps.length < 1 || recording.steps.length > MAX_STEPS
+    || !Array.isArray(recording.steps) || recording.steps.length > MAX_STEPS
     || !finite(recording.byteLength) || recording.byteLength < 0 || recording.limitReached !== false) {
     return { error: 'Action recording metadata is invalid.' };
   }
@@ -168,6 +168,7 @@ export class SemanticActionLibrary {
   private snapshotValue: SemanticActionLibrarySnapshot;
   private readonly listeners = new Set<() => void>();
   private readonly readyValue: Promise<void>;
+  private writeValue: Promise<void> = Promise.resolve();
   private disposed = false;
 
   constructor(private readonly storage?: SemanticActionLibraryStorage) {
@@ -267,7 +268,7 @@ export class SemanticActionLibrary {
     await this.readyValue;
     const normalizedName = name.trim();
     if (!normalizedName || normalizedName.length > 255 || recording.status !== 'stopped'
-      || recording.steps.length < 1 || recording.steps.some(({ replayable, outcome }) =>
+      || recording.steps.some(({ replayable, outcome }) =>
         !replayable || (outcome !== 'completed' && outcome !== 'accepted'))) return null;
     const now = Date.now();
     const requestedId = recording.id ?? nextId('action', new Set(this.snapshotValue.actions.map(({ id }) => id)));
@@ -434,11 +435,16 @@ export class SemanticActionLibrary {
   private async persist(snapshot: SemanticActionLibrarySnapshot): Promise<boolean> {
     const serialized = this.serialize(snapshot);
     if (!serialized) return false;
-    try { await this.storage?.write(serialized); } catch {
+    // Publish synchronously so a second rapid mutation builds on this snapshot,
+    // then serialize storage writes to preserve that same order on disk.
+    this.publish(snapshot);
+    const write = this.writeValue.then(async () => { await this.storage?.write(serialized); });
+    this.writeValue = write.catch(() => undefined);
+    try { await write; } catch {
       this.publish({ ...this.snapshotValue, error: 'Saved Actions could not be written.' });
       return false;
     }
-    this.publish(snapshot); return true;
+    return true;
   }
 
   private publish(snapshot: SemanticActionLibrarySnapshot): void {

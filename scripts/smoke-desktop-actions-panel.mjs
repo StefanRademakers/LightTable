@@ -41,12 +41,27 @@ try {
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
   await panel.waitFor();
+
+  for (const name of ['Empty one', 'Empty two']) {
+    await panel.getByRole('button', { name: 'New Action', exact: true }).click();
+    const emptyDialog = window.getByRole('dialog', { name: 'New Action' });
+    await emptyDialog.getByRole('textbox').fill(name);
+    await emptyDialog.getByRole('button', { name: 'OK' }).click();
+    await window.waitForFunction(() =>
+      window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording');
+    await panel.getByRole('button', { name: 'Stop' }).click();
+  }
+
   await panel.getByRole('button', { name: 'New Action', exact: true }).click();
   const dialog = window.getByRole('dialog', { name: 'New Action' });
   await dialog.getByRole('textbox').fill('Layer setup');
   await dialog.getByRole('button', { name: 'OK' }).click();
   await window.waitForFunction(() =>
     window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording');
+  await Promise.all([
+    panel.getByText('Empty one', { exact: true }).waitFor(),
+    panel.getByText('Empty two', { exact: true }).waitFor()
+  ]);
 
   const created = await driver.execute(documentId, 'layer.createRaster');
   const layerId = created.value?.layerId;
@@ -95,6 +110,25 @@ try {
   await history.waitFor();
   if (await history.getByText(/Document Change|Edit document/i).count()) {
     throw new Error(`History still contains generic edit labels: ${await history.innerText()}`);
+  }
+  const historyGeometry = await window.evaluate(() => {
+    const historyButton = document.querySelector('.lighttable-history-panel__footer button');
+    const layerButton = document.querySelector('.lighttable-layers__footer button');
+    const historyState = document.querySelector('.lighttable-history-panel__state');
+    if (!(historyButton instanceof HTMLElement) || !(layerButton instanceof HTMLElement)
+      || !(historyState instanceof HTMLElement)) return null;
+    const historyBounds = historyButton.getBoundingClientRect();
+    const layerBounds = layerButton.getBoundingClientRect();
+    const stateStyle = getComputedStyle(historyState);
+    const layerStyle = getComputedStyle(document.querySelector('.lighttable-layer'));
+    return { historyButton: [historyBounds.width, historyBounds.height],
+      layerButton: [layerBounds.width, layerBounds.height],
+      stateRadius: stateStyle.borderRadius, layerRadius: layerStyle.borderRadius };
+  });
+  if (!historyGeometry
+    || historyGeometry.historyButton.join('x') !== historyGeometry.layerButton.join('x')
+    || historyGeometry.stateRadius !== historyGeometry.layerRadius) {
+    throw new Error(`History drifts from the shared panel UI: ${JSON.stringify(historyGeometry)}`);
   }
 
   await window.screenshot({ path: path.join(output, 'actions-history-panels.png') });

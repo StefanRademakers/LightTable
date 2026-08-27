@@ -64,6 +64,14 @@
   cursor: inherit;
 }
 
+.lighttable-action-tree__enabled {
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  display: grid;
+  place-items: center;
+}
+
 .lighttable-action-tree__row strong,
 .lighttable-action-tree__row > span:last-child {
   min-width: 0;

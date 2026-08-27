@@ -85,14 +85,19 @@ export class SemanticActionWorkflowController {
   librarySnapshot = (): SemanticActionLibrarySnapshot => this.library.snapshot();
   subscribeLibrary = (listener: () => void): (() => void) => this.library.subscribe(listener);
   async createSet(name: string) {
+    const recordingBefore = this.recorder.snapshot();
     const created = await this.library.createSet(name);
-    if (created) this.recorder.clear();
+    if (created && this.recorder.snapshot() === recordingBefore) this.recorder.clear();
     return created;
   }
   renameSet = (id: string, name: string) => this.library.renameSet(id, name);
   async selectSet(id: string) {
+    const recordingBefore = this.recorder.snapshot();
     const selected = await this.library.selectSet(id);
     if (!selected) return null;
+    // Persisting a set selection is asynchronous. Never let its completion
+    // erase a recording that the user started while that write was pending.
+    if (this.recorder.snapshot() !== recordingBefore) return selected;
     const actionId = this.library.snapshot().selectedId;
     const action = actionId
       ? this.library.snapshot().actions.find((candidate) => candidate.id === actionId) : null;
@@ -134,8 +139,11 @@ export class SemanticActionWorkflowController {
   }
 
   async saveRecording(name: string) {
-    const saved = await this.library.save(this.recorder.snapshot(), name);
-    if (saved) this.recorder.restore(saved.recording);
+    const recording = this.recorder.snapshot();
+    const saved = await this.library.save(recording, name);
+    // Saving may finish after the user has already started the next Action.
+    // Persist the completed recording, but never replace newer recorder state.
+    if (saved && this.recorder.snapshot() === recording) this.recorder.restore(saved.recording);
     return saved;
   }
 

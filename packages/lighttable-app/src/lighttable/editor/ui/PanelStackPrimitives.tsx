@@ -1,4 +1,9 @@
-import React, { forwardRef, type HTMLAttributes, type PropsWithChildren } from 'react';
+import React, {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type PropsWithChildren
+} from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { ButtonBase } from '../../../ui/ButtonBase';
 
@@ -7,19 +12,33 @@ interface PanelStackRowProps extends HTMLAttributes<HTMLDivElement> {
   readonly active?: boolean;
 }
 
+const stackRowClassName = (className: string | undefined, selected: boolean, active: boolean) => [
+  'lighttable-panel-stack-row',
+  selected ? 'lighttable-panel-stack-row--selected' : '',
+  active ? 'lighttable-panel-stack-row--active' : '',
+  className ?? ''
+].filter(Boolean).join(' ');
+
 export const PanelStackRow = forwardRef<HTMLDivElement, PanelStackRowProps>(function PanelStackRow({
   selected = false,
   active = false,
   className,
   ...props
 }, ref) {
-  return <div ref={ref} {...props} className={[
-    'lighttable-panel-stack-row',
-    selected ? 'lighttable-panel-stack-row--selected' : '',
-    active ? 'lighttable-panel-stack-row--active' : '',
-    className ?? ''
-  ].filter(Boolean).join(' ')} />;
+  return <div ref={ref} {...props} className={stackRowClassName(className, selected, active)} />;
 });
+
+interface PanelStackButtonRowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  readonly selected?: boolean;
+  readonly active?: boolean;
+}
+
+export const PanelStackButtonRow = forwardRef<HTMLButtonElement, PanelStackButtonRowProps>(
+  function PanelStackButtonRow({ selected = false, active = false, className, type = 'button', ...props }, ref) {
+    return <ButtonBase ref={ref} type={type} {...props}
+      className={stackRowClassName(className, selected, active)} />;
+  }
+);
 
 export const PanelStackDisclosure: React.FC<{
   readonly expanded: boolean;
