@@ -19,11 +19,14 @@
 }
 
 .lighttable-action-tree {
+  --lt-action-tree-column: 18px;
+  --lt-action-tree-column-gap: 4px;
+  --lt-action-tree-indent: calc(var(--lt-action-tree-column) + var(--lt-action-tree-column-gap));
   --lt-layer-row-min-height: 28px;
   --lt-layer-row-gap: 2px;
-  --lt-layer-row-padding-inline: 5px;
+  --lt-layer-row-padding-inline: 2px;
   --lt-layer-row-padding-block: 0;
-  --lt-layer-thumbnail-slot: 18px;
+  --lt-layer-thumbnail-slot: var(--lt-action-tree-column);
   --lt-layer-thumbnail-content-max: 16px;
   flex: 1 1 auto;
   min-height: 72px;
@@ -36,6 +39,7 @@
 }
 
 .lighttable-action-tree__row {
+  gap: var(--lt-action-tree-column-gap);
   font: inherit;
   font-size: var(--lt-type-regular);
   line-height: 1;
@@ -51,11 +55,23 @@
 }
 
 .lighttable-action-tree__row.is-action {
-  padding-left: calc(var(--lt-layer-row-padding-inline) + 16px);
+  padding-left: calc(var(--lt-layer-row-padding-inline) + var(--lt-action-tree-indent));
 }
 
 .lighttable-action-tree__row.is-step {
-  padding-left: calc(var(--lt-layer-row-padding-inline) + 32px);
+  padding-left: calc(var(--lt-layer-row-padding-inline) + 2 * var(--lt-action-tree-indent));
+}
+
+.lighttable-action-tree .lighttable-panel-stack-disclosure,
+.lighttable-action-tree__enabled,
+.lighttable-action-tree__row .lighttable-action-tree__modal {
+  width: var(--lt-action-tree-column);
+  height: calc(var(--lt-control-height) - 2px);
+  flex: 0 0 var(--lt-action-tree-column);
+}
+
+.lighttable-action-tree .lighttable-layer__thumbnail-slot {
+  align-self: center;
 }
 
 .lighttable-action-tree__thumbnail {
@@ -68,9 +84,6 @@
 }
 
 .lighttable-action-tree__enabled {
-  width: 25px;
-  height: 25px;
-  flex: 0 0 25px;
   display: grid;
   place-items: center;
 }
@@ -87,9 +100,7 @@
 .lighttable-action-tree__row.is-set strong { font-weight: var(--lt-weight-semibold); }
 
 .lighttable-action-tree__modal.square-icon-button--compact {
-  width: 14px;
-  min-width: 14px;
-  height: 14px;
+  min-width: var(--lt-action-tree-column);
   padding: 0;
   border-color: transparent;
   border-radius: 1px;
