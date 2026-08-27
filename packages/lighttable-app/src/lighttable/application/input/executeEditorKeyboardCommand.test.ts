@@ -30,6 +30,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   selectAll: vi.fn(),
   selectNone: vi.fn(),
   invertSelection: vi.fn(),
+  cutSelection: vi.fn(),
   copySelection: vi.fn(),
   copyMergedSelection: vi.fn(),
   pasteSelection: vi.fn(),

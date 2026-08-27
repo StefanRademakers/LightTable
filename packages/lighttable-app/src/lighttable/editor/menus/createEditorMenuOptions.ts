@@ -90,6 +90,7 @@ export interface EditorMenuCommands {
   exportSvg: () => void;
   pdfExportPreflight: () => void;
   openFormatSupport: () => void;
+  cutSelectedContent: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
@@ -318,6 +319,13 @@ export const createEditorMenuOptions = (
 
   if (menu === 'edit') {
     return [
+      {
+        value: 'cut-selected-content',
+        label: 'Cut',
+        shortcut: labels.primaryShortcut('X'),
+        onClick: commands.cutSelectedContent,
+        disabled: !state.hasMetadata || !state.hasSelection || state.saving
+      },
       {
         value: 'copy-selected-content',
         label: 'Copy',

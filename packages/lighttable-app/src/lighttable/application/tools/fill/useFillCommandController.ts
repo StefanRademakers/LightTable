@@ -42,7 +42,10 @@ export interface FillCommandResult {
 export interface FillCommandController {
   fill(color: string, preserveTransparency?: boolean): boolean;
   clearSelection(): boolean;
-  apply(command: SemanticFillCommand): FillCommandResult | null;
+  apply(command: SemanticFillCommand, history?: {
+    readonly label: string;
+    readonly type: string;
+  }): FillCommandResult | null;
 }
 
 /** Owns one fill command from renderer mutation through reversible history. */
@@ -54,7 +57,8 @@ export const createFillCommandController = (
     channel: PaintChannel,
     color: string,
     options: { readonly preserveTransparency?: boolean; readonly opacity?: number },
-    status: (targetLabel: string) => string
+    status: (targetLabel: string) => string,
+    history?: { readonly label: string; readonly type: string }
   ) => {
     const dependencies = resolveDependencies();
     const before = dependencies.getDocument();
@@ -74,8 +78,9 @@ export const createFillCommandController = (
 
     dependencies.applyDocumentSnapshot(result.document);
     dependencies.pushHistoryEntry({
-      label: result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill',
-      type: result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill',
+      label: history?.label
+        ?? (result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
+      type: history?.type ?? (result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
       byteSize: result.pixelEdit.byteSize,
       layerIds: [result.layerId],
       undo: () => {
@@ -115,10 +120,10 @@ export const createFillCommandController = (
   return {
     fill: (color, preserveTransparency = false) => executeUi(color, preserveTransparency),
     clearSelection: () => executeUi('#000000', false, 0),
-    apply: (command) => execute(command.layerId, command.channel, command.color, {
+    apply: (command, history) => execute(command.layerId, command.channel, command.color, {
       preserveTransparency: command.preserveTransparency,
       opacity: command.opacity
-    }, (targetLabel) => `${targetLabel} filled through command`)
+    }, (targetLabel) => `${targetLabel} filled through command`, history)
   };
 };
 

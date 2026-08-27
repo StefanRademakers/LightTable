@@ -14,7 +14,8 @@ const record = (value: unknown): value is Record<string, unknown> => (
 );
 export { isLightTableCommandId };
 export const isLightTableGestureKind = (value: unknown): value is LightTableGestureKind => (
-  value === 'brush-stroke' || value === 'selection-rectangle' || value === 'layer-translate'
+  value === 'brush-stroke' || value === 'selection-paint'
+    || value === 'selection-rectangle' || value === 'layer-translate'
 );
 export const isLightTableGestureSample = (value: unknown): value is LightTableGestureSample => record(value)
   && typeof value.x === 'number' && Number.isFinite(value.x) && Math.abs(value.x) <= 10_000_000
@@ -150,6 +151,24 @@ export const parseCommittedGestureRequest = (
     }
     parameters = { layerId: value.parameters.layerId, channel: value.parameters.channel,
       erase: value.parameters.erase === true, brush, ...(operator ? { operator } : {}) };
+  } else if (value.kind === 'selection-paint') {
+    const mode = value.parameters.mode;
+    if ((mode !== 'add' && mode !== 'subtract')
+      || typeof value.parameters.size !== 'number' || !Number.isFinite(value.parameters.size)
+      || value.parameters.size < 1 || value.parameters.size > 1000
+      || !unitInterval(value.parameters.hardness)
+      || typeof value.parameters.opacity !== 'number' || value.parameters.opacity < 0.01
+      || !unitInterval(value.parameters.opacity)
+      || !unitInterval(value.parameters.smooth)) {
+      return { message: 'Committed Selection Brush stroke requires mode, size, hardness, opacity and smoothing.' };
+    }
+    parameters = {
+      mode,
+      size: value.parameters.size,
+      hardness: value.parameters.hardness,
+      opacity: value.parameters.opacity,
+      smooth: value.parameters.smooth
+    };
   } else if (value.kind === 'layer-translate') {
     if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId) {
       return { message: 'Committed layer translation requires layerId.' };

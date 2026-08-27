@@ -82,6 +82,17 @@
       "type": "object", "additionalProperties": false, "required": ["mode"],
       "properties": { "mode": { "type": "string", "enum": ["replace", "add", "subtract", "intersect"] } }
     },
+    "selectionPaintParameters": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "size", "hardness", "opacity", "smooth"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["add", "subtract"] },
+        "size": { "type": "number", "minimum": 1, "maximum": 1000 },
+        "hardness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "opacity": { "type": "number", "minimum": 0.01, "maximum": 1 },
+        "smooth": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
     "translateParameters": {
       "type": "object", "additionalProperties": false, "required": ["layerId"],
       "properties": { "layerId": { "$ref": "#/$defs/layerId" } }
@@ -92,12 +103,13 @@
       "input": {
         "type": "object", "additionalProperties": false, "required": ["kind", "parameters", "samples"],
         "properties": {
-          "kind": { "type": "string", "enum": ["brush-stroke", "selection-rectangle", "layer-translate"] },
+          "kind": { "type": "string", "enum": ["brush-stroke", "selection-paint", "selection-rectangle", "layer-translate"] },
           "parameters": { "type": "object" },
           "samples": { "$ref": "#/$defs/samples" }
         },
         "oneOf": [
           { "type": "object", "properties": { "kind": { "const": "brush-stroke" }, "parameters": { "$ref": "#/$defs/brushParameters" } } },
+          { "type": "object", "properties": { "kind": { "const": "selection-paint" }, "parameters": { "$ref": "#/$defs/selectionPaintParameters" } } },
           { "type": "object", "properties": { "kind": { "const": "selection-rectangle" }, "parameters": { "$ref": "#/$defs/selectionParameters" } } },
           { "type": "object", "properties": { "kind": { "const": "layer-translate" }, "parameters": { "$ref": "#/$defs/translateParameters" } } }
         ]
@@ -105,7 +117,7 @@
       "result": {
         "type": "object", "additionalProperties": false, "required": ["kind", "sampleCount"],
         "properties": {
-          "kind": { "type": "string", "enum": ["brush-stroke", "selection-rectangle", "layer-translate"] },
+          "kind": { "type": "string", "enum": ["brush-stroke", "selection-paint", "selection-rectangle", "layer-translate"] },
           "sampleCount": { "type": "integer", "minimum": 1, "maximum": 4096 }
         }
       }

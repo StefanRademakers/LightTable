@@ -53,6 +53,8 @@ export const TOOL_AUTOMATION_CATALOG = {
   'select-object': owner('continuous', [], 'Smart-selection owner exists; model/result contract is not exposed.'),
   'select-magic-wand': uiCommand('discrete', ['selection.applyMagicWand'],
     'One successful asynchronous GPU selection publishes its sampled recipe; masks remain local.'),
+  'select-paint-brush': uiCommand('continuous', ['tool.commitGesture:selection-paint'],
+    'One GPU-native selection-mask stroke records after its reversible selection commit.'),
   'vector-pen': uiCommand('continuous', ['vector.create', 'vector.update'],
     'Open/closed and resumed Pen paths publish once after commit; anchor and handle previews remain local.'),
   'vector-add-anchor': uiCommand('discrete', ['vector.update'], 'One-shot add records the final native path.'),

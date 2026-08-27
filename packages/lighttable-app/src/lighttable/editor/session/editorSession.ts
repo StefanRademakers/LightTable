@@ -3,6 +3,7 @@ import type {
   MagicWandOptions,
   SmartSelectionOptions,
   SelectionOperation,
+  SelectionPaintBrushOptions,
   SelectionToolId
 } from '../selection/selectionTypes';
 import {
@@ -269,6 +270,7 @@ export interface EditorSession {
   selectionSmooth: number;
   magicWand: MagicWandOptions;
   smartSelection: SmartSelectionOptions;
+  selectionPaintBrush: SelectionPaintBrushOptions;
   /** Photoshop-style Move/Transform picking of the top visible painted layer. */
   transformAutoSelectLayer: boolean;
   snap: SnapSettings;
@@ -313,6 +315,13 @@ export const createEditorSession = (): EditorSession => ({
   selectionSmooth: 0,
   magicWand: createDefaultMagicWandOptions(),
   smartSelection: createDefaultSmartSelectionOptions(),
+  selectionPaintBrush: {
+    size: 48,
+    hardness: 0.75,
+    opacity: 1,
+    smooth: 0,
+    overlayColor: '#ff0000'
+  },
   transformAutoSelectLayer: true,
   snap: createDefaultSnapSettings(),
   brush: {

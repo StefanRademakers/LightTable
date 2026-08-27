@@ -27,6 +27,7 @@ export interface EditorKeyboardCommandPorts {
   selectAll(): void;
   selectNone(): void;
   invertSelection(): void;
+  cutSelection(): void;
   copySelection(): void;
   copyMergedSelection(): void;
   pasteSelection(): void;
@@ -151,6 +152,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'select-invert':
       ports.invertSelection();
+      return;
+    case 'selection-cut':
+      ports.cutSelection();
       return;
     case 'selection-copy':
       ports.copySelection();

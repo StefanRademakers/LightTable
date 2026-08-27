@@ -35,6 +35,8 @@ export const projectCommandCapabilities = (
       'Assign Profile is unavailable in this host.'),
     availability('selection.copyPixels', supports('copyPixels', ports.copyPixels),
       'Pixel copy is unavailable in this host.'),
+    availability('selection.cutPixels', supports('cutPixels', ports.cutPixels),
+      'Pixel cut is unavailable in this host.'),
     availability('selection.pastePixels', supports('pastePixels', ports.pastePixels),
       'Pixel paste is unavailable in this host.'),
     availability('grade.copy', supports('copyGrade', ports.copyGrade),

@@ -832,6 +832,20 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.applyRasterMask(mask, mode);
   }
 
+  paintSelectionDabs(
+    dabs: BrushDab[],
+    hardness: number,
+    opacity: number,
+    mode: 'add' | 'subtract'
+  ) {
+    return this.runtime.selectionRasterizer.paintBrushDabs(
+      dabs,
+      hardness,
+      opacity,
+      mode
+    );
+  }
+
   applyMagicWandToActiveLayer(
     document: ImageDocument,
     layerId: LayerId,

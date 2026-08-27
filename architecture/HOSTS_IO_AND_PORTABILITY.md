@@ -113,6 +113,9 @@ also interoperating with OS image clipboard formats. Copy uses active-layer
 pixels inside the selection; Copy Merged uses the visible composite. Paste
 creates a layer at the source bounds when LightTable metadata is available and
 uses selection/document placement policy for external bitmap data.
+Cut first completes that same active-layer clipboard capture and only then
+clears the selected source pixels through the reversible GPU pixel-history
+owner. The semantic Cut command is the shared UI, Actions and MCP route.
 
 The rich in-app payload is authoritative when available. OS clipboard PNG/
 native-image transport must encode the same display/color contract rather than

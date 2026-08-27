@@ -737,7 +737,9 @@ export class LightTableCommandService {
     const finished = await this.ports.finishGesture(
       gesture.documentId, gesture.kind, gesture.pointerId, commit
     );
-    if (finished && commit && gesture.kind !== 'selection-rectangle') {
+    if (finished && commit
+      && gesture.kind !== 'selection-rectangle'
+      && gesture.kind !== 'selection-paint') {
       this.workspace.getDocument(gesture.documentId)?.markChanged();
     }
     return finished
@@ -1241,7 +1243,8 @@ export class LightTableCommandService {
       }
     }
 
-    if (value.command === 'selection.copyPixels' || value.command === 'selection.pastePixels') {
+    if (value.command === 'selection.copyPixels' || value.command === 'selection.cutPixels'
+      || value.command === 'selection.pastePixels') {
       const dispatched = await this.pixelClipboardCommands.dispatch(value.command, value.parameters,
         documentRequest.documentId, this.ports);
       if (dispatched.ok) {

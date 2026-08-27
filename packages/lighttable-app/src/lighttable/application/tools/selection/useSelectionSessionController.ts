@@ -35,6 +35,9 @@ import {
   PolygonalSelectionGestureController
 } from '../../../editor/tools/selection/polygonalSelectionGestureController';
 import type { Rect } from '../../../editor/document/documentTypes';
+import type { BrushDab, BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
+import { StrokeBuilder } from '../../../editor/tools/brush/strokeBuilder';
+import { StrokeSmoother } from '../../../editor/tools/brush/strokeSmoother';
 import { selectionOperationsBounds } from '../../../editor/tools/transform/selectionTransform';
 import {
   solveSnap,
@@ -64,6 +67,12 @@ export interface SelectionRendererPort {
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
   applySelectSimilar(operation: SelectionOperation): Promise<boolean>;
   applyRasterSelection(operation: SelectionOperation): Promise<boolean>;
+  paintSelectionDabs(
+    dabs: BrushDab[],
+    hardness: number,
+    opacity: number,
+    mode: 'add' | 'subtract'
+  ): boolean;
 }
 
 export interface SelectionSessionDependencies {
@@ -92,6 +101,16 @@ export interface SelectionSessionDependencies {
     readonly point: SelectionPoint;
     readonly mode: SelectionCombineMode;
     readonly options: MagicWandOptions;
+  }): void;
+  onPaintCommitted?(command: {
+    readonly kind: 'selection-paint';
+    readonly mode: 'add' | 'subtract';
+    readonly dabs: BrushDab[];
+    readonly samples: BrushPoint[];
+    readonly size: number;
+    readonly hardness: number;
+    readonly opacity: number;
+    readonly smooth: number;
   }): void;
 }
 
@@ -152,6 +171,16 @@ export interface SelectionSessionController {
   ): Promise<boolean>;
   selectSimilar(layerId: LayerId, options: SimilarSelectionOptions): Promise<boolean>;
   rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
+  beginPaint(
+    pointerId: number,
+    point: BrushPoint,
+    mode: 'add' | 'subtract',
+    options: { size: number; hardness: number; opacity: number; smooth: number }
+  ): boolean;
+  movePaint(pointerId: number, points: readonly BrushPoint[]): boolean;
+  finishPaint(pointerId: number): boolean;
+  cancelPaint(pointerId: number): boolean;
+  ownsPaint(pointerId: number): boolean;
   applyShape(
     shape: SelectionShape,
     mode: SelectionCombineMode,
@@ -179,6 +208,11 @@ export const cloneSelectionOperations = (
       ? { ...operation.source, options: { ...operation.source.options } }
     : operation.source?.kind === 'raster-mask'
       ? { ...operation.source, mask: operation.source.mask }
+      : operation.source?.kind === 'selection-paint'
+        ? {
+            ...operation.source,
+            dabs: operation.source.dabs.map((dab) => ({ ...dab }))
+          }
       : operation.source ? { ...operation.source } : undefined,
   shape: {
     ...operation.shape,
@@ -266,6 +300,21 @@ export const createSelectionSessionController = (
 ): SelectionSessionController => {
   let magicWandRequestId = 0;
   let pendingMagicWandSnapshot: SelectionOperation[] | null = null;
+  let paintGesture: {
+    pointerId: number;
+    document: ImageDocument;
+    renderer: SelectionRendererPort;
+    before: SelectionOperation[];
+    mode: 'add' | 'subtract';
+    size: number;
+    hardness: number;
+    opacity: number;
+    smooth: number;
+    builder: StrokeBuilder;
+    smoother: StrokeSmoother;
+    dabs: BrushDab[];
+    samples: BrushPoint[];
+  } | null = null;
   let marqueeTool: GeometricSelectionToolId | null = null;
   let translation: {
     pointerId: number;
@@ -337,6 +386,7 @@ export const createSelectionSessionController = (
     const mode = finalOperation?.mode;
     const label = next.length === 0 ? 'Deselect'
       : finalOperation?.source?.kind === 'similar' ? 'Select Similar'
+        : finalOperation?.source?.kind === 'selection-paint' ? 'Selection Brush'
         : mode === 'invert' ? 'Inverse'
         : mode === 'feather' ? 'Feather Selection'
           : mode === 'border' ? 'Border Selection'
@@ -349,6 +399,8 @@ export const createSelectionSessionController = (
       label,
       type: finalOperation?.source?.kind === 'similar'
         ? 'selection.similar'
+        : finalOperation?.source?.kind === 'selection-paint'
+          ? 'selection.paint'
         : `selection.${mode ?? 'deselect'}`,
       documentMutation: false,
       undo: () => replaceSnapshot(previous, document.id),
@@ -450,6 +502,22 @@ export const createSelectionSessionController = (
             : 'The selection could not be applied.'
         );
       });
+    return true;
+  };
+
+  const applyPaintDabs = (points: readonly BrushPoint[]): boolean => {
+    const current = paintGesture;
+    if (!current || !points.length) return false;
+    current.samples.push(...points.map((point) => ({ ...point })));
+    const dabs = points.flatMap((point) => current.builder.add(current.smoother.add(point)));
+    if (!dabs.length) return true;
+    if (!current.renderer.paintSelectionDabs(
+      dabs,
+      current.hardness,
+      current.opacity,
+      current.mode
+    )) return false;
+    current.dabs.push(...dabs.map((dab) => ({ ...dab })));
     return true;
   };
 
@@ -855,6 +923,104 @@ export const createSelectionSessionController = (
         return false;
       }
     },
+    beginPaint: (pointerId, point, mode, options) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const renderer = dependencies.getRenderer();
+      if (!document || !renderer || paintGesture) return false;
+      const size = Math.max(1, Math.min(1000, options.size));
+      const smooth = Math.max(0, Math.min(1, options.smooth));
+      const builder = new StrokeBuilder(
+        size,
+        0.05
+      );
+      const smoother = new StrokeSmoother(
+        smooth,
+        size
+      );
+      const before = cloneSelectionOperations(dependencies.getSelection());
+      const first = builder.begin(smoother.begin(point));
+      paintGesture = {
+        pointerId,
+        document,
+        renderer,
+        before,
+        mode,
+        size,
+        hardness: Math.max(0, Math.min(1, options.hardness)),
+        opacity: Math.max(0.01, Math.min(1, options.opacity)),
+        smooth,
+        builder,
+        smoother,
+        dabs: first.map((dab) => ({ ...dab })),
+        samples: [{ ...point }]
+      };
+      if (!renderer.paintSelectionDabs(
+        first,
+        paintGesture.hardness,
+        paintGesture.opacity,
+        mode
+      )) {
+        paintGesture = null;
+        return false;
+      }
+      dependencies.publishSelection(before, pointerId);
+      return true;
+    },
+    movePaint: (pointerId, points) => paintGesture?.pointerId === pointerId
+      ? applyPaintDabs(points)
+      : false,
+    finishPaint: (pointerId) => {
+      const current = paintGesture;
+      if (!current || current.pointerId !== pointerId) return false;
+      const tail = current.smoother.finish().flatMap((point) => current.builder.add(point));
+      if (tail.length) {
+        current.renderer.paintSelectionDabs(
+          tail,
+          current.hardness,
+          current.opacity,
+          current.mode
+        );
+        current.dabs.push(...tail.map((dab) => ({ ...dab })));
+      }
+      paintGesture = null;
+      if (!isCurrent(current.document, current.renderer)) return false;
+      const operation: SelectionOperation = {
+        mode: current.mode,
+        source: {
+          kind: 'selection-paint',
+          dabs: current.dabs.map((dab) => ({ ...dab })),
+          hardness: current.hardness,
+          opacity: current.opacity
+        },
+        shape: createFullCanvasSelection(current.document.width, current.document.height)[0].shape
+      };
+      const after = [...current.before, operation];
+      const latest = resolveDependencies();
+      latest.publishSelection(after, null);
+      pushHistory(current.document, current.before, after);
+      latest.onPaintCommitted?.({
+        kind: 'selection-paint',
+        mode: current.mode,
+        dabs: current.dabs.map((dab) => ({ ...dab })),
+        samples: current.samples.map((sample) => ({ ...sample })),
+        size: current.size,
+        hardness: current.hardness,
+        opacity: current.opacity,
+        smooth: current.smooth
+      });
+      latest.setError(null);
+      return true;
+    },
+    cancelPaint: (pointerId) => {
+      const current = paintGesture;
+      if (!current || current.pointerId !== pointerId) return false;
+      paintGesture = null;
+      void current.renderer.replaceSelection(current.before);
+      resolveDependencies().publishSelection(current.before, null);
+      return true;
+    },
+    ownsPaint: (pointerId) => paintGesture?.pointerId === pointerId,
     applyShape,
     finishPolygon: () => (
       polygonGesture.active
@@ -873,6 +1039,8 @@ export const createSelectionSessionController = (
       magicWandRequestId += 1;
       pendingMagicWandSnapshot = null;
       translation = null;
+      if (paintGesture) void paintGesture.renderer.replaceSelection(paintGesture.before);
+      paintGesture = null;
       marqueeTool = null;
       resolveDependencies().publishSnapFeedback?.([], null);
       gesture.reset();

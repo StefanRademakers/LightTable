@@ -900,6 +900,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
   const preferredToolByShortcutRef = useRef<Partial<Record<string, ToolId>>>({});
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
+  const cutSelectedContentRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const copyMergedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
@@ -2621,6 +2622,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         { layerId: parameters.layerId, mode: parameters.mode, point: parameters.point,
           options: parameters.options }
       );
+    },
+    onPaintCommitted: (parameters) => {
+      commandService?.recordObservedCommand(
+        'tool.commitGesture',
+        workspaceDocumentId as DocumentSessionId,
+        {
+          kind: 'selection-paint',
+          parameters: {
+            mode: parameters.mode,
+            size: parameters.size,
+            hardness: parameters.hardness,
+            opacity: parameters.opacity,
+            smooth: parameters.smooth
+          },
+          samples: parameters.samples.map(({ x, y, pressure }) => ({ x, y, pressure }))
+        },
+        { kind: 'selection-paint', sampleCount: parameters.samples.length }
+      );
     }
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
@@ -3510,6 +3529,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selectionOverlayVisible: selectionEditingOverlayIsVisible(
       editorSession.snap.extrasVisible
     ),
+    selectionPaintOverlayVisible: editorSession.activeTool === 'select-paint-brush',
+    selectionPaintOverlayColor: editorSession.selectionPaintBrush.overlayColor,
     scopeVisibility,
     histogramConsumerVisible: propertiesView === 'grade'
       || propertiesView === 'levels'
@@ -3698,6 +3719,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectAll: selectAllContent,
       selectNone: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
+      cutSelection: () => cutSelectedContentRef.current(),
       copySelection: () => copySelectedContentRef.current(),
       copyMergedSelection: () => copyMergedContentRef.current(),
       pasteSelection: () => pasteSelectedContentRef.current(),
@@ -3740,6 +3762,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               diameterPx: steppedBrushSize(current.warp.diameterPx, direction)
             }
           }
+        : current.activeTool === 'select-paint-brush' ? {
+            ...current,
+            selectionPaintBrush: {
+              ...current.selectionPaintBrush,
+              size: steppedBrushSize(current.selectionPaintBrush.size, direction)
+            }
+          }
         : {
             ...current,
             brush: {
@@ -3755,6 +3784,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               hardness: steppedBrushHardness(current.warp.hardness * 100, direction) / 100
             }
           }
+        : current.activeTool === 'select-paint-brush' ? {
+            ...current,
+            selectionPaintBrush: {
+              ...current.selectionPaintBrush,
+              hardness: steppedBrushHardness(
+                current.selectionPaintBrush.hardness * 100,
+                direction
+              ) / 100
+            }
+          }
         : {
             ...current,
             brush: {
@@ -3764,10 +3803,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           }),
       inputBrushPercent: (target, digit) => {
         const percent = brushPercentInputRef.current.input(target, digit);
-        setEditorSession((current) => ({
-          ...current,
-          brush: { ...current.brush, [target]: percent / 100 }
-        }));
+        setEditorSession((current) => current.activeTool === 'select-paint-brush'
+          ? {
+              ...current,
+              selectionPaintBrush: {
+                ...current.selectionPaintBrush,
+                opacity: percent / 100
+              }
+            }
+          : {
+              ...current,
+              brush: { ...current.brush, [target]: percent / 100 }
+            });
       },
       setActiveLayerOpacity: (percent) => {
         const layerId = imageDocumentRef.current?.activeLayerId;
@@ -5120,6 +5167,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copySelectedContent = () => { void copyPixels('active-layer'); };
   copySelectedContentRef.current = copySelectedContent;
 
+  const cutPixels = async () => {
+    const document = imageDocumentRef.current;
+    const layerId = document?.activeLayerId;
+    if (!document || !layerId || editorSessionRef.current.selection.length === 0) return null;
+    const capture = await layerDocumentCommands.copySelectedContent(
+      editorSessionRef.current.selection
+    );
+    if (!capture) return null;
+    const cleared = fillCommandController.apply({
+      layerId,
+      channel: 'pixels',
+      color: '#000000',
+      preserveTransparency: false,
+      opacity: 0
+    }, { label: 'Cut', type: 'raster.cut' });
+    if (!cleared) return null;
+    setGradeStatus('Selected pixels cut to the system clipboard');
+    return capture;
+  };
+  const cutSelectedContent = () => {
+    const execution = executeRegisteredCommand('selection.cutPixels', {});
+    if (execution) void execution;
+    else void cutPixels();
+  };
+  cutSelectedContentRef.current = cutSelectedContent;
+
   const copyMergedContent = () => { void copyPixels('merged'); };
   copyMergedContentRef.current = copyMergedContent;
 
@@ -5459,6 +5532,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       copyPixels: (source) => source === 'active-layer'
         ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
         : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection),
+      cutPixels,
       pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
         file, { ...command.bounds, name: command.name,
           target: command.target ? { ...command.target,
@@ -6283,6 +6357,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : 'replace'
       );
     }
+    if (kind === 'selection-paint') {
+      return selectionSessionController.beginPaint(
+        pointerId,
+        { ...sample, pressure: sample.pressure ?? 1 },
+        parameters.mode === 'subtract' ? 'subtract' : 'add',
+        {
+          size: Number(parameters.size),
+          hardness: Number(parameters.hardness),
+          opacity: Number(parameters.opacity),
+          smooth: Number(parameters.smooth)
+        }
+      );
+    }
     if (kind === 'brush-stroke') {
       const document = imageDocumentRef.current;
       const layerId = typeof parameters.layerId === 'string'
@@ -6339,6 +6426,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (kind === 'selection-rectangle') {
       return selectionSessionController.move(pointerId, sample);
     }
+    if (kind === 'selection-paint') {
+      return selectionSessionController.movePaint(pointerId, [{
+        ...sample,
+        pressure: sample.pressure ?? 1
+      }]);
+    }
     if (kind === 'brush-stroke') {
       return paintSessionController.move(pointerId, {
         ...sample,
@@ -6362,6 +6455,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return commit
         ? selectionSessionController.finish(pointerId)
         : selectionSessionController.cancel(pointerId);
+    }
+    if (kind === 'selection-paint') {
+      return commit
+        ? selectionSessionController.finishPaint(pointerId)
+        : selectionSessionController.cancelPaint(pointerId);
     }
     if (kind === 'brush-stroke') {
       return commit
@@ -6881,6 +6979,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     },
     edit: {
+      cutSelectedContent,
       copySelectedContent,
       copyMergedContent,
       pasteSelectedContent,
@@ -7774,6 +7873,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionSmooth={editorSession.selectionSmooth}
       magicWand={editorSession.magicWand}
       smartSelection={editorSession.smartSelection}
+      selectionPaintBrush={editorSession.selectionPaintBrush}
       smartSelectionBackendIdentity={import.meta.env.DEV ? smartSelectionBackendIdentity : null}
       smartSelectionPreparation={smartSelectionPreparation}
       zoomPercent={workspaceViewControls?.zoomPercent ?? activeScale * 100}
@@ -7864,6 +7964,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setEditorSession((current) => ({
           ...current,
           smartSelection: { ...current.smartSelection, ...change }
+        }));
+      }}
+      onSelectionPaintBrushChange={(change) => {
+        setEditorSession((current) => ({
+          ...current,
+          selectionPaintBrush: { ...current.selectionPaintBrush, ...change }
         }));
       }}
       onSmartSelectionSelectSubject={() => {
@@ -7991,6 +8097,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             toneBrush: editorSession.toneBrush,
             magicWand: editorSession.magicWand,
             smartSelection: editorSession.smartSelection,
+            selectionPaintBrush: editorSession.selectionPaintBrush,
             smartSelectionBackendIdentity: import.meta.env.DEV
               ? smartSelectionBackendIdentity
               : null,
@@ -8087,6 +8194,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               setEditorSession((current) => ({
                 ...current,
                 smartSelection: { ...current.smartSelection, ...change }
+              }));
+            },
+            onSelectionPaintBrushChange: (change) => {
+              setEditorSession((current) => ({
+                ...current,
+                selectionPaintBrush: { ...current.selectionPaintBrush, ...change }
               }));
             },
             onSmartSelectionSelectSubject: () => {

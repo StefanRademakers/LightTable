@@ -21,6 +21,7 @@ import {
   SELECTION_SMOOTH_HORIZONTAL_WGSL,
   SELECTION_SMOOTH_VERTICAL_WGSL,
   SELECTION_RESAMPLE_WGSL,
+  SELECTION_BRUSH_DAB_WGSL,
   SELECTION_SHAPE_WGSL
 } from './layerShaders';
 import {
@@ -65,6 +66,8 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   maskFillGradient: GPURenderPipeline;
   maskInvertColors: GPURenderPipeline;
   selectionShape: GPURenderPipeline;
+  selectionBrushAdd: GPURenderPipeline;
+  selectionBrushSubtract: GPURenderPipeline;
   selectionCombine: GPURenderPipeline;
   selectionContentCoverage: GPURenderPipeline;
   selectionFeather: GPURenderPipeline;
@@ -268,6 +271,36 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     maskFillGradient: fullscreenPipeline('LightTable fill mask gradient', LAYER_FILL_GRADIENT_WGSL, LAYER_MASK_TEXTURE_FORMAT),
     maskInvertColors: fullscreenPipeline('LightTable invert mask', LAYER_INVERT_COLORS_WGSL, LAYER_MASK_TEXTURE_FORMAT),
     selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectionBrushAdd: (() => {
+      const module = device.createShaderModule({ code: SELECTION_BRUSH_DAB_WGSL });
+      return device.createRenderPipeline({
+        label: 'LightTable Selection Brush add', layout: 'auto',
+        vertex: { module, entryPoint: 'brushVertex' },
+        fragment: { module, entryPoint: 'brushFragment', targets: [{
+          format: SELECTION_TEXTURE_FORMAT,
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+          }
+        }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    })(),
+    selectionBrushSubtract: (() => {
+      const module = device.createShaderModule({ code: SELECTION_BRUSH_DAB_WGSL });
+      return device.createRenderPipeline({
+        label: 'LightTable Selection Brush subtract', layout: 'auto',
+        vertex: { module, entryPoint: 'brushVertex' },
+        fragment: { module, entryPoint: 'brushFragment', targets: [{
+          format: SELECTION_TEXTURE_FORMAT,
+          blend: {
+            color: { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+          }
+        }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    })(),
     selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, SELECTION_TEXTURE_FORMAT),
     selectionContentCoverage: fullscreenPipeline('LightTable selected content coverage', SELECTION_CONTENT_COVERAGE_WGSL, 'r8unorm'),
     selectionFeather: fullscreenPipeline('LightTable selection feather', SELECTION_FEATHER_WGSL, SELECTION_TEXTURE_FORMAT),

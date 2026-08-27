@@ -49,6 +49,7 @@ export type EditorKeyboardCommand =
   | 'select-all'
   | 'select-none'
   | 'select-invert'
+  | 'selection-cut'
   | 'selection-copy'
   | 'selection-copy-merged'
   | 'selection-paste'
@@ -168,7 +169,10 @@ const percentBindings: readonly EditorKeyBinding[] = Array.from({ length: 10 }, 
   [false, true].map((flow) => ({
     id: `brush.${flow ? 'flow' : 'opacity'}.${digit}`,
     chord: { key: String(digit), primary: false, alt: false, shift: flow },
-    when: (context: EditorKeyboardContext) => usesBrushSize(context.activeTool)
+    when: (context: EditorKeyboardContext) => (
+      usesBrushSize(context.activeTool)
+      && (!flow || context.activeTool !== 'select-paint-brush')
+    )
       || (!flow && context.hasActiveLayer),
     resolve: (context: EditorKeyboardContext): EditorKeyboardCommand =>
       !flow && !usesBrushSize(context.activeTool)
@@ -296,6 +300,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('selection.all', { key: 'a', primary: true, alt: false, shift: false }, 'select-all'),
     command('selection.none', { key: 'd', primary: true, alt: false, shift: false }, 'select-none'),
     command('selection.invert', { key: 'i', primary: true, alt: false, shift: true }, 'select-invert'),
+    command('selection.cut', { key: 'x', primary: true, alt: false, shift: false }, 'selection-cut', {
+      when: (context) => !context.saving && context.hasSelection && context.hasActiveLayer
+    }),
     command('selection.copy', { key: 'c', primary: true, alt: false, shift: false }, 'selection-copy', {
       when: (context) => context.hasSelection
     }),

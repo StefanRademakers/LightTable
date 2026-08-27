@@ -229,7 +229,8 @@ export interface AutomationEventQueryResult {
 }
 export type { AutomationPublicationEventQueryResult };
 
-export type LightTableGestureKind = 'brush-stroke' | 'selection-rectangle' | 'layer-translate';
+export type LightTableGestureKind = 'brush-stroke' | 'selection-paint'
+  | 'selection-rectangle' | 'layer-translate';
 export interface LightTableGestureSample { readonly x: number; readonly y: number; readonly pressure?: number }
 export interface LightTableGestureResult {
   readonly status: 'started' | 'updated' | 'completed' | 'canceled' | 'rejected';
@@ -298,6 +299,8 @@ export interface LightTableCommandPorts {
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
   copyPixels?(documentId: DocumentSessionId, command: SemanticCopyPixelsCommand):
+    LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
+  cutPixels?(documentId: DocumentSessionId):
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
   pastePixels?(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;
@@ -379,6 +382,8 @@ export interface DocumentLightTableCommandPorts {
   setZoom(viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(): void | Promise<void>;
   copyPixels?(source: PixelClipboardSource):
+    LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
+  cutPixels?():
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
   pastePixels?(file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;

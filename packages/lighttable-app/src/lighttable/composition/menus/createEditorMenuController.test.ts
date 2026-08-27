@@ -56,6 +56,7 @@ describe('createEditorMenuController', () => {
         openFormatSupport: vi.fn()
       },
       edit: {
+        cutSelectedContent: vi.fn(),
         copySelectedContent: vi.fn(),
         copyMergedContent: vi.fn(),
         pasteSelectedContent: vi.fn(),
@@ -155,7 +156,7 @@ describe('createEditorMenuController', () => {
         openFormatSupport: vi.fn()
       },
       edit: {
-        copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),
+        cutSelectedContent: vi.fn(), copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),
         pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn(), applyFixedTransform: vi.fn()
       },
       selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn(), selectSimilar: vi.fn(), removeObject: vi.fn(), removeBackground: vi.fn() },

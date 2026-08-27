@@ -1659,6 +1659,64 @@ fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Direct document-space brush for the persistent floating-point selection mask. */
+export const SELECTION_BRUSH_DAB_WGSL = /* wgsl */ `
+struct BrushDab {
+  centerSizeHardness: vec4f,
+  colorOpacity: vec4f,
+  tip: vec4f,
+}
+
+struct BrushCanvas {
+  size: vec2f,
+  padding: vec2f,
+}
+
+struct BrushVertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) centerSizeHardness: vec4f,
+  @location(1) colorOpacity: vec4f,
+}
+
+@group(0) @binding(0) var<storage, read> dabs: array<BrushDab>;
+@group(0) @binding(1) var<uniform> canvas: BrushCanvas;
+
+@vertex
+fn brushVertex(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index) instanceIndex: u32) -> BrushVertexOutput {
+  let corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
+  );
+  let dab = dabs[instanceIndex];
+  let pixel = dab.centerSizeHardness.xy
+    + corners[vertexIndex] * dab.centerSizeHardness.z * 0.5;
+  var output: BrushVertexOutput;
+  output.position = vec4f(
+    pixel.x / canvas.size.x * 2.0 - 1.0,
+    1.0 - pixel.y / canvas.size.y * 2.0,
+    0.0,
+    1.0
+  );
+  output.centerSizeHardness = dab.centerSizeHardness;
+  output.colorOpacity = dab.colorOpacity;
+  return output;
+}
+
+@fragment
+fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
+  let radius = max(input.centerSizeHardness.z * 0.5, 0.0001);
+  let distance = length(input.position.xy - input.centerSizeHardness.xy) / radius;
+  if (distance >= 1.0) { discard; }
+  let coverage = 1.0 - smoothstep(
+    clamp(input.centerSizeHardness.w, 0.0, 0.995),
+    1.0,
+    distance
+  );
+  let alpha = clamp(input.colorOpacity.a * coverage, 0.0, 1.0);
+  return vec4f(alpha, alpha, alpha, alpha);
+}
+`;
+
 /**
  * Clone/Healing brush source compositor. The sampled document is an immutable
  * rgba16float GPU snapshot captured at pointer-down, so a stroke can never

@@ -34,12 +34,21 @@ export class SemanticPixelClipboardCommandHandler {
     return this.artifacts.register(file, 'pixel-clipboard');
   }
 
-  async dispatch(command: 'selection.copyPixels' | 'selection.pastePixels', parameters: unknown,
+  async dispatch(command: 'selection.copyPixels' | 'selection.cutPixels' | 'selection.pastePixels', parameters: unknown,
     documentId: DocumentSessionId, ports: LightTableCommandPorts): Promise<DispatchResult & {
       readonly mutated?: boolean
     }> {
     if (command === 'selection.copyPixels') return this.copy(parameters,
       ports.copyPixels ? (value) => ports.copyPixels!(documentId, value) : undefined);
+    if (command === 'selection.cutPixels') {
+      if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)
+        || Object.keys(parameters).length !== 0) {
+        return { ok: false, code: 'invalid-parameters', message: 'Cut Pixels does not accept parameters.' };
+      }
+      const result = await this.copy({ source: 'active-layer' },
+        ports.cutPixels ? () => ports.cutPixels!(documentId) : undefined);
+      return result.ok ? { ...result, mutated: true } : result;
+    }
     const result = await this.paste(parameters, ports.pastePixels
       ? (file, value, token) => ports.pastePixels!(documentId, file, value, token)
       : undefined);

@@ -308,15 +308,20 @@ export const useViewportInteractionController = ({
   useEffect(() => {
     const center = brushCursorCenterRef.current;
     if (!center) return;
-    if (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool) && effectiveTool !== 'face-warp') {
+    if (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool)
+      && effectiveTool !== 'face-warp' && effectiveTool !== 'select-paint-brush') {
       brushCursorCenterRef.current = null;
       onBrushCursorChangeRef.current(null);
       return;
     }
-    const diameterPx = isWarpTool(effectiveTool)
+    const diameterPx = effectiveTool === 'select-paint-brush'
+      ? editorSession.selectionPaintBrush.size
+      : isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
-    const hardness = isWarpTool(effectiveTool)
+    const hardness = effectiveTool === 'select-paint-brush'
+      ? editorSession.selectionPaintBrush.hardness
+      : isWarpTool(effectiveTool)
       ? editorSession.warp.hardness
       : effectiveTool === 'face-warp'
         ? undefined
@@ -339,6 +344,8 @@ export const useViewportInteractionController = ({
     effectiveTool,
     editorSession.brush.hardness,
     editorSession.brush.size,
+    editorSession.selectionPaintBrush.hardness,
+    editorSession.selectionPaintBrush.size,
     editorSession.sampledBrush.healingHardness,
     editorSession.warp.diameterPx,
     editorSession.warp.hardness
@@ -364,7 +371,7 @@ export const useViewportInteractionController = ({
       metadata,
       normalizePointerPressure(sample.pressure, sample.pointerType),
       capturedGestureUsesUnboundedDocumentPoint({
-        selectionGestureMatches: selection.owns(sample.pointerId),
+        selectionGestureMatches: selection.owns(sample.pointerId) || selection.ownsPaint(sample.pointerId),
         warpGestureMatches: warp.owns(sample.pointerId),
         paintGestureMatches: paint.owns(sample.pointerId),
         vectorGestureMatches: vector.ownsPointer(sample.pointerId),
@@ -379,6 +386,7 @@ export const useViewportInteractionController = ({
       || !isSelectionTool(editorSession.activeTool)
       || editorSession.activeTool === 'select-free'
       || editorSession.activeTool === 'select-polygonal'
+      || editorSession.activeTool === 'select-paint-brush'
     ) return point;
     return {
       ...point,
@@ -401,7 +409,8 @@ export const useViewportInteractionController = ({
     bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
   ) => {
     if (
-      (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool) && effectiveTool !== 'face-warp')
+      (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool)
+        && effectiveTool !== 'face-warp' && effectiveTool !== 'select-paint-brush')
       || temporaryPan
       || focusPickerActive
       || preciseBrushCursor
@@ -419,10 +428,14 @@ export const useViewportInteractionController = ({
       hideBrushCursor();
       return;
     }
-    const diameterPx = isWarpTool(effectiveTool)
+    const diameterPx = effectiveTool === 'select-paint-brush'
+      ? editorSession.selectionPaintBrush.size
+      : isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
-    const hardness = isWarpTool(effectiveTool)
+    const hardness = effectiveTool === 'select-paint-brush'
+      ? editorSession.selectionPaintBrush.hardness
+      : isWarpTool(effectiveTool)
       ? editorSession.warp.hardness
       : effectiveTool === 'face-warp'
         ? undefined
@@ -716,6 +729,26 @@ export const useViewportInteractionController = ({
       if (
         intent === 'selection'
         && point
+        && activeTool === 'select-paint-brush'
+      ) {
+        const mode = event.altKey || editorSession.selectionCombineMode === 'subtract'
+          ? 'subtract'
+          : 'add';
+        if (selection.beginPaint(
+          event.pointerId,
+          point,
+          mode,
+          editorSession.selectionPaintBrush
+        )) {
+          setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
+        return;
+      }
+      if (
+        intent === 'selection'
+        && point
         && activeTool === 'select-object'
       ) {
         const selectionCombineMode = resolveSelectionCombineMode(
@@ -781,6 +814,7 @@ export const useViewportInteractionController = ({
         && isSelectionTool(activeTool)
         && activeTool !== 'select-magic-wand'
         && activeTool !== 'select-object'
+        && activeTool !== 'select-paint-brush'
       ) {
         const selectionCombineMode = resolveSelectionCombineMode(
           editorSession.selectionCombineMode,
@@ -1031,6 +1065,13 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
+      if (point && selection.ownsPaint(event.pointerId)) {
+        const points = coalescedPointerSamples(event.nativeEvent)
+          .map((sample) => documentPointFromSample(sample, bounds))
+          .filter((sample): sample is BrushPoint => Boolean(sample));
+        if (selection.movePaint(event.pointerId, points)) event.preventDefault();
+        return;
+      }
       if (point && smartSelection.owns(event.pointerId)) {
         if (smartSelection.moveRegion(event.pointerId, point)) event.preventDefault();
         return;
@@ -1195,6 +1236,12 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
+      if (selection.ownsPaint(event.pointerId)) {
+        selection.finishPaint(event.pointerId);
+        setEditorSession((current) => ({ ...current, pointerId: null }));
+        event.preventDefault();
+        return;
+      }
       const intent = resolveViewportPointerEndIntent({
         selectionGestureMatches: selection.owns(event.pointerId),
         warpGestureMatches: warp.owns(event.pointerId),
@@ -1240,6 +1287,7 @@ export const useViewportInteractionController = ({
       rasterGradient.cancel(event.pointerId);
       vector.pointerCancel(event.pointerId);
       onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
+      selection.cancelPaint(event.pointerId);
       selection.cancel(event.pointerId);
       warp.cancel(event.pointerId);
       paint.cancel(event.pointerId);

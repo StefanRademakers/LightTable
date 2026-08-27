@@ -30,7 +30,8 @@ export interface RendererPresentationPort {
   setSelectionEditingOverlay(
     operations: readonly SelectionOperation[],
     draft: SelectionShape | null,
-    visible: boolean
+    visible: boolean,
+    paintOverlay?: { visible: boolean; color: string }
   ): void;
 }
 
@@ -68,6 +69,8 @@ interface RendererPresentationSyncOptions<
   readonly selection: readonly SelectionOperation[];
   readonly selectionDraft: SelectionShape | null;
   readonly selectionOverlayVisible: boolean;
+  readonly selectionPaintOverlayVisible: boolean;
+  readonly selectionPaintOverlayColor: string;
   readonly scopeVisibility: ScopeVisibility;
   /** Keeps shared histogram analysis alive for contextual editors such as Levels. */
   readonly histogramConsumerVisible?: boolean;
@@ -96,6 +99,8 @@ export const useRendererPresentationSync = <
   selection,
   selectionDraft,
   selectionOverlayVisible,
+  selectionPaintOverlayVisible,
+  selectionPaintOverlayColor,
   scopeVisibility,
   histogramConsumerVisible = false,
   scopeSettings,
@@ -142,9 +147,17 @@ export const useRendererPresentationSync = <
     rendererRef.current?.setSelectionEditingOverlay(
       selection,
       selectionDraft,
-      selectionOverlayVisible
+      selectionOverlayVisible,
+      { visible: selectionPaintOverlayVisible, color: selectionPaintOverlayColor }
     );
-  }, [rendererRef, selection, selectionDraft, selectionOverlayVisible]);
+  }, [
+    rendererRef,
+    selection,
+    selectionDraft,
+    selectionOverlayVisible,
+    selectionPaintOverlayVisible,
+    selectionPaintOverlayColor
+  ]);
 
   useEffect(() => {
     scopeVisibilityRef.current = scopeVisibility;

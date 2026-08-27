@@ -28,7 +28,8 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     transformSelection: vi.fn(async () => true),
     applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
     applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
-    applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true)
+    applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true),
+    paintSelectionDabs: vi.fn(() => true)
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,

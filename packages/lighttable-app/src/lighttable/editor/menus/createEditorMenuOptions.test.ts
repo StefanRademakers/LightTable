@@ -489,6 +489,7 @@ describe('createEditorMenuOptions', () => {
     expect(values.indexOf('copy-grade')).toBeLessThan(values.indexOf('paste-grade'));
     expect(options.find(({ value }) => value === 'copy-grade')?.separatorBefore).toBe(true);
     expect(values).toEqual([
+      'cut-selected-content',
       'copy-selected-content',
       'copy-merged-content',
       'paste-selected-content',

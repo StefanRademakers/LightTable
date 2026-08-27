@@ -43,6 +43,13 @@ may submit an overlay presentation frame, but must execute zero document
 composite, correction, style or content stages. Carets and gizmos obey the same
 rule.
 
+The Selection Brush writes Add/Subtract dabs directly into the same persistent
+floating-point GPU selection texture. While the tool is active, that texture is
+presented as a configurable colored overlay; leaving the tool returns to
+marching ants without converting or copying the mask. One continuous stroke is
+one selection-history entry and replays through `tool.commitGesture` for Actions
+and command clients.
+
 Brush and eraser gestures are coalesced until pointer-up. A completed gesture
 creates one history entry whose payload contains dirty tiles, not a copy of the
 whole layer. Pressure is sampled per dab. Selection coverage gates pixel and

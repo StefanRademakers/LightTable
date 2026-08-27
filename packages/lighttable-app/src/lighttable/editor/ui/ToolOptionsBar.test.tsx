@@ -50,6 +50,7 @@ const renderOptions = (
     selectionSmooth: 0,
     magicWand: session.magicWand,
     smartSelection: session.smartSelection,
+    selectionPaintBrush: session.selectionPaintBrush,
     smartSelectionBackendIdentity: activeTool === 'select-object' ? {
       modelId: 'onnx-community/sam2.1-hiera-small-ONNX',
       artifactRevision: 'test',
@@ -102,6 +103,7 @@ const renderOptions = (
     onSelectionSmoothChange: vi.fn(),
     onMagicWandChange: vi.fn(),
     onSmartSelectionChange: vi.fn(),
+    onSelectionPaintBrushChange: vi.fn(),
     onSmartSelectionSelectSubject: vi.fn(),
     onTransformAutoSelectLayerChange: vi.fn(),
     onZoomPreset: vi.fn(),

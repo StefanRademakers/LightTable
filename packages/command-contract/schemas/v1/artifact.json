@@ -169,6 +169,18 @@
         }
       }
     },
+    "selection.cutPixels": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source", "bounds", "artifact"],
+        "properties": {
+          "source": { "type": "string", "const": "active-layer" },
+          "bounds": { "$ref": "#/$defs/documentBounds" },
+          "artifact": { "$ref": "#/$defs/pixelClipboardArtifact" }
+        }
+      }
+    },
     "selection.pastePixels": {
       "input": {
         "type": "object", "additionalProperties": false,

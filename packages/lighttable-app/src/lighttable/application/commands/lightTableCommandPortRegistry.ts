@@ -90,6 +90,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     if (!execute) throw new Error('Pixel copy is unavailable in the target document.');
     return execute(command.source);
   }
+  cutPixels(documentId: DocumentSessionId) {
+    const execute = this.resolve(documentId).cutPixels;
+    if (!execute) throw new Error('Pixel cut is unavailable in the target document.');
+    return execute();
+  }
   pastePixels(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string) {
     const execute = this.resolve(documentId).pastePixels;

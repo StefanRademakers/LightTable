@@ -11,6 +11,7 @@ import type {
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 import { SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
+import type { BrushDab } from '../tools/brush/strokeBuilder';
 
 const selectionModeValue: Record<SelectionMode, number> = {
   replace: 0,
@@ -157,8 +158,84 @@ export class SelectionRasterizer {
   private selectSimilarColors: [GPUBuffer, GPUBuffer] | null = null;
   private selectSimilarSelectedPixelCount: GPUBuffer | null = null;
   private selectSimilarSettings: [GPUBuffer, GPUBuffer, GPUBuffer, GPUBuffer] | null = null;
+  private selectionBrushDabs: GPUBuffer | null = null;
+  private selectionBrushDabCapacity = 0;
+  private selectionBrushCanvas: GPUBuffer | null = null;
 
   constructor(private readonly options: SelectionRasterizerOptions) {}
+
+  paintBrushDabs(
+    dabs: readonly BrushDab[],
+    hardness: number,
+    opacity: number,
+    mode: 'add' | 'subtract'
+  ) {
+    if (!dabs.length) return true;
+    const { textures, device } = this.options;
+    this.options.ensureTargets();
+    if (!textures.mask || (mode === 'subtract' && !textures.active)) return false;
+    const hadActiveSelection = textures.active;
+    const byteLength = dabs.length * 12 * Float32Array.BYTES_PER_ELEMENT;
+    if (!this.selectionBrushDabs || this.selectionBrushDabCapacity < byteLength) {
+      this.selectionBrushDabs?.destroy();
+      this.selectionBrushDabCapacity = Math.max(byteLength, 48 * 256);
+      this.selectionBrushDabs = device.createBuffer({
+        label: 'LightTable Selection Brush dabs',
+        size: this.selectionBrushDabCapacity,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+      });
+    }
+    this.selectionBrushCanvas ??= device.createBuffer({
+      label: 'LightTable Selection Brush canvas',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const values = new Float32Array(dabs.length * 12);
+    dabs.forEach((dab, index) => {
+      const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
+      const requestedAlpha = Math.min(1, Math.max(0, opacity * pressure));
+      const alpha = 1 - Math.pow(1 - requestedAlpha, Math.max(0, dab.flowScale));
+      values.set([
+        dab.x, dab.y, dab.size * (0.2 + pressure * 0.8), hardness,
+        1, 1, 1, alpha,
+        1, 0, 0, 0
+      ], index * 12);
+    });
+    const { width, height } = this.options.dimensions();
+    device.queue.writeBuffer(this.selectionBrushDabs, 0, values);
+    device.queue.writeBuffer(
+      this.selectionBrushCanvas,
+      0,
+      new Float32Array([width, height, 0, 0])
+    );
+    const pipeline = mode === 'subtract'
+      ? this.options.pipelines().selectionBrushSubtract
+      : this.options.pipelines().selectionBrushAdd;
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable Selection Brush bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.selectionBrushDabs } },
+        { binding: 1, resource: { buffer: this.selectionBrushCanvas } }
+      ]
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable Selection Brush dabs' });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: textures.mask.createView(),
+        loadOp: hadActiveSelection ? 'load' : 'clear',
+        storeOp: 'store',
+        clearValue: { r: 0, g: 0, b: 0, a: 0 }
+      }]
+    });
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(6, dabs.length);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+    textures.active = true;
+    return true;
+  }
 
   private ensureMagicWandBuffers(pixelCount: number) {
     const { device } = this.options;
@@ -1073,12 +1150,17 @@ export class SelectionRasterizer {
     this.magicWandLabels?.destroy();
     this.magicWandSettings?.destroy();
     this.magicWandReference?.destroy();
+    this.selectionBrushDabs?.destroy();
+    this.selectionBrushCanvas?.destroy();
     this.selectSimilarColors?.forEach((buffer) => buffer.destroy());
     this.selectSimilarSelectedPixelCount?.destroy();
     this.selectSimilarSettings?.forEach((buffer) => buffer.destroy());
     this.magicWandLabels = null;
     this.magicWandSettings = null;
     this.magicWandReference = null;
+    this.selectionBrushDabs = null;
+    this.selectionBrushCanvas = null;
+    this.selectionBrushDabCapacity = 0;
     this.selectSimilarColors = null;
     this.selectSimilarSelectedPixelCount = null;
     this.selectSimilarSettings = null;

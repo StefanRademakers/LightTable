@@ -161,6 +161,7 @@ import {
   directSelectionShape
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
+import { SelectionPaintOverlayBackend } from '../editor/rendering/SelectionPaintOverlayBackend';
 import { SmartSelectionOverlayBackend } from '../editor/rendering/SmartSelectionOverlayBackend';
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
@@ -362,6 +363,8 @@ export class WebGpuEngine {
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
   private selectionOverlayVisible = false;
+  private selectionPaintOverlayVisible = false;
+  private selectionPaintOverlayColor: [number, number, number] = [1, 0, 0];
   private zoomOverlayDraft: SelectionShape | null = null;
   private brushCursorOverlay: {
     center: { x: number; y: number };
@@ -383,6 +386,7 @@ export class WebGpuEngine {
   private textEditingOverlay: TextEditingOverlay | null = null;
   private textCaretVisible = true;
   private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
+  private selectionPaintOverlayBackend: SelectionPaintOverlayBackend | null = null;
   private smartSelectionOverlayBackend: SmartSelectionOverlayBackend | null = null;
 
   static async create(
@@ -1487,6 +1491,13 @@ export class WebGpuEngine {
           if (!await this.applySelectSimilarNow(operation)) return false;
         } else if (operation.source?.kind === 'raster-mask') {
           if (!await this.applyRasterSelectionNow(operation)) return false;
+        } else if (operation.source?.kind === 'selection-paint') {
+          if (!this.documentRenderer?.paintSelectionDabs(
+            operation.source.dabs,
+            operation.source.hardness,
+            operation.source.opacity,
+            operation.mode === 'subtract' ? 'subtract' : 'add'
+          )) return false;
         } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(
             operation.amount ?? 0,
@@ -1524,6 +1535,25 @@ export class WebGpuEngine {
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
+  }
+
+  paintSelectionDabs(
+    dabs: BrushDab[],
+    hardness: number,
+    opacity: number,
+    mode: 'add' | 'subtract'
+  ) {
+    const changed = this.documentRenderer?.paintSelectionDabs(
+      dabs,
+      hardness,
+      opacity,
+      mode
+    ) ?? false;
+    if (changed) {
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
+    }
+    return changed;
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
@@ -2216,7 +2246,8 @@ export class WebGpuEngine {
   setSelectionEditingOverlay(
     operations: readonly SelectionOperation[],
     draft: SelectionShape | null,
-    visible: boolean
+    visible: boolean,
+    paintOverlay?: { visible: boolean; color: string }
   ) {
     this.selectionOverlayOperations = operations.map((operation) => ({
       ...operation,
@@ -2230,6 +2261,16 @@ export class WebGpuEngine {
       points: draft.points.map((point) => ({ ...point }))
     } : null;
     this.selectionOverlayVisible = visible;
+    this.selectionPaintOverlayVisible = paintOverlay?.visible === true;
+    const match = paintOverlay?.color.match(/^#([0-9a-f]{6})$/i);
+    if (match) {
+      const value = Number.parseInt(match[1]!, 16);
+      this.selectionPaintOverlayColor = [
+        ((value >> 16) & 255) / 255,
+        ((value >> 8) & 255) / 255,
+        (value & 255) / 255
+      ];
+    }
     const trace = (
       globalThis as typeof globalThis & {
         __LIGHTTABLE_SELECTION_OVERLAY_TRACE__?: Array<{
@@ -2247,7 +2288,7 @@ export class WebGpuEngine {
       maskActive: Boolean(this.documentRenderer?.selectionMaskTexture())
     });
     this.selectionAntsAnimator.setSelectionVisible(
-      visible && this.selectionOverlayOperations.length > 0
+      visible && !this.selectionPaintOverlayVisible && this.selectionOverlayOperations.length > 0
     );
     this.renderDirty.invalidate('viewport');
     this.requestRender();
@@ -3643,6 +3684,8 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.textEditingOverlayBackend = null;
     this.selectionContourOverlayBackend?.dispose();
     this.selectionContourOverlayBackend = null;
+    this.selectionPaintOverlayBackend?.dispose();
+    this.selectionPaintOverlayBackend = null;
     this.smartSelectionOverlayBackend?.dispose();
     this.smartSelectionOverlayBackend = null;
     this.textEditingOverlay = null;
@@ -3664,7 +3707,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
           this.vectorSelectionPreviewTransform
         )
       : canonicalOverlayScene;
-    const directShape = this.selectionOverlayVisible
+    const directShape = this.selectionOverlayVisible && !this.selectionPaintOverlayVisible
       ? directSelectionShape(this.selectionOverlayOperations)
       : null;
     // A draft may extend over the pasteboard. Once committed, the selection
@@ -3809,18 +3852,33 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
       );
     }
     if (selectionMask && this.coreResources) {
-      this.selectionContourOverlayBackend ??= new SelectionContourOverlayBackend(
-        this.device,
-        this.canvasFormat
-      );
-      this.selectionContourOverlayBackend.encode(
-        encoder,
-        canvasView,
-        selectionMask,
-        this.coreResources.sampler,
-        this.coreResources.viewBuffer,
-        this.selectionAntsAnimator.phasePx
-      );
+      if (this.selectionPaintOverlayVisible) {
+        this.selectionPaintOverlayBackend ??= new SelectionPaintOverlayBackend(
+          this.device,
+          this.canvasFormat
+        );
+        this.selectionPaintOverlayBackend.encode(
+          encoder,
+          canvasView,
+          selectionMask,
+          this.coreResources.sampler,
+          this.coreResources.viewBuffer,
+          this.selectionPaintOverlayColor
+        );
+      } else {
+        this.selectionContourOverlayBackend ??= new SelectionContourOverlayBackend(
+          this.device,
+          this.canvasFormat
+        );
+        this.selectionContourOverlayBackend.encode(
+          encoder,
+          canvasView,
+          selectionMask,
+          this.coreResources.sampler,
+          this.coreResources.viewBuffer,
+          this.selectionAntsAnimator.phasePx
+        );
+      }
     }
     if (this.smartSelectionOverlayBackend?.visible && this.coreResources) {
       this.smartSelectionOverlayBackend.encode(

@@ -77,6 +77,7 @@ export interface ToolOptionsProps {
   selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
   smartSelection: EditorSession['smartSelection'];
+  selectionPaintBrush: EditorSession['selectionPaintBrush'];
   smartSelectionBackendIdentity?: SmartSelectionBackendIdentity | null;
   smartSelectionPreparation?: SmartSelectionPreparationState;
   transformAutoSelectLayer: boolean;
@@ -120,6 +121,7 @@ export interface ToolOptionsProps {
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSelectionPaintBrushChange: (change: Partial<EditorSession['selectionPaintBrush']>) => void;
   onSmartSelectionSelectSubject?: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
@@ -138,6 +140,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'select-polygonal': 'Polygonal selection',
   'select-object': 'Object Selection',
   'select-magic-wand': 'Magic Wand',
+  'select-paint-brush': 'Selection Brush',
   gradient: 'Gradient',
   fill: 'Paint bucket',
   brush: 'Brush',
@@ -326,6 +329,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionSmoothChange,
   onMagicWandChange,
   onSmartSelectionChange,
+  selectionPaintBrush,
+  onSelectionPaintBrushChange,
   onSmartSelectionSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
@@ -393,15 +398,61 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         <SegmentedControl
           className="lighttable-tool-options__selection-mode"
           ariaLabel="Selection combine mode"
-          value={selectionCombineMode}
+          value={activeTool === 'select-paint-brush'
+            ? selectionCombineMode === 'subtract' ? 'subtract' : 'add'
+            : selectionCombineMode}
           onChange={onSelectionCombineModeChange}
-          options={[
+          options={activeTool === 'select-paint-brush' ? [
+            { value: 'add', label: 'Add', title: 'Add to selection' },
+            { value: 'subtract', label: 'Subtract', title: 'Subtract from selection' }
+          ] : [
             { value: 'replace', label: 'New', title: 'New selection' },
             { value: 'add', label: 'Add', title: 'Add to selection' },
             { value: 'subtract', label: 'Subtract', title: 'Subtract from selection' },
             { value: 'intersect', label: 'Intersect', title: 'Intersect with selection' }
           ]}
         />
+      ) : null}
+      {activeTool === 'select-paint-brush' ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Selection Brush settings">
+          <AdjustmentSlider
+            layout={adjustmentLayout}
+            label="Size"
+            value={selectionPaintBrush.size}
+            min={1}
+            max={1000}
+            resetValue={48}
+            onReset={() => onSelectionPaintBrushChange({ size: 48 })}
+            onChange={(size) => onSelectionPaintBrushChange({ size })}
+          />
+          <AdjustmentSlider
+            layout={adjustmentLayout}
+            label="Hardness"
+            value={selectionPaintBrush.hardness * 100}
+            min={0}
+            max={100}
+            resetValue={75}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onSelectionPaintBrushChange({ hardness: 0.75 })}
+            onChange={(value) => onSelectionPaintBrushChange({ hardness: value / 100 })}
+          />
+          <AdjustmentSlider
+            layout={adjustmentLayout}
+            label="Opacity"
+            value={selectionPaintBrush.opacity * 100}
+            min={1}
+            max={100}
+            resetValue={100}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onSelectionPaintBrushChange({ opacity: 1 })}
+            onChange={(value) => onSelectionPaintBrushChange({ opacity: value / 100 })}
+          />
+          <ToolOptionColor
+            label="Overlay"
+            value={selectionPaintBrush.overlayColor}
+            onChange={(overlayColor) => onSelectionPaintBrushChange({ overlayColor })}
+          />
+        </div>
       ) : null}
       {activeTool === 'transform' ? (
         <label className="lighttable-tool-options__toggle">

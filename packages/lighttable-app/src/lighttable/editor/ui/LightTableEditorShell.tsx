@@ -54,6 +54,7 @@ export interface LightTableEditorShellProps {
   selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
   smartSelection: EditorSession['smartSelection'];
+  selectionPaintBrush: EditorSession['selectionPaintBrush'];
   smartSelectionBackendIdentity?: SmartSelectionBackendIdentity | null;
   smartSelectionPreparation?: SmartSelectionPreparationState;
   transformAutoSelectLayer: boolean;
@@ -97,6 +98,7 @@ export interface LightTableEditorShellProps {
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSelectionPaintBrushChange: (change: Partial<EditorSession['selectionPaintBrush']>) => void;
   onSmartSelectionSelectSubject?: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
@@ -169,6 +171,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionSmooth,
   magicWand,
   smartSelection,
+  selectionPaintBrush,
   smartSelectionBackendIdentity,
   smartSelectionPreparation,
   transformAutoSelectLayer,
@@ -212,6 +215,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionSmoothChange,
   onMagicWandChange,
   onSmartSelectionChange,
+  onSelectionPaintBrushChange,
   onSmartSelectionSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
@@ -287,6 +291,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionSmooth={selectionSmooth}
         magicWand={magicWand}
         smartSelection={smartSelection}
+        selectionPaintBrush={selectionPaintBrush}
         smartSelectionBackendIdentity={smartSelectionBackendIdentity}
         smartSelectionPreparation={smartSelectionPreparation}
         transformAutoSelectLayer={transformAutoSelectLayer}
@@ -330,6 +335,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionSmoothChange={onSelectionSmoothChange}
         onMagicWandChange={onMagicWandChange}
         onSmartSelectionChange={onSmartSelectionChange}
+        onSelectionPaintBrushChange={onSelectionPaintBrushChange}
         onSmartSelectionSelectSubject={onSmartSelectionSelectSubject}
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}

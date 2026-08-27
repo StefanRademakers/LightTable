@@ -1,4 +1,5 @@
 import type { LayerId } from '../document/documentTypes';
+import type { BrushDab } from '../tools/brush/strokeBuilder';
 
 export type SelectionToolId =
   | 'select-rectangle'
@@ -8,8 +9,12 @@ export type SelectionToolId =
   | 'select-free'
   | 'select-polygonal'
   | 'select-object'
-  | 'select-magic-wand';
-export type GeometricSelectionToolId = Exclude<SelectionToolId, 'select-magic-wand' | 'select-object'>;
+  | 'select-magic-wand'
+  | 'select-paint-brush';
+export type GeometricSelectionToolId = Exclude<
+  SelectionToolId,
+  'select-magic-wand' | 'select-object' | 'select-paint-brush'
+>;
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'border' | 'smooth'
   | 'expand' | 'contract' | 'transform';
@@ -47,6 +52,14 @@ export interface SmartSelectionOptions {
   sampleAllLayers: boolean;
   refineEdges: boolean;
   refinementQuality: 'fast' | 'standard' | 'high';
+}
+
+export interface SelectionPaintBrushOptions {
+  size: number;
+  hardness: number;
+  opacity: number;
+  smooth: number;
+  overlayColor: string;
 }
 
 /** Immutable document-sized alpha produced by a raster selection source. */
@@ -96,6 +109,12 @@ export interface SelectionOperation {
         kind: 'raster-mask';
         mask: RasterSelectionMask;
         documentRevision: number;
+      }
+    | {
+        kind: 'selection-paint';
+        dabs: BrushDab[];
+        hardness: number;
+        opacity: number;
       };
   /** Document-space feather radius for a feather command or one geometric source. */
   amount?: number;
