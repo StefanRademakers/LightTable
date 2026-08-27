@@ -719,6 +719,14 @@
   pointer-events: none;
 }
 
+/* Tab temporarily hides floating panels without toggling Dockview visibility.
+ * Dockview recreates a shown floating overlay at the origin; retaining the
+ * mounted frame preserves its exact user-positioned bounds for the toggle. */
+.lighttable-dock-workspace--floating-panels-hidden .dv-resize-container {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .lighttable-dock-workspace--canvas-only
   .dv-groupview:has(.lighttable-document-host)
   > .dv-tabs-and-actions-container {

@@ -602,7 +602,7 @@ export const LightTableDockWorkspace = forwardRef<
     left: [],
     right: []
   });
-  const tabHiddenGroupIdsRef = useRef<readonly string[] | null>(null);
+  const tabHiddenDockedGroupIdsRef = useRef<readonly string[] | null>(null);
   const dockColumnSyncFrameRef = useRef<number | null>(null);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
@@ -631,6 +631,7 @@ export const LightTableDockWorkspace = forwardRef<
     .join('|');
   const [ready, setReady] = useState(false);
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
+  const [tabFloatingPanelsHidden, setTabFloatingPanelsHidden] = useState(false);
   const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
 
   const publishPanelVisibility = useCallback((api = apiRef.current) => {
@@ -1302,17 +1303,23 @@ export const LightTableDockWorkspace = forwardRef<
       const documentGroup = api?.getPanel(DOCUMENT_HOST_PANEL_ID)?.group;
       if (!api || !documentGroup) return;
 
-      const hiddenGroupIds = tabHiddenGroupIdsRef.current;
-      if (hiddenGroupIds === null) {
-        const visibleAccessoryGroupIds = api.groups
-          .filter((group) => group.id !== documentGroup.id && group.api.isVisible)
+      const hiddenDockedGroupIds = tabHiddenDockedGroupIdsRef.current;
+      if (hiddenDockedGroupIds === null) {
+        const visibleAccessoryGroups = api.groups
+          .filter((group) => group.id !== documentGroup.id && group.api.isVisible);
+        if (visibleAccessoryGroups.length === 0) return;
+        const dockedGroupIds = visibleAccessoryGroups
+          .filter((group) => group.api.location.type !== 'floating')
           .map((group) => group.id);
-        if (visibleAccessoryGroupIds.length === 0) return;
+        const hasFloatingGroups = visibleAccessoryGroups.some(
+          (group) => group.api.location.type === 'floating'
+        );
         event.preventDefault();
         event.stopPropagation();
-        tabHiddenGroupIdsRef.current = visibleAccessoryGroupIds;
+        tabHiddenDockedGroupIdsRef.current = dockedGroupIds;
+        setTabFloatingPanelsHidden(hasFloatingGroups);
         resettingLayoutRef.current = true;
-        visibleAccessoryGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(false));
+        dockedGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(false));
         scheduleDockColumnRefresh(api);
         window.queueMicrotask(() => { resettingLayoutRef.current = false; });
         return;
@@ -1320,9 +1327,10 @@ export const LightTableDockWorkspace = forwardRef<
 
       event.preventDefault();
       event.stopPropagation();
-      tabHiddenGroupIdsRef.current = null;
+      tabHiddenDockedGroupIdsRef.current = null;
+      setTabFloatingPanelsHidden(false);
       resettingLayoutRef.current = true;
-      hiddenGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(true));
+      hiddenDockedGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(true));
       scheduleDockColumnRefresh(api);
       window.queueMicrotask(() => { resettingLayoutRef.current = false; });
     };
@@ -1470,7 +1478,7 @@ export const LightTableDockWorkspace = forwardRef<
       <div className="lighttable-dock-workspace-shell">
         <div
           ref={workspaceElementRef}
-          className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
+          className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${tabFloatingPanelsHidden ? ' lighttable-dock-workspace--floating-panels-hidden' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
         >
           <DockviewReact
             components={components}
