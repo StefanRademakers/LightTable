@@ -25,7 +25,7 @@ import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
-import { layerRowInset } from '../layers/layerTreeGeometry';
+import { layerChildRowInset, layerRowInset } from '../layers/layerTreeGeometry';
 import {
   adjustmentStackHasOwner,
   type LocalProcessingKind
@@ -952,22 +952,24 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
               title={layer.visible ? 'Hide layer' : 'Show layer'}
             ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
-            {layer.type === 'group' ? (
-              <PanelStackDisclosure
-                expanded={!collapsedGroups.has(layer.id)}
-                className="lighttable-layer__disclosure"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setCollapsedGroups((current) => {
-                    const next = new Set(current);
-                    if (next.has(layer.id)) next.delete(layer.id);
-                    else next.add(layer.id);
-                    return next;
-                  });
-                }}
-                label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
-              />
-            ) : null}
+            <span className="lighttable-layer__hierarchy-slot">
+              {layer.type === 'group' ? (
+                <PanelStackDisclosure
+                  expanded={!collapsedGroups.has(layer.id)}
+                  className="lighttable-layer__disclosure"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (next.has(layer.id)) next.delete(layer.id);
+                      else next.add(layer.id);
+                      return next;
+                    });
+                  }}
+                  label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
+                />
+              ) : null}
+            </span>
             {layer.clipping ? (
               <span
                 className="lighttable-layer__clipping-mark"
@@ -1277,7 +1279,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           {childrenExpanded ? (
             <div
               className="lighttable-layer-effects"
-              style={{ paddingLeft: `${31 + depth * 16}px` }}
+              style={{ paddingLeft: `${layerChildRowInset(depth)}px` }}
             >
               <LocalProcessingTreeRows
                 layerId={layer.id}

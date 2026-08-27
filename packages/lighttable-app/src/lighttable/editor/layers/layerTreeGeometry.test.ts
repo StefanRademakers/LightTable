@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LAYER_TREE_GEOMETRY,
+  layerChildRowInset,
   layerRowInset
 } from './layerTreeGeometry';
 
@@ -14,12 +15,17 @@ describe('layer tree geometry', () => {
   });
 
   it('uses one depth increment for rows and clipping marks', () => {
-    expect(layerRowInset(0)).toBe(5);
-    expect(layerRowInset(2)).toBe(37);
+    expect(layerRowInset(0)).toBe(2);
+    expect(layerRowInset(2)).toBe(46);
   });
 
   it('clamps invalid negative and fractional depths', () => {
-    expect(layerRowInset(-2)).toBe(5);
-    expect(layerRowInset(1.9)).toBe(21);
+    expect(layerRowInset(-2)).toBe(2);
+    expect(layerRowInset(1.9)).toBe(24);
+  });
+
+  it('aligns an unbordered child projection with the parent hierarchy column', () => {
+    expect(layerChildRowInset(0)).toBe(25);
+    expect(layerChildRowInset(2)).toBe(69);
   });
 });

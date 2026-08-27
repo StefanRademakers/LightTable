@@ -3517,9 +3517,11 @@
 .lighttable-layers__list {
   --lt-layer-row-min-height: 28px;
   --lt-layer-row-gap: 2px;
-  --lt-layer-row-padding-inline: 5px;
+  --lt-layer-row-padding-inline: 2px;
   --lt-layer-row-padding-block: 0;
-  --lt-layer-indent: 16px;
+  --lt-layer-prefix-column: 18px;
+  --lt-layer-prefix-gap: 4px;
+  --lt-layer-indent: calc(var(--lt-layer-prefix-column) + var(--lt-layer-prefix-gap));
   --lt-layer-thumbnail-slot: 42px;
   --lt-layer-thumbnail-content-max: 40px;
   --lt-layer-status-width: 46px;
@@ -3624,7 +3626,7 @@
   min-height: var(--lt-layer-row-min-height);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--lt-layer-prefix-gap, 6px);
   padding: var(--lt-layer-row-padding-block) var(--lt-layer-row-padding-inline);
   border: 1px solid var(--lt-border-layer-row);
   border-radius: var(--lt-radius-sm);
@@ -3672,12 +3674,11 @@
 }
 
 .lighttable-layer__clipping-mark {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
+  width: var(--lt-layer-prefix-column);
+  height: 26px;
+  flex: 0 0 var(--lt-layer-prefix-column);
   display: grid;
   place-items: center;
-  margin-inline: -2px;
   pointer-events: none;
 }
 
@@ -3727,17 +3728,32 @@
   box-shadow: inset 0 0 0 1px rgba(114, 162, 239, 0.45);
 }
 
-.lighttable-layer__visibility {
-  flex: 0 0 25px;
+.lighttable-layers__list .lighttable-layer__visibility {
+  width: var(--lt-layer-prefix-column);
+  height: 26px;
+  flex: 0 0 var(--lt-layer-prefix-column);
   border: 0;
   background: transparent;
 }
 
-.lighttable-panel-stack-disclosure,
-.lighttable-layer__disclosure {
+.lighttable-layer__hierarchy-slot {
+  width: var(--lt-layer-prefix-column);
+  height: 26px;
+  flex: 0 0 var(--lt-layer-prefix-column);
+  display: grid;
+  place-items: center;
+}
+
+.lighttable-panel-stack-disclosure {
   width: 14px;
   height: 24px;
   flex: 0 0 14px;
+}
+
+.lighttable-layer__disclosure {
+  width: var(--lt-layer-prefix-column);
+  height: 26px;
+  flex: 0 0 var(--lt-layer-prefix-column);
 }
 
 .lighttable-panel-stack-disclosure,
@@ -3786,7 +3802,7 @@
   flex: 0 0 14px;
   display: grid;
   place-items: center;
-  margin-inline: -5px;
+  margin-inline: -3px;
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -4009,7 +4025,8 @@
 .lighttable-layer-effect {
   min-height: 24px;
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr);
+  grid-template-columns: var(--lt-layer-prefix-column) minmax(0, 1fr);
+  gap: var(--lt-layer-prefix-gap);
   align-items: center;
   color: var(--lt-text-muted);
   font-size: var(--lt-type-small);

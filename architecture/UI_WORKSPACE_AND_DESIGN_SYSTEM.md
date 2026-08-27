@@ -136,7 +136,8 @@ or surrounding navigation to jump.
 
 The Layers tree has one geometry contract. `layerTreeGeometry.ts` owns numeric
 geometry used by React and its `--lt-layer-*` CSS counterparts own layout:
-28-pixel minimum rows, 16-pixel nesting, 42-pixel square thumbnail cells,
+28-pixel minimum rows, 22-pixel nesting steps built from an 18-pixel prefix
+column plus a 4-pixel gap, 42-pixel square thumbnail cells,
 40-pixel maximum thumbnail content and a fixed 46-pixel status column. Content
 may be smaller but may never resize a slot or create horizontal overflow.
 Raster, vector and text thumbnails are evaluated previews, including their
@@ -147,7 +148,9 @@ The row-state vocabulary is deliberately small and ordered: base, hover,
 multi-selected, then active target. Multi-selection uses the selected surface;
 the active target adds the accent border and active surface. Keyboard focus
 adds the shared focus ring without changing selection. Pixel and mask targets
-use the accent inside their bounded thumbnail. A disclosure exists only for a
+use the accent inside their bounded thumbnail. A leading hierarchy slot is
+reserved at every depth so visibility, group disclosure and thumbnail columns
+do not shift between ordinary and group rows. A disclosure exists only for a
 group or for a layer with present attached processing or Layer Effects. An
 attached local Grade is shown as an indented Grade-icon + `Grade` child beneath its
 owning raster layer; it is not compressed into the row's status column, which
