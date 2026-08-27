@@ -125,6 +125,11 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     ? recording.steps.find((step) => step.sequence === selection.sequence) ?? null : null;
 
   useEffect(() => {
+    if (library.selectedSetId) {
+      setExpandedSets((current) => new Set([...current, library.selectedSetId]));
+    }
+  }, [library.selectedSetId]);
+  useEffect(() => {
     if (library.selectedId && recording.id === library.selectedId) {
       setExpandedActions((current) => new Set([...current, library.selectedId!]));
     }

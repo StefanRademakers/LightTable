@@ -42,6 +42,18 @@ try {
   const panel = window.getByRole('complementary', { name: 'Actions' });
   await panel.waitFor();
 
+  await panel.getByRole('button', { name: 'New Action Set' }).click();
+  const setDialog = window.getByRole('dialog', { name: 'New Action Set' });
+  await setDialog.getByRole('textbox').fill('Smoke Set');
+  await setDialog.getByRole('button', { name: 'OK' }).click();
+  const smokeSet = panel.getByText('Smoke Set', { exact: true });
+  await smokeSet.waitFor();
+  await smokeSet.click();
+  const selectedSet = smokeSet.locator('..');
+  if (!(await selectedSet.evaluate((element) => element.classList.contains('lighttable-panel-stack-row--active')))) {
+    throw new Error('Clicking an Action Set did not make its row active.');
+  }
+
   for (const name of ['Empty one', 'Empty two']) {
     await panel.getByRole('button', { name: 'New Action', exact: true }).click();
     const emptyDialog = window.getByRole('dialog', { name: 'New Action' });
@@ -75,6 +87,36 @@ try {
   if (await panel.getByText('Layer setup', { exact: true }).count() !== 1) {
     throw new Error('The saved Action was not projected once in the tree.');
   }
+  const layerSetup = panel.getByText('Layer setup', { exact: true });
+  await layerSetup.click();
+  if (!(await layerSetup.locator('..').evaluate((element) =>
+    element.classList.contains('lighttable-panel-stack-row--active')))) {
+    throw new Error('Clicking an Action did not make its row active.');
+  }
+  const setEnabled = panel.getByRole('checkbox', { name: 'Enable Smoke Set' });
+  await window.waitForFunction(() => {
+    const input = document.querySelector('input[aria-label="Enable Smoke Set"]')
+      ?? Array.from(document.querySelectorAll('label')).find((label) =>
+        label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    return input instanceof HTMLInputElement && !input.disabled;
+  });
+  await setEnabled.click();
+  if (await setEnabled.isChecked()) throw new Error('Action Set enable control did not switch off.');
+  await setEnabled.click();
+  if (!(await setEnabled.isChecked())) throw new Error('Action Set enable control did not switch on.');
+  const actionEnabled = panel.getByRole('checkbox', { name: 'Enable Layer setup' });
+  await actionEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
+    return input instanceof HTMLInputElement && !input.checked;
+  });
+  await actionEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
+    return input instanceof HTMLInputElement && input.checked;
+  });
 
   const geometry = await window.evaluate(() => {
     const action = document.querySelector('.lighttable-action-tree__row');
