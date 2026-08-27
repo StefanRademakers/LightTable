@@ -22,6 +22,7 @@ export interface ActionsPanelProps {
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
   readonly onCreateActionSet: (name: string) => void;
+  readonly onCreateAction: (setId: string, name: string) => Promise<string | null>;
   readonly onRenameActionSet: (id: string, name: string) => void;
   readonly onSelectActionSet: (id: string) => void;
   readonly onDeleteActionSet: (id: string) => void;
@@ -65,6 +66,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onPlayFromStep,
   onStopPlayback,
   onCreateActionSet,
+  onCreateAction,
   onRenameActionSet,
   onSelectActionSet,
   onDeleteActionSet,
@@ -101,6 +103,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
           onPlayStep={onPlayStep} onPlayFromStep={onPlayFromStep}
           onStopPlayback={onStopPlayback}
           onCreateSet={onCreateActionSet} onRenameSet={onRenameActionSet}
+          onCreateAction={onCreateAction}
           onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet} onMoveSet={onMoveActionSet}
           onLoad={onLoadAction} onDelete={onDeleteAction}
           onRename={onRenameAction} onDuplicate={onDuplicateAction} onMove={onMoveAction}

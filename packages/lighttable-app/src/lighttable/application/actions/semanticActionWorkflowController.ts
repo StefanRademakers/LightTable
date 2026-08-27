@@ -30,6 +30,7 @@ export class SemanticActionWorkflowController {
   private readonly recorder = new SemanticActionRecorder();
   private readonly library: SemanticActionLibrary;
   private readonly playback: SemanticActionPlaybackController;
+  private recordingSetId: string | null = null;
 
   constructor(private readonly ports: SemanticActionWorkflowPorts,
     storage?: SemanticActionLibraryStorage) {
@@ -47,11 +48,13 @@ export class SemanticActionWorkflowController {
   subscribeRecording = (listener: () => void): (() => void) => this.recorder.subscribe(listener);
   startRecording = (name?: string, insertAfterSequence?: number): ActionRecordingSnapshot => {
     this.playback.clear();
+    this.recordingSetId ??= this.library.snapshot().selectedSetId;
     return this.recorder.start(name, insertAfterSequence);
   };
   stopRecording = (): ActionRecordingSnapshot => this.recorder.stop();
   clearRecording = (): ActionRecordingSnapshot => {
     this.playback.clear();
+    this.recordingSetId = null;
     return this.recorder.clear();
   };
   createVariable = (sequence: number, parameterPath: string, name: string) => (
@@ -90,6 +93,23 @@ export class SemanticActionWorkflowController {
     if (created && this.recorder.snapshot() === recordingBefore) this.recorder.clear();
     return created;
   }
+  async createAction(setId: string, name: string) {
+    this.playback.clear();
+    this.recorder.clear();
+    this.recordingSetId = setId;
+    const recording = this.recorder.start(name);
+    const placeholder: ActionRecordingSnapshot = {
+      ...recording,
+      status: 'stopped',
+      stoppedAt: recording.startedAt
+    };
+    const saved = await this.library.save(placeholder, recording.name, setId);
+    if (!saved) {
+      this.recordingSetId = null;
+      this.recorder.clear();
+    }
+    return saved;
+  }
   renameSet = (id: string, name: string) => this.library.renameSet(id, name);
   async selectSet(id: string) {
     const recordingBefore = this.recorder.snapshot();
@@ -101,7 +121,13 @@ export class SemanticActionWorkflowController {
     const actionId = this.library.snapshot().selectedId;
     const action = actionId
       ? this.library.snapshot().actions.find((candidate) => candidate.id === actionId) : null;
-    if (action) this.recorder.restore(action.recording); else this.recorder.clear();
+    if (action) {
+      this.recordingSetId = action.setId;
+      this.recorder.restore(action.recording);
+    } else {
+      this.recordingSetId = null;
+      this.recorder.clear();
+    }
     return selected;
   }
   async deleteSet(id: string): Promise<boolean> {
@@ -140,7 +166,8 @@ export class SemanticActionWorkflowController {
 
   async saveRecording(name: string) {
     const recording = this.recorder.snapshot();
-    const saved = await this.library.save(recording, name);
+    const saved = await this.library.save(recording, name,
+      this.recordingSetId ?? this.library.snapshot().selectedSetId);
     // Saving may finish after the user has already started the next Action.
     // Persist the completed recording, but never replace newer recorder state.
     if (saved && this.recorder.snapshot() === recording) this.recorder.restore(saved.recording);
@@ -150,7 +177,9 @@ export class SemanticActionWorkflowController {
   async loadSaved(id: string): Promise<ActionRecordingSnapshot | null> {
     this.playback.clear();
     const action = await this.library.select(id);
-    return action ? this.recorder.restore(action.recording) : null;
+    if (!action) return null;
+    this.recordingSetId = action.setId;
+    return this.recorder.restore(action.recording);
   }
 
   playbackSnapshot = (): ActionPlaybackSnapshot => this.playback.snapshot();
@@ -187,6 +216,12 @@ export class SemanticActionWorkflowController {
     const snapshot = this.library.snapshot();
     const selected = snapshot.selectedId
       ? snapshot.actions.find((action) => action.id === snapshot.selectedId) : null;
-    if (selected) this.recorder.restore(selected.recording); else this.recorder.clear();
+    if (selected) {
+      this.recordingSetId = selected.setId;
+      this.recorder.restore(selected.recording);
+    } else {
+      this.recordingSetId = null;
+      this.recorder.clear();
+    }
   }
 }

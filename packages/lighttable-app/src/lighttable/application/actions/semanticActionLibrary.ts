@@ -23,6 +23,7 @@ export interface SavedSemanticActionSet {
   readonly name: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly enabled?: boolean;
 }
 
 export interface SavedSemanticAction {
@@ -69,7 +70,8 @@ const defaultSet = (): SavedSemanticActionSet => ({
   id: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
   name: 'Default Set',
   createdAt: 0,
-  updatedAt: 0
+  updatedAt: 0,
+  enabled: true
 });
 
 type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contract: RecordedCommandContract };
@@ -84,7 +86,7 @@ const ACTION_KEYS = new Set(['id', 'setId', 'name', 'createdAt', 'updatedAt', 'e
 const RECORDING_KEYS = new Set([
   'status', 'id', 'name', 'startedAt', 'stoppedAt', 'steps', 'variables', 'byteLength', 'limitReached'
 ]);
-const SET_KEYS = new Set(['id', 'name', 'createdAt', 'updatedAt']);
+const SET_KEYS = new Set(['id', 'name', 'createdAt', 'updatedAt', 'enabled']);
 
 const parseStep = (value: unknown, sequence: number): StoredActionStep | null => {
   if (!record(value) || value.sequence !== sequence || !boundedString(value.requestId, 512)
@@ -153,8 +155,10 @@ const parseAction = (value: unknown): ParsedAction => {
 const parseSet = (value: unknown): SavedSemanticActionSet | null => {
   if (!record(value) || !boundedString(value.id, 255) || !boundedString(value.name, 255)
     || Object.keys(value).some((key) => !SET_KEYS.has(key))
-    || !finite(value.createdAt) || !finite(value.updatedAt)) return null;
-  return { id: value.id, name: value.name, createdAt: value.createdAt, updatedAt: value.updatedAt };
+    || !finite(value.createdAt) || !finite(value.updatedAt)
+    || (value.enabled !== undefined && typeof value.enabled !== 'boolean')) return null;
+  return { id: value.id, name: value.name, createdAt: value.createdAt, updatedAt: value.updatedAt,
+    enabled: value.enabled !== false };
 };
 
 const empty = (error: string | null = null): SemanticActionLibrarySnapshot => ({
@@ -217,7 +221,8 @@ export class SemanticActionLibrary {
       id: nextId('action-set', new Set(this.snapshotValue.sets.map(({ id }) => id))),
       name: normalizedName,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      enabled: true
     };
     const snapshot = { ...this.snapshotValue, sets: orderedSets([...this.snapshotValue.sets, set]),
       selectedSetId: set.id, selectedId: null, error: null };
@@ -269,21 +274,24 @@ export class SemanticActionLibrary {
     return this.persist({ ...this.snapshotValue, sets, error: null });
   }
 
-  async save(recording: ActionRecordingSnapshot, name: string): Promise<SavedSemanticAction | null> {
+  async save(recording: ActionRecordingSnapshot, name: string,
+    targetSetId = this.snapshotValue.selectedSetId): Promise<SavedSemanticAction | null> {
     await this.readyValue;
     const normalizedName = name.trim();
+    const targetSet = this.snapshotValue.sets.find((set) => set.id === targetSetId);
     if (!normalizedName || normalizedName.length > 255 || recording.status !== 'stopped'
+      || !targetSet
       || recording.steps.some(({ replayable, outcome }) =>
         !replayable || (outcome !== 'completed' && outcome !== 'accepted'))) return null;
     const now = Date.now();
     const requestedId = recording.id ?? nextId('action', new Set(this.snapshotValue.actions.map(({ id }) => id)));
     const previous = this.snapshotValue.actions.find((action) => action.id === requestedId
-      && action.setId === this.snapshotValue.selectedSetId);
+      && action.setId === targetSetId);
     const id = previous ? requestedId : this.snapshotValue.actions.some((action) => action.id === requestedId)
       ? nextId('action', new Set(this.snapshotValue.actions.map((action) => action.id))) : requestedId;
-    const parsed = parseAction({ id, setId: this.snapshotValue.selectedSetId,
+    const parsed = parseAction({ id, setId: targetSetId,
       name: normalizedName, createdAt: previous?.createdAt ?? now, updatedAt: now,
-      enabled: previous?.enabled !== false,
+      enabled: previous ? previous.enabled !== false : targetSet.enabled !== false,
       recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } });
     if ('error' in parsed) return null;
     const action = parsed.action;
@@ -292,7 +300,8 @@ export class SemanticActionLibrary {
     if (existingIndex >= 0) actions[existingIndex] = action;
     else actions.push(action);
     if (actions.length > MAX_ACTIONS) return null;
-    return await this.persist({ ...this.snapshotValue, actions, selectedId: id, error: null }) ? action : null;
+    return await this.persist({ ...this.snapshotValue, actions, selectedSetId: targetSetId,
+      selectedId: id, error: null }) ? action : null;
   }
 
   async select(id: string): Promise<SavedSemanticAction | null> {
@@ -372,11 +381,13 @@ export class SemanticActionLibrary {
     await this.readyValue;
     if (!this.snapshotValue.sets.some((set) => set.id === setId)) return null;
     const now = Date.now();
+    const sets = this.snapshotValue.sets.map((set) => set.id === setId
+      ? { ...set, enabled, updatedAt: now } : set);
     const updated = this.snapshotValue.actions.map((action): SavedSemanticAction => action.setId === setId
       ? { ...action, enabled, updatedAt: now, recording: { ...action.recording,
           steps: action.recording.steps.map((step) => ({ ...step, enabled })) } }
       : action);
-    return await this.persist({ ...this.snapshotValue, actions: updated, error: null })
+    return await this.persist({ ...this.snapshotValue, sets, actions: updated, error: null })
       ? updated.filter((action) => action.setId === setId) : null;
   }
 

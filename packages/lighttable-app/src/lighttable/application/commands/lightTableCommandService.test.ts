@@ -542,7 +542,12 @@ describe('LightTableCommandService action recording', () => {
     const first = setup({}, storage);
     const workflowSet = await first.service.createActionSet('Layer workflows');
     expect(workflowSet).toMatchObject({ name: 'Layer workflows' });
-    first.service.startActionRecording('Draft');
+    expect(await first.service.createSavedAction(workflowSet!.id, 'Draft')).toMatchObject({
+      name: 'Draft', setId: workflowSet!.id, recording: { status: 'stopped', steps: [] }
+    });
+    expect(first.service.actionRecordingSnapshot()).toMatchObject({
+      name: 'Draft', status: 'recording', steps: []
+    });
     await first.service.execute(request('layer.createRaster', first.session.id));
     first.service.stopActionRecording();
     expect(await first.service.saveActionRecording('Fresh layer')).toMatchObject({ name: 'Fresh layer' });

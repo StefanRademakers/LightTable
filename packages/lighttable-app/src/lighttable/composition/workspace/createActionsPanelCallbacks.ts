@@ -34,6 +34,9 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   onPlayFromStep: (sequence: number) => { void service?.playActionFromStep(sequence); },
   onStopPlayback: () => { service?.stopActionPlayback(); },
   onCreateActionSet: (name: string) => { void service?.createActionSet(name); },
+  onCreateAction: async (setId: string, name: string) => (
+    (await service?.createSavedAction(setId, name))?.id ?? null
+  ),
   onRenameActionSet: (id: string, name: string) => { void service?.renameActionSet(id, name); },
   onSelectActionSet: (id: string) => { void service?.selectActionSet(id); },
   onDeleteActionSet: (id: string) => { void service?.deleteActionSet(id); },

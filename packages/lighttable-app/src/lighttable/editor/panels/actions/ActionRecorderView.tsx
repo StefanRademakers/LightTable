@@ -41,6 +41,7 @@ export interface ActionRecorderViewProps {
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
   readonly onCreateSet: (name: string) => void;
+  readonly onCreateAction: (setId: string, name: string) => Promise<string | null>;
   readonly onRenameSet: (id: string, name: string) => void;
   readonly onSelectSet: (id: string) => void;
   readonly onDeleteSet: (id: string) => void;
@@ -114,10 +115,19 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   );
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dialog, setDialog] = useState<NameDialog | null>(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
   const [menu, setMenu] = useState<{ readonly x: number; readonly y: number;
     readonly selection: Selection } | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const busy = playback.status === 'running';
+  const treeLocked = busy || recording.status === 'recording';
+  const canDeleteSelection = selection?.kind === 'set'
+    ? library.sets.length > 1
+    : selection?.kind === 'action'
+      ? library.actions.some((action) => action.id === selection.id)
+      : selection?.kind === 'step'
+        ? recording.id === selection.id && recording.status === 'stopped'
+        : false;
   const warning = editError ?? library.error
     ?? (recording.limitReached ? 'Recording limit reached. Stop and save this Action before continuing.' : null)
     ?? playback.results.at(-1)?.message;
@@ -127,13 +137,15 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   useEffect(() => {
     if (library.selectedSetId) {
       setExpandedSets((current) => new Set([...current, library.selectedSetId]));
-      setSelection((current) => current
-        && (current.kind === 'action' || current.kind === 'step')
-        && current.id === library.selectedId
-        ? current
-        : { kind: 'set', id: library.selectedSetId });
+      setSelection((current) => {
+        if (library.selectedId && recording.id === library.selectedId) {
+          return current?.kind === 'step' && current.id === library.selectedId
+            ? current : { kind: 'action', id: library.selectedId };
+        }
+        return { kind: 'set', id: library.selectedSetId };
+      });
     }
-  }, [library.selectedId, library.selectedSetId]);
+  }, [library.selectedId, library.selectedSetId, recording.id]);
   useEffect(() => {
     if (library.selectedId && recording.id === library.selectedId) {
       setExpandedActions((current) => new Set([...current, library.selectedId!]));
@@ -153,6 +165,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     return next;
   };
   const chooseAction = (id: string): void => {
+    if (treeLocked && recording.id !== id) return;
     setSelection({ kind: 'action', id });
     if (recording.id !== id) props.onLoad(id);
   };
@@ -161,6 +174,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   );
   const openMenu = (event: React.MouseEvent, next: Selection): void => {
     event.preventDefault();
+    if (treeLocked) return;
     if (next.kind !== 'set' && recording.id !== next.id) props.onLoad(next.id);
     setSelection(next);
     setMenu({ x: event.clientX, y: event.clientY, selection: next });
@@ -175,13 +189,26 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     }
     setMenu(null);
   };
-  const submitDialog = (value: string): void => {
-    if (!dialog || !value.trim()) return;
+  const submitDialog = async (value: string): Promise<void> => {
+    if (!dialog || !value.trim() || dialogBusy) return;
+    setDialogBusy(true);
+    setEditError(null);
+    let completed = true;
     if (dialog.kind === 'new-set') props.onCreateSet(value);
-    if (dialog.kind === 'new-action') { props.onClear(); props.onStart(value); }
+    if (dialog.kind === 'new-action') {
+      const selectedAction = selection?.kind === 'action' || selection?.kind === 'step'
+        ? library.actions.find((action) => action.id === selection.id) : null;
+      const setId = selection?.kind === 'set' ? selection.id
+        : selectedAction?.setId ?? library.selectedSetId;
+      const actionId = await props.onCreateAction(setId, value);
+      completed = Boolean(actionId);
+      if (actionId) setSelection({ kind: 'action', id: actionId });
+    }
     if (dialog.kind === 'rename-set' && dialog.id) props.onRenameSet(dialog.id, value);
     if (dialog.kind === 'rename-action' && dialog.id) props.onRename(dialog.id, value);
-    setDialog(null);
+    if (completed) setDialog(null);
+    else setEditError('The Action could not be created.');
+    setDialogBusy(false);
   };
   const contextMenuOptions: ContextMenuOption<string>[] = menu ? [
     ...(menu.selection.kind !== 'step' ? [{ value: 'rename', label: 'Rename',
@@ -210,13 +237,14 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
         edit(props.onMoveStep(menu.selection.sequence, 1));
       }
     } },
-    { value: 'delete', label: 'Delete', separatorBefore: true, onClick: () => {
+    ...(!(menu.selection.kind === 'set' && library.sets.length <= 1) ? [{
+      value: 'delete', label: 'Delete', separatorBefore: true, onClick: () => {
       if (menu.selection.kind === 'set') props.onDeleteSet(menu.selection.id);
       if (menu.selection.kind === 'action') props.onDelete(menu.selection.id);
       if (menu.selection.kind === 'step' && menu.selection.sequence) {
         edit(props.onDeleteStep(menu.selection.sequence));
       }
-    } }
+    } }] : [])
   ] : [];
 
   return <section className="lighttable-action-recorder" aria-label="Actions"
@@ -238,6 +266,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
             className="lighttable-action-tree__row is-set"
             onClick={(event) => {
               event.stopPropagation();
+              if (treeLocked && library.selectedSetId !== set.id) return;
               setSelection({ kind: 'set', id: set.id });
               if (library.selectedSetId !== set.id) props.onSelectSet(set.id);
             }}
@@ -246,9 +275,8 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
             onContextMenu={(event) => openMenu(event, { kind: 'set', id: set.id })}>
             <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
               <PanelCheckboxField label={`Enable ${set.name}`} compact
-                checked={actions.length > 0 && actions.every((action) => action.enabled !== false)}
-                disabled={busy || actions.length === 0
-                  || actions.some((action) => !library.actions.some((saved) => saved.id === action.id))}
+                checked={set.enabled !== false}
+                disabled={treeLocked}
                 onChange={(checked) => props.onSetActionSetEnabled(set.id, checked)} />
             </span>
             <PanelStackDisclosure expanded={setOpen}
@@ -282,7 +310,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                   <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
                     <PanelCheckboxField label={`Enable ${action.name}`} compact
                       checked={actionEnabled}
-                      disabled={busy || !library.actions.some((saved) => saved.id === action.id)}
+                      disabled={treeLocked || !library.actions.some((saved) => saved.id === action.id)}
                       onChange={(checked) => props.onSetActionEnabled(action.id, checked)} />
                   </span>
                   <PanelStackDisclosure expanded={actionOpen}
@@ -400,12 +428,14 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
           src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></ButtonBase>
       <span className="lighttable-action-recorder__footer-spacer" />
       <ButtonBase type="button" aria-label="New Action Set"
+        disabled={treeLocked}
         onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })}><img
           src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
       <ButtonBase type="button" aria-label="New Action"
+        disabled={treeLocked}
         onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })}><img
           src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
-      <ButtonBase type="button" aria-label="Delete selected" disabled={!selection}
+      <ButtonBase type="button" aria-label="Delete selected" disabled={!canDeleteSelection || treeLocked}
         onClick={() => {
           if (selection?.kind === 'set') props.onDeleteSet(selection.id);
           if (selection?.kind === 'action') props.onDelete(selection.id);

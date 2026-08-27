@@ -52,6 +52,22 @@ try {
   if (!(await selectedSet.evaluate((element) => element.classList.contains('lighttable-panel-stack-row--active')))) {
     throw new Error('Clicking an Action Set did not make its row active.');
   }
+  const emptySetEnabled = panel.getByRole('checkbox', { name: 'Enable Smoke Set' });
+  if (!(await emptySetEnabled.isEnabled()) || !(await emptySetEnabled.isChecked())) {
+    throw new Error('A new empty Action Set is not enabled by default.');
+  }
+  await emptySetEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    return input instanceof HTMLInputElement && !input.checked;
+  });
+  await emptySetEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    return input instanceof HTMLInputElement && input.checked;
+  });
 
   for (const name of ['Empty one', 'Empty two']) {
     await panel.getByRole('button', { name: 'New Action', exact: true }).click();
@@ -60,6 +76,7 @@ try {
     await emptyDialog.getByRole('button', { name: 'OK' }).click();
     await window.waitForFunction(() =>
       window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording');
+    await panel.getByText(name, { exact: true }).waitFor();
     await panel.getByRole('button', { name: 'Stop' }).click();
   }
 
@@ -160,6 +177,14 @@ try {
   if (layersAfterPlay !== layersBeforePlay + 1) {
     throw new Error(`Action playback created ${layersAfterPlay - layersBeforePlay} layers instead of one.`);
   }
+
+  await panel.getByRole('button', { name: 'New Action Set' }).click();
+  const deleteSetDialog = window.getByRole('dialog', { name: 'New Action Set' });
+  await deleteSetDialog.getByRole('textbox').fill('Delete me');
+  await deleteSetDialog.getByRole('button', { name: 'OK' }).click();
+  await panel.getByText('Delete me', { exact: true }).waitFor();
+  await panel.getByRole('button', { name: 'Delete selected' }).click();
+  await panel.getByText('Delete me', { exact: true }).waitFor({ state: 'detached' });
 
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'History panel' }).click();

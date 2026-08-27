@@ -215,6 +215,7 @@ export function LightTableStandaloneApp({
     applicationRendererLifecycle.getSnapshot
   );
   const applicationServicesLeaseRef = useRef(0);
+  const commandServiceLeaseRef = useRef(0);
   const pendingDocumentClosesRef = useRef(new Set<DocumentSessionId>());
   const documentProjectionKey = snapshot.documentOrder.join('\u0000');
   useEffect(() => {
@@ -469,7 +470,15 @@ export function LightTableStandaloneApp({
   const launcherRecordedRef = useRef(false);
   const projectRestoreStartedRef = useRef(false);
 
-  useEffect(() => () => commandService.dispose(), [commandService]);
+  useEffect(() => {
+    const lease = ++commandServiceLeaseRef.current;
+    return () => {
+      queueMicrotask(() => {
+        if (commandServiceLeaseRef.current !== lease) return;
+        commandService.dispose();
+      });
+    };
+  }, [commandService]);
   useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
   useEffect(() => host.agentAccess?.installDriver(commandService), [commandService, host.agentAccess]);
   useEffect(() => {

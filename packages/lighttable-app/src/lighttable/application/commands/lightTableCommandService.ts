@@ -597,6 +597,7 @@ export class LightTableCommandService {
   actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actions.librarySnapshot();
   subscribeActionLibrary = (listener: () => void) => this.actions.subscribeLibrary(listener);
   createActionSet = (name: string) => this.actions.createSet(name);
+  createSavedAction = (setId: string, name: string) => this.actions.createAction(setId, name);
   renameActionSet = (id: string, name: string) => this.actions.renameSet(id, name);
   selectActionSet = (id: string) => this.actions.selectSet(id);
   deleteActionSet = (id: string) => this.actions.deleteSet(id);

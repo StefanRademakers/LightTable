@@ -45,7 +45,10 @@ describe('semantic Action library', () => {
   it('creates, renames, selects and deletes Action Sets with their Actions', async () => {
     const library = new SemanticActionLibrary();
     const portraits = await library.createSet(' Portraits ');
-    expect(portraits).toMatchObject({ name: 'Portraits' });
+    expect(portraits).toMatchObject({ name: 'Portraits', enabled: true });
+    expect(await library.setSetEnabled(portraits!.id, false)).toEqual([]);
+    expect(library.snapshot().sets.find(({ id }) => id === portraits!.id)?.enabled).toBe(false);
+    expect(await library.setSetEnabled(portraits!.id, true)).toEqual([]);
     expect((await library.save(recording(), 'Portrait setup'))?.setId).toBe(portraits!.id);
     expect(await library.renameSet(portraits!.id, 'People')).toMatchObject({ name: 'People' });
     const products = await library.createSet('Products');
