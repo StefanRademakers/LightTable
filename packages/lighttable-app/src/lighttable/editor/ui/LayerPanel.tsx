@@ -47,6 +47,7 @@ import {
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 import { resolveLayerSelectionGesture } from '../../application/layers/layerSelectionModel';
+import { planSoloLayerVisibility } from '../../application/layers/layerVisibilityIsolation';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -60,6 +61,12 @@ interface LayerPanelProps {
   onSelect: (layerId: LayerId) => void;
   onChannelChange: (channel: PaintChannel) => void;
   onVisibility: (layerIds: LayerId[], visible: boolean) => void;
+  onSoloVisibility: (layerId: LayerId) => void;
+  onOtherLayersVisibility: (layerId: LayerId, visible: boolean) => void;
+  onAllLayersVisibility: (visible: boolean) => void;
+  onVisibilityInteractionStart: () => void;
+  onVisibilityPreview: (layerIds: LayerId[], visible: boolean) => void;
+  onVisibilityInteractionEnd: () => void;
   onRename: (layerId: LayerId, name: string) => void;
   onOpacity: (layerId: LayerId, opacity: number) => void;
   onVectorAntiAlias: (layerId: LayerId, antiAlias: boolean) => void;
@@ -243,6 +250,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onSelect,
   onChannelChange,
   onVisibility,
+  onSoloVisibility,
+  onOtherLayersVisibility,
+  onAllLayersVisibility,
+  onVisibilityInteractionStart,
+  onVisibilityPreview,
+  onVisibilityInteractionEnd,
   onRename,
   onOpacity,
   onVectorAntiAlias,
@@ -317,6 +330,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
+  const visibilityGestureRef = React.useRef<{
+    pointerId: number;
+    visible: boolean;
+    layerIds: Set<LayerId>;
+  } | null>(null);
+  const suppressVisibilityClickRef = React.useRef(false);
   const layerNamePointerFocusRef = React.useRef(false);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
   const [clippingBoundaryHoverLayerId, setClippingBoundaryHoverLayerId] = React.useState<LayerId | null>(null);
@@ -353,6 +372,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     y: number;
     target: LayerSubtarget | null;
   }>({ open: false, x: 0, y: 0, target: null });
+  const [visibilityMenu, setVisibilityMenu] = React.useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    layerId: LayerId | null;
+  }>({ open: false, x: 0, y: 0, layerId: null });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
   const thumbnailDimensions = layerThumbnailDimensions(document.width, document.height);
   const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
@@ -365,6 +390,38 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const selectedIdsKey = selectedIds.join('\u0000');
   const selectionFor = (layerId: LayerId) =>
     selectedLayerIds.has(layerId) ? selectedIds : [layerId];
+
+  const visitVisibilityGestureLayer = (clientX: number, clientY: number) => {
+    const gesture = visibilityGestureRef.current;
+    if (!gesture) return;
+    const target = globalThis.document.elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>('[data-layer-visibility-id]');
+    const layerId = target?.dataset.layerVisibilityId as LayerId | undefined;
+    if (!layerId) return;
+    const layerIds = selectionFor(layerId).filter((id) => !gesture.layerIds.has(id));
+    if (!layerIds.length) return;
+    layerIds.forEach((id) => gesture.layerIds.add(id));
+    onVisibilityPreview(layerIds, gesture.visible);
+  };
+
+  const finishVisibilityGesture = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const gesture = visibilityGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    visitVisibilityGestureLayer(event.clientX, event.clientY);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const layerIds = [...gesture.layerIds];
+    visibilityGestureRef.current = null;
+    if (layerIds.length) onVisibility(layerIds, gesture.visible);
+    onVisibilityInteractionEnd();
+    suppressVisibilityClickRef.current = true;
+    window.setTimeout(() => {
+      suppressVisibilityClickRef.current = false;
+    }, 0);
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const layerCapabilities = queryLayerCommandCapabilities(document, selectedIds);
   const {
     activeLayer,
@@ -548,6 +605,38 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             : `Delete ${selectedStyleName ?? 'Layer Effect'}`,
         onClick: () => deleteTreeTarget(subtargetMenu.target!)
       }]
+    : [];
+  const visibilityMenuLayer = visibilityMenu.layerId
+    ? allRows.find(({ layer }) => layer.id === visibilityMenu.layerId)?.layer ?? null
+    : null;
+  const anyOtherLayerVisible = visibilityMenuLayer
+    ? planSoloLayerVisibility(document, visibilityMenuLayer.id)
+        .some((change) => !change.visible && change.layerIds.length > 0)
+    : false;
+  const visibilityMenuOptions: Array<ContextMenuOption<string>> = visibilityMenuLayer
+    ? [
+        {
+          value: 'toggle-layer-visibility',
+          label: visibilityMenuLayer.visible ? 'Hide This Layer' : 'Show This Layer',
+          onClick: () => onVisibility([visibilityMenuLayer.id], !visibilityMenuLayer.visible)
+        },
+        {
+          value: 'toggle-other-layer-visibility',
+          label: anyOtherLayerVisible ? 'Hide All Other Layers' : 'Show All Other Layers',
+          onClick: () => onOtherLayersVisibility(visibilityMenuLayer.id, !anyOtherLayerVisible)
+        },
+        {
+          value: 'show-all-layers',
+          label: 'Show All Layers',
+          separatorBefore: true,
+          onClick: () => onAllLayersVisibility(true)
+        },
+        {
+          value: 'hide-all-layers',
+          label: 'Hide All Layers',
+          onClick: () => onAllLayersVisibility(false)
+        }
+      ]
     : [];
   const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); onInspectLayer(layerId, 'pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
 
@@ -844,6 +933,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             }}
             onDragStart={(event) => {
               cancelLayerNameRenameGesture();
+              if ((event.target as HTMLElement).closest('.lighttable-layer__visibility')) {
+                event.preventDefault();
+                return;
+              }
               if (documentFx) {
                 event.preventDefault();
                 return;
@@ -944,13 +1037,65 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             <ButtonBase
               type="button"
               className="lighttable-layer__visibility"
+              draggable={false}
+              data-layer-visibility-id={layer.id}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                if (event.button !== 0) return;
+                if (event.altKey) return;
+                event.preventDefault();
+                const layerIds = selectionFor(layer.id);
+                const visible = !layer.visible;
+                visibilityGestureRef.current = {
+                  pointerId: event.pointerId,
+                  visible,
+                  layerIds: new Set(layerIds)
+                };
+                onVisibilityInteractionStart();
+                onVisibilityPreview(layerIds, visible);
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (visibilityGestureRef.current?.pointerId !== event.pointerId) return;
+                visitVisibilityGestureLayer(event.clientX, event.clientY);
+              }}
+              onPointerUp={finishVisibilityGesture}
+              onPointerCancel={finishVisibilityGesture}
+              onDragStart={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
               onClick={(event) => {
                 event.stopPropagation();
+                if (suppressVisibilityClickRef.current) {
+                  suppressVisibilityClickRef.current = false;
+                  return;
+                }
+                if (event.altKey) {
+                  onSoloVisibility(layer.id);
+                  return;
+                }
                 onVisibility(selectionFor(layer.id), !layer.visible);
               }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setMoreMenu((current) => ({ ...current, open: false }));
+                setSubtargetMenu((current) => ({ ...current, open: false }));
+                setVisibilityMenu({
+                  open: true,
+                  x: event.clientX,
+                  y: event.clientY,
+                  layerId: layer.id
+                });
+              }}
               aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
-              title={layer.visible ? 'Hide layer' : 'Show layer'}
-            ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+              title={`${layer.visible ? 'Hide' : 'Show'} layer; Alt/Option-click to isolate`}
+            ><img
+              src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')}
+              alt=""
+              draggable={false}
+            /></ButtonBase>
             {depth > 0 ? (
               <span
                 className="lighttable-layer__depth-spacer"
@@ -1748,6 +1893,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         y={subtargetMenu.y}
         onClose={() => setSubtargetMenu((current) => ({ ...current, open: false }))}
         options={subtargetMenuOptions}
+      />
+      <ContextMenu
+        open={visibilityMenu.open}
+        x={visibilityMenu.x}
+        y={visibilityMenu.y}
+        onClose={() => setVisibilityMenu((current) => ({ ...current, open: false }))}
+        options={visibilityMenuOptions}
       />
     </section>
   );

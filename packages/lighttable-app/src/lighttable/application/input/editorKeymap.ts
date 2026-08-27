@@ -53,6 +53,8 @@ export type EditorKeyboardCommand =
   | 'selection-copy-merged'
   | 'selection-paste'
   | 'layer-via-copy'
+  | 'toggle-active-layer-visibility'
+  | 'show-all-layers'
   | 'merge-down'
   | 'free-transform'
   | 'repeat-transform'
@@ -309,6 +311,18 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('layer.via-copy', { key: 'j', primary: true, alt: false, shift: false }, 'layer-via-copy', {
       when: (context) => !context.saving
     }),
+    command(
+      'layer.toggle-visibility',
+      { key: ',', primary: true, alt: false, shift: false },
+      'toggle-active-layer-visibility',
+      { when: (context) => !context.saving && context.hasActiveLayer }
+    ),
+    command(
+      'layer.show-all',
+      { key: ',', primary: true, alt: true, shift: false },
+      'show-all-layers',
+      { when: (context) => !context.saving && context.hasActiveLayer }
+    ),
     command('layer.merge-down', { key: 'e', primary: true, alt: false, shift: false }, 'merge-down', {
       when: (context) => !context.saving && context.hasActiveLayer
     }),

@@ -99,6 +99,15 @@ import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTyp
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import {
+  canRestoreLayerVisibility,
+  captureLayerVisibility,
+  planAllLayerVisibility,
+  planRestoreLayerVisibility,
+  planSoloLayerVisibility,
+  type LayerVisibilityChange,
+  type LayerVisibilitySnapshot
+} from './application/layers/layerVisibilityIsolation';
 import { useP0FilterController } from './application/filters/useP0FilterController';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
@@ -907,6 +916,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
+  const soloLayerVisibilityRef = useRef<LayerVisibilitySnapshot | null>(null);
+  const toggleSelectedLayerVisibilityRef = useRef<() => void>(() => undefined);
+  const showAllLayersRef = useRef<() => void>(() => undefined);
   const [transformActivationRevision, setTransformActivationRevision] = useState(0);
   const layerNameRenameGestureControllerRef = useRef(new LayerNameRenameGestureController());
   const handleLayerNamePointerDown = useCallback((layerId: LayerId, activeLayerId: LayerId | null) => {
@@ -3670,6 +3682,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       copyMergedSelection: () => copyMergedContentRef.current(),
       pasteSelection: () => pasteSelectedContentRef.current(),
       layerViaCopy: () => layerViaCopyRef.current(),
+      toggleActiveLayerVisibility: () => toggleSelectedLayerVisibilityRef.current(),
+      showAllLayers: () => showAllLayersRef.current(),
       mergeDown: () => mergeActiveLayerDownRef.current(),
       invertActiveTarget: () => invertActiveLayerColorsRef.current(),
       openSelectionFeather: editorDialogs.openFeather,
@@ -5778,11 +5792,87 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
     commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId,
     workspaceDocumentKind]);
+
+  const executeLayerVisibilityChanges = useCallback((
+    changes: readonly LayerVisibilityChange[],
+    name: string
+  ) => {
+    const operations = changes.flatMap((change, changeIndex) => {
+      const chunks: LayerId[][] = [];
+      for (let offset = 0; offset < change.layerIds.length; offset += 256) {
+        chunks.push(change.layerIds.slice(offset, offset + 256) as LayerId[]);
+      }
+      return chunks.map((layerIds, chunkIndex) => ({
+        operationId: `visibility-${changeIndex}-${chunkIndex}`,
+        command: 'layer.setVisibility',
+        parameters: { layerIds, visible: change.visible }
+      }));
+    });
+    if (!operations.length) return;
+    if (operations.length === 1) {
+      const parameters = operations[0]!.parameters;
+      if (!executeRegisteredCommand('layer.setVisibility', parameters)) {
+        layerPanelController.setVisibility(parameters.layerIds, parameters.visible);
+      }
+      return;
+    }
+    if (!executeRegisteredCommand('command.batch', { name, operations })) {
+      changes.forEach(({ layerIds, visible }) =>
+        layerPanelController.setVisibility([...layerIds], visible));
+    }
+  }, [executeRegisteredCommand, layerPanelController]);
+
   const commandLayerPanelController = useMemo(() => ({
     ...layerPanelController,
     createRasterLayer: () => { if (!executeRegisteredCommand('layer.createRaster', {})) layerPanelController.createRasterLayer(); },
     rename: (layerId: LayerId, name: string) => { if (!executeRegisteredCommand('layer.rename', { layerId, name })) layerPanelController.rename(layerId, name); },
-    setVisibility: (layerIds: LayerId[], visible: boolean) => { if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) layerPanelController.setVisibility(layerIds, visible); },
+    setVisibility: (layerIds: LayerId[], visible: boolean) => {
+      soloLayerVisibilityRef.current = null;
+      if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) {
+        layerPanelController.setVisibility(layerIds, visible);
+      }
+    },
+    toggleSoloVisibility: (layerId: LayerId) => {
+      const document = imageDocumentRef.current;
+      if (!document) return;
+      const snapshot = soloLayerVisibilityRef.current;
+      if (snapshot?.targetLayerId === layerId
+        && canRestoreLayerVisibility(document, snapshot)) {
+        executeLayerVisibilityChanges(
+          planRestoreLayerVisibility(document, snapshot),
+          'Restore layer visibility'
+        );
+        soloLayerVisibilityRef.current = null;
+        return;
+      }
+      soloLayerVisibilityRef.current = captureLayerVisibility(document, layerId);
+      executeLayerVisibilityChanges(
+        planSoloLayerVisibility(document, layerId),
+        'Solo layer'
+      );
+    },
+    setOtherLayersVisibility: (layerId: LayerId, visible: boolean) => {
+      soloLayerVisibilityRef.current = null;
+      const document = imageDocumentRef.current;
+      if (document) executeLayerVisibilityChanges(
+        visible
+          ? planAllLayerVisibility(document, true, layerId)
+          : planSoloLayerVisibility(document, layerId),
+        `${visible ? 'Show' : 'Hide'} other layers`
+      );
+    },
+    setAllLayersVisibility: (visible: boolean) => {
+      soloLayerVisibilityRef.current = null;
+      const document = imageDocumentRef.current;
+      if (document) executeLayerVisibilityChanges(
+        planAllLayerVisibility(document, visible),
+        `${visible ? 'Show' : 'Hide'} all layers`
+      );
+    },
+    beginVisibilityInteraction: () => {
+      soloLayerVisibilityRef.current = null;
+      layerPanelController.beginVisibilityInteraction();
+    },
     duplicateActive: () => {
       const layerId = imageDocumentRef.current?.activeLayerId;
       if (!layerId || !executeRegisteredCommand('layer.duplicate', { layerId })) {
@@ -5861,7 +5951,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStyleStackEnabled: (layerId: LayerId, enabled: boolean) => {
       if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) layerPanelController.setStyleStackEnabled(layerId, enabled);
     }
-  }), [executeRegisteredCommand, layerPanelController]);
+  }), [executeLayerVisibilityChanges, executeRegisteredCommand, layerPanelController]);
+  toggleSelectedLayerVisibilityRef.current = () => {
+    const document = imageDocumentRef.current;
+    if (!document) return;
+    const activeLayer = findDocumentLayer(document, document.activeLayerId);
+    if (!activeLayer) return;
+    const selected = selectedLayerIdsRef.current.filter((layerId) =>
+      Boolean(findDocumentLayer(document, layerId)));
+    commandLayerPanelController.setVisibility(
+      selected.length ? selected : [activeLayer.id],
+      !activeLayer.visible
+    );
+  };
+  showAllLayersRef.current = () => commandLayerPanelController.setAllLayersVisibility(true);
   selectLayerRef.current = layerPanelController.select;
 
   const reconciledPropertiesTarget = reconcilePropertiesTarget(imageDocument, propertiesTarget);

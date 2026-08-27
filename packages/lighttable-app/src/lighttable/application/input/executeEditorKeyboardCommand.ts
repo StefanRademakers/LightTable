@@ -31,6 +31,8 @@ export interface EditorKeyboardCommandPorts {
   copyMergedSelection(): void;
   pasteSelection(): void;
   layerViaCopy(): void;
+  toggleActiveLayerVisibility(): void;
+  showAllLayers(): void;
   mergeDown(): void;
   invertActiveTarget(): void;
   openSelectionFeather(): void;
@@ -161,6 +163,12 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'layer-via-copy':
       ports.layerViaCopy();
+      return;
+    case 'toggle-active-layer-visibility':
+      ports.toggleActiveLayerVisibility();
+      return;
+    case 'show-all-layers':
+      ports.showAllLayers();
       return;
     case 'merge-down':
       ports.mergeDown();

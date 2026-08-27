@@ -42,8 +42,8 @@ const setup = (initialDocument: ImageDocument) => {
       panelAdjustments = cloneAdjustments(next);
     }),
     setPaintTarget: vi.fn(),
-    beginDocumentTransaction: vi.fn(),
-    endDocumentTransaction: vi.fn(),
+    beginDocumentTransaction: vi.fn(() => true),
+    endDocumentTransaction: vi.fn(() => true),
     createAdjustmentLayer: vi.fn(),
     createCurvesAdjustmentLayer: vi.fn(),
     createLensFxLayer: vi.fn(),

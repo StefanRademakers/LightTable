@@ -54,6 +54,15 @@ import type {
   AdjustmentInitialSettings,
   AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
+import {
+  canRestoreLayerVisibility,
+  captureLayerVisibility,
+  planAllLayerVisibility,
+  planRestoreLayerVisibility,
+  planSoloLayerVisibility,
+  type LayerVisibilityChange,
+  type LayerVisibilitySnapshot
+} from './layerVisibilityIsolation';
 
 export interface LayerPanelControllerDependencies {
   getDocument(): ImageDocument | null;
@@ -64,8 +73,8 @@ export interface LayerPanelControllerDependencies {
   ): void;
   publishPanelAdjustments(adjustments: BasicAdjustments): void;
   setPaintTarget(channel: PaintChannel, brushColor?: string): void;
-  beginDocumentTransaction(): void;
-  endDocumentTransaction(): void;
+  beginDocumentTransaction(): boolean;
+  endDocumentTransaction(): boolean;
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
@@ -94,6 +103,12 @@ export interface LayerPanelController {
   select(layerId: LayerId): void;
   changeChannel(channel: PaintChannel): void;
   setVisibility(layerIds: LayerId[], visible: boolean): void;
+  toggleSoloVisibility(layerId: LayerId): void;
+  setOtherLayersVisibility(layerId: LayerId, visible: boolean): void;
+  setAllLayersVisibility(visible: boolean): void;
+  beginVisibilityInteraction(): void;
+  previewVisibility(layerIds: LayerId[], visible: boolean): void;
+  endVisibilityInteraction(): void;
   rename(layerId: LayerId, name: string): void;
   setOpacity(layerId: LayerId, opacity: number): void;
   setVectorAntiAlias(layerId: LayerId, antiAlias: boolean): void;
@@ -162,10 +177,20 @@ export interface LayerPanelController {
 export const createLayerPanelController = (
   resolveDependencies: () => LayerPanelControllerDependencies
 ): LayerPanelController => {
+  let soloVisibility: LayerVisibilitySnapshot | null = null;
+  let visibilityInteractionActive = false;
   const mutate = (
     change: (current: ImageDocument) => ImageDocument,
     recordHistory = true
   ) => resolveDependencies().mutateDocument(change, recordHistory);
+
+  const applyVisibilityChanges = (changes: readonly LayerVisibilityChange[]) => {
+    if (!changes.length) return;
+    mutate((current) => changes.reduce(
+      (next, change) => setLayersVisibility(next, change.layerIds, change.visible),
+      current
+    ));
+  };
 
   const select = (layerId: LayerId) => {
     const dependencies = resolveDependencies();
@@ -210,8 +235,45 @@ export const createLayerPanelController = (
   return {
     select,
     changeChannel: (channel) => resolveDependencies().setPaintTarget(channel),
-    setVisibility: (layerIds, visible) =>
+    setVisibility: (layerIds, visible) => {
+      soloVisibility = null;
+      mutate((current) => setLayersVisibility(current, layerIds, visible));
+    },
+    toggleSoloVisibility: (layerId) => {
+      const document = resolveDependencies().getDocument();
+      if (!document) return;
+      if (soloVisibility?.targetLayerId === layerId
+        && canRestoreLayerVisibility(document, soloVisibility)) {
+        applyVisibilityChanges(planRestoreLayerVisibility(document, soloVisibility));
+        soloVisibility = null;
+        return;
+      }
+      soloVisibility = captureLayerVisibility(document, layerId);
+      applyVisibilityChanges(planSoloLayerVisibility(document, layerId));
+    },
+    setOtherLayersVisibility: (layerId, visible) => {
+      soloVisibility = null;
+      const document = resolveDependencies().getDocument();
+      if (document) applyVisibilityChanges(visible
+        ? planAllLayerVisibility(document, true, layerId)
+        : planSoloLayerVisibility(document, layerId));
+    },
+    setAllLayersVisibility: (visible) => {
+      soloVisibility = null;
+      const document = resolveDependencies().getDocument();
+      if (document) applyVisibilityChanges(planAllLayerVisibility(document, visible));
+    },
+    beginVisibilityInteraction: () => {
+      soloVisibility = null;
+      visibilityInteractionActive = resolveDependencies().beginDocumentTransaction();
+    },
+    previewVisibility: (layerIds, visible) =>
       mutate((current) => setLayersVisibility(current, layerIds, visible)),
+    endVisibilityInteraction: () => {
+      if (!visibilityInteractionActive) return;
+      visibilityInteractionActive = false;
+      resolveDependencies().endDocumentTransaction();
+    },
     rename: (layerId, name) =>
       mutate((current) => renameLayer(current, layerId, name)),
     setOpacity: (layerId, opacity) =>

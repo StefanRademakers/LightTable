@@ -34,6 +34,8 @@ const ports = (): EditorKeyboardCommandPorts => ({
   copyMergedSelection: vi.fn(),
   pasteSelection: vi.fn(),
   layerViaCopy: vi.fn(),
+  toggleActiveLayerVisibility: vi.fn(),
+  showAllLayers: vi.fn(),
   mergeDown: vi.fn(),
   invertActiveTarget: vi.fn(),
   openSelectionFeather: vi.fn(),
@@ -189,11 +191,15 @@ describe('executeEditorKeyboardCommand', () => {
     executeEditorKeyboardCommand('activate-previous-document', target);
     executeEditorKeyboardCommand('close-active-document', target);
     executeEditorKeyboardCommand('toggle-screen-mode', target);
+    executeEditorKeyboardCommand('toggle-active-layer-visibility', target);
+    executeEditorKeyboardCommand('show-all-layers', target);
 
     expect(target.mergeDown).toHaveBeenCalledOnce();
     expect(target.activateAdjacentDocument).toHaveBeenCalledWith(-1);
     expect(target.closeActiveDocument).toHaveBeenCalledOnce();
     expect(target.toggleScreenMode).toHaveBeenCalledOnce();
+    expect(target.toggleActiveLayerVisibility).toHaveBeenCalledOnce();
+    expect(target.showAllLayers).toHaveBeenCalledOnce();
   });
 
   it('routes Escape only to operation cancellation', () => {

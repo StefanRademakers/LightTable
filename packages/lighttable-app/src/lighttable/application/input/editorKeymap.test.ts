@@ -279,6 +279,19 @@ describe('editor keymap', () => {
     )).toBeNull();
   });
 
+  it('routes the Photoshop layer visibility shortcuts', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ',', code: 'Comma', ctrlKey: true }),
+      context()
+    )).toBe('toggle-active-layer-visibility');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ',', code: 'Comma', ctrlKey: true, altKey: true }),
+      context()
+    )).toBe('show-all-layers');
+  });
+
   it('resets and swaps the editor colors with D and X', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
