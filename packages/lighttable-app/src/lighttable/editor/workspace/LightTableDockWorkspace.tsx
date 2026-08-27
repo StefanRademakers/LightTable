@@ -602,10 +602,7 @@ export const LightTableDockWorkspace = forwardRef<
     left: [],
     right: []
   });
-  const tabRestoreVisibilityRef = useRef<Record<DockColumnSide, boolean>>({
-    left: true,
-    right: true
-  });
+  const tabHiddenGroupIdsRef = useRef<readonly string[] | null>(null);
   const dockColumnSyncFrameRef = useRef<number | null>(null);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
@@ -1301,28 +1298,38 @@ export const LightTableDockWorkspace = forwardRef<
         target instanceof Element
         && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
       ) return;
-      if (!dockColumns.left.available && !dockColumns.right.available) return;
+      const api = apiRef.current;
+      const documentGroup = api?.getPanel(DOCUMENT_HOST_PANEL_ID)?.group;
+      if (!api || !documentGroup) return;
+
+      const hiddenGroupIds = tabHiddenGroupIdsRef.current;
+      if (hiddenGroupIds === null) {
+        const visibleAccessoryGroupIds = api.groups
+          .filter((group) => group.id !== documentGroup.id && group.api.isVisible)
+          .map((group) => group.id);
+        if (visibleAccessoryGroupIds.length === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        tabHiddenGroupIdsRef.current = visibleAccessoryGroupIds;
+        resettingLayoutRef.current = true;
+        visibleAccessoryGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(false));
+        scheduleDockColumnRefresh(api);
+        window.queueMicrotask(() => { resettingLayoutRef.current = false; });
+        return;
+      }
 
       event.preventDefault();
       event.stopPropagation();
-      const anyVisible = dockColumns.left.visible || dockColumns.right.visible;
-      if (anyVisible) {
-        tabRestoreVisibilityRef.current = {
-          left: dockColumns.left.visible,
-          right: dockColumns.right.visible
-        };
-        applyDockColumnVisibility({ left: false, right: false });
-        return;
-      }
-      applyDockColumnVisibility({
-        left: tabRestoreVisibilityRef.current.left,
-        right: tabRestoreVisibilityRef.current.right
-      });
+      tabHiddenGroupIdsRef.current = null;
+      resettingLayoutRef.current = true;
+      hiddenGroupIds.forEach((groupId) => api.getGroup(groupId)?.api.setVisible(true));
+      scheduleDockColumnRefresh(api);
+      window.queueMicrotask(() => { resettingLayoutRef.current = false; });
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [applyDockColumnVisibility, dockColumns]);
+  }, [scheduleDockColumnRefresh]);
 
   useLayoutEffect(() => {
     if (!ready) return;
