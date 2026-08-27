@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LAYER_TREE_GEOMETRY,
+  layerDepthSpacerWidth,
   layerChildRowInset,
   layerRowInset
 } from './layerTreeGeometry';
@@ -22,6 +23,13 @@ describe('layer tree geometry', () => {
   it('clamps invalid negative and fractional depths', () => {
     expect(layerRowInset(-2)).toBe(2);
     expect(layerRowInset(1.9)).toBe(24);
+  });
+
+  it('keeps visibility fixed and indents only the content after it', () => {
+    expect(layerDepthSpacerWidth(0)).toBe(0);
+    expect(layerDepthSpacerWidth(1)).toBe(18);
+    expect(layerDepthSpacerWidth(2)).toBe(40);
+    expect(layerDepthSpacerWidth(-2)).toBe(0);
   });
 
   it('aligns an unbordered child projection with the parent hierarchy column', () => {

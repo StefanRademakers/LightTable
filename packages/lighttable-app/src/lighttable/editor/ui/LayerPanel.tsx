@@ -25,7 +25,7 @@ import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
-import { layerChildRowInset, layerRowInset } from '../layers/layerTreeGeometry';
+import { layerChildRowInset, layerDepthSpacerWidth } from '../layers/layerTreeGeometry';
 import {
   adjustmentStackHasOwner,
   type LocalProcessingKind
@@ -806,7 +806,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               draggedLayerId === layer.id ? 'lighttable-layer--dragging' : '',
               dropTarget?.layerId === layer.id ? `lighttable-layer--drop-${dropTarget.placement}` : ''
             ].filter(Boolean).join(' ')}
-            style={{ paddingLeft: `${layerRowInset(depth)}px` }}
             onPointerDown={(event) => beginLayerPointerSelection(event, layer.id)}
             onClick={(event) => {
               if (clippingGestureLayerRef.current === layer.id) {
@@ -952,8 +951,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
               title={layer.visible ? 'Hide layer' : 'Show layer'}
             ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
-            <span className="lighttable-layer__hierarchy-slot">
-              {layer.type === 'group' ? (
+            {depth > 0 ? (
+              <span
+                className="lighttable-layer__depth-spacer"
+                style={{ width: `${layerDepthSpacerWidth(depth)}px` }}
+                aria-hidden="true"
+              />
+            ) : null}
+            {layer.type === 'group' ? (
+              <span className="lighttable-layer__hierarchy-slot">
                 <PanelStackDisclosure
                   expanded={!collapsedGroups.has(layer.id)}
                   className="lighttable-layer__disclosure"
@@ -968,8 +974,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   }}
                   label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
                 />
-              ) : null}
-            </span>
+              </span>
+            ) : null}
             {layer.clipping ? (
               <span
                 className="lighttable-layer__clipping-mark"

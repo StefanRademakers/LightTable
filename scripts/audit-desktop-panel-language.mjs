@@ -82,6 +82,7 @@ for (const variant of matrix) {
         level: Number(row.getAttribute('aria-level') ?? 1),
         paddingLeft: Number.parseFloat(getComputedStyle(row).paddingLeft),
         visibility: bounds(row.querySelector('.lighttable-layer__visibility')),
+        depthSpacer: bounds(row.querySelector('.lighttable-layer__depth-spacer')),
         hierarchy: bounds(row.querySelector('.lighttable-layer__hierarchy-slot')),
         clipping: bounds(row.querySelector('.lighttable-layer__clipping-mark')),
         thumbnail: bounds(row.querySelector('.lighttable-layer__thumbnail-slot')),
@@ -91,7 +92,10 @@ for (const variant of matrix) {
         const owner = group.previousElementSibling;
         const first = group.querySelector('.lighttable-layer-effect');
         return {
-          ownerHierarchy: bounds(owner?.querySelector('.lighttable-layer__hierarchy-slot')),
+          ownerContentStart: bounds(
+            owner?.querySelector('.lighttable-layer__hierarchy-slot')
+              ?? owner?.querySelector('.lighttable-layer__thumbnail-slot')
+          ),
           visibility: bounds(first?.querySelector('.lighttable-layer-effect__visibility'))
         };
       });
@@ -109,33 +113,47 @@ for (const variant of matrix) {
     }
     if (geometry.statusOverflow !== 'hidden') throw new Error('Layer status can escape its fixed slot.');
     const close = (left, right) => Math.abs(left - right) <= 0.5;
+    const visibilityLeft = treeColumns.rows[0]?.visibility?.left;
     for (let index = 0; index < treeColumns.rows.length; index += 1) {
       const row = treeColumns.rows[index];
-      if (!row.row || !row.visibility || !row.hierarchy || !row.thumbnail
-        || !close(row.visibility.width, 18) || !close(row.hierarchy.width, 18)
-        || !close(row.hierarchy.left - row.visibility.left, 22)
-        || !close(row.paddingLeft, 2 + (row.level - 1) * 22)
-        || !close(row.visibility.centerY, row.hierarchy.centerY)
+      const depth = row.level - 1;
+      const contentStart = row.visibility ? row.visibility.left + 22 + depth * 22 : 0;
+      if (!row.row || !row.visibility || !row.thumbnail
+        || !close(row.visibility.width, 18)
+        || visibilityLeft === undefined || !close(row.visibility.left, visibilityLeft)
+        || !close(row.paddingLeft, 2)
         || !close(row.visibility.centerY, row.thumbnail.centerY)) {
         throw new Error(`Layer prefix columns drift: ${JSON.stringify(row)}`);
       }
-      const thumbnailPredecessor = row.clipping ?? row.hierarchy;
-      if (!close(row.thumbnail.left - thumbnailPredecessor.left, 22)
+      if ((depth === 0 && row.depthSpacer)
+        || (depth > 0 && (!row.depthSpacer
+          || !close(row.depthSpacer.left - row.visibility.left, 22)
+          || !close(row.depthSpacer.width, depth * 22 - 4)))) {
+        throw new Error(`Layer depth spacer drifts: ${JSON.stringify(row)}`);
+      }
+      if (row.hierarchy && (!close(row.hierarchy.width, 18)
+        || !close(row.hierarchy.left, contentStart)
+        || !close(row.visibility.centerY, row.hierarchy.centerY))) {
+        throw new Error(`Layer hierarchy column drifts: ${JSON.stringify(row)}`);
+      }
+      const clippingLeft = contentStart + (row.hierarchy ? 22 : 0);
+      const thumbnailLeft = clippingLeft + (row.clipping ? 22 : 0);
+      if (!close(row.thumbnail.left, thumbnailLeft)
         || (row.clipping && (!close(row.clipping.width, 18)
-          || !close(row.clipping.left - row.hierarchy.left, 22)))) {
+          || !close(row.clipping.left, clippingLeft)))) {
         throw new Error(`Layer clipping columns drift: ${JSON.stringify(row)}`);
       }
       if (row.level > 1) {
         const parent = treeColumns.rows.slice(0, index).reverse()
           .find((candidate) => candidate.level === row.level - 1);
-        if (!parent?.hierarchy || !close(row.visibility.left, parent.hierarchy.left)) {
-          throw new Error(`Nested layer does not align below its parent hierarchy column: ${JSON.stringify(row)}`);
+        if (!parent?.hierarchy || !parent.thumbnail || !close(contentStart, parent.thumbnail.left)) {
+          throw new Error(`Nested layer content does not align below its parent thumbnail: ${JSON.stringify(row)}`);
         }
       }
     }
     for (const child of treeColumns.projectedChildren) {
-      if (!child.ownerHierarchy || !child.visibility
-        || !close(child.ownerHierarchy.left, child.visibility.left)) {
+      if (!child.ownerContentStart || !child.visibility
+        || !close(child.ownerContentStart.left, child.visibility.left)) {
         throw new Error(`Projected layer child columns drift: ${JSON.stringify(child)}`);
       }
     }

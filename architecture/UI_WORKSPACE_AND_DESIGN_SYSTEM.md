@@ -148,10 +148,12 @@ The row-state vocabulary is deliberately small and ordered: base, hover,
 multi-selected, then active target. Multi-selection uses the selected surface;
 the active target adds the accent border and active surface. Keyboard focus
 adds the shared focus ring without changing selection. Pixel and mask targets
-use the accent inside their bounded thumbnail. A leading hierarchy slot is
-reserved at every depth so visibility, group disclosure and thumbnail columns
-do not shift between ordinary and group rows. A disclosure exists only for a
-group or for a layer with present attached processing or Layer Effects. An
+use the accent inside their bounded thumbnail. Visibility stays in one fixed
+left column at every depth. Only the content after it is indented: ordinary
+root layers therefore place their thumbnail directly after visibility, while a
+group inserts its disclosure before the folder thumbnail. Nested and clipped
+content uses explicit 22-pixel tree steps. A disclosure exists only for a group
+or for a layer with present attached processing or Layer Effects. An
 attached local Grade is shown as an indented Grade-icon + `Grade` child beneath its
 owning raster layer; it is not compressed into the row's status column, which
 remains available for Layer Effects and other layer state. Mask cells and

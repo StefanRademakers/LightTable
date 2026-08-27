@@ -20,6 +20,17 @@ export const layerRowInset = (depth: number): number =>
   LAYER_TREE_GEOMETRY.rowPaddingInline
   + Math.max(0, Math.floor(depth)) * LAYER_TREE_GEOMETRY.indent;
 
+/**
+ * Visibility stays in the fixed first column. This spacer indents only the
+ * tree content that follows it, while accounting for the flex gap on each side.
+ */
+export const layerDepthSpacerWidth = (depth: number): number => {
+  const normalizedDepth = Math.max(0, Math.floor(depth));
+  return normalizedDepth === 0
+    ? 0
+    : normalizedDepth * LAYER_TREE_GEOMETRY.indent - LAYER_TREE_GEOMETRY.prefixGap;
+};
+
 /** Child projections are not bordered rows, so include the owning row's 1px border. */
 export const layerChildRowInset = (ownerDepth: number): number =>
   layerRowInset(ownerDepth + 1) + 1;

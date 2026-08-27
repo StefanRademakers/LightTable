@@ -3744,6 +3744,12 @@
   place-items: center;
 }
 
+.lighttable-layer__depth-spacer {
+  height: 1px;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
 .lighttable-panel-stack-disclosure {
   width: 14px;
   height: 24px;
