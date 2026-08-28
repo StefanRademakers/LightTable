@@ -164,8 +164,43 @@ export const LevelsTrack = ({
   onChange,
   onInteractionStart,
   onInteractionEnd
-}: LevelsTrackProps) => (
-  <div className={`lighttable-levels__range lighttable-levels__range--${values.length}`}>
+}: LevelsTrackProps) => {
+  const interactionRef = React.useRef(false);
+  const previewValuesRef = React.useRef<readonly number[]>(values);
+  const [previewValues, setPreviewValues] = React.useState<readonly number[]>(values);
+
+  React.useEffect(() => {
+    if (interactionRef.current) return;
+    previewValuesRef.current = values;
+    setPreviewValues(values);
+  }, [values]);
+
+  const beginInteraction = () => {
+    if (interactionRef.current) return;
+    interactionRef.current = true;
+    previewValuesRef.current = values;
+    setPreviewValues(values);
+    onInteractionStart();
+  };
+  const finishInteraction = () => {
+    if (!interactionRef.current) return;
+    interactionRef.current = false;
+    onInteractionEnd();
+  };
+  const changeHandle = (index: number, value: number) => {
+    const current = previewValuesRef.current;
+    const next = [...current];
+    if (next.length === 3 && index !== 1) {
+      const gamma = levelsGammaFromPosition(current[1]!, current[0]!, current[2]!);
+      next[index] = value;
+      next[1] = levelsGammaPosition([next[0]!, gamma, next[2]!]);
+    } else next[index] = value;
+    previewValuesRef.current = next;
+    setPreviewValues(next);
+    onChange(index, value);
+  };
+
+  return <div className={`lighttable-levels__range lighttable-levels__range--${values.length}`}>
     <span className="lighttable-levels__range-label">{label}</span>
     <div className="lighttable-levels__track">
       <span
@@ -173,47 +208,47 @@ export const LevelsTrack = ({
         style={{ ['--lighttable-slider-track' as string]: background }}
         aria-hidden="true"
       />
-      {values.map((value, index) => {
-        const minimum = index === 0 ? 0 : values[index - 1] ?? 0;
-        const maximum = index === values.length - 1 ? 255 : values[index + 1] ?? 255;
-        const endpointGap = values.length === 3 && index !== 1 ? 1 : 0;
+      {previewValues.map((value, index) => {
+        const minimum = index === 0 ? 0 : previewValues[index - 1] ?? 0;
+        const maximum = index === previewValues.length - 1 ? 255 : previewValues[index + 1] ?? 255;
+        const endpointGap = previewValues.length === 3 && index !== 1 ? 1 : 0;
         return <LevelsHandle
           key={ariaLabels[index]}
           className={`lighttable-levels__handle lighttable-levels__handle--${index}`}
           minimum={minimum + (index > 0 ? endpointGap : 0)}
           maximum={maximum - (index < values.length - 1 ? endpointGap : 0)}
-          step={index === 1 && values.length === 3 ? 0.1 : 1}
+          step={index === 1 && previewValues.length === 3 ? 0.1 : 1}
           value={value}
           disabled={disabled}
           ariaLabel={ariaLabels[index]}
-          onInteractionStart={onInteractionStart}
-          onInteractionEnd={onInteractionEnd}
-          onChange={(next) => onChange(index, next)}
+          onInteractionStart={beginInteraction}
+          onInteractionEnd={finishInteraction}
+          onChange={(next) => changeHandle(index, next)}
         />;
       })}
     </div>
     {showValues ? <div className="lighttable-levels__values">
-      {values.map((value, index) => (
+      {previewValues.map((value, index) => (
         <NumericExpressionInput
           key={ariaLabels[index]}
           aria-label={`${ariaLabels[index]} value`}
           value={value}
-          min={index === 1 && values.length === 3 ? 0.1 : 0}
-          max={index === 1 && values.length === 3 ? 9.99 : 255}
-          step={index === 1 && values.length === 3 ? 0.01 : 1}
-          kind={index === 1 && values.length === 3 ? 'float' : 'integer'}
+          min={index === 1 && previewValues.length === 3 ? 0.1 : 0}
+          max={index === 1 && previewValues.length === 3 ? 9.99 : 255}
+          step={index === 1 && previewValues.length === 3 ? 0.01 : 1}
+          kind={index === 1 && previewValues.length === 3 ? 'float' : 'integer'}
           formatValue={formatters?.[index]}
           disabled={disabled}
           onValueChange={(next) => {
-            onInteractionStart();
+            beginInteraction();
             onChange(index, next);
-            onInteractionEnd();
+            finishInteraction();
           }}
         />
       ))}
     </div> : null}
-  </div>
-);
+  </div>;
+};
 
 export const LevelsPropertiesPanel = ({
   model,

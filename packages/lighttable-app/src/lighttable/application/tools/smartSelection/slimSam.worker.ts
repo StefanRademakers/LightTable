@@ -66,6 +66,9 @@ let model: SamModelPort | null = null;
 let processor: SamProcessorPort | null = null;
 let backend: 'webgpu' | 'wasm' | null = null;
 let activeProfile: ModelProfile | null = null;
+let activeRuntimeAttempt: { device: 'webgpu' | 'wasm'; dtype: 'fp16' | 'fp32' | 'q8' } | null = null;
+const failedRuntimeAttempts = new Set<string>();
+let lastRuntimeFailure: unknown = null;
 let prepared: PreparedState | null = null;
 let latestPromptRequestId = 0;
 let operationChain: Promise<void> = Promise.resolve();
@@ -112,6 +115,8 @@ const loadRuntime = async (requestId: number, profile: ModelProfile): Promise<{ 
   }
   let lastError: unknown = null;
   for (const attempt of attempts) {
+    const attemptKey = `${profile}:${attempt.device}:${attempt.dtype}`;
+    if (failedRuntimeAttempts.has(attemptKey)) continue;
     const startedAt = performance.now();
     try {
       const modelLabel = profile === 'sam2-small' ? 'SAM 2.1' : 'SlimSAM';
@@ -142,16 +147,36 @@ const loadRuntime = async (requestId: number, profile: ModelProfile): Promise<{ 
       processor = createdProcessor;
       backend = attempt.device;
       activeProfile = profile;
+      activeRuntimeAttempt = attempt;
       metric(requestId, 'model-load', startedAt);
       return { model, processor };
     } catch (reason) {
       lastError = reason;
+      failedRuntimeAttempts.add(attemptKey);
+      lastRuntimeFailure = reason;
       await model?.dispose();
       model = null;
       processor = null;
+      activeRuntimeAttempt = null;
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('Object Selection could not initialize.');
+  const failure = lastError ?? lastRuntimeFailure;
+  throw failure instanceof Error ? failure : new Error('Object Selection could not initialize.');
+};
+
+const rejectActiveRuntime = async (profile: ModelProfile, reason: unknown) => {
+  if (activeRuntimeAttempt) {
+    failedRuntimeAttempts.add(
+      `${profile}:${activeRuntimeAttempt.device}:${activeRuntimeAttempt.dtype}`
+    );
+  }
+  lastRuntimeFailure = reason;
+  await model?.dispose();
+  model = null;
+  processor = null;
+  backend = null;
+  activeProfile = null;
+  activeRuntimeAttempt = null;
 };
 
 const processImage = async (
@@ -204,18 +229,27 @@ const prepareSource = async (request: Extract<SlimSamWorkerRequest, { type: 'pre
   }
   const profile = request.profile ?? 'slimsam';
   if (activeProfile && activeProfile !== profile) throw new Error('The selection worker model profile cannot change while active.');
-  const runtime = await loadRuntime(request.requestId, profile);
-  status(request.requestId, `Preparing image on ${backend === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
   const imageDecodeStartedAt = performance.now();
   const image = await RawImage.fromBlob(request.image);
   metric(request.requestId, 'image-decode', imageDecodeStartedAt);
-  const preprocessStartedAt = performance.now();
-  const inputs = await processImage(runtime.processor, image);
-  metric(request.requestId, 'image-preprocess', preprocessStartedAt);
-  const encodeStartedAt = performance.now();
-  const embeddings = await runtime.model.get_image_embeddings({ pixel_values: inputs.pixel_values });
-  metric(request.requestId, 'image-encode', encodeStartedAt);
-  inputs.pixel_values.dispose();
+  let embeddings: Awaited<ReturnType<SamModelPort['get_image_embeddings']>>;
+  while (true) {
+    const runtime = await loadRuntime(request.requestId, profile);
+    status(request.requestId, `Preparing image on ${backend === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
+    const preprocessStartedAt = performance.now();
+    const inputs = await processImage(runtime.processor, image);
+    metric(request.requestId, 'image-preprocess', preprocessStartedAt);
+    const encodeStartedAt = performance.now();
+    try {
+      embeddings = await runtime.model.get_image_embeddings({ pixel_values: inputs.pixel_values });
+      metric(request.requestId, 'image-encode', encodeStartedAt);
+      inputs.pixel_values.dispose();
+      break;
+    } catch (reason) {
+      inputs.pixel_values.dispose();
+      await rejectActiveRuntime(profile, reason);
+    }
+  }
   disposePrepared();
   prepared = {
     sourceId: request.sourceId,

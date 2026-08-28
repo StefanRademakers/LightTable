@@ -1489,6 +1489,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     active,
     documentSurfaceRevision,
     observersEnabled: editorResizeObserversEnabled,
+    rendererReady: rendererSnapshot.status === 'ready',
     hasMetadata: Boolean(metadata),
     viewportRef,
     canvasRef,

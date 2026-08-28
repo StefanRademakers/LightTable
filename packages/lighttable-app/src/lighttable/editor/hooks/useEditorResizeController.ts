@@ -23,6 +23,7 @@ interface EditorResizeControllerOptions {
   active: boolean;
   documentSurfaceRevision: number;
   observersEnabled: boolean;
+  rendererReady: boolean;
   hasMetadata: boolean;
   viewportRef: RefObject<HTMLDivElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -60,6 +61,7 @@ export const useEditorResizeController = ({
   active,
   documentSurfaceRevision,
   observersEnabled,
+  rendererReady,
   hasMetadata,
   viewportRef,
   canvasRef,
@@ -233,7 +235,7 @@ export const useEditorResizeController = ({
   }, [canvasRef, viewportRef]);
 
   useEffect(() => {
-    if (!hasMetadata) return;
+    if (!open || !active || !rendererReady || !hasMetadata) return;
     getRendererRef.current()?.resizeViewport(
       viewportSize.width,
       viewportSize.height,
@@ -249,8 +251,12 @@ export const useEditorResizeController = ({
     });
   }, [
     canvasRef,
+    active,
+    documentSurfaceRevision,
     hasMetadata,
     imageRect,
+    open,
+    rendererReady,
     viewportRef,
     viewportSize.height,
     viewportSize.width
