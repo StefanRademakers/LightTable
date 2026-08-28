@@ -14,7 +14,11 @@ struct Params { kernel0: vec4f, kernel1: vec4f, kernel2: vec4f, options: vec4f, 
 fn at(p: vec2i, size: vec2i) -> vec4f { return textureLoad(sourceTexture, clamp(p, vec2i(0), size - vec2i(1)), 0); }
 @fragment fn convolutionMain(input: VertexOutput) -> @location(0) vec4f { let size = vec2i(textureDimensions(sourceTexture)); let p = clamp(vec2i(floor(input.uv * vec2f(size))), vec2i(0), size - vec2i(1));
   if (params.mode == 1u) { var total = vec4f(0.0); var i = 0u; for (var y = -1; y <= 1; y += 1) { for (var x = -1; x <= 1; x += 1) {
-    let weights = array<vec4f, 3>(params.kernel0, params.kernel1, params.kernel2); let w = weights[i / 4u][i % 4u]; total += at(p + vec2i(x, y), size) * w; i += 1u; }} return max(total / max(abs(params.options.y), 1e-6) + vec4f(params.options.z / 255.0), vec4f(0.0)); }
+    let weights = array<vec4f, 3>(params.kernel0, params.kernel1, params.kernel2); let w = weights[i / 4u][i % 4u]; total += at(p + vec2i(x, y), size) * w; i += 1u; }}
+    let requestedDivisor = params.options.y;
+    let divisor = select(requestedDivisor, select(-1e-6, 1e-6, requestedDivisor >= 0.0), abs(requestedDivisor) < 1e-6);
+    let offset = params.options.z / 255.0;
+    return total / divisor + vec4f(offset, offset, offset, 0.0); }
   let radius = max(params.options.x, 0.0); let support = min(5, max(1, i32(ceil(radius)))); let step = max(radius / f32(support), 1.0); var total = vec4f(0.0); var weight = 0.0;
   for (var y = -5; y <= 5; y += 1) { for (var x = -5; x <= 5; x += 1) { if (abs(x) > support || abs(y) > support) { continue; }
     let normalized = vec2f(f32(x), f32(y)) / f32(support);

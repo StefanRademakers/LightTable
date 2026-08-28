@@ -16,7 +16,10 @@ const positiveDimension = (name, fallback) => {
 };
 const documentWidth = positiveDimension('LIGHTTABLE_FILTER_WIDTH', 1280);
 const documentHeight = positiveDimension('LIGHTTABLE_FILTER_HEIGHT', 720);
-const sourceFile = process.argv[2] ? path.resolve(process.argv[2]) : null;
+const arguments_ = process.argv.slice(2);
+const sourceArgument = arguments_.find((argument) => !argument.startsWith('--'));
+const filterArgument = arguments_.find((argument) => argument.startsWith('--filters='));
+const sourceFile = sourceArgument ? path.resolve(sourceArgument) : null;
 if (documentWidth * documentHeight > 268_435_456) {
   throw new Error('Filter smoke document exceeds the application pixel limit.');
 }
@@ -40,7 +43,8 @@ const report = {
   documentSize: sourceFile ? null : { width: documentWidth, height: documentHeight },
   gpuAdapter: null,
   baselineCanvasSha256: null, baselineExportSha256: null, baselineEstimatedGpuBytes: null,
-  firstPassPeakEstimatedGpuBytes: null, filters: [], cleanupPass: [], errors
+  firstPassPeakEstimatedGpuBytes: null, finalEstimatedGpuBytes: null,
+  filters: [], cleanupPass: [], errors
 };
 const app = await electron.launch({
   executablePath: launch.executablePath,
@@ -50,7 +54,7 @@ const app = await electron.launch({
   timeout: 30_000
 });
 
-const filters = [
+const allFilters = [
   ['gaussian-blur', { radius: 12 }],
   ['motion-blur', { angle: 32, distance: 24 }],
   ['surface-blur', { radius: 18, threshold: 24 }],
@@ -108,6 +112,16 @@ const filters = [
   ['torn-edges'],
   ['texturizer']
 ];
+const requestedKinds = new Set((filterArgument?.slice('--filters='.length)
+  ?? process.env.LIGHTTABLE_FILTER_KINDS ?? '')
+  .split(',').map((kind) => kind.trim()).filter(Boolean));
+const filters = requestedKinds.size > 0
+  ? allFilters.filter(([kind]) => requestedKinds.has(kind))
+  : allFilters;
+if (filters.length !== (requestedKinds.size || allFilters.length)) {
+  const missing = [...requestedKinds].filter((kind) => !allFilters.some(([known]) => known === kind));
+  throw new Error(`Unknown filter smoke kind(s): ${missing.join(', ')}`);
+}
 
 const canvasHash = (image) => createHash('sha256').update(image).digest('hex');
 const waitForCanvasHash = async (page, canvas, expectedHash, shouldEqual, timeoutMs = 3_000) => {
@@ -288,6 +302,13 @@ try {
     if (errors.page.length || errors.console.length) {
       throw new Error(`${kind} cleanup pass produced renderer errors: ${JSON.stringify(errors)}`);
     }
+  }
+
+  report.finalEstimatedGpuBytes = (await driver.queryDocument(documentId))
+    ?.renderer?.estimatedGpuBytes ?? null;
+  if (report.finalEstimatedGpuBytes !== null
+    && report.finalEstimatedGpuBytes > report.firstPassPeakEstimatedGpuBytes) {
+    throw new Error('Final GPU memory exceeded the fully warmed first-pass peak.');
   }
 
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);

@@ -15,6 +15,12 @@ struct Params { a: vec4f, b: vec4f, mode: u32, option: u32, padding: vec2u }
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> params: Params;
 fn hash(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7)) + params.b.w) * 43758.5453); }
+fn noise(p: vec2f) -> f32 {
+  let cell = floor(p); let localPoint = fract(p);
+  let blend = localPoint * localPoint * (3.0 - 2.0 * localPoint);
+  return mix(mix(hash(cell), hash(cell + vec2f(1.0, 0.0)), blend.x),
+    mix(hash(cell + vec2f(0.0, 1.0)), hash(cell + vec2f(1.0)), blend.x), blend.y);
+}
 @fragment fn advancedWarpMain(input: VertexOutput) -> @location(0) vec4f {
   let dimensions = vec2f(textureDimensions(sourceTexture)); let mode = params.mode;
   let aspect = dimensions.x / dimensions.y;
@@ -31,7 +37,7 @@ fn hash(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7)) + params
     if (radius < 1.0) { let mapped = pow(max(radius, 1e-5), 1.0 + params.a.x); uv = center + p * mapped / max(radius, 1e-5) / vec2f(aspect, 1.0); }
   } else if (mode == 3u) { if (params.option == 0u) { uv.x += (uv.y - 0.5) * params.a.x; } else { uv.y += (uv.x - 0.5) * params.a.x; }
   } else { let scale = max(params.a.z, 0.01); let p = uv * dimensions / scale; let smoothness = max(params.a.y, 1.0);
-    let nx = hash(floor(p / smoothness)); let ny = hash(floor(p / smoothness) + vec2f(19.0, 7.0));
+    let nx = noise(p / smoothness); let ny = noise(p / smoothness + vec2f(19.0, 7.0));
     uv += (vec2f(nx, ny) - vec2f(0.5)) * params.a.x / dimensions;
   }
   return textureSampleLevel(sourceTexture, sourceSampler, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0);

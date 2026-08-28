@@ -60,6 +60,9 @@ const WGSL = /* wgsl */ `
 struct Params{a:vec4f,b:vec4f,c:vec4f,mode:u32,option:u32,padding:vec2u}
 @group(0)@binding(0)var sourceTexture:texture_2d<f32>;@group(0)@binding(1)var<uniform>params:Params;
 fn at(p:vec2i,size:vec2i)->vec4f{return textureLoad(sourceTexture,clamp(p,vec2i(0),size-vec2i(1)),0);}fn straight(v:vec4f)->vec3f{return select(vec3f(0),v.rgb/v.a,v.a>1e-6);}fn lum(v:vec4f)->f32{return dot(straight(v),vec3f(.2126,.7152,.0722));}fn hash(p:vec2f)->f32{return fract(sin(dot(p,vec2f(127.1,311.7))+params.c.w)*43758.5453);}
+fn toDisplay(v:vec3f)->vec3f{let c=clamp(v,vec3f(0),vec3f(1));return select(c*12.92,1.055*pow(c,vec3f(1.0/2.4))-.055,c>vec3f(.0031308));}
+fn toLinear(v:vec3f)->vec3f{let c=clamp(v,vec3f(0),vec3f(1));return select(c/12.92,pow((c+.055)/1.055,vec3f(2.4)),c>vec3f(.04045));}
+fn displayLum(v:vec4f)->f32{return dot(toDisplay(straight(v)),vec3f(.2126,.7152,.0722));}
 fn edge(p:vec2i,size:vec2i,step:i32)->f32{let l=lum(at(p+vec2i(-step,0),size));let r=lum(at(p+vec2i(step,0),size));let u=lum(at(p+vec2i(0,-step),size));let d=lum(at(p+vec2i(0,step),size));return length(vec2f(r-l,d-u));}
 fn localMean(p:vec2i,size:vec2i,step:i32)->vec4f{var total=vec4f(0);for(var y=-1;y<=1;y+=1){for(var x=-1;x<=1;x+=1){total+=at(p+vec2i(x,y)*step,size);}}return total/9.0;}
 @fragment fn stylizeMain(input:VertexOutput)->@location(0)vec4f{let size=vec2i(textureDimensions(sourceTexture));let p=clamp(vec2i(floor(input.uv*vec2f(size))),vec2i(0),size-vec2i(1));let source=at(p,size);let mode=params.mode;
@@ -67,18 +70,18 @@ if(mode==0u){let sampleRadius=select(select(1,2,params.a.z>=2.0),4,params.a.z>=3
 if(mode==1u){var best=source;var bestVariance=1e9;let step=max(1,i32(round(params.a.z+params.a.y*.15)));for(var q=0;q<4;q+=1){var mean=vec4f(0);var meanSq=vec3f(0);var count=0.0;for(var y=0;y<=2;y+=1){for(var x=0;x<=2;x+=1){let sx=select(-x,x,q==1||q==3);let sy=select(-y,y,q>=2);let v=at(p+vec2i(sx,sy)*step,size);mean+=v;meanSq+=straight(v)*straight(v);count+=1.0;}}mean/=count;let variance=dot(max(meanSq/count-straight(mean)*straight(mean),vec3f(0)),vec3f(1));if(variance<bestVariance){bestVariance=variance;best=mean;}}let strength=clamp(.25+params.a.x*.075,0.0,1.0);let detail=clamp(edge(p,size,1)*params.a.w*.08,0.0,.35);let painted=mix(best,source,detail);return mix(source,painted,strength);}
 if(mode==2u){let e=edge(p,size,max(1,i32(params.a.x)));let glow=pow(clamp(e*params.a.y,0.0,1.0),max(params.a.z,.1));return vec4f(vec3f(glow*.25,glow*.75,glow)*source.a,source.a);}
 if(mode==3u){let offset=vec2i(i32(floor(hash(vec2f(p)) * 3.0))-1,i32(floor(hash(vec2f(p)+vec2f(7,3))*3.0))-1);let candidate=at(p+offset,size);let choose=params.option==0u||(params.option==1u&&lum(candidate)<lum(source))||(params.option==2u&&lum(candidate)>lum(source))||(params.option==3u&&edge(p,size,1)<.08);return select(source,mix(source,candidate,params.a.x),choose);}
-if(mode==4u){let rgb=straight(source);let level=params.a.x;let result=select(rgb,vec3f(1)-rgb,rgb>vec3f(level));return vec4f(result*source.a,source.a);}
-let mean=localMean(p,size,max(1,i32(params.a.y)));let rgb=straight(mean);let e=edge(p,size,max(1,i32(params.a.z)));var out=straight(source);
-if(mode==5u){let levels=max(params.a.x,2.0);let quantized=floor(rgb*levels+.5)/levels;out=mix(quantized,straight(source),clamp(e*params.a.z*.15,0.0,.8));}
-else if(mode==6u){out=straight(source)+vec3f(pow(clamp(e*params.a.x,0.0,1.0),2.0));}
-else if(mode==7u){let levels=max(params.a.z+2.0,2.0);let posterEdge=edge(p,size,max(1,i32(params.a.x)));out=floor(straight(source)*levels+.5)/levels-vec3f(clamp(posterEdge*params.a.y,0.0,1.0));}
+if(mode==4u){let rgb=toDisplay(straight(source));let level=params.a.x;let result=select(rgb,vec3f(1)-rgb,rgb>vec3f(level));return vec4f(toLinear(result)*source.a,source.a);}
+let mean=localMean(p,size,max(1,i32(params.a.y)));let rgb=toDisplay(straight(mean));let e=edge(p,size,max(1,i32(params.a.z)));var out=toDisplay(straight(source));
+if(mode==5u){let levels=max(params.a.x,2.0);let quantized=floor(rgb*levels+.5)/levels;out=mix(quantized,toDisplay(straight(source)),clamp(e*params.a.z*.15,0.0,.8));}
+else if(mode==6u){out=toDisplay(straight(source))+vec3f(pow(clamp(e*params.a.x,0.0,1.0),2.0));}
+else if(mode==7u){let levels=max(params.a.z+2.0,2.0);let posterEdge=edge(p,size,max(1,i32(params.a.x)));out=floor(toDisplay(straight(source))*levels+.5)/levels-vec3f(clamp(posterEdge*params.a.y,0.0,1.0));}
 else if(mode==8u){let levels=max(params.a.x,2.0);out=floor(rgb*levels+.5)/levels-vec3f(e*params.a.y*.1);}
 else if(mode==9u){let value=1.0-smoothstep(params.a.x,params.a.x+.15,e*params.a.y);out=vec3f(value);}
-else if(mode==10u){let frequency=max(params.a.x*4.0,2.0);let cell=fract((vec2f(p)+.5)/frequency)-.5;let coordinate=select(length(cell),abs(cell.y),params.option==1u);let pattern=select(coordinate,abs(length(cell)-.3),params.option==2u);let threshold=lum(source)*(1.0+params.a.y);out=vec3f(select(0.0,1.0,pattern<threshold*.5));}
-else if(mode==11u){let threshold=clamp(params.a.x*.8,.05,.95);out=vec3f(select(0.0,1.0,lum(mean)>threshold));}
-else if(mode==12u){let noiseAmount=clamp(params.a.z/50.0,.05,.5);let torn=lum(mean)+(hash(vec2f(p)/max(params.a.y,1.0))-.5)*noiseAmount;out=vec3f(select(0.0,1.0,torn>params.a.x*.8));}
-else{let n=hash(vec2f(p)/max(params.a.x,1.0));let relief=(n-hash((vec2f(p)-vec2f(params.b.xy))/max(params.a.x,1.0)))*params.a.y;out=straight(source)+vec3f(relief);if(params.option==1u){out=vec3f(1)-out;}}
-return vec4f(max(out,vec3f(0))*source.a,source.a);}
+else if(mode==10u){let frequency=max(params.a.x*4.0,2.0);let cell=fract((vec2f(p)+.5)/frequency)-.5;let coordinate=select(length(cell),abs(cell.y),params.option==1u);let pattern=select(coordinate,abs(length(cell)-.3),params.option==2u);let threshold=displayLum(source)*(1.0+params.a.y);out=vec3f(select(0.0,1.0,pattern<threshold*.5));}
+else if(mode==11u){let bias=(params.a.x-.5)*.6;let threshold=mix(.35,displayLum(mean),.25)+bias;out=vec3f(select(0.0,1.0,displayLum(source)>threshold));}
+else if(mode==12u){let noiseAmount=clamp(params.a.z/50.0,.05,.5);let roughness=(hash(vec2f(p)/max(params.a.y,1.0))-.5)*noiseAmount;let bias=(params.a.x-.5)*.6;let threshold=mix(.35,displayLum(mean),.2)+bias+roughness;out=vec3f(select(0.0,1.0,displayLum(source)>threshold));}
+else{let n=hash(vec2f(p)/max(params.a.x,1.0));let relief=(n-hash((vec2f(p)-vec2f(params.b.xy))/max(params.a.x,1.0)))*params.a.y;out=toDisplay(straight(source))+vec3f(relief);if(params.option==1u){out=vec3f(1)-out;}}
+return vec4f(toLinear(max(out,vec3f(0)))*source.a,source.a);}
 `;
 const pipelineFor = (device: GPUDevice) => {
   const cached = pipelines.get(device);

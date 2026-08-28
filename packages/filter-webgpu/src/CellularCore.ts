@@ -13,10 +13,11 @@ struct Params { cellSize: f32, seed: f32, mode: u32, option: u32 }
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>; @group(0) @binding(1) var sourceSampler: sampler; @group(0) @binding(2) var<uniform> params: Params;
 fn hash2(p: vec2f) -> vec2f { return fract(sin(vec2f(dot(p, vec2f(127.1,311.7)), dot(p, vec2f(269.5,183.3))) + params.seed) * 43758.5453); }
 fn hash1(p: vec2f) -> f32 { return hash2(p).x; }
+fn toDisplay(v: vec3f) -> vec3f { let c = clamp(v, vec3f(0.0), vec3f(1.0)); return select(c * 12.92, 1.055 * pow(c, vec3f(1.0 / 2.4)) - .055, c > vec3f(.0031308)); }
 @fragment fn cellularMain(input: VertexOutput) -> @location(0) vec4f { let dimensions = vec2f(textureDimensions(sourceTexture)); let pixel = input.uv * dimensions; let source = textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0);
   if (params.mode == 1u) { let grain = select(1.0, 2.0, params.option >= 1u); let p = floor(pixel / grain); var threshold = hash1(p);
     if (params.option >= 3u) { threshold = hash1(vec2f(floor(pixel.x / select(8.0, 20.0, params.option == 4u)), floor(pixel.y))); }
-    let rgb = select(vec3f(0.0), source.rgb / source.a, source.a > 1e-6); let value = select(0.0, 1.0, dot(rgb, vec3f(.2126,.7152,.0722)) > threshold); return vec4f(vec3f(value) * source.a, source.a); }
+    let rgb = select(vec3f(0.0), source.rgb / source.a, source.a > 1e-6); let value = select(0.0, 1.0, dot(toDisplay(rgb), vec3f(.2126,.7152,.0722)) > threshold); return vec4f(vec3f(value) * source.a, source.a); }
   let cellSize = max(params.cellSize, 3.0); let base = floor(pixel / cellSize); var nearest = 1e9; var site = base;
   for (var y = -1; y <= 1; y += 1) { for (var x = -1; x <= 1; x += 1) { let cell = base + vec2f(f32(x), f32(y)); let point = (cell + .15 + hash2(cell) * .7) * cellSize; let distance = length(pixel - point); if (distance < nearest) { nearest = distance; site = point; } }}
   let sampled = textureSampleLevel(sourceTexture, sourceSampler, clamp(site / dimensions, vec2f(0.0), vec2f(1.0)), 0.0);

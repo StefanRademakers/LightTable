@@ -22,7 +22,7 @@ fn localRadius(uv: vec2f) -> f32 {
   let radius = params.a.x; let mode = i32(params.a.y + 0.5);
   if (mode == 0) { return radius; }
   let center = params.b.xy; let feather = max(params.b.w, 0.0001);
-  if (mode == 2 || mode == 3) {
+  if (mode == 3 || mode == 4) {
     let distance = length(uv - center) * 141.421356;
     return radius * smoothstep(params.b.z, params.b.z + feather, distance);
   }
@@ -91,9 +91,15 @@ const pipelineFor = (device: GPUDevice) => {
 };
 
 const modeIndex = (mode: VariableBlurMode) =>
-  ["box-blur", "radial-blur", "field-blur", "iris-blur", "tilt-shift"].indexOf(
-    mode,
-  );
+  mode === "box-blur"
+    ? 0
+    : mode === "radial-blur"
+      ? 1
+      : mode === "field-blur"
+        ? 3
+        : mode === "iris-blur"
+          ? 4
+          : 5;
 export class VariableBlurCore {
   private readonly pool: FilterTargetPool;
   private readonly ownsPool: boolean;
