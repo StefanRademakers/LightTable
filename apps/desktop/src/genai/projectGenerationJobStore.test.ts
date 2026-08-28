@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -46,7 +46,9 @@ describe('project generation job store', () => {
   it('persists jobs privately, updates atomically and restores newest first', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-jobs-'));
     temporaryRoots.push(root);
-    const project = await createProjectOnDisk({ name: 'GenAI Journal', parentPath: root });
+    const rootPath = path.join(root, 'GenAI Journal');
+    await mkdir(rootPath);
+    const project = await createProjectOnDisk({ rootPath });
     await Promise.all([
       upsertProjectGenerationJob(project.manifestPath, job('older', 10)),
       upsertProjectGenerationJob(project.manifestPath, job('newer', 20))
@@ -69,7 +71,9 @@ describe('project generation job store', () => {
   it('deletes a running job that has no saved result', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-jobs-'));
     temporaryRoots.push(root);
-    const project = await createProjectOnDisk({ name: 'GenAI Delete', parentPath: root });
+    const rootPath = path.join(root, 'GenAI Delete');
+    await mkdir(rootPath);
+    const project = await createProjectOnDisk({ rootPath });
     await upsertProjectGenerationJob(project.manifestPath, job('unfinished', 10));
 
     await deleteProjectGenerationJob(project.manifestPath, 'unfinished' as GenAiJobId);
@@ -80,7 +84,9 @@ describe('project generation job store', () => {
   it('does not resurrect a deleted job through a late provider update', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-jobs-'));
     temporaryRoots.push(root);
-    const project = await createProjectOnDisk({ name: 'GenAI Late Update', parentPath: root });
+    const rootPath = path.join(root, 'GenAI Late Update');
+    await mkdir(rootPath);
+    const project = await createProjectOnDisk({ rootPath });
     const running = job('late-result', 10);
     await upsertProjectGenerationJob(project.manifestPath, running);
     await deleteProjectGenerationJob(project.manifestPath, running.id);

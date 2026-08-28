@@ -97,10 +97,9 @@ export interface LightTableProjectLocation {
 export interface LightTableProjectService {
   /** Returns the project currently owned by the host after renderer reloads. */
   current(): Promise<LightTableProjectSummary | null>;
-  chooseParentLocation(): Promise<LightTableProjectLocation | null>;
+  chooseLocation(): Promise<LightTableProjectLocation | null>;
   create(request: {
-    readonly name: string;
-    readonly parentPath: string;
+    readonly rootPath: string;
     readonly folders?: ProjectFolderMappings;
     readonly createFolders?: readonly ProjectUserStorageLocation[];
     readonly userFolders?: readonly ProjectUserFolder[];

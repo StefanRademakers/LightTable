@@ -156,7 +156,7 @@ const desktopHost: LightTableHost = {
   },
   projects: {
     current: () => window.lightTableDesktop.currentProject(),
-    chooseParentLocation: () => window.lightTableDesktop.chooseProjectParent(),
+    chooseLocation: () => window.lightTableDesktop.chooseProjectLocation(),
     create: (request) => window.lightTableDesktop.createProject(request),
     open: () => window.lightTableDesktop.openProject(),
     listRecent: () => window.lightTableDesktop.listRecentProjects(),

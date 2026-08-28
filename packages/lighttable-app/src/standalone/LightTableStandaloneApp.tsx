@@ -705,21 +705,20 @@ export function LightTableStandaloneApp({
 
   const chooseProjectLocation = useCallback(async () => {
     try {
-      const selected = await host.projects?.chooseParentLocation() ?? null;
+      const selected = await host.projects?.chooseLocation() ?? null;
       if (selected) setProjectLocation(selected);
     } catch (reason) {
       setProjectError(reason instanceof Error ? reason.message : String(reason));
     }
   }, [host.projects]);
 
-  const createProject = useCallback(async (name: string) => {
+  const createProject = useCallback(async () => {
     if (!host.projects || !projectLocation) return;
     setProjectCreating(true);
     setProjectError(null);
     try {
       setActiveProject(await host.projects.create({
-        name,
-        parentPath: projectLocation.path,
+        rootPath: projectLocation.path,
         folders: preferences.projects.folders,
         createFolders: preferences.projects.createFolders,
         userFolders: preferences.projects.userFolders
@@ -1085,7 +1084,7 @@ export function LightTableStandaloneApp({
         location={projectLocation} error={projectError}
         onChooseLocation={() => void chooseProjectLocation()}
         onCancel={() => setNewProjectOpen(false)}
-        onCreate={(name) => void createProject(name)} />) : null}
+        onCreate={() => void createProject()} />) : null}
       {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
         onCancel={() => setSettingsOpen(false)} onSave={(next) => {
           saveApplicationPreferences(next);
@@ -1201,7 +1200,7 @@ export function LightTableStandaloneApp({
           location={projectLocation} error={projectError}
           onChooseLocation={() => void chooseProjectLocation()}
           onCancel={() => setNewProjectOpen(false)}
-          onCreate={(name) => void createProject(name)} />) : null}
+          onCreate={() => void createProject()} />) : null}
         {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
           onCancel={() => setSettingsOpen(false)} onSave={(next) => {
             saveApplicationPreferences(next);
@@ -1299,7 +1298,7 @@ export function LightTableStandaloneApp({
         location={projectLocation} error={projectError}
         onChooseLocation={() => void chooseProjectLocation()}
         onCancel={() => setNewProjectOpen(false)}
-        onCreate={(name) => void createProject(name)} />) : null}
+        onCreate={() => void createProject()} />) : null}
       {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
         onCancel={() => setSettingsOpen(false)} onSave={(next) => {
           saveApplicationPreferences(next);

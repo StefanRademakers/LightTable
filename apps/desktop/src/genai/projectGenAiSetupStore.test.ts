@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -13,7 +13,9 @@ describe('project GenAI setup store', () => {
   it('roundtrips renderer-safe setup state in private project metadata', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-setup-'));
     roots.push(root);
-    const project = await createProjectOnDisk({ name: 'Setup', parentPath: root });
+    const rootPath = path.join(root, 'Setup');
+    await mkdir(rootPath);
+    const project = await createProjectOnDisk({ rootPath });
     await expect(loadProjectGenAiSetup(project.manifestPath)).resolves.toBeNull();
     await saveProjectGenAiSetup(project.manifestPath, {
       modelId: 'gpt-image-2' as GenAiModelId,

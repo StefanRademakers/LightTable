@@ -2132,17 +2132,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     await recentFileOperations.run(() => saveRecentFiles([]));
   });
 
-  ipcMain.handle('lighttable:project-choose-parent', async (event) => {
+  ipcMain.handle('lighttable:project-choose-location', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    const automationParent = process.env.LIGHTTABLE_AUTOMATION_PROJECT_PARENT;
-    if (automationParent && process.env.LIGHTTABLE_AUTOMATION_USER_DATA) {
-      const resolved = path.resolve(automationParent);
+    const automationLocation = process.env.LIGHTTABLE_AUTOMATION_PROJECT_LOCATION;
+    if (automationLocation && process.env.LIGHTTABLE_AUTOMATION_USER_DATA) {
+      const resolved = path.resolve(automationLocation);
       const details = await stat(resolved);
-      if (!details.isDirectory()) throw new Error('The automated project parent is not a directory.');
+      if (!details.isDirectory()) throw new Error('The automated project location is not a directory.');
       return { path: resolved, label: resolved };
     }
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose project location',
+      title: 'Choose project folder',
       properties: ['openDirectory', 'createDirectory']
     };
     const result = mainWindow
@@ -2157,14 +2157,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:project-create', async (event, request: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (!request || typeof request !== 'object'
-      || typeof (request as { name?: unknown }).name !== 'string'
-      || typeof (request as { parentPath?: unknown }).parentPath !== 'string'
-      || (request as { parentPath: string }).parentPath.length > 32_768) {
+      || typeof (request as { rootPath?: unknown }).rootPath !== 'string'
+      || (request as { rootPath: string }).rootPath.length > 32_768) {
       throw new Error('Invalid project creation request.');
     }
     const project = await createProjectOnDisk(request as {
-      name: string;
-      parentPath: string;
+      rootPath: string;
       folders?: import('@lighttable/app/project-manifest').ProjectFolderMappings;
       createFolders?: readonly import('@lighttable/app/project-manifest').ProjectUserStorageLocation[];
       userFolders?: readonly import('@lighttable/app/project-manifest').ProjectUserFolder[];

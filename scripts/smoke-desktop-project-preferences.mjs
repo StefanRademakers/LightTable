@@ -9,11 +9,12 @@ const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron
 const temporaryRoot = path.join(root, 'tmp', 'smoke-project-preferences');
 const userData = path.join(temporaryRoot, 'user-data');
 const projects = path.join(temporaryRoot, 'projects');
+const projectLocation = path.join(projects, 'Preferences Folder Project');
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
 const screenshot = path.join(temporaryRoot, 'project-preferences.png');
 
 await rm(temporaryRoot, { recursive: true, force: true });
-await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
+await Promise.all([mkdir(userData, { recursive: true }), mkdir(projectLocation, { recursive: true })]);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -26,7 +27,7 @@ try {
     env: {
       ...environment,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_PROJECT_PARENT: projects,
+      LIGHTTABLE_AUTOMATION_PROJECT_LOCATION: projectLocation,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: source
     },
     timeout: 30_000
@@ -69,11 +70,10 @@ try {
 
   await window.locator('.shots-app-menu__button:visible').filter({ hasText: /^File$/ }).click();
   await window.locator('.context-menu:visible').getByRole('menuitem', { name: 'New Project...' }).click();
-  const projectDialog = window.getByRole('dialog', { name: 'New project' });
+  const projectDialog = window.getByRole('dialog', { name: 'Create project' });
   await projectDialog.getByRole('button', { name: 'Choose...' }).click();
-  await projectDialog.getByLabel('Name').fill('Preferences Folder Project');
   await projectDialog.getByRole('button', { name: 'Create' }).click();
-  await access(path.join(projects, 'Preferences Folder Project', 'References', 'Style'));
+  await access(path.join(projectLocation, 'References', 'Style'));
   process.stdout.write(`Desktop project Preferences smoke passed. Screenshot: ${screenshot}\n`);
 } finally {
   await app?.close().catch(() => undefined);

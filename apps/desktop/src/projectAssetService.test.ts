@@ -21,7 +21,9 @@ afterEach(async () => {
 const fixture = async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), 'lighttable-project-assets-'));
   roots.push(parent);
-  const project = await createProjectOnDisk({ name: 'Catalog Test', parentPath: parent });
+  const rootPath = path.join(parent, 'Catalog Test');
+  await mkdir(rootPath);
+  const project = await createProjectOnDisk({ rootPath });
   const filePath = path.join(project.rootPath, 'Characters', 'hero-lighttable.png');
   await writeFile(filePath, new Uint8Array([1, 2, 3]));
   return { project, filePath };

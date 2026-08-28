@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createLightTableProjectManifest,
@@ -107,21 +107,18 @@ const pathExists = async (candidate: string): Promise<boolean> => {
 };
 
 export const createProjectOnDisk = async (request: {
-  readonly name: string;
-  readonly parentPath: string;
+  readonly rootPath: string;
   readonly id?: string;
   readonly createdAt?: string;
   readonly folders?: ProjectFolderMappings;
   readonly createFolders?: readonly ProjectUserStorageLocation[];
   readonly userFolders?: readonly ProjectUserFolder[];
 }): Promise<DesktopProjectSummary> => {
-  const name = validateProjectName(request.name);
-  const parentPath = path.resolve(request.parentPath);
-  if (!(await stat(parentPath)).isDirectory()) throw new Error('The project location is not a folder.');
-  const targetPath = path.join(parentPath, name);
-  if (await pathExists(targetPath)) throw new Error(`A file or folder named "${name}" already exists.`);
-
-  const stagingPath = path.join(parentPath, `.${name}.lighttable-create-${randomUUID()}`);
+  const rootPath = path.resolve(request.rootPath);
+  if (!(await stat(rootPath)).isDirectory()) throw new Error('The project location is not a folder.');
+  const name = validateProjectName(path.basename(rootPath));
+  const manifestPath = path.join(rootPath, LIGHTTABLE_PROJECT_MANIFEST_NAME);
+  if (await pathExists(manifestPath)) throw new Error('This folder is already a LightTable project.');
   const manifest = createLightTableProjectManifest({
     id: request.id ?? randomUUID(),
     name,
@@ -135,28 +132,21 @@ export const createProjectOnDisk = async (request: {
     throw new Error('The project creation folder selection is invalid.');
   }
 
-  try {
-    await mkdir(stagingPath);
-    const enabledUserFolders = new Set(request.createFolders ?? PROJECT_USER_STORAGE_LOCATIONS);
-    const directories = new Set(PROJECT_STORAGE_LOCATIONS
-      .filter((location) => !PROJECT_USER_STORAGE_LOCATIONS.includes(location as ProjectUserStorageLocation)
-        || enabledUserFolders.has(location as ProjectUserStorageLocation))
-      .map(
-      (location) => resolveProjectStoragePath(stagingPath, manifest, location)
-    ));
-    manifest.userFolders.forEach((folder) => directories.add(containedPath(stagingPath, folder.path)));
-    await Promise.all([...directories].map((directory) => mkdir(directory, { recursive: true })));
-    await writeFile(path.join(stagingPath, '.lighttable', '.gitignore'), '*\n!.gitignore\n', 'utf8');
-    await writeFile(
-      path.join(stagingPath, LIGHTTABLE_PROJECT_MANIFEST_NAME),
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      'utf8'
-    );
-    await rename(stagingPath, targetPath);
-  } catch (reason) {
-    await rm(stagingPath, { recursive: true, force: true });
-    throw reason;
+  const enabledUserFolders = new Set(request.createFolders ?? PROJECT_USER_STORAGE_LOCATIONS);
+  const directories = new Set(PROJECT_STORAGE_LOCATIONS
+    .filter((location) => !PROJECT_USER_STORAGE_LOCATIONS.includes(location as ProjectUserStorageLocation)
+      || enabledUserFolders.has(location as ProjectUserStorageLocation))
+    .map((location) => resolveProjectStoragePath(rootPath, manifest, location)));
+  manifest.userFolders.forEach((folder) => directories.add(containedPath(rootPath, folder.path)));
+  for (const directory of directories) {
+    if (await pathExists(directory) && !(await stat(directory)).isDirectory()) {
+      throw new Error(`Project folder path conflicts with an existing file: ${path.relative(rootPath, directory)}`);
+    }
   }
+  await Promise.all([...directories].map((directory) => mkdir(directory, { recursive: true })));
+  const gitIgnorePath = path.join(rootPath, '.lighttable', '.gitignore');
+  if (!await pathExists(gitIgnorePath)) await writeFile(gitIgnorePath, '*\n!.gitignore\n', { encoding: 'utf8', flag: 'wx' });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
 
-  return (await openProjectManifest(path.join(targetPath, LIGHTTABLE_PROJECT_MANIFEST_NAME))).summary;
+  return (await openProjectManifest(manifestPath)).summary;
 };

@@ -10,6 +10,7 @@ const userData = path.join(output, 'user-data');
 const projects = path.join(output, 'projects');
 const reportPath = path.join(output, 'report.json');
 const projectName = 'Project Home Smoke';
+const projectLocation = path.join(projects, projectName);
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
 
 async function assertEditorFillsWindow(page) {
@@ -43,7 +44,7 @@ async function assertFirstDocumentHydrates(page) {
 }
 
 await rm(output, { recursive: true, force: true });
-await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
+await Promise.all([mkdir(userData, { recursive: true }), mkdir(projectLocation, { recursive: true })]);
 const launch = await resolveDesktopTestLaunch(root);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
@@ -55,7 +56,7 @@ const app = await electron.launch({
   env: {
     ...environment,
     LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-    LIGHTTABLE_AUTOMATION_PROJECT_PARENT: projects
+    LIGHTTABLE_AUTOMATION_PROJECT_LOCATION: projectLocation
   },
   timeout: 30_000
 });
@@ -66,9 +67,8 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   await page.getByRole('button', { name: 'New Project', exact: true }).waitFor();
   await page.getByRole('button', { name: 'New Project', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'New project' });
+  const dialog = page.getByRole('dialog', { name: 'Create project' });
   await dialog.getByRole('button', { name: 'Choose...' }).click();
-  await dialog.getByLabel('Name').fill(projectName);
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
 
   const home = page.locator('.lighttable-project-home');
@@ -88,7 +88,7 @@ try {
   await home.waitFor({ state: 'visible' });
 
   await home.locator('input[type="file"][multiple]').setInputFiles(source);
-  await home.getByText('AI Input', { exact: true }).click();
+  await home.getByText('References', { exact: true }).click();
   const importedAsset = home.getByText(/^image-.*\.png$/).first();
   await importedAsset.waitFor({ state: 'visible' });
   if (await page.locator('.lighttable-backdrop').count()) {

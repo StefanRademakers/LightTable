@@ -11,10 +11,11 @@ const userData = path.join(temporaryRoot, 'user-data');
 const projects = path.join(temporaryRoot, 'projects');
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
 const projectName = 'Lifecycle Smoke Project';
+const projectLocation = path.join(projects, projectName);
 const screenshot = path.join(temporaryRoot, 'project-lifecycle.png');
 
 await rm(temporaryRoot, { recursive: true, force: true });
-await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
+await Promise.all([mkdir(userData, { recursive: true }), mkdir(projectLocation, { recursive: true })]);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -27,7 +28,7 @@ try {
     env: {
       ...environment,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_PROJECT_PARENT: projects,
+      LIGHTTABLE_AUTOMATION_PROJECT_LOCATION: projectLocation,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: source
     },
     timeout: 30_000
@@ -75,9 +76,8 @@ try {
     return window.locator('.context-menu:visible').first();
   };
   await (await openFileMenu()).getByRole('menuitem', { name: 'New Project...' }).click();
-  const projectDialog = window.getByRole('dialog', { name: 'New project' });
+  const projectDialog = window.getByRole('dialog', { name: 'Create project' });
   await projectDialog.getByRole('button', { name: 'Choose...' }).click();
-  await projectDialog.getByLabel('Name').fill(projectName);
   await projectDialog.getByRole('button', { name: 'Create' }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
 

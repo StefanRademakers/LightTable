@@ -166,10 +166,9 @@ export interface LightTableDesktopBridge {
   revealRecentFile(id: string): Promise<void>;
   removeRecentFile(id: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
-  chooseProjectParent(): Promise<DesktopProjectLocation | null>;
+  chooseProjectLocation(): Promise<DesktopProjectLocation | null>;
   createProject(request: {
-    readonly name: string;
-    readonly parentPath: string;
+    readonly rootPath: string;
     readonly folders?: ProjectFolderMappings;
     readonly createFolders?: readonly ProjectUserStorageLocation[];
     readonly userFolders?: readonly ProjectUserFolder[];

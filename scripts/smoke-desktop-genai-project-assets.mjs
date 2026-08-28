@@ -9,10 +9,11 @@ const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron
 const temporaryRoot = path.join(root, 'tmp', 'smoke-genai-project-assets');
 const userData = path.join(temporaryRoot, 'user-data');
 const projects = path.join(temporaryRoot, 'projects');
+const projectLocation = path.join(projects, 'GenAI Asset Project');
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
 
 await rm(temporaryRoot, { recursive: true, force: true });
-await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
+await Promise.all([mkdir(userData, { recursive: true }), mkdir(projectLocation, { recursive: true })]);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -25,7 +26,7 @@ try {
     env: {
       ...environment,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_PROJECT_PARENT: projects,
+      LIGHTTABLE_AUTOMATION_PROJECT_LOCATION: projectLocation,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: source
     },
     timeout: 30_000
@@ -45,9 +46,8 @@ try {
 
   await window.locator('.shots-app-menu__button:visible').filter({ hasText: /^File$/ }).click();
   await window.locator('.context-menu:visible').getByRole('menuitem', { name: 'New Project...' }).click();
-  const dialog = window.getByRole('dialog', { name: 'New project' });
+  const dialog = window.getByRole('dialog', { name: 'Create project' });
   await dialog.getByRole('button', { name: 'Choose...' }).click();
-  await dialog.getByLabel('Name').fill('GenAI Asset Project');
   await dialog.getByRole('button', { name: 'Create' }).click();
 
   const deadline = Date.now() + 10_000;

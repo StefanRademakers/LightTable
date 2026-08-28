@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,6 +20,11 @@ const temporaryRoot = async () => {
   temporaryRoots.push(root);
   return root;
 };
+const projectRoot = async (name: string) => {
+  const root = path.join(await temporaryRoot(), name);
+  await mkdir(root);
+  return root;
+};
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -27,9 +32,9 @@ afterEach(async () => {
 
 describe('desktop project service', () => {
   it('creates and reopens the complete deterministic project layout', async () => {
-    const parentPath = await temporaryRoot();
+    const rootPath = await projectRoot('Campaign');
     const summary = await createProjectOnDisk({
-      name: 'Campaign', parentPath, id: 'project-12345678', createdAt: '2026-08-11T12:00:00Z'
+      rootPath, id: 'project-12345678', createdAt: '2026-08-11T12:00:00Z'
     });
     const opened = await openProjectManifest(summary.manifestPath);
     expect(opened.summary).toEqual(summary);
@@ -40,15 +45,17 @@ describe('desktop project service', () => {
       .toBe('*\n!.gitignore\n');
   });
 
-  it('never overwrites an existing project directory', async () => {
-    const parentPath = await temporaryRoot();
-    await createProjectOnDisk({ name: 'Campaign', parentPath });
-    await expect(createProjectOnDisk({ name: 'Campaign', parentPath })).rejects.toThrow('already exists');
+  it('adds project files to an existing folder without overwriting its contents', async () => {
+    const rootPath = await projectRoot('Campaign');
+    const existingFile = path.join(rootPath, 'brief.txt');
+    await writeFile(existingFile, 'keep me', 'utf8');
+    await createProjectOnDisk({ rootPath });
+    expect(await readFile(existingFile, 'utf8')).toBe('keep me');
+    await expect(createProjectOnDisk({ rootPath })).rejects.toThrow('already a LightTable project');
   });
 
   it('overwrites the canonical last-used document immediately', async () => {
-    const parentPath = await temporaryRoot();
-    const summary = await createProjectOnDisk({ name: 'Campaign', parentPath });
+    const summary = await createProjectOnDisk({ rootPath: await projectRoot('Campaign') });
     const first = {
       assetId: '0123456789abcdef01234567', relativePath: 'Sets/first.psd',
       name: 'first.psd', updatedAt: '2026-08-17T18:00:00.000Z'
@@ -65,10 +72,9 @@ describe('desktop project service', () => {
   });
 
   it('creates new projects using requested user folder mappings', async () => {
-    const parentPath = await temporaryRoot();
+    const rootPath = await projectRoot('Custom Structure');
     const summary = await createProjectOnDisk({
-      name: 'Custom Structure',
-      parentPath,
+      rootPath,
       folders: {
         ...DEFAULT_PROJECT_FOLDER_MAPPINGS,
         characters: 'Assets/People',
@@ -89,9 +95,9 @@ describe('desktop project service', () => {
   });
 
   it('skips disabled template folders without changing their manifest mappings', async () => {
-    const parentPath = await temporaryRoot();
+    const rootPath = await projectRoot('Lean Structure');
     const summary = await createProjectOnDisk({
-      name: 'Lean Structure', parentPath, createFolders: ['characters', 'sets']
+      rootPath, createFolders: ['characters', 'sets']
     });
     const opened = await openProjectManifest(summary.manifestPath);
     expect(opened.manifest.folders.props).toBe('Props');
@@ -109,8 +115,7 @@ describe('desktop project service', () => {
   });
 
   it('rejects a forged mapping that escapes the project root', async () => {
-    const root = await temporaryRoot();
-    const opened = await createProjectOnDisk({ name: 'Safe', parentPath: root });
+    const opened = await createProjectOnDisk({ rootPath: await projectRoot('Safe') });
     const manifest = (await openProjectManifest(opened.manifestPath)).manifest;
     expect(() => resolveProjectStoragePath(opened.rootPath, {
       ...manifest,
