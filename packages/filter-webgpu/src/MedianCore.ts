@@ -1,6 +1,7 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { FilterTargetPool } from './FilterTargetPool';
+import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 
 export interface MedianPassPlan {
   readonly sampleRadius: 1 | 2;
@@ -164,6 +165,12 @@ export class MedianCore {
   }
 
   estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
+
+  releaseInactive(activeKeys: ReadonlySet<string>): void {
+    releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => {
+      for (const uniform of runtime.uniforms) uniform.destroy();
+    });
+  }
 
   destroy() {
     if (this.ownsPool) this.pool.destroy();

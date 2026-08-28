@@ -1,6 +1,7 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { FilterTargetPool } from './FilterTargetPool';
+import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 
 const STEPS = [1, 2, 4, 8] as const;
 
@@ -208,6 +209,10 @@ export class WaveletDenoiseCore {
   }
 
   estimatedTextureBytes(): number { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
+
+  releaseInactive(activeKeys: ReadonlySet<string>): void {
+    releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => runtime.settings.destroy());
+  }
 
   destroy(): void {
     if (this.ownsPool) this.pool.destroy();

@@ -1,6 +1,7 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { FilterTargetPool } from './FilterTargetPool';
+import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 
 export const OFFSET_WGSL = /* wgsl */ `
 struct OffsetUniforms { horizontal: i32, vertical: i32, edgeMode: u32, padding: u32 }
@@ -88,6 +89,9 @@ export class OffsetCore {
   }
 
   estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
+  releaseInactive(activeKeys: ReadonlySet<string>): void {
+    releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => runtime.uniforms.destroy());
+  }
   destroy() {
     if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) runtime.uniforms.destroy();

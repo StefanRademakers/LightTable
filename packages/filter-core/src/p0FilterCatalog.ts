@@ -292,3 +292,14 @@ export const normalizeP0FilterSettings = <K extends P0FilterKind>(
 
 export const defaultP0FilterSettings = <K extends P0FilterKind>(kind: K): P0FilterSettingsMap[K] =>
   normalizeP0FilterSettings(kind, p0FilterDefinition(kind).defaults);
+
+export const P0_FILTER_PACK: FilterPackContract<P0FilterDefinition> = Object.freeze({
+  id: 'p0',
+  maturity: 'stable',
+  definitions: P0_FILTER_DEFINITIONS,
+  normalize: (kind: string, value: unknown) => {
+    if (!isP0FilterKind(kind)) throw new Error(`Unknown P0 filter kind: ${kind}`);
+    return normalizeP0FilterSettings(kind, value);
+  }
+});
+import type { FilterPackContract } from './filterRegistry';

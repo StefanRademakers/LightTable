@@ -1,6 +1,7 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { FilterTargetPool } from './FilterTargetPool';
+import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 
 export const SURFACE_BLUR_WGSL = /* wgsl */ `
 struct SurfaceBlurUniforms {
@@ -163,6 +164,13 @@ export class SurfaceBlurCore {
   }
 
   estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
+
+  releaseInactive(activeKeys: ReadonlySet<string>): void {
+    releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => {
+      runtime.horizontal.destroy();
+      runtime.vertical.destroy();
+    });
+  }
 
   destroy() {
     if (this.ownsPool) this.pool.destroy();

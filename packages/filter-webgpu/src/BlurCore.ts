@@ -1,5 +1,6 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FilterTargetPool } from './FilterTargetPool';
+import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 import { BLUR_CORE_WGSL, FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 
 export type BlurCoreMode = 'gaussian-blur' | 'high-pass' | 'unsharp-mask' | 'smart-sharpen';
@@ -162,6 +163,13 @@ export class BlurCore {
     runtime.horizontal.destroy();
     runtime.vertical.destroy();
     this.runtimes.delete(key);
+  }
+
+  releaseInactive(activeKeys: ReadonlySet<string>): void {
+    releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => {
+      runtime.horizontal.destroy();
+      runtime.vertical.destroy();
+    });
   }
 
   estimatedTextureBytes(): number {

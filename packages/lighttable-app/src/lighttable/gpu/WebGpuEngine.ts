@@ -668,6 +668,7 @@ export class WebGpuEngine {
       this.vectorSelectionPreviewTransform = null;
     }
     this.imageDocument = document;
+    this.p0FilterRenderer.syncDocument(document);
     this.adjustmentLayerRenderer.setDocumentColorContext(
       document.colorSettings.blendProfile,
       document.colorSettings.bitDepth

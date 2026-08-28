@@ -11,7 +11,13 @@ import {
   type BlurCoreMode
 } from '@lighttable/filter-webgpu';
 import { p0FilterDefinitionForModule, type P0FilterSettingsMap } from '@lighttable/filter-core';
-import type { AdjustmentLayer, RasterLayer } from '../editor/document/documentTypes';
+import type {
+  AdjustmentLayer,
+  ImageDocument,
+  LayerNode,
+  RasterLayer
+} from '../editor/document/documentTypes';
+import { attachedAdjustmentOwnerId } from '../processing/attachedAdjustment';
 import { p0FilterModule, p0FilterSettings } from '../processing/p0Filter';
 
 const BLUR_CORE_MODES = new Set<BlurCoreMode>([
@@ -140,6 +146,38 @@ export class P0FilterRenderer {
       mode,
       settings: settings as P0FilterSettingsMap[typeof mode]
     });
+  }
+
+  /** Drops keyed GPU buffers as soon as their document owner disappears. */
+  syncDocument(document: ImageDocument): void {
+    const activeKeys = new Set<string>();
+    const collect = (ownerId: string, stack: AdjustmentLayer['adjustmentStack'] | null) => {
+      const module = p0FilterModule(stack);
+      if (module && p0FilterDefinitionForModule(module.type)) {
+        activeKeys.add(`${ownerId}::${module.id}`);
+      }
+    };
+    const visit = (layer: LayerNode) => {
+      if (layer.type === 'group') {
+        layer.children.forEach(visit);
+        return;
+      }
+      if (layer.type === 'adjustment') collect(layer.id, layer.adjustmentStack);
+      if (layer.type !== 'raster') return;
+      collect(layer.id, layer.adjustmentStack);
+      for (const adjustment of layer.attachedAdjustments ?? []) {
+        collect(attachedAdjustmentOwnerId(layer.id, adjustment.id), adjustment.adjustmentStack);
+      }
+    };
+    document.layers.forEach(visit);
+    this.blurCore.releaseInactive(activeKeys);
+    this.offsetCore.releaseInactive(activeKeys);
+    this.motionBlurCore.releaseInactive(activeKeys);
+    this.morphologyCore.releaseInactive(activeKeys);
+    this.waveletDenoiseCore.releaseInactive(activeKeys);
+    this.displaceCore.releaseInactive(activeKeys);
+    this.surfaceBlurCore.releaseInactive(activeKeys);
+    this.medianCore.releaseInactive(activeKeys);
   }
 
   estimatedTextureBytes(): number {
