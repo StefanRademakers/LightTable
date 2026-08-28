@@ -3,7 +3,7 @@ export const LIGHTTABLE_PROJECT_VERSION = 2 as const;
 export const LIGHTTABLE_PROJECT_MANIFEST_NAME = 'project.ltproject' as const;
 
 export const PROJECT_STORAGE_LOCATIONS = [
-  'aiRenders', 'aiHistory', 'aiInput', 'characters', 'props',
+  'ai', 'aiHistory', 'aiReferences', 'characters', 'props',
   'environments', 'sets', 'trash', 'cache', 'thumbnails', 'indexes', 'temp'
 ] as const;
 
@@ -26,9 +26,9 @@ export interface ProjectLastUsedDocument {
 }
 
 export const DEFAULT_PROJECT_FOLDER_MAPPINGS: ProjectFolderMappings = {
-  aiRenders: 'AiRenders',
-  aiHistory: 'AiRenders/History',
-  aiInput: 'AiRenders/Input',
+  ai: 'AI',
+  aiHistory: 'AI/History',
+  aiReferences: 'AI/References',
   characters: 'Characters',
   props: 'Props',
   environments: 'Environments',

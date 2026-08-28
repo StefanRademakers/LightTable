@@ -1640,10 +1640,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     );
     const publishedIds = new Set(remoteLinks.map((link) => link.assetId));
     const projectDirectories = [...await readProjectAssetDirectories(activeProjectManifestPath)];
-    const aiInputPath = project.manifest.folders.aiInput;
-    const hasAiInputAssets = index.assets.some((asset) =>
-      asset.path === aiInputPath || asset.path.startsWith(`${aiInputPath}/`));
-    if (hasAiInputAssets) projectDirectories.push({ path: aiInputPath, label: 'AI Input' });
+    const aiReferencesPath = project.manifest.folders.aiReferences;
+    const hasAiReferenceAssets = index.assets.some((asset) =>
+      asset.path === aiReferencesPath || asset.path.startsWith(`${aiReferencesPath}/`));
+    if (hasAiReferenceAssets) projectDirectories.push({ path: aiReferencesPath, label: 'AI References' });
     const sectionMatches = [...projectDirectories].sort((left, right) => right.path.length - left.path.length);
     const assets = index.assets.map((asset) => ({
       id: asset.id,
@@ -1755,7 +1755,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const rawBase = path.basename(asset.name, path.extname(asset.name)).trim()
       .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '-').replace(/[. ]+$/gu, '').slice(0, 120) || 'reference';
     const { manifest, summary } = await openProjectManifest(manifestPath);
-    const directory = resolveProjectStoragePath(summary.rootPath, manifest, 'aiInput');
+    const directory = resolveProjectStoragePath(summary.rootPath, manifest, 'aiReferences');
     await mkdir(directory, { recursive: true });
     const fileName = `${rawBase}-${Date.now()}-${randomUUID().slice(0, 8)}${extension}`;
     const filePath = path.join(directory, fileName);
@@ -1773,7 +1773,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       mediaType: desktopMediaTypeForFileName(indexed.name) ?? asset.mediaType,
       relativePath: indexed.path,
       modifiedAt: indexed.modifiedAt,
-      section: 'AI Input',
+      section: 'AI References',
       ...(indexed.thumbnail ? { previewId: indexed.id } : {})
     };
   });

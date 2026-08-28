@@ -84,14 +84,14 @@ describe('application preferences', () => {
       projects: {
         folders: {
           ...DEFAULT_PROJECT_FOLDER_MAPPINGS,
-          aiRenders: 'Custom AI',
+          ai: 'Custom AI',
           aiHistory: 'Custom History',
           trash: 'Custom Trash',
           cache: 'Custom Cache'
         }
       }
     });
-    expect(parsed.projects.folders.aiRenders).toBe(DEFAULT_PROJECT_FOLDER_MAPPINGS.aiRenders);
+    expect(parsed.projects.folders.ai).toBe(DEFAULT_PROJECT_FOLDER_MAPPINGS.ai);
     expect(parsed.projects.folders.aiHistory).toBe(DEFAULT_PROJECT_FOLDER_MAPPINGS.aiHistory);
     expect(parsed.projects.folders.trash).toBe(DEFAULT_PROJECT_FOLDER_MAPPINGS.trash);
     expect(parsed.projects.folders.cache).toBe(DEFAULT_PROJECT_FOLDER_MAPPINGS.cache);

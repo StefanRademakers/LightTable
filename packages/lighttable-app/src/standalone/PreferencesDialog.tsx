@@ -303,7 +303,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                   </div>
                 </div>
                 <p className="lighttable-preferences__note">
-                  Paths are relative to the project folder. Removing a row only stops LightTable from creating that folder in new projects; it never deletes folders from disk or changes existing projects. Custom folders already on disk remain discoverable in the asset browser. AI renders, input, history and Trash remain system-managed.
+                  Paths are relative to the project folder. Removing a row only stops LightTable from creating that folder in new projects; it never deletes folders from disk or changes existing projects. Custom folders already on disk remain discoverable in the asset browser. AI References, AI History and Trash remain system-managed.
                 </p>
                 {saveError ? <p className="lighttable-preferences__error" role="alert">{saveError}</p> : null}
               </section>

@@ -420,7 +420,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
             {submission ? <div className="genai-panel__result" role="status">
               {submission.result && assetPreviews[submission.result.assetId]
                 ? <img src={assetPreviews[submission.result.assetId]} alt="Generated result" /> : null}
-              <span>{submission.status === 'succeeded' ? `Saved · ${submission.result?.fileName ?? 'AiRenders/History'}` : `${providerName} job · ${submission.providerJobId}`}</span>
+              <span>{submission.status === 'succeeded' ? `Saved · ${submission.result?.fileName ?? 'AI/History'}` : `${providerName} job · ${submission.providerJobId}`}</span>
             </div> : null}
           </div>
           {hasFeaturedSettings ? <div className="genai-panel__featured-settings">

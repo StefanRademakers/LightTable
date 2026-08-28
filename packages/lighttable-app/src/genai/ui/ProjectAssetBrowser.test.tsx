@@ -7,7 +7,7 @@ import type { GenAiAssetReference, GenAiGenerationJob } from '@lighttable/genai-
 describe('ProjectAssetBrowser', () => {
   it('renders the project directory catalog even when folders contain no indexed assets', () => {
     const markup = renderToStaticMarkup(<ProjectAssetBrowser jobs={[]} assets={[]} sections={[
-      { id: 'AiRenders/History', label: 'AI History' },
+      { id: 'AI/History', label: 'AI History' },
       { id: 'Characters', label: 'Characters' },
       { id: 'ExtraFolder', label: 'ExtraFolder' }
     ]} />);

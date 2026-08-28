@@ -77,7 +77,7 @@ provider client or unrestricted filesystem capability.
 - Queue and history are shown in a separate Dockview panel backed by the same
   provider-neutral job store; closing either panel never stops a job.
 - Every successful output is atomically stored in the active project's logical
-  `aiHistory` location (default `AiRenders/History`) before editor mutation.
+  `aiHistory` location (default `AI/History`) before editor mutation.
 - Video output is retained in AI History as MP4 or WebM and is not opened as an
   image document. Reveal remains available while a video workspace is deferred.
 - Image-edit results are then placed as the top layer of the active document.

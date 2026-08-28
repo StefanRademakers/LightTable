@@ -187,7 +187,7 @@ export const readProjectAssetDirectories = async (manifestPath: string): Promise
   const { manifest, summary } = await openProjectManifest(manifestPath);
   const rootPath = summary.rootPath;
   const hiddenRoots = new Set([
-    manifest.folders.aiInput,
+    manifest.folders.aiReferences,
     manifest.folders.trash,
     manifest.folders.cache,
     manifest.folders.thumbnails,
@@ -217,8 +217,8 @@ export const readProjectAssetDirectories = async (manifestPath: string): Promise
       if (!relativePath) continue;
       const identity = relativePath.toLocaleLowerCase('en-US');
       if ([...hiddenRoots].some((hidden) => identity === hidden || identity.startsWith(`${hidden}/`))) continue;
-      const isAiRendersContainer = identity === manifest.folders.aiRenders.toLocaleLowerCase('en-US');
-      if (!isAiRendersContainer) {
+      const isAiContainer = identity === manifest.folders.ai.toLocaleLowerCase('en-US');
+      if (!isAiContainer) {
         directories.push({
           path: relativePath,
           label: configuredLabels.get(identity) ?? relativePath

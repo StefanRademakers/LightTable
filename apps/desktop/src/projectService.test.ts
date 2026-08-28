@@ -99,7 +99,8 @@ describe('desktop project service', () => {
     await expect(statDirectory(path.join(summary.rootPath, 'Sets'))).resolves.toBe(true);
     await expect(statDirectory(path.join(summary.rootPath, 'Props'))).rejects.toThrow();
     await expect(statDirectory(path.join(summary.rootPath, 'Environments'))).rejects.toThrow();
-    await expect(statDirectory(path.join(summary.rootPath, 'AiRenders', 'History'))).resolves.toBe(true);
+    await expect(statDirectory(path.join(summary.rootPath, 'AI', 'References'))).resolves.toBe(true);
+    await expect(statDirectory(path.join(summary.rootPath, 'AI', 'History'))).resolves.toBe(true);
     await expect(statDirectory(path.join(summary.rootPath, 'Trash'))).resolves.toBe(true);
   });
 

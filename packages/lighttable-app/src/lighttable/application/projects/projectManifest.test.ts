@@ -20,7 +20,7 @@ describe('LightTable project manifest', () => {
     });
     expect(manifest.folders).toEqual(DEFAULT_PROJECT_FOLDER_MAPPINGS);
     expect(manifest.userFolders).toEqual([]);
-    expect(projectStorageRelativePath(manifest, 'aiHistory')).toBe('AiRenders/History');
+    expect(projectStorageRelativePath(manifest, 'aiHistory')).toBe('AI/History');
   });
 
   it.each(['../outside', '/absolute', 'C:/outside', 'folder/../outside', 'folder/'])
@@ -36,11 +36,11 @@ describe('LightTable project manifest', () => {
     const manifest = parseLightTableProjectManifest({
       format: 'lighttable-project', version: 2, id: 'project-12345678',
       name: 'Portable', createdAt: '2026-08-11T12:00:00Z',
-      folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, aiHistory: 'AiRenders\\History' },
+      folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, aiHistory: 'AI\\History' },
       userFolders: [{ name: 'References', path: 'Production\\References' }],
       lastUsedDocument: null
     });
-    expect(manifest.folders.aiHistory).toBe('AiRenders/History');
+    expect(manifest.folders.aiHistory).toBe('AI/History');
     expect(manifest.userFolders[0]?.path).toBe('Production/References');
   });
 
