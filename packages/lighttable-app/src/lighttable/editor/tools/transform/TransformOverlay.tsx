@@ -23,6 +23,7 @@ import {
 
 interface TransformOverlayProps {
   state: TransformSessionState;
+  interactive?: boolean;
   imageRect: Rect;
   scale: number;
   width: number;
@@ -89,6 +90,7 @@ const resizeCursorFor = (from: TransformPoint, opposite: TransformPoint) => {
 
 export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   state,
+  interactive = true,
   imageRect,
   scale,
   width,
@@ -337,6 +339,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   return (
     <svg
       className="lighttable-transform"
+      style={{ pointerEvents: interactive ? 'auto' : 'none' }}
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       onPointerMove={move}

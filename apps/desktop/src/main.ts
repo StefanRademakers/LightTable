@@ -2357,7 +2357,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
             ? await dialog.showSaveDialog(mainWindow, options)
             : await dialog.showSaveDialog(options);
         if (result.canceled || !result.filePath) return { status: 'canceled' };
-        targetPath = result.filePath;
+        const suggestedExtension = path.extname(payload.suggestedName);
+        targetPath = suggestedExtension && !path.extname(result.filePath)
+          ? `${result.filePath}${suggestedExtension}`
+          : result.filePath;
       }
       const committed = await atomicWriteFile({
         targetPath,

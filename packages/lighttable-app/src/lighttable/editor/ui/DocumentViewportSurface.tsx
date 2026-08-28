@@ -190,6 +190,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       {transformState ? (
         <TransformOverlay
           state={transformState}
+          interactive={effectiveTool === 'transform'}
           imageRect={imageRect}
           scale={scale}
           width={viewportSize.width}
