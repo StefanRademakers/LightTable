@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { filterDefinition } from '@lighttable/filter-core';
 import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
@@ -1790,6 +1791,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocument: applyDocumentSnapshot,
     recordHistory: pushDocumentHistory
   });
+  const activeFilterCenter = (() => {
+    const model = p0FilterController.model;
+    if (!model?.enabled) return null;
+    const controls = filterDefinition(model.kind).controls;
+    if (!controls.some(({ key }) => key === 'center.x')
+      || !controls.some(({ key }) => key === 'center.y')) return null;
+    const center = (model.settings as unknown as { center?: { x?: unknown; y?: unknown } }).center;
+    const x = Number(center?.x);
+    const y = Number(center?.y);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  })();
 
   const activeFaceWarpLayer = imageDocument
     ? findRasterLayer(imageDocument, imageDocument.activeLayerId)
@@ -7803,6 +7815,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onCropChange: setCropBounds,
         onCropCommit: commitCrop,
         onCropCancel: cancelCrop,
+        filterCenter: activeFilterCenter,
+        onFilterCenterChange: (center) => {
+          p0FilterController.commands.updateSetting('center', center);
+        },
+        onFilterCenterInteractionStart: p0FilterController.commands.beginAdjustment,
+        onFilterCenterInteractionEnd: p0FilterController.commands.endAdjustment,
         onWheel: viewportInteraction.onWheel,
         onPointerDown: viewportInteraction.onPointerDown,
         onPointerMove: viewportInteraction.onPointerMove,
