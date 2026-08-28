@@ -58,25 +58,25 @@ interface Runtime {
 const pipelines = new WeakMap<GPUDevice, GPURenderPipeline>();
 const WGSL = /* wgsl */ `
 struct Params{a:vec4f,b:vec4f,c:vec4f,mode:u32,option:u32,padding:vec2u}
-@group(0)@binding(0)var sourceTexture:texture_2d<f32>;@group(0)@binding(1)var sourceSampler:sampler;@group(0)@binding(2)var<uniform>params:Params;
+@group(0)@binding(0)var sourceTexture:texture_2d<f32>;@group(0)@binding(1)var<uniform>params:Params;
 fn at(p:vec2i,size:vec2i)->vec4f{return textureLoad(sourceTexture,clamp(p,vec2i(0),size-vec2i(1)),0);}fn straight(v:vec4f)->vec3f{return select(vec3f(0),v.rgb/v.a,v.a>1e-6);}fn lum(v:vec4f)->f32{return dot(straight(v),vec3f(.2126,.7152,.0722));}fn hash(p:vec2f)->f32{return fract(sin(dot(p,vec2f(127.1,311.7))+params.c.w)*43758.5453);}
 fn edge(p:vec2i,size:vec2i,step:i32)->f32{let l=lum(at(p+vec2i(-step,0),size));let r=lum(at(p+vec2i(step,0),size));let u=lum(at(p+vec2i(0,-step),size));let d=lum(at(p+vec2i(0,step),size));return length(vec2f(r-l,d-u));}
 fn localMean(p:vec2i,size:vec2i,step:i32)->vec4f{var total=vec4f(0);for(var y=-1;y<=1;y+=1){for(var x=-1;x<=1;x+=1){total+=at(p+vec2i(x,y)*step,size);}}return total/9.0;}
 @fragment fn stylizeMain(input:VertexOutput)->@location(0)vec4f{let size=vec2i(textureDimensions(sourceTexture));let p=clamp(vec2i(floor(input.uv*vec2f(size))),vec2i(0),size-vec2i(1));let source=at(p,size);let mode=params.mode;
-if(mode==0u){let step=max(1,i32(ceil(params.a.x/2.0)));let center=straight(source);var total=vec4f(0);var weight=0.0;for(var y=-2;y<=2;y+=1){for(var x=-2;x<=2;x+=1){let sample=at(p+vec2i(x,y)*step,size);let delta=straight(sample)-center;let w=exp(-dot(delta,delta)/max(params.a.y*params.a.y,1e-5));total+=sample*w;weight+=w;}}let smooth=total/max(weight,1e-6);if(params.option==1u){let e=edge(p,size,step);return vec4f(vec3f(e)*source.a,source.a);}if(params.option==2u){let e=edge(p,size,step);return vec4f(mix(smooth.rgb,vec3f(e)*source.a,.5),source.a);}return smooth;}
-if(mode==1u){var best=source;var bestVariance=1e9;let step=max(1,i32(params.a.z));for(var q=0;q<4;q+=1){var mean=vec4f(0);var meanSq=vec3f(0);var count=0.0;for(var y=0;y<=2;y+=1){for(var x=0;x<=2;x+=1){let sx=select(-x,x,q==1||q==3);let sy=select(-y,y,q>=2);let v=at(p+vec2i(sx,sy)*step,size);mean+=v;meanSq+=straight(v)*straight(v);count+=1.0;}}mean/=count;let variance=dot(max(meanSq/count-straight(mean)*straight(mean),vec3f(0)),vec3f(1));if(variance<bestVariance){bestVariance=variance;best=mean;}}return mix(source,best,clamp(params.a.x/10.0,0.0,1.0));}
+if(mode==0u){let sampleRadius=select(select(1,2,params.a.z>=2.0),4,params.a.z>=3.0);let step=max(1,i32(ceil(params.a.x/f32(sampleRadius))));let center=straight(source);var total=vec4f(0);var weight=0.0;for(var y=-4;y<=4;y+=1){for(var x=-4;x<=4;x+=1){if(abs(x)>sampleRadius||abs(y)>sampleRadius){continue;}let sample=at(p+vec2i(x,y)*step,size);let delta=straight(sample)-center;let w=exp(-dot(delta,delta)/max(params.a.y*params.a.y,1e-5));total+=sample*w;weight+=w;}}let smoothed=total/max(weight,1e-6);if(params.option==1u){let e=edge(p,size,step);return vec4f(vec3f(e)*source.a,source.a);}if(params.option==2u){let e=edge(p,size,step);return vec4f(mix(smoothed.rgb,vec3f(e)*source.a,.5),source.a);}return smoothed;}
+if(mode==1u){var best=source;var bestVariance=1e9;let step=max(1,i32(round(params.a.z+params.a.y*.15)));for(var q=0;q<4;q+=1){var mean=vec4f(0);var meanSq=vec3f(0);var count=0.0;for(var y=0;y<=2;y+=1){for(var x=0;x<=2;x+=1){let sx=select(-x,x,q==1||q==3);let sy=select(-y,y,q>=2);let v=at(p+vec2i(sx,sy)*step,size);mean+=v;meanSq+=straight(v)*straight(v);count+=1.0;}}mean/=count;let variance=dot(max(meanSq/count-straight(mean)*straight(mean),vec3f(0)),vec3f(1));if(variance<bestVariance){bestVariance=variance;best=mean;}}let strength=clamp(.25+params.a.x*.075,0.0,1.0);let detail=clamp(edge(p,size,1)*params.a.w*.08,0.0,.35);let painted=mix(best,source,detail);return mix(source,painted,strength);}
 if(mode==2u){let e=edge(p,size,max(1,i32(params.a.x)));let glow=pow(clamp(e*params.a.y,0.0,1.0),max(params.a.z,.1));return vec4f(vec3f(glow*.25,glow*.75,glow)*source.a,source.a);}
-if(mode==3u){let offset=vec2i(i32(floor(hash(vec2f(p)) * 3.0))-1,i32(floor(hash(vec2f(p)+vec2f(7,3))*3.0))-1);let candidate=at(p+offset,size);let choose=params.option==0u||params.option==1u&&lum(candidate)<lum(source)||params.option==2u&&lum(candidate)>lum(source)||params.option==3u&&edge(p,size,1)<.08;return select(source,mix(source,candidate,params.a.x),choose);}
+if(mode==3u){let offset=vec2i(i32(floor(hash(vec2f(p)) * 3.0))-1,i32(floor(hash(vec2f(p)+vec2f(7,3))*3.0))-1);let candidate=at(p+offset,size);let choose=params.option==0u||(params.option==1u&&lum(candidate)<lum(source))||(params.option==2u&&lum(candidate)>lum(source))||(params.option==3u&&edge(p,size,1)<.08);return select(source,mix(source,candidate,params.a.x),choose);}
 if(mode==4u){let rgb=straight(source);let level=params.a.x;let result=select(rgb,vec3f(1)-rgb,rgb>vec3f(level));return vec4f(result*source.a,source.a);}
 let mean=localMean(p,size,max(1,i32(params.a.y)));let rgb=straight(mean);let e=edge(p,size,max(1,i32(params.a.z)));var out=straight(source);
-if(mode==5u){let levels=max(params.a.x,2.0);out=floor(rgb*levels+.5)/levels;}
+if(mode==5u){let levels=max(params.a.x,2.0);let quantized=floor(rgb*levels+.5)/levels;out=mix(quantized,straight(source),clamp(e*params.a.z*.15,0.0,.8));}
 else if(mode==6u){out=straight(source)+vec3f(pow(clamp(e*params.a.x,0.0,1.0),2.0));}
-else if(mode==7u){let levels=max(params.a.z+2.0,2.0);out=floor(straight(source)*levels+.5)/levels-vec3f(clamp(e*params.a.y,0.0,1.0));}
+else if(mode==7u){let levels=max(params.a.z+2.0,2.0);let posterEdge=edge(p,size,max(1,i32(params.a.x)));out=floor(straight(source)*levels+.5)/levels-vec3f(clamp(posterEdge*params.a.y,0.0,1.0));}
 else if(mode==8u){let levels=max(params.a.x,2.0);out=floor(rgb*levels+.5)/levels-vec3f(e*params.a.y*.1);}
 else if(mode==9u){let value=1.0-smoothstep(params.a.x,params.a.x+.15,e*params.a.y);out=vec3f(value);}
-else if(mode==10u){let frequency=max(params.a.x,1.0);let coordinate=select(length(fract(vec2f(p)/frequency)-.5),abs(fract(f32(p.y)/frequency)-.5),params.option==1u);let pattern=select(coordinate,abs(coordinate-.25),params.option==2u);let threshold=lum(source)*(1.0+params.a.y);out=vec3f(select(0.0,1.0,pattern<threshold*.5));}
-else if(mode==11u){out=vec3f(select(0.0,1.0,lum(mean)>params.a.x));}
-else if(mode==12u){let torn=lum(mean)+hash(vec2f(p)/max(params.a.y,1.0))*.25;out=vec3f(select(0.0,1.0,torn>params.a.x));}
+else if(mode==10u){let frequency=max(params.a.x*4.0,2.0);let cell=fract((vec2f(p)+.5)/frequency)-.5;let coordinate=select(length(cell),abs(cell.y),params.option==1u);let pattern=select(coordinate,abs(length(cell)-.3),params.option==2u);let threshold=lum(source)*(1.0+params.a.y);out=vec3f(select(0.0,1.0,pattern<threshold*.5));}
+else if(mode==11u){let threshold=clamp(params.a.x*.8,.05,.95);out=vec3f(select(0.0,1.0,lum(mean)>threshold));}
+else if(mode==12u){let noiseAmount=clamp(params.a.z/50.0,.05,.5);let torn=lum(mean)+(hash(vec2f(p)/max(params.a.y,1.0))-.5)*noiseAmount;out=vec3f(select(0.0,1.0,torn>params.a.x*.8));}
 else{let n=hash(vec2f(p)/max(params.a.x,1.0));let relief=(n-hash((vec2f(p)-vec2f(params.b.xy))/max(params.a.x,1.0)))*params.a.y;out=straight(source)+vec3f(relief);if(params.option==1u){out=vec3f(1)-out;}}
 return vec4f(max(out,vec3f(0))*source.a,source.a);}
 `;
@@ -121,7 +121,6 @@ export class StylizationCore {
   private readonly pool: FilterTargetPool;
   private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
-  private sampler: GPUSampler | null = null;
   constructor(
     private readonly device: GPUDevice,
     pool?: FilterTargetPool,
@@ -129,9 +128,8 @@ export class StylizationCore {
     this.pool = pool ?? new FilterTargetPool(device, 1);
     this.ownsPool = !pool;
   }
-  configure(width: number, height: number, sampler: GPUSampler) {
+  configure(width: number, height: number, _sampler: GPUSampler) {
     this.pool.configure(width, height);
-    this.sampler = sampler;
   }
   encode<K extends StylizationMode>(
     encoder: GPUCommandEncoder,
@@ -143,7 +141,6 @@ export class StylizationCore {
       settings: P2FilterSettingsMap[K];
     },
   ) {
-    if (!this.sampler) return source;
     let runtime = this.runtimes.get(request.key);
     if (!runtime) {
       runtime = {
@@ -166,6 +163,7 @@ export class StylizationCore {
       if (request.mode === "smart-blur") {
         f[0] = num("radius");
         f[1] = num("threshold") / 255;
+        f[2] = ["low", "medium", "high"].indexOf(String(s.quality)) + 1;
         u[13] = ["normal", "edge-only", "overlay"].indexOf(String(s.mode));
       } else if (request.mode === "oil-paint") {
         f[0] = num("stylization");
@@ -234,8 +232,7 @@ export class StylizationCore {
       layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: source.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: runtime.uniforms } },
+        { binding: 1, resource: { buffer: runtime.uniforms } },
       ],
     });
     const pass = encoder.beginRenderPass({
@@ -267,6 +264,5 @@ export class StylizationCore {
     if (this.ownsPool) this.pool.destroy();
     for (const r of this.runtimes.values()) r.uniforms.destroy();
     this.runtimes.clear();
-    this.sampler = null;
   }
 }

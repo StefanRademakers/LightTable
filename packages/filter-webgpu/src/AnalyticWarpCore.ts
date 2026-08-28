@@ -25,7 +25,7 @@ fn positiveMod(v: vec2f) -> vec2f { return v - floor(v); }
 fn triangle(value: f32) -> f32 { return abs(fract(value) * 2.0 - 1.0) * 2.0 - 1.0; }
 fn sampleWarp(uv: vec2f) -> vec4f {
   if (params.edgeMode == 2u) { return textureSampleLevel(sourceTexture, sourceSampler, positiveMod(uv), 0.0); }
-  if (params.edgeMode == 0u && any(uv < vec2f(0.0)) || params.edgeMode == 0u && any(uv > vec2f(1.0))) { return vec4f(0.0); }
+  if (params.edgeMode == 0u && (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0)))) { return vec4f(0.0); }
   return textureSampleLevel(sourceTexture, sourceSampler, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0);
 }
 @fragment fn warpMain(input: VertexOutput) -> @location(0) vec4f {

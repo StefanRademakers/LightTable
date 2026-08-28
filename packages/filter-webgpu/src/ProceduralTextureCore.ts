@@ -67,7 +67,7 @@ export class ProceduralTextureCore {
       runtime = {
         uniforms: this.device.createBuffer({
           label: `LightTable Procedural: ${request.key}`,
-          size: 32,
+          size: 48,
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         }),
         revision: -1,
@@ -75,7 +75,7 @@ export class ProceduralTextureCore {
       this.runtimes.set(request.key, runtime);
     }
     if (runtime.revision !== request.revision) {
-      const bytes = new ArrayBuffer(32);
+      const bytes = new ArrayBuffer(48);
       const f = new Float32Array(bytes);
       const u = new Uint32Array(bytes);
       u[4] = request.mode === "fibers" ? 1 : 0;

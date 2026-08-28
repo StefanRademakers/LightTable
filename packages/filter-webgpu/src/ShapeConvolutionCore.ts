@@ -17,7 +17,10 @@ fn at(p: vec2i, size: vec2i) -> vec4f { return textureLoad(sourceTexture, clamp(
     let weights = array<vec4f, 3>(params.kernel0, params.kernel1, params.kernel2); let w = weights[i / 4u][i % 4u]; total += at(p + vec2i(x, y), size) * w; i += 1u; }} return max(total / max(abs(params.options.y), 1e-6) + vec4f(params.options.z / 255.0), vec4f(0.0)); }
   let radius = max(params.options.x, 0.0); let support = min(5, max(1, i32(ceil(radius)))); let step = max(radius / f32(support), 1.0); var total = vec4f(0.0); var weight = 0.0;
   for (var y = -5; y <= 5; y += 1) { for (var x = -5; x <= 5; x += 1) { if (abs(x) > support || abs(y) > support) { continue; }
-    let normalized = vec2f(f32(x), f32(y)) / f32(support); let include = params.shape == 2u || params.shape == 1u && abs(normalized.x) + abs(normalized.y) <= 1.0 || params.shape == 0u && length(normalized) <= 1.0;
+    let normalized = vec2f(f32(x), f32(y)) / f32(support);
+    let include = params.shape == 2u
+      || (params.shape == 1u && abs(normalized.x) + abs(normalized.y) <= 1.0)
+      || (params.shape == 0u && length(normalized) <= 1.0);
     if (include) { total += at(p + vec2i(round(vec2f(f32(x), f32(y)) * step)), size); weight += 1.0; }
   }} return total / max(weight, 1.0); }
 `;

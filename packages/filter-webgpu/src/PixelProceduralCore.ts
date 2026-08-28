@@ -17,15 +17,16 @@ struct PixelParams { a: vec4f, b: vec4f, c: vec4f, mode: u32, option: u32, paddi
 @group(0) @binding(2) var<uniform> params: PixelParams;
 fn hash(point: vec2f) -> f32 { return fract(sin(dot(point, vec2f(127.1, 311.7)) + params.a.w) * 43758.5453123); }
 fn noise(point: vec2f) -> f32 {
-  let cell = floor(point); let local = fract(point); let smooth = local * local * (3.0 - 2.0 * local);
-  return mix(mix(hash(cell), hash(cell + vec2f(1.0, 0.0)), smooth.x),
-    mix(hash(cell + vec2f(0.0, 1.0)), hash(cell + vec2f(1.0)), smooth.x), smooth.y);
+  let cell = floor(point); let localPoint = fract(point);
+  let blend = localPoint * localPoint * (3.0 - 2.0 * localPoint);
+  return mix(mix(hash(cell), hash(cell + vec2f(1.0, 0.0)), blend.x),
+    mix(hash(cell + vec2f(0.0, 1.0)), hash(cell + vec2f(1.0)), blend.x), blend.y);
 }
 fn dotMask(pixel: vec2f, angle: f32, radius: f32, coverage: f32) -> f32 {
   let rotated = vec2f(cos(angle) * pixel.x - sin(angle) * pixel.y, sin(angle) * pixel.x + cos(angle) * pixel.y);
-  let local = fract(rotated / max(radius * 2.0, 2.0)) - vec2f(0.5);
+  let localPoint = fract(rotated / max(radius * 2.0, 2.0)) - vec2f(0.5);
   let threshold = sqrt(clamp(coverage, 0.0, 1.0)) * 0.5;
-  return 1.0 - smoothstep(threshold - 0.04, threshold + 0.04, length(local));
+  return 1.0 - smoothstep(threshold - 0.04, threshold + 0.04, length(localPoint));
 }
 @fragment fn pixelMain(input: VertexOutput) -> @location(0) vec4f {
   let dimensions = vec2f(textureDimensions(sourceTexture));
