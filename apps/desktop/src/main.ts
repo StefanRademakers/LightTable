@@ -1643,7 +1643,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const aiReferencesPath = project.manifest.folders.aiReferences;
     const hasAiReferenceAssets = index.assets.some((asset) =>
       asset.path === aiReferencesPath || asset.path.startsWith(`${aiReferencesPath}/`));
-    if (hasAiReferenceAssets) projectDirectories.push({ path: aiReferencesPath, label: 'AI References' });
+    if (hasAiReferenceAssets) projectDirectories.push({ path: aiReferencesPath, label: 'References' });
     const sectionMatches = [...projectDirectories].sort((left, right) => right.path.length - left.path.length);
     const assets = index.assets.map((asset) => ({
       id: asset.id,
@@ -1773,7 +1773,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       mediaType: desktopMediaTypeForFileName(indexed.name) ?? asset.mediaType,
       relativePath: indexed.path,
       modifiedAt: indexed.modifiedAt,
-      section: 'AI References',
+      section: 'References',
       ...(indexed.thumbnail ? { previewId: indexed.id } : {})
     };
   });

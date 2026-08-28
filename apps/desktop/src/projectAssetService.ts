@@ -195,7 +195,7 @@ export const readProjectAssetDirectories = async (manifestPath: string): Promise
     manifest.folders.temp
   ].map((entry) => entry.toLocaleLowerCase('en-US')));
   const configuredLabels = new Map<string, string>([
-    [manifest.folders.aiHistory, 'AI History'],
+    [manifest.folders.aiHistory, 'History'],
     [manifest.folders.characters, 'Characters'],
     [manifest.folders.environments, 'Environments'],
     [manifest.folders.props, 'Props'],
@@ -235,8 +235,8 @@ export const readProjectAssetDirectories = async (manifestPath: string): Promise
       .find((entry) => entry.toLocaleLowerCase('en-US') === identity);
     if (configuredPath) directories.push({ path: configuredPath, label });
   }
-  return directories.sort((left, right) => left.label === 'AI History' ? -1
-    : right.label === 'AI History' ? 1 : left.label.localeCompare(right.label));
+  return directories.sort((left, right) => left.label === 'History' ? -1
+    : right.label === 'History' ? 1 : left.label.localeCompare(right.label));
 };
 
 export const readProjectAssetPreview = async (

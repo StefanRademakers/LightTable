@@ -7,11 +7,11 @@ import type { GenAiAssetReference, GenAiGenerationJob } from '@lighttable/genai-
 describe('ProjectAssetBrowser', () => {
   it('renders the project directory catalog even when folders contain no indexed assets', () => {
     const markup = renderToStaticMarkup(<ProjectAssetBrowser jobs={[]} assets={[]} sections={[
-      { id: 'AI/History', label: 'AI History' },
+      { id: 'AI/History', label: 'History' },
       { id: 'Characters', label: 'Characters' },
       { id: 'ExtraFolder', label: 'ExtraFolder' }
     ]} />);
-    expect(markup).toContain('AI History');
+    expect(markup).toContain('History');
     expect(markup).toContain('Characters');
     expect(markup).toContain('ExtraFolder');
     expect(markup.match(/lighttable-group__header/g)).toHaveLength(3);

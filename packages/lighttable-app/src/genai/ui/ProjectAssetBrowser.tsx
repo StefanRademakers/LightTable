@@ -186,10 +186,13 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
   </div>;
 };
 
+const AI_HISTORY_SECTION_ID = 'AI/History';
+const AI_HISTORY_SECTION_LABEL = 'History';
+
 export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = false, error, previews = {}, onRequestPreview,
   onOpenResult, onOpenAsset, onRecreate, onAddReference, onRevealAsset, onRenameAsset, onDeleteAsset,
   onDeleteJob, onRefreshAssets }: ProjectAssetBrowserProps) => {
-  const [openSections, setOpenSections] = React.useState<ReadonlySet<string>>(new Set(['AI History']));
+  const [openSections, setOpenSections] = React.useState<ReadonlySet<string>>(new Set([AI_HISTORY_SECTION_LABEL]));
   const [menu, setMenu] = React.useState<MenuState>();
   const [renameAsset, setRenameAsset] = React.useState<GenAiAssetReference>();
   const [deleteTarget, setDeleteTarget] = React.useState<{ asset?: GenAiAssetReference; job?: GenAiGenerationJob }>();
@@ -198,6 +201,8 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
   const searchInput = React.useRef<HTMLInputElement>(null);
   const normalizedQuery = normalizeSearchText(searchQuery);
   const searching = normalizedQuery.length > 0;
+  const historySectionLabel = sections.find(({ id }) => id === AI_HISTORY_SECTION_ID)?.label
+    ?? AI_HISTORY_SECTION_LABEL;
   const jobByAssetId = React.useMemo(() => new Map(
     jobs.flatMap((job) => job.results.map((result) => [result.assetId, job] as const))
   ), [jobs]);
@@ -222,18 +227,18 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
     return next;
   }, [allGroups, jobByAssetId, normalizedQuery, searching]);
   let orderedSections = [...new Set([...sections.map(({ label }) => label), ...allGroups.keys()])]
-    .sort((left, right) => left === 'AI History' ? -1 : right === 'AI History' ? 1 : left.localeCompare(right));
+    .sort((left, right) => left === historySectionLabel ? -1 : right === historySectionLabel ? 1 : left.localeCompare(right));
   const visibleAssetIds = new Set(assets.map(({ id }) => id));
   const allPendingJobs = jobs.filter((job) => !['failed', 'cancelled'].includes(job.status)
     && (!job.results.length || job.results.every(({ assetId }) => !visibleAssetIds.has(assetId))));
   const pendingJobs = searching
     ? allPendingJobs.filter((job) => generationJobMatchesQuery(job, normalizedQuery))
     : allPendingJobs;
-  if ((allPendingJobs.length || jobs.some((job) => job.results.length)) && !orderedSections.includes('AI History')) {
-    orderedSections.unshift('AI History');
+  if ((allPendingJobs.length || jobs.some((job) => job.results.length)) && !orderedSections.includes(historySectionLabel)) {
+    orderedSections.unshift(historySectionLabel);
   }
   if (searching) orderedSections = orderedSections.filter((name) => groups.has(name)
-    || (name === 'AI History' && pendingJobs.length > 0));
+    || (name === historySectionLabel && pendingJobs.length > 0));
 
   const run = async (action: () => Promise<unknown> | void) => {
     setActionError(undefined);
@@ -277,7 +282,7 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
       {orderedSections.map((name) => {
         const expanded = searching || openSections.has(name);
         const sectionAssets = groups.get(name) ?? [];
-        const displayedAssets = name === 'AI History' ? [...sectionAssets].sort((left, right) => {
+        const displayedAssets = name === historySectionLabel ? [...sectionAssets].sort((left, right) => {
           const leftJob = jobByAssetId.get(left.id); const rightJob = jobByAssetId.get(right.id);
           const leftTime = leftJob?.updatedAt ?? (Date.parse(left.modifiedAt ?? '') || 0);
           const rightTime = rightJob?.updatedAt ?? (Date.parse(right.modifiedAt ?? '') || 0);
@@ -291,8 +296,8 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
           if (searching) return current;
           const next = new Set(current); if (nextExpanded) next.add(name); else next.delete(name); return next;
         })}>
-          {displayedAssets.length || (name === 'AI History' && pendingJobs.length)
-            ? <AssetGallery assets={displayedAssets} pendingJobs={name === 'AI History' ? pendingJobs : []}
+          {displayedAssets.length || (name === historySectionLabel && pendingJobs.length)
+            ? <AssetGallery assets={displayedAssets} pendingJobs={name === historySectionLabel ? pendingJobs : []}
               previews={previews} onRequestPreview={onRequestPreview} onOpen={onOpenAsset} onContextMenu={context}
               onJobContextMenu={(event, job) => {
                 event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, job });

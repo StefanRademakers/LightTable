@@ -150,7 +150,7 @@ describe('project asset save indexing', () => {
     await mkdir(path.join(project.rootPath, 'ExtraFolder'));
     const directories = await readProjectAssetDirectories(project.manifestPath);
     expect(directories.map(({ label }) => label)).toEqual([
-      'AI History',
+      'History',
       'Characters',
       'Environments',
       'ExtraFolder',
