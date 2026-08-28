@@ -35,7 +35,6 @@ interface ToolButtonProps {
   active: boolean;
   detailed?: boolean;
   popupOpen?: boolean;
-  onMouseDown?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   onClick: () => void;
   onDoubleClick?: React.MouseEventHandler<HTMLButtonElement>;
@@ -46,7 +45,6 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   active,
   detailed = false,
   popupOpen,
-  onMouseDown,
   onKeyDown,
   onClick,
   onDoubleClick
@@ -54,7 +52,6 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   <ButtonBase
     type="button"
     className={`lighttable-toolbox__button${detailed ? ' lighttable-toolbox__button--detailed' : ''}${active ? ' lighttable-toolbox__button--active' : ''}`}
-    onMouseDown={onMouseDown}
     onKeyDown={onKeyDown}
     onClick={onClick}
     onDoubleClick={onDoubleClick}
@@ -127,6 +124,10 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
     setOpen(true);
     setGeneration((value) => value + 1);
   };
+  const activateAndShowFlyout = () => {
+    onToolChange(master.id);
+    showFlyout();
+  };
 
   return (
     <div
@@ -140,7 +141,6 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         tool={master}
         active={Boolean(activeDefinition)}
         popupOpen={flyoutVisible}
-        onMouseDown={showFlyout}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowDown') return;
           event.preventDefault();
@@ -151,10 +151,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
               ?.focus();
           });
         }}
-        onClick={() => {
-          onToolChange(master.id);
-          showFlyout();
-        }}
+        onClick={activateAndShowFlyout}
       />
       <ButtonBase
         type="button"
@@ -164,8 +161,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         aria-expanded={flyoutVisible}
         aria-controls={flyoutId}
         title={`Show ${label.toLowerCase()}`}
-        onMouseDown={showFlyout}
-        onClick={showFlyout}
+        onClick={activateAndShowFlyout}
       ><span aria-hidden="true" /></ButtonBase>
       {flyoutVisible ? (
         <div
