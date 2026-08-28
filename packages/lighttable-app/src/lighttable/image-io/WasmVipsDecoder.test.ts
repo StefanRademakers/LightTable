@@ -105,6 +105,22 @@ describe('LightTable wasm-vips decoder boundary', () => {
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
 
+  it('does not create a worker after disposal while source bytes are still loading', async () => {
+    enableCapabilities();
+    let finishBytes!: (value: ArrayBuffer) => void;
+    const decoder = new WasmVipsDecoder();
+    const result = decoder.decode({
+      type: 'image/tiff',
+      arrayBuffer: () => new Promise<ArrayBuffer>((resolve) => { finishBytes = resolve; })
+    } as unknown as Blob);
+
+    decoder.destroy();
+    finishBytes(new ArrayBuffer(8));
+
+    await expect(result).rejects.toThrow('decoder is closed');
+    expect(workerInstances).toHaveLength(0);
+  });
+
   it('preserves worker startup diagnostics when the worker crashes', async () => {
     enableCapabilities();
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

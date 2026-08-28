@@ -29,7 +29,10 @@ import {
   useStandaloneFileDrop,
   type StandaloneFileDropModifiers
 } from './useStandaloneFileDrop';
-import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
+import {
+  requestWorkspaceDocumentClose,
+  waitForRunningDocumentSave
+} from './requestWorkspaceDocumentClose';
 import {
   imagePickerAccept,
   isSupportedImageFile
@@ -122,6 +125,7 @@ const normalizePlaceableDroppedImage = (file: File): File | null => {
 };
 
 const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
+const MAX_PROJECT_ASSET_TRANSFER_BYTES = 256 * 1024 * 1024;
 const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
 const hasRecoveryAttempt = (recoveryId: string): boolean => {
   try {
@@ -433,11 +437,15 @@ export function LightTableStandaloneApp({
   const publishDocumentThumbnail = useCallback((documentId: DocumentSessionId, thumbnail: Blob) => {
     const nextUrl = URL.createObjectURL(thumbnail);
     setDocumentThumbnailUrls((current) => {
+      if (!controller.workspace.getDocument(documentId)) {
+        URL.revokeObjectURL(nextUrl);
+        return current;
+      }
       const previous = current[documentId];
       if (previous) URL.revokeObjectURL(previous);
       return { ...current, [documentId]: nextUrl };
     });
-  }, []);
+  }, [controller]);
   useEffect(() => () => {
     Object.values(documentThumbnailUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
     Object.values(documentSourcePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
@@ -446,23 +454,26 @@ export function LightTableStandaloneApp({
     for (const file of files) openWorkspaceDocument(file, 'automatic');
   }), [host, openWorkspaceDocument]);
   useEffect(() => {
-    setDocumentSourcePreviewUrls((current) => {
-      const openIds = new Set(documents.map(({ id }) => id));
-      const next = { ...current };
-      let changed = false;
-      for (const [id, url] of Object.entries(current)) {
-        if (openIds.has(id as DocumentSessionId)) continue;
-        URL.revokeObjectURL(url);
-        delete next[id];
-        changed = true;
-      }
-      for (const document of documents) {
-        if (next[document.id] || !canUseSourceAsTabPreview(document.runtime.file)) continue;
-        next[document.id] = URL.createObjectURL(document.runtime.file);
-        changed = true;
-      }
-      return changed ? next : current;
-    });
+    const current = documentSourcePreviewUrlsRef.current;
+    const openIds = new Set(documents.map(({ id }) => id));
+    const next = { ...current };
+    let changed = false;
+    for (const [id, url] of Object.entries(current)) {
+      if (openIds.has(id as DocumentSessionId)) continue;
+      URL.revokeObjectURL(url);
+      delete next[id];
+      changed = true;
+    }
+    for (const document of documents) {
+      if (next[document.id] || !canUseSourceAsTabPreview(document.runtime.file)) continue;
+      next[document.id] = URL.createObjectURL(document.runtime.file);
+      changed = true;
+    }
+    if (!changed) return;
+    // Keep the ownership ref synchronous so a rapid document-list update or
+    // unmount cannot observe the previous URL set between render commits.
+    documentSourcePreviewUrlsRef.current = next;
+    setDocumentSourcePreviewUrls(next);
   }, [documents]);
   useEffect(() => {
     const openDocumentIds = new Set(documents.map(({ id }) => id));
@@ -486,6 +497,7 @@ export function LightTableStandaloneApp({
   recoveryPreviewsRef.current = recoveryPreviews;
   const recoveryListingRef = useRef(recoveryListing);
   recoveryListingRef.current = recoveryListing;
+  const recoveryRefreshRequestRef = useRef(0);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const launcherRecordedRef = useRef(false);
@@ -520,14 +532,27 @@ export function LightTableStandaloneApp({
   }, [controller, host]);
 
   const refreshRecoveries = useCallback(async () => {
+    const request = ++recoveryRefreshRequestRef.current;
     if (!host.recovery) {
       setRecoveryListing({ records: [], rejections: [] });
       return;
     }
     try {
       const listing = await host.recovery.list();
+      if (request !== recoveryRefreshRequestRef.current) return;
       setRecoveryListing(listing);
       const validIds = new Set(listing.records.map(({ recoveryId }) => recoveryId));
+      setRecoveryPreviews((current) => {
+        const next = { ...current };
+        let changed = false;
+        for (const [recoveryId, url] of Object.entries(current)) {
+          if (validIds.has(recoveryId)) continue;
+          URL.revokeObjectURL(url);
+          delete next[recoveryId];
+          changed = true;
+        }
+        return changed ? next : current;
+      });
       for (const key of Object.keys(localStorage)) {
         if (key.startsWith(RECOVERY_ATTEMPT_PREFIX)
           && !validIds.has(key.slice(RECOVERY_ATTEMPT_PREFIX.length))) {
@@ -535,6 +560,7 @@ export function LightTableStandaloneApp({
         }
       }
     } catch (reason) {
+      if (request !== recoveryRefreshRequestRef.current) return;
       setRecoveryError(reason instanceof Error ? reason.message : String(reason));
     }
   }, [host]);
@@ -627,6 +653,9 @@ export function LightTableStandaloneApp({
     setProjectError(null);
     try {
       for (const file of supported) {
+        if (file.size > MAX_PROJECT_ASSET_TRANSFER_BYTES) {
+          throw new Error(`${file.name} exceeds the 256 MiB project asset limit.`);
+        }
         await host.genAi.importProjectAsset(activeProject.id, {
           name: file.name,
           mediaType: file.type || 'application/octet-stream',
@@ -914,7 +943,17 @@ export function LightTableStandaloneApp({
         return null;
       }
       const url = URL.createObjectURL(entry.artifact);
-      setRecoveryPreviews((current) => ({ ...current, [record.recoveryId]: url }));
+      setRecoveryPreviews((current) => {
+        if (!recoveryListingRef.current.records.some(
+          ({ recoveryId }) => recoveryId === record.recoveryId
+        )) {
+          URL.revokeObjectURL(url);
+          return current;
+        }
+        const previous = current[record.recoveryId];
+        if (previous) URL.revokeObjectURL(previous);
+        return { ...current, [record.recoveryId]: url };
+      });
       return url;
     } catch (reason) {
       setRecoveryError(reason instanceof Error ? reason.message : String(reason));
@@ -964,13 +1003,37 @@ export function LightTableStandaloneApp({
     }).finally(() => pendingDocumentClosesRef.current.delete(id));
   }, [closeWorkspaceDocument, documents, host]);
 
-  const exitApplication = useCallback(async () => {
-    if (!host.closeApplication) return;
+  const prepareApplicationClose = useCallback(async (): Promise<boolean> => {
+    const discardedDocumentIds: DocumentSessionId[] = [];
     for (const document of documents) {
-      if (document.dirty && !await host.confirmDiscardChanges(document.title)) return;
+      if (document.kind === 'image') {
+        const saveStatus = await waitForRunningDocumentSave(document.session);
+        if (saveStatus && saveStatus !== 'completed') return false;
+      }
+      const dirty = document.kind === 'image'
+        ? document.session.getSnapshot().dirty
+        : document.dirty;
+      if (dirty && !await host.confirmDiscardChanges(document.title)) return false;
+      if (dirty) discardedDocumentIds.push(document.id);
     }
-    await host.closeApplication();
+    for (const documentId of discardedDocumentIds) {
+      try {
+        await host.recovery?.remove(documentId);
+      } catch (reason) {
+        console.warn('[Recovery] Application discard cleanup failed.', reason);
+      }
+    }
+    return true;
   }, [documents, host]);
+
+  const exitApplication = useCallback(async (): Promise<boolean> => {
+    if (!host.closeApplication || !await prepareApplicationClose()) return false;
+    await host.closeApplication();
+    return true;
+  }, [host, prepareApplicationClose]);
+
+  useEffect(() => host.subscribeApplicationCloseRequests?.(prepareApplicationClose),
+    [host, prepareApplicationClose]);
 
   const browseProjectImport = useCallback(async () => {
     const file = await host.openFile?.();

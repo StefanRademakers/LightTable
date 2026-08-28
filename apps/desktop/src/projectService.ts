@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createLightTableProjectManifest,
@@ -15,6 +15,7 @@ import {
   type ProjectUserStorageLocation
 } from '@lighttable/app/project-manifest';
 import { atomicWriteFile } from './atomicFileWriter';
+import { readBoundedJsonFile } from './boundedJsonFile';
 
 export interface DesktopProjectSummary {
   readonly id: string;
@@ -25,6 +26,10 @@ export interface DesktopProjectSummary {
 }
 
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const MAX_PROJECT_MANIFEST_BYTES = 1024 * 1024;
+
+const readProjectManifestJson = (manifestPath: string): Promise<unknown> =>
+  readBoundedJsonFile(manifestPath, MAX_PROJECT_MANIFEST_BYTES, 'LightTable project manifest');
 
 export const validateProjectName = (value: string): string => {
   const name = value.trim();
@@ -59,7 +64,7 @@ export const openProjectManifest = async (manifestPath: string): Promise<{
   if (path.basename(resolvedManifestPath).toLocaleLowerCase('en-US') !== LIGHTTABLE_PROJECT_MANIFEST_NAME) {
     throw new Error(`Select a ${LIGHTTABLE_PROJECT_MANIFEST_NAME} file.`);
   }
-  const manifest = parseLightTableProjectManifest(JSON.parse(await readFile(resolvedManifestPath, 'utf8')));
+  const manifest = parseLightTableProjectManifest(await readProjectManifestJson(resolvedManifestPath));
   const rootPath = path.dirname(resolvedManifestPath);
   for (const location of PROJECT_STORAGE_LOCATIONS) resolveProjectStoragePath(rootPath, manifest, location);
   return {
@@ -85,7 +90,7 @@ export const setProjectLastUsedDocument = async (
     targetPath: path.resolve(manifestPath),
     bytes,
     validate: async (temporaryPath) => {
-      parseLightTableProjectManifest(JSON.parse(await readFile(temporaryPath, 'utf8')));
+      parseLightTableProjectManifest(await readProjectManifestJson(temporaryPath));
     }
   });
   return (await openProjectManifest(manifestPath)).summary;

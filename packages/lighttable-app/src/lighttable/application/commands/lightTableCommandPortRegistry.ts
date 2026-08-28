@@ -295,8 +295,8 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     encoding: Parameters<DocumentLightTableCommandPorts['exportLayerPreviewArtifact']>[3]) {
     return this.resolve(documentId).exportLayerPreviewArtifact(layerId, channel, maxEdge, encoding);
   }
-  exportPsdArtifact(documentId: DocumentSessionId) {
-    return this.resolve(documentId).exportPsdArtifact();
+  exportPsdArtifact(documentId: DocumentSessionId, signal?: AbortSignal) {
+    return this.resolve(documentId).exportPsdArtifact(signal);
   }
   exportSvgArtifact(documentId: DocumentSessionId) {
     const execute = this.resolve(documentId).exportSvgArtifact;

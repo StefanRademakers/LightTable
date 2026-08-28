@@ -84,6 +84,17 @@ const rewriteManifest = async (
 };
 
 describe('LightTable layered PNG format', () => {
+  it('rejects an oversized manifest before attempting to allocate it', async () => {
+    const footer = new Uint8Array(12);
+    footer.set(new TextEncoder().encode('LTBLDOC1'));
+    new DataView(footer.buffer).setUint32(8, 64 * 1024 * 1024 + 1, true);
+
+    await expect(parseLayeredDocumentFile(new Blob([
+      PREVIEW_PNG,
+      footer
+    ], { type: 'image/png' }))).rejects.toThrow(/64 MiB safety limit/);
+  });
+
   it('round-trips flow and positioned text, masks, nesting and compatible future fields', async () => {
     const baseFlow = createDefaultTextLayerData();
     if (baseFlow.source.kind !== 'flow') throw new Error('Expected flow text fixture.');

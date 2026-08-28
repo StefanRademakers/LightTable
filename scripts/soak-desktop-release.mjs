@@ -25,14 +25,16 @@ const work = path.join(output, 'work');
 const reportPath = path.join(output, 'report.json');
 const packagedExecutable = path.resolve(argument('packaged-executable')
   ?? path.join(workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'));
+const testFiles = path.resolve(workspace, '..', 'LightTableTestFiles');
 const fixtures = [
-  { kind: 'ordinary-image', path: 'D:\\adamus2__0002.png' },
-  { kind: 'text-psd', path: 'D:\\TextTest.psd' },
-  { kind: 'shape-psd', path: 'D:\\shapes.psd' },
-  { kind: 'pdf', path: 'D:\\FormulierPersoneel.pdf' },
+  { kind: 'ordinary-image', path: path.join(testFiles, 'RandomFiles', 'adamus2__0002.png') },
+  { kind: 'text-psd', path: path.join(testFiles, 'RandomFiles', 'TextTest.psd') },
+  { kind: 'shape-psd', path: path.join(testFiles, 'RandomFiles', 'shapes.psd') },
+  { kind: 'pdf', path: path.join(testFiles, 'PDFJSGIT', 'examples', 'learning', 'helloworld.pdf') },
   {
     kind: 'large-template-psd',
-    path: 'D:\\mediavibe\\LightTableTestFiles\\psd\\templates\\Save the Date Invitation PSD 6\\EHS-396\\EHS-396\\EHS-396.psd'
+    path: path.join(testFiles, 'psd', 'templates', 'Save the Date Invitation PSD 6',
+      'EHS-396', 'EHS-396', 'EHS-396.psd')
   }
 ].map((fixture) => ({ ...fixture, path: path.resolve(fixture.path) }));
 

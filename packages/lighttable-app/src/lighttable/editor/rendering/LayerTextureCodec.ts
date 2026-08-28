@@ -117,6 +117,7 @@ export class LayerTextureCodec {
       });
       if (isRaw16) {
         const source = new Uint16Array(await blob.arrayBuffer());
+        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
         const upload = rawRgba16UploadLayout(source.byteLength, width, height);
         const pixels = new Uint16Array(source.length);
         for (let index = 0; index < source.length; index += 1) {
@@ -133,6 +134,7 @@ export class LayerTextureCodec {
         || blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
       ) {
         const pixels = new Uint8Array(await blob.arrayBuffer());
+        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
         const upload = rawRgba8UploadLayout(pixels.byteLength, width, height);
         this.device.queue.writeTexture(
           { texture: encodedTexture },
@@ -142,6 +144,7 @@ export class LayerTextureCodec {
         );
       } else {
         decoded = await decodeNativeImage(blob);
+        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
         const { bitmap } = decoded;
         if (bitmap.width !== width || bitmap.height !== height) {
           throw new Error('A saved layer does not match the LightTable document dimensions.');

@@ -93,6 +93,7 @@ describe('LightTable document export policy', () => {
       constructor(public width: number, public height: number) {
         created.push({ width, height });
       }
+      getContext = vi.fn(() => ({}));
       convertToBlob = vi.fn(async () => new Blob(['placeholder'], { type: 'image/png' }));
     });
     try {

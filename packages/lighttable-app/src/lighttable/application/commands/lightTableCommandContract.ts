@@ -357,7 +357,7 @@ export interface LightTableCommandPorts {
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
-  exportPsdArtifact(documentId: DocumentSessionId): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
+  exportPsdArtifact(documentId: DocumentSessionId, signal?: AbortSignal): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   exportSvgArtifact?(documentId: DocumentSessionId): File | Promise<File>;
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
@@ -436,7 +436,7 @@ export interface DocumentLightTableCommandPorts {
     readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
     maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
-  exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
+  exportPsdArtifact(signal?: AbortSignal): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   exportSvgArtifact?(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;

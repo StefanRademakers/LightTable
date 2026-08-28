@@ -335,6 +335,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     visible: boolean;
     layerIds: Set<LayerId>;
   } | null>(null);
+  const visibilityInteractionEndRef = React.useRef(onVisibilityInteractionEnd);
+  visibilityInteractionEndRef.current = onVisibilityInteractionEnd;
   const suppressVisibilityClickRef = React.useRef(false);
   const layerNamePointerFocusRef = React.useRef(false);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -445,6 +447,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     if (id === 'curves') return onCreateCurvesAdjustment;
     return () => onCreateAdjustmentKind(id);
   };
+
+  React.useEffect(() => () => {
+    if (!visibilityGestureRef.current) return;
+    visibilityGestureRef.current = null;
+    visibilityInteractionEndRef.current();
+  }, []);
 
   React.useEffect(() => {
     const valid = controlledSelectedLayerIds.filter((layerId) => allLayerIds.has(layerId));

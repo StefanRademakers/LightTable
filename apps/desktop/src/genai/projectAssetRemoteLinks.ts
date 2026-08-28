@@ -1,10 +1,11 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteFile } from '../atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from '../projectService';
+import { readBoundedJsonFile } from '../boundedJsonFile';
 
 const FORMAT = 'lighttable-genai-remote-links';
 const VERSION = 2;
+const MAX_REMOTE_LINK_INDEX_BYTES = 16 * 1024 * 1024;
 
 export interface ProjectAssetSourceRevision {
   readonly byteLength: number;
@@ -36,7 +37,9 @@ const indexPathFor = async (manifestPath: string): Promise<string> => {
 
 const load = async (manifestPath: string): Promise<RemoteLinkIndex> => {
   try {
-    const candidate = JSON.parse(await readFile(await indexPathFor(manifestPath), 'utf8')) as Partial<RemoteLinkIndex>;
+    const candidate = await readBoundedJsonFile(
+      await indexPathFor(manifestPath), MAX_REMOTE_LINK_INDEX_BYTES, 'GenAI remote-link index'
+    ) as Partial<RemoteLinkIndex>;
     if (candidate.format === FORMAT && candidate.version === VERSION && Array.isArray(candidate.links)) {
       return candidate as RemoteLinkIndex;
     }
@@ -73,9 +76,11 @@ export const recordProjectAssetRemoteLink = async (
       .filter((candidate) => !(candidate.assetId === link.assetId && candidate.providerId === link.providerId))
       .concat({ ...link, updatedAt: new Date().toISOString() })
   };
+  const bytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  if (bytes.byteLength > MAX_REMOTE_LINK_INDEX_BYTES) throw new Error('GenAI remote-link index exceeds the 16 MiB project limit.');
   await atomicWriteFile({
     targetPath: await indexPathFor(manifestPath),
-    bytes: Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8')
+    bytes
   });
 };
 
@@ -87,8 +92,10 @@ export const replaceProjectAssetRemoteLinkId = async (
     ...current,
     links: current.links.map((link) => link.assetId === previousId ? { ...link, assetId: nextId } : link)
   };
+  const bytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  if (bytes.byteLength > MAX_REMOTE_LINK_INDEX_BYTES) throw new Error('GenAI remote-link index exceeds the 16 MiB project limit.');
   await atomicWriteFile({
     targetPath: await indexPathFor(manifestPath),
-    bytes: Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8')
+    bytes
   });
 };

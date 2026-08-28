@@ -35,6 +35,7 @@ const launch = await resolveDesktopTestLaunch(root);
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
+let page = null;
 const app = await electron.launch({
   executablePath: launch.executablePath,
   args: launch.args,
@@ -49,7 +50,7 @@ const app = await electron.launch({
 });
 
 try {
-  const page = await app.firstWindow({ timeout: 30_000 });
+  page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   const open = await waitForDesktopLauncher({
     app, page, outputDirectory, sourceFile, pageErrors, label: 'source-save'
@@ -75,6 +76,10 @@ try {
     const dimensions = pngDimensions(await readFile(sourceFile));
     return dimensions.width === 32 && dimensions.height === 24;
   }, 'Save did not replace the original PNG with the resized raster.');
+  await waitFor(async () => {
+    const document = await driver.queryDocument(documentId);
+    return document?.tasks.activeCount === 0 && document.dirty === false;
+  }, 'The flat source save did not commit its clean revision.');
   const flatBytes = await readFile(sourceFile);
   if (flatBytes.equals(originalBytes)) throw new Error('The source PNG was not changed.');
   try {
@@ -89,10 +94,15 @@ try {
   await waitFor(async () => {
     try { return (await stat(layeredTarget)).size > 8; } catch { return false; }
   }, 'A layered document did not fall back to the LightTable Save As route.');
+  await waitFor(async () => {
+    const document = await driver.queryDocument(documentId);
+    return document?.tasks.activeCount === 0 && document.dirty === false;
+  }, 'The layered fallback save did not commit its clean revision.');
   const sourceAfterLayeredSave = await readFile(sourceFile);
   if (!sourceAfterLayeredSave.equals(flatBytes)) {
     throw new Error('A layered save overwrote the original flat PNG.');
   }
+
   if (pageErrors.length) throw new Error(pageErrors.join('\n'));
   console.log(JSON.stringify({
     passed: true,
@@ -100,5 +110,8 @@ try {
     layered: { path: layeredTarget, bytes: (await stat(layeredTarget)).size }
   }, null, 2));
 } finally {
+  if (page && !page.isClosed()) {
+    await page.evaluate(() => window.lightTableDesktop.closeApplication()).catch(() => {});
+  }
   await app.close().catch(() => {});
 }

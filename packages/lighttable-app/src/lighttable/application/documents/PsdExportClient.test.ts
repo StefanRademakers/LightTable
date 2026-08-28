@@ -19,6 +19,27 @@ class WorkerStub {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('PSD export compatibility policy', () => {
+  it('terminates a running export worker when its document task is canceled', async () => {
+    const terminate = vi.fn();
+    class HangingWorker {
+      onmessage: ((event: MessageEvent<PsdExportResponse>) => void) | null = null;
+      onerror: ((event: ErrorEvent) => void) | null = null;
+      postMessage() {}
+      terminate = terminate;
+    }
+    vi.stubGlobal('Worker', HangingWorker);
+    const controller = new AbortController();
+    const exporting = exportPsdDocument(
+      createImageDocument('Document', 2, 2, 'background'),
+      new Blob(['composite']), [], [], 'document.png', 'editable', controller.signal
+    );
+
+    controller.abort();
+
+    await expect(exporting).rejects.toMatchObject({ name: 'AbortError' });
+    expect(terminate).toHaveBeenCalled();
+  });
+
   it('allows an appearance-preserving degraded-editability finding', async () => {
     vi.stubGlobal('Worker', WorkerStub);
     responseFor = (request) => ({

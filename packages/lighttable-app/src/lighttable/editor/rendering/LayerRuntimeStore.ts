@@ -355,7 +355,7 @@ export class LayerRuntimeStore {
     this.derivedPreviews.forEach((runtime) => {
       bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
     });
-    return bytes + this.nodeMasks.size * Math.max(1, width) * Math.max(1, height);
+    return bytes + this.nodeMasks.size * Math.max(1, width) * Math.max(1, height) * 2;
   }
 
   destroy() {

@@ -1,5 +1,5 @@
 export const RELEASE_SOAK_PROFILES = Object.freeze({
-  ci: Object.freeze({ durationMinutes: 0, maximumCycles: 1, stressIterations: 2 }),
+  ci: Object.freeze({ durationMinutes: 0, maximumCycles: 1, stressIterations: 6 }),
   // Six repetitions provide a real stable tail after one mutating warm-up;
   // three samples are too short to distinguish React/GC oscillation from
   // monotonic retained growth on large documents.
@@ -27,7 +27,11 @@ export const assessStableTail = (files) => {
     if (!file.actions?.length) reasons.push(`${file.sourceFile}: zero actions`);
     if (file.pageErrors?.length) reasons.push(`${file.sourceFile}: page errors`);
     if (file.growth?.suspicious) reasons.push(`${file.sourceFile}: suspicious retained growth`);
-    if (file.background?.submittedFrames !== 0) reasons.push(`${file.sourceFile}: background submissions`);
+    if (file.background?.status === 'unavailable') {
+      reasons.push(`${file.sourceFile}: background telemetry unavailable`);
+    } else if (file.background?.submittedFrames !== 0) {
+      reasons.push(`${file.sourceFile}: background submissions`);
+    }
     if (file.firstUsefulFrame?.status !== 'available') reasons.push(`${file.sourceFile}: no first useful frame`);
     const last = file.samples?.at(-1);
     if (!last || last.runtimeStopped || !Number.isFinite(last.gpuBytes) || last.gpuBytes <= 0) {

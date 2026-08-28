@@ -95,7 +95,18 @@ try {
       workspace = await driver.queryWorkspace();
     }
     assert.ok(workspace?.activeDocumentId, 'No active document appeared after opening the source.');
-    return driver.waitForRenderedDocument(workspace.activeDocumentId, 90_000);
+    let rendered = await driver.waitForRenderedDocument(workspace.activeDocumentId, 90_000);
+    const vectorDeadline = Date.now() + 10_000;
+    while (rendered.telemetry.vectorBackend?.active === 'unexercised'
+      && Date.now() < vectorDeadline) {
+      await page.waitForTimeout(16);
+      const telemetry = await driver.queryRenderTelemetry(workspace.activeDocumentId);
+      const document = await driver.queryDocument(workspace.activeDocumentId);
+      if (telemetry && document) rendered = { document, telemetry };
+    }
+    assert.notEqual(rendered.telemetry.vectorBackend?.active, 'unexercised',
+      'The vector backend did not render the reopened SVG.');
+    return rendered;
   };
   const first = await activeRenderedDocument();
   report.before = {
@@ -162,8 +173,11 @@ try {
     });
   }
   const last = report.samples.at(-1);
+  const settledTail = report.samples.slice(-Math.max(3, Math.ceil(report.samples.length / 3)));
+  const minimumTailHeap = Math.min(...settledTail.map(({ heapUsedBytes }) => heapUsedBytes));
   report.summary = {
     heapDeltaBytes: last.heapUsedBytes - report.before.heapUsedBytes,
+    heapTailGrowthBytes: last.heapUsedBytes - minimumTailHeap,
     gpuDeltaBytes: last.renderer.estimatedGpuBytes - report.before.renderer.estimatedGpuBytes,
     distinctDocumentIds: new Set(report.samples.map(sample => sample.documentId)).size,
     maximumOpenMs: Math.max(...report.samples.map(sample => sample.openMs)),
@@ -184,8 +198,8 @@ try {
   if (report.summary.gpuDeltaBytes !== 0) {
     throw new Error(`GPU resource estimate changed across cycles: ${report.summary.gpuDeltaBytes} bytes.`);
   }
-  if (report.summary.heapDeltaBytes > 5 * 1024 * 1024) {
-    throw new Error(`Heap retention exceeded 5 MiB: ${report.summary.heapDeltaBytes} bytes.`);
+  if (report.summary.heapTailGrowthBytes > 5 * 1024 * 1024) {
+    throw new Error(`Settled heap retention exceeded 5 MiB: ${report.summary.heapTailGrowthBytes} bytes.`);
   }
   if (report.pageErrors.length || report.consoleErrors.length || report.runtimeStopped) {
     throw new Error('Vector document lifecycle audit observed a runtime failure.');

@@ -8,6 +8,7 @@ import { planDocumentRegionPreview, type DocumentPixelRegion } from '../../edito
 
 export const MIN_AGENT_PREVIEW_EDGE = 64;
 export const MAX_AGENT_PREVIEW_EDGE = 1024;
+const MAX_PREVIEW_CACHE_ENTRIES = 64;
 
 export type DocumentPreviewResult =
   | { readonly status: 'completed'; readonly artifact: LightTableArtifactMetadata;
@@ -178,6 +179,9 @@ export class DocumentPreviewArtifactController {
         bounds: { ...region } } } : {})
     });
     this.cache.set(key, artifact.id);
+    while (this.cache.size > MAX_PREVIEW_CACHE_ENTRIES) {
+      this.cache.delete(this.cache.keys().next().value!);
+    }
     return { status: 'completed', artifact, reused: false };
   }
 }

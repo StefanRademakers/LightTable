@@ -156,9 +156,11 @@ try {
   for (let cycle = 0; cycle < 5; cycle += 1) {
     await (cycle % 2 === 0 ? genAiWorkspace : gradingWorkspace).click();
     await page.keyboard.press(cycle % 2 === 0 ? 'p' : 'b');
+    await photoWorkspace.click();
     await firstTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, firstId);
+    await driver.waitForRenderedDocument(firstId, 30_000);
     const firstCurrent = await previewMetrics(firstId, cycle % 2 === 0 ? 'webp' : 'png');
     assertRetained(`First document after cycle ${cycle + 1}`, firstBaseline, firstCurrent);
     const firstCurrentLayerIds = (await driver.queryLayers(firstId)).map((layer) => layer.id);
@@ -171,6 +173,7 @@ try {
     await secondTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, secondId);
+    await driver.waitForRenderedDocument(secondId, 30_000);
     const secondCurrent = await previewMetrics(secondId, cycle % 2 === 0 ? 'webp' : 'png');
     assertRetained(`Second document after cycle ${cycle + 1}`, secondBaseline, secondCurrent);
     const secondCurrentLayerIds = (await driver.queryLayers(secondId)).map((layer) => layer.id);

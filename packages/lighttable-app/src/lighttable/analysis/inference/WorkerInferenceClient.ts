@@ -38,6 +38,7 @@ export class WorkerInferenceClient<Input, Result> {
   private readonly pending = new Map<number, PendingRequest<Result>>();
   private readonly cache = new Map<string, Result>();
   private readonly inFlight = new Map<string, InFlightRequest<Result>>();
+  private disposed = false;
 
   constructor(private readonly options: WorkerInferenceClientOptions<Input, Result>) {}
 
@@ -46,6 +47,7 @@ export class WorkerInferenceClient<Input, Result> {
     cacheKey: string,
     onProgress?: (progress: InferenceProgress) => void
   ): Promise<Result> {
+    if (this.disposed) throw new Error(`${this.options.defaultErrorMessage} client is closed.`);
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined) return cached;
     const running = this.inFlight.get(cacheKey);
@@ -64,7 +66,12 @@ export class WorkerInferenceClient<Input, Result> {
         reject,
         publishProgress: (progress) => listeners.forEach((listener) => listener(progress))
       });
-      worker.postMessage(this.options.createRequest(requestId, input));
+      try {
+        worker.postMessage(this.options.createRequest(requestId, input));
+      } catch (reason) {
+        this.pending.delete(requestId);
+        reject(reason instanceof Error ? reason : new Error(this.options.defaultErrorMessage));
+      }
     }).then((result) => {
       this.cache.set(cacheKey, result);
       const limit = Math.max(0, this.options.cacheSize ?? 2);
@@ -83,8 +90,9 @@ export class WorkerInferenceClient<Input, Result> {
   }
 
   dispose() {
+    this.disposed = true;
     if (this.worker && this.options.disposeMessage !== undefined) {
-      this.worker.postMessage(this.options.disposeMessage);
+      try { this.worker.postMessage(this.options.disposeMessage); } catch { /* terminate below */ }
     }
     this.worker?.terminate();
     this.worker = null;
@@ -130,6 +138,11 @@ export class WorkerInferenceClient<Input, Result> {
     };
     worker.onerror = (event) => {
       this.rejectPending(new Error(event.message || this.options.defaultErrorMessage));
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
+    };
+    worker.onmessageerror = () => {
+      this.rejectPending(new Error(`${this.options.defaultErrorMessage} returned an unreadable response.`));
       worker.terminate();
       if (this.worker === worker) this.worker = null;
     };

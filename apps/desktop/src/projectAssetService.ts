@@ -4,6 +4,11 @@ import { open, readFile, readdir, rename, stat, unlink, type FileHandle } from '
 import path from 'node:path';
 import { atomicWriteFile } from './atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from './projectService';
+import { readBoundedJsonFile } from './boundedJsonFile';
+
+const MAX_PROJECT_ASSET_INDEX_BYTES = 16 * 1024 * 1024;
+const MAX_PROJECT_ASSET_INDEX_ENTRIES = 100_000;
+const MAX_PROJECT_SCAN_DIRECTORIES = 100_000;
 
 export const LIGHTTABLE_PROJECT_ASSET_INDEX_FORMAT = 'lighttable-project-assets';
 export const LIGHTTABLE_PROJECT_ASSET_INDEX_VERSION = 1;
@@ -50,7 +55,7 @@ const enqueueAssetIndexMutation = async <T>(manifestPath: string, operation: () 
   }
 };
 const PROJECT_ASSET_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf', '.mp4', '.webm'
+  '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf', '.svg', '.mp4', '.webm'
 ]);
 
 const normalizedProjectRelativePath = (rootPath: string, filePath: string): string | null => {
@@ -120,13 +125,35 @@ const emptyIndex = (): ProjectAssetIndex => ({
   assets: []
 });
 
+const validIndexEntry = (value: unknown): value is ProjectAssetIndexEntry => Boolean(
+  value && typeof value === 'object'
+  && typeof (value as ProjectAssetIndexEntry).id === 'string'
+  && (value as ProjectAssetIndexEntry).id.length <= 128
+  && typeof (value as ProjectAssetIndexEntry).path === 'string'
+  && (value as ProjectAssetIndexEntry).path.length <= 32_768
+  && typeof (value as ProjectAssetIndexEntry).name === 'string'
+  && (value as ProjectAssetIndexEntry).name.length <= 1024
+  && Number.isSafeInteger((value as ProjectAssetIndexEntry).bytes)
+  && (value as ProjectAssetIndexEntry).bytes >= 0
+  && typeof (value as ProjectAssetIndexEntry).modifiedAt === 'string'
+  && ((value as ProjectAssetIndexEntry).thumbnail === undefined
+    || (typeof (value as ProjectAssetIndexEntry).thumbnail === 'string'
+      && (value as ProjectAssetIndexEntry).thumbnail!.length <= 32_768))
+  && ((value as ProjectAssetIndexEntry).thumbnailStatus === 'ready'
+    || (value as ProjectAssetIndexEntry).thumbnailStatus === 'unavailable')
+);
+
 const loadIndex = async (indexPath: string): Promise<ProjectAssetIndex> => {
   try {
-    const candidate = JSON.parse(await readFile(indexPath, 'utf8')) as Partial<ProjectAssetIndex>;
+    const candidate = await readBoundedJsonFile(
+      indexPath, MAX_PROJECT_ASSET_INDEX_BYTES, 'Project asset index'
+    ) as Partial<ProjectAssetIndex>;
     if (
       candidate.format !== LIGHTTABLE_PROJECT_ASSET_INDEX_FORMAT
       || candidate.version !== LIGHTTABLE_PROJECT_ASSET_INDEX_VERSION
       || !Array.isArray(candidate.assets)
+      || candidate.assets.length > MAX_PROJECT_ASSET_INDEX_ENTRIES
+      || !candidate.assets.every(validIndexEntry)
     ) return emptyIndex();
     return candidate as ProjectAssetIndex;
   } catch (reason) {
@@ -225,7 +252,15 @@ export const readProjectAssetPreview = async (
   if (previewPath !== previewRoot && !previewPath.startsWith(`${previewRoot}${path.sep}`)) {
     throw new Error('Invalid project asset preview location.');
   }
-  return new Uint8Array(await readFile(previewPath));
+  const previewStats = await stat(previewPath);
+  if (!previewStats.isFile() || previewStats.size < 1 || previewStats.size > 16 * 1024 * 1024) {
+    throw new Error('Project asset preview exceeds the 16 MiB transfer limit.');
+  }
+  const bytes = new Uint8Array(await readFile(previewPath));
+  if (bytes.byteLength !== previewStats.size) {
+    throw new Error('Project asset preview changed while it was being loaded.');
+  }
+  return bytes;
 };
 
 export const readProjectAsset = async (
@@ -242,8 +277,13 @@ export const readProjectAsset = async (
   if (assetPath === projectRoot || !assetPath.startsWith(`${projectRoot}${path.sep}`)) {
     throw new Error('Invalid project asset location.');
   }
+  const assetStats = await stat(assetPath);
+  if (!assetStats.isFile() || assetStats.size < 1 || assetStats.size !== entry.bytes
+    || assetStats.size > 256 * 1024 * 1024) {
+    throw new Error('Project asset changed or exceeds the 256 MiB transfer limit.');
+  }
   const bytes = new Uint8Array(await readFile(assetPath));
-  if (bytes.byteLength !== entry.bytes || bytes.byteLength > 256 * 1024 * 1024) {
+  if (bytes.byteLength !== assetStats.size) {
     throw new Error('Project asset changed while it was being loaded.');
   }
   return { name: entry.name, bytes };
@@ -260,7 +300,10 @@ const pathExists = async (candidate: string): Promise<boolean> => {
 };
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const MAX_PREVIEW_BYTES = 256 * 1024 * 1024;
+const MAX_EMBEDDED_PREVIEW_BYTES = 64 * 1024 * 1024;
+const MAX_THUMBNAIL_BYTES = 16 * 1024 * 1024;
+const MAX_THUMBNAIL_SOURCE_EDGE = 16_384;
+const MAX_THUMBNAIL_SOURCE_PIXELS = 64 * 1024 * 1024;
 
 const readExactly = async (
   handle: FileHandle,
@@ -284,17 +327,34 @@ const readEmbeddedPngPreview = async (filePath: string): Promise<Buffer> => {
     if (!signature.equals(PNG_SIGNATURE)) throw new Error('The saved document has no PNG preview.');
     const parts: Buffer[] = [signature];
     let position = PNG_SIGNATURE.length;
-    while (position < MAX_PREVIEW_BYTES) {
+    let firstChunk = true;
+    while (position < MAX_EMBEDDED_PREVIEW_BYTES) {
       const header = await readExactly(handle, 8, position);
       const dataLength = header.readUInt32BE(0);
       const chunkLength = 8 + dataLength + 4;
-      if (position + chunkLength > MAX_PREVIEW_BYTES) {
+      if (position + chunkLength > MAX_EMBEDDED_PREVIEW_BYTES) {
         throw new Error('The saved document preview exceeds the thumbnail limit.');
       }
       const body = await readExactly(handle, dataLength + 4, position + 8);
+      const chunkType = header.toString('ascii', 4, 8);
+      if (firstChunk) {
+        firstChunk = false;
+        if (chunkType !== 'IHDR' || dataLength !== 13) {
+          throw new Error('The saved document preview has an invalid PNG header.');
+        }
+        const width = body.readUInt32BE(0);
+        const height = body.readUInt32BE(4);
+        if (
+          width < 1 || height < 1
+          || width > MAX_THUMBNAIL_SOURCE_EDGE || height > MAX_THUMBNAIL_SOURCE_EDGE
+          || width * height > MAX_THUMBNAIL_SOURCE_PIXELS
+        ) {
+          throw new Error('The saved document preview is too large to thumbnail safely.');
+        }
+      }
       parts.push(header, body);
       position += chunkLength;
-      if (header.toString('ascii', 4, 8) === 'IEND') return Buffer.concat(parts, position);
+      if (chunkType === 'IEND') return Buffer.concat(parts, position);
     }
     throw new Error('The saved document preview has no PNG end marker.');
   } finally {
@@ -346,6 +406,9 @@ const buildAssetEntry = async (
   let thumbnail: string | undefined;
   try {
     const thumbnailBytes = await thumbnailPng(filePath);
+    if (thumbnailBytes.byteLength < 1 || thumbnailBytes.byteLength > MAX_THUMBNAIL_BYTES) {
+      throw new Error('The generated project thumbnail exceeds the 16 MiB storage boundary.');
+    }
     await atomicWriteFile({ targetPath: thumbnailPath, bytes: thumbnailBytes });
     thumbnail = path.relative(context.rootPath, thumbnailPath).split(path.sep).join('/');
   } catch (reason) {
@@ -364,15 +427,22 @@ const buildAssetEntry = async (
 };
 
 const writeIndex = async (indexPath: string, assets: readonly ProjectAssetIndexEntry[]): Promise<void> => {
+  if (assets.length > MAX_PROJECT_ASSET_INDEX_ENTRIES) {
+    throw new Error('The project contains too many indexed assets.');
+  }
   const next: ProjectAssetIndex = {
     format: LIGHTTABLE_PROJECT_ASSET_INDEX_FORMAT,
     version: LIGHTTABLE_PROJECT_ASSET_INDEX_VERSION,
     updatedAt: new Date().toISOString(),
     assets: [...assets].sort((left, right) => left.path.localeCompare(right.path))
   };
+  const bytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  if (bytes.byteLength > MAX_PROJECT_ASSET_INDEX_BYTES) {
+    throw new Error('The project asset index exceeds the storage boundary.');
+  }
   await atomicWriteFile({
     targetPath: indexPath,
-    bytes: Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8')
+    bytes
   });
 };
 
@@ -425,29 +495,38 @@ export const scheduleSavedProjectAsset = (request: {
 const scanAssetFiles = async (
   rootPath: string,
   trashPath: string,
-  directoryPath = rootPath
+  signal?: AbortSignal
 ): Promise<string[]> => {
   const assets: string[] = [];
-  let entries;
-  try {
-    entries = await readdir(directoryPath, { withFileTypes: true });
-  } catch (reason) {
-    if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') return assets;
-    throw reason;
-  }
-  for (const entry of entries) {
-    const candidate = path.join(directoryPath, entry.name);
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      if (candidate === trashPath || entry.name === '.lighttable') continue;
-      assets.push(...await scanAssetFiles(rootPath, trashPath, candidate));
-      continue;
+  const directories = [rootPath];
+  for (let cursor = 0; cursor < directories.length; cursor += 1) {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Project scan canceled.', 'AbortError');
+    if (directories.length > MAX_PROJECT_SCAN_DIRECTORIES) {
+      throw new Error('The project directory tree exceeds the indexing boundary.');
     }
-    if (
-      entry.isFile()
-      && entry.name !== 'project.ltproject'
-      && PROJECT_ASSET_EXTENSIONS.has(path.extname(entry.name).toLocaleLowerCase('en-US'))
-    ) assets.push(candidate);
+    const directoryPath = directories[cursor]!;
+    let entries;
+    try {
+      entries = await readdir(directoryPath, { withFileTypes: true });
+    } catch (reason) {
+      if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') continue;
+      throw reason;
+    }
+    for (const entry of entries) {
+      const candidate = path.join(directoryPath, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (candidate !== trashPath && entry.name !== '.lighttable') directories.push(candidate);
+        continue;
+      }
+      if (entry.isFile() && entry.name !== 'project.ltproject'
+        && PROJECT_ASSET_EXTENSIONS.has(path.extname(entry.name).toLocaleLowerCase('en-US'))) {
+        if (assets.length >= MAX_PROJECT_ASSET_INDEX_ENTRIES) {
+          throw new Error('The project contains too many indexable assets.');
+        }
+        assets.push(candidate);
+      }
+    }
   }
   return assets;
 };
@@ -455,6 +534,7 @@ const scanAssetFiles = async (
 const rebuildProjectAssetIndexUnqueued = async (request: {
   readonly manifestPath: string;
   readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
+  readonly signal?: AbortSignal;
 }): Promise<ProjectAssetIndex> => {
   const { manifest, summary } = await openProjectManifest(request.manifestPath);
   const thumbnailDirectory = resolveProjectStoragePath(summary.rootPath, manifest, 'thumbnails');
@@ -465,7 +545,7 @@ const rebuildProjectAssetIndexUnqueued = async (request: {
   const trashPath = resolveProjectStoragePath(summary.rootPath, manifest, 'trash');
   const previous = await loadIndex(indexPath);
   const previousById = new Map(previous.assets.map((entry) => [entry.id, entry]));
-  const files = await scanAssetFiles(summary.rootPath, trashPath);
+  const files = await scanAssetFiles(summary.rootPath, trashPath, request.signal);
   const assets: ProjectAssetIndexEntry[] = [];
   const thumbnailPng = request.thumbnailPng ?? createThumbnailPng;
 
@@ -473,6 +553,9 @@ const rebuildProjectAssetIndexUnqueued = async (request: {
   let cursor = 0;
   const worker = async (): Promise<void> => {
     while (cursor < files.length) {
+      if (request.signal?.aborted) {
+        throw request.signal.reason ?? new DOMException('Project scan canceled.', 'AbortError');
+      }
       const filePath = files[cursor++];
       if (!filePath) continue;
       const relativePath = normalizedProjectRelativePath(summary.rootPath, filePath);
@@ -486,7 +569,8 @@ const rebuildProjectAssetIndexUnqueued = async (request: {
       if (entry) assets.push(entry);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, Math.max(1, files.length)) }, worker));
+  await Promise.all(Array.from({ length: Math.min(2, Math.max(1, files.length)) }, worker));
+  if (request.signal?.aborted) throw request.signal.reason ?? new DOMException('Project scan canceled.', 'AbortError');
 
   const retainedThumbnails = new Set(assets.map((entry) => entry.thumbnail).filter(Boolean));
   await Promise.all(previous.assets.map(async (entry) => {
@@ -502,6 +586,7 @@ const rebuildProjectAssetIndexUnqueued = async (request: {
 export const rebuildProjectAssetIndex = (request: {
   readonly manifestPath: string;
   readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
+  readonly signal?: AbortSignal;
 }): Promise<ProjectAssetIndex> => enqueueAssetIndexMutation(
   request.manifestPath,
   () => rebuildProjectAssetIndexUnqueued(request)
@@ -511,6 +596,7 @@ class ProjectAssetCatalogController {
   private watcher: FSWatcher | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private manifestPath: string | null = null;
+  private scanAbort: AbortController | null = null;
   private readonly listeners = new Set<(manifestPath: string) => void>();
 
   subscribe(listener: (manifestPath: string) => void): () => void {
@@ -520,9 +606,11 @@ class ProjectAssetCatalogController {
 
   activate(manifestPath: string): void {
     this.close();
+    const scanAbort = new AbortController();
+    this.scanAbort = scanAbort;
     this.manifestPath = path.resolve(manifestPath);
     void openProjectManifest(this.manifestPath).then(({ manifest, summary }) => {
-      if (this.manifestPath !== path.resolve(manifestPath)) return;
+      if (scanAbort.signal.aborted || this.manifestPath !== path.resolve(manifestPath)) return;
       const trashPath = resolveProjectStoragePath(summary.rootPath, manifest, 'trash');
       this.watcher = watch(summary.rootPath, { recursive: true }, (_event, fileName) => {
         if (!fileName) return this.schedule();
@@ -546,6 +634,8 @@ class ProjectAssetCatalogController {
     this.timer = null;
     this.watcher?.close();
     this.watcher = null;
+    this.scanAbort?.abort(new DOMException('Project catalog closed.', 'AbortError'));
+    this.scanAbort = null;
     this.manifestPath = null;
   }
 
@@ -559,14 +649,16 @@ class ProjectAssetCatalogController {
 
   private async rebuild(reason: string): Promise<void> {
     const manifestPath = this.manifestPath;
-    if (!manifestPath) return;
+    const signal = this.scanAbort?.signal;
+    if (!manifestPath || !signal || signal.aborted) return;
     try {
       if (this.manifestPath !== manifestPath) return;
-      await rebuildProjectAssetIndex({ manifestPath });
+      await rebuildProjectAssetIndex({ manifestPath, signal });
       if (this.manifestPath === manifestPath) {
         for (const listener of this.listeners) listener(manifestPath);
       }
     } catch (error) {
+      if (signal.aborted) return;
       console.warn(`[LightTable project] Could not complete ${reason}.`, error);
     }
   }

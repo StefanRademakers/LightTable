@@ -26,6 +26,9 @@ const activeTunnelStates = new Set(['pairing', 'connecting', 'connected', 'degra
 const isBuiltInLocalTunnel = (serverId?: string) => Boolean(serverId?.startsWith('lighttable-local-'));
 const scopesLabel = (scopes: readonly LightTableAgentClientScope[]) => scopes.includes('edit')
   ? 'Read and edit documents' : 'Read documents';
+const reportAgentAccessFailure = (reason: unknown) => {
+  console.warn('[LightTable agent access] Operation failed.', reason);
+};
 
 export const AgentAccessSettingsPanel: React.FC<{
   readonly service?: LightTableAgentAccessService;
@@ -44,7 +47,7 @@ export const AgentAccessSettingsPanel: React.FC<{
   useEffect(() => {
     if (!active || !service) return;
     let canceled = false;
-    void service.status().then((value) => { if (!canceled) setStatus(value); });
+    void service.status().then((value) => { if (!canceled) setStatus(value); }).catch(reportAgentAccessFailure);
     void service.tunnelStatus().then((value) => {
       if (canceled) return;
       setTunnel(value);
@@ -52,8 +55,8 @@ export const AgentAccessSettingsPanel: React.FC<{
         setServerUrl(value.serverUrl);
         setMode('online');
       }
-    });
-    void service.localMcpStatus().then((value) => { if (!canceled) setLocalMcp(value); });
+    }).catch(reportAgentAccessFailure);
+    void service.localMcpStatus().then((value) => { if (!canceled) setLocalMcp(value); }).catch(reportAgentAccessFailure);
     const unsubscribe = service.subscribe((value) => { if (!canceled) setStatus(value); });
     const unsubscribeTunnel = service.subscribeTunnel((value) => {
       if (!canceled) {
@@ -67,13 +70,13 @@ export const AgentAccessSettingsPanel: React.FC<{
 
   if (!active) return null;
   const run = (operation: () => Promise<LightTableAgentAccessStatus>) => {
-    setBusy(true); void operation().then(setStatus).finally(() => setBusy(false));
+    setBusy(true); void operation().then(setStatus).catch(reportAgentAccessFailure).finally(() => setBusy(false));
   };
   const runTunnel = (operation: () => Promise<LightTableAgentTunnelStatus>) => {
-    setBusy(true); void operation().then(setTunnel).finally(() => setBusy(false));
+    setBusy(true); void operation().then(setTunnel).catch(reportAgentAccessFailure).finally(() => setBusy(false));
   };
   const runLocalMcp = (operation: () => Promise<LightTableLocalMcpTestStatus>) => {
-    setBusy(true); void operation().then(setLocalMcp).finally(() => setBusy(false));
+    setBusy(true); void operation().then(setLocalMcp).catch(reportAgentAccessFailure).finally(() => setBusy(false));
   };
   const localActive = activeLocalStates.has(localMcp.state);
   const tunnelActive = activeTunnelStates.has(tunnel.state);
@@ -149,7 +152,7 @@ export const AgentAccessSettingsPanel: React.FC<{
                   setBusy(true);
                   void service.pairServer(serverUrl, pairingCode).then((value) => {
                     setTunnel(value); if (value.state === 'connected') setPairingCode('');
-                  }).finally(() => setBusy(false));
+                  }).catch(reportAgentAccessFailure).finally(() => setBusy(false));
                 }}>Pair server</ActionButton>
             </div>
           </> : <dl>

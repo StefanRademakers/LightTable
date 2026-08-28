@@ -30,12 +30,13 @@ describe('toolRegistry', () => {
       'select-polygonal'
     ]);
     expect(SMART_SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
-      'select-magic-wand', 'select-object'
+      'select-magic-wand', 'select-paint-brush', 'select-object'
     ]);
     expect(toolShortcutGroupFor('select-magic-wand')?.key).toBe('w');
     expect(toolDefinition('select-magic-wand').shortcutKey).toBe('w');
     expect(toolDefinition('select-object').iconName).toBe('tool_object_selection.png');
-    expect(toolForShortcutFamily('w', 'select-magic-wand', true)).toBe('select-object');
+    expect(toolForShortcutFamily('w', 'select-magic-wand', true)).toBe('select-paint-brush');
+    expect(toolForShortcutFamily('w', 'select-paint-brush', true)).toBe('select-object');
   });
   it('defines the four live-shape tools as one toolbar family', () => {
     expect(SHAPE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
@@ -108,7 +109,8 @@ describe('toolRegistry', () => {
       'select-free',
       'select-polygonal',
       'select-object',
-      'select-magic-wand'
+      'select-magic-wand',
+      'select-paint-brush'
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);

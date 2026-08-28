@@ -35,6 +35,7 @@ import {
   type LightTableCommandExecutionContext, type LightTableCommandRequest, type LightTableCommandResult,
   type LightTableCreateDocumentOptions,
   type LightTableGradeClipboardCapture,
+  type LightTablePixelClipboardCapture,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
@@ -293,6 +294,10 @@ export class LightTableCommandService {
 
   registerInputArtifact(file: File): LightTableArtifactMetadata { return this.artifacts.register(file, 'input'); }
   registerPixelClipboardArtifact(file: File): LightTableArtifactMetadata { return this.pixelClipboardCommands.register(file); }
+  matchingPixelClipboardCopyArtifact(sourceDocumentId: string,
+    bounds: LightTablePixelClipboardCapture['bounds']): LightTableArtifactMetadata | null {
+    return this.pixelClipboardCommands.matchingCopyArtifact(sourceDocumentId, bounds);
+  }
   registerGradeClipboardArtifact(capture: LightTableGradeClipboardCapture): LightTableArtifactMetadata {
     return this.gradeClipboardCommands.register(capture);
   }
@@ -468,6 +473,11 @@ export class LightTableCommandService {
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
     const state = this.workspace.getDocument(documentId)?.tasks.getSnapshot().tasks[taskId];
     const finishedAt = state?.finishedAt ?? null;
+    const recordedArtifact = this.taskArtifacts.get(taskId) ?? null;
+    const artifact = recordedArtifact && this.artifacts.query(recordedArtifact.id)
+      ? recordedArtifact
+      : null;
+    if (recordedArtifact && !artifact) this.taskArtifacts.delete(taskId);
     return state ? {
       id: state.id,
       status: state.status,
@@ -475,7 +485,7 @@ export class LightTableCommandService {
       error: state.error,
       elapsedMs: Math.max(0, (finishedAt ?? performance.now()) - state.startedAt),
       durationMs: finishedAt === null ? null : Math.max(0, finishedAt - state.startedAt),
-      artifact: this.taskArtifacts.get(taskId) ?? null
+      artifact
     } : null;
   }
 
@@ -1504,12 +1514,19 @@ export class LightTableCommandService {
       : psd ? 'Export Photoshop artifact'
         : svg ? 'Export SVG artifact'
         : bitmapFormat ? `Export ${bitmapFormat.toUpperCase()} artifact` : 'Export PNG artifact', async (task) => {
-      const exported = await operation(request.documentId);
+      const exported = psd
+        ? await this.ports.exportPsdArtifact(request.documentId, task.signal)
+        : await operation(request.documentId);
       task.throwIfCanceled();
       const file = exported instanceof File ? exported : exported.file;
       const findings = psd && !(exported instanceof File) ? exported.findings : [];
       const artifact = this.artifacts.register(file, kind, findings);
       this.taskArtifacts.set(task.id, artifact);
+      while (this.taskArtifacts.size > 128) {
+        const oldest = this.taskArtifacts.keys().next().value as string | undefined;
+        if (!oldest) break;
+        this.taskArtifacts.delete(oldest);
+      }
       this.actions.completeTask(task.id, { artifact });
       return artifact;
     });

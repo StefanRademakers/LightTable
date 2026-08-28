@@ -10,6 +10,7 @@ describe('DocumentImageResourceLifecycle', () => {
     const observations: string[] = [];
     const lifecycle = new DocumentImageResourceLifecycle({
       resourceState,
+      maximumTextureDimension: 16_384,
       teardown: [
         () => {
           observations.push(
@@ -31,6 +32,7 @@ describe('DocumentImageResourceLifecycle', () => {
     const second = vi.fn();
     const lifecycle = new DocumentImageResourceLifecycle({
       resourceState,
+      maximumTextureDimension: 16_384,
       teardown: [first, second]
     });
 
@@ -40,5 +42,20 @@ describe('DocumentImageResourceLifecycle', () => {
       second.mock.invocationCallOrder[0]
     );
     expect(resourceState.generation()).toBe(1);
+  });
+
+  it('rejects dimensions beyond the adapter limit before tearing down the current image', () => {
+    const resourceState = new DocumentResourceState();
+    resourceState.setDimensions(640, 480);
+    const teardown = vi.fn();
+    const lifecycle = new DocumentImageResourceLifecycle({
+      resourceState,
+      maximumTextureDimension: 8_192,
+      teardown: [teardown]
+    });
+
+    expect(() => lifecycle.begin(8_193, 100)).toThrow(/8,?192-pixel texture limit/);
+    expect(teardown).not.toHaveBeenCalled();
+    expect(resourceState.dimensions()).toEqual({ width: 640, height: 480 });
   });
 });

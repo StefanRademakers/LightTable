@@ -32,9 +32,9 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(34);
-    expect(createComputePipeline).toHaveBeenCalledTimes(6);
-    expect(Object.keys(first)).toHaveLength(40);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(38);
+    expect(createComputePipeline).toHaveBeenCalledTimes(9);
+    expect(Object.keys(first)).toHaveLength(47);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)

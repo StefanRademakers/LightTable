@@ -21,6 +21,7 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
   private readonly pending = new Map<number, PendingRequest>();
   private readonly preparedByKey = new Map<string, Promise<PreparedSmartSelectionSource>>();
   private readonly statusListeners = new Set<(status: SmartSelectionBackendStatus) => void>();
+  private disposed = false;
 
   async prepare(source: SmartSelectionSource, signal?: AbortSignal) {
     const cacheKey = [source.key, this.identity.modelId, this.identity.artifactRevision,
@@ -91,18 +92,21 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
 
   disposePreparedSource(source: PreparedSmartSelectionSource) { this.disposeSourceId(source.id); }
   dispose() {
-    this.worker?.postMessage({ type: 'dispose' } satisfies Sam2WorkerRequest);
+    this.disposed = true;
+    try { this.worker?.postMessage({ type: 'dispose' } satisfies Sam2WorkerRequest); } catch { /* terminate below */ }
     this.worker?.terminate();
     this.worker = null;
     for (const pending of this.pending.values()) pending.reject(new Error('Smart selection was canceled.'));
     this.pending.clear();
     this.preparedByKey.clear();
+    this.statusListeners.clear();
   }
   private disposeSourceId(sourceId: string) {
     this.preparedByKey.delete(sourceId);
-    this.worker?.postMessage({ type: 'dispose-source', sourceId } satisfies Sam2WorkerRequest);
+    try { this.worker?.postMessage({ type: 'dispose-source', sourceId } satisfies Sam2WorkerRequest); } catch { /* worker may already be gone */ }
   }
   private request(request: Sam2WorkerRequest, signal?: AbortSignal): Promise<Sam2WorkerResponse> {
+    if (this.disposed) return Promise.reject(new Error('Smart selection is closed.'));
     if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
     const worker = this.ensureWorker();
     const requestId = ++this.requestId;
@@ -111,7 +115,13 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
       signal?.addEventListener('abort', abort, { once: true });
       this.pending.set(requestId, { resolve: (result) => { signal?.removeEventListener('abort', abort); resolve(result); },
         reject: (reason) => { signal?.removeEventListener('abort', abort); reject(reason); } });
-      worker.postMessage({ ...request, requestId });
+      try {
+        worker.postMessage({ ...request, requestId });
+      } catch (reason) {
+        this.pending.delete(requestId);
+        signal?.removeEventListener('abort', abort);
+        reject(reason instanceof Error ? reason : new Error('Smart selection failed to start.'));
+      }
     });
   }
   private ensureWorker() {
@@ -139,6 +149,11 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
     };
     worker.onerror = (event) => {
       const error = new Error(event.message || 'SAM 2 worker failed.');
+      for (const pending of this.pending.values()) pending.reject(error);
+      this.pending.clear(); worker.terminate(); if (this.worker === worker) this.worker = null;
+    };
+    worker.onmessageerror = () => {
+      const error = new Error('SAM 2 worker returned an unreadable response.');
       for (const pending of this.pending.values()) pending.reject(error);
       this.pending.clear(); worker.terminate(); if (this.worker === worker) this.worker = null;
     };

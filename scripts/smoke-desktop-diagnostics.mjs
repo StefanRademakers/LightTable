@@ -7,10 +7,11 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 const root = path.resolve(import.meta.dirname, '..');
 const launch = await resolveDesktopTestLaunch(root);
 const outputDirectory = path.join(root, 'tmp', 'diagnostic-smoke');
+const testFiles = path.resolve(root, '..', 'LightTableTestFiles');
 const fixtures = [
   { kind: 'png', file: path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'area_closed.png') },
-  { kind: 'psd', file: 'D:\\TextTest.psd' },
-  { kind: 'pdf', file: 'D:\\FormulierPersoneel.pdf' }
+  { kind: 'psd', file: path.join(testFiles, 'RandomFiles', 'TextTest.psd') },
+  { kind: 'pdf', file: path.join(testFiles, 'PDFJSGIT', 'examples', 'learning', 'helloworld.pdf') }
 ];
 
 await mkdir(outputDirectory, { recursive: true });
@@ -48,7 +49,13 @@ for (const fixture of fixtures) {
       .waitFor({ state: 'visible', timeout: 45_000 });
     await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 45_000 });
-    await window.getByRole('tab', { name: 'Debug' }).click();
+    let debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
+    if (!await debugTab.count()) {
+      await window.getByRole('menuitem', { name: 'View', exact: true }).click();
+      await window.getByRole('menuitem', { name: 'Debug panel', exact: true }).click();
+      debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
+    }
+    await debugTab.click();
     const betaToggle = window.getByLabel('Record privacy-safe beta events locally');
     if (await betaToggle.isChecked()) throw new Error(`${fixture.kind}: beta diagnostics were not opt-in.`);
     await betaToggle.check();

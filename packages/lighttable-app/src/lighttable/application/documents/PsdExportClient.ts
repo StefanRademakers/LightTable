@@ -26,22 +26,35 @@ export const exportPsdDocument = async (
   layerAssets: readonly LayerAssetBlobs[],
   colorLookupAssets: readonly ColorLookupAssetBlob[],
   fileNameBase: string,
-  intent: PsdExportIntent = 'editable'
+  intent: PsdExportIntent = 'editable',
+  signal?: AbortSignal
 ): Promise<ExportedPsdDocument> => {
+  if (signal?.aborted) throw new DOMException('PSD export was canceled.', 'AbortError');
   if (document.width > 30_000 || document.height > 30_000) {
     throw new Error('PSB export remains validation-gated; PSD supports at most 30,000 px per side.');
   }
   const worker = new Worker(new URL('./psdExport.worker.ts', import.meta.url), { type: 'module' });
   const requestId = ++sequence;
+  let detachAbort = () => {};
   try {
     const response = await new Promise<PsdExportResponse>((resolve, reject) => {
+      const abort = () => {
+        worker.terminate();
+        reject(new DOMException('PSD export was canceled.', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abort, { once: true });
+      detachAbort = () => signal?.removeEventListener('abort', abort);
       worker.onmessage = (event: MessageEvent<PsdExportResponse>) => {
         if (event.data.requestId === requestId) resolve(event.data);
       };
       worker.onerror = (event) => reject(new Error(event.message || 'The PSD export worker failed.'));
-      worker.postMessage({
-        requestId, document, composite, layerAssets, colorLookupAssets, intent
-      } satisfies PsdExportRequest);
+      try {
+        worker.postMessage({
+          requestId, document, composite, layerAssets, colorLookupAssets, intent
+        } satisfies PsdExportRequest);
+      } catch (reason) {
+        reject(reason instanceof Error ? reason : new Error('The PSD export worker failed to start.'));
+      }
     });
     if (response.status === 'error') throw new Error(response.message);
     if (response.blockingWarnings.length > 0) {
@@ -72,6 +85,7 @@ export const exportPsdDocument = async (
       editableVectorLayers: response.editableVectorLayers
     };
   } finally {
+    detachAbort();
     worker.terminate();
   }
 };

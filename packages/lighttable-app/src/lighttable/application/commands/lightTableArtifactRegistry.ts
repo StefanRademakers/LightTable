@@ -49,6 +49,7 @@ interface ArtifactRecord {
 export interface LightTableArtifactRegistryOptions {
   readonly maximumArtifacts?: number;
   readonly maximumArtifactBytes?: number;
+  readonly maximumTotalBytes?: number;
 }
 
 /**
@@ -59,12 +60,15 @@ export interface LightTableArtifactRegistryOptions {
 export class LightTableArtifactRegistry {
   private readonly maximumArtifacts: number;
   private readonly maximumArtifactBytes: number;
+  private readonly maximumTotalBytes: number;
   private readonly records = new Map<string, ArtifactRecord>();
+  private totalBytes = 0;
   private sequence = 0;
 
   constructor(options: LightTableArtifactRegistryOptions = {}) {
     this.maximumArtifacts = options.maximumArtifacts ?? 32;
     this.maximumArtifactBytes = options.maximumArtifactBytes ?? 512 * 1024 * 1024;
+    this.maximumTotalBytes = options.maximumTotalBytes ?? 512 * 1024 * 1024;
   }
 
   register(
@@ -75,11 +79,7 @@ export class LightTableArtifactRegistry {
     if (file.size > this.maximumArtifactBytes) {
       throw new Error(`Artifact exceeds the ${this.maximumArtifactBytes}-byte limit.`);
     }
-    while (this.records.size >= this.maximumArtifacts) {
-      const oldest = this.records.keys().next().value as string | undefined;
-      if (!oldest) break;
-      this.records.delete(oldest);
-    }
+    this.makeRoom(file.size);
     const metadata: LightTableArtifactMetadata = Object.freeze({
       id: `artifact-${Date.now()}-${++this.sequence}`,
       kind,
@@ -92,6 +92,7 @@ export class LightTableArtifactRegistry {
         : {})
     });
     this.records.set(metadata.id, { metadata, file });
+    this.totalBytes += file.size;
     return metadata;
   }
 
@@ -99,11 +100,7 @@ export class LightTableArtifactRegistry {
     if (file.size > this.maximumArtifactBytes) {
       throw new Error(`Artifact exceeds the ${this.maximumArtifactBytes}-byte limit.`);
     }
-    while (this.records.size >= this.maximumArtifacts) {
-      const oldest = this.records.keys().next().value as string | undefined;
-      if (!oldest) break;
-      this.records.delete(oldest);
-    }
+    this.makeRoom(file.size);
     const metadata: LightTableArtifactMetadata = Object.freeze({
       id: `artifact-${Date.now()}-${++this.sequence}`,
       kind: 'render-preview',
@@ -114,6 +111,7 @@ export class LightTableArtifactRegistry {
       preview: Object.freeze({ ...preview })
     });
     this.records.set(metadata.id, { metadata, file });
+    this.totalBytes += file.size;
     return metadata;
   }
 
@@ -130,10 +128,26 @@ export class LightTableArtifactRegistry {
   }
 
   release(id: string): boolean {
+    const record = this.records.get(id);
+    if (!record) return false;
+    this.totalBytes -= record.file.size;
     return this.records.delete(id);
   }
 
   clear(): void {
     this.records.clear();
+    this.totalBytes = 0;
+  }
+
+  private makeRoom(byteLength: number): void {
+    if (byteLength > this.maximumTotalBytes) {
+      throw new Error(`Artifact exceeds the ${this.maximumTotalBytes}-byte registry budget.`);
+    }
+    while (this.records.size >= this.maximumArtifacts
+      || this.totalBytes + byteLength > this.maximumTotalBytes) {
+      const oldest = this.records.keys().next().value as string | undefined;
+      if (!oldest) break;
+      this.release(oldest);
+    }
   }
 }

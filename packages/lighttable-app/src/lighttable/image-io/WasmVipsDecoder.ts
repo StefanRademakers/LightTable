@@ -11,18 +11,21 @@ export class WasmVipsDecoder {
   private worker: Worker | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingDecode>();
+  private disposed = false;
 
   async decode(blob: Blob, signal?: AbortSignal): Promise<AdvancedDecodedImage> {
+    if (this.disposed) throw new Error('The precision-preserving image decoder is closed.');
     const capabilities = getAdvancedImageIoCapabilities();
     if (!capabilities.available) {
       throw new Error(`Precision-preserving image decode is unavailable: ${capabilities.reasons.join(' ')}`);
     }
     if (signal?.aborted) throw new DOMException('The image decode was cancelled.', 'AbortError');
 
-    const worker = this.getWorker();
     const requestId = ++this.requestId;
     const bytes = await blob.arrayBuffer();
+    if (this.disposed) throw new Error('The precision-preserving image decoder is closed.');
     if (signal?.aborted) throw new DOMException('The image decode was cancelled.', 'AbortError');
+    const worker = this.getWorker();
 
     return new Promise<AdvancedDecodedImage>((resolve, reject) => {
       const abort = () => {
@@ -49,11 +52,18 @@ export class WasmVipsDecoder {
         bytes,
         contentType: blob.type || 'application/octet-stream'
       };
-      worker.postMessage(request, [bytes]);
+      try {
+        worker.postMessage(request, [bytes]);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        signal?.removeEventListener('abort', abort);
+        reject(reason instanceof Error ? reason : new Error('Native bitmap decoding failed.'));
+      }
     });
   }
 
   destroy() {
+    this.disposed = true;
     this.resetWorker(new Error('The precision-preserving image decoder was closed.'));
   }
 

@@ -1,6 +1,7 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import type { LayerId } from '../../editor/document/documentTypes';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import { walkLayerTree } from '../../editor/document/layerTree';
 import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpuDocumentRenderer';
 import { DocumentPaletteExtractor } from './documentPalette';
 
@@ -32,9 +33,19 @@ export const useLayerPalette = (
   documentRef: RefObject<ImageDocument | null>
 ) => {
   const extractorsRef = useRef(new Map<LayerId, DocumentPaletteExtractor>());
+  const prunedRevisionRef = useRef<number | null>(null);
   return useCallback(async (layerId: LayerId, colorCount: number) => {
     const openingDocument = documentRef.current;
     if (!openingDocument) throw new Error('The document is not ready.');
+    if (prunedRevisionRef.current !== openingDocument.revision) {
+      const currentLayerIds = new Set(walkLayerTree(openingDocument.layers).map(({ node }) => node.id));
+      for (const [cachedLayerId, extractor] of extractorsRef.current) {
+        if (currentLayerIds.has(cachedLayerId)) continue;
+        extractor.clear();
+        extractorsRef.current.delete(cachedLayerId);
+      }
+      prunedRevisionRef.current = openingDocument.revision;
+    }
     let extractor = extractorsRef.current.get(layerId);
     if (!extractor) {
       extractor = new DocumentPaletteExtractor(async () => {

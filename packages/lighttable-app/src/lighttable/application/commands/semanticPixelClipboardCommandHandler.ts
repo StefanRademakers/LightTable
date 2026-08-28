@@ -27,6 +27,11 @@ export interface PixelClipboardArtifactStore {
 /** Owns discrete pixel-clipboard validation and private renderer fast-path tokens. */
 export class SemanticPixelClipboardCommandHandler {
   private readonly fastPasteTokens = new WeakMap<File, string>();
+  private latestClipboardCopy: {
+    readonly sourceDocumentId: DocumentSessionId;
+    readonly bounds: LightTablePixelClipboardCapture['bounds'];
+    readonly artifact: LightTableArtifactMetadata;
+  } | null = null;
 
   constructor(private readonly artifacts: PixelClipboardArtifactStore) {}
 
@@ -34,18 +39,27 @@ export class SemanticPixelClipboardCommandHandler {
     return this.artifacts.register(file, 'pixel-clipboard');
   }
 
+  matchingCopyArtifact(sourceDocumentId: string, bounds: LightTablePixelClipboardCapture['bounds']) {
+    const copy = this.latestClipboardCopy;
+    if (!copy || copy.sourceDocumentId !== sourceDocumentId
+      || copy.bounds.x !== bounds.x || copy.bounds.y !== bounds.y
+      || copy.bounds.width !== bounds.width || copy.bounds.height !== bounds.height
+      || this.artifacts.query(copy.artifact.id)?.kind !== 'pixel-clipboard') return null;
+    return copy.artifact;
+  }
+
   async dispatch(command: 'selection.copyPixels' | 'selection.cutPixels' | 'selection.pastePixels', parameters: unknown,
     documentId: DocumentSessionId, ports: LightTableCommandPorts): Promise<DispatchResult & {
       readonly mutated?: boolean
     }> {
-    if (command === 'selection.copyPixels') return this.copy(parameters,
+    if (command === 'selection.copyPixels') return this.copy(parameters, documentId,
       ports.copyPixels ? (value) => ports.copyPixels!(documentId, value) : undefined);
     if (command === 'selection.cutPixels') {
       if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)
         || Object.keys(parameters).length !== 0) {
         return { ok: false, code: 'invalid-parameters', message: 'Cut Pixels does not accept parameters.' };
       }
-      const result = await this.copy({ source: 'active-layer' },
+      const result = await this.copy({ source: 'active-layer' }, documentId,
         ports.cutPixels ? () => ports.cutPixels!(documentId) : undefined);
       return result.ok ? { ...result, mutated: true } : result;
     }
@@ -55,7 +69,8 @@ export class SemanticPixelClipboardCommandHandler {
     return result.ok ? { ...result, mutated: true } : result;
   }
 
-  async copy(parameters: unknown, execute: ((command: SemanticCopyPixelsCommand) =>
+  async copy(parameters: unknown, documentId: DocumentSessionId,
+    execute: ((command: SemanticCopyPixelsCommand) =>
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>) | undefined
   ): Promise<DispatchResult> {
     const command = parseSemanticCopyPixelsCommand(parameters);
@@ -77,6 +92,7 @@ export class SemanticPixelClipboardCommandHandler {
       }
       const artifact = this.register(file);
       if (capture.fastPasteToken) this.fastPasteTokens.set(file, capture.fastPasteToken);
+      this.latestClipboardCopy = { sourceDocumentId: documentId, bounds, artifact };
       return { ok: true, value: { source: command.source, bounds, artifact } };
     } catch (reason) {
       return { ok: false, code: 'execution-failed',

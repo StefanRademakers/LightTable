@@ -66,7 +66,19 @@ export class DocumentOpenController<
     request: DocumentOpenRequest<Renderer>,
     options: DocumentOpenOptions = {}
   ): Promise<void> {
-    const reusableRenderer = options.reuseRenderer ? this.renderer : null;
+    // Reusing the presentation engine is safe only after the previous source
+    // transaction has settled. A canceled decoder may still be unwinding an
+    // already-started layer-asset upload even though its result can no longer
+    // publish. Letting a newer document mutate that same renderer concurrently
+    // makes GPU ownership depend on promise timing. In that uncommon overlap,
+    // retire the engine and start clean; ordinary settled tab switches retain
+    // the fast renderer-reuse path.
+    const openInFlight = this.tasks.getSnapshot().activeTaskIds.some((id) =>
+      this.tasks.getSnapshot().tasks[id]?.kind === 'open'
+    );
+    const reusableRenderer = options.reuseRenderer && !openInFlight
+      ? this.renderer
+      : null;
     if (reusableRenderer) this.cancelOpen();
     else this.close();
     const token = ++this.token;

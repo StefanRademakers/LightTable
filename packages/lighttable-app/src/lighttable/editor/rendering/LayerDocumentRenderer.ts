@@ -199,6 +199,10 @@ export class LayerDocumentRenderer {
     return this.runtime.textLayerCoordinator.beginTextInput(layerId, startedAt);
   }
 
+  resetTextInputTelemetry() {
+    this.runtime.textLayerCoordinator.resetInputLatencyTelemetry();
+  }
+
   markTextFrameSubmitted(document: ImageDocument, submittedAt: number) {
     return this.runtime.textLayerCoordinator.markFrameSubmitted(document, submittedAt);
   }

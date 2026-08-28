@@ -276,7 +276,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
       <SquareIconButton className="lighttable-color-picker-prototype__sampler" icon={<img src={lightTableIcon('tool_sample_color.png')} alt="" />}
         aria-label="Sample color from screen" disabled={sampling} onClick={() => { setSampling(true); void sampleScreenColor().then((sampled) => {
           const parsed = sampled ? colorPickerParseHex(sampled, value.a) : null; if (parsed) onChange(parsed);
-        }).finally(() => setSampling(false)); }} />
+        }).catch(() => undefined).finally(() => setSampling(false)); }} />
       <label><FormInput value={hex} aria-label="Hex color" onChange={(event) => { setHex(event.currentTarget.value); const parsed = colorPickerParseHex(event.currentTarget.value, value.a); if (parsed) onChange(parsed); }} /><span>#</span></label>
       {['R', 'G', 'B'].map((label, channel) => <label key={label}><FormInput value={rgb[channel]} inputMode="numeric" aria-label={`${label} color channel`}
         onChange={(event) => { const draft = event.currentTarget.value; setRgb((current) => current.map((item, i) => i === channel ? draft : item)); const number = Number(draft); if (!Number.isInteger(number) || number < 0 || number > 255) return; const channels = [value.r, value.g, value.b]; channels[channel] = number / 255; onChange({ r: channels[0], g: channels[1], b: channels[2], a: value.a }); }} /><span>{label}</span></label>)}

@@ -5,9 +5,11 @@ import vipsWasmUrl from 'wasm-vips/vips.wasm?url';
 import type { AdvancedSourceImageDescriptor, DecodedPixelStorage } from './types';
 import type { WasmVipsWorkerRequest, WasmVipsWorkerResponse } from './wasmVipsProtocol';
 import { nativeBitmapFormat } from './nativeBitmapFormats';
-import { halfFloatToNormalizedU16 } from './halfFloatPixels';
+import { halfFloatToNormalizedU16, normalizedU16ToHalfFloat } from './halfFloatPixels';
 
 let vipsPromise: ReturnType<typeof Vips> | null = null;
+const MAXIMUM_PIXEL_EDGE = 32_768;
+const MAXIMUM_PIXEL_COUNT = 268_435_456;
 
 const getVips = () => {
   vipsPromise ??= Vips({
@@ -51,6 +53,14 @@ const decode = async (
     const loaded = own(vips.Image.newFromBuffer(new Uint8Array(bytes), '', {
       access: 'sequential'
     }));
+    if (!Number.isSafeInteger(loaded.width) || !Number.isSafeInteger(loaded.height)
+      || loaded.width < 1 || loaded.height < 1
+      || loaded.width > MAXIMUM_PIXEL_EDGE || loaded.height > MAXIMUM_PIXEL_EDGE
+      || loaded.width * loaded.height > MAXIMUM_PIXEL_COUNT) {
+      throw new Error(
+        `Image dimensions ${loaded.width} × ${loaded.height} exceed LightTable's safe raster decode limit.`
+      );
+    }
     const sourceFormat = loaded.format;
     const sourceInterpretation = loaded.interpretation;
     const sourceStorage = storageForFormat(sourceFormat);
@@ -58,6 +68,13 @@ const decode = async (
       throw new Error(`Floating-point ${sourceFormat} image ingest is not enabled yet.`);
     }
     const fields = new Set(Array.from(loaded.getFields()));
+    const pageCount = fields.has('n-pages') ? loaded.getInt('n-pages') : 1;
+    if (pageCount > 1) {
+      throw new Error(
+        `This ${pageCount}-page image cannot be opened safely yet. `
+        + 'LightTable does not silently discard additional pages.'
+      );
+    }
     const icc = fields.has('icc-profile-data') ? copyBuffer(loaded.getBlob('icc-profile-data')) : null;
     const oriented = own(loaded.autorot());
     // Convert embedded device profiles to the working sRGB device space before
@@ -90,14 +107,20 @@ const decode = async (
     }
 
     const memory = rgba.writeToMemory();
-    const pixels = copyBuffer(memory);
+    const pixels = storage === 'u16'
+      ? copyBuffer(normalizedU16ToHalfFloat(new Uint16Array(
+          memory.buffer,
+          memory.byteOffset,
+          memory.byteLength / Uint16Array.BYTES_PER_ELEMENT
+        )))
+      : copyBuffer(memory);
     return {
       pixels,
       descriptor: {
         width: rgba.width,
         height: rgba.height,
         channels: 4,
-        storage,
+        storage: storage === 'u16' ? 'f16-display' : storage,
         colorSpace: 'srgb',
         transferFunction: 'srgb',
         alphaMode: loaded.hasAlpha() ? 'straight' : 'none',

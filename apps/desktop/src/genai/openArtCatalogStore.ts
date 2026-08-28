@@ -1,9 +1,11 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { GenAiModelSummary, GenAiWorkflowDefinition } from '@lighttable/genai-core';
 import { atomicWriteFile } from '../atomicFileWriter';
+import { readBoundedJsonFile } from '../boundedJsonFile';
 
 const FORMAT = 'lighttable-genai-catalog';
+const MAX_CATALOG_BYTES = 16 * 1024 * 1024;
 
 interface StoredCatalog {
   readonly format: typeof FORMAT;
@@ -26,7 +28,9 @@ export class OpenArtCatalogStore {
 
   async load(): Promise<StoredCatalog> {
     try {
-      const value = JSON.parse(await readFile(this.filePath, 'utf8')) as Partial<StoredCatalog>;
+      const value = await readBoundedJsonFile(
+        this.filePath, MAX_CATALOG_BYTES, 'OpenArt catalog cache'
+      ) as Partial<StoredCatalog>;
       if (value.format !== FORMAT || value.source !== 'openart-mcp'
         || !Array.isArray(value.models) || !value.workflows || typeof value.workflows !== 'object') {
         return emptyCatalog();
@@ -34,7 +38,9 @@ export class OpenArtCatalogStore {
       const catalog = value as StoredCatalog;
       return {
         ...catalog,
-        workflows: Object.fromEntries(Object.entries(catalog.workflows).filter(([, workflow]) => usableWorkflow(workflow)))
+        models: catalog.models.slice(0, 1_000),
+        workflows: Object.fromEntries(Object.entries(catalog.workflows)
+          .filter(([, workflow]) => usableWorkflow(workflow)).slice(0, 2_000))
       };
     } catch (reason) {
       if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') return emptyCatalog();
@@ -44,7 +50,7 @@ export class OpenArtCatalogStore {
 
   async saveModels(models: readonly GenAiModelSummary[]): Promise<void> {
     const current = await this.load();
-    await this.save({ ...current, models });
+    await this.save({ ...current, models: models.slice(0, 1_000) });
   }
 
   async saveWorkflow(workflow: GenAiWorkflowDefinition): Promise<void> {
@@ -59,9 +65,11 @@ export class OpenArtCatalogStore {
 
   private async save(value: StoredCatalog): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
+    const bytes = Buffer.from(`${JSON.stringify({ ...value, updatedAt: new Date().toISOString() }, null, 2)}\n`, 'utf8');
+    if (bytes.byteLength > MAX_CATALOG_BYTES) throw new Error('OpenArt catalog cache exceeds the 16 MiB safety limit.');
     await atomicWriteFile({
       targetPath: this.filePath,
-      bytes: Buffer.from(`${JSON.stringify({ ...value, updatedAt: new Date().toISOString() }, null, 2)}\n`, 'utf8')
+      bytes
     });
   }
 }

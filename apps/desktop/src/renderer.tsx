@@ -241,14 +241,15 @@ const desktopHost: LightTableHost = {
   listSystemFonts: () => window.lightTableDesktop.listSystemFonts(),
   clipboard: createLightTableImageClipboard({
     async writePng(blob) {
-      await window.lightTableDesktop.writeClipboardPng(
+      return window.lightTableDesktop.writeClipboardPng(
         new Uint8Array(await blob.arrayBuffer())
       );
     },
     async readImage() {
       const image = await window.lightTableDesktop.readClipboardImage();
       return image
-        ? new Blob([Uint8Array.from(image.bytes).buffer], { type: image.mediaType })
+        ? { blob: new Blob([Uint8Array.from(image.bytes).buffer], { type: image.mediaType }),
+            identity: image.identity }
         : null;
     }
   }),
@@ -339,6 +340,14 @@ const desktopHost: LightTableHost = {
   },
   closeApplication() {
     return window.lightTableDesktop.closeApplication();
+  },
+  subscribeApplicationCloseRequests(listener) {
+    return window.lightTableDesktop.onApplicationCloseRequested(() => {
+      void listener().then(
+        (approved) => window.lightTableDesktop.respondApplicationCloseRequest(approved),
+        () => window.lightTableDesktop.respondApplicationCloseRequest(false)
+      ).catch(() => undefined);
+    });
   },
   subscribeFullscreen(listener) {
     return window.lightTableDesktop.onFullscreenChange(listener);

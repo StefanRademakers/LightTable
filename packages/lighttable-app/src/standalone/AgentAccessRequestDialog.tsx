@@ -23,7 +23,9 @@ export const AgentAccessRequestDialog: React.FC<{
   useEffect(() => {
     if (!service) return;
     let canceled = false;
-    void service.tunnelStatus().then((value) => { if (!canceled) setStatus(value); });
+    void service.tunnelStatus().then((value) => { if (!canceled) setStatus(value); }).catch((reason) => {
+      if (!canceled) setError(reason instanceof Error ? reason.message : String(reason));
+    });
     const unsubscribe = service.subscribeTunnel((value) => { if (!canceled) setStatus(value); });
     return () => { canceled = true; unsubscribe(); };
   }, [service]);

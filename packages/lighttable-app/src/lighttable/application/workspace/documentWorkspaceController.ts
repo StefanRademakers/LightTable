@@ -102,8 +102,11 @@ export class DocumentWorkspaceController<TSource> {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.workspace.dispose();
-    this.sources.clear();
+    try {
+      this.workspace.dispose();
+    } finally {
+      this.sources.clear();
+    }
   }
 
   private assertUsable(): void {

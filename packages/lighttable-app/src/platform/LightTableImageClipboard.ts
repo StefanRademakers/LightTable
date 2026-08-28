@@ -20,8 +20,11 @@ export interface LightTableImageClipboard {
 }
 
 export interface LightTableImageClipboardTransport {
-  writePng(blob: Blob): Promise<void>;
-  readImage(): Promise<Blob | null>;
+  writePng(blob: Blob): Promise<{ readonly identity?: string } | void>;
+  readImage(): Promise<Blob | {
+    readonly blob: Blob;
+    readonly identity?: string;
+  } | null>;
 }
 
 const fingerprint = async (blob: Blob) => {
@@ -40,27 +43,38 @@ export const createLightTableImageClipboard = (
   transport: LightTableImageClipboardTransport
 ): LightTableImageClipboard => {
   let localImage: {
-    fingerprint: string;
+    fingerprint?: string;
+    transportIdentity?: string;
     placement: LightTableClipboardImagePlacement;
   } | null = null;
 
   return {
     async writeImage(blob, placement) {
-      await transport.writePng(blob);
+      const written = await transport.writePng(blob);
+      const transportIdentity = written?.identity;
       localImage = {
-        fingerprint: await fingerprint(blob),
+        ...(transportIdentity ? { transportIdentity } : { fingerprint: await fingerprint(blob) }),
         placement
       };
     },
     async readImage() {
-      const blob = await transport.readImage();
-      if (!blob) return null;
-      const imageFingerprint = await fingerprint(blob);
+      const read = await transport.readImage();
+      if (!read) return null;
+      const blob = read instanceof Blob ? read : read.blob;
+      const transportIdentity = read instanceof Blob ? undefined : read.identity;
+      let placement: LightTableClipboardImagePlacement | null = null;
+      if (localImage) {
+        if (localImage.transportIdentity && transportIdentity
+          && localImage.transportIdentity === transportIdentity) {
+          placement = localImage.placement;
+        } else if (localImage.fingerprint
+          && localImage.fingerprint === await fingerprint(blob)) {
+          placement = localImage.placement;
+        }
+      }
       return {
         blob,
-        placement: localImage?.fingerprint === imageFingerprint
-          ? localImage.placement
-          : null
+        placement
       };
     }
   };

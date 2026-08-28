@@ -64,9 +64,10 @@ describe('createDocumentRendererLifecycleBridge', () => {
     expect(publishTimings).toHaveBeenCalledTimes(2);
   });
 
-  it('rejects late renderer events and settlement after replacement', () => {
+  it('publishes current open failures and rejects late events after replacement', () => {
     let current = true;
     const publishError = vi.fn();
+    const publishOpenFailure = vi.fn();
     const publishLoading = vi.fn();
     const publishGpuMemory = vi.fn();
     const lifecycle = new DocumentRendererLifecycle();
@@ -91,12 +92,18 @@ describe('createDocumentRendererLifecycleBridge', () => {
       publishHistogram: vi.fn(),
       publishGpuMemory,
       publishError,
+      publishOpenFailure,
       publishScopeError: vi.fn(),
       publishFeatureError: vi.fn(),
       publishTimings: vi.fn(),
       publishLoading
     });
 
+    bridge.onFailed(new Error('current failure'));
+    expect(publishError).toHaveBeenCalledWith('current failure');
+    expect(publishOpenFailure).toHaveBeenCalledWith('current failure');
+    publishError.mockClear();
+    publishOpenFailure.mockClear();
     current = false;
     bridge.callbacks.onGpuMemoryEstimate?.(100);
     bridge.callbacks.onDeviceLost?.('lost');
@@ -105,6 +112,7 @@ describe('createDocumentRendererLifecycleBridge', () => {
 
     expect(publishGpuMemory).not.toHaveBeenCalled();
     expect(publishError).not.toHaveBeenCalled();
+    expect(publishOpenFailure).not.toHaveBeenCalled();
     expect(publishLoading).not.toHaveBeenCalled();
   });
 

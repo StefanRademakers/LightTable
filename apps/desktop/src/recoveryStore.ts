@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, unlink } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   LightTableRecoveryEntry,
@@ -12,6 +12,8 @@ import { atomicWriteFile } from './atomicFileWriter';
 
 const MAGIC = new TextEncoder().encode('LTRECOV1');
 const HEADER_SIZE = 12;
+const MAX_METADATA_BYTES = 1024 * 1024;
+const MAX_ARTIFACT_BYTES = 512 * 1024 * 1024;
 const FILE_PATTERN = /^([a-zA-Z0-9-]{8,128})\.ltrecovery$/;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1_000;
 
@@ -102,6 +104,9 @@ const parseRecoveryRecord = (value: unknown): LightTableRecoveryRecord => {
   if (record.wasActive !== undefined && typeof record.wasActive !== 'boolean') {
     throw new Error('Recovery wasActive is invalid.');
   }
+  if (Number(record.artifactByteLength) > MAX_ARTIFACT_BYTES) {
+    throw new Error('Recovery artifact exceeds the 512 MiB safety limit.');
+  }
   return record as LightTableRecoveryRecord;
 };
 
@@ -133,7 +138,7 @@ const decodeEnvelope = (
     bytes.byteLength
   ).getUint32(8, true);
   const artifactOffset = HEADER_SIZE + metadataLength;
-  if (metadataLength <= 0 || artifactOffset > bytes.byteLength) {
+  if (metadataLength <= 0 || metadataLength > MAX_METADATA_BYTES || artifactOffset > bytes.byteLength) {
     throw new Error('Recovery metadata boundary is invalid.');
   }
   const record = parseRecoveryRecord(JSON.parse(metadataCodec.decode(
@@ -152,6 +157,68 @@ const decodeEnvelope = (
       type: record.mediaType
     })
   };
+};
+
+const readEnvelopeRecordDetails = async (
+  filePath: string,
+  metadataCodec: DesktopRecoveryMetadataCodec
+): Promise<{ readonly record: LightTableRecoveryRecord; readonly artifactOffset: number }> => {
+  const file = await open(filePath, 'r');
+  try {
+    const readExactly = async (target: Uint8Array, position: number): Promise<void> => {
+      let offset = 0;
+      while (offset < target.byteLength) {
+        const read = await file.read(target, offset, target.byteLength - offset, position + offset);
+        if (read.bytesRead === 0) throw new Error('Recovery envelope is truncated.');
+        offset += read.bytesRead;
+      }
+    };
+    const header = new Uint8Array(HEADER_SIZE);
+    await readExactly(header, 0);
+    if (!MAGIC.every((byte, index) => header[index] === byte)) {
+      throw new Error('Recovery envelope header is invalid.');
+    }
+    const metadataLength = new DataView(header.buffer).getUint32(8, true);
+    if (metadataLength < 1 || metadataLength > MAX_METADATA_BYTES) {
+      throw new Error('Recovery metadata boundary is invalid.');
+    }
+    const metadata = new Uint8Array(metadataLength);
+    await readExactly(metadata, HEADER_SIZE);
+    const record = parseRecoveryRecord(JSON.parse(metadataCodec.decode(metadata)));
+    const fileStats = await file.stat();
+    if (!fileStats.isFile()
+      || fileStats.size !== HEADER_SIZE + metadataLength + record.artifactByteLength) {
+      throw new Error('Recovery artifact length does not match its record.');
+    }
+    return { record, artifactOffset: HEADER_SIZE + metadataLength };
+  } finally {
+    await file.close();
+  }
+};
+
+const validateEnvelopeFile = async (
+  filePath: string,
+  metadataCodec: DesktopRecoveryMetadataCodec
+): Promise<void> => {
+  const { record, artifactOffset } = await readEnvelopeRecordDetails(filePath, metadataCodec);
+  const file = await open(filePath, 'r');
+  const hash = createHash('sha256');
+  const chunk = new Uint8Array(1024 * 1024);
+  let offset = 0;
+  try {
+    while (offset < record.artifactByteLength) {
+      const length = Math.min(chunk.byteLength, record.artifactByteLength - offset);
+      const read = await file.read(chunk, 0, length, artifactOffset + offset);
+      if (read.bytesRead === 0) throw new Error('Recovery artifact is truncated.');
+      hash.update(chunk.subarray(0, read.bytesRead));
+      offset += read.bytesRead;
+    }
+  } finally {
+    await file.close();
+  }
+  if (hash.digest('hex') !== record.artifactChecksumSha256) {
+    throw new Error('Recovery artifact checksum does not match its record.');
+  }
 };
 
 export class DesktopRecoveryStore {
@@ -188,9 +255,7 @@ export class DesktopRecoveryStore {
         await (this.dependencies.atomicWrite ?? atomicWriteFile)({
           targetPath: this.filePath(request.record.recoveryId),
           bytes: envelope,
-          validate: async (temporaryPath) => {
-            decodeEnvelope(new Uint8Array(await readFile(temporaryPath)), this.metadataCodec);
-          }
+          validate: (temporaryPath) => validateEnvelopeFile(temporaryPath, this.metadataCodec)
         });
         await this.dependencies.injectFault?.('prune');
         await this.prune();
@@ -291,10 +356,7 @@ export class DesktopRecoveryStore {
       const match = name.match(FILE_PATTERN);
       if (!match) continue;
       try {
-        records.push(decodeEnvelope(
-          new Uint8Array(await readFile(path.join(this.root, name))),
-          this.metadataCodec
-        ).record);
+        records.push((await readEnvelopeRecordDetails(path.join(this.root, name), this.metadataCodec)).record);
       } catch (reason) {
         rejections.push({
           recoveryId: match[1] ?? null,

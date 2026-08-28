@@ -3,6 +3,7 @@ import { access, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2]
@@ -11,7 +12,7 @@ const runId = new Date().toISOString().replaceAll(/[:.]/g, '-');
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'recovery-smoke', runId);
 const userDataPath = path.join(outputDirectory, 'user-data');
 const savedFile = path.join(outputDirectory, 'TextTest-recovered-lighttable.png');
-const diagnostics = { sourceFile, outputDirectory, stages: [], pageErrors: [] };
+const diagnostics = { sourceFile, outputDirectory, stages: [], pageErrors: [], console: [] };
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const desktopLaunch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
@@ -36,6 +37,10 @@ const launch = async (environment = {}) => {
   });
   const window = await app.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => diagnostics.pageErrors.push(error.stack ?? error.message));
+  window.on('console', (message) => {
+    const text = message.text();
+    if (/recovery|checkpoint/i.test(text)) diagnostics.console.push(`${message.type()}: ${text}`);
+  });
   return { app, window };
 };
 
@@ -54,17 +59,28 @@ try {
   await first.window.getByRole('button', { name: 'Open', exact: true }).click();
   await first.window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 45_000 });
-  await first.window.getByRole('button', { name: 'Rectangle (U)' }).click();
-  const viewport = first.window.locator('.lighttable-viewport');
-  const box = await viewport.boundingBox();
-  if (!box) throw new Error('The source document has no interactive viewport.');
-  await first.window.mouse.move(box.x + box.width * 0.67, box.y + box.height * 0.68);
-  await first.window.mouse.down();
-  await first.window.mouse.move(box.x + box.width * 0.77, box.y + box.height * 0.76, { steps: 12 });
-  await first.window.mouse.up();
-  await first.window.waitForFunction(() =>
-    document.querySelector('.lighttable-toolbar__status')?.textContent?.includes('Recovery checkpoint available'),
-  undefined, { timeout: 30_000 });
+  const driver = await attachLightTableAutomation(first.window);
+  const documentId = (await driver.queryWorkspace()).activeDocumentId;
+  if (!documentId) throw new Error('Recovery smoke opened no active document.');
+  await driver.execute(documentId, 'vector.create', {
+    name: 'Recovery rectangle',
+    primitive: { kind: 'rectangle', x: 64, y: 48, width: 160, height: 96,
+      cornerRadii: [12, 12, 12, 12] },
+    style: { fill: { type: 'solid', color: [0.2, 0.55, 0.95, 1] } }
+  });
+  diagnostics.stages.push({ name: 'dirty-command', document: await driver.queryDocument(documentId),
+    layers: await driver.queryLayers(documentId) });
+  const recoveryDirectory = path.join(userDataPath, 'recovery-v1');
+  const checkpointDeadline = Date.now() + 45_000;
+  while (Date.now() < checkpointDeadline) {
+    const records = await readdir(recoveryDirectory).catch(() => []);
+    if (records.some((name) => name.endsWith('.ltrecovery'))) break;
+    await first.window.waitForTimeout(100);
+  }
+  const checkpointRecords = await readdir(recoveryDirectory).catch(() => []);
+  if (!checkpointRecords.some((name) => name.endsWith('.ltrecovery'))) {
+    throw new Error('The dirty document did not persist a recovery checkpoint.');
+  }
   const editedLayers = await layerProjection(first.window);
   diagnostics.stages.push({ name: 'checkpoint', editedLayers });
   first.app.process().kill();
@@ -106,7 +122,6 @@ try {
     !document.querySelector('.lighttable-document-tab--active')?.textContent?.includes('*'),
   undefined, { timeout: 30_000 });
   await access(savedFile);
-  const recoveryDirectory = path.join(userDataPath, 'recovery-v1');
   let remaining = await readdir(recoveryDirectory).catch(() => []);
   for (let attempt = 0; attempt < 40 && remaining.some((name) => name.endsWith('.ltrecovery')); attempt += 1) {
     await second.window.waitForTimeout(100);

@@ -45,10 +45,10 @@
       "decision": "Retain cohesion unless a shader family gains its own pipeline and verification lifecycle."
     },
     "packages/lighttable-app/src/lighttable/editor/ui/LayerPanel.tsx": {
-      "baselineLines": 1652,
+      "baselineLines": 1915,
       "classification": "mixed-authority",
-      "responsibilities": ["layer tree presentation", "selection and visibility actions", "drag and drop", "context menus and thumbnails"],
-      "lifecycleOwners": ["panel mount", "drag session", "thumbnail and animation-frame updates"],
+      "responsibilities": ["layer tree presentation", "selection and visibility gestures", "tree drag and drop", "context menus and thumbnails"],
+      "lifecycleOwners": ["panel mount and unmount", "visibility-column and tree drag sessions", "thumbnail and animation-frame updates"],
       "productRisk": "high",
       "decision": "Separate tree interaction, menu and thumbnail lifecycles behind panel-owned hooks/controllers."
     },
@@ -155,6 +155,30 @@
       "lifecycleOwners": ["single document compositor", "explicit revision-keyed caches", "one encoded frame"],
       "productRisk": "high",
       "decision": "Retain one composition authority. Backend renderers own their resources; this class owns ordering and cache invalidation and must expose explicit destruction and telemetry."
+    },
+    "packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts": {
+      "baselineLines": 1024,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["stable editor-facing document renderer facade", "delegation to the document-scoped GPU service graph", "selection, raster, export and thumbnail operation routing"],
+      "lifecycleOwners": ["one document renderer runtime", "document image resource generation", "explicit terminal GPU cleanup"],
+      "productRisk": "high",
+      "decision": "Keep the facade cohesive and behavior-thin; new GPU state belongs in the existing runtime service owners, not in this API surface."
+    },
+    "packages/lighttable-app/src/lighttable/editor/rendering/SelectionRasterizer.ts": {
+      "baselineLines": 1507,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["selection-mask GPU operations", "Magic Wand and Select Similar execution", "selection paint and morphology", "temporary submitted-resource retirement"],
+      "lifecycleOwners": ["document selection texture store", "one submitted GPU operation", "device-level lazy pipeline warmup resources"],
+      "productRisk": "high",
+      "decision": "Retain one selection raster authority while moving only independently owned algorithms out; every submitted temporary must release on both queue completion and device loss."
+    },
+    "packages/lighttable-app/src/lighttable/application/tools/selection/useSelectionSessionController.ts": {
+      "baselineLines": 1272,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["selection pointer and polygon gestures", "selection paint and translation transactions", "selection-only history publication", "stale async renderer-result rejection"],
+      "lifecycleOwners": ["mounted editor selection session", "active pointer or polygon gesture", "document-and-renderer-bound async transaction"],
+      "productRisk": "high",
+      "decision": "Keep gesture, publication and history ordering under one session authority; extract a tool family only with the same document/renderer staleness and cancellation contract."
     },
     "packages/lighttable-app/src/lighttable/editor/rendering/VectorLayerRenderer.ts": {
       "baselineLines": 1325,

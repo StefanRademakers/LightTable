@@ -94,4 +94,49 @@ describe('DocumentOpenController', () => {
     controller.close();
     expect(target.destroy).toHaveBeenCalledOnce();
   });
+
+  it('replaces the renderer when a newer open overlaps an unfinished hydration', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController(
+      new DocumentTaskRegistry('application-editor' as DocumentSessionId),
+      lifecycle
+    );
+    const first = renderer();
+    const replacement = renderer();
+    const pendingHydration = deferred<void>();
+    const hydrationStarted = deferred<void>();
+    const createRenderer = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(replacement);
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['initial']),
+      hydrate: vi.fn()
+    }, { reuseRenderer: true });
+
+    const overlapping = controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['overlapping']),
+      hydrate: () => {
+        hydrationStarted.resolve();
+        return pendingHydration.promise;
+      }
+    }, { reuseRenderer: true });
+    await hydrationStarted.promise;
+
+    const newest = controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['newest']),
+      hydrate: vi.fn()
+    }, { reuseRenderer: true });
+    pendingHydration.resolve();
+    await Promise.all([overlapping, newest]);
+
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(createRenderer).toHaveBeenCalledTimes(2);
+    expect(controller.getRenderer()).toBe(replacement);
+    expect(replacement.destroy).not.toHaveBeenCalled();
+    controller.close();
+  });
 });

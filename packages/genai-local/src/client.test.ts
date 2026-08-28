@@ -33,4 +33,19 @@ describe('LocalAiProviderClient', () => {
     })).resolves.toEqual(new Uint8Array([1, 2, 3]));
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer private-session-token');
   });
+
+  it('rejects an oversized result before reading its response body', async () => {
+    const client = new LocalAiProviderClient({
+      baseUrl: 'http://127.0.0.1:7862',
+      fetch: async () => new Response(new Uint8Array([1]), {
+        status: 200,
+        headers: { 'content-length': String(128 * 1024 * 1024 + 1) }
+      })
+    });
+    await expect(client.downloadResult({
+      jobId: 'job-1',
+      images: [{ id: 'image-1', url: '/api/v1/files/job-1/0', mimeType: 'image/png', width: 16, height: 16, hasAlpha: false }],
+      generation: { providerId: 'local', providerVersion: '0.1.0', modelId: 'flux' }
+    })).rejects.toThrow(/128 MiB/);
+  });
 });

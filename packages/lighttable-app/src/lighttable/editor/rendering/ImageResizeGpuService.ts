@@ -3,6 +3,7 @@ import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
 import type { LayerRuntimeStore, RasterLayerRuntime } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
+import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 const RESIZE_SETTINGS_FLOATS = 8;
@@ -234,7 +235,7 @@ export class ImageResizeGpuService {
       selectionExchange = { before, after, current: 'after' };
     }
     this.options.device.queue.submit([encoder.finish()]);
-    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
       transients.forEach((texture) => texture.destroy());
       buffers.forEach((buffer) => buffer.destroy());
     });
@@ -304,7 +305,7 @@ export class ImageResizeGpuService {
         // A history entry can be evicted while the detached snapshot still
         // participates in a submitted frame. Defer destruction until all
         // preceding GPU work is complete instead of relying on timing.
-        void this.options.device.queue.onSubmittedWorkDone().then(() => {
+        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
           detachedTextures.forEach((texture) => texture.destroy());
         });
       }

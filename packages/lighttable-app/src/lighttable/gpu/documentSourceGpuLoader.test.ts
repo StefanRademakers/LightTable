@@ -35,6 +35,7 @@ describe('DocumentSourceGpuLoader native provenance', () => {
   it('retains the decoder bit depth and source format on the fast path', async () => {
     const texture = {} as GPUTexture;
     const device = {
+      limits: { maxTextureDimension2D: 16_384 },
       createTexture: vi.fn(() => texture),
       queue: { copyExternalImageToTexture: vi.fn() }
     } as unknown as GPUDevice;

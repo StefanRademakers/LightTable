@@ -285,6 +285,12 @@ export class TextLayerRenderCoordinator {
     return true;
   }
 
+  resetInputLatencyTelemetry() {
+    if (this.disposed) return;
+    this.inputLatency.reset();
+    this.publishChanged();
+  }
+
   markFrameSubmitted(document: ImageDocument, submittedAt: number) {
     const exactSources = new Map<LayerId, string>();
     for (const { layer } of visibleTextLayers(document)) {

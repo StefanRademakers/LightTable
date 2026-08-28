@@ -3,7 +3,7 @@ import type { DocumentDimensions } from './DocumentResourceState';
 export interface DocumentTextureMemoryContext extends DocumentDimensions {
   pixels: number;
   rgba16Bytes: number;
-  r8Bytes: number;
+  coverage16Bytes: number;
 }
 
 export interface DocumentTextureMemoryEstimatorOptions {
@@ -29,7 +29,7 @@ export class DocumentTextureMemoryEstimator {
       height,
       pixels,
       rgba16Bytes: pixels * 8,
-      r8Bytes: pixels
+      coverage16Bytes: pixels * 2
     };
     return this.options.sources.reduce(
       (total, source) => total + source(context),

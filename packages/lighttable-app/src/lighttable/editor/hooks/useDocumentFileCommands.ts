@@ -214,7 +214,7 @@ export const useDocumentFileCommands = (
       'save',
       'Save document',
       async (task) => {
-        return executeDocumentSaveTransaction({
+        const outcome = await executeDocumentSaveTransaction({
           id: transactionId,
           documentId: String(current.commandHistory.documentId),
           revision: documentRevision,
@@ -279,6 +279,14 @@ export const useDocumentFileCommands = (
             else current.commandHistory.markSaved();
           }
         });
+        if (outcome.markedClean) {
+          try {
+            await current.onSaveCommitted?.(documentRevision);
+          } catch (reason) {
+            console.warn('[Recovery] Saved document cleanup failed.', reason);
+          }
+        }
+        return outcome;
       }
     );
     if (result.status === 'failed') {
@@ -295,11 +303,6 @@ export const useDocumentFileCommands = (
     } else if (result.value.status === 'canceled') {
       current.setStatus?.('Save canceled');
     } else if (result.value.markedClean) {
-      try {
-        await current.onSaveCommitted?.(documentRevision);
-      } catch (reason) {
-        console.warn('[Recovery] Saved document cleanup failed.', reason);
-      }
       current.setStatus?.('Saved');
     } else {
       current.setStatus?.('Saved revision; newer edits remain unsaved');
@@ -382,6 +385,7 @@ export const useDocumentFileCommands = (
         }
         const composite = await renderer.exportPng();
         binding.assertCurrent('PSD export');
+        task.throwIfCanceled();
         const exportedAssets = intent === 'editable'
           ? await (renderer.exportPsdLayerAssets?.(imageDocument)
             ?? renderer.exportLayerAssets(imageDocument))
@@ -400,7 +404,8 @@ export const useDocumentFileCommands = (
           layerAssets,
           colorLookupAssets,
           current.fileNameBase,
-          intent
+          intent,
+          task.signal
         );
         binding.assertCurrent('PSD export');
         task.throwIfCanceled();

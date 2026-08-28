@@ -24,6 +24,7 @@ import {
   containsLightTableDocumentDrag,
   readLightTableDocumentDrag
 } from '../../lighttable/editor/workspace/documentTabDrag';
+import type { GenAiGenerationReadiness } from '../application/genAiGenerationReadiness';
 
 export type GenAiPanelProviderStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'expired';
 
@@ -55,6 +56,7 @@ export interface GenAiPanelProps {
   readonly costEstimate?: GenAiCostEstimate;
   readonly submission?: GenAiGenerationSubmission;
   readonly canGenerate?: boolean;
+  readonly generationReadiness?: GenAiGenerationReadiness;
   readonly onGenerate?: () => void;
   readonly baseImageSelected?: boolean;
   readonly baseImageAssetId?: GenAiAssetId;
@@ -161,7 +163,8 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const { interactionActive = true, providerId, providerName, status, onConnect, message, projectName, models = [], workflow,
     selectedModelId, onModelChange, selectedMode, onModeChange, loading = false, setupError, values = {}, onFieldChange,
     mentionOptions = [], assetPreviews = {}, onRequestAssetPreview = () => undefined,
-    generating = false, generationError, referenceIssue, costEstimate, submission, canGenerate = false, onGenerate,
+    generating = false, generationError, referenceIssue, costEstimate, submission,
+    canGenerate = false, generationReadiness, onGenerate,
     baseImageSelected = false, baseImageAssetId, onBaseImageSelectedChange,
     onImportReferenceFile, onImportDocumentReference } = props;
   const promptField = workflow?.fields.find(({ role }) => role === 'prompt');
@@ -411,7 +414,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   update={(value) => onFieldChange?.(field.key, value)} />
               ))}</div>
             </details> : null}
-            {!projectName ? <p className="genai-panel__notice">Open a project to retain output history.</p> : null}
+            {!projectName ? <p className="genai-panel__notice">Open a project to generate and retain output history.</p> : null}
             {generalGenerationError ? <p className="genai-panel__error" role="alert">{generalGenerationError}</p> : null}
             {referenceIssue ? <p className="genai-panel__notice" role="status">{referenceIssue}</p> : null}
             {submission ? <div className="genai-panel__result" role="status">
@@ -429,7 +432,9 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                 update={(value) => onFieldChange?.(qualityField.key, value)} /> : null}
             </div> : null}
           <footer className="genai-panel__footer">
-            {costEstimate ? <span className="genai-panel__cost" title="Estimated provider cost">
+            {generationReadiness && !generationReadiness.ready && generationReadiness.code !== 'generating'
+              ? <span className="genai-panel__readiness" role="status">{generationReadiness.message}</span>
+              : costEstimate ? <span className="genai-panel__cost" title="Estimated provider cost">
               ≈ {costEstimate.label}
             </span> : null}
             <div className="genai-panel__output-count" aria-label="Output count">
@@ -438,7 +443,8 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</ButtonBase>
             </div>
             <ActionButton type="submit" size="control" layout="fill"
-              disabled={!canGenerate || !onGenerate}>
+              disabled={!canGenerate || !onGenerate}
+              title={!generationReadiness?.ready ? generationReadiness?.message : undefined}>
               {generating ? 'Generating…' : 'Generate'}
             </ActionButton>
           </footer>

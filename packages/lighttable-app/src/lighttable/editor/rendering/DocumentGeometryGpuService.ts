@@ -4,6 +4,7 @@ import { walkLayerTree } from '../document/layerTree';
 import { invertMatrix } from '../geometry/affine';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
+import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 const SETTINGS_FLOATS = 16;
@@ -161,7 +162,7 @@ export class DocumentGeometryGpuService {
           const targets = selectionExchange.current === 'after' ? selectionExchange.before : selectionExchange.after;
           detached.push(targets.mask, targets.result, targets.shape);
         }
-        void this.options.device.queue.onSubmittedWorkDone().then(() => {
+        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
           detached.forEach((texture) => texture.destroy()); settings.destroy();
         });
       }

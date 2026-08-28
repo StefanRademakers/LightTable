@@ -21,6 +21,22 @@ const executablePath = path.resolve(
 );
 const ffmpeg = process.env.LIGHTTABLE_FFMPEG ?? 'ffmpeg';
 const MAX_WARM_DOCUMENT_SWITCH_MS = 100;
+const switchCyclesArgument = process.argv.indexOf('--switch-cycles');
+const switchCycles = switchCyclesArgument >= 0
+  ? Number(process.argv[switchCyclesArgument + 1])
+  : 20;
+const settleIntervalArgument = process.argv.indexOf('--settle-interval');
+const settleInterval = process.argv.includes('--settle-every-switch')
+  ? 1
+  : settleIntervalArgument >= 0
+    ? Number(process.argv[settleIntervalArgument + 1])
+    : 0;
+if (!Number.isSafeInteger(switchCycles) || switchCycles < 1 || switchCycles > 1_000) {
+  throw new Error('--switch-cycles must be an integer from 1 through 1000.');
+}
+if (!Number.isSafeInteger(settleInterval) || settleInterval < 0 || settleInterval > 1_000) {
+  throw new Error('--settle-interval must be an integer from 0 through 1000.');
+}
 
 await mkdir(userData, { recursive: true });
 await mkdir(recentUserData, { recursive: true });
@@ -95,25 +111,35 @@ try {
   const driver = await attachLightTableAutomation(page, 'multi-document-smoke');
   const cdp = await page.context().newCDPSession(page);
   const collectLifecycleMetrics = async (label) => {
-    await cdp.send('HeapProfiler.collectGarbage').catch(() => undefined);
-    await page.waitForTimeout(50);
-    const [heap, dom, projection] = await Promise.all([
-      cdp.send('Runtime.getHeapUsage'),
-      cdp.send('Memory.getDOMCounters'),
-      page.evaluate(() => ({
+    const garbageCollected = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await cdp.send('HeapProfiler.collectGarbage').catch(() => undefined);
+      await page.waitForTimeout(75);
+      const [heap, dom] = await Promise.all([
+        cdp.send('Runtime.getHeapUsage'),
+        cdp.send('Memory.getDOMCounters')
+      ]);
+      garbageCollected.push({ heap, dom });
+    }
+    const projection = await page.evaluate(() => ({
         canvasCount: document.querySelectorAll('canvas').length,
         videoCount: document.querySelectorAll('video').length,
         blobMediaSourceCount: document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length,
         imageSurfaceCount: document.querySelectorAll('.lighttable-document-surface-stack__image').length,
         videoSurfaceCount: document.querySelectorAll('.lighttable-video-document').length
-      }))
-    ]);
+      }));
+    const heapUsedBytes = Math.min(...garbageCollected.map(({ heap }) => heap.usedSize));
+    const eventListeners = Math.min(
+      ...garbageCollected.map(({ dom }) => dom.jsEventListeners)
+    );
+    const dom = garbageCollected.at(-1).dom;
     return {
       label,
-      heapUsedBytes: heap.usedSize,
+      heapUsedBytes,
       domDocuments: dom.documents,
       domNodes: dom.nodes,
-      eventListeners: dom.jsEventListeners,
+      eventListeners,
+      eventListenerSamples: garbageCollected.map(({ dom: counters }) => counters.jsEventListeners),
       ...projection
     };
   };
@@ -473,17 +499,22 @@ try {
   // the canonical snapshot below protects document data from lifecycle drift.
   const lifecycleSamples = [await collectLifecycleMetrics('warm-baseline')];
   const lifecycleSwitchTimesMs = [];
-  for (let cycle = 1; cycle <= 20; cycle += 1) {
+  for (let cycle = 1; cycle <= switchCycles; cycle += 1) {
     const startedAt = performance.now();
     await activateDocumentTab('video.mp4');
     await video.waitFor({ state: 'visible', timeout: 5_000 });
     await activateImageDocumentTab();
+    if (settleInterval > 0 && cycle % settleInterval === 0) {
+      await driver.waitForRenderedDocument(imageDocumentId);
+    }
     lifecycleSwitchTimesMs.push(performance.now() - startedAt);
-    if (cycle % 5 === 0) {
+    if (cycle % 5 === 0 || cycle === switchCycles) {
       lifecycleSamples.push(await collectLifecycleMetrics(`cycle-${cycle}`));
     }
   }
+  await driver.waitForRenderedDocument(imageDocumentId);
   await assertImagePixelsVisible('Typed-switch soak final image');
+  lifecycleSamples.push(await collectLifecycleMetrics('post-settle'));
   const imageCanonicalAfterSoak = await canonicalDocumentSnapshot(imageDocumentId);
   if (JSON.stringify(imageCanonicalAfterSoak) !== JSON.stringify(imageCanonicalBeforeSwitch)) {
     throw new Error('Repeated typed document switches changed inactive canonical image data.');
@@ -501,11 +532,20 @@ try {
   }
   const minimumSettledHeap = Math.min(...lifecycleSamples.slice(1).map(({ heapUsedBytes }) => heapUsedBytes));
   const heapTailGrowthBytes = lifecycleLast.heapUsedBytes - minimumSettledHeap;
+  const heapOverallGrowthBytes = lifecycleLast.heapUsedBytes - lifecycleBaseline.heapUsedBytes;
   const nodeGrowth = lifecycleLast.domNodes - lifecycleBaseline.domNodes;
-  const listenerGrowth = lifecycleLast.eventListeners - lifecycleBaseline.eventListeners;
-  if (heapTailGrowthBytes > 32 * 1024 * 1024 || nodeGrowth > 64 || listenerGrowth > 64) {
+  // The first typed switch lazily mounts the video/editor surfaces and their
+  // bounded React/runtime listeners. Leak detection must measure growth after
+  // that warm allocation, not compare the settled UI against a pre-mount
+  // baseline. Preserve the overall delta in the report for visibility.
+  const minimumSettledListeners = Math.min(
+    ...lifecycleSamples.slice(1).map(({ eventListeners }) => eventListeners)
+  );
+  const listenerTailGrowth = lifecycleLast.eventListeners - minimumSettledListeners;
+  const listenerOverallGrowth = lifecycleLast.eventListeners - lifecycleBaseline.eventListeners;
+  if (heapTailGrowthBytes > 32 * 1024 * 1024 || nodeGrowth > 64 || listenerTailGrowth > 64) {
     throw new Error(`Typed-switch lifecycle growth exceeded its bounded budget: ${JSON.stringify({
-      heapTailGrowthBytes, nodeGrowth, listenerGrowth, lifecycleSamples
+      heapTailGrowthBytes, nodeGrowth, listenerTailGrowth, listenerOverallGrowth, lifecycleSamples
     })}`);
   }
   await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
@@ -534,10 +574,39 @@ try {
     throw new Error('Document switching entered the runtime error boundary.');
   }
   if (failures.length > 0) throw new Error(failures.join(' | '));
+  const openedDocuments = dropped.documents.map(({ title, kind }) => ({ title, kind }));
+  const closeActiveDocument = async (expectedCount) => {
+    await page.locator('.lighttable-document-tab--active .lighttable-document-tab__close').click();
+    await page.waitForFunction((count) =>
+      window.__lightTableAutomation?.queryWorkspace()?.documents.length === count,
+    expectedCount, { timeout: 30_000 });
+  };
+  await closeActiveDocument(2);
+  await activateDocumentTab('video.mp4');
+  await video.waitFor({ state: 'visible', timeout: 30_000 });
+  await closeActiveDocument(1);
+  const releasedMediaCapability = await page.evaluate(async (url) => {
+    try {
+      const response = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      return { readable: response.ok, status: response.status };
+    } catch (reason) {
+      return { readable: false, error: reason instanceof Error ? reason.message : String(reason) };
+    }
+  }, initialVideoSource);
+  if (releasedMediaCapability.readable) {
+    throw new Error(`Closed video retained a readable host media capability: ${JSON.stringify(releasedMediaCapability)}`);
+  }
+  const afterVideoClose = await collectLifecycleMetrics('after-video-close');
+  if (afterVideoClose.videoCount !== 0 || afterVideoClose.blobMediaSourceCount !== 0
+    || afterVideoClose.videoSurfaceCount !== 0) {
+    throw new Error(`Closing video documents retained their media surface: ${JSON.stringify(afterVideoClose)}`);
+  }
   const report = {
     passed: true,
-    documents: dropped.documents.map(({ title, kind }) => ({ title, kind })),
-    activeDocumentId: dropped.activeDocumentId,
+    documents: openedDocuments,
+    activeDocumentId: (await driver.queryWorkspace()).activeDocumentId,
+    releasedMediaCapability,
+    afterVideoClose,
     coldImageActivationMs: Math.round(coldImageActivationMs),
     coldImageOpenMs: Math.round(coldImageOpenMs),
     imagePresentationMs: {
@@ -550,13 +619,16 @@ try {
     },
     typedSwitchSoak: {
       cycles: lifecycleSwitchTimesMs.length,
+      settleInterval,
       medianRoundTripMs: Math.round(lifecycleSwitchTimesMs.toSorted((a, b) => a - b)[
         Math.floor(lifecycleSwitchTimesMs.length / 2)
       ]),
       maximumRoundTripMs: Math.round(Math.max(...lifecycleSwitchTimesMs)),
       heapTailGrowthBytes,
+      heapOverallGrowthBytes,
       nodeGrowth,
-      listenerGrowth,
+      listenerTailGrowth,
+      listenerOverallGrowth,
       samples: lifecycleSamples
     }
   };

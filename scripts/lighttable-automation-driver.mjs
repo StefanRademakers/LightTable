@@ -202,7 +202,8 @@ export class LightTableAutomationClient {
    * frame, in which case an immediate export can read the newly allocated,
    * transparent final texture. A submitted frame is the semantic boundary
    * exact pixel consumers need; queue ordering then makes the export readback
-   * wait behind that composite without an arbitrary delay.
+   * wait behind that composite without an arbitrary delay. Release builds
+   * omit counter collection, but still publish the presented revision.
    */
   async waitForRenderedDocument(documentId, timeout = 30_000) {
     const deadline = Date.now() + timeout;
@@ -227,8 +228,10 @@ export class LightTableAutomationClient {
         // presented revision behind canonical is stale; one at or ahead of it
         // is a valid rendered editor state.
         && (telemetry?.presentedDocumentRevision ?? -1) >= document.canonicalRevision
-        && (telemetry?.submittedFrames ?? 0) > 0
-        && (telemetry?.stages?.['document-composite']?.executions ?? 0) > 0) {
+        && (telemetry?.collectionEnabled === false || (
+          (telemetry?.submittedFrames ?? 0) > 0
+          && (telemetry?.stages?.['document-composite']?.executions ?? 0) > 0
+        ))) {
         return { document, telemetry };
       }
       await this.page.waitForTimeout(16);

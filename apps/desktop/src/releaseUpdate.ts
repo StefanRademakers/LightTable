@@ -1,4 +1,5 @@
 import { createHash, verify } from 'node:crypto';
+import { readResponseBytesBounded } from './boundedResponse';
 
 export type LightTableReleaseChannel = 'dev' | 'preview' | 'stable';
 
@@ -150,7 +151,8 @@ export const fetchUpdateManifest = async (
     if (!response.ok) {
       return { ok: false, status: 'unavailable', message: `Update service returned HTTP ${response.status}.` };
     }
-    return { ok: true, value: JSON.parse(await response.text()) };
+    const bytes = await readResponseBytesBounded(response, 1024 * 1024, 'Update manifest');
+    return { ok: true, value: JSON.parse(new TextDecoder().decode(bytes)) };
   } catch (reason) {
     return signal.aborted
       ? { ok: false, status: 'canceled', message: 'The update check was canceled or timed out.' }

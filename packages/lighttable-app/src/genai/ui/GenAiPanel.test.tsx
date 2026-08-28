@@ -110,6 +110,16 @@ describe('GenAiPanel visual references', () => {
     expect(markup).toContain('disabled="">Generate');
   });
 
+  it('shows why generation is unavailable', () => {
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model]} workflow={workflow('image2image')} selectedModelId={modelId}
+      selectedMode="image2image" values={{ prompt: 'Retouch', visualReferences: [] }}
+      generationReadiness={{ code: 'invalid-fields', ready: false, message: 'Visual references is required.' }}
+      canGenerate={false} onGenerate={() => undefined} />);
+    expect(markup).toContain('Visual references is required.');
+    expect(markup).toContain('title="Visual references is required."');
+  });
+
   it('explains every supported way to add an empty visual reference', () => {
     const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
       projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}

@@ -63,6 +63,7 @@ export const executeDocumentSaveTransaction = async <TPrepared>({
   commit,
   publish = () => undefined
 }: ExecuteDocumentSaveTransactionOptions<TPrepared>): Promise<DocumentSaveTransactionOutcome> => {
+  let activePhase = 'prepare';
   const emit = (
     phase: DocumentSaveTransactionPhase,
     failurePhase: string | null = null,
@@ -83,6 +84,7 @@ export const executeDocumentSaveTransaction = async <TPrepared>({
     }
     emit('prepared');
     emit('writing');
+    activePhase = 'write';
     const result = await write({
       ...buildRequest(prepared),
       transaction: { id, documentId, revision }
@@ -104,7 +106,10 @@ export const executeDocumentSaveTransaction = async <TPrepared>({
     }
 
     const markedClean = !signal.aborted && isCurrent();
-    if (markedClean) commit();
+    if (markedClean) {
+      activePhase = 'commit';
+      commit();
+    }
     emit('committed', null, markedClean
       ? null
       : 'Saved the pinned revision; newer edits remain unsaved.');
@@ -120,12 +125,12 @@ export const executeDocumentSaveTransaction = async <TPrepared>({
       return { status: 'canceled', revision, markedClean: false };
     }
     const message = reason instanceof Error ? reason.message : String(reason);
-    emit('failed', 'prepare', message);
+    emit('failed', activePhase, message);
     return {
       status: 'failed',
       revision,
       markedClean: false,
-      phase: 'prepare',
+      phase: activePhase,
       message
     };
   }

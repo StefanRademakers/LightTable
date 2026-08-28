@@ -21,26 +21,39 @@ export interface FaceWarpDetectionResult {
 export class FaceWarpDetector {
   private worker: Worker | null = null;
   private nextRequestId = 1;
+  private disposed = false;
   private pending = new Map<number, {
     resolve: (result: FaceWarpDetectionResult) => void;
     reject: (error: Error) => void;
   }>();
 
   async detect(input: FaceWarpDetectionInput): Promise<FaceWarpDetectionResult> {
-    const worker = this.ensureWorker();
+    if (this.disposed) throw new Error('Face detection is closed.');
     const image = await createImageBitmap(input.blob);
+    if (this.disposed) {
+      image.close();
+      throw new Error('Face detection is closed.');
+    }
+    const worker = this.ensureWorker();
     const requestId = this.nextRequestId++;
     return new Promise((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });
-      worker.postMessage({
-        type: 'detect', requestId, image,
-        sourceWidth: input.sourceWidth,
-        sourceHeight: input.sourceHeight
-      }, [image]);
+      try {
+        worker.postMessage({
+          type: 'detect', requestId, image,
+          sourceWidth: input.sourceWidth,
+          sourceHeight: input.sourceHeight
+        }, [image]);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        image.close();
+        reject(reason instanceof Error ? reason : new Error(String(reason)));
+      }
     });
   }
 
   dispose(): void {
+    this.disposed = true;
     this.worker?.terminate();
     this.worker = null;
     for (const { reject } of this.pending.values()) reject(new Error('Face detection was cancelled.'));
@@ -67,6 +80,15 @@ export class FaceWarpDetector {
       const error = new Error(event.message || 'The face detector worker failed.');
       for (const { reject } of this.pending.values()) reject(error);
       this.pending.clear();
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
+    };
+    worker.onmessageerror = () => {
+      const error = new Error('The face detector worker returned an unreadable response.');
+      for (const { reject } of this.pending.values()) reject(error);
+      this.pending.clear();
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
     };
     this.worker = worker;
     return worker;

@@ -66,4 +66,16 @@ describe('DocumentTaskRegistry', () => {
     expect((await result).status).toBe('canceled');
     expect(observedAbort).toHaveBeenCalledOnce();
   });
+
+  it('bounds terminal task history during a long-lived document session', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    for (let index = 0; index < 140; index += 1) {
+      await registry.run('export', `Export ${index}`, async () => index, { replace: false });
+    }
+
+    const tasks = Object.values(registry.getSnapshot().tasks);
+    expect(tasks).toHaveLength(128);
+    expect(tasks[0]?.label).toBe('Export 12');
+    expect(tasks.at(-1)?.label).toBe('Export 139');
+  });
 });

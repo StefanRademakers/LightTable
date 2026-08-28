@@ -69,12 +69,12 @@ export class TransformSessionStore {
     return true;
   }
 
-  estimatedTextureBytes(rgba16Bytes: number, r8Bytes: number) {
+  estimatedTextureBytes(rgba16Bytes: number, coverage16Bytes: number) {
     if (!this.activeSession) return 0;
     return (this.activeSession.sourceTexture ? rgba16Bytes : 0)
       + (this.activeSession.previewTexture ? rgba16Bytes : 0)
-      + (this.activeSession.selectionTexture ? r8Bytes : 0)
-      + (this.activeSession.selectionPreview ? r8Bytes : 0);
+      + (this.activeSession.selectionTexture ? coverage16Bytes : 0)
+      + (this.activeSession.selectionPreview ? coverage16Bytes : 0);
   }
 
   destroy() {

@@ -93,4 +93,37 @@ describe('requestWorkspaceDocumentClose', () => {
     expect(close).toHaveBeenCalledWith(documentId, false);
     session.dispose();
   });
+
+  it('asks before discarding edits made while an active save completed', async () => {
+    const session = new DocumentSession({
+      id: documentId,
+      source: { id: 'source', name: 'Saving', mediaType: 'image/webp' }
+    });
+    session.setReady();
+    session.markChanged();
+    let finishSave: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { finishSave = resolve; });
+    const save = session.tasks.run('save', 'Save document', async () => {
+      await gate;
+      session.markSaved();
+      session.markChanged();
+    });
+    const confirmDiscardChanges = vi.fn(async () => false);
+    const close = vi.fn(() => ({ ok: true as const }));
+
+    const closing = requestWorkspaceDocumentClose({
+      documentId,
+      documents: [{ id: documentId, title: 'Saving', dirty: true }],
+      host: { confirmDiscardChanges },
+      documentSession: session,
+      close
+    });
+    finishSave();
+    await save;
+
+    await expect(closing).resolves.toBe(false);
+    expect(confirmDiscardChanges).toHaveBeenCalledWith('Saving');
+    expect(close).not.toHaveBeenCalled();
+    session.dispose();
+  });
 });

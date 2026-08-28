@@ -86,7 +86,17 @@ export const decodePdfRasterPreview = async (
   const abortLoading = () => { void loadingTask.destroy(); };
   signal?.addEventListener('abort', abortLoading, { once: true });
   try {
-    const pdf = await loadingTask.promise;
+    let pdf;
+    try {
+      pdf = await loadingTask.promise;
+    } catch (reason) {
+      if (reason instanceof Error && reason.name === 'PasswordException') {
+        throw new Error(
+          'This password-protected PDF cannot be opened because password entry is not supported yet.'
+        );
+      }
+      throw reason;
+    }
     if (pdf.numPages < 1) throw new Error('The PDF contains no pages.');
     const page = await pdf.getPage(1);
     const unitViewport = page.getViewport({ scale: 1 });
@@ -114,6 +124,11 @@ export const decodePdfRasterPreview = async (
     } finally {
       signal?.removeEventListener('abort', abortRender);
       page.cleanup();
+      // PNG encoding has finished (or failed), so release the potentially
+      // 64-Mpixel browser backing store immediately instead of retaining it
+      // until the detached element is eventually collected.
+      canvas.width = 1;
+      canvas.height = 1;
     }
   } finally {
     signal?.removeEventListener('abort', abortLoading);

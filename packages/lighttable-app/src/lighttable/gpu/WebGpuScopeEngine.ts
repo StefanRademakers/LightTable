@@ -515,7 +515,7 @@ export class WebGpuScopeEngine {
     } finally {
       void this.device.popErrorScope().then((error) => {
         if (error) this.disable(error.message);
-      });
+      }, () => undefined);
     }
     return result;
   }

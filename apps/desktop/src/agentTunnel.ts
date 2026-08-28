@@ -325,10 +325,15 @@ export class AgentTunnelController {
           documentId: String((message.parameters as { documentId?: unknown }).documentId ?? '') };
         this.record('agent-started', `${this.activity.name} started.`); this.publish(this.current.state);
       }
-      const parameters = message.method === 'artifact.register'
+      const artifactBase64 = message.method === 'artifact.register'
         && typeof (message.parameters as { bytesBase64?: unknown } | undefined)?.bytesBase64 === 'string'
+        ? (message.parameters as { bytesBase64: string }).bytesBase64 : null;
+      if (artifactBase64 && artifactBase64.length > Math.ceil(32 * 1024 * 1024 * 4 / 3) + 4) {
+        throw new Error('Remote Agent artifacts are limited to 32 MiB.');
+      }
+      const parameters = artifactBase64
         ? { ...(message.parameters as Record<string, unknown>),
-          bytes: Uint8Array.from(Buffer.from((message.parameters as { bytesBase64: string }).bytesBase64, 'base64')) }
+          bytes: Uint8Array.from(Buffer.from(artifactBase64, 'base64')) }
         : message.parameters ?? {};
       const value = await this.invoke(message.method, parameters);
       if (isNamedBatch && this.activity) {
@@ -360,6 +365,11 @@ export class AgentTunnelController {
             this.activity = { ...this.activity, results: results.slice(-6) };
           }
         }
+      }
+      if (message.method === 'artifact.resolve' && value && typeof value === 'object'
+        && (value as { bytes?: unknown }).bytes instanceof Uint8Array
+        && (value as { bytes: Uint8Array }).bytes.byteLength > 32 * 1024 * 1024) {
+        throw new Error('Remote Agent artifacts are limited to 32 MiB.');
       }
       const result = message.method === 'artifact.resolve' && value && typeof value === 'object'
         && (value as { bytes?: unknown }).bytes instanceof Uint8Array

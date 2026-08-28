@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
@@ -11,14 +12,14 @@ const runLabel = process.argv[3] ?? 'baseline';
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'effect-lifecycle-audit');
 const reportPath = path.join(outputDirectory, `${runLabel}.json`);
 const screenshotDirectory = path.join(outputDirectory, runLabel);
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}-${runLabel}`);
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 
 await Promise.all([
   access(sourceFile),
-  access(executablePath),
+  access(launch.executablePath),
   mkdir(screenshotDirectory, { recursive: true }),
   mkdir(userDataPath, { recursive: true })
 ]);
@@ -35,8 +36,8 @@ const report = {
 };
 
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -59,7 +60,11 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const open = await waitForDesktopLauncher({
+    app, page, outputDirectory, sourceFile, pageErrors: report.pageErrors,
+    label: `effect-lifecycle-${runLabel}`
+  });
+  await open.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'effect-lifecycle');

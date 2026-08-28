@@ -26,6 +26,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
   private readonly pending = new Map<number, PendingRequest>();
   private readonly preparedByKey = new Map<string, Promise<PreparedSmartSelectionSource>>();
   private readonly statusListeners = new Set<(status: SmartSelectionBackendStatus) => void>();
+  private disposed = false;
 
   async prepare(source: SmartSelectionSource, signal?: AbortSignal) {
     const existing = this.preparedByKey.get(source.key);
@@ -98,12 +99,14 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
   }
 
   dispose() {
-    this.worker?.postMessage({ type: 'dispose' } satisfies SlimSamWorkerRequest);
+    this.disposed = true;
+    try { this.worker?.postMessage({ type: 'dispose' } satisfies SlimSamWorkerRequest); } catch { /* terminate below */ }
     this.worker?.terminate();
     this.worker = null;
     for (const pending of this.pending.values()) pending.reject(new Error('Smart selection was canceled.'));
     this.pending.clear();
     this.preparedByKey.clear();
+    this.statusListeners.clear();
   }
 
   private async select(
@@ -125,10 +128,11 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
 
   private disposeSourceId(sourceId: string) {
     this.preparedByKey.delete(sourceId);
-    this.worker?.postMessage({ type: 'dispose-source', sourceId } satisfies SlimSamWorkerRequest);
+    try { this.worker?.postMessage({ type: 'dispose-source', sourceId } satisfies SlimSamWorkerRequest); } catch { /* worker may already be gone */ }
   }
 
   private request(request: SlimSamWorkerRequest, signal?: AbortSignal): Promise<SlimSamWorkerResponse> {
+    if (this.disposed) return Promise.reject(new Error('Smart selection is closed.'));
     if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
     const worker = this.ensureWorker();
     const requestId = ++this.requestId;
@@ -149,7 +153,13 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
           reject(reason);
         }
       });
-      worker.postMessage(message);
+      try {
+        worker.postMessage(message);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        signal?.removeEventListener('abort', abort);
+        reject(reason instanceof Error ? reason : new Error('Smart selection failed to start.'));
+      }
     });
   }
 
@@ -188,6 +198,13 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
     };
     worker.onerror = (event) => {
       const error = new Error(event.message || 'Smart selection worker failed.');
+      for (const pending of this.pending.values()) pending.reject(error);
+      this.pending.clear();
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
+    };
+    worker.onmessageerror = () => {
+      const error = new Error('Smart selection worker returned an unreadable response.');
       for (const pending of this.pending.values()) pending.reject(error);
       this.pending.clear();
       worker.terminate();

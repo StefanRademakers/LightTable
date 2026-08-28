@@ -68,6 +68,29 @@ describe('probeDocumentSource', () => {
     });
   });
 
+  it('refuses animated PNG and WebP instead of silently opening one frame', async () => {
+    const png = new Uint8Array(8 + 12 + 12);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    png.set(new TextEncoder().encode('acTL'), 12);
+    await expect(probeDocumentSource(new Blob([png]))).rejects.toThrow('Animated PNG');
+
+    const webp = new Uint8Array(22);
+    webp.set(new TextEncoder().encode('RIFF'), 0);
+    webp.set(new TextEncoder().encode('WEBP'), 8);
+    webp.set(new TextEncoder().encode('VP8X'), 12);
+    new DataView(webp.buffer).setUint32(16, 1, true);
+    webp[20] = 0x02;
+    await expect(probeDocumentSource(new Blob([webp]))).rejects.toThrow('Animated WebP');
+  });
+
+  it('rejects unsafe raster dimensions before browser decode allocates pixels', async () => {
+    const png = pngHeader(8);
+    png.set(new TextEncoder().encode('IHDR'), 12);
+    new DataView(png.buffer).setUint32(16, 40_000, false);
+    new DataView(png.buffer).setUint32(20, 100, false);
+    await expect(probeDocumentSource(new Blob([png]))).rejects.toThrow('safe raster decode limit');
+  });
+
   it('routes SVG text to the native editable codec without trusting MIME metadata', async () => {
     const source = new Blob([new TextEncoder().encode(
       '\uFEFF <?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/></svg>'

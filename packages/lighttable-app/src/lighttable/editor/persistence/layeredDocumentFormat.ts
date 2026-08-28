@@ -45,6 +45,9 @@ import {
 const FOOTER_MAGIC = 'LTBLDOC1';
 const FOOTER_SIZE = 12;
 const MANIFEST_VERSION = 1 as const;
+const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
+const MAX_LAYER_COUNT = 65_536;
+const MAX_LAYER_DEPTH = 256;
 const MAX_FONT_BYTES = 64 * 1024 * 1024;
 const MAX_DOCUMENT_FONT_BYTES = 256 * 1024 * 1024;
 const MAX_COLOR_LOOKUP_BYTES = 32 * 1024 * 1024;
@@ -795,6 +798,9 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const footerBytes = new Uint8Array(footer);
   if (new TextDecoder().decode(footerBytes.subarray(0, 8)) !== FOOTER_MAGIC) return null;
   const manifestLength = new DataView(footer).getUint32(8, true);
+  if (manifestLength > MAX_MANIFEST_BYTES) {
+    throw new Error('The LightTable document manifest exceeds the 64 MiB safety limit.');
+  }
   const manifestStart = blob.size - FOOTER_SIZE - manifestLength;
   if (!manifestLength || manifestStart <= 0) throw new Error('The LightTable document footer is invalid.');
   let raw: unknown;
@@ -834,7 +840,15 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const colorLookupAssets: ColorLookupAssetBlob[] = [];
   const preservedSourceAssets: PreservedSourceAssetBlob[] = [];
   const fontAssets: FontAssetBlob[] = [];
-  const parseLayer = (entry: unknown, path: string): LayerNode => {
+  let parsedLayerCount = 0;
+  const parseLayer = (entry: unknown, path: string, depth = 1): LayerNode => {
+    parsedLayerCount += 1;
+    if (parsedLayerCount > MAX_LAYER_COUNT) {
+      throw new Error('The LightTable document exceeds the 65536 layer limit.');
+    }
+    if (depth > MAX_LAYER_DEPTH) {
+      throw new Error('The LightTable document exceeds the 256-level group depth limit.');
+    }
     if (
       !isRecord(entry)
       || typeof entry.id !== 'string'
@@ -986,7 +1000,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         ...common,
         type: 'group',
         compositing: entry.compositing,
-        children: entry.children.map((child, index) => parseLayer(child, `${path}.${index + 1}`)),
+        children: entry.children.map((child, index) =>
+          parseLayer(child, `${path}.${index + 1}`, depth + 1)),
         vectorClip,
         mask: parsedMask.mask
       };
@@ -1141,7 +1156,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       mask: parsedMask.mask
     };
   };
-  const layers = source.layers.map((entry, index) => parseLayer(entry, `${index + 1}`));
+  const layers = source.layers.map((entry, index) => parseLayer(entry, `${index + 1}`, 1));
   if (!layers.length) throw new Error('The LightTable document contains no layers.');
   const allLayers = walkLayerTree(layers);
   if (new Set(allLayers.map(({ node }) => node.id)).size !== allLayers.length) {

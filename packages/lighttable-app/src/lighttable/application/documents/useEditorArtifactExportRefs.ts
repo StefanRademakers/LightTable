@@ -19,7 +19,7 @@ export const useEditorArtifactExportRefs = () => ({
     region?: DocumentPixelRegion) => Promise<File>>(async () => {
     throw new Error('The preview export controller is not ready.');
   }),
-  exportPsdArtifactRef: useRef<() => Promise<ExportedPsdDocument>>(async () => {
+  exportPsdArtifactRef: useRef<(signal?: AbortSignal) => Promise<ExportedPsdDocument>>(async () => {
     throw new Error('The PSD export controller is not ready.');
   })
 });

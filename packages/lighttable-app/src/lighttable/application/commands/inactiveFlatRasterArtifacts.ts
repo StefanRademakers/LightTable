@@ -42,8 +42,9 @@ const encode = async (blob: Blob, documentWidth: number, documentHeight: number,
       { x: 0, y: 0, width: documentWidth, height: documentHeight }, maxEdge);
   if (!plan) throw new Error('The inactive raster preview region is invalid.');
   const bitmap = await createImageBitmap(blob);
+  let canvas: OffscreenCanvas | null = null;
   try {
-    const canvas = new OffscreenCanvas(plan.outputWidth, plan.outputHeight);
+    canvas = new OffscreenCanvas(plan.outputWidth, plan.outputHeight);
     const context = canvas.getContext('2d');
     if (!context) throw new Error('The inactive raster preview canvas is unavailable.');
     context.drawImage(bitmap, plan.region.x, plan.region.y, plan.region.width, plan.region.height,
@@ -55,6 +56,10 @@ const encode = async (blob: Blob, documentWidth: number, documentHeight: number,
       scaleY: plan.outputHeight / plan.region.height };
   } finally {
     bitmap.close();
+    if (canvas) {
+      canvas.width = 1;
+      canvas.height = 1;
+    }
   }
 };
 

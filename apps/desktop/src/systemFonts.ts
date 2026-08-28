@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DocumentFontAsset } from '@lighttable/app';
+import { readBoundedJsonFile } from './boundedJsonFile';
+
+const MAX_SYSTEM_FONT_BYTES = 64 * 1024 * 1024;
+const MAX_FONT_CACHE_BYTES = 16 * 1024 * 1024;
 
 interface CachedFontFile {
   readonly path: string;
@@ -181,7 +185,10 @@ export class WindowsSystemFontCatalog {
     await this.list();
     const filePath = this.assetPaths.get(assetId);
     if (!filePath) return null;
+    const info = await stat(filePath);
+    if (!info.isFile() || info.size < 12 || info.size > MAX_SYSTEM_FONT_BYTES) return null;
     const bytes = new Uint8Array(await readFile(filePath));
+    if (bytes.byteLength !== info.size) return null;
     const fingerprint = createHash('sha256').update(bytes).digest('hex');
     return assetId.startsWith(`system:${fingerprint}:`) ? bytes : null;
   }
@@ -203,7 +210,7 @@ export class WindowsSystemFontCatalog {
     for (const filePath of [...new Set(paths.map((entry) => path.resolve(entry)))]) {
       try {
         const info = await stat(filePath);
-        if (!info.isFile() || info.size < 12 || info.size > 64 * 1024 * 1024) continue;
+        if (!info.isFile() || info.size < 12 || info.size > MAX_SYSTEM_FONT_BYTES) continue;
         const cachedFile = cachedByPath.get(filePath.toLowerCase());
         if (cachedFile && cachedFile.size === info.size && cachedFile.mtimeMs === info.mtimeMs) {
           files.push(cachedFile);
@@ -235,7 +242,9 @@ export class WindowsSystemFontCatalog {
 
   private async readCache(): Promise<FontCatalogCache> {
     try {
-      const value: unknown = JSON.parse(await readFile(this.cachePath, 'utf8'));
+      const value = await readBoundedJsonFile(
+        this.cachePath, MAX_FONT_CACHE_BYTES, 'System font catalog cache'
+      );
       if (value && typeof value === 'object' && (value as FontCatalogCache).version === 1
         && Array.isArray((value as FontCatalogCache).files)) return value as FontCatalogCache;
     } catch {

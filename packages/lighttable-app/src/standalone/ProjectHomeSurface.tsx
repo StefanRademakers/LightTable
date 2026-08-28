@@ -93,7 +93,7 @@ export const ProjectHomeSurface = ({
       if (preview) setPreviews((current) => current[assetId]
         ? current
         : { ...current, [assetId]: preview });
-    });
+    }).catch(() => undefined);
   }, [previews, project.id, service]);
 
   const optionsFor = React.useCallback((id: EditorMenuId): Array<ContextMenuOption<string>> => {

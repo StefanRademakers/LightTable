@@ -72,11 +72,25 @@ for (const testCase of cases) {
     const open = await waitForDesktopLauncher({
       app, page, outputDirectory, sourceFile, pageErrors, label: `native-save-${testCase.id}`
     });
-    await open.click();
-    await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
-      .waitFor({ state: 'visible', timeout: 60_000 });
     const driver = await attachLightTableAutomation(page, `native-save-${testCase.id}`);
-    const documentId = (await driver.queryWorkspace())?.activeDocumentId;
+    await open.click();
+    try {
+      await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
+        .waitFor({ state: 'visible', timeout: 60_000 });
+    } catch (reason) {
+      const workspace = await driver.queryWorkspace().catch(() => null);
+      const document = workspace?.activeDocumentId
+        ? await driver.queryDocument(workspace.activeDocumentId).catch(() => null)
+        : null;
+      const body = (await page.locator('body').innerText().catch(() => '')).slice(-4_000);
+      throw new Error(
+        `${reason instanceof Error ? reason.message : String(reason)}`
+        + `\nWorkspace: ${JSON.stringify(workspace)}`
+        + `\nDocument: ${JSON.stringify(document)}`
+        + `\nUI: ${body}\n${pageErrors.join('\n')}`
+      );
+    }
+    let documentId = (await driver.queryWorkspace())?.activeDocumentId;
     if (!documentId) throw new Error(`The ${testCase.id} document is unavailable.`);
 
     await driver.execute(documentId, 'document.resizeImage', {
@@ -131,6 +145,22 @@ for (const testCase of cases) {
       if (reason instanceof Error && !('code' in reason && reason.code === 'ENOENT')) throw reason;
     }
 
+    const savedDocumentId = documentId;
+    await page.locator('.lighttable-document-tab--active .lighttable-document-tab__close').click();
+    await page.waitForFunction(() =>
+      window.__lightTableAutomation?.queryWorkspace()?.documents.length === 0,
+    undefined, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await page.waitForFunction((previousId) => {
+      const workspace = window.__lightTableAutomation?.queryWorkspace();
+      return Boolean(workspace?.activeDocumentId && workspace.activeDocumentId !== previousId);
+    }, savedDocumentId, { timeout: 30_000 });
+    documentId = (await driver.queryWorkspace()).activeDocumentId;
+    const reopened = await driver.waitForRenderedDocument(documentId, 60_000);
+    if (reopened.document.tasks.activeCount !== 0) {
+      throw new Error(`Reopened ${testCase.id} retained an active document task.`);
+    }
+
     if (testCase.id === 'png') {
       await driver.execute(documentId, 'layer.createRaster', {});
       await page.keyboard.press('Control+S');
@@ -152,6 +182,7 @@ for (const testCase of cases) {
       bytes: flatBytes.length,
       keypressMs,
       saveMs,
+      reopenedDocumentId: documentId,
       saveTimeline
     });
   } catch (reason) {

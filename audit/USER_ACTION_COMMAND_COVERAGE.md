@@ -1,16 +1,16 @@
 # User action / command coverage
 
-Generated from the central editor menu on 2026-08-21. This is the first checked surface, not complete application coverage.
+Generated from the central editor menu on 2026-08-28. This is the first checked surface, not complete application coverage.
 
 ## Current measured surface
 
-- 106 unique static executable menu actions plus 4 dynamic families;
-- 52 already routed through semantic commands;
+- 117 unique static executable menu actions plus 10 dynamic families;
+- 64 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
-- 21 host/workspace operations;
-- 36 presentation-only operations;
+- 24 host/workspace operations;
+- 38 presentation-only operations;
 - 1 genuine semantic command gaps;
-- 4 checked dynamic menu families.
+- 10 checked dynamic menu families.
 
 ## Meaning
 
@@ -20,126 +20,143 @@ A command-owner entry has a catalog command and canonical implementation, but th
 
 | Menu action | Classification | Command or reason | Source line(s) |
 | --- | --- | --- | --- |
-| `about` | presentation | Opens application information; no document mutation. | 770 |
-| `actual-size` | command | `view.setZoom` | 782 |
-| `add-mask` | command | `layer.setMask` | 645 |
-| `ai-history` | presentation | Shows the AI Assets panel. | 400 |
-| `ai-provider-openart` | host | Changes an external provider connection. | 379 |
-| `apply-auto-align` | command | `layer.autoAlign` | 705 |
-| `assign-profile-srgb` | command | `document.assignProfile` | 351 |
-| `auto-align` | presentation | Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign. | 715 |
-| `cancel-auto-align` | presentation | Cancels transient analysis/preview without mutating document state. | 710 |
-| `canvas-size` | command | `document.applyGeometry` | 519 |
-| `clear-guides` | presentation | Changes document-view guides, not image content. | 853 |
-| `clear-recent` | host | Changes host-maintained recent-file state. | 212 |
-| `clear-recent-projects` | host | Changes host-maintained recent-project state. | 268 |
-| `clear-selection` | command | `selection.modify` | 431 |
-| `clipping-mask` | command | `layer.setClipping` | 628 |
-| `close-project` | host | Changes host project lifecycle state. | 276 |
-| `command-help` | presentation | Opens command documentation. | 762 |
-| `convert-text-to-shape` | command | `text.convertToShape` | 667, 752 |
-| `copy-grade` | command | `grade.copy` | 315 |
-| `copy-merged-content` | command | `selection.copyPixels` | 301 |
-| `copy-selected-content` | command | `selection.copyPixels` | 294 |
-| `delete-layer` | command | `layer.delete` | 589 |
-| `duplicate-image` | command | `document.duplicate` | 553 |
-| `duplicate-layer` | command | `layer.duplicate` | 580 |
-| `edit-layer-mask` | presentation | Changes the active editing channel. | 650 |
-| `edit-layer-pixels` | presentation | Changes the active editing channel. | 635 |
-| `exit-application` | host | Closes the desktop host application and belongs to host lifecycle control. | 282 |
-| `export-jpeg` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 240 |
-| `export-png-native` | host | Runs the local save/download flow; Actions and MCP use file.exportPng with the same renderer output. | 239 |
-| `export-pdf` | host | Runs an interactive local PDF export flow. | 245 |
-| `export-png` | host | Runs a local download flow distinct from file.exportPng artifact creation. | 227 |
-| `export-psd` | host | Runs a local download flow distinct from file.exportPsd artifact creation. | 243 |
-| `export-psd-appearance` | host | Runs an interactive maximum-appearance PSD export flow. | 244 |
-| `export-tiff` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 242 |
-| `export-webp` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 241 |
-| `extras` | presentation | Toggles canvas overlays. | 807 |
-| `feather-selection` | command | `selection.modify` | 442 |
-| `fit` | command | `view.setZoom` | 775 |
-| `flatten-group` | command | `layer.flattenGroup` | 736 |
-| `flatten-image` | command | `document.flattenImage` | 742 |
-| `flip-canvas-horizontal` | command | `document.applyGeometry` | 541 |
-| `flip-canvas-vertical` | command | `document.applyGeometry` | 544 |
-| `format-support` | presentation | Opens format-support information. | 246 |
-| `guided-sample` | host | Starts an application-level guided workflow. | 763 |
-| `image-crop` | command | `document.applyGeometry` | 548 |
-| `image-rotation-180` | command | `document.applyGeometry` | 529 |
-| `image-rotation-arbitrary` | command | `document.applyGeometry` | 538 |
-| `image-rotation-clockwise-90` | command | `document.applyGeometry` | 532 |
-| `image-rotation-counter-clockwise-90` | command | `document.applyGeometry` | 535 |
-| `image-size` | command | `document.resizeImage` | 512 |
-| `invert-layer-colors` | command | `raster.invert` | 614 |
-| `invert-selection` | command | `selection.modify` | 424 |
-| `layer-via-copy` | command | `layer.copyToNewLayer` | 572 |
-| `lock-guides` | presentation | Changes document-view guide interaction. | 852 |
-| `merge-down` | command | `layer.merge` | 728 |
-| `move-down` | command | `layer.move` | 697 |
-| `move-up` | command | `layer.move` | 692 |
-| `new-document` | command | `document.create` | 182 |
-| `new-guide` | presentation | Creates a document-view guide, not image content. | 851 |
-| `new-layer` | command | `layer.createRaster` | 567 |
-| `new-project` | host | Changes host project lifecycle state. | 249 |
-| `open-image` | host | Uses a local file picker; file.openArtifact targets registered artifacts. | 189 |
-| `open-project` | host | Uses a host project picker. | 256 |
-| `paste-grade` | command | `grade.paste` | 322 |
-| `paste-selected-content` | command | `selection.pastePixels` | 308 |
-| `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 196 |
-| `rasterize-text` | command | `text.rasterize` | 676 |
-| `remove-background` | command | `layer.removeBackground` | 457, 622 |
-| `remove-mask` | command | `layer.setMask` | 660 |
-| `remove-object` | gap | No semantic object-removal command exists. | 450 |
-| `rename-layer` | command | `layer.rename` | 596 |
-| `reset-workspace-layout` | presentation | Resets local panel layout. | 864 |
-| `rulers` | presentation | Toggles canvas rulers. | 823 |
-| `save-corrected` | host | Writes through the current source/host save workflow. | 220 |
-| `select-all` | command | `selection.modify` | 410 |
-| `select-none` | command | `selection.modify` | 417 |
-| `settings` | presentation | Opens application preferences. | 364 |
-| `show-actions-panel` | presentation | Shows the Actions panel. | 882 |
-| `show-ai-history-panel` | presentation | Shows the AI Assets panel. | 877 |
-| `show-debug-panel` | presentation | Shows the Debug panel. | 887 |
-| `show-difference` | presentation | Toggles a diagnostic viewport comparison. | 789 |
-| `show-genai-panel` | presentation | Shows the GenAI panel. | 872 |
-| `show-grid` | presentation | Toggles the canvas grid. | 818 |
-| `show-guides` | presentation | Toggles canvas guides. | 819 |
-| `show-smart-guides` | presentation | Toggles smart guides. | 820 |
-| `snap` | presentation | Changes local snapping behavior. | 829 |
-| `snap-all` | presentation | Changes local snapping behavior. | 843 |
-| `snap-document` | presentation | Changes local snapping behavior. | 842 |
-| `snap-grid` | presentation | Changes local snapping behavior. | 840 |
-| `snap-guides` | presentation | Changes local snapping behavior. | 839 |
-| `snap-layers` | presentation | Changes local snapping behavior. | 841 |
-| `snap-none` | presentation | Changes local snapping behavior. | 844 |
-| `third-party-licenses` | presentation | Opens legal information. | 764 |
-| `toggle-lock` | command | `layer.setLock` | 721 |
-| `toggle-mask` | command | `layer.setMask` | 655 |
-| `toggle-screen-mode` | presentation | Changes application window presentation. | 800 |
-| `toggle-visibility` | command | `layer.setVisibility` | 682 |
-| `transform-flip-horizontal` | command | `transform.applyFixed` | 340 |
-| `transform-flip-vertical` | command | `transform.applyFixed` | 342 |
-| `transform-rotate-180` | command | `transform.applyFixed` | 334 |
-| `transform-rotate-clockwise-90` | command | `transform.applyFixed` | 336 |
-| `transform-rotate-counter-clockwise-90` | command | `transform.applyFixed` | 338 |
-| `ui-style-guide` | presentation | Opens the developer UI style guide. | 892 |
-| `workspace-ai-generation` | presentation | Applies a local workspace layout preset. | 863 |
-| `workspace-grading` | presentation | Applies a local workspace layout preset. | 862 |
-| `workspace-photo-edit` | presentation | Applies a local workspace layout preset. | 861 |
+| `about` | presentation | Opens application information; no document mutation. | 923 |
+| `actual-size` | command | `view.setZoom` | 948 |
+| `add-mask` | command | `layer.setMask` | 798 |
+| `ai-history` | presentation | Shows the AI Assets panel. | 435 |
+| `ai-provider-openart` | host | Changes an external provider connection. | 414 |
+| `apply-auto-align` | command | `layer.autoAlign` | 858 |
+| `assign-profile-srgb` | command | `document.assignProfile` | 386 |
+| `auto-align` | presentation | Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign. | 868 |
+| `border-selection` | command | `selection.modify` | 478 |
+| `cancel-auto-align` | presentation | Cancels transient analysis/preview without mutating document state. | 863 |
+| `canvas-size` | command | `document.applyGeometry` | 626 |
+| `clear-guides` | presentation | Changes document-view guides, not image content. | 1019 |
+| `clear-recent` | host | Changes host-maintained recent-file state. | 239 |
+| `clear-recent-projects` | host | Changes host-maintained recent-project state. | 296 |
+| `clear-selection` | command | `selection.modify` | 466 |
+| `clipping-mask` | command | `layer.setClipping` | 781 |
+| `close-project` | host | Changes host project lifecycle state. | 304 |
+| `command-help` | presentation | Opens command documentation. | 915 |
+| `convert-text-to-shape` | command | `text.convertToShape` | 820, 905 |
+| `contract-selection` | command | `selection.modify` | 496 |
+| `copy-grade` | command | `grade.copy` | 350 |
+| `copy-merged-content` | command | `selection.copyPixels` | 336 |
+| `copy-selected-content` | command | `selection.copyPixels` | 329 |
+| `cut-selected-content` | command | `selection.cutPixels` | 322 |
+| `delete-layer` | command | `layer.delete` | 722 |
+| `duplicate-image` | command | `document.duplicate` | 660 |
+| `duplicate-layer` | command | `layer.duplicate` | 713 |
+| `edit-layer-mask` | presentation | Changes the active editing channel. | 803 |
+| `edit-layer-pixels` | presentation | Changes the active editing channel. | 788 |
+| `exit-application` | host | Closes the desktop host application and belongs to host lifecycle control. | 310 |
+| `export-jpeg` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 267 |
+| `export-png-native` | host | Runs the local save/download flow; Actions and MCP use file.exportPng with the same renderer output. | 266 |
+| `export-pdf` | host | Runs an interactive local PDF export flow. | 273 |
+| `export-png` | host | Runs a local download flow distinct from file.exportPng artifact creation. | 254 |
+| `export-psd` | host | Runs a local download flow distinct from file.exportPsd artifact creation. | 270 |
+| `export-psd-appearance` | host | Runs an interactive maximum-appearance PSD export flow. | 271 |
+| `export-svg` | host | Runs a local download flow; Actions and MCP use file.exportSvg with the same exact serializer. | 272 |
+| `export-tiff` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 269 |
+| `export-webp` | host | Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner. | 268 |
+| `expand-selection` | command | `selection.modify` | 490 |
+| `extras` | presentation | Toggles canvas overlays. | 973 |
+| `feather-selection` | command | `selection.modify` | 502 |
+| `fit` | command | `view.setZoom` | 941 |
+| `flatten-group` | command | `layer.flattenGroup` | 889 |
+| `flatten-image` | command | `document.flattenImage` | 895 |
+| `flip-canvas-horizontal` | command | `document.applyGeometry` | 648 |
+| `flip-canvas-vertical` | command | `document.applyGeometry` | 651 |
+| `format-support` | presentation | Opens format-support information. | 274 |
+| `guided-sample` | host | Starts an application-level guided workflow. | 916 |
+| `image-crop` | command | `document.applyGeometry` | 655 |
+| `image-rotation-180` | command | `document.applyGeometry` | 636 |
+| `image-rotation-arbitrary` | command | `document.applyGeometry` | 645 |
+| `image-rotation-clockwise-90` | command | `document.applyGeometry` | 639 |
+| `image-rotation-counter-clockwise-90` | command | `document.applyGeometry` | 642 |
+| `image-size` | command | `document.resizeImage` | 619 |
+| `import-svg` | command | `vector.importSvg` | 223 |
+| `invert-layer-colors` | command | `raster.invert` | 767 |
+| `invert-selection` | command | `selection.modify` | 459 |
+| `layer-via-copy` | command | `layer.copyToNewLayer` | 705 |
+| `lock-guides` | presentation | Changes document-view guide interaction. | 1018 |
+| `merge-down` | command | `layer.merge` | 881 |
+| `move-down` | command | `layer.move` | 850 |
+| `move-up` | command | `layer.move` | 845 |
+| `new-document` | command | `document.create` | 203 |
+| `new-guide` | presentation | Creates a document-view guide, not image content. | 1017 |
+| `new-layer` | command | `layer.createRaster` | 700 |
+| `new-project` | host | Changes host project lifecycle state. | 277 |
+| `open-image` | host | Uses a local file picker; file.openArtifact targets registered artifacts. | 210 |
+| `open-project` | host | Uses a host project picker. | 284 |
+| `paste-grade` | command | `grade.paste` | 357 |
+| `paste-selected-content` | command | `selection.pastePixels` | 343 |
+| `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 217 |
+| `rasterize-text` | command | `text.rasterize` | 829 |
+| `remove-background` | command | `layer.removeBackground` | 524, 775 |
+| `remove-mask` | command | `layer.setMask` | 813 |
+| `remove-object` | gap | No semantic object-removal command exists. | 517 |
+| `reload-ui` | host | Reloads the development renderer host without mutating a document. | 929 |
+| `rename-layer` | command | `layer.rename` | 749 |
+| `reset-workspace-layout` | presentation | Resets local panel layout. | 1031 |
+| `rulers` | presentation | Toggles canvas rulers. | 989 |
+| `save-corrected` | host | Writes through the current source/host save workflow. | 247 |
+| `select-all` | command | `selection.modify` | 445 |
+| `select-none` | command | `selection.modify` | 452 |
+| `select-similar` | command | `selection.modify` | 511 |
+| `settings` | presentation | Opens application preferences. | 399 |
+| `show-actions-panel` | presentation | Shows the Actions panel. | 1052 |
+| `show-ai-history-panel` | presentation | Shows the AI Assets panel. | 1048 |
+| `show-debug-panel` | presentation | Shows the Debug panel. | 933, 1056 |
+| `show-difference` | presentation | Toggles a diagnostic viewport comparison. | 955 |
+| `show-genai-panel` | presentation | Shows the GenAI panel. | 1044 |
+| `show-grid` | presentation | Toggles the canvas grid. | 984 |
+| `show-guides` | presentation | Toggles canvas guides. | 985 |
+| `show-smart-guides` | presentation | Toggles smart guides. | 986 |
+| `smooth-selection` | command | `selection.modify` | 484 |
+| `snap` | presentation | Changes local snapping behavior. | 995 |
+| `snap-all` | presentation | Changes local snapping behavior. | 1009 |
+| `snap-document` | presentation | Changes local snapping behavior. | 1008 |
+| `snap-grid` | presentation | Changes local snapping behavior. | 1006 |
+| `snap-guides` | presentation | Changes local snapping behavior. | 1005 |
+| `snap-layers` | presentation | Changes local snapping behavior. | 1007 |
+| `snap-none` | presentation | Changes local snapping behavior. | 1010 |
+| `third-party-licenses` | presentation | Opens legal information. | 917 |
+| `toggle-lock` | command | `layer.setLock` | 874 |
+| `toggle-developer-tools` | host | Toggles the desktop host developer tools in development builds. | 931 |
+| `toggle-mask` | command | `layer.setMask` | 808 |
+| `toggle-screen-mode` | presentation | Changes application window presentation. | 966 |
+| `toggle-visibility` | command | `layer.setVisibility` | 835 |
+| `transform-flip-horizontal` | command | `transform.applyFixed` | 375 |
+| `transform-flip-vertical` | command | `transform.applyFixed` | 377 |
+| `transform-rotate-180` | command | `transform.applyFixed` | 369 |
+| `transform-rotate-clockwise-90` | command | `transform.applyFixed` | 371 |
+| `transform-rotate-counter-clockwise-90` | command | `transform.applyFixed` | 373 |
+| `ui-style-guide` | presentation | Opens the developer UI style guide. | 935, 1061 |
+| `workspace-ai-generation` | presentation | Applies a local workspace layout preset. | 1029 |
+| `workspace-grading` | presentation | Applies a local workspace layout preset. | 1028 |
+| `workspace-photo-edit` | presentation | Applies a local workspace layout preset. | 1027 |
+| `workspace-video` | presentation | Applies a local workspace layout preset. | 1030 |
 
 ## Dynamic menu families
 
 | Value expression | Classification | Command or reason | Source line |
 | --- | --- | --- | --- |
-| `\`open-recent-${file.id}\`` | host | Opens a host-maintained local recent-file entry. | 207 |
-| `\`open-recent-project-${project.recentId}\`` | host | Opens a host-maintained recent-project entry. | 262 |
-| `\`image-adjustments-${definition.id}\`` | command | `adjustment.create` | 477 |
-| `\`blend-${mode.id}\`` | command | `layer.setBlendMode` | 607 |
+| `\`filter-${definition.kind}\`` | command | `adjustment.create` | 549 |
+| `\`filter-attach-${definition.kind}\`` | command | `adjustment.create` | 554 |
+| `\`layer-add-adjustment-${definition.id}\`` | command | `adjustment.create` | 671 |
+| `\`layer-attach-adjustment-${definition.id}\`` | command | `adjustment.create` | 677 |
+| `\`layer-add-effect-${kind}\`` | command | `adjustment.create` | 742 |
+| `\`open-recent-${file.id}\`` | host | Opens a host-maintained local recent-file entry. | 234 |
+| `\`open-recent-project-${project.recentId}\`` | host | Opens a host-maintained recent-project entry. | 290 |
+| `\`image-adjustments-${definition.id}\`` | command | `adjustment.create` | 584 |
+| `\`blend-${mode.id}\`` | command | `layer.setBlendMode` | 760 |
+| `\`workspace-panel-${panel.id}\`` | presentation | Shows or hides a registered workspace panel. | 1039 |
 
 ## Toolbar inventory
 
-- 36 registered tools;
-- 32 have a recorded UI/command route;
+- 37 registered tools;
+- 33 have a recorded UI/command route;
 - 2 have a canonical owner but no proven UI/command vertical;
 - 0 are explicitly not exposed.
 
@@ -154,6 +171,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `select-polygonal` | selection | continuous | ui-and-command | `selection.applyShape` | The UI records the bounded final polygon, never intermediate clicks. |
 | `select-object` | selection | continuous | canonical-owner-only | none | Smart-selection owner exists; model/result contract is not exposed. |
 | `select-magic-wand` | selection | discrete | ui-and-command | `selection.applyMagicWand` | One successful asynchronous GPU selection publishes its sampled recipe; masks remain local. |
+| `select-paint-brush` | selection | continuous | ui-and-command | `tool.commitGesture:selection-paint` | One GPU-native selection-mask stroke records after its reversible selection commit. |
 | `vector-pen` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | Open/closed and resumed Pen paths publish once after commit; anchor and handle previews remain local. |
 | `vector-add-anchor` | vector | discrete | ui-and-command | `vector.update` | One-shot add records the final native path. |
 | `vector-delete-anchor` | vector | discrete | ui-and-command | `vector.update`, `vector.remove` | One-shot delete records the final native path or its removal. |

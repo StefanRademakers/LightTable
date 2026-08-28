@@ -18,12 +18,14 @@ export class WasmVipsEncoder {
   private worker: Worker | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingEncode>();
+  private disposed = false;
 
   async encode(
     input: NativeBitmapPixelBuffer,
     format: NativeBitmapFormatId,
     signal?: AbortSignal
   ): Promise<Blob> {
+    if (this.disposed) throw new Error('The native bitmap encoder is closed.');
     const capabilities = getAdvancedImageIoCapabilities();
     if (!capabilities.available) {
       throw new Error(`Native bitmap encoding is unavailable: ${capabilities.reasons.join(' ')}`);
@@ -49,11 +51,20 @@ export class WasmVipsEncoder {
         kind: 'encode', requestId, pixels,
         width: input.width, height: input.height, storage: input.storage, format
       };
-      this.getWorker().postMessage(request, [pixels]);
+      try {
+        this.getWorker().postMessage(request, [pixels]);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        signal?.removeEventListener('abort', abort);
+        reject(reason instanceof Error ? reason : new Error('Native bitmap encoding failed.'));
+      }
     });
   }
 
-  destroy() { this.resetWorker(new Error('The native bitmap encoder was closed.')); }
+  destroy() {
+    this.disposed = true;
+    this.resetWorker(new Error('The native bitmap encoder was closed.'));
+  }
 
   private getWorker(): Worker {
     if (this.worker) return this.worker;

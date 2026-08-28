@@ -1,8 +1,8 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GenAiProjectSetup } from '@lighttable/genai-core';
 import { atomicWriteFile } from '../atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from '../projectService';
+import { readBoundedJsonFile } from '../boundedJsonFile';
 
 const FORMAT = 'lighttable-genai-setup';
 const VERSION = 1;
@@ -14,7 +14,9 @@ const setupPath = async (manifestPath: string): Promise<string> => {
 
 export const loadProjectGenAiSetup = async (manifestPath: string): Promise<GenAiProjectSetup | null> => {
   try {
-    const value = JSON.parse(await readFile(await setupPath(manifestPath), 'utf8')) as {
+    const value = await readBoundedJsonFile(
+      await setupPath(manifestPath), 1024 * 1024, 'GenAI project setup'
+    ) as {
       format?: unknown; version?: unknown; setup?: unknown;
     };
     if (value.format !== FORMAT || value.version !== VERSION || !value.setup || typeof value.setup !== 'object') return null;

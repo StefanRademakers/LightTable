@@ -273,6 +273,7 @@ describe('LayerRuntimeStore', () => {
       dirtyBounds: null
     };
     store.sync([text]);
+    expect(store.estimatedTextureBytes(100, 80)).toBe(100 * 80 * 2);
     const nodeMask = store.maskTexture(text.id);
     const raster = {
       ...text,

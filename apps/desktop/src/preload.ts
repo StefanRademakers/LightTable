@@ -48,6 +48,13 @@ const bridge: LightTableDesktopBridge = {
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
   closeApplication: () => ipcRenderer.invoke('lighttable:close-application'),
+  onApplicationCloseRequested: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('lighttable:application-close-requested', handler);
+    return () => ipcRenderer.removeListener('lighttable:application-close-requested', handler);
+  },
+  respondApplicationCloseRequest: (approved) =>
+    ipcRenderer.invoke('lighttable:application-close-response', approved),
   readActionLibrary: () => ipcRenderer.invoke('lighttable:actions-read'),
   writeActionLibrary: (value: string) => ipcRenderer.invoke('lighttable:actions-write', value),
   onFullscreenChange: (listener) => {

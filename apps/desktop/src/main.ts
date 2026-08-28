@@ -14,9 +14,11 @@ import {
 } from 'electron';
 import { createServer, type Server } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { pipeline } from 'node:stream/promises';
 import type { DesktopFilePayload, DesktopSavePayload } from './desktopBridge';
 import { SourceReplacementAuthority } from './sourceReplacementAuthority';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
@@ -64,6 +66,8 @@ import {
 import type { LightTableUpdateResult } from '@lighttable/app';
 import { isNativeBitmapFormatId } from '@lighttable/app/bitmap-formats';
 import { BoundedLruCache } from './boundedLruCache';
+import { readResponseBytesBounded } from './boundedResponse';
+import { readBoundedJsonFile } from './boundedJsonFile';
 import { AgentAccessBridge } from './agentAccessBridge';
 import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore';
 import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
@@ -140,6 +144,11 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 let mainWindow: BrowserWindow | null = null;
+let applicationCloseApproved = false;
+let applicationCloseRequestPending = false;
+let applicationCloseRequestKind: 'window' | 'application' | null = null;
+let applicationShutdownPrepared = false;
+let applicationShutdownPromise: Promise<void> | null = null;
 let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
@@ -207,6 +216,7 @@ const recentFileOperations = new RecentFileOperationQueue();
 const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'recent-projects.json');
 const actionLibraryPath = (): string => path.join(app.getPath('userData'), 'actions.json');
 const recentProjectOperations = new RecentFileOperationQueue();
+const MAX_SMALL_STATE_BYTES = 1024 * 1024;
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
 
@@ -260,8 +270,11 @@ const rememberActiveProjectFileAsLastUsed = async (filePath: string): Promise<vo
   const portablePath = relativePath.split(path.sep).join('/').toLocaleLowerCase('en-US');
   let entry = index.assets.find((candidate) => candidate.path.toLocaleLowerCase('en-US') === portablePath);
   if (!entry) {
-    const rebuilt = await rebuildProjectAssetIndex({ manifestPath });
-    entry = rebuilt.assets.find((candidate) => candidate.path.toLocaleLowerCase('en-US') === portablePath);
+    if (!await recordSavedProjectAsset({ manifestPath, filePath })) return;
+    const refreshed = await readProjectAssetIndex(manifestPath);
+    entry = refreshed.index.assets.find(
+      (candidate) => candidate.path.toLocaleLowerCase('en-US') === portablePath
+    );
   }
   if (entry) await rememberProjectAssetAsLastUsed(manifestPath, entry.id);
 };
@@ -307,7 +320,9 @@ const validRecoveryRoot = (value: unknown): value is string => typeof value === 
   && path.resolve(value) === value;
 const recoveryRootReady = (async () => {
   try {
-    const parsed = JSON.parse(await readFile(recoveryLocationPath(), 'utf8')) as {
+    const parsed = await readBoundedJsonFile(
+      recoveryLocationPath(), MAX_SMALL_STATE_BYTES, 'Recovery location preference'
+    ) as {
       readonly version?: unknown;
       readonly root?: unknown;
     };
@@ -377,13 +392,17 @@ const recentFileId = (filePath: string): string => createHash('sha256')
 
 const loadRecentFiles = async (): Promise<PersistedRecentFile[]> => {
   try {
-    const parsed: unknown = JSON.parse(await readFile(recentFilesPath(), 'utf8'));
+    const parsed = await readBoundedJsonFile(
+      recentFilesPath(), MAX_SMALL_STATE_BYTES, 'Recent files list'
+    );
     if (!Array.isArray(parsed)) return [];
     return normalizeRecentFiles(parsed.filter((entry): entry is PersistedRecentFile => Boolean(
       entry &&
       typeof entry === 'object' &&
       typeof (entry as PersistedRecentFile).id === 'string' &&
+      (entry as PersistedRecentFile).id.length <= 128 &&
       typeof (entry as PersistedRecentFile).path === 'string' &&
+      (entry as PersistedRecentFile).path.length <= 32_768 &&
       typeof (entry as PersistedRecentFile).openedAt === 'number'
     )));
   } catch {
@@ -392,7 +411,10 @@ const loadRecentFiles = async (): Promise<PersistedRecentFile[]> => {
 };
 
 const saveRecentFiles = async (entries: readonly PersistedRecentFile[]): Promise<void> => {
-  await writeFile(recentFilesPath(), JSON.stringify(normalizeRecentFiles(entries), null, 2));
+  await atomicWriteFile({
+    targetPath: recentFilesPath(),
+    bytes: new TextEncoder().encode(JSON.stringify(normalizeRecentFiles(entries), null, 2))
+  });
 };
 
 const rememberRecentFile = async (filePath: string): Promise<void> => {
@@ -440,13 +462,18 @@ const recentProjectId = (manifestPath: string): string => createHash('sha256')
 
 const loadRecentProjects = async (): Promise<PersistedRecentProject[]> => {
   try {
-    const parsed: unknown = JSON.parse(await readFile(recentProjectsPath(), 'utf8'));
+    const parsed = await readBoundedJsonFile(
+      recentProjectsPath(), MAX_SMALL_STATE_BYTES, 'Recent projects list'
+    );
     if (!Array.isArray(parsed)) return [];
     return normalizeRecentFiles(parsed.filter((entry): entry is PersistedRecentProject => Boolean(
       entry && typeof entry === 'object'
       && typeof (entry as PersistedRecentProject).id === 'string'
+      && (entry as PersistedRecentProject).id.length <= 128
       && typeof (entry as PersistedRecentProject).path === 'string'
+      && (entry as PersistedRecentProject).path.length <= 32_768
       && typeof (entry as PersistedRecentProject).name === 'string'
+      && (entry as PersistedRecentProject).name.length <= 1024
       && typeof (entry as PersistedRecentProject).openedAt === 'number'
     )));
   } catch {
@@ -455,7 +482,10 @@ const loadRecentProjects = async (): Promise<PersistedRecentProject[]> => {
 };
 
 const saveRecentProjects = async (entries: readonly PersistedRecentProject[]): Promise<void> => {
-  await writeFile(recentProjectsPath(), JSON.stringify(normalizeRecentFiles(entries), null, 2));
+  await atomicWriteFile({
+    targetPath: recentProjectsPath(),
+    bytes: new TextEncoder().encode(JSON.stringify(normalizeRecentFiles(entries), null, 2))
+  });
 };
 
 const rememberRecentProject = (project: DesktopProjectSummary): Promise<void> =>
@@ -468,15 +498,25 @@ const rememberRecentProject = (project: DesktopProjectSummary): Promise<void> =>
 
 const sourceReplacementAuthority = new SourceReplacementAuthority();
 const desktopMediaSources = new DesktopMediaSourceRegistry();
+const MAX_DESKTOP_BITMAP_DOCUMENT_BYTES = 512 * 1024 * 1024;
+let earlyLaunchBitmapBytes = 0;
+
+const releaseEarlyLaunchBytes = (bytes: number): void => {
+  earlyLaunchBitmapBytes = Math.max(0, earlyLaunchBitmapBytes - bytes);
+};
 
 const readDesktopFilePayload = async (filePath: string) => {
   const sourcePath = path.resolve(filePath);
   const sourceStats = await stat(sourcePath);
+  const type = desktopMediaTypeForFileName(sourcePath);
+  if (!sourceStats.isFile() || sourceStats.size < 1
+    || (!type.startsWith('video/') && sourceStats.size > MAX_DESKTOP_BITMAP_DOCUMENT_BYTES)) {
+    throw new Error('The document exceeds the bounded desktop-open limit.');
+  }
   sourceReplacementAuthority.authorize(sourcePath, {
     size: sourceStats.size,
     modifiedAtMs: sourceStats.mtimeMs
   });
-  const type = desktopMediaTypeForFileName(sourcePath);
   if (type.startsWith('video/')) {
     return {
       name: path.basename(sourcePath),
@@ -485,23 +525,39 @@ const readDesktopFilePayload = async (filePath: string) => {
       mediaSource: desktopMediaSources.authorize(sourcePath, type, sourceStats.size)
     };
   }
+  const bytes = new Uint8Array(await readFile(sourcePath));
+  if (bytes.byteLength !== sourceStats.size) {
+    throw new Error('The document changed while it was being opened.');
+  }
   return {
     name: path.basename(sourcePath),
     type,
-    bytes: new Uint8Array(await readFile(sourcePath)),
+    bytes,
     sourcePath
   };
 };
 
-const MAX_EARLY_LAUNCH_BITMAP_BYTES = 512 * 1024 * 1024;
 launchFileQueue.configureLoader(async (filePath) => {
   const sourceStats = await stat(filePath);
   const mediaType = desktopMediaTypeForFileName(filePath);
+  let reservedBytes = 0;
   if (!sourceStats.isFile() || sourceStats.size < 1
-    || (!mediaType.startsWith('video/') && sourceStats.size > MAX_EARLY_LAUNCH_BITMAP_BYTES)) {
+    || (!mediaType.startsWith('video/') && sourceStats.size > MAX_DESKTOP_BITMAP_DOCUMENT_BYTES)) {
     throw new Error('The launch document exceeds the bounded desktop-open limit.');
   }
-  return readDesktopFilePayload(filePath);
+  if (!mediaType.startsWith('video/')) {
+    if (earlyLaunchBitmapBytes + sourceStats.size > MAX_DESKTOP_BITMAP_DOCUMENT_BYTES) {
+      throw new Error('The launch batch exceeds the 512 MiB in-memory open limit.');
+    }
+    earlyLaunchBitmapBytes += sourceStats.size;
+    reservedBytes = sourceStats.size;
+  }
+  try {
+    return await readDesktopFilePayload(filePath);
+  } catch (reason) {
+    releaseEarlyLaunchBytes(reservedBytes);
+    throw reason;
+  }
 });
 
 const ISOLATION_HEADERS = {
@@ -564,16 +620,17 @@ async function startPackagedRendererServer(): Promise<string> {
 
       const fileStat = await stat(filePath);
       if (!fileStat.isFile()) throw new Error('Not a file');
-      const bytes = await readFile(filePath);
       response.writeHead(200, {
         ...ISOLATION_HEADERS,
         'Content-Type': CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream',
-        'Content-Length': bytes.byteLength
+        'Content-Length': fileStat.size
       });
-      response.end(bytes);
+      await pipeline(createReadStream(filePath), response);
     } catch {
-      response.writeHead(404, ISOLATION_HEADERS);
-      response.end('Not found');
+      if (!response.headersSent) {
+        response.writeHead(404, ISOLATION_HEADERS);
+        response.end('Not found');
+      } else if (!response.destroyed) response.destroy();
     }
   });
 
@@ -637,7 +694,40 @@ const rejectPendingAgentRequests = (message: string): void => {
   }
 };
 
+const prepareApplicationShutdown = (): Promise<void> => {
+  applicationShutdownPromise ??= (async () => {
+    try {
+      rejectPendingAgentRequests('LightTable is closing.');
+      const shutdownResults = await Promise.allSettled([
+        agentAccessBridge?.disable() ?? Promise.resolve(),
+        agentTunnel?.disconnect(false) ?? Promise.resolve(),
+        localAiProcessManager?.stop() ?? Promise.resolve(),
+        localMcpTestServer?.stop() ?? Promise.resolve()
+      ]);
+      const cleanupErrors = shutdownResults.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : []
+      );
+      const release = (operation: () => void) => {
+        try { operation(); } catch (reason) { cleanupErrors.push(reason); }
+      };
+      release(() => desktopMediaSources.clear());
+      release(deactivateProjectAssetCatalog);
+      release(() => genAiProviderRegistry?.dispose());
+      genAiProviderRegistry = null;
+      release(() => packagedRendererServer?.close());
+      packagedRendererServer = null;
+      if (cleanupErrors.length) throw new AggregateError(cleanupErrors);
+    } finally {
+      applicationShutdownPrepared = true;
+    }
+  })();
+  return applicationShutdownPromise;
+};
+
 async function createWindow(): Promise<void> {
+  applicationCloseApproved = false;
+  applicationCloseRequestPending = false;
+  applicationCloseRequestKind = null;
   const window = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -663,6 +753,18 @@ async function createWindow(): Promise<void> {
     }
   });
   mainWindow = window;
+
+  window.on('close', (event) => {
+    // Playwright closes automation windows directly during teardown. Keep that
+    // test-only path forceful unless a close-policy smoke explicitly opts in.
+    if (automationUserData && process.env.LIGHTTABLE_AUTOMATION_NATIVE_CLOSE_GUARD !== '1') return;
+    if (applicationCloseApproved) return;
+    event.preventDefault();
+    if (applicationCloseRequestPending || window.webContents.isDestroyed()) return;
+    applicationCloseRequestPending = true;
+    applicationCloseRequestKind = 'window';
+    window.webContents.send('lighttable:application-close-requested');
+  });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('before-input-event', (event, input) => {
@@ -890,14 +992,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       return { jobId, providerJobId: status.jobId, status: 'submitted' };
     },
     async wait(providerJobId, _request, signal) {
-      let status = await generation.status(providerJobId);
+      let status = await generation.status(providerJobId, signal);
       while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
         await abortableDelay(125, signal);
-        status = await generation.status(providerJobId);
+        status = await generation.status(providerJobId, signal);
       }
       if (status.status === 'cancelled') throw new Error('Local AI generation was cancelled.');
       if (status.status === 'failed') throw new Error(status.error?.message ?? 'Local AI generation failed.');
-      const complete = await generation.result(providerJobId);
+      const complete = await generation.result(providerJobId, signal);
       return complete.images.map((image) => ({ mediaType: image.mediaType, bytes: image.bytes }));
     }
   });
@@ -1251,9 +1353,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
           if (responseMediaType && /^(image\/(png|jpeg|webp)|video\/(mp4|webm))$/u.test(responseMediaType)) {
             mediaType = responseMediaType;
           }
-          const declaredLength = Number(response.headers.get('content-length') ?? 0);
-          if (declaredLength > 512 * 1024 * 1024) throw new Error(`${providerLabel} output exceeds the 512 MiB safety limit.`);
-          bytes = new Uint8Array(await response.arrayBuffer());
+          bytes = await readResponseBytesBounded(
+            response,
+            512 * 1024 * 1024,
+            `${providerLabel} output`
+          );
         }
         if (!bytes?.length || bytes.byteLength > 512 * 1024 * 1024) throw new Error(`${providerLabel} returned an invalid output file.`);
         const extension = mediaType === 'image/jpeg' ? 'jpg' : mediaType === 'image/webp' ? 'webp'
@@ -1639,6 +1743,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       || !(asset.bytes instanceof Uint8Array) || asset.bytes.byteLength === 0) {
       throw new Error('Invalid project asset import.');
     }
+    if (asset.bytes.byteLength > 256 * 1024 * 1024) {
+      throw new Error('Project asset exceeds the 256 MiB transfer limit.');
+    }
     const extensionByMediaType: Readonly<Record<string, string>> = {
       'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/tiff': '.tiff',
       'video/mp4': '.mp4', 'video/webm': '.webm'
@@ -1769,8 +1876,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (result.canceled || !selectedPath) return null;
 
     const payload = await readDesktopFilePayload(selectedPath);
-    await rememberRecentFile(selectedPath);
-    await rememberActiveProjectFileAsLastUsed(selectedPath);
+    try { await rememberRecentFile(selectedPath); }
+    catch (reason) { console.warn('[LightTable desktop] Opened the document but could not update recents.', reason); }
+    void rememberActiveProjectFileAsLastUsed(selectedPath).catch((reason) => {
+      console.warn('[LightTable desktop] Opened the document but could not update project state.', reason);
+    });
     return payload;
   });
 
@@ -1799,29 +1909,64 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       : await dialog.showOpenDialog(options);
     if (result.canceled || result.filePaths.length === 0) return [];
 
-    const payloads = [];
+    let aggregateBitmapBytes = 0;
     for (const selectedPath of result.filePaths) {
-      // Keep peak decoder/file-read pressure bounded when many large files are
-      // selected; each payload still follows the normal independent open path.
-      payloads.push(await readDesktopFilePayload(selectedPath));
-      await rememberRecentFile(selectedPath);
+      const selectedStats = await stat(selectedPath);
+      if (!desktopMediaTypeForFileName(selectedPath).startsWith('video/')) {
+        aggregateBitmapBytes += selectedStats.size;
+        if (aggregateBitmapBytes > MAX_DESKTOP_BITMAP_DOCUMENT_BYTES) {
+          throw new Error('The selected image documents exceed the 512 MiB in-memory open limit. Open them in smaller batches.');
+        }
+      }
     }
-    await rememberActiveProjectFileAsLastUsed(result.filePaths[result.filePaths.length - 1]!);
+    const payloads = [];
+    let loadedBitmapBytes = 0;
+    try {
+      for (const selectedPath of result.filePaths) {
+        // Keep peak decoder/file-read pressure bounded when many large files are
+        // selected; each payload still follows the normal independent open path.
+        const payload = await readDesktopFilePayload(selectedPath);
+        loadedBitmapBytes += payload.bytes?.byteLength ?? 0;
+        if (loadedBitmapBytes > MAX_DESKTOP_BITMAP_DOCUMENT_BYTES) {
+          payload.mediaSource && desktopMediaSources.release(payload.mediaSource.id);
+          throw new Error('The selected image documents changed and now exceed the 512 MiB in-memory open limit.');
+        }
+        payloads.push(payload);
+      }
+    } catch (reason) {
+      for (const payload of payloads) {
+        if (payload.mediaSource) desktopMediaSources.release(payload.mediaSource.id);
+      }
+      throw reason;
+    }
+    try { await rememberRecentFileBatch(result.filePaths); }
+    catch (reason) { console.warn('[LightTable desktop] Opened the documents but could not update recents.', reason); }
+    void rememberActiveProjectFileAsLastUsed(result.filePaths[result.filePaths.length - 1]!).catch((reason) => {
+      console.warn('[LightTable desktop] Opened the documents but could not update project state.', reason);
+    });
     return payloads;
   });
 
   ipcMain.handle('lighttable:take-launch-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const payloads = [];
+    let claimedBytes = 0;
     for (const request of launchFileQueue.takeAllPrepared()) {
+      let loadedBytes = 0;
       try {
         const payload = await request.payload;
+        loadedBytes = payload.bytes?.byteLength ?? 0;
         await rememberRecentFile(request.filePath);
         payloads.push(payload);
+        claimedBytes += loadedBytes;
       } catch (reason) {
+        releaseEarlyLaunchBytes(loadedBytes);
         console.warn(`[LightTable desktop] Could not open launch file ${path.basename(request.filePath)}.`, reason);
       }
     }
+    // Keep the reservation through IPC serialization. The next event-loop turn
+    // runs only after Electron has accepted this handler's resolved payload.
+    if (claimedBytes) setImmediate(() => releaseEarlyLaunchBytes(claimedBytes));
     return payloads;
   });
 
@@ -1842,14 +1987,33 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:close-application', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    applicationCloseApproved = true;
+    applicationCloseRequestPending = false;
+    applicationCloseRequestKind = null;
     setImmediate(() => app.quit());
+  });
+
+  ipcMain.handle('lighttable:application-close-response', (event, approved: boolean) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof approved !== 'boolean') throw new Error('Invalid application close response.');
+    const requestKind = applicationCloseRequestKind;
+    applicationCloseRequestPending = false;
+    applicationCloseRequestKind = null;
+    if (!approved || !mainWindow || mainWindow.isDestroyed()) return;
+    applicationCloseApproved = true;
+    if (requestKind === 'application') setImmediate(() => app.quit());
+    else setImmediate(() => mainWindow?.destroy());
   });
 
   ipcMain.handle('lighttable:actions-read', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     try {
+      const info = await stat(actionLibraryPath());
+      if (!info.isFile() || info.size > 8 * 1024 * 1024) {
+        throw new Error('Saved Actions exceed the storage boundary.');
+      }
       const bytes = await readFile(actionLibraryPath());
-      if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('Saved Actions exceed the storage boundary.');
+      if (bytes.byteLength !== info.size) throw new Error('Saved Actions changed while being read.');
       return bytes.toString('utf8');
     } catch (reason) {
       if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') return null;
@@ -1912,14 +2076,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     await recentFileOperations.settled();
     const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
     if (!entry) return null;
+    let payload: DesktopFilePayload;
     try {
-      const payload = await readDesktopFilePayload(entry.path);
-      await rememberRecentFile(entry.path);
-      await rememberActiveProjectFileAsLastUsed(entry.path);
-      return payload;
+      payload = await readDesktopFilePayload(entry.path);
     } catch {
       return null;
     }
+    try { await rememberRecentFile(entry.path); }
+    catch (reason) { console.warn('[LightTable desktop] Opened the recent document but could not refresh recents.', reason); }
+    void rememberActiveProjectFileAsLastUsed(entry.path).catch((reason) => {
+      console.warn('[LightTable desktop] Opened the recent document but could not update project state.', reason);
+    });
+    return payload;
   });
 
   ipcMain.handle('lighttable:remember-opened-files', async (event, requestedPaths: unknown) => {
@@ -2032,9 +2200,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const manifestPath = result.filePaths[0];
     if (result.canceled || !manifestPath) return null;
     const project = (await openProjectManifest(manifestPath)).summary;
-    await rememberRecentProject(project);
     activateProjectAssetCatalog(project.manifestPath);
     activeProjectManifestPath = project.manifestPath;
+    try { await rememberRecentProject(project); }
+    catch (reason) { console.warn('[LightTable desktop] Opened the project but could not update recents.', reason); }
     return project;
   });
 
@@ -2067,9 +2236,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!entry) return null;
     try {
       const project = (await openProjectManifest(entry.path)).summary;
-      await rememberRecentProject(project);
       activateProjectAssetCatalog(project.manifestPath);
       activeProjectManifestPath = project.manifestPath;
+      try { await rememberRecentProject(project); }
+      catch (reason) { console.warn('[LightTable desktop] Opened the project but could not update recents.', reason); }
       return project;
     } catch {
       return null;
@@ -2100,14 +2270,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (typeof projectId !== 'string' || !activeProjectManifestPath) return null;
     const project = await openProjectManifest(activeProjectManifestPath);
     if (project.summary.id !== projectId || !project.manifest.lastUsedDocument) return null;
-    const asset = await readProjectAsset(activeProjectManifestPath, project.manifest.lastUsedDocument.assetId);
-    if (!asset) return null;
-    await rememberProjectAssetAsLastUsed(activeProjectManifestPath, project.manifest.lastUsedDocument.assetId);
-    return {
-      name: asset.name,
-      type: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
-      bytes: asset.bytes
-    };
+    const assetPath = await resolveProjectAssetPath(
+      activeProjectManifestPath, project.manifest.lastUsedDocument.assetId
+    );
+    const payload = await readDesktopFilePayload(assetPath);
+    void rememberProjectAssetAsLastUsed(
+      activeProjectManifestPath, project.manifest.lastUsedDocument.assetId
+    ).catch((reason) => {
+      console.warn('[LightTable desktop] Opened the last project document but could not update project state.', reason);
+    });
+    return payload;
   });
 
   ipcMain.handle('lighttable:project-reveal', async (event, manifestPath: unknown) => {
@@ -2238,7 +2410,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!payload || typeof payload.documentId !== 'string'
       || payload.documentId.length > 1024
       || !(payload.bytes instanceof Uint8Array)
-      || payload.bytes.byteLength > 2_147_483_647) {
+      || payload.bytes.byteLength > 512 * 1024 * 1024) {
       throw new Error('Invalid LightTable recovery write request.');
     }
     return recoveryStore.write(payload);
@@ -2346,6 +2518,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const image = nativeImage.createFromBuffer(Buffer.from(bytes));
     if (image.isEmpty()) throw new Error('The clipboard PNG could not be decoded.');
     clipboard.writeImage(image);
+    return { identity: createHash('sha256').update(image.toPNG()).digest('hex') };
   });
 
   ipcMain.handle('lighttable:clipboard-read-image', async (event) => {
@@ -2364,7 +2537,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
           byteLength: encoded.bytes.byteLength
         });
       }
-      return encoded;
+      const image = nativeImage.createFromBuffer(Buffer.from(encoded.bytes));
+      return { ...encoded,
+        identity: createHash('sha256').update(image.toPNG()).digest('hex') };
     }
     const image = clipboard.readImage();
     if (image.isEmpty()) return null;
@@ -2380,7 +2555,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     return {
       bytes,
       mediaType: 'image/png' as const,
-      sourceFormat: 'electron/native-image'
+      sourceFormat: 'electron/native-image',
+      identity: createHash('sha256').update(bytes).digest('hex')
     };
   });
 
@@ -2428,7 +2604,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       if (!artifactResponse.ok) {
         return { status: 'unavailable', message: `Update download returned HTTP ${artifactResponse.status}.` };
       }
-      const bytes = new Uint8Array(await artifactResponse.arrayBuffer());
+      const bytes = await readResponseBytesBounded(
+        artifactResponse,
+        decision.manifest.artifact.byteLength,
+        'Update download'
+      );
       const checked = verifyUpdateArtifact(decision.manifest, bytes);
       if (!checked.ok) return { status: 'invalid', message: checked.message };
       const updatePath = path.join(
@@ -2504,23 +2684,33 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
 }).catch(reportDesktopStartupFailure);
 
-app.on('before-quit', () => {
-  desktopMediaSources.clear();
-  deactivateProjectAssetCatalog();
-  genAiProviderRegistry?.dispose();
-  genAiProviderRegistry = null;
-  void localAiProcessManager?.stop();
-  void localMcpTestServer?.stop();
+app.on('before-quit', (event) => {
+  const automationBypass = automationUserData
+    && process.env.LIGHTTABLE_AUTOMATION_NATIVE_CLOSE_GUARD !== '1';
+  if (!applicationCloseApproved && !automationBypass
+    && mainWindow && !mainWindow.isDestroyed()) {
+    event.preventDefault();
+    applicationCloseRequestKind = 'application';
+    if (!applicationCloseRequestPending && !mainWindow.webContents.isDestroyed()) {
+      applicationCloseRequestPending = true;
+      mainWindow.webContents.send('lighttable:application-close-requested');
+    }
+    return;
+  }
+  if (!applicationShutdownPrepared) {
+    event.preventDefault();
+    void prepareApplicationShutdown()
+      .catch((reason) => console.error('[LightTable desktop] Application cleanup failed.', reason))
+      .finally(() => app.quit());
+    return;
+  }
+  applicationCloseApproved = true;
+  applicationCloseRequestPending = false;
+  applicationCloseRequestKind = null;
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    rejectPendingAgentRequests('LightTable is closing.');
-    void agentAccessBridge?.disable();
-    void agentTunnel?.disconnect(false);
-    void localMcpTestServer?.stop();
-    packagedRendererServer?.close();
-    packagedRendererServer = null;
     app.quit();
   }
 });

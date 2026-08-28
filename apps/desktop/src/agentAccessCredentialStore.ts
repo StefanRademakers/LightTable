@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentAccessCredentials, AgentAccessCredentialStore } from './agentAccessBridge';
+import { atomicWriteFile } from './atomicFileWriter';
+
+const MAX_CREDENTIAL_BYTES = 1024 * 1024;
 
 export interface CredentialProtector {
   available(): boolean;
@@ -27,7 +30,11 @@ export class DesktopAgentAccessCredentialStore implements AgentAccessCredentialS
   async loadOrCreate(): Promise<AgentAccessCredentials> {
     if (!this.protector.available()) throw new Error('OS-protected credential storage is unavailable.');
     try {
-      const parsed: unknown = JSON.parse(this.protector.unprotect(new Uint8Array(await readFile(this.filePath))));
+      const info = await stat(this.filePath);
+      if (!info.isFile() || info.size < 1 || info.size > MAX_CREDENTIAL_BYTES) throw new Error('Invalid credential file.');
+      const encrypted = new Uint8Array(await readFile(this.filePath));
+      if (encrypted.byteLength !== info.size) throw new Error('Credential file changed while reading.');
+      const parsed: unknown = JSON.parse(this.protector.unprotect(encrypted));
       if (valid(parsed)) return parsed;
     } catch {
       // Missing, corrupt or no longer decryptable credentials are replaced.
@@ -43,7 +50,9 @@ export class DesktopAgentAccessCredentialStore implements AgentAccessCredentialS
 
   private async persist(credentials: AgentAccessCredentials): Promise<AgentAccessCredentials> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, this.protector.protect(JSON.stringify(credentials)), { mode: 0o600 });
+    const bytes = this.protector.protect(JSON.stringify(credentials));
+    if (bytes.byteLength > MAX_CREDENTIAL_BYTES) throw new Error('Credential record exceeds the storage boundary.');
+    await atomicWriteFile({ targetPath: this.filePath, bytes });
     return credentials;
   }
 }

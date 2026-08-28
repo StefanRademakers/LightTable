@@ -55,6 +55,15 @@ try {
   await open.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  const openedDocument = await page.evaluate(() => {
+    const workspace = window.__lightTableAutomation?.queryWorkspace();
+    return workspace?.activeDocumentId
+      ? window.__lightTableAutomation?.queryDocument(workspace.activeDocumentId) ?? null
+      : null;
+  });
+  if (openedDocument?.color?.bitDepth !== 16) {
+    throw new Error(`The 16-bit fixture opened as ${JSON.stringify(openedDocument)}.`);
+  }
 
   const results = [];
   for (const testCase of cases) {
@@ -70,7 +79,7 @@ try {
     }
     results.push({ label: testCase.label, format: metadata.format, bitDepth: metadata.depth, bytes: bytes.length });
   }
-  console.log(JSON.stringify({ passed: true, formats: results }, null, 2));
+  console.log(JSON.stringify({ passed: true, documentBitDepth: 16, formats: results }, null, 2));
 } finally {
   await app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => {});
   await app.close().catch(() => {});

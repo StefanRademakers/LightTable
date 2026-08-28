@@ -55,6 +55,16 @@ export class DocumentSourceGpuLoader {
     if (this.destroyed) throw new Error('LightTable was closed while the image was loading.');
   }
 
+  private validateTextureDimensions(width: number, height: number): void {
+    const maximum = this.device.limits.maxTextureDimension2D;
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+      || width < 1 || height < 1 || width > maximum || height > maximum) {
+      throw new Error(
+        `Image dimensions ${width} × ${height} exceed this GPU's ${maximum}-pixel texture limit.`
+      );
+    }
+  }
+
   private async loadNative(
     blob: Blob,
     name: string,
@@ -66,6 +76,7 @@ export class DocumentSourceGpuLoader {
     const { bitmap, descriptor } = decoded;
     try {
       this.assertCurrent(signal, revision);
+      this.validateTextureDimensions(bitmap.width, bitmap.height);
       const texture = this.device.createTexture({
         label: 'LightTable original sRGB image',
         size: [bitmap.width, bitmap.height],
@@ -74,14 +85,15 @@ export class DocumentSourceGpuLoader {
           | GPUTextureUsage.COPY_DST
           | GPUTextureUsage.RENDER_ATTACHMENT
       });
-      this.device.queue.copyExternalImageToTexture(
-        { source: bitmap },
-        { texture },
-        [bitmap.width, bitmap.height]
-      );
-      return {
-        texture,
-        metadata: {
+      try {
+        this.device.queue.copyExternalImageToTexture(
+          { source: bitmap },
+          { texture },
+          [bitmap.width, bitmap.height]
+        );
+        return {
+          texture,
+          metadata: {
           name,
           width: descriptor.width,
           height: descriptor.height,
@@ -95,8 +107,12 @@ export class DocumentSourceGpuLoader {
               : descriptor.contentType === 'image/webp' ? 'WebP' : descriptor.contentType,
           sourceInterpretation: '8-bit RGBA sRGB',
           sourceProfile: 'no embedded ICC; assumed sRGB'
-        }
-      };
+          }
+        };
+      } catch (reason) {
+        texture.destroy();
+        throw reason;
+      }
     } finally {
       decoded.close();
     }
@@ -127,6 +143,7 @@ export class DocumentSourceGpuLoader {
 
   private validateAdvancedDescriptor(decoded: AdvancedDecodedImage): void {
     const { descriptor, pixels } = decoded;
+    this.validateTextureDimensions(descriptor.width, descriptor.height);
     if (descriptor.iccProfile && !descriptor.iccProfileAppliedToSrgb) {
       throw new Error('Precision-preserving import of embedded ICC profiles is not enabled yet.');
     }
@@ -160,7 +177,7 @@ export class DocumentSourceGpuLoader {
         `Precision-preserving import does not yet support ${descriptor.sourceInterpretation} source color.`
       );
     }
-    const bytesPerChannel = descriptor.storage === 'u16' ? 2 : 1;
+    const bytesPerChannel = descriptor.storage === 'u16' || descriptor.storage === 'f16-display' ? 2 : 1;
     const expectedBytes = descriptor.width * descriptor.height * descriptor.channels * bytesPerChannel;
     if (pixels.byteLength !== expectedBytes) {
       throw new Error(`The decoded image buffer has ${pixels.byteLength} bytes; expected ${expectedBytes}.`);
@@ -173,7 +190,7 @@ export class DocumentSourceGpuLoader {
     decodeDurationMs: number
   ): LoadedGpuDocumentSource {
     const { descriptor, pixels } = decoded;
-    const bytesPerChannel = descriptor.storage === 'u16' ? 2 : 1;
+    const bytesPerChannel = descriptor.storage === 'u16' || descriptor.storage === 'f16-display' ? 2 : 1;
     const metadata: LightTableImageMetadata = {
       name,
       width: descriptor.width,
@@ -189,6 +206,31 @@ export class DocumentSourceGpuLoader {
       decodeDurationMs
     };
 
+    if (descriptor.storage === 'f16-display') {
+      const texture = this.device.createTexture({
+        label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB working image`,
+        size: [descriptor.width, descriptor.height],
+        format: 'rgba16float',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+      });
+      try {
+        this.device.queue.writeTexture(
+          { texture },
+          pixels,
+          {
+            offset: 0,
+            bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
+            rowsPerImage: descriptor.height
+          },
+          [descriptor.width, descriptor.height]
+        );
+        return { metadata, texture };
+      } catch (reason) {
+        texture.destroy();
+        throw reason;
+      }
+    }
+
     if (descriptor.storage !== 'u16') {
       const texture = this.device.createTexture({
         label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB image`,
@@ -196,17 +238,22 @@ export class DocumentSourceGpuLoader {
         format: 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
       });
-      this.device.queue.writeTexture(
-        { texture },
-        pixels,
-        {
-          offset: 0,
-          bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
-          rowsPerImage: descriptor.height
-        },
-        [descriptor.width, descriptor.height]
-      );
-      return { metadata, texture };
+      try {
+        this.device.queue.writeTexture(
+          { texture },
+          pixels,
+          {
+            offset: 0,
+            bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
+            rowsPerImage: descriptor.height
+          },
+          [descriptor.width, descriptor.height]
+        );
+        return { metadata, texture };
+      } catch (reason) {
+        texture.destroy();
+        throw reason;
+      }
     }
 
     const stagingTexture = this.device.createTexture({
@@ -215,44 +262,51 @@ export class DocumentSourceGpuLoader {
       format: 'rgba16unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
-    this.device.queue.writeTexture(
-      { texture: stagingTexture },
-      pixels,
-      {
-        offset: 0,
-        bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
-        rowsPerImage: descriptor.height
-      },
-      [descriptor.width, descriptor.height]
-    );
-    const texture = this.device.createTexture({
-      label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB working image`,
-      size: [descriptor.width, descriptor.height],
-      format: 'rgba16float',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
-    });
-    const bindGroup = this.device.createBindGroup({
-      layout: this.precisionSourceResolvePipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: stagingTexture.createView() }]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable precision source ingest' });
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: texture.createView(),
-        clearValue: { r: 0, g: 0, b: 0, a: 0 },
-        loadOp: 'clear',
-        storeOp: 'store'
-      }]
-    });
-    pass.setPipeline(this.precisionSourceResolvePipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(3);
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-    void this.device.queue.onSubmittedWorkDone().then(
-      () => stagingTexture.destroy(),
-      () => stagingTexture.destroy()
-    );
-    return { metadata, texture };
+    let texture: GPUTexture | null = null;
+    try {
+      this.device.queue.writeTexture(
+        { texture: stagingTexture },
+        pixels,
+        {
+          offset: 0,
+          bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
+          rowsPerImage: descriptor.height
+        },
+        [descriptor.width, descriptor.height]
+      );
+      texture = this.device.createTexture({
+        label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB working image`,
+        size: [descriptor.width, descriptor.height],
+        format: 'rgba16float',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+      });
+      const bindGroup = this.device.createBindGroup({
+        layout: this.precisionSourceResolvePipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: stagingTexture.createView() }]
+      });
+      const encoder = this.device.createCommandEncoder({ label: 'LightTable precision source ingest' });
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: texture.createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }]
+      });
+      pass.setPipeline(this.precisionSourceResolvePipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3);
+      pass.end();
+      this.device.queue.submit([encoder.finish()]);
+      void this.device.queue.onSubmittedWorkDone().then(
+        () => stagingTexture.destroy(),
+        () => stagingTexture.destroy()
+      );
+      return { metadata, texture };
+    } catch (reason) {
+      stagingTexture.destroy();
+      texture?.destroy();
+      throw reason;
+    }
   }
 }

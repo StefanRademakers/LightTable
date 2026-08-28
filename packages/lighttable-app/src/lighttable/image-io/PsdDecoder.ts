@@ -28,13 +28,16 @@ export class PsdDecoder {
   private worker: Worker | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingDecode>();
+  private disposed = false;
 
   async decode(blob: Blob, signal?: AbortSignal): Promise<PsdDecodeSuccess> {
+    if (this.disposed) throw new Error('The PSD decoder is closed.');
     if (signal?.aborted) throw new DOMException('The PSD import was cancelled.', 'AbortError');
     if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
       throw new Error('PSD semantic import requires Web Workers and OffscreenCanvas.');
     }
     const bytes = await blob.arrayBuffer();
+    if (this.disposed) throw new Error('The PSD decoder is closed.');
     if (signal?.aborted) throw new DOMException('The PSD import was cancelled.', 'AbortError');
     const requestId = ++this.requestId;
     const worker = this.getWorker();
@@ -56,11 +59,18 @@ export class PsdDecoder {
           reject(reason);
         }
       });
-      worker.postMessage({ kind: 'decode-psd', requestId, bytes }, [bytes]);
+      try {
+        worker.postMessage({ kind: 'decode-psd', requestId, bytes }, [bytes]);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        signal?.removeEventListener('abort', abort);
+        reject(reason instanceof Error ? reason : new Error('PSD import failed to start.'));
+      }
     });
   }
 
   destroy() {
+    this.disposed = true;
     this.resetWorker(new Error('The PSD decoder was closed.'));
   }
 

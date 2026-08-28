@@ -1,4 +1,9 @@
-import { cloneVectorElement, identityAffineMatrix, translationMatrix } from '@lighttable/vector-core';
+import {
+  cloneVectorElement,
+  identityAffineMatrix,
+  translationMatrix,
+  type VectorElement
+} from '@lighttable/vector-core';
 import type { SvgImportPlan, SvgSceneNode } from '@lighttable/vector-svg';
 import {
   createGroupLayer as createGroupLayerNode,
@@ -18,14 +23,27 @@ const materializeNodes = (
   vectorName: string
 ): VectorLayerTreeNode[] => {
   const result: VectorLayerTreeNode[] = [];
+  const compactSiblingElements = nodes.reduce(
+    (count, node) => count + (node.kind === 'element' ? 1 : 0), 0
+  ) > 512;
+  let elementBatch: VectorElement[] = [];
+  const flushElementBatch = () => {
+    if (!elementBatch.length) return;
+    result.push(createVectorLayerNode(elementBatch, vectorName));
+    elementBatch = [];
+  };
   for (const node of nodes) {
     if (node.kind === 'element') {
-      result.push(createVectorLayerNode(
-        [node.element],
-        node.element.name.trim() || vectorName
-      ));
+      if (compactSiblingElements) elementBatch.push(node.element);
+      else {
+        result.push(createVectorLayerNode(
+          [node.element],
+          node.element.name.trim() || vectorName
+        ));
+      }
       continue;
     }
+    flushElementBatch();
     const children = materializeNodes(node.children, node.name || vectorName);
     if (!children.length) continue;
     if (node.clipPath) {
@@ -58,6 +76,7 @@ const materializeNodes = (
     }
     result.push(group);
   }
+  flushElementBatch();
   return result;
 };
 

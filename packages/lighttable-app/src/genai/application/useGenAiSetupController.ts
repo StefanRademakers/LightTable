@@ -24,6 +24,10 @@ import {
   matchGenAiValuesToDocument,
   type GenAiDocumentContext
 } from './genAiDocumentDefaults';
+import {
+  resolveGenAiGenerationReadiness,
+  type GenAiGenerationReadiness
+} from './genAiGenerationReadiness';
 
 export interface GenAiSetupSnapshot {
   readonly models: readonly GenAiModelSummary[];
@@ -42,7 +46,7 @@ export interface GenAiSetupSnapshot {
   readonly assetPreviews: Readonly<Record<string, string>>;
   readonly requestAssetPreview: (assetId: GenAiAssetId) => void;
   readonly refreshAssets: () => Promise<void>;
-  readonly addAssetReference: (assetId: GenAiAssetId) => void;
+  readonly addAssetReference: (assetId: GenAiAssetId, includePromptToken?: boolean) => void;
   readonly importAssetReference: (file: File) => Promise<GenAiAssetReference | undefined>;
   readonly removeAssetReference: (assetId: GenAiAssetId) => void;
   readonly generating: boolean;
@@ -51,6 +55,7 @@ export interface GenAiSetupSnapshot {
   readonly costEstimate?: GenAiCostEstimate;
   readonly submission?: GenAiGenerationSubmission;
   readonly canGenerate: boolean;
+  readonly generationReadiness: GenAiGenerationReadiness;
   readonly generate: () => Promise<void>;
   readonly restoreRequest: (request: GenAiGenerationRequest) => void;
 }
@@ -116,6 +121,14 @@ export const useGenAiSetupController = (
   const previewRequests = React.useRef(new Set<string>());
   const pendingRestore = React.useRef<GenAiGenerationRequest | undefined>(undefined);
   const workflowCache = React.useRef(new Map<string, GenAiWorkflowDefinition>());
+  const contextOwner = React.useRef({ service, projectId, generation: 0 });
+  if (contextOwner.current.service !== service || contextOwner.current.projectId !== projectId) {
+    contextOwner.current = {
+      service,
+      projectId,
+      generation: contextOwner.current.generation + 1
+    };
+  }
   const documentContextKey = genAiDocumentContextKey(documentContext);
   const documentContextRef = React.useRef(documentContext);
   documentContextRef.current = documentContext;
@@ -127,6 +140,9 @@ export const useGenAiSetupController = (
   React.useEffect(() => {
     setPersistedSetup(null);
     setSetupHydrated(false);
+    setGenerating(false);
+    setGenerationError(undefined);
+    setSubmission(undefined);
     if (!service || !projectId) return;
     let current = true;
     void service.loadProjectSetup(projectId).then((setup) => {
@@ -286,24 +302,32 @@ export const useGenAiSetupController = (
 
   const requestAssetPreview = React.useCallback((assetId: GenAiAssetId) => {
     if (!service || !projectId || previewRequests.current.has(assetId)) return;
+    const generation = contextOwner.current.generation;
     previewRequests.current.add(assetId);
     void service.loadProjectAssetPreview(projectId, assetId).then((preview) => {
+      if (generation !== contextOwner.current.generation) return;
       if (preview) setAssetPreviews((current) => ({ ...current, [assetId]: preview }));
-    }).catch(() => undefined);
+      else previewRequests.current.delete(assetId);
+    }).catch(() => {
+      if (generation === contextOwner.current.generation) previewRequests.current.delete(assetId);
+    });
   }, [projectId, service]);
 
   const refreshAssets = React.useCallback(async () => {
     if (!service || !projectId) return;
+    const generation = contextOwner.current.generation;
     setGenerationError(undefined);
     try {
       await service.refreshProjectAssets(projectId);
     } catch (reason) {
-      setGenerationError(reason instanceof Error ? reason.message : String(reason));
+      if (generation === contextOwner.current.generation) {
+        setGenerationError(reason instanceof Error ? reason.message : String(reason));
+      }
     }
   }, [projectId, service]);
 
   const mentionOptions = React.useMemo(() => createGenAiAssetMentionOptions(assets), [assets]);
-  const addAssetReference = React.useCallback((assetId: GenAiAssetId) => {
+  const addAssetReference = React.useCallback((assetId: GenAiAssetId, includePromptToken = true) => {
     const option = mentionOptions.find(({ asset }) => asset.id === assetId);
     if (!option) return;
     setValues((current) => {
@@ -314,7 +338,7 @@ export const useGenAiSetupController = (
         ? currentReferences : [...currentReferences, option.asset];
       const hasToken = new RegExp(`(^|\\s)${option.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'iu').test(currentPrompt);
       return assignWorkflowReferences(workflow, { ...current,
-        [promptKey]: hasToken ? currentPrompt
+        [promptKey]: !includePromptToken || hasToken ? currentPrompt
           : `${currentPrompt}${currentPrompt && !/\s$/u.test(currentPrompt) ? ' ' : ''}${option.token}` }, references);
     });
   }, [mentionOptions, workflow]);
@@ -323,8 +347,12 @@ export const useGenAiSetupController = (
       setGenerationError('Local media references are unavailable in this host.');
       return undefined;
     }
+    const generation = contextOwner.current.generation;
     try {
       setGenerationError(undefined);
+      if (file.size > 256 * 1024 * 1024) {
+        throw new Error(`${file.name} exceeds the 256 MiB project asset limit.`);
+      }
       const imported = projectId
         ? await service.importProjectAsset(projectId, {
           name: file.name,
@@ -338,6 +366,7 @@ export const useGenAiSetupController = (
           mediaType: file.type,
           previewId: `session-${file.name}`
         } satisfies GenAiAssetReference;
+      if (generation !== contextOwner.current.generation) return undefined;
       setAssets((current) => current.some(({ id }) => id === imported.id) ? current : [...current, imported]);
       if (!projectId) {
         const preview = await new Promise<string>((resolve, reject) => {
@@ -348,6 +377,7 @@ export const useGenAiSetupController = (
           reader.onerror = () => reject(reader.error ?? new Error('The local reference preview could not be read.'));
           reader.readAsDataURL(file);
         });
+        if (generation !== contextOwner.current.generation) return undefined;
         setAssetPreviews((current) => ({ ...current, [imported.id]: preview }));
       }
       if (workflow?.fields.some(({ kind }) => kind === 'asset')) setValues((current) => {
@@ -358,6 +388,7 @@ export const useGenAiSetupController = (
       previewRequests.current.delete(imported.id);
       return imported;
     } catch (reason) {
+      if (generation !== contextOwner.current.generation) return undefined;
       const message = reason instanceof Error ? reason.message : String(reason);
       setGenerationError(message.includes("No handler registered for 'lighttable:genai-project-asset-import'")
         ? 'Restart the LightTable desktop process once to enable local reference imports.'
@@ -394,10 +425,12 @@ export const useGenAiSetupController = (
     ? `${workflow?.label ?? 'This workflow'} does not accept visual references.`
     : undefined;
   const workflowReady = Boolean(workflow && workflow.modelId === selectedModelId && workflow.mode === selectedMode);
-  const canGenerate = Boolean(
-    service && projectId && workflowReady && prompt.trim() && validationIssues.length === 0
-    && resolvedMentions.missingTokens.length === 0 && !tooManyReferences && !referenceIssue && !generating
-  );
+  const generationReadiness = resolveGenAiGenerationReadiness({
+    serviceAvailable: Boolean(service), projectId, workflowReady, prompt, validationIssues,
+    missingMentionCount: resolvedMentions.missingTokens.length,
+    tooManyReferences, referenceIssue, generating
+  });
+  const canGenerate = generationReadiness.ready;
 
   React.useEffect(() => {
     if (!service || provider.status !== 'connected' || !selectedModelId || !workflow) {
@@ -415,6 +448,7 @@ export const useGenAiSetupController = (
 
   const generate = React.useCallback(async () => {
     if (!service || !projectId || !workflow || !selectedModelId || !canGenerate) return;
+    const generation = contextOwner.current.generation;
     setGenerating(true); setGenerationError(undefined); setSubmission(undefined);
     try {
       const outputValue = (role: 'aspect-ratio' | 'output-size' | 'quality' | 'output-count') => {
@@ -451,17 +485,22 @@ export const useGenAiSetupController = (
         fields: values,
         references
       });
+      if (generation !== contextOwner.current.generation) return;
       setSubmission(next);
       if (next.result) {
         const nextCatalog = await service.loadProjectAssetCatalog(projectId);
+        if (generation !== contextOwner.current.generation) return;
         setAssets(nextCatalog.assets); setAssetSections(nextCatalog.sections);
         const preview = await service.loadProjectAssetPreview(projectId, next.result.assetId);
+        if (generation !== contextOwner.current.generation) return;
         if (preview) setAssetPreviews((current) => ({ ...current, [next.result!.assetId]: preview }));
       }
     } catch (reason) {
-      setGenerationError(reason instanceof Error ? reason.message : String(reason));
+      if (generation === contextOwner.current.generation) {
+        setGenerationError(reason instanceof Error ? reason.message : String(reason));
+      }
     } finally {
-      setGenerating(false);
+      if (generation === contextOwner.current.generation) setGenerating(false);
     }
   }, [canGenerate, projectId, prompt, provider.id, resolvedMentions, selectedModelId, service, values, workflow]);
 
@@ -469,6 +508,7 @@ export const useGenAiSetupController = (
     models, selectedModelId, selectedMode, workflow, loading, error, values, setValue, setModel,
     setMode: setSelectedMode, assets, assetSections, mentionOptions, assetPreviews, requestAssetPreview, addAssetReference,
     importAssetReference, removeAssetReference, refreshAssets,
-    generating, generationError, referenceIssue, costEstimate, submission, canGenerate, generate, restoreRequest
+    generating, generationError, referenceIssue, costEstimate, submission,
+    canGenerate, generationReadiness, generate, restoreRequest
   };
 };

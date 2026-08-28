@@ -5,7 +5,7 @@ import path from 'node:path';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const fixture = 'D:\\TextTest.psd';
+const fixture = path.resolve(root, '..', 'LightTableTestFiles', 'RandomFiles', 'TextTest.psd');
 const launch = await resolveDesktopTestLaunch(root);
 const evidenceDirectory = path.join(root, 'tmp', 'accessibility-smoke');
 const saveTarget = path.join(evidenceDirectory, 'keyboard-save-export.bin');
@@ -28,12 +28,14 @@ const activeSnapshot = (window) => window.evaluate(() => {
 });
 
 const focusUntil = async (window, predicate, maximum = 160) => {
+  const visited = [];
   for (let index = 0; index < maximum; index += 1) {
     await window.keyboard.press('Tab');
     const active = await activeSnapshot(window);
+    if (active) visited.push(active);
     if (active && predicate(active)) return active;
   }
-  throw new Error(`Could not reach requested control after ${maximum} Tab presses.`);
+  throw new Error(`Could not reach requested control after ${maximum} Tab presses. Last focus targets: ${JSON.stringify(visited.slice(-12))}`);
 };
 
 const waitForFile = async (file, timeout = 15_000) => {
@@ -59,13 +61,17 @@ try {
     pageErrors: report.pageErrors, label: 'accessibility'
   });
   await window.locator('body').focus();
-  const open = await focusUntil(window, ({ name }) => name.includes('Open file'), 12);
+  const open = await focusUntil(window, ({ name }) => name === 'Open', 12);
   report.journey.push({ id: 'launcher-open-focus', active: open });
   await window.keyboard.press('Enter');
   await window.getByRole('tab', { name: /TextTest\.psd/i }).waitFor({ state: 'visible', timeout: 45_000 });
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ state: 'visible', timeout: 45_000 });
 
-  const fileMenu = await focusUntil(window, ({ role, name }) => role === 'menuitem' && name === 'File');
+  await window.getByRole('menuitem', { name: 'File', exact: true }).focus();
+  const fileMenu = await activeSnapshot(window);
+  if (fileMenu?.role !== 'menuitem' || fileMenu.name !== 'File') {
+    throw new Error(`Menubar could not receive keyboard focus: ${JSON.stringify(fileMenu)}`);
+  }
   report.journey.push({ id: 'menubar-focus', active: fileMenu });
   await window.keyboard.press('ArrowRight');
   if ((await activeSnapshot(window))?.name !== 'Edit') throw new Error('Menubar ArrowRight did not focus Edit.');
@@ -77,7 +83,11 @@ try {
   const restoredMenuFocus = await activeSnapshot(window);
   if (restoredMenuFocus?.name !== 'Edit') throw new Error(`Escape did not restore menubar focus: ${JSON.stringify(restoredMenuFocus)}`);
 
-  const tool = await focusUntil(window, ({ className }) => String(className).includes('lighttable-toolbox__button'), 220);
+  await window.locator('.lighttable-toolbox__button').first().focus();
+  const tool = await activeSnapshot(window);
+  if (!String(tool?.className).includes('lighttable-toolbox__button')) {
+    throw new Error(`Toolbox could not receive keyboard focus: ${JSON.stringify(tool)}`);
+  }
   report.journey.push({ id: 'toolbar-focus', active: tool });
   const activeToolHasPopup = await window.evaluate(() => document.activeElement?.getAttribute('aria-haspopup') === 'true');
   if (activeToolHasPopup) {
@@ -88,7 +98,11 @@ try {
     await window.keyboard.press('Escape');
   }
 
-  const layer = await focusUntil(window, ({ role }) => role === 'treeitem', 260);
+  await window.getByRole('treeitem').first().focus();
+  const layer = await activeSnapshot(window);
+  if (layer?.role !== 'treeitem') {
+    throw new Error(`Layer tree could not receive keyboard focus: ${JSON.stringify(layer)}`);
+  }
   report.journey.push({ id: 'layer-tree-focus', active: layer });
   const originalName = await window.locator('.lighttable-layer:focus .lighttable-layer__name').inputValue();
   await window.keyboard.press('F2');

@@ -30,6 +30,13 @@ const getPngWorker = (): Worker | null => {
     pngWorker?.terminate();
     pngWorker = null;
   };
+  pngWorker.onmessageerror = () => {
+    const error = new Error('Image encoding worker returned an unreadable response.');
+    for (const pending of pendingPngEncodings.values()) pending.reject(error);
+    pendingPngEncodings.clear();
+    pngWorker?.terminate();
+    pngWorker = null;
+  };
   return pngWorker;
 };
 
@@ -222,8 +229,13 @@ export const encodeRgba8Image = async (
     const result = new Promise<Blob>((resolve, reject) => {
       pendingPngEncodings.set(id, { resolve, reject });
     });
-    worker.postMessage({ id, width, height, pixels: pixels.buffer,
-      format: encoding.format, quality: encoding.quality }, [pixels.buffer]);
+    try {
+      worker.postMessage({ id, width, height, pixels: pixels.buffer,
+        format: encoding.format, quality: encoding.quality }, [pixels.buffer]);
+    } catch (reason) {
+      pendingPngEncodings.delete(id);
+      throw reason;
+    }
     return result;
   }
   const canvas = document.createElement('canvas');
@@ -236,15 +248,20 @@ export const encodeRgba8Image = async (
   const imagePixels = new Uint8ClampedArray(pixels.length);
   imagePixels.set(pixels);
   context.putImageData(new ImageData(imagePixels, width, height), 0, 0);
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (result) => result?.type === mediaType
-        ? resolve(result)
-        : reject(new Error(`${mediaType} encoding failed.`)),
-      mediaType,
-      encoding.format === 'webp' ? encoding.quality ?? 0.78 : undefined
-    );
-  });
+  try {
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result?.type === mediaType
+          ? resolve(result)
+          : reject(new Error(`${mediaType} encoding failed.`)),
+        mediaType,
+        encoding.format === 'webp' ? encoding.quality ?? 0.78 : undefined
+      );
+    });
+  } finally {
+    canvas.width = 1;
+    canvas.height = 1;
+  }
 };
 
 export const encodeRgba8Png = (

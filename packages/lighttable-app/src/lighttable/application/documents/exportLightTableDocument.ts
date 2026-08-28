@@ -65,7 +65,11 @@ export interface ExportLightTableRuntimeOptions {
 
 const lightweightPreview = async (): Promise<Blob> => {
   if (typeof OffscreenCanvas !== 'undefined') {
-    return new OffscreenCanvas(1, 1).convertToBlob({ type: 'image/png' });
+    const canvas = new OffscreenCanvas(1, 1);
+    if (!canvas.getContext('2d')) {
+      throw new Error('Recovery placeholder canvas initialization failed.');
+    }
+    return canvas.convertToBlob({ type: 'image/png' });
   }
   const canvas = document.createElement('canvas');
   canvas.width = 1;

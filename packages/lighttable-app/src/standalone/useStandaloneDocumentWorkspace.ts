@@ -108,8 +108,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       queueMicrotask(() => {
         if (videoRegistryLeaseRef.current !== lease) return;
         for (const { file, session } of videosRef.current.values()) {
-          session.dispose();
-          releaseExternalMediaSource(file);
+          try { session.dispose(); } finally { releaseExternalMediaSource(file); }
         }
       });
     };
@@ -256,8 +255,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     const video = typedState.videos.get(id);
     if (video) {
       video.session.beginClose();
-      video.session.dispose();
-      releaseExternalMediaSource(video.file);
+      try { video.session.dispose(); } finally { releaseExternalMediaSource(video.file); }
       setTypedState((current) => {
         const index = current.order.indexOf(id);
         const order = current.order.filter((candidate) => candidate !== id);

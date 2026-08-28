@@ -20,7 +20,7 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   {
     id: 'png', label: 'PNG', extensions: ['.png'],
     open: 'supported', editable: 'partial', export: 'supported',
-    summary: 'Still raster import, native flat 8/16-bit Save, and flattened 8-bit quick export.'
+    summary: 'Still raster import plus native flat Save and export at the document’s 8/16-bit depth.'
   },
   {
     id: 'jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg', '.jpe', '.jfif'],
@@ -60,7 +60,7 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   {
     id: 'svg', label: 'SVG', extensions: ['.svg'],
     open: 'supported', editable: 'partial', export: 'partial',
-    summary: 'Bounded native editable paths, primitives, transforms, solid fills and strokes; unsupported semantics reject explicitly.'
+    summary: 'Bounded native editable paths, primitives, transforms, fills and strokes; unsupported semantics reject explicitly.'
   },
   {
     id: 'eps', label: 'EPS', extensions: ['.eps'],

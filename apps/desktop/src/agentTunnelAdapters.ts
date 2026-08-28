@@ -1,6 +1,6 @@
 import { checkServerIdentity, type TLSSocket } from 'node:tls';
 import https from 'node:https';
-import { readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import WebSocket from 'ws';
 import type { CredentialProtector } from './agentAccessCredentialStore';
@@ -13,6 +13,45 @@ import type {
   AgentTunnelSessionStore,
   AgentTunnelTransport
 } from './agentTunnel';
+import { atomicWriteFile } from './atomicFileWriter';
+
+const MAX_TUNNEL_MESSAGE_BYTES = 48 * 1024 * 1024;
+const MAX_PROTECTED_STATE_BYTES = 1024 * 1024;
+
+const boundedString = (value: unknown, maximum = 32_768): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= maximum;
+const validSession = (value: unknown): value is AgentTunnelSession => Boolean(
+  value && typeof value === 'object'
+  && boundedString((value as AgentTunnelSession).serverUrl)
+  && boundedString((value as AgentTunnelSession).socketUrl)
+  && boundedString((value as AgentTunnelSession).serverId, 1024)
+  && /^[a-f\d]{64}$/iu.test((value as AgentTunnelSession).certificateSha256)
+  && boundedString((value as AgentTunnelSession).deviceId, 1024)
+  && boundedString((value as AgentTunnelSession).sessionToken, 16_384)
+  && Number.isFinite((value as AgentTunnelSession).expiresAt)
+);
+const readProtectedState = async <T>(
+  filePath: string,
+  protector: CredentialProtector,
+  validate: (value: unknown) => value is T
+): Promise<T | null> => {
+  const info = await stat(filePath);
+  if (!info.isFile() || info.size < 1 || info.size > MAX_PROTECTED_STATE_BYTES) return null;
+  const encrypted = new Uint8Array(await readFile(filePath));
+  if (encrypted.byteLength !== info.size) return null;
+  const value: unknown = JSON.parse(protector.unprotect(encrypted));
+  return validate(value) ? value : null;
+};
+const writeProtectedState = async (
+  filePath: string,
+  protector: CredentialProtector,
+  value: unknown
+): Promise<void> => {
+  const bytes = protector.protect(JSON.stringify(value));
+  if (bytes.byteLength > MAX_PROTECTED_STATE_BYTES) throw new Error('Protected Agent state exceeds the storage boundary.');
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await atomicWriteFile({ targetPath: filePath, bytes });
+};
 
 const fingerprint = (value: string): string => value.replaceAll(':', '').toLowerCase();
 const local = (url: URL): boolean => url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1';
@@ -46,15 +85,23 @@ export class HttpsAgentPairingClient implements AgentPairingClient {
         });
         response.on('end', () => {
           try {
-            const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as AgentTunnelSession;
+            const payload: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
             if (response.statusCode !== 201) throw new Error('The pairing code was rejected or expired.');
+            if (!payload || typeof payload !== 'object') throw new Error('The pairing server returned an invalid session.');
             const observed = fingerprint(observedCertificate.fingerprint256 ?? '');
             if (!/^[a-f\d]{64}$/u.test(observed)) throw new Error('Pairing server identity is unavailable.');
             if (input.expectedCertificateSha256
               && observed !== fingerprint(input.expectedCertificateSha256)) {
               throw new Error('The pairing server certificate does not match the pinned identity.');
             }
-            resolve({ ...payload, certificateSha256: observed });
+            const session = {
+              ...payload,
+              serverUrl: boundedString((payload as Partial<AgentTunnelSession>).serverUrl)
+                ? (payload as Partial<AgentTunnelSession>).serverUrl : input.serverUrl,
+              certificateSha256: observed
+            };
+            if (!validSession(session)) throw new Error('The pairing server returned an invalid session.');
+            resolve(session);
           } catch (reason) { reject(reason); }
         });
       });
@@ -75,6 +122,7 @@ export class WebSocketAgentTunnelTransport implements AgentTunnelTransport {
       let settled = false;
       const socket = new WebSocket(url, {
         rejectUnauthorized: !insecure,
+        maxPayload: MAX_TUNNEL_MESSAGE_BYTES,
         headers: { authorization: `Bearer ${session.sessionToken}` }
       });
       socket.once('upgrade', (response) => {
@@ -111,13 +159,12 @@ export class ProtectedAgentTunnelSessionStore implements AgentTunnelSessionStore
   async load(): Promise<AgentTunnelSession | null> {
     if (!this.protector.available()) return null;
     try {
-      return JSON.parse(this.protector.unprotect(new Uint8Array(await readFile(this.filePath)))) as AgentTunnelSession;
+      return await readProtectedState(this.filePath, this.protector, validSession);
     } catch { return null; }
   }
   async save(session: AgentTunnelSession): Promise<void> {
     if (!this.protector.available()) throw new Error('OS-protected tunnel storage is unavailable.');
-    await mkdir(path.dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, this.protector.protect(JSON.stringify(session)), { mode: 0o600 });
+    await writeProtectedState(this.filePath, this.protector, session);
   }
   async clear(): Promise<void> { await rm(this.filePath, { force: true }); }
 }
@@ -127,19 +174,22 @@ export class ProtectedAgentApprovalPolicyStore implements AgentApprovalPolicySto
   async load(): Promise<AgentApprovalPolicy | null> {
     if (!this.protector.available()) return null;
     try {
-      const value = JSON.parse(this.protector.unprotect(new Uint8Array(await readFile(this.filePath)))) as AgentApprovalPolicy;
-        return value.version === 1 && typeof value.serverId === 'string'
-          && /^[a-f\d]{64}$/iu.test(value.certificateSha256)
-          && Array.isArray(value.grants)
-          && value.grants.every((grant) => grant && typeof grant.clientId === 'string'
-            && Array.isArray(grant.scopes)
-            && grant.scopes.every((scope: unknown) => scope === 'read' || scope === 'edit')) ? value : null;
+      return await readProtectedState(this.filePath, this.protector, (value): value is AgentApprovalPolicy => Boolean(
+        value && typeof value === 'object'
+          && (value as AgentApprovalPolicy).version === 1
+          && boundedString((value as AgentApprovalPolicy).serverId, 1024)
+          && /^[a-f\d]{64}$/iu.test((value as AgentApprovalPolicy).certificateSha256)
+          && Array.isArray((value as AgentApprovalPolicy).grants)
+          && (value as AgentApprovalPolicy).grants.length <= 1024
+          && (value as AgentApprovalPolicy).grants.every((grant) => grant && boundedString(grant.clientId, 1024)
+            && Array.isArray(grant.scopes) && grant.scopes.length <= 2
+            && grant.scopes.every((scope: unknown) => scope === 'read' || scope === 'edit'))
+      ));
     } catch { return null; }
   }
   async save(policy: AgentApprovalPolicy): Promise<void> {
     if (!this.protector.available()) throw new Error('OS-protected approval storage is unavailable.');
-    await mkdir(path.dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, this.protector.protect(JSON.stringify(policy)), { mode: 0o600 });
+    await writeProtectedState(this.filePath, this.protector, policy);
   }
   async clear(): Promise<void> { await rm(this.filePath, { force: true }); }
 }

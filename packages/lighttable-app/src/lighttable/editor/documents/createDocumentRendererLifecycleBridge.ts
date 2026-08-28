@@ -36,6 +36,7 @@ export interface DocumentRendererLifecycleBridgeOptions<
   readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
   readonly publishCompositeRendered?: NonNullable<DocumentRendererCallbacks['onCompositeRendered']>;
   readonly publishError: (message: string) => void;
+  readonly publishOpenFailure?: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
   readonly publishTimings: (timings: LightTableStartupTimings) => void;
@@ -101,6 +102,9 @@ export const createDocumentRendererLifecycleBridge = <
         options.publishTimings(
           options.telemetry.completeDeferredScopes(scopeStartedAt)
         );
+      }).catch((reason: unknown) => {
+        if (!options.isCurrent()) return;
+        options.publishScopeError(reason instanceof Error ? reason.message : String(reason));
       });
     }
   });
@@ -129,9 +133,9 @@ export const createDocumentRendererLifecycleBridge = <
     },
     onFailed: (failure) => {
       if (options.isCurrent()) {
-        options.publishError(
-          failure.message || 'LightTable could not be initialized.'
-        );
+        const message = failure.message || 'LightTable could not be initialized.';
+        options.publishError(message);
+        options.publishOpenFailure?.(message);
       }
     },
     onSettled: () => {

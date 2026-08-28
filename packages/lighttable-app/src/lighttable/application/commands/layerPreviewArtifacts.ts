@@ -6,6 +6,8 @@ import type { LightTableArtifactMetadata, LightTablePreviewArtifactContext } fro
 import { MAX_AGENT_PREVIEW_EDGE, MIN_AGENT_PREVIEW_EDGE,
   parsePreviewEncoding } from './documentPreviewArtifacts';
 
+const MAX_PREVIEW_CACHE_ENTRIES = 64;
+
 export type LayerPreviewResult =
   | { readonly status: 'completed'; readonly artifact: LightTableArtifactMetadata; readonly reused: boolean }
   | { readonly status: 'rejected'; readonly code: 'invalid-request' | 'document-not-ready'
@@ -104,6 +106,9 @@ export class LayerPreviewArtifactController {
       format: encoding.format, ...(encoding.quality === undefined ? {} : { quality: encoding.quality }),
       target: { kind: 'layer', layerId, channel, sourceToOutput: rendered.sourceToOutput } });
     this.cache.set(key, artifact.id);
+    while (this.cache.size > MAX_PREVIEW_CACHE_ENTRIES) {
+      this.cache.delete(this.cache.keys().next().value!);
+    }
     return { status: 'completed', artifact, reused: false };
   }
 }

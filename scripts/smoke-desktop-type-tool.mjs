@@ -273,7 +273,31 @@ try {
     || duplicated.history.undoDepth !== repeated.history.undoDepth + 1) {
     throw new Error('Ctrl+Alt+Shift+T did not duplicate and repeat as one command.');
   }
-  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
+  // Measure an ordinary idle keystroke independently from the screenshots and
+  // transform gestures above. Those intentionally block/occupy presentation
+  // work and previously made the one aggregate p95 look like typing latency.
+  await page.keyboard.press('t');
+  await page.mouse.click(
+    (transformedBounds.left + transformedBounds.right) / 2,
+    (transformedBounds.top + transformedBounds.bottom) / 2
+  );
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  await driver.resetRenderTelemetry(documentId);
+  await page.evaluate(() => performance.clearMeasures('LightTable text input'));
+  await textInput.pressSequentially('x');
+  await page.waitForFunction(() => performance
+    .getEntriesByName('LightTable text input')
+    .some((entry) => 'detail' in entry && entry.detail?.stage === 'gpu-complete'), undefined, {
+    timeout: 30_000
+  });
+  await page.keyboard.press('Control+Enter');
+  let debugTab = page.getByRole('tab', { name: 'Debug', exact: true });
+  if (!await debugTab.count()) {
+    await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Debug panel', exact: true }).click();
+    debugTab = page.getByRole('tab', { name: 'Debug', exact: true });
+  }
+  await debugTab.click();
   const debugText = await page.locator('.lighttable-debug-panel').innerText();
   const latency = debugText.match(
     /Text input:\s*(\d+) samples\D+submit p95\s*([\d.]+) ms\s*\/\s*max\s*([\d.]+) ms\D+GPU p95\s*([\d.]+) ms\s*\/\s*max\s*([\d.]+) ms/i
@@ -289,10 +313,16 @@ try {
   if (performanceTelemetry.status !== 'available' || performanceTelemetry.samples < 1) {
     throw new Error(`Type Tool latency sample is invalid: ${JSON.stringify(performanceTelemetry)}`);
   }
+  const inputTrace = await page.evaluate(() => performance
+    .getEntriesByName('LightTable text input')
+    .map((entry) => ({
+      durationMs: entry.duration,
+      detail: 'detail' in entry ? entry.detail : null
+    })));
   await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   await page.screenshot({ path: screenshotPath });
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
-  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, performanceTelemetry, pageErrors, screenshotPath, transformScreenshotPath, verticalScreenshotPath }, null, 2)}\n`);
+  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, performanceTelemetry, inputTrace, pageErrors, screenshotPath, transformScreenshotPath, verticalScreenshotPath }, null, 2)}\n`);
   process.stdout.write(`Type Tool smoke passed. Report: ${reportPath}\n`);
 } finally {
   await app.close().catch(() => {});

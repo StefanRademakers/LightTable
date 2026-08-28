@@ -34,17 +34,23 @@ export class LocalAiGenerationController {
     return this.connection.clientInstance().submit(localRequest, inputs);
   }
 
-  status(providerJobId: string): Promise<LocalAiJobStatusV1> {
-    return this.connection.clientInstance().status(providerJobId);
+  status(providerJobId: string, signal?: AbortSignal): Promise<LocalAiJobStatusV1> {
+    return signal
+      ? this.connection.clientInstance().status(providerJobId, signal)
+      : this.connection.clientInstance().status(providerJobId);
   }
 
-  async result(providerJobId: string): Promise<{
+  async result(providerJobId: string, signal?: AbortSignal): Promise<{
     readonly metadata: LocalAiJobResultV1;
     readonly images: readonly { readonly bytes: Uint8Array; readonly mediaType: string; readonly width: number; readonly height: number }[];
   }> {
-    const metadata = await this.connection.clientInstance().result(providerJobId);
+    const metadata = await (signal
+      ? this.connection.clientInstance().result(providerJobId, signal)
+      : this.connection.clientInstance().result(providerJobId));
     const images = await Promise.all(metadata.images.map(async (image, index) => ({
-      bytes: await this.connection.clientInstance().downloadResult(metadata, index),
+      bytes: await (signal
+        ? this.connection.clientInstance().downloadResult(metadata, index, signal)
+        : this.connection.clientInstance().downloadResult(metadata, index)),
       mediaType: image.mimeType,
       width: image.width,
       height: image.height

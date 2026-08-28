@@ -147,6 +147,7 @@ export interface DesktopClipboardImagePayload {
   readonly bytes: Uint8Array;
   readonly mediaType: 'image/png' | 'image/webp' | 'image/gif' | 'image/avif';
   readonly sourceFormat: string;
+  readonly identity: string;
 }
 
 export interface LightTableDesktopBridge {
@@ -185,6 +186,8 @@ export interface LightTableDesktopBridge {
   clearRecentProjects(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
   closeApplication(): Promise<void>;
+  onApplicationCloseRequested(listener: () => void): () => void;
+  respondApplicationCloseRequest(approved: boolean): Promise<void>;
   readActionLibrary(): Promise<string | null>;
   writeActionLibrary(value: string): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
@@ -200,7 +203,7 @@ export interface LightTableDesktopBridge {
   chooseRecoveryLocation(): Promise<LightTableRecoveryLocation | null>;
   resetRecoveryLocation(): Promise<LightTableRecoveryLocation>;
   applyRecoveryLocation(path?: string): Promise<LightTableRecoveryLocation>;
-  writeClipboardPng(bytes: Uint8Array): Promise<void>;
+  writeClipboardPng(bytes: Uint8Array): Promise<{ readonly identity: string }>;
   readClipboardImage(): Promise<DesktopClipboardImagePayload | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;
   loadSystemFont(assetId: string): Promise<Uint8Array | null>;

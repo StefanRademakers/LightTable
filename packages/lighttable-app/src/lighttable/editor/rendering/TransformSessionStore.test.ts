@@ -51,7 +51,7 @@ describe('TransformSessionStore', () => {
     const store = new TransformSessionStore();
     const active = session();
     store.begin(active);
-    expect(store.estimatedTextureBytes(80, 10)).toBe(180);
+    expect(store.estimatedTextureBytes(80, 20)).toBe(200);
     expect(store.cancel()).toBe(true);
     [
       active.sourceTexture,

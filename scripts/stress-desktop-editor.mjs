@@ -3,6 +3,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
@@ -380,6 +381,9 @@ const runFile = async (sourceFile, fileIndex) => {
       timeout: 60_000
     });
     await window.waitForTimeout(750);
+    const driver = await attachLightTableAutomation(window, `stress-${fileIndex}`);
+    const documentId = (await driver.queryWorkspace())?.activeDocumentId;
+    if (!documentId) throw new Error('Stress run has no active document.');
 
     const cdp = await window.context().newCDPSession(window);
     await cdp.send('Performance.enable');
@@ -407,25 +411,18 @@ const runFile = async (sourceFile, fileIndex) => {
       ? { status: 'available', milliseconds: Number(firstFrameMatch[1]) }
       : { status: 'unavailable', reason: 'The ready metadata did not include a first-frame sample.' };
 
-    const debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
-    if (await debugTab.count()) {
-      await debugTab.click();
-      await window.getByRole('button', { name: 'Reset render stats' }).click();
+    if (await driver.resetRenderTelemetry(documentId)) {
       await window.waitForTimeout(750);
-      await window.getByRole('button', { name: 'Capture render stats' }).click();
-      const telemetry = window.locator('.lighttable-debug-message')
-        .filter({ hasText: 'Render telemetry' }).last().locator('pre');
-      await telemetry.waitFor({ state: 'visible' });
-      const telemetryText = await telemetry.textContent() ?? '';
-      const counter = (label) => Number(telemetryText.match(new RegExp(`${label}: (\\d+)`, 'i'))?.[1] ?? 0);
-      result.background = {
+      const telemetry = await driver.queryRenderTelemetry(documentId);
+      result.background = telemetry?.collectionEnabled ? {
         observationMs: 750,
-        renderCalls: counter('Render calls'),
-        submittedFrames: counter('Submitted frames'),
-        correctionFrames: counter('Correction frames'),
-        scopeAnalysisPasses: counter('Scope analysis passes')
-      };
-      if (result.background.submittedFrames !== 0) {
+        collectionEnabled: true,
+        renderCalls: telemetry.renderCalls,
+        submittedFrames: telemetry.submittedFrames,
+        correctionFrames: telemetry.correctionFrames,
+        scopeAnalysisPasses: telemetry.scopeAnalysisPasses
+      } : { status: 'unavailable', reason: 'Render telemetry collection is disabled in this build.' };
+      if (result.background.status !== 'unavailable' && result.background.submittedFrames !== 0) {
         result.failures.push(`Unchanged document submitted ${result.background.submittedFrames} background frame(s).`);
       }
     } else {

@@ -631,12 +631,30 @@ export class WebGpuEngine {
    * initialized again.
    */
   bindExistingDocument(document: ImageDocument, metadata?: LightTableImageMetadata) {
-    this.initializeDocumentSurface(metadata ?? {
+    const nextMetadata = metadata ?? {
       name: document.name,
       width: document.width,
       height: document.height,
       contentType: 'application/vnd.mediavibe.lighttable.document'
-    });
+    };
+    if (
+      this.imageDocument?.id === document.id
+      && this.metadata?.width === nextMetadata.width
+      && this.metadata.height === nextMetadata.height
+      && this.imageResources.sourceTexture
+      && this.documentRenderer
+    ) {
+      // A non-image tab only suspends presentation; it does not release the
+      // image document or its GPU-owned layer resources. Recreating the whole
+      // surface here made every image/video tab round-trip pay a full document
+      // rebind and temporarily duplicate presentation resources.
+      this.metadata = nextMetadata;
+      this.setDocument(document);
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
+      return;
+    }
+    this.initializeDocumentSurface(nextMetadata);
     this.setDocument(document);
   }
 
@@ -3139,7 +3157,7 @@ export class WebGpuEngine {
       recordTextInteractionTrace(textInteractionTrace, 'queue-submit');
       void this.device.queue.onSubmittedWorkDone().then(() => {
         recordTextInteractionTrace(textInteractionTrace, 'gpu-complete');
-      });
+      }, () => undefined);
     }
     const textLatencyRenderer = this.documentRenderer;
     const submittedTextInputs = textLatencyRenderer.markTextFrameSubmitted(
@@ -3151,18 +3169,21 @@ export class WebGpuEngine {
         if (!this.destroyed && this.documentRenderer === textLatencyRenderer) {
           textLatencyRenderer.markTextFrameGpuComplete(submittedTextInputs, performance.now());
         }
-      });
+      }, () => undefined);
     }
     void this.vectorEditingOverlayBackend?.notifySubmitted();
     void this.textEditingOverlayBackend?.notifySubmitted();
     if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordSubmittedFrame();
-    void this.device.popErrorScope().then((validationError) => {
-      if (!this.destroyed && validationError) {
-        this.callbacks.onDeviceLost?.(
-          `LightTable render validation failed: ${validationError.message}`
-        );
-      }
-    });
+    void this.device.popErrorScope().then(
+      (validationError) => {
+        if (!this.destroyed && validationError) {
+          this.callbacks.onDeviceLost?.(
+            `LightTable render validation failed: ${validationError.message}`
+          );
+        }
+      },
+      () => undefined
+    );
     this.reportGpuMemoryEstimate();
     if (renderedCorrection && this.firstFramePending && this.startupPresentationArmed) {
       this.firstFramePending = false;
@@ -3189,6 +3210,10 @@ export class WebGpuEngine {
             for (const resolve of waiters) resolve();
           });
         });
+      }, () => {
+        const waiters = [...this.presentationWaiters];
+        this.presentationWaiters.clear();
+        for (const resolve of waiters) resolve();
       });
     }
     this.documentRenderer?.releaseSubmittedResources();
@@ -3217,6 +3242,7 @@ export class WebGpuEngine {
   resetRenderTelemetry() {
     if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.reset();
     this.documentRenderer?.resetVectorBackendTelemetry();
+    this.documentRenderer?.resetTextInputTelemetry();
   }
 
   private drawFullscreenPass(
@@ -3639,6 +3665,10 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
 
   destroy() {
     this.destroyed = true;
+    const cleanupErrors: unknown[] = [];
+    const release = (operation: () => void) => {
+      try { operation(); } catch (reason) { cleanupErrors.push(reason); }
+    };
     const presentationWaiters = [...this.presentationWaiters];
     this.presentationWaiters.clear();
     for (const resolve of presentationWaiters) resolve();
@@ -3650,45 +3680,48 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.isolatedMaskTexture = null;
     this.isolatedMaskBindGroup = null;
     this.isolatedMaskNearestBindGroup = null;
-    this.isolatedMaskPresentationBuffer?.destroy();
+    release(() => this.isolatedMaskPresentationBuffer?.destroy());
     this.isolatedMaskPresentationBuffer = null;
-    this.pointColorRangeBuffer?.destroy();
+    release(() => this.pointColorRangeBuffer?.destroy());
     this.pointColorRangeBuffer = null;
-    this.viewportPresentation.dispose();
-    this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
-    this.unsubscribeDeviceLost();
-    this.sourceLoader?.destroy();
+    release(() => this.viewportPresentation.dispose());
+    release(() => this.device.removeEventListener('uncapturederror', this.deviceErrorListener));
+    release(this.unsubscribeDeviceLost);
+    release(() => this.sourceLoader?.destroy());
     this.sourceLoader = null;
-    this.selectionAntsAnimator.dispose();
-    this.renderScheduler.dispose();
-    this.destroyImageResources();
-    this.scopeRuntime.destroy();
-    this.histogramRuntime?.destroy();
+    release(() => this.selectionAntsAnimator.dispose());
+    release(() => this.renderScheduler.dispose());
+    release(() => this.destroyImageResources());
+    release(() => this.scopeRuntime.destroy());
+    release(() => this.histogramRuntime?.destroy());
     this.histogramRuntime = null;
-    this.coreResources?.destroy();
+    release(() => this.coreResources?.destroy());
     this.coreResources = null;
-    this.waveletDetailRuntime?.destroy();
+    release(() => this.waveletDetailRuntime?.destroy());
     this.waveletDetailRuntime = null;
-    this.effectRuntime?.destroy();
+    release(() => this.effectRuntime?.destroy());
     this.effectRuntime = null;
-    this.layerEffectRenderer?.destroy();
+    release(() => this.layerEffectRenderer?.destroy());
     this.layerEffectRenderer = null;
     this.layerProcessingRenderer = null;
-    this.p0FilterRenderer.destroy();
-    this.documentRenderer?.destroy();
+    release(() => this.p0FilterRenderer.destroy());
+    release(() => this.documentRenderer?.destroy());
     this.documentRenderer = null;
-    this.vectorEditingOverlayBackend?.dispose();
+    release(() => this.vectorEditingOverlayBackend?.dispose());
     this.vectorEditingOverlayBackend = null;
     this.vectorEditingSceneCache.clear();
-    this.textEditingOverlayBackend?.dispose();
+    release(() => this.textEditingOverlayBackend?.dispose());
     this.textEditingOverlayBackend = null;
-    this.selectionContourOverlayBackend?.dispose();
+    release(() => this.selectionContourOverlayBackend?.dispose());
     this.selectionContourOverlayBackend = null;
-    this.selectionPaintOverlayBackend?.dispose();
+    release(() => this.selectionPaintOverlayBackend?.dispose());
     this.selectionPaintOverlayBackend = null;
-    this.smartSelectionOverlayBackend?.dispose();
+    release(() => this.smartSelectionOverlayBackend?.dispose());
     this.smartSelectionOverlayBackend = null;
     this.textEditingOverlay = null;
+    if (cleanupErrors.length) {
+      console.error('LightTable WebGPU cleanup failed.', new AggregateError(cleanupErrors));
+    }
   }
 
   private encodeVectorEditingOverlays(

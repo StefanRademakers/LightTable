@@ -1,14 +1,15 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GenAiGenerationJob, GenAiJobId } from '@lighttable/genai-core';
 import { atomicWriteFile } from '../atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from '../projectService';
+import { readBoundedJsonFile } from '../boundedJsonFile';
 
 const FORMAT = 'lighttable-genai-jobs';
 const VERSION = 1;
 const queues = new Map<string, Promise<void>>();
 const deletedJobKeys = new Set<string>();
 const MAX_DELETED_JOB_KEYS = 2_048;
+const MAX_JOURNAL_BYTES = 16 * 1024 * 1024;
 
 const manifestKey = (manifestPath: string): string => path.resolve(manifestPath).toLocaleLowerCase('en-US');
 const deletedJobKey = (manifestPath: string, jobId: GenAiJobId): string => `${manifestKey(manifestPath)}\0${jobId}`;
@@ -26,6 +27,15 @@ interface StoredJobs {
   readonly jobs: readonly GenAiGenerationJob[];
 }
 
+const isStoredJob = (value: unknown): value is GenAiGenerationJob => Boolean(
+  value && typeof value === 'object'
+  && typeof (value as Partial<GenAiGenerationJob>).id === 'string'
+  && Number.isFinite((value as Partial<GenAiGenerationJob>).updatedAt)
+  && (value as Partial<GenAiGenerationJob>).request
+  && typeof (value as Partial<GenAiGenerationJob>).request === 'object'
+  && Array.isArray((value as Partial<GenAiGenerationJob>).results)
+);
+
 const journalPath = async (manifestPath: string): Promise<string> => {
   const { manifest, summary } = await openProjectManifest(manifestPath);
   return path.join(resolveProjectStoragePath(summary.rootPath, manifest, 'indexes'), 'genai-jobs-v1.json');
@@ -33,11 +43,13 @@ const journalPath = async (manifestPath: string): Promise<string> => {
 
 const readJournal = async (manifestPath: string): Promise<StoredJobs> => {
   try {
-    const value = JSON.parse(await readFile(await journalPath(manifestPath), 'utf8')) as Partial<StoredJobs>;
+    const value = await readBoundedJsonFile(
+      await journalPath(manifestPath), MAX_JOURNAL_BYTES, 'GenAI job journal'
+    ) as Partial<StoredJobs>;
     if (value.format !== FORMAT || value.version !== VERSION || !Array.isArray(value.jobs)) {
       return { format: FORMAT, version: VERSION, jobs: [] };
     }
-    return { format: FORMAT, version: VERSION, jobs: value.jobs as readonly GenAiGenerationJob[] };
+    return { format: FORMAT, version: VERSION, jobs: value.jobs.filter(isStoredJob).slice(-500) };
   } catch (reason) {
     if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') {
       return { format: FORMAT, version: VERSION, jobs: [] };
@@ -62,9 +74,11 @@ export const upsertProjectGenerationJob = async (
     if (deletedJobKeys.has(deletedJobKey(manifestPath, job.id))) return;
     const journal = await readJournal(manifestPath);
     const jobs = journal.jobs.filter(({ id }) => id !== job.id).concat(job).slice(-500);
+    const bytes = Buffer.from(`${JSON.stringify({ format: FORMAT, version: VERSION, jobs }, null, 2)}\n`, 'utf8');
+    if (bytes.byteLength > MAX_JOURNAL_BYTES) throw new Error('GenAI job journal exceeds the 16 MiB project limit.');
     await atomicWriteFile({
       targetPath: await journalPath(manifestPath),
-      bytes: Buffer.from(`${JSON.stringify({ format: FORMAT, version: VERSION, jobs }, null, 2)}\n`, 'utf8')
+      bytes
     });
   });
   queues.set(key, next);
@@ -92,11 +106,13 @@ export const deleteProjectGenerationJob = async (
   const previous = queues.get(key) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async () => {
     const journal = await readJournal(manifestPath);
+    const bytes = Buffer.from(`${JSON.stringify({
+      format: FORMAT, version: VERSION, jobs: journal.jobs.filter(({ id }) => id !== jobId)
+    }, null, 2)}\n`, 'utf8');
+    if (bytes.byteLength > MAX_JOURNAL_BYTES) throw new Error('GenAI job journal exceeds the 16 MiB project limit.');
     await atomicWriteFile({
       targetPath: await journalPath(manifestPath),
-      bytes: Buffer.from(`${JSON.stringify({
-        format: FORMAT, version: VERSION, jobs: journal.jobs.filter(({ id }) => id !== jobId)
-      }, null, 2)}\n`, 'utf8')
+      bytes
     });
   });
   queues.set(key, next);

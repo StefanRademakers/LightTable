@@ -318,6 +318,8 @@ export interface LightTableHost {
   setFullscreen?(enabled: boolean): Promise<void>;
   /** Close the owning desktop application after renderer-side discard checks. */
   closeApplication?(): Promise<void>;
+  /** Route the host window's native close gesture through renderer-owned document checks. */
+  subscribeApplicationCloseRequests?(listener: () => Promise<boolean>): () => void;
   /** Observe fullscreen exits initiated by the OS, browser or Escape key. */
   subscribeFullscreen?(listener: (enabled: boolean) => void): () => void;
   /**

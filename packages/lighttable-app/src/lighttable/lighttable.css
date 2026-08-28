@@ -3690,6 +3690,14 @@
   pointer-events: none;
 }
 
+.genai-panel__readiness {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lt-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .genai-panel__model-description {
   margin: -5px 2px 12px;
   color: var(--lt-text-subtle);

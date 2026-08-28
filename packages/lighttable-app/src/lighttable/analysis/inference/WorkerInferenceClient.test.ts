@@ -52,6 +52,7 @@ describe('WorkerInferenceClient', () => {
     const pending = client.run(1, 'one');
     client.dispose();
     await expect(pending).rejects.toThrow('Inference failed was canceled.');
+    await expect(client.run(2, 'after-close')).rejects.toThrow('client is closed');
     expect(worker.postMessage).toHaveBeenCalledWith({ type: 'dispose' });
     expect(worker.terminate).toHaveBeenCalledOnce();
   });

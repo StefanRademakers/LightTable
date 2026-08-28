@@ -62,6 +62,8 @@ interface RunningTask {
   readonly generation: number;
 }
 
+const MAX_RETAINED_FINISHED_TASKS = 128;
+
 const asError = (reason: unknown) =>
   reason instanceof Error ? reason : new Error(String(reason));
 
@@ -222,7 +224,18 @@ export class DocumentTaskRegistry {
     if (this.latestByKind.get(current.kind) === id) {
       this.latestByKind.delete(current.kind);
     }
+    this.pruneFinishedTasks();
     this.publish();
+  }
+
+  private pruneFinishedTasks(): void {
+    const finished = [...this.states.values()]
+      .filter(({ status }) => status !== 'running')
+      .sort((left, right) => (left.finishedAt ?? 0) - (right.finishedAt ?? 0));
+    const removeCount = finished.length - MAX_RETAINED_FINISHED_TASKS;
+    for (let index = 0; index < removeCount; index += 1) {
+      this.states.delete(finished[index]!.id);
+    }
   }
 
   private buildSnapshot(): DocumentTaskRegistrySnapshot {

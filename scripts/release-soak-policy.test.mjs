@@ -9,6 +9,7 @@ import {
 test('overnight profile represents at least twelve hours and remains overrideable', () => {
   assert.equal(resolveReleaseSoakPlan({ profile: 'overnight' }).durationMinutes, 720);
   assert.equal(resolveReleaseSoakPlan({ profile: 'local' }).stressIterations, 6);
+  assert.equal(resolveReleaseSoakPlan({ profile: 'ci' }).stressIterations, 6);
   assert.deepEqual(resolveReleaseSoakPlan({ profile: 'ci', cycles: '3', iterations: '4' }), {
     profile: 'ci', durationMinutes: 0, maximumCycles: 3, stressIterations: 4
   });

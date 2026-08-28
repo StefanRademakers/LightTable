@@ -37,11 +37,16 @@ const importBlob = async (
   projectId: string,
   blob: Blob,
   name: string
-): Promise<GenAiAssetReference> => service.importProjectAsset(projectId, {
-  name,
-  mediaType: 'image/png',
-  bytes: new Uint8Array(await blob.arrayBuffer())
-});
+): Promise<GenAiAssetReference> => {
+  if (blob.size > 256 * 1024 * 1024) {
+    throw new Error(`${name} exceeds the 256 MiB project asset limit.`);
+  }
+  return service.importProjectAsset(projectId, {
+    name,
+    mediaType: 'image/png',
+    bytes: new Uint8Array(await blob.arrayBuffer())
+  });
+};
 
 const inpaintTarget = async (
   service: LightTableGenAiService,

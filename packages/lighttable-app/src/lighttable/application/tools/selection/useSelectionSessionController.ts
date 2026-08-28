@@ -357,6 +357,17 @@ export const createSelectionSessionController = (
     const latest = resolveDependencies();
     return latest.getDocument()?.id === document.id && latest.getRenderer() === renderer;
   };
+  const observeRendererOperation = (
+    document: ImageDocument,
+    renderer: SelectionRendererPort,
+    operation: Promise<unknown>,
+    fallbackMessage: string
+  ) => {
+    void operation.catch((reason) => {
+      if (!isCurrent(document, renderer)) return;
+      resolveDependencies().setError(reason instanceof Error ? reason.message : fallbackMessage);
+    });
+  };
 
   const replaceSnapshot = async (
     operations: SelectionOperation[],
@@ -584,9 +595,16 @@ export const createSelectionSessionController = (
       const dy = nextY - translation.y;
       translation.x = nextX;
       translation.y = nextY;
-      if (dx || dy) void translation.renderer.transformSelection({
-        a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
-      });
+      if (dx || dy) {
+        observeRendererOperation(
+          translation.document,
+          translation.renderer,
+          translation.renderer.transformSelection({
+            a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
+          }),
+          'The selection could not be moved.'
+        );
+      }
       const operation = createTranslateSelectionOperation(
         translation.document.width,
         translation.document.height,
@@ -839,7 +857,12 @@ export const createSelectionSessionController = (
       if (translation?.pointerId === pointerId) {
         const current = translation;
         translation = null;
-        void current.renderer.replaceSelection(current.before);
+        observeRendererOperation(
+          current.document,
+          current.renderer,
+          current.renderer.replaceSelection(current.before),
+          'The selection could not be restored.'
+        );
         resolveDependencies().publishSelection(current.before, null);
         resolveDependencies().publishSnapFeedback?.([], null);
         return true;
@@ -1016,7 +1039,12 @@ export const createSelectionSessionController = (
       const current = paintGesture;
       if (!current || current.pointerId !== pointerId) return false;
       paintGesture = null;
-      void current.renderer.replaceSelection(current.before);
+      observeRendererOperation(
+        current.document,
+        current.renderer,
+        current.renderer.replaceSelection(current.before),
+        'The selection could not be restored.'
+      );
       resolveDependencies().publishSelection(current.before, null);
       return true;
     },
@@ -1039,7 +1067,14 @@ export const createSelectionSessionController = (
       magicWandRequestId += 1;
       pendingMagicWandSnapshot = null;
       translation = null;
-      if (paintGesture) void paintGesture.renderer.replaceSelection(paintGesture.before);
+      if (paintGesture) {
+        observeRendererOperation(
+          paintGesture.document,
+          paintGesture.renderer,
+          paintGesture.renderer.replaceSelection(paintGesture.before),
+          'The selection could not be restored.'
+        );
+      }
       paintGesture = null;
       marqueeTool = null;
       resolveDependencies().publishSnapFeedback?.([], null);

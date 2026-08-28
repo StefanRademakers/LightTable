@@ -391,14 +391,20 @@ export class DocumentSession {
         error: null
       }
     };
-    this.unsubscribeHistory();
-    this.unsubscribeTasks();
-    this.history.dispose();
-    this.tasks.dispose();
-    for (const disposer of this.disposers) disposer();
+    const cleanupErrors: unknown[] = [];
+    const cleanup = (operation: () => void) => {
+      try { operation(); } catch (reason) { cleanupErrors.push(reason); }
+    };
+    cleanup(this.unsubscribeHistory);
+    cleanup(this.unsubscribeTasks);
+    cleanup(() => this.history.dispose());
+    cleanup(() => this.tasks.dispose());
+    for (const disposer of this.disposers) cleanup(disposer);
     this.disposers.clear();
-    this.emit();
-    this.listeners.clear();
+    try { this.emit(); } finally { this.listeners.clear(); }
+    if (cleanupErrors.length) {
+      console.error('LightTable document cleanup failed.', new AggregateError(cleanupErrors));
+    }
   }
 
   private update(

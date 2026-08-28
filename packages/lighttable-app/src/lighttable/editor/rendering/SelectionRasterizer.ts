@@ -12,6 +12,7 @@ import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 import { SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
+import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 
 const selectionModeValue: Record<SelectionMode, number> = {
   replace: 0,
@@ -449,7 +450,7 @@ export class SelectionRasterizer {
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => combineBuffer.destroy());
     return true;
   }
 
@@ -556,7 +557,7 @@ export class SelectionRasterizer {
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => combineBuffer.destroy());
     return true;
   }
 
@@ -746,7 +747,7 @@ export class SelectionRasterizer {
         this.options.pipelines().coverageCopy,
         'LightTable replace generated layer mask'
       );
-      void device.queue.onSubmittedWorkDone().then(() => incoming.destroy());
+      releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => incoming.destroy());
       return true;
     }
 
@@ -786,7 +787,7 @@ export class SelectionRasterizer {
       this.options.pipelines().coverageCopy,
       'LightTable store intersected layer mask'
     );
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       incoming.destroy(); current.destroy(); result.destroy(); settings.destroy();
     });
     return true;
@@ -855,7 +856,7 @@ export class SelectionRasterizer {
     );
     device.queue.submit([encoder.finish()]);
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => settings.destroy());
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => settings.destroy());
     return true;
   }
 
@@ -910,7 +911,7 @@ export class SelectionRasterizer {
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       incoming.destroy();
       combineBuffer.destroy();
     });
@@ -1136,7 +1137,7 @@ export class SelectionRasterizer {
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       pointBuffer.destroy();
       shapeBuffer.destroy();
       combineBuffer.destroy();
@@ -1207,7 +1208,7 @@ export class SelectionRasterizer {
     );
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
-    void device.queue.onSubmittedWorkDone().then(() => settings.destroy());
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => settings.destroy());
     return true;
   }
 
@@ -1232,7 +1233,7 @@ export class SelectionRasterizer {
       temporaryTextures
     );
     device.queue.submit([encoder.finish()]);
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       submittedBuffers.forEach((buffer) => buffer.destroy());
       temporaryTextures.forEach((texture) => texture.destroy());
     });
@@ -1261,7 +1262,10 @@ export class SelectionRasterizer {
     );
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
-    void device.queue.onSubmittedWorkDone().then(() => buffers.forEach((buffer) => buffer.destroy()));
+    releaseAfterSubmittedWork(
+      () => device.queue.onSubmittedWorkDone(),
+      () => buffers.forEach((buffer) => buffer.destroy())
+    );
     return true;
   }
 
@@ -1337,7 +1341,7 @@ export class SelectionRasterizer {
     );
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       settings.destroy();
       horizontal.destroy();
       coverage.destroy();
@@ -1396,7 +1400,7 @@ export class SelectionRasterizer {
     );
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
-    void device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => device.queue.onSubmittedWorkDone(), () => {
       buffers.forEach((buffer) => buffer.destroy());
       featherTextures.forEach((texture) => texture.destroy());
       outer.destroy();

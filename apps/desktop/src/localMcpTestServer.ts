@@ -13,6 +13,7 @@ import { createLightTableMcpApp } from '../../mcp-server/src/server.mjs';
 import { EncryptedJsonFileStore } from '../../mcp-server/src/durableState.mjs';
 // @ts-expect-error The MCP server package intentionally publishes runtime JavaScript only.
 import { DeviceTunnelLightTableClient } from '../../mcp-server/src/deviceTunnelClient.mjs';
+import { atomicWriteFile } from './atomicFileWriter';
 
 export interface LocalMcpTestStatus {
   readonly state: 'stopped' | 'starting' | 'running' | 'authorizing' | 'error';
@@ -55,7 +56,11 @@ class ProtectedLocalMcpIdentityStore {
   async loadOrCreate(): Promise<LocalMcpIdentity> {
     if (!this.protector.available()) throw new Error('OS-protected local MCP storage is unavailable.');
     try {
-      const parsed: unknown = JSON.parse(this.protector.unprotect(new Uint8Array(await readFile(this.filePath))));
+      const info = await stat(this.filePath);
+      if (!info.isFile() || info.size < 1 || info.size > 1024 * 1024) throw new Error('Invalid local MCP identity.');
+      const encrypted = new Uint8Array(await readFile(this.filePath));
+      if (encrypted.byteLength !== info.size) throw new Error('Local MCP identity changed while reading.');
+      const parsed: unknown = JSON.parse(this.protector.unprotect(encrypted));
       if (validIdentity(parsed)) return parsed;
     } catch { /* A missing/corrupt identity is replaced before any server starts. */ }
     const certificate = await selfsigned.generate([{ name: 'commonName', value: 'localhost' }], {
@@ -74,7 +79,9 @@ class ProtectedLocalMcpIdentityStore {
       serverId: `lighttable-local-${randomBytes(6).toString('hex')}`
     };
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, this.protector.protect(JSON.stringify(identity)), { mode: 0o600 });
+    const bytes = this.protector.protect(JSON.stringify(identity));
+    if (bytes.byteLength > 1024 * 1024) throw new Error('Local MCP identity exceeds the storage boundary.');
+    await atomicWriteFile({ targetPath: this.filePath, bytes });
     return identity;
   }
 }

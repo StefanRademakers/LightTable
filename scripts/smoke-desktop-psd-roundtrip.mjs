@@ -57,7 +57,7 @@ try {
   if (!task.artifact || task.artifact.kind !== 'psd-export') {
     throw new Error(`PSD artifact was not published: ${JSON.stringify(task)}`);
   }
-  const opened = await driver.execute(sourceDocumentId, 'file.openArtifact', {
+  const opened = await driver.executeWorkspace('file.openArtifact', {
     artifactId: task.artifact.id
   });
   const roundtripDocumentId = opened.value?.documentId;

@@ -50,6 +50,29 @@ describe('SVG document codec owner', () => {
     expect(document.layers.at(-1)).toMatchObject({ type: 'vector', name: 'Logo' });
   });
 
+  it('keeps very large sibling runs editable without creating one layer per SVG element', async () => {
+    let document = createImageDocument('Large SVG', 600, 600, 'source');
+    document.layers = [];
+    document.activeLayerId = null;
+    const rectangles = Array.from({ length: 513 }, (_, index) => (
+      `<rect id="shape-${index}" x="${index % 25}" y="${Math.floor(index / 25)}" width="1" height="1"/>`
+    )).join('');
+    await executeSvgImport({
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">${rectangles}</svg>`,
+      placement: 'document', layerName: 'Dense artwork'
+    }, {
+      getDocument: () => document,
+      applyDocument: (next) => { document = next; },
+      recordHistory: () => undefined,
+      normalizeSvgSource: keepSvgSource
+    });
+
+    expect(document.layers).toHaveLength(1);
+    expect(document.layers[0]).toMatchObject({
+      type: 'vector', name: 'Dense artwork', elements: { length: 513 }
+    });
+  });
+
   it('does not publish any partial state when SVG validation fails', async () => {
     const document = createImageDocument('SVG', 200, 100, 'source');
     const applyDocument = vi.fn(); const recordHistory = vi.fn();

@@ -85,6 +85,15 @@ try {
     assert.equal(report.revisionStable, true,
       'Canonical document revision changed while raster recovery was held.');
   } else {
+    // The failed snapshot is intentionally observable before the React
+    // recovery generation starts. Do not ask the automation client for a
+    // rendered frame while that terminal snapshot is still current: its
+    // fail-fast behavior would turn the designed 50 ms recovery handoff into
+    // a false negative.
+    await page.waitForFunction((id) => {
+      const status = window.__lightTableAutomation?.queryDocument(id)?.renderer?.status;
+      return status === 'starting' || status === 'ready';
+    }, documentId, { timeout: 10_000 });
     const recovered = await driver.waitForRenderedDocument(documentId, 120_000);
     const afterLayers = await driver.waitForLayers(documentId);
     const afterPreview = await preview(

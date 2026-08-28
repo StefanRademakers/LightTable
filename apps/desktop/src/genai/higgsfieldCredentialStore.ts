@@ -3,6 +3,9 @@ import path from 'node:path';
 import type { HiggsfieldCredentialRecord, HiggsfieldCredentialStore } from '@lighttable/genai-higgsfield';
 import type { CredentialProtector } from './openArtCredentialStore';
 import { atomicWriteFile } from '../atomicFileWriter';
+import { stat } from 'node:fs/promises';
+
+const MAX_CREDENTIAL_BYTES = 1024 * 1024;
 
 const errorCode = (reason: unknown): string | null =>
   reason && typeof reason === 'object' && 'code' in reason ? String(reason.code) : null;
@@ -14,7 +17,14 @@ export class DesktopHiggsfieldCredentialStore implements HiggsfieldCredentialSto
   async load(): Promise<HiggsfieldCredentialRecord | null> {
     if (!this.protector.available()) return null;
     let encrypted: Uint8Array;
-    try { encrypted = await readFile(this.filePath); }
+    try {
+      const info = await stat(this.filePath);
+      if (!info.isFile() || info.size < 1 || info.size > MAX_CREDENTIAL_BYTES) {
+        throw new Error('Higgsfield credential record exceeds the storage boundary.');
+      }
+      encrypted = await readFile(this.filePath);
+      if (encrypted.byteLength !== info.size) throw new Error('Higgsfield credential record changed while reading.');
+    }
     catch (reason) { if (errorCode(reason) === 'ENOENT') return null; throw reason; }
     try {
       const value = JSON.parse(this.protector.unprotect(encrypted));
@@ -30,8 +40,12 @@ export class DesktopHiggsfieldCredentialStore implements HiggsfieldCredentialSto
 
   async save(record: HiggsfieldCredentialRecord): Promise<void> {
     if (!this.protector.available()) throw new Error('Secure credential storage is unavailable on this system.');
+    const bytes = this.protector.protect(JSON.stringify(record));
+    if (bytes.byteLength > MAX_CREDENTIAL_BYTES) {
+      throw new Error('Higgsfield credential record exceeds the storage boundary.');
+    }
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    await atomicWriteFile({ targetPath: this.filePath, bytes: this.protector.protect(JSON.stringify(record)), validate: async () => undefined });
+    await atomicWriteFile({ targetPath: this.filePath, bytes, validate: async () => undefined });
   }
 
   async clear(): Promise<void> {

@@ -464,6 +464,7 @@ export const createLayerDocumentRendererRuntime = (
   });
   const imageResources = new DocumentImageResourceLifecycle({
     resourceState: resources,
+    maximumTextureDimension: device.limits.maxTextureDimension2D,
     teardown: [
       () => layerResources.destroy(),
       () => patternAssets.clear(),
@@ -479,7 +480,8 @@ export const createLayerDocumentRendererRuntime = (
       () => geometryPreviews.clear(),
       () => vectorContentPreviews.clear(),
       () => transformRasterizer.cancel(),
-      () => pixelEditSessions.destroy()
+      () => pixelEditSessions.destroy(),
+      () => rasterPaint.resetDocumentResources()
     ]
   });
   const textureMemory = new DocumentTextureMemoryEstimator({
@@ -499,8 +501,8 @@ export const createLayerDocumentRendererRuntime = (
         selectionTextures.estimatedTextureBytes(width, height),
       ({ rgba16Bytes }) =>
         pixelEditSessions.estimatedTextureBytes(rgba16Bytes),
-      ({ rgba16Bytes, r8Bytes }) =>
-        transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes)
+      ({ rgba16Bytes, coverage16Bytes }) =>
+        transformSessions.estimatedTextureBytes(rgba16Bytes, coverage16Bytes)
     ]
   });
   const imageResize = new ImageResizeGpuService({

@@ -2,6 +2,13 @@ export interface SubmittedResourceRetainerOptions {
   onSubmittedWorkDone: () => Promise<unknown>;
 }
 
+export const releaseAfterSubmittedWork = (
+  onSubmittedWorkDone: () => Promise<unknown>,
+  release: () => void
+) => {
+  void onSubmittedWorkDone().then(release, release);
+};
+
 /**
  * Retains transient GPU resources until the submit that references them has
  * completed. Encoding code can register resources without owning queue timing.
@@ -26,18 +33,12 @@ export class SubmittedResourceRetainer {
     const buffers = this.pendingBuffers.splice(0);
     const textures = this.pendingTextures.splice(0);
     if (!buffers.length && !textures.length) return;
-    void this.options.onSubmittedWorkDone().then(
-      () => {
-        buffers.forEach((buffer) => buffer.destroy());
-        textures.forEach((texture) => texture.destroy());
-      },
-      () => {
-        // Device loss still releases JavaScript ownership. WebGPU resources
-        // are already invalid in that case, so explicit destruction is safe.
-        buffers.forEach((buffer) => buffer.destroy());
-        textures.forEach((texture) => texture.destroy());
-      }
-    );
+    releaseAfterSubmittedWork(this.options.onSubmittedWorkDone, () => {
+      // Device loss still releases JavaScript ownership. WebGPU resources are
+      // already invalid then, so the same explicit cleanup remains safe.
+      buffers.forEach((buffer) => buffer.destroy());
+      textures.forEach((texture) => texture.destroy());
+    });
   }
 
   destroyPending() {

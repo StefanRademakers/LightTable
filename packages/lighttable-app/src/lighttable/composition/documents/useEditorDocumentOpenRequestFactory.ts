@@ -63,6 +63,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
   readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
   readonly publishCompositeRendered?: NonNullable<DocumentRendererCallbacks['onCompositeRendered']>;
   readonly publishError: (message: string) => void;
+  readonly publishOpenFailure?: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
   readonly publishTimings: (timings: LightTableStartupTimings) => void;
@@ -91,6 +92,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   publishTextRenderPresentation,
   publishCompositeRendered,
   publishError,
+  publishOpenFailure,
   publishScopeError,
   publishFeatureError,
   publishTimings,
@@ -114,6 +116,7 @@ export const useEditorDocumentOpenRequestFactory = ({
     publishTextRenderPresentation,
     publishCompositeRendered,
     publishError,
+    publishOpenFailure,
     publishScopeError,
     publishFeatureError,
     publishTimings,
@@ -157,6 +160,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   hydrate,
   logTimings,
   publishError,
+  publishOpenFailure,
   publishFeatureError,
   publishGpuMemory,
   publishTextRenderPresentation,

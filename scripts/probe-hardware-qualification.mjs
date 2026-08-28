@@ -24,10 +24,16 @@ let app;
 try {
   app = await electron.launch({ executablePath: executable, env: environment, timeout: 30_000 });
   const page = await app.firstWindow({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  await page.getByRole('button', { name: 'Open', exact: true }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
-  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
+  let debugTab = page.getByRole('tab', { name: 'Debug', exact: true });
+  if (!await debugTab.count()) {
+    await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Debug panel', exact: true }).click();
+    debugTab = page.getByRole('tab', { name: 'Debug', exact: true });
+  }
+  await debugTab.click();
   await page.getByRole('button', { name: 'Preview', exact: true }).click();
   const diagnostics = JSON.parse(await page.locator('.lighttable-debug-panel__preview').textContent());
   const gpuInfo = await app.evaluate(async ({ app: electronApp }) => electronApp.getGPUInfo('basic'));

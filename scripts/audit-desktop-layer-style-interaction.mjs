@@ -26,9 +26,25 @@ const report = {
   pageErrors: [],
   consoleErrors: []
 };
-const parseInteger = (text, label) => Number(
-  text.match(new RegExp(`${label}: (\\d+)`, 'i'))?.[1] ?? 0
-);
+const waitForRecordingStatus = async (driver, status, timeoutMs = 15_000) => {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    if ((await driver.queryActionRecording())?.status === status) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Action recording did not reach ${status} within ${timeoutMs} ms.`);
+};
+const activateWorkspacePanel = async (page, label) => {
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  let item = page.getByRole('menuitem', { name: new RegExp(`^${label} panel`) });
+  const registered = (await item.textContent() ?? '').includes('✓');
+  if (registered) {
+    await item.click();
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    item = page.getByRole('menuitem', { name: new RegExp(`^${label} panel`) });
+  }
+  await item.click();
+};
 
 const app = await electron.launch({
   executablePath: launch.executablePath,
@@ -82,12 +98,11 @@ try {
   const initialShadow = initialEffects?.effects.find(({ kind }) => kind === 'drop-shadow');
   if (!initialShadow) throw new Error('The target has no queryable Drop Shadow.');
 
-  await page.getByRole('menuitem', { name: 'View' }).click();
-  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
   const actions = page.getByRole('complementary', { name: 'Actions' });
+  await activateWorkspacePanel(page, 'Actions');
   const recorder = actions.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
-  await recorder.getByText('recording', { exact: true }).waitFor();
+  await waitForRecordingStatus(driver, 'recording');
   await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   await slider.waitFor({ state: 'visible' });
 
@@ -108,9 +123,9 @@ try {
     globalThis.__lightTableStyleInteractionAudit.inputEvents += 1;
   }));
 
-  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
-  await page.getByRole('button', { name: 'Reset render stats' }).click();
-  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
+  if (!await driver.resetRenderTelemetry(documentId)) {
+    throw new Error('Render telemetry could not be reset for the active document.');
+  }
   const range = await slider.evaluate((node) => ({
     minimum: Number(node.min), maximum: Number(node.max), initialValue: Number(node.value)
   }));
@@ -129,10 +144,9 @@ try {
   const gestureMs = performance.now() - startedAt;
   await page.waitForTimeout(350);
   const finalSliderValue = Number(await slider.inputValue());
-  await page.getByRole('menuitem', { name: 'View' }).click();
-  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  await activateWorkspacePanel(page, 'Actions');
   await recorder.getByRole('button', { name: 'Stop', exact: true }).click();
-  await recorder.getByText('stopped', { exact: true }).waitFor();
+  await waitForRecordingStatus(driver, 'stopped');
   const recording = await driver.queryActionRecording();
   const replayable = recording?.steps.filter(({ replayable }) => replayable) ?? [];
   const recordedUpdate = replayable.find(({ command }) => command === 'layer.effect.update');
@@ -155,17 +169,15 @@ try {
   };
   report.longTasks = await page.evaluate(() => globalThis.__lightTableStyleInteractionAudit.longTasks);
 
-  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
-  await page.getByRole('button', { name: 'Capture render stats' }).click();
-  const telemetry = page.locator('.lighttable-debug-message')
-    .filter({ hasText: 'Render telemetry' }).last().locator('pre');
-  await telemetry.waitFor({ state: 'visible' });
-  const telemetryText = await telemetry.textContent() ?? '';
+  const telemetry = await driver.queryRenderTelemetry(documentId);
+  if (!telemetry?.collectionEnabled) {
+    throw new Error('The packaged audit build does not expose render telemetry.');
+  }
   report.render = {
-    submittedFrames: parseInteger(telemetryText, 'Submitted frames'),
-    renderCalls: parseInteger(telemetryText, 'Render calls'),
-    correctionFrames: parseInteger(telemetryText, 'Correction frames'),
-    noWorkSkips: parseInteger(telemetryText, 'No-work skips')
+    submittedFrames: telemetry.submittedFrames,
+    renderCalls: telemetry.renderCalls,
+    correctionFrames: telemetry.correctionFrames,
+    noWorkSkips: telemetry.noWorkSkips
   };
   report.render.publishHz = report.render.submittedFrames / (gestureMs / 1000);
   report.runtimeStopped = /document runtime stopped unexpectedly/i.test(await page.locator('body').innerText());
@@ -181,8 +193,7 @@ try {
   if (undoneShadow?.settings?.size !== initialShadow.settings?.size) {
     throw new Error('Undo did not restore the pre-gesture Layer Style value.');
   }
-  await page.getByRole('menuitem', { name: 'View' }).click();
-  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  await activateWorkspacePanel(page, 'Actions');
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
   await recorder.getByText(/Playback: completed/i).waitFor({ timeout: 15_000 });
   const replayedEffects = await driver.queryLayerEffects(documentId, target.id);

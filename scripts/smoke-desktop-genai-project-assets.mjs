@@ -50,10 +50,12 @@ try {
   await dialog.getByLabel('Name').fill('GenAI Asset Project');
   await dialog.getByRole('button', { name: 'Create' }).click();
 
-  await window.waitForFunction(async () => Boolean(await window.lightTableDesktop.currentProject()), null, {
-    timeout: 10_000
-  });
-  const project = await window.evaluate(() => window.lightTableDesktop.currentProject());
+  const deadline = Date.now() + 10_000;
+  let project = null;
+  while (!project && Date.now() < deadline) {
+    project = await window.evaluate(() => window.lightTableDesktop.currentProject());
+    if (!project) await window.waitForTimeout(100);
+  }
   if (!project) throw new Error('New project did not become active.');
 
   const assetEvent = window.evaluate((projectId) => new Promise((resolve, reject) => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
@@ -36,7 +36,7 @@ import { resetDocumentOpenPresentation } from './application/documents/resetDocu
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
-import { exportEditorPngArtifact, exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
+import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
@@ -488,14 +488,6 @@ const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
   selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, actions: [], selectedId: null, error: null
 };
 const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
-const downloadEditorFile = (file: File): void => {
-  const url = URL.createObjectURL(file);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = file.name;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-};
 const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
   'text-plan-blocked': 'the text preflight is blocked',
   'no-native-text': 'no text layer can be emitted natively',
@@ -610,6 +602,7 @@ export interface LightTableEditorOverlayProps {
   onRevealProject?: () => void;
   onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
+  onDocumentOpenFailed?: (message: string) => void;
   onDocumentThumbnailChange?: (thumbnail: Blob) => void;
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -691,6 +684,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onRevealProject,
   onOpenWorkspaceDocument,
   onDocumentReady,
+  onDocumentOpenFailed,
   onDocumentThumbnailChange,
   onDocumentError,
   onDirtyChange,
@@ -1173,6 +1167,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [genAiBaseImageSelected, setGenAiBaseImageSelected] = useState(false);
   const [genAiBaseImageAssetId, setGenAiBaseImageAssetId] =
     useState<import('@lighttable/genai-core').GenAiAssetId>();
+  React.useEffect(() => {
+    setGenAiBaseImageSelected(genAiSetup.selectedMode === 'image2image');
+  }, [genAiSetup.selectedMode]);
   const genAiBaseImageScopeRef = useRef<string | undefined>(undefined);
   const genAiBaseImageImportPendingRef = useRef(false);
   const importGenAiReferenceFile = React.useCallback(async (file: File) => {
@@ -1194,7 +1191,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setGenAiBaseImageAssetId(undefined);
   }, [genAiBaseImageAssetId, genAiBaseImageScope, genAiSetup.removeAssetReference]);
   React.useEffect(() => {
-    if (!active || !genAiBaseImageSelected
+    if (!genAiBaseImageSelected || !genAiBaseImageAssetId
+      || genAiSetup.workflow?.mode !== 'image2image') return;
+    genAiSetup.addAssetReference(genAiBaseImageAssetId, false);
+  }, [genAiBaseImageAssetId, genAiBaseImageSelected,
+    genAiSetup.addAssetReference, genAiSetup.workflow?.id]);
+  React.useEffect(() => {
+    const imageEditWorkflowReady = genAiSetup.workflow?.mode === 'image2image'
+      && genAiSetup.workflow.fields.some(({ kind }) => kind === 'asset');
+    if (!active || !genAiBaseImageSelected || !imageEditWorkflowReady
       || genAiBaseImageAssetId || genAiBaseImageImportPendingRef.current) return;
     let current = true;
     genAiBaseImageImportPendingRef.current = true;
@@ -1203,7 +1208,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }).finally(() => { genAiBaseImageImportPendingRef.current = false; });
     return () => { current = false; };
   }, [active, genAiBaseImageSelected,
-    genAiBaseImageAssetId, importGenAiDocumentReference, workspaceDocumentId]);
+    genAiBaseImageAssetId, genAiSetup.workflow?.id,
+    importGenAiDocumentReference, workspaceDocumentId]);
   const genAiJobs = useGenAiJobsController(
     genAiService,
     activeGenAiProjectId,
@@ -2886,7 +2892,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endAdjustmentTransaction();
   }, [endAdjustmentTransaction]);
 
-  const adjustmentCommands = createAdjustmentCommands({
+  const adjustmentCommands = useMemo(() => createAdjustmentCommands({
     beginAdjustment: beginAdjustmentTransaction,
     endAdjustment: endAdjustmentTransaction,
     beginLensBlurInteraction,
@@ -2903,7 +2909,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     getSourceName: () => sourceName,
     publishGradeStatus: setGradeStatus
-  });
+  }), [
+    beginAdjustmentTransaction,
+    beginLensBlurInteraction,
+    changeAdjustments,
+    documentProjectionController,
+    endAdjustmentTransaction,
+    endLensBlurInteraction,
+    sourceName
+  ]);
   const {
     updateAdjustment,
     resetAdjustment,
@@ -3449,6 +3463,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishCompositeRendered,
     publishInitialThumbnail: publishDocumentThumbnail,
     publishError: setError,
+    publishOpenFailure: onDocumentOpenFailed,
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {
       appendDebugMessage('error', `GPU feature: ${featureId}`, message);
@@ -5221,48 +5236,65 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         { type: clipboardImage.blob.type || 'image/png' }
       );
       const bitmap = await createImageBitmap(file);
-      if (file.type === 'image/svg+xml') {
-        const canvas = document.createElement('canvas');
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('The SVG clipboard image could not be rasterized for the mask.');
-        context.drawImage(bitmap, 0, 0);
-        const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
-          (value) => value ? resolve(value) : reject(new Error('The SVG clipboard image could not be encoded.')),
-          'image/png'
-        ));
-        file = new File([png], 'Clipboard image.png', { type: 'image/png' });
+      try {
+        if (bitmap.width < 1 || bitmap.height < 1 || bitmap.width > 32_768
+          || bitmap.height > 32_768 || bitmap.width * bitmap.height > 268_435_456) {
+          throw new Error('Clipboard image dimensions exceed the supported resource bounds.');
+        }
+        if (file.type === 'image/svg+xml') {
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('The SVG clipboard image could not be rasterized for the mask.');
+          context.drawImage(bitmap, 0, 0);
+          let png: Blob;
+          try {
+            png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+              (value) => value ? resolve(value) : reject(new Error('The SVG clipboard image could not be encoded.')),
+              'image/png'
+            ));
+          } finally {
+            canvas.width = 1;
+            canvas.height = 1;
+          }
+          file = new File([png], 'Clipboard image.png', { type: 'image/png' });
+        }
+        const artifact = clipboardImage.placement
+          ? commandService.matchingPixelClipboardCopyArtifact(
+              clipboardImage.placement.sourceDocumentId, clipboardImage.placement
+            ) ?? commandService.registerPixelClipboardArtifact(file)
+          : commandService.registerPixelClipboardArtifact(file);
+        const copied = { artifactId: artifact.id, bounds: {
+          x: clipboardImage.placement?.x ?? 0,
+          y: clipboardImage.placement?.y ?? 0,
+          width: bitmap.width,
+          height: bitmap.height
+        } };
+        const currentDocument = imageDocumentRef.current;
+        if (!currentDocument) return;
+        const selection = editorSessionRef.current.selection;
+        const targetBounds = selection.length
+          ? selectionOperationsBounds([...selection], {
+              x: 0, y: 0, width: currentDocument.width, height: currentDocument.height
+            })
+          : visibleDocumentBounds(currentDocument, viewportSize, imageRect);
+        const bounds = centerClipboardBounds({
+          width: copied.bounds.width,
+          height: copied.bounds.height
+        }, targetBounds);
+        const target = editorSessionRef.current.activeChannel === 'mask'
+          ? { channel: 'mask' as const, layerId: currentDocument.activeLayerId ?? undefined }
+          : { channel: 'pixels' as const };
+        await executeRegisteredCommand('selection.pastePixels', {
+          artifactId: copied.artifactId,
+          name: 'Pasted Selection',
+          bounds,
+          target
+        });
+      } finally {
+        bitmap.close();
       }
-      const artifact = commandService.registerPixelClipboardArtifact(file);
-      const copied = { artifactId: artifact.id, bounds: {
-        x: clipboardImage.placement?.x ?? 0,
-        y: clipboardImage.placement?.y ?? 0,
-        width: bitmap.width,
-        height: bitmap.height
-      } };
-      bitmap.close();
-      const currentDocument = imageDocumentRef.current;
-      if (!currentDocument) return;
-      const selection = editorSessionRef.current.selection;
-      const targetBounds = selection.length
-        ? selectionOperationsBounds([...selection], {
-            x: 0, y: 0, width: currentDocument.width, height: currentDocument.height
-          })
-        : visibleDocumentBounds(currentDocument, viewportSize, imageRect);
-      const bounds = centerClipboardBounds({
-        width: copied.bounds.width,
-        height: copied.bounds.height
-      }, targetBounds);
-      const target = editorSessionRef.current.activeChannel === 'mask'
-        ? { channel: 'mask' as const, layerId: currentDocument.activeLayerId ?? undefined }
-        : { channel: 'pixels' as const };
-      await executeRegisteredCommand('selection.pastePixels', {
-        artifactId: copied.artifactId,
-        name: 'Pasted Selection',
-        bounds,
-        target
-      });
     })().catch((reason) => setError(
       reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.'
     ));
@@ -5500,8 +5532,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       layerPanelController.deleteSelection(layerIds);
     }
   };
-  useEffect(() => {
-    if (!commandPorts || workspaceDocumentKind !== 'image') return;
+  useLayoutEffect(() => {
+    if (!commandPorts || workspaceDocumentKind !== 'image'
+      || rendererSnapshot.status !== 'ready') return;
+    // A tab activation publishes workspace state before the persistent GPU
+    // renderer has rebound to that document. During that short hand-off the
+    // registry must fall back to the document-owned canonical ports; mounting
+    // the previous renderer under the new document ID can otherwise export
+    // pixels from the tab we just left.
+    if (documentSession
+      && imageDocument?.id !== documentSession.getSnapshot().document?.id) return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       resizeImage: (request) => commitImageSize(request, false),
       applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
@@ -5876,7 +5916,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return { file: new File([preview.blob], `layer-${channel}.${encoding.format}`, { type: mediaType }),
           width: preview.width, height: preview.height, sourceToOutput: preview.sourceToOutput };
       },
-      exportPsdArtifact: () => exportPsdArtifactRef.current(),
+      exportPsdArtifact: (signal) => exportPsdArtifactRef.current(signal),
       exportSvgArtifact: () => {
         const document = imageDocumentRef.current;
         if (!document) throw new Error('The SVG export document is unavailable.');
@@ -5898,7 +5938,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       forceDeviceLossForAutomation: () => engineRef.current?.forceDeviceLossForAutomation() ?? false
     });
   }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
-    commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId,
+    commandPorts, documentSession, imageDocument?.id, layerDocumentCommands,
+    layerPanelController, rendererSnapshot.status, workspaceDocumentId,
     workspaceDocumentKind]);
 
   const executeLayerVisibilityChanges = useCallback((
@@ -6645,10 +6686,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => rendererLifecycle.getSnapshot().generation
   });
-  exportPngArtifactRef.current = () => {
-    const binding = captureCurrentRendererBinding();
-    return exportEditorPngArtifact(binding.renderer, binding.document, fileNameBase, binding);
-  };
+  // Keep UI, command/MCP and GenAI document-reference PNGs on the same native
+  // bitmap path so a 16-bit document is not silently quantized by one route.
+  exportPngArtifactRef.current = () => exportBitmapArtifact('png');
   exportBitmapArtifactRef.current = (format) => exportBitmapArtifact(format);
   exportPreviewArtifactRef.current = (maxEdge, encoding, region) => {
     const binding = captureCurrentRendererBinding();
@@ -6656,9 +6696,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       binding.renderer, binding.document, fileNameBase, maxEdge, encoding, region, binding
     );
   };
-  exportPsdArtifactRef.current = () => {
+  exportPsdArtifactRef.current = (signal) => {
     const binding = captureCurrentRendererBinding();
-    return exportEditorPsdArtifact(binding.renderer, binding.document, fileNameBase, binding);
+    return exportEditorPsdArtifact(binding.renderer, binding.document, fileNameBase, binding, signal);
   };
 
   const exportPngThroughCommand = useCallback(async () => {
@@ -6834,7 +6874,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               title: currentDocument.name,
               rasterUnderlayPng
             });
-            downloadEditorFile(new File(
+            await deliverExportFile(new File(
               [result.blob],
               `${fileNameBase.replace(/\.pdf$/i, '')}-native.pdf`,
               { type: 'application/pdf' }
@@ -6876,7 +6916,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               rasterUnderlayPng,
               transparencyGroups: nativeExport.transparencyGroups
             });
-            downloadEditorFile(new File(
+            await deliverExportFile(new File(
               [result.blob],
               `${fileNameBase.replace(/\.pdf$/i, '')}-vectors.pdf`,
               { type: 'application/pdf' }
@@ -6937,7 +6977,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 vectorLayers: nativeVectorPage.layers,
                 nativeLayerOrder: nativePlan.nativeLayerOrder
               });
-              downloadEditorFile(new File(
+              await deliverExportFile(new File(
                 [result.blob],
                 `${fileNameBase.replace(/\.pdf$/i, '')}-native-mixed.pdf`,
                 { type: 'application/pdf' }
@@ -6968,7 +7008,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               pixelsPerInch: 300,
               title: currentDocument.name
             });
-            downloadEditorFile(new File(
+            await deliverExportFile(new File(
               [result.blob],
               `${fileNameBase.replace(/\.pdf$/i, '')}.pdf`,
               { type: 'application/pdf' }
@@ -8525,6 +8565,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 costEstimate: genAiSetup.costEstimate,
                 submission: genAiSetup.submission,
                 canGenerate: genAiSetup.canGenerate,
+                generationReadiness: genAiSetup.generationReadiness,
                 onGenerate: () => { void genAiSetup.generate(); },
                 baseImageSelected: genAiBaseImageSelected,
                 baseImageAssetId: genAiBaseImageAssetId,

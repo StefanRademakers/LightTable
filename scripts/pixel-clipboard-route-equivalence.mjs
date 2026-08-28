@@ -101,8 +101,11 @@ export const runPixelClipboardRouteEquivalence = async ({ page, driver, mcp, out
   const uiLayers = await driver.queryLayers(documentId);
   const uiPastedLayer = uiLayers.find(({ id }) => id === uiDocument.activeLayerId);
   assert.deepEqual(uiPastedLayer?.rasterSurface, {
+    width: 164, height: 124, offsetX: 0, offsetY: 0
+  }, 'Paste did not retain compact layer-local clipboard bounds.');
+  assert.deepEqual(uiLayers.find(({ id }) => id === initialLayers[0].id)?.rasterSurface, {
     width: initial.canvas.width, height: initial.canvas.height, offsetX: 0, offsetY: 0
-  }, 'Paste changed the existing full-canvas raster-layer semantics.');
+  }, 'Paste changed the existing full-canvas raster layer.');
   recorder = await openActions(page);
   await recorder.getByRole('button', { name: 'Stop' }).click();
   const recording = await driver.queryActionRecording();
@@ -176,8 +179,6 @@ export const runPixelClipboardRouteEquivalence = async ({ page, driver, mcp, out
 
   await driver.execute(documentId, 'history.undo');
   await waitForLayerCount(page, documentId, initialLayers.length, selectionUndoDepth);
-  recorder = await openActions(page);
-  await recorder.getByRole('button', { name: 'Clear' }).click();
   return {
     documentId,
     bounds: copied.value.bounds,

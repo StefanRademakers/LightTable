@@ -52,8 +52,13 @@ export const exportEditorPsdArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,
   sourceName: string,
-  binding?: RendererBindingToken<DocumentRendererPort>
+  binding?: RendererBindingToken<DocumentRendererPort>,
+  signal?: AbortSignal
 ): Promise<ExportedPsdDocument> => {
+  const throwIfAborted = () => {
+    if (signal?.aborted) throw new DOMException('PSD export was canceled.', 'AbortError');
+  };
+  throwIfAborted();
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   // Automation may request an export in the same event turn as a committed
   // document transaction. Cross that state into the renderer explicitly;
@@ -63,22 +68,27 @@ export const exportEditorPsdArtifact = async (
   if (!await renderer.waitForTextSourcesForExport()) {
     throw new Error('Text sources changed or could not be prepared for PSD export.');
   }
+  throwIfAborted();
   binding?.assertCurrent('PSD export');
   // Final-output text preparation and interactive-quality settlement mutate
   // renderer caches. Keep PSD layer readback behind the authoritative
   // composite so both observe one stable generation rather than racing.
   const composite = await renderer.exportPng();
+  throwIfAborted();
   binding?.assertCurrent('PSD export');
   if (!await renderer.waitForTextSourcesForExport()) {
     throw new Error('Exact text sources could not be retained for PSD layer export.');
   }
   const assets = await renderer.exportPsdLayerAssets(document);
+  throwIfAborted();
   binding?.assertCurrent('PSD export');
   return exportPsdDocument(
     document,
     composite,
     assets.filter((asset) => 'layerId' in asset),
     assets.filter((asset) => 'lutId' in asset),
-    sourceName
+    sourceName,
+    'editable',
+    signal
   );
 };

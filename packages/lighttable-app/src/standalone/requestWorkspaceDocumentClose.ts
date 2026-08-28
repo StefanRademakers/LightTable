@@ -21,7 +21,7 @@ interface RequestWorkspaceDocumentCloseOptions {
   ) => { readonly ok: boolean };
 }
 
-const waitForRunningSave = (
+export const waitForRunningDocumentSave = (
   session: DocumentSession
 ): Promise<DocumentTaskStatus | null> => {
   const snapshot = session.getSnapshot().tasks;
@@ -57,11 +57,8 @@ export const requestWorkspaceDocumentClose = async ({
   if (!document) return false;
 
   if (documentSession) {
-    const saveStatus = await waitForRunningSave(documentSession);
-    if (saveStatus && (
-      saveStatus !== 'completed'
-      || documentSession.getSnapshot().dirty
-    )) return false;
+    const saveStatus = await waitForRunningDocumentSave(documentSession);
+    if (saveStatus && saveStatus !== 'completed') return false;
   }
 
   const dirty = documentSession?.getSnapshot().dirty ?? document.dirty;

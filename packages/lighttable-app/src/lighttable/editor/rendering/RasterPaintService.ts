@@ -17,6 +17,7 @@ import type { BrushPipelineBundle, ToolPipelineBundle } from './ToolPipelineBund
 import { blurBrushSourceBounds, brushHistoryRegions } from './brushHistoryRegions';
 import type { PaintBrushStrokePlan, SampledBrushStrokePlan } from '../tools/paint/sampledBrushTypes';
 import type { ToneBrushStrokePlan } from '../tools/paint/toneBrushTypes';
+import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 
 interface RasterPaintServiceOptions {
   device: GPUDevice;
@@ -112,11 +113,17 @@ export class RasterPaintService {
     const source = this.sampledSource;
     this.sampledSource = null;
     if (source) {
-      void this.options.device.queue.onSubmittedWorkDone().then(
-        () => source.texture.destroy(),
+      releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
         () => source.texture.destroy()
       );
     }
+  }
+
+  resetDocumentResources() {
+    this.blurSource?.texture.destroy();
+    this.blurSource = null;
+    this.endSampledStroke();
   }
 
   paintDabs(
@@ -401,7 +408,7 @@ export class RasterPaintService {
     this.options.device.queue.submit([encoder.finish()]);
     this.options.invalidateLayer(layerId);
     this.options.releaseSubmittedResources();
-    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
       result.destroy();
       settingsBuffer.destroy();
     });
@@ -487,7 +494,7 @@ export class RasterPaintService {
     this.options.device.queue.submit([encoder.finish()]);
     this.options.invalidateLayer(layerId);
     this.options.releaseSubmittedResources();
-    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
       result.destroy();
       settings.destroy();
       lut.destroy();
@@ -551,7 +558,7 @@ export class RasterPaintService {
     this.options.device.queue.submit([encoder.finish()]);
     this.options.invalidateLayer(layerId);
     this.options.releaseSubmittedResources();
-    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+    releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
       result.destroy();
       settings.destroy();
     });
@@ -563,9 +570,7 @@ export class RasterPaintService {
     this.brushCanvasBuffer = null;
     this.brushDabBuffer?.buffer.destroy();
     this.brushDabBuffer = null;
-    this.blurSource?.texture.destroy();
-    this.blurSource = null;
-    this.endSampledStroke();
+    this.resetDocumentResources();
     this.sampledSourceSettingsBuffer?.destroy();
     this.sampledSourceSettingsBuffer = null;
     this.toneSettingsBuffer?.destroy();
@@ -583,8 +588,10 @@ export class RasterPaintService {
     if (current) {
       // A new stroke can target another layer while the previous queue submit
       // is still completing. Retire the old scratch only after that work is done.
-      void this.options.device.queue.onSubmittedWorkDone()
-        .then(() => current.texture.destroy());
+      releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
+        () => current.texture.destroy()
+      );
     }
     return texture;
   }
@@ -633,8 +640,8 @@ export class RasterPaintService {
       // queue.writeBuffer and submit share one ordered queue timeline. The
       // active buffer can therefore be rewritten for the next submitted
       // batch; only a replaced, smaller allocation needs deferred retirement.
-      void this.options.device.queue.onSubmittedWorkDone().then(
-        () => current.buffer.destroy(),
+      releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
         () => current.buffer.destroy()
       );
     }

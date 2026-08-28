@@ -22,7 +22,7 @@ export interface NativeDecodedImage {
   close(): void;
 }
 
-export type DecodedPixelStorage = 'u8' | 'u16' | 'f32';
+export type DecodedPixelStorage = 'u8' | 'u16' | 'f16-display' | 'f32';
 export type SourceProfileDisposition = 'embedded-icc-to-srgb' | 'assumed-srgb';
 
 export interface AdvancedSourceImageDescriptor {

@@ -2,6 +2,9 @@ import { mkdir, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { OpenArtCredentialRecord, OpenArtCredentialStore } from '@lighttable/genai-openart';
 import { atomicWriteFile } from '../atomicFileWriter';
+import { stat } from 'node:fs/promises';
+
+const MAX_CREDENTIAL_BYTES = 1024 * 1024;
 
 export interface CredentialProtector {
   available(): boolean;
@@ -23,7 +26,12 @@ export class DesktopOpenArtCredentialStore implements OpenArtCredentialStore {
     if (!this.protector.available()) return null;
     let encrypted: Uint8Array;
     try {
+      const info = await stat(this.filePath);
+      if (!info.isFile() || info.size < 1 || info.size > MAX_CREDENTIAL_BYTES) {
+        throw new Error('OpenArt credential record exceeds the storage boundary.');
+      }
       encrypted = await readFile(this.filePath);
+      if (encrypted.byteLength !== info.size) throw new Error('OpenArt credential record changed while reading.');
     } catch (reason) {
       if (errorCode(reason) === 'ENOENT') return null;
       throw reason;
@@ -50,10 +58,14 @@ export class DesktopOpenArtCredentialStore implements OpenArtCredentialStore {
     if (!this.protector.available()) {
       throw new Error('Secure credential storage is unavailable on this system.');
     }
+    const bytes = this.protector.protect(JSON.stringify(record));
+    if (bytes.byteLength > MAX_CREDENTIAL_BYTES) {
+      throw new Error('OpenArt credential record exceeds the storage boundary.');
+    }
     await mkdir(path.dirname(this.filePath), { recursive: true });
     await atomicWriteFile({
       targetPath: this.filePath,
-      bytes: this.protector.protect(JSON.stringify(record)),
+      bytes,
       validate: async () => undefined
     });
   }

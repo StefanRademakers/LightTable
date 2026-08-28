@@ -236,7 +236,7 @@ export function StandaloneDocumentRuntimeView({
         workspaceDocumentId={id}
         workspaceDocuments={workspaceDocuments}
         history={document.kind === 'image' ? document.session.history : undefined}
-        tasks={applicationEditorTasks}
+        tasks={document.kind === 'image' ? document.session.tasks : applicationEditorTasks}
         rendererLifecycle={applicationRendererLifecycle}
         documentSession={document.kind === 'image' ? document.session : undefined}
         applicationEditorSession={applicationEditorSession}
@@ -289,6 +289,10 @@ export function StandaloneDocumentRuntimeView({
           if (document.kind !== 'image') return;
           if (document.session.getSnapshot().lifecycle !== 'ready') document.session.setReady();
           if (recovery && !document.session.getSnapshot().dirty) document.session.markChanged();
+        }}
+        onDocumentOpenFailed={(message) => {
+          if (document.kind === 'image') document.session.setFailed(message);
+          else document.session.publishFailure(message);
         }}
         onDocumentThumbnailChange={document.kind === 'image'
           ? (thumbnail) => onDocumentThumbnailChange(id, thumbnail)

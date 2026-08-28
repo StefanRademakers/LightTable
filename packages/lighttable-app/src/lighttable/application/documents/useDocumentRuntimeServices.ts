@@ -46,8 +46,9 @@ export interface DocumentRuntimeServices {
 /**
  * Resolves runtime services for embedded and application-owned editor hosts.
  *
- * Standalone supplies document history plus application-level task/renderer
- * services. Embedded callers get an owned bundle disposed with their view.
+ * Standalone supplies document-owned history/tasks plus the one persistent
+ * application renderer lifecycle. Embedded callers get an owned bundle
+ * disposed with their view.
  */
 export const useDocumentRuntimeServices = ({
   documentId,

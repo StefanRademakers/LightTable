@@ -11,12 +11,14 @@ export class RecoveryArtifactHasher {
   private worker: Worker | null = null;
   private sequence = 0;
   private readonly pending = new Map<number, PendingHash>();
+  private disposed = false;
 
   hash(blob: Blob): Promise<string> {
     return this.prepare(blob).then(({ checksumSha256 }) => checksumSha256);
   }
 
   prepare(blob: Blob): Promise<PreparedRecoveryArtifact> {
+    if (this.disposed) return Promise.reject(new Error('Recovery hashing is closed.'));
     if (blob.size < WORKER_THRESHOLD_BYTES || typeof Worker === 'undefined') {
       return sha256Hex(blob).then((checksumSha256) => ({ checksumSha256 }));
     }
@@ -24,11 +26,17 @@ export class RecoveryArtifactHasher {
     const id = ++this.sequence;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.worker!.postMessage({ id, blob });
+      try {
+        this.worker!.postMessage({ id, blob });
+      } catch (reason) {
+        this.pending.delete(id);
+        reject(reason instanceof Error ? reason : new Error('Recovery hashing failed to start.'));
+      }
     });
   }
 
   dispose(): void {
+    this.disposed = true;
     this.worker?.terminate(); this.worker = null;
     for (const { reject } of this.pending.values()) reject(new Error('Recovery hashing was canceled.'));
     this.pending.clear();
@@ -47,6 +55,11 @@ export class RecoveryArtifactHasher {
     };
     worker.onerror = (event) => {
       const error = new Error(event.message || 'Recovery hashing worker failed.');
+      for (const { reject } of this.pending.values()) reject(error);
+      this.pending.clear(); worker.terminate(); this.worker = null;
+    };
+    worker.onmessageerror = () => {
+      const error = new Error('Recovery hashing worker returned an unreadable response.');
       for (const { reject } of this.pending.values()) reject(error);
       this.pending.clear(); worker.terminate(); this.worker = null;
     };

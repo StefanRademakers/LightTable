@@ -21,6 +21,19 @@ describe('LightTableArtifactRegistry', () => {
     expect(registry.resolve(artifact.id)).toBeNull();
   });
 
+  it('evicts oldest binary handles to stay within the aggregate byte budget', () => {
+    const registry = new LightTableArtifactRegistry({
+      maximumArtifacts: 10,
+      maximumArtifactBytes: 10,
+      maximumTotalBytes: 5
+    });
+    const first = registry.register(new File(['abc'], 'first.bin'), 'input');
+    const second = registry.register(new File(['def'], 'second.bin'), 'input');
+
+    expect(registry.resolve(first.id)).toBeNull();
+    expect(registry.resolve(second.id)?.name).toBe('second.bin');
+  });
+
   it('publishes structured PSD compatibility findings without exposing the file', () => {
     const registry = new LightTableArtifactRegistry();
     const artifact = registry.register(

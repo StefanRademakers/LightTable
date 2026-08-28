@@ -62,6 +62,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly publishCompositeRendered?: () => void;
   readonly publishInitialThumbnail?: (renderer: DocumentRendererPort) => Promise<void>;
   readonly publishError: (message: string) => void;
+  readonly publishOpenFailure?: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
   readonly publishTimings: (timings: LightTableStartupTimings) => void;
@@ -113,6 +114,7 @@ export const useEditorDocumentLifecycleController = ({
   publishCompositeRendered,
   publishInitialThumbnail,
   publishError,
+  publishOpenFailure,
   publishScopeError,
   publishFeatureError,
   publishTimings,
@@ -200,6 +202,7 @@ export const useEditorDocumentLifecycleController = ({
     publishTextRenderPresentation,
     publishCompositeRendered,
     publishError,
+    publishOpenFailure,
     publishScopeError,
     publishFeatureError,
     publishTimings,
