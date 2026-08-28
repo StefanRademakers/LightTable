@@ -22,12 +22,8 @@ fn localRadius(uv: vec2f) -> f32 {
   let radius = params.a.x; let mode = i32(params.a.y + 0.5);
   if (mode == 0) { return radius; }
   let center = params.b.xy; let feather = max(params.b.w, 0.0001);
-  if (mode == 3) {
+  if (mode == 2 || mode == 3) {
     let distance = length(uv - center) * 141.421356;
-    return radius * smoothstep(params.b.z, params.b.z + feather, distance);
-  }
-  if (mode == 4) {
-    let distance = length(uv - center) * 100.0;
     return radius * smoothstep(params.b.z, params.b.z + feather, distance);
   }
   let angle = params.c.x; let q = uv - center;

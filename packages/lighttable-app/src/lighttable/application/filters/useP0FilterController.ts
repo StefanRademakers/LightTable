@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   defaultFilterSettings,
   filterDefinition,
@@ -132,6 +132,11 @@ export const useP0FilterController = ({
       recordHistory(completed.before, completed.lastApplied);
     }
   }, [recordHistory]);
+
+  const resolvedTargetKey = resolved ? targetKey(resolved.target) : null;
+  useEffect(() => () => {
+    finish();
+  }, [finish, resolvedTargetKey]);
 
   const ensureTransaction = useCallback(() => {
     const current = getDocument();

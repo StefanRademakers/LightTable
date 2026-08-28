@@ -57,6 +57,20 @@ const kinds = new Set<P2FilterKind>([
   ...stylization,
 ]);
 
+const isIdentity = (
+  kind: P2FilterKind,
+  settings: P2FilterSettingsMap[P2FilterKind],
+): boolean => {
+  const value = settings as unknown as Record<string, unknown>;
+  if (kind === "shape-blur") return Number(value.radius) <= 0;
+  if (kind === "path-blur") return Number(value.speed) <= 0;
+  if (kind === "spin-blur") return Number(value.angle) <= 0;
+  if (["pinch", "shear", "diffuse"].includes(kind))
+    return Number(value.amount) === 0;
+  if (kind === "glass") return Number(value.distortion) <= 0;
+  return false;
+};
+
 export class P2FilterExecutor implements FilterPackExecutor {
   readonly packId = "p2" as const;
   private readonly warp: AdvancedWarpCore;
@@ -86,6 +100,13 @@ export class P2FilterExecutor implements FilterPackExecutor {
   }
 
   encode(request: FilterPackExecutionRequest): GPUTexture {
+    if (
+      isIdentity(
+        request.kind as P2FilterKind,
+        request.settings as P2FilterSettingsMap[P2FilterKind],
+      )
+    )
+      return request.source;
     const shared = { key: request.key, revision: request.revision };
     if (warp.has(request.kind as P2FilterKind)) {
       const mode = request.kind as AdvancedWarpMode;

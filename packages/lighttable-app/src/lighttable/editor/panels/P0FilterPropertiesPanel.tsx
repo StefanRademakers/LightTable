@@ -66,7 +66,11 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
             ) : control.type === 'select' ? (
               <PanelSelectField key={control.key} label={control.label}
                 value={String(valueAtPath(settings, control.key))} options={control.options}
-                onChange={(value) => commands.updateSetting(control.key, value)} />
+                onChange={(value) => {
+                  commands.beginAdjustment();
+                  commands.updateSetting(control.key, value);
+                  commands.endAdjustment();
+                }} />
             ) : (
               <PanelSelectField key={control.key} label={control.label}
                 value={String(valueAtPath(settings, control.key) ?? '')}
@@ -74,7 +78,11 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
                   { value: '', label: 'None (bypass)' },
                   ...model.rasterSources
                 ]}
-                onChange={(value) => commands.updateSetting(control.key, value || null)} />
+                onChange={(value) => {
+                  commands.beginAdjustment();
+                  commands.updateSetting(control.key, value || null);
+                  commands.endAdjustment();
+                }} />
             ))}
           </div>
         </section>

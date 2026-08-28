@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createAdjustmentLayer } from '../editor/document/documentTypes';
+import { createAdjustmentLayer, createImageDocument } from '../editor/document/documentTypes';
 import { createGaussianBlurStack } from '../processing/gaussianBlurFilter';
 import { createP0FilterStack } from '../processing/p0Filter';
 import { createFilterStack } from '../processing/filter';
@@ -369,5 +369,30 @@ describe('GaussianBlurFilterRenderer', () => {
     test.renderer.encode(test.encoder, second, denoise);
     expect(test.textures).toHaveLength(3);
     expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 3);
+  });
+
+  it('releases inactive P1/P2 runtimes while retaining the shared target pool', () => {
+    const test = fixture();
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const ripple = createAdjustmentLayer(
+      createFilterStack('ripple', { amount: 80 }, (part) => `ripple-${part}`),
+      'Ripple', 'ripple'
+    );
+    const crystallize = createAdjustmentLayer(
+      createFilterStack('crystallize', { cellSize: 12 }, (part) => `crystallize-${part}`),
+      'Crystallize', 'crystallize'
+    );
+    test.renderer.encode(test.encoder, source, ripple);
+    test.renderer.encode(test.encoder, source, crystallize);
+
+    expect(test.buffers).toHaveLength(2);
+    expect(test.textures.length).toBeGreaterThan(0);
+    test.renderer.syncDocument(createImageDocument('Empty filter owners', 20, 10, 'asset'));
+    expect(test.buffers.every(({ destroy }) => destroy.mock.calls.length === 1)).toBe(true);
+    expect(test.textures.every(({ destroy }) => destroy.mock.calls.length === 0)).toBe(true);
+
+    test.renderer.destroy();
+    expect(test.buffers.every(({ destroy }) => destroy.mock.calls.length === 1)).toBe(true);
+    expect(test.textures.every(({ destroy }) => destroy.mock.calls.length === 1)).toBe(true);
   });
 });

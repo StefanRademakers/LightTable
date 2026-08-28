@@ -52,6 +52,23 @@ const kinds = new Set<P1FilterKind>([
   ...edge,
 ]);
 
+const isIdentity = (
+  kind: P1FilterKind,
+  settings: P1FilterSettingsMap[P1FilterKind],
+): boolean => {
+  const value = settings as unknown as Record<string, unknown>;
+  if (["box-blur", "field-blur", "iris-blur", "tilt-shift"].includes(kind)) {
+    return Number(value.radius) <= 0;
+  }
+  if (kind === "radial-blur") return Number(value.amount) <= 0;
+  if (kind === "wave") return Number(value.amount) === 0;
+  if (kind === "ripple") return Number(value.amount) === 0;
+  if (kind === "twirl") return Number(value.angle) === 0;
+  if (kind === "spherize") return Number(value.amount) === 0;
+  if (kind === "despeckle") return Number(value.strength) <= 0;
+  return false;
+};
+
 export class P1FilterExecutor implements FilterPackExecutor {
   readonly packId = "p1" as const;
   private readonly variable: VariableBlurCore;
@@ -80,6 +97,13 @@ export class P1FilterExecutor implements FilterPackExecutor {
   }
 
   encode(request: FilterPackExecutionRequest): GPUTexture {
+    if (
+      isIdentity(
+        request.kind as P1FilterKind,
+        request.settings as P1FilterSettingsMap[P1FilterKind],
+      )
+    )
+      return request.source;
     const shared = { key: request.key, revision: request.revision };
     if (variable.has(request.kind as P1FilterKind)) {
       const mode = request.kind as VariableBlurMode;

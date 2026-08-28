@@ -17,17 +17,18 @@ struct Params { a: vec4f, b: vec4f, mode: u32, option: u32, padding: vec2u }
 fn hash(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7)) + params.b.w) * 43758.5453); }
 @fragment fn advancedWarpMain(input: VertexOutput) -> @location(0) vec4f {
   let dimensions = vec2f(textureDimensions(sourceTexture)); let mode = params.mode;
+  let aspect = dimensions.x / dimensions.y;
   if (mode == 0u || mode == 1u) {
-    let center = params.b.xy; let q = input.uv - center; var total = vec4f(0.0); var weight = 0.0;
+    let center = params.b.xy; let q = (input.uv - center) * vec2f(aspect, 1.0); var total = vec4f(0.0); var weight = 0.0;
     for (var i = -24; i <= 24; i += 1) { let t = f32(i) / 24.0; var uv = input.uv;
       if (mode == 0u) { let direction = vec2f(cos(params.a.y), sin(params.a.y)); let taper = 1.0 - params.a.z * abs(t); uv += direction * t * params.a.x / dimensions * taper; }
-      else { let angle = t * params.a.x; let feather = smoothstep(0.0, max(params.a.y, 1e-3), 0.5 - length(q)); let value = angle * feather; uv = center + vec2f(cos(value) * q.x - sin(value) * q.y, sin(value) * q.x + cos(value) * q.y); }
+      else { let angle = t * params.a.x; let feather = smoothstep(0.0, max(params.a.y, 1e-3), 0.5 - length(q)); let value = angle * feather; let rotated = vec2f(cos(value) * q.x - sin(value) * q.y, sin(value) * q.x + cos(value) * q.y); uv = center + rotated / vec2f(aspect, 1.0); }
       total += textureSampleLevel(sourceTexture, sourceSampler, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0); weight += 1.0;
     } return total / weight;
   }
   var uv = input.uv;
-  if (mode == 2u) { let center = params.b.xy; let p = uv - center; let radius = length(p) * 2.0;
-    if (radius < 1.0) { let mapped = pow(max(radius, 1e-5), 1.0 + params.a.x); uv = center + p * mapped / max(radius, 1e-5); }
+  if (mode == 2u) { let center = params.b.xy; let p = (uv - center) * vec2f(aspect, 1.0); let radius = length(p) * 2.0;
+    if (radius < 1.0) { let mapped = pow(max(radius, 1e-5), 1.0 + params.a.x); uv = center + p * mapped / max(radius, 1e-5) / vec2f(aspect, 1.0); }
   } else if (mode == 3u) { if (params.option == 0u) { uv.x += (uv.y - 0.5) * params.a.x; } else { uv.y += (uv.x - 0.5) * params.a.x; }
   } else { let scale = max(params.a.z, 0.01); let p = uv * dimensions / scale; let smoothness = max(params.a.y, 1.0);
     let nx = hash(floor(p / smoothness)); let ny = hash(floor(p / smoothness) + vec2f(19.0, 7.0));

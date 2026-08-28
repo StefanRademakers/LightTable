@@ -58,7 +58,7 @@ fn dotMask(pixel: vec2f, angle: f32, radius: f32, coverage: f32) -> f32 {
   let streak = exp(-abs(q.y) * 250.0) * exp(-abs(q.x) * 5.0);
   let tint = select(vec3f(1.0, 0.65, 0.3), vec3f(0.55, 0.75, 1.0), params.option == 3u);
   let flare = (core * vec3f(1.0, 0.9, 0.7) + halo * tint * 0.18 + ghost1 * vec3f(0.2, 0.5, 1.0) * 0.22 + ghost2 * vec3f(1.0, 0.25, 0.1) * 0.15 + streak * tint * 0.08) * brightness;
-  return vec4f(source.rgb + flare * max(source.a, 1e-3), source.a);
+  return vec4f(source.rgb + flare * source.a, source.a);
 }
 `;
 const pipelineFor = (device: GPUDevice) => {
