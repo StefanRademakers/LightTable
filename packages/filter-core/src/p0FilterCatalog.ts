@@ -1,3 +1,10 @@
+import type { FilterPackContract } from './filterRegistry';
+import {
+  numberFilterControl as number,
+  selectFilterControl as select,
+  type FilterControlDefinition
+} from './filterControls';
+
 export type P0FilterKind =
   | 'gaussian-blur'
   | 'motion-blur'
@@ -51,32 +58,6 @@ export interface P0FilterSettingsMap {
 
 export type P0FilterSettings = P0FilterSettingsMap[P0FilterKind];
 
-export interface NumberFilterControl {
-  readonly type: 'number';
-  readonly key: string;
-  readonly label: string;
-  readonly min: number;
-  readonly max: number;
-  readonly step: number;
-  readonly unit?: 'px' | '%' | 'deg';
-}
-
-export interface SelectFilterControl {
-  readonly type: 'select';
-  readonly key: string;
-  readonly label: string;
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-}
-
-export interface AssetFilterControl {
-  readonly type: 'asset';
-  readonly key: string;
-  readonly label: string;
-  readonly acceptedKinds: readonly ['raster'];
-}
-
-export type FilterControlDefinition = NumberFilterControl | SelectFilterControl | AssetFilterControl;
-
 export interface P0FilterDefinition<K extends P0FilterKind = P0FilterKind> {
   readonly kind: K;
   readonly moduleType: `lt.${K}`;
@@ -89,15 +70,6 @@ export interface P0FilterDefinition<K extends P0FilterKind = P0FilterKind> {
   readonly coordinateSpace: 'layer' | 'document';
   readonly psdCandidate?: string;
 }
-
-const number = (
-  key: string, label: string, min: number, max: number, step: number,
-  unit?: NumberFilterControl['unit']
-): NumberFilterControl => ({ type: 'number', key, label, min, max, step, ...(unit ? { unit } : {}) });
-
-const select = (
-  key: string, label: string, options: readonly { readonly value: string; readonly label: string }[]
-): SelectFilterControl => ({ type: 'select', key, label, options });
 
 const edgeOptions = [
   { value: 'transparent', label: 'Transparent' },
@@ -302,4 +274,10 @@ export const P0_FILTER_PACK: FilterPackContract<P0FilterDefinition> = Object.fre
     return normalizeP0FilterSettings(kind, value);
   }
 });
-import type { FilterPackContract } from './filterRegistry';
+
+export type {
+  AssetFilterControl,
+  FilterControlDefinition,
+  NumberFilterControl,
+  SelectFilterControl
+} from './filterControls';

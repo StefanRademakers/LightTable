@@ -12,8 +12,8 @@ import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import type { PhotoshopAdjustmentKind } from '../../photoshopAdjustments';
 import { MAX_POINT_COLOR_SAMPLES } from '../../pointColor';
 import {
-  defaultP0FilterSettings,
-  p0FilterDefinitionForModule
+  defaultFilterSettings,
+  filterDefinitionForModule
 } from '@lighttable/filter-core';
 
 export type AdjustmentQueryTarget =
@@ -236,13 +236,13 @@ const projectStack = (stack: AdjustmentStack) => {
   const defaults = createDefaultAdjustments();
   const supported = stack.modules.filter((module) => (
     (currentProcessingModuleRegistry.definition(module.type)?.settingsPaths.length ?? 0) > 0
-    || Boolean(p0FilterDefinitionForModule(module.type))
+    || Boolean(filterDefinitionForModule(module.type))
   ));
   const modules = supported.slice(0, MAX_MODULES).map((module): AdjustmentModuleProjection => {
     const definition = currentProcessingModuleRegistry.definition(module.type)!;
-    const filter = p0FilterDefinitionForModule(module.type);
+    const filter = filterDefinitionForModule(module.type);
     const parameters: AdjustmentParameterProjection[] = filter
-      ? Object.entries(defaultP0FilterSettings(filter.kind)).map(([path, defaultValue]) => {
+      ? Object.entries(defaultFilterSettings(filter.kind)).map(([path, defaultValue]) => {
           const projected = boundedValue(module.settings[path], defaultValue);
           const projectedDefault = boundedValue(defaultValue, defaultValue);
           return {

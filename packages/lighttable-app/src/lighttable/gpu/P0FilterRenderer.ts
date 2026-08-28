@@ -6,11 +6,18 @@ import {
   MotionBlurCore,
   MedianCore,
   OffsetCore,
+  P1FilterExecutor,
+  P2FilterExecutor,
   SurfaceBlurCore,
   WaveletDenoiseCore,
-  type BlurCoreMode
+  type BlurCoreMode,
+  type FilterPackExecutor
 } from '@lighttable/filter-webgpu';
-import { p0FilterDefinitionForModule, type P0FilterSettingsMap } from '@lighttable/filter-core';
+import {
+  ACTIVE_FILTER_PACKS,
+  filterDefinitionForModule,
+  type P0FilterSettingsMap
+} from '@lighttable/filter-core';
 import type {
   AdjustmentLayer,
   ImageDocument,
@@ -18,14 +25,14 @@ import type {
   RasterLayer
 } from '../editor/document/documentTypes';
 import { attachedAdjustmentOwnerId } from '../processing/attachedAdjustment';
-import { p0FilterModule, p0FilterSettings } from '../processing/p0Filter';
+import { filterModule, filterSettings } from '../processing/filter';
 
 const BLUR_CORE_MODES = new Set<BlurCoreMode>([
   'gaussian-blur', 'high-pass', 'unsharp-mask', 'smart-sharpen'
 ]);
 
 /**
- * Executes canonical P0 filter nodes without knowing whether their owner is a
+ * Executes canonical active-pack filter nodes without knowing whether their owner is a
  * standalone filter layer or an attached raster-processing node.
  */
 export class P0FilterRenderer {
@@ -38,6 +45,7 @@ export class P0FilterRenderer {
   private readonly displaceCore: DisplaceCore;
   private readonly surfaceBlurCore: SurfaceBlurCore;
   private readonly medianCore: MedianCore;
+  private readonly extensionExecutors: readonly FilterPackExecutor[];
   private sampler: GPUSampler | null = null;
 
   constructor(device: GPUDevice,
@@ -51,6 +59,11 @@ export class P0FilterRenderer {
     this.displaceCore = new DisplaceCore(device, this.targetPool);
     this.surfaceBlurCore = new SurfaceBlurCore(device, this.targetPool);
     this.medianCore = new MedianCore(device, this.targetPool);
+    this.extensionExecutors = ACTIVE_FILTER_PACKS.flatMap((pack): FilterPackExecutor[] => {
+      if (pack.id === 'p1') return [new P1FilterExecutor(device, this.targetPool)];
+      if (pack.id === 'p2') return [new P2FilterExecutor(device, this.targetPool)];
+      return [];
+    });
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -63,6 +76,7 @@ export class P0FilterRenderer {
     this.displaceCore.configure(width, height);
     this.surfaceBlurCore.configure(width, height, sampler);
     this.medianCore.configure(width, height);
+    this.extensionExecutors.forEach((executor) => executor.configure(width, height, sampler));
   }
 
   encode(
@@ -70,26 +84,39 @@ export class P0FilterRenderer {
     source: GPUTexture,
     layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
-    const module = p0FilterModule(layer.adjustmentStack);
-    const definition = p0FilterDefinitionForModule(module?.type ?? '');
+    const module = filterModule(layer.adjustmentStack);
+    const definition = filterDefinitionForModule(module?.type ?? '');
     if (!module?.enabled || !definition) {
       return source;
     }
+    const key = `${layer.id}::${module.id}`;
+    const extension = this.extensionExecutors.find((executor) => executor.supports(definition.kind));
+    if (extension) {
+      const settings = filterSettings(layer.adjustmentStack, definition.kind);
+      return settings ? extension.encode({
+        encoder,
+        source,
+        key,
+        revision: module.revision,
+        kind: definition.kind,
+        settings
+      }) : source;
+    }
     if (definition.kind === 'offset') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'offset');
+      const settings = filterSettings(layer.adjustmentStack, 'offset');
       return settings ? this.offsetCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
     if (definition.kind === 'motion-blur') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'motion-blur');
+      const settings = filterSettings(layer.adjustmentStack, 'motion-blur');
       return settings ? this.motionBlurCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`, revision: module.revision,
         mode: 'motion-blur', settings
       }) : source;
     }
     if (definition.kind === 'smart-sharpen') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'smart-sharpen');
+      const settings = filterSettings(layer.adjustmentStack, 'smart-sharpen');
       if (!settings) return source;
       if (settings.remove === 'motion') {
         return this.motionBlurCore.encode(encoder, source, {
@@ -99,7 +126,7 @@ export class P0FilterRenderer {
       }
     }
     if (definition.kind === 'maximum' || definition.kind === 'minimum') {
-      const settings = p0FilterSettings(layer.adjustmentStack, definition.kind);
+      const settings = filterSettings(layer.adjustmentStack, definition.kind);
       return settings ? this.morphologyCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`,
         revision: module.revision,
@@ -108,13 +135,13 @@ export class P0FilterRenderer {
       }) : source;
     }
     if (definition.kind === 'reduce-noise') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'reduce-noise');
+      const settings = filterSettings(layer.adjustmentStack, 'reduce-noise');
       return settings ? this.waveletDenoiseCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
     if (definition.kind === 'displace') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'displace');
+      const settings = filterSettings(layer.adjustmentStack, 'displace');
       const map = settings?.mapAssetId ? this.resolveRasterTexture(settings.mapAssetId) : null;
       return settings && map && this.sampler ? this.displaceCore.encode(
         encoder, source, map, this.sampler, {
@@ -125,20 +152,20 @@ export class P0FilterRenderer {
       ) : source;
     }
     if (definition.kind === 'surface-blur') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'surface-blur');
+      const settings = filterSettings(layer.adjustmentStack, 'surface-blur');
       return settings ? this.surfaceBlurCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
     if (definition.kind === 'median') {
-      const settings = p0FilterSettings(layer.adjustmentStack, 'median');
+      const settings = filterSettings(layer.adjustmentStack, 'median');
       return settings ? this.medianCore.encode(encoder, source, {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
     if (!BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) return source;
     const mode = definition.kind as BlurCoreMode;
-    const settings = p0FilterSettings(layer.adjustmentStack, mode);
+    const settings = filterSettings(layer.adjustmentStack, mode);
     if (!settings) return source;
     return this.blurCore.encode(encoder, source, {
       key: `${layer.id}::${module.id}`,
@@ -152,8 +179,8 @@ export class P0FilterRenderer {
   syncDocument(document: ImageDocument): void {
     const activeKeys = new Set<string>();
     const collect = (ownerId: string, stack: AdjustmentLayer['adjustmentStack'] | null) => {
-      const module = p0FilterModule(stack);
-      if (module && p0FilterDefinitionForModule(module.type)) {
+      const module = filterModule(stack);
+      if (module && filterDefinitionForModule(module.type)) {
         activeKeys.add(`${ownerId}::${module.id}`);
       }
     };
@@ -178,6 +205,7 @@ export class P0FilterRenderer {
     this.displaceCore.releaseInactive(activeKeys);
     this.surfaceBlurCore.releaseInactive(activeKeys);
     this.medianCore.releaseInactive(activeKeys);
+    this.extensionExecutors.forEach((executor) => executor.releaseInactive(activeKeys));
   }
 
   estimatedTextureBytes(): number {
@@ -200,6 +228,7 @@ export class P0FilterRenderer {
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
     this.medianCore.destroy();
+    this.extensionExecutors.forEach((executor) => executor.destroy());
     this.targetPool.destroy();
   }
 
@@ -212,6 +241,7 @@ export class P0FilterRenderer {
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
     this.medianCore.destroy();
+    this.extensionExecutors.forEach((executor) => executor.destroy());
     this.targetPool.destroy();
   }
 }

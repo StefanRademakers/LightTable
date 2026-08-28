@@ -6,14 +6,14 @@ import {
 } from './adjustmentStack';
 import type { PhotoshopAdjustmentKind } from '../photoshopAdjustments';
 import {
-  P0_FILTER_DEFINITIONS,
-  type P0FilterKind,
-  type P0FilterSettingsMap
+  FILTER_DEFINITIONS,
+  type FilterKind,
+  type FilterSettingsMap
 } from '@lighttable/filter-core';
 
 export type AdjustmentLayerKind =
   | 'grade'
-  | P0FilterKind
+  | FilterKind
   | 'lens-fx'
   | 'color-vibrance'
   | 'curves'
@@ -25,12 +25,12 @@ export type AdjustmentLayerKind =
 
 export type AdjustmentPropertiesView = AdjustmentLayerKind;
 
-type P0FilterInitialSettings = {
-  [K in P0FilterKind]: Partial<P0FilterSettingsMap[K]>
-}[P0FilterKind];
+type FilterInitialSettings = {
+  [K in FilterKind]: Partial<FilterSettingsMap[K]>
+}[FilterKind];
 
 export type AdjustmentInitialSettings =
-  | P0FilterInitialSettings
+  | FilterInitialSettings
   | { readonly posterizeLevels: number }
   | { readonly thresholdLevel: number }
   | {
@@ -64,7 +64,7 @@ export interface AdjustmentLayerDefinition {
  * adjustments join this catalog only once their controls affect rendering.
  */
 export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] = [
-  ...P0_FILTER_DEFINITIONS.map((filter): AdjustmentLayerDefinition => ({
+  ...FILTER_DEFINITIONS.map((filter): AdjustmentLayerDefinition => ({
     id: filter.kind,
     name: filter.label,
     menuLabel: filter.label,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { p0FilterDefinition } from '@lighttable/filter-core';
+import { filterDefinition } from '@lighttable/filter-core';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import { PanelSelectField } from '../../../ui/PanelControls';
@@ -23,12 +23,17 @@ const formatted = (value: number, unit?: 'px' | '%' | 'deg') => unit === 'px'
       ? `${value.toFixed(1)}°`
       : `${Number.isInteger(value) ? value : value.toFixed(1)}`;
 
+const valueAtPath = (source: Record<string, unknown>, path: string): unknown =>
+  path.split('.').reduce<unknown>((value, part) => value && typeof value === 'object'
+    ? (value as Record<string, unknown>)[part]
+    : undefined, source);
+
 /** Registry-driven Properties surface shared by global and attached filters. */
 export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = ({
   model,
   commands
 }) => {
-  const definition = p0FilterDefinition(model.kind);
+  const definition = filterDefinition(model.kind);
   const settings = model.settings as unknown as Record<string, unknown>;
   const defaults = definition.defaults as unknown as Record<string, unknown>;
   return (
@@ -52,19 +57,19 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
           <div className="lighttable-group__controls">
             {definition.controls.map((control) => control.type === 'number' ? (
               <AdjustmentSlider key={control.key} label={control.label}
-                value={Number(settings[control.key])} min={control.min} max={control.max}
+                value={Number(valueAtPath(settings, control.key))} min={control.min} max={control.max}
                 step={control.step} format={(value) => formatted(value, control.unit)}
-                resetValue={Number(defaults[control.key])} disabled={!model.enabled}
+                resetValue={Number(valueAtPath(defaults, control.key))} disabled={!model.enabled}
                 onChange={(value) => commands.updateSetting(control.key, value)}
                 onReset={commands.reset} onInteractionStart={commands.beginAdjustment}
                 onInteractionEnd={commands.endAdjustment} />
             ) : control.type === 'select' ? (
               <PanelSelectField key={control.key} label={control.label}
-                value={String(settings[control.key])} options={control.options}
+                value={String(valueAtPath(settings, control.key))} options={control.options}
                 onChange={(value) => commands.updateSetting(control.key, value)} />
             ) : (
               <PanelSelectField key={control.key} label={control.label}
-                value={String(settings[control.key] ?? '')}
+                value={String(valueAtPath(settings, control.key) ?? '')}
                 options={[
                   { value: '', label: 'None (bypass)' },
                   ...model.rasterSources

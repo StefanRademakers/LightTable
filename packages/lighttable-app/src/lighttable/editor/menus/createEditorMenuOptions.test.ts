@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import {
   createEditorMenuOptions,
@@ -71,24 +72,15 @@ const findMenuOption = (
 };
 
 describe('createEditorMenuOptions', () => {
-  it('offers the complete P0 filter catalog', () => {
+  it('offers every active filter pack through the shared menu route', () => {
     const menuCommands = commands();
     const filter = createEditorMenuOptions('filter', state(), labels, menuCommands);
     expect(filter.map(({ label }) => label)).toEqual([
-      'Blur', 'Distort', 'Noise', 'Sharpen', 'Other'
-    ]);
-    expect(filter.map(({ label, children }) => ({
-      label,
-      children: children?.map((child) => child.label)
-    }))).toEqual([
-      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur...', 'Surface Blur...'] },
-      { label: 'Distort', children: ['Displace...'] },
-      { label: 'Noise', children: ['Median...', 'Reduce Noise...'] },
-      { label: 'Sharpen', children: ['Smart Sharpen...', 'Unsharp Mask...'] },
-      { label: 'Other', children: ['High Pass...', 'Maximum...', 'Minimum...', 'Offset...'] }
+      'Blur', 'Blur Gallery', 'Distort', 'Noise', 'Pixelate', 'Render', 'Sharpen',
+      'Stylize', 'Filter Gallery', 'Other'
     ]);
     const leaves = filter.flatMap(({ children }) => children ?? []);
-    expect(leaves).toHaveLength(12);
+    expect(leaves).toHaveLength(FILTER_DEFINITIONS.length);
     const gaussian = findMenuOption(filter, 'filter-gaussian-blur');
     expect(gaussian).toMatchObject({ label: 'Gaussian Blur...', disabled: false });
     gaussian?.onClick?.();
@@ -144,14 +136,7 @@ describe('createEditorMenuOptions', () => {
       option?.trailingAction?.onClick();
       expect(menuCommands.attachAdjustment).toHaveBeenCalledWith(kind);
     }
-    const enabled = new Set([
-      'filter-gaussian-blur', 'filter-motion-blur', 'filter-high-pass',
-      'filter-smart-sharpen', 'filter-unsharp-mask', 'filter-maximum',
-      'filter-reduce-noise', 'filter-minimum', 'filter-offset',
-      'filter-surface-blur', 'filter-displace', 'filter-median'
-    ]);
-    expect(leaves.filter(({ value }) => !enabled.has(value))
-      .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
+    expect(leaves.every(({ disabled, onClick }) => !disabled && Boolean(onClick))).toBe(true);
     expect(filter.every(({ disabled }) => !disabled)).toBe(true);
   });
 

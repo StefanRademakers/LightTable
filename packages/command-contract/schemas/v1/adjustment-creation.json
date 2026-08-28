@@ -10,7 +10,14 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "surface-blur", "median", "reduce-noise", "maximum", "minimum", "offset", "displace"
+        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "surface-blur", "median", "reduce-noise", "maximum", "minimum", "offset", "displace",
+        "box-blur", "radial-blur", "field-blur", "iris-blur", "tilt-shift",
+        "wave", "ripple", "twirl", "spherize", "polar-coordinates", "dust-scratches", "despeckle",
+        "mosaic", "color-halftone", "clouds", "lens-flare", "find-edges", "emboss",
+        "shape-blur", "smart-blur", "path-blur", "spin-blur", "pinch", "shear", "glass",
+        "crystallize", "mezzotint", "pointillize", "difference-clouds", "fibers", "oil-paint",
+        "glowing-edges", "diffuse", "solarize", "custom", "cutout", "plastic-wrap", "poster-edges",
+        "watercolor", "photocopy", "halftone-pattern", "stamp", "torn-edges", "texturizer"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -129,6 +136,12 @@
         "shape": { "type": "string", "enum": ["round", "square"], "default": "round" }
       }
     },
+    "extendedFilterSettings": {
+      "description": "Normalized P1/P2 filter-pack settings. Exact fields and ranges are advertised by the active filter registry and validated again at the command boundary.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 16
+    },
     "gradientMapColorStop": {
       "type": "object", "additionalProperties": false,
       "required": ["position", "midpoint", "color"],
@@ -202,6 +215,7 @@
               { "$ref": "#/$defs/morphologySettings" },
               { "$ref": "#/$defs/offsetSettings" },
               { "$ref": "#/$defs/displaceSettings" },
+              { "$ref": "#/$defs/extendedFilterSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -231,6 +245,21 @@
             "if": { "type": "object", "required": ["settings"] },
             "then": {
               "oneOf": [
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "enum": [
+                      "box-blur", "radial-blur", "field-blur", "iris-blur", "tilt-shift",
+                      "wave", "ripple", "twirl", "spherize", "polar-coordinates", "dust-scratches", "despeckle",
+                      "mosaic", "color-halftone", "clouds", "lens-flare", "find-edges", "emboss",
+                      "shape-blur", "smart-blur", "path-blur", "spin-blur", "pinch", "shear", "glass",
+                      "crystallize", "mezzotint", "pointillize", "difference-clouds", "fibers", "oil-paint",
+                      "glowing-edges", "diffuse", "solarize", "custom", "cutout", "plastic-wrap", "poster-edges",
+                      "watercolor", "photocopy", "halftone-pattern", "stamp", "torn-edges", "texturizer"
+                    ] },
+                    "settings": { "$ref": "#/$defs/extendedFilterSettings" }
+                  }
+                },
                 {
                   "type": "object", "required": ["kind", "settings"],
                   "properties": {

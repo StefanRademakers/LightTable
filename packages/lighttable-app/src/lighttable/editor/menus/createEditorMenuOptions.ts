@@ -10,7 +10,7 @@ import {
 } from '../../processing/adjustmentLayerCatalog';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
-import { P0_FILTER_DEFINITIONS, type P0FilterKind } from '@lighttable/filter-core';
+import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
 import { layerStyleKindLabels } from '../styles/layerStyleDefaults';
 import type { LayerStyleKind } from '../styles/layerStyleTypes';
 
@@ -531,22 +531,13 @@ export const createEditorMenuOptions = (
   }
 
   if (menu === 'filter') {
-    const implemented = new Set<P0FilterKind>([
-      'gaussian-blur', 'motion-blur', 'high-pass', 'smart-sharpen', 'unsharp-mask',
-      'reduce-noise', 'maximum', 'minimum', 'offset', 'displace', 'surface-blur', 'median'
-    ]);
     const groups = [
-      ['blur', 'Blur'], ['distort', 'Distort'], ['noise', 'Noise'],
-      ['sharpen', 'Sharpen'], ['other', 'Other']
+      ['blur', 'Blur'], ['blur-gallery', 'Blur Gallery'], ['distort', 'Distort'],
+      ['noise', 'Noise'], ['pixelate', 'Pixelate'], ['render', 'Render'],
+      ['sharpen', 'Sharpen'], ['stylize', 'Stylize'], ['filter-gallery', 'Filter Gallery'],
+      ['other', 'Other']
     ] as const;
-    const option = (definition: (typeof P0_FILTER_DEFINITIONS)[number]): ContextMenuOption<string> => {
-      if (!implemented.has(definition.kind)) return {
-        value: `filter-${definition.kind}`,
-        label: definition.label,
-        disabled: true,
-        disabledReason: 'This filter is planned but not available yet.'
-      };
-      return {
+    const option = (definition: (typeof FILTER_DEFINITIONS)[number]): ContextMenuOption<string> => ({
         value: `filter-${definition.kind}`,
         label: definition.menuLabel,
         onClick: () => commands.createAdjustmentLayer(definition.kind),
@@ -561,12 +552,11 @@ export const createEditorMenuOptions = (
             src: lightTableIcon('link_vertical.png'), alt: '', 'aria-hidden': true
           })
         }
-      };
-    };
+      });
     return groups.map(([group, label]) => ({
       value: `filter-${group}`,
       label,
-      children: P0_FILTER_DEFINITIONS.filter(({ menuGroup }) => menuGroup === group).map(option)
+      children: FILTER_DEFINITIONS.filter(({ menuGroup }) => menuGroup === group).map(option)
     }));
   }
 

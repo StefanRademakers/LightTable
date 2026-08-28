@@ -1,10 +1,10 @@
 import { useCallback, useRef } from 'react';
 import {
-  defaultP0FilterSettings,
-  isP0FilterKind,
-  p0FilterDefinition,
-  type P0FilterKind,
-  type P0FilterSettings
+  defaultFilterSettings,
+  filterDefinition,
+  isFilterKind,
+  type FilterKind,
+  type FilterSettingsMap
 } from '@lighttable/filter-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer, walkRasterLayers } from '../../editor/document/layerTree';
@@ -14,13 +14,13 @@ import {
   setRasterLayerAttachedAdjustmentEnabled,
   setRasterLayerAttachedAdjustmentStack
 } from '../../editor/document/documentCommands';
-import { p0FilterModule, p0FilterSettings, setP0FilterSettings } from '../../processing/p0Filter';
+import { filterModule, filterSettings, setFilterSettings } from '../../processing/filter';
 import type { PropertiesInspectorTarget } from '../properties/propertiesInspectorTarget';
 
 export interface P0FilterPresentation {
-  readonly kind: P0FilterKind;
+  readonly kind: FilterKind;
   readonly label: string;
-  readonly settings: P0FilterSettings;
+  readonly settings: FilterSettingsMap[FilterKind];
   readonly enabled: boolean;
   readonly rasterSources: readonly { readonly value: string; readonly label: string }[];
 }
@@ -42,9 +42,9 @@ interface Dependencies {
 }
 
 type FilterTarget =
-  | { readonly placement: 'adjustment-layer'; readonly layerId: LayerId; readonly kind: P0FilterKind }
+  | { readonly placement: 'adjustment-layer'; readonly layerId: LayerId; readonly kind: FilterKind }
   | { readonly placement: 'attached'; readonly layerId: LayerId; readonly adjustmentId: string;
-      readonly kind: P0FilterKind };
+      readonly kind: FilterKind };
 
 const resolveTarget = (document: ImageDocument | null, inspectorTarget: PropertiesInspectorTarget) => {
   if (!document) return null;
@@ -53,9 +53,9 @@ const resolveTarget = (document: ImageDocument | null, inspectorTarget: Properti
     const adjustment = layer?.type === 'raster'
       ? (layer.attachedAdjustments ?? []).find(({ id }) => id === inspectorTarget.adjustmentId)
       : null;
-    if (!adjustment || !isP0FilterKind(adjustment.adjustmentKind)) return null;
-    const module = p0FilterModule(adjustment.adjustmentStack, adjustment.adjustmentKind);
-    const settings = p0FilterSettings(adjustment.adjustmentStack, adjustment.adjustmentKind);
+    if (!adjustment || !isFilterKind(adjustment.adjustmentKind)) return null;
+    const module = filterModule(adjustment.adjustmentStack, adjustment.adjustmentKind);
+    const settings = filterSettings(adjustment.adjustmentStack, adjustment.adjustmentKind);
     return module && settings ? {
       target: {
         placement: 'attached' as const, layerId: layer!.id, adjustmentId: adjustment.id,
@@ -66,9 +66,9 @@ const resolveTarget = (document: ImageDocument | null, inspectorTarget: Properti
     } : null;
   }
   const layer = findDocumentLayer(document, document.activeLayerId);
-  if (layer?.type !== 'adjustment' || !isP0FilterKind(layer.adjustmentKind)) return null;
-  const module = p0FilterModule(layer.adjustmentStack, layer.adjustmentKind);
-  const settings = p0FilterSettings(layer.adjustmentStack, layer.adjustmentKind);
+  if (layer?.type !== 'adjustment' || !isFilterKind(layer.adjustmentKind)) return null;
+  const module = filterModule(layer.adjustmentStack, layer.adjustmentKind);
+  const settings = filterSettings(layer.adjustmentStack, layer.adjustmentKind);
   return module && settings ? {
     target: { placement: 'adjustment-layer' as const, layerId: layer.id, kind: layer.adjustmentKind },
     settings,
@@ -78,6 +78,21 @@ const resolveTarget = (document: ImageDocument | null, inspectorTarget: Properti
 
 const targetKey = (target: FilterTarget) => target.placement === 'attached'
   ? `${target.layerId}::${target.adjustmentId}` : target.layerId;
+
+const settingPatch = (settings: unknown, path: string, value: unknown): Record<string, unknown> => {
+  const [root, ...parts] = path.split('.');
+  if (parts.length === 0) return { [root]: value };
+  const source = settings && typeof settings === 'object'
+    ? (settings as Record<string, unknown>)[root]
+    : undefined;
+  const branch = structuredClone(source ?? {});
+  let owner = branch as Record<string, unknown>;
+  for (const part of parts.slice(0, -1)) {
+    owner = owner[part] as Record<string, unknown>;
+  }
+  owner[parts.at(-1)!] = value;
+  return { [root]: branch };
+};
 
 const setSettings = (
   document: ImageDocument, target: FilterTarget, patch: Record<string, unknown>
@@ -90,7 +105,7 @@ const setSettings = (
     ? (layer.attachedAdjustments ?? []).find(({ id }) => id === target.adjustmentId)
     : null;
   if (!adjustment || adjustment.adjustmentKind !== target.kind) return document;
-  const stack = setP0FilterSettings(adjustment.adjustmentStack, target.kind, patch);
+  const stack = setFilterSettings(adjustment.adjustmentStack, target.kind, patch);
   return stack === adjustment.adjustmentStack ? document : setRasterLayerAttachedAdjustmentStack(
     document, target.layerId, target.adjustmentId, stack
   );
@@ -131,7 +146,8 @@ export const useP0FilterController = ({
   const updateSetting = useCallback((key: string, value: unknown) => {
     const current = ensureTransaction();
     if (!current || !resolved || !transaction.current) return;
-    const next = setSettings(current, resolved.target, { [key]: value });
+    const patch = settingPatch(resolved.settings, key, value);
+    const next = setSettings(current, resolved.target, patch);
     if (next !== current) {
       transaction.current.lastApplied = next;
       applyDocument(next);
@@ -150,7 +166,7 @@ export const useP0FilterController = ({
 
   const model = resolved ? {
     kind: resolved.target.kind,
-    label: p0FilterDefinition(resolved.target.kind).label,
+    label: filterDefinition(resolved.target.kind).label,
     settings: resolved.settings,
     enabled: resolved.enabled,
     rasterSources: document ? walkRasterLayers(document.layers).map(({ layer, ancestors }) => ({
@@ -164,7 +180,7 @@ export const useP0FilterController = ({
     endAdjustment: finish,
     updateSetting,
     reset: () => commit((source, filterTarget) => setSettings(
-      source, filterTarget, defaultP0FilterSettings(filterTarget.kind)
+      source, filterTarget, defaultFilterSettings(filterTarget.kind)
     )),
     toggleEnabled: () => commit((source, filterTarget) =>
       setEnabled(source, filterTarget, !resolved?.enabled))

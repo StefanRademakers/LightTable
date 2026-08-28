@@ -7,9 +7,11 @@ import {
 } from '../../processing/adjustmentLayerCatalog';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 import {
+  FILTER_DEFINITIONS,
+  filterDefinition,
+  isFilterKind,
   isP0FilterKind,
-  normalizeP0FilterSettings,
-  p0FilterDefinition
+  normalizeFilterSettings
 } from '@lighttable/filter-core';
 
 const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) => id);
@@ -17,8 +19,7 @@ const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) =
 // the Adjustment Layer menu. Keep this explicit until the command vocabulary is
 // generalized from `adjustment.create` to a processing-layer command.
 const creatableKindSet = new Set<string>([
-  ...visibleKinds, 'gaussian-blur', 'motion-blur', 'high-pass', 'smart-sharpen', 'unsharp-mask',
-  'reduce-noise', 'maximum', 'minimum', 'offset', 'displace', 'surface-blur', 'median'
+  ...visibleKinds, ...FILTER_DEFINITIONS.map(({ kind }) => kind)
 ]);
 const localKindSet = new Set<string>(['grade', 'curves', 'lens-fx']);
 
@@ -88,17 +89,15 @@ const parseInitialSettings = (kind: string, value: unknown) => {
     return { thresholdLevel: Number(value.thresholdLevel) };
   }
   if (kind === 'gradient-map') return parseGradientMapSettings(value);
-  if (isP0FilterKind(kind)) {
-    const controls = p0FilterDefinition(kind).controls;
-    const accepted = controls.map(({ key }) => key);
-    if (!exactKeys(value, accepted) || Object.keys(value).length !== accepted.length
-      || controls.some((control) => control.type === 'number'
-        ? typeof value[control.key] !== 'number' || !Number.isFinite(value[control.key])
-        : control.type === 'select'
-          ? typeof value[control.key] !== 'string'
-          : value[control.key] !== null && typeof value[control.key] !== 'string')) return null;
-    const normalized = normalizeP0FilterSettings(kind, value) as unknown as Record<string, unknown>;
-    return accepted.every((key) => normalized[key] === value[key]) ? normalized : null;
+  if (isFilterKind(kind)) {
+    const accepted = Object.keys(filterDefinition(kind).defaults);
+    if (!exactKeys(value, accepted)) return null;
+    const normalized = normalizeFilterSettings(kind, value) as unknown as Record<string, unknown>;
+    if (isP0FilterKind(kind)) {
+      return Object.keys(value).length === accepted.length
+        && JSON.stringify(normalized) === JSON.stringify(value) ? normalized : null;
+    }
+    return normalized;
   }
   return null;
 };

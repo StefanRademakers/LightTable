@@ -56,7 +56,7 @@ import {
   type AdjustmentInitialSettings,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
-import { isP0FilterKind, createP0FilterStack } from '../../processing/p0Filter';
+import { isFilterKind, createFilterStack } from '../../processing/filter';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -483,9 +483,9 @@ export const createLayerDocumentCommands = (
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     if (!current) return false;
-    if (isP0FilterKind(kind)) {
+    if (isFilterKind(kind)) {
       const definition = adjustmentLayerDefinition(kind);
-      const stack = createP0FilterStack(kind, settings ?? {});
+      const stack = createFilterStack(kind, settings ?? {});
       const next = createAdjustmentLayer(
         current,
         stack,
@@ -579,8 +579,8 @@ export const createLayerDocumentCommands = (
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     applyInitialSettings(source, settings);
-    const adjustmentStack = isP0FilterKind(kind)
-      ? createP0FilterStack(kind, settings ?? {})
+    const adjustmentStack = isFilterKind(kind)
+      ? createFilterStack(kind, settings ?? {})
       : selectAdjustmentLayerModules(adjustmentStackForScope(
           createAdjustmentStackFromBasicAdjustments(source),
           'layer'

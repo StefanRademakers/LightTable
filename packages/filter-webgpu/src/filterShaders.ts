@@ -48,13 +48,25 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let denominator = 2.0 * sigma * sigma;
   var blurred = textureSampleLevel(blurInputTexture, sourceSampler, input.uv, 0.0);
   var total = 1.0;
-  for (var tap = 1; tap <= 100; tap += 1) {
+  // Pair adjacent Gaussian taps through the linear sampler. This preserves the
+  // weighted result while nearly halving texture fetches at larger radii.
+  for (var tap = 1; tap <= 100; tap += 2) {
     if (tap > support) { break; }
-    let offset = f32(tap);
-    let weight = exp(-(offset * offset) / denominator);
-    blurred += textureSampleLevel(blurInputTexture, sourceSampler, input.uv + texel * offset, 0.0) * weight;
-    blurred += textureSampleLevel(blurInputTexture, sourceSampler, input.uv - texel * offset, 0.0) * weight;
-    total += 2.0 * weight;
+    let firstOffset = f32(tap);
+    let firstWeight = exp(-(firstOffset * firstOffset) / denominator);
+    let hasSecond = tap + 1 <= support;
+    let secondOffset = f32(tap + 1);
+    let secondWeight = select(0.0,
+      exp(-(secondOffset * secondOffset) / denominator), hasSecond);
+    let pairWeight = firstWeight + secondWeight;
+    let sampleOffset = (firstOffset * firstWeight + secondOffset * secondWeight) / pairWeight;
+    blurred += textureSampleLevel(
+      blurInputTexture, sourceSampler, input.uv + texel * sampleOffset, 0.0
+    ) * pairWeight;
+    blurred += textureSampleLevel(
+      blurInputTexture, sourceSampler, input.uv - texel * sampleOffset, 0.0
+    ) * pairWeight;
+    total += 2.0 * pairWeight;
   }
   blurred /= total;
   if (params.outputMode == 0u) { return blurred; }

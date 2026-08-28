@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createAdjustmentLayer } from '../editor/document/documentTypes';
 import { createGaussianBlurStack } from '../processing/gaussianBlurFilter';
 import { createP0FilterStack } from '../processing/p0Filter';
+import { createFilterStack } from '../processing/filter';
+import { P1_FILTER_DEFINITIONS, P2_FILTER_DEFINITIONS } from '@lighttable/filter-core';
 import { GaussianBlurFilterRenderer } from './GaussianBlurFilterRenderer';
 
 beforeAll(() => {
@@ -39,6 +41,22 @@ const fixture = (resolveRasterTexture: (id: string) => GPUTexture | null = () =>
 };
 
 describe('GaussianBlurFilterRenderer', () => {
+  it.each([...P1_FILTER_DEFINITIONS, ...P2_FILTER_DEFINITIONS])(
+    'routes $kind through an implemented shared filter core',
+    (definition) => {
+      const test = fixture();
+      const layer = createAdjustmentLayer(
+        createFilterStack(definition.kind, definition.defaults, (part) => `${definition.kind}-${part}`),
+        definition.label,
+        definition.kind
+      );
+      const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+      expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+      expect(test.encoder.beginRenderPass).toHaveBeenCalled();
+      test.renderer.destroy();
+    }
+  );
+
   it('allocates lazily and encodes two separable full-frame passes', () => {
     const test = fixture();
     const layer = createAdjustmentLayer(

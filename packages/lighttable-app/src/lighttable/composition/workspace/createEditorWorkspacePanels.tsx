@@ -13,7 +13,7 @@ import {
   createDefaultLightTableWorkspacePanels,
   type LightTableWorkspacePanelRegistration
 } from '../../editor/workspace/workspacePanelRegistry';
-import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
+import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
 import { ColorPicker, colorPickerHex, colorPickerParseHex } from '../../../ui/ColorPicker';
 
 type ScopesPanelComponent = typeof import('../../ScopesPanel')['ScopesPanel'];
@@ -169,7 +169,7 @@ export const createEditorWorkspacePanels = ({
             <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />
           ),
           grain: deferPanel(<GrainPropertiesPanel {...lensFx} />),
-          ...Object.fromEntries(P0_FILTER_DEFINITIONS.map(({ kind, label }) => [kind, p0Filter
+          ...Object.fromEntries(FILTER_DEFINITIONS.map(({ kind, label }) => [kind, p0Filter
             ? deferPanel(<P0FilterPropertiesPanel {...p0Filter} />)
             : <aside className="lighttable-panel" aria-label={`${label} properties`} />])),
           'lens-fx': deferPanel(<LensFxPanel key={lensFxKey} {...lensFx} />),

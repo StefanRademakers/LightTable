@@ -1,4 +1,4 @@
-import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
+import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
 
 /**
  * Serializable processing metadata for the current LightTable controls.
@@ -92,7 +92,7 @@ const CREATIVE_GRADE_SCOPES = [
 ] as const satisfies readonly ProcessingScope[];
 
 export const CURRENT_PROCESSING_MODULES = [
-  ...P0_FILTER_DEFINITIONS.map((filter): ProcessingModuleDefinition => ({
+  ...FILTER_DEFINITIONS.map((filter): ProcessingModuleDefinition => ({
     type: filter.moduleType,
     label: filter.label,
     category: 'filter',
@@ -102,8 +102,10 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: filter.alphaBehavior,
     coordinateSpace: filter.coordinateSpace,
-    ...('psdCandidate' in filter ? { psdCandidates: [filter.psdCandidate] } : {}),
-    notes: 'Canonical P0 filter node. GPU execution is selected by the filter evaluator; attached nodes retain independent identity and settings.'
+    ...('psdCandidate' in filter && typeof filter.psdCandidate === 'string'
+      ? { psdCandidates: [filter.psdCandidate] }
+      : {}),
+    notes: 'Canonical filter-pack node. GPU execution is selected by the filter evaluator; attached nodes retain independent identity and settings.'
   })),
   {
     type: 'lt.face-warp',

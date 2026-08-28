@@ -8,6 +8,15 @@ import {
   type P0FilterSettingsMap
 } from '@lighttable/filter-core';
 import type { AdjustmentModuleInstance, AdjustmentStack } from './adjustmentStack';
+export {
+  createFilterStack as createAllFilterStack,
+  filterKindForStack,
+  filterModule,
+  filterSettings,
+  isFilterKind,
+  isFilterModuleType,
+  setFilterSettings
+} from './filter';
 
 const defaultId = (kind: 'stack' | 'module') =>
   `${kind}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
