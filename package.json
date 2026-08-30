@@ -24,6 +24,8 @@
     "ensure:text-wasm": "node scripts/text-wasm.mjs ensure",
     "test:text-wasm": "npm run ensure:text-wasm && node scripts/verify-text-wasm-runtime.mjs",
     "dev": "npm run dev:web",
+    "dev:ui": "npm run dev -w @lighttable/ui-demo",
+    "build:ui": "npm run build -w @lighttable/ui-demo",
     "dev:web": "npm run ensure:wasm && npm run dev -w @lighttable/web",
     "dev:desktop:base": "npm run ensure:wasm && npm run start -w @lighttable/desktop",
     "dev:desktop": "node scripts/run-with-build-profile.mjs release npm run dev:desktop:base",

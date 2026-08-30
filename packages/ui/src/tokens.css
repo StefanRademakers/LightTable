@@ -1,0 +1,40 @@
+/* A theme scope is the only root contract. No global reset or app selectors. */
+[data-ui-theme] {
+  --ui-font-family: 'Inter', system-ui, sans-serif;
+  --ui-font-weight-normal: 400;
+  --ui-font-weight-bold: 700;
+  --ui-font-size-small: 0.625rem;
+  --ui-font-size-regular: 0.75rem;
+  --ui-font-size-large: 0.875rem;
+  --ui-line-height-small: 1.4;
+  --ui-line-height-regular: 1.5;
+  --ui-line-height-large: 1.428571;
+
+  font-family: var(--ui-font-family);
+  font-size: var(--ui-font-size-regular);
+  font-weight: var(--ui-font-weight-normal);
+  line-height: var(--ui-line-height-regular);
+  font-synthesis: none;
+  color: var(--ui-text);
+  background: var(--ui-surface);
+}
+
+[data-ui-theme='dark'] {
+  color-scheme: dark;
+  --ui-surface: #171b20;
+  --ui-surface-panel: #2f3439;
+  --ui-text: #f3f4f6;
+  --ui-text-muted: #b5bdc7;
+  --ui-border: #454c55;
+  --ui-accent: #9cc4ff;
+}
+
+[data-ui-theme='light'] {
+  color-scheme: light;
+  --ui-surface: #f4f5f7;
+  --ui-surface-panel: #ffffff;
+  --ui-text: #20252c;
+  --ui-text-muted: #58616e;
+  --ui-border: #c9cfd7;
+  --ui-accent: #245ba3;
+}

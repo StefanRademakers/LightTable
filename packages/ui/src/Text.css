@@ -1,0 +1,22 @@
+.ui-text {
+  margin: 0;
+  font-family: var(--ui-font-family);
+  font-size: var(--ui-font-size-regular);
+  font-weight: var(--ui-font-weight-normal);
+  line-height: var(--ui-line-height-regular);
+  font-synthesis: none;
+  color: var(--ui-text);
+}
+
+.ui-text[data-variant='small'] {
+  font-size: var(--ui-font-size-small);
+  line-height: var(--ui-line-height-small);
+}
+
+.ui-text[data-variant='large'] {
+  font-size: var(--ui-font-size-large);
+  line-height: var(--ui-line-height-large);
+}
+
+.ui-text[data-weight='bold'] { font-weight: var(--ui-font-weight-bold); }
+.ui-text[data-tone='muted'] { color: var(--ui-text-muted); }

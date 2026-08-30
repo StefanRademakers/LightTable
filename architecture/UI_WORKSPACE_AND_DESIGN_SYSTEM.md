@@ -106,6 +106,22 @@ than manufacturing a layout from document data.
 
 ## Design tokens and controls
 
+### Clean suite-library rebuild (2026-08-30)
+
+The owner requested a component-by-component rebuild beside the existing UI,
+not a bulk CSS extraction or immediate LightTable migration. `packages/ui`
+(`@lighttable/ui`) owns the first independent typography slice; `apps/ui-demo`
+is its standalone consumer (`npm run dev:ui`). The existing embedded guide
+remains the reference for production controls until they are explicitly migrated.
+
+The new `Text` primitive renders one semantic element, with small/regular/large
+variants and normal/bold weights. Apps select types rather than declaring font
+sizes. Typography metrics and locally bundled Inter fonts belong to the library;
+dark/light semantic colors are scoped through `data-ui-theme`. No editor imports,
+global CSS reset, theme context or wrapper tree is required. Light-theme colors
+and demo-shell controls are initial review surfaces, not a migrated app theme or
+finished button family. See `packages/ui/README.md` for the initial contract.
+
 Shared visual meaning uses LightTable-owned tokens for surfaces, headers, tab
 strips, active tabs, borders, text hierarchy, selection, focus, sliders,
 scrollbars and layer states. Repeated controls use shared components; a new

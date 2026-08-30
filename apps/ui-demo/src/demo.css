@@ -1,0 +1,47 @@
+/* Demo shell only. Typography is owned entirely by @lighttable/ui. */
+body { margin: 0; }
+.demo, .demo * { box-sizing: border-box; }
+.demo {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+}
+.demo-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.demo-themes { display: flex; gap: 4px; }
+/* Temporary native demo controls; not a second library button implementation. */
+.demo-themes button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  cursor: pointer;
+}
+.demo-themes button[aria-pressed='true'] { background: var(--ui-surface-panel); border-color: var(--ui-accent); }
+.demo button:focus-visible, .demo a:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.demo-nav { display: flex; flex-direction: column; align-items: start; gap: 16px; padding: 28px 24px; border-right: 1px solid var(--ui-border); }
+.demo-nav a { text-decoration: none; padding-block: 4px; border-bottom: 2px solid var(--ui-accent); }
+.demo-content { display: grid; align-content: start; gap: 28px; width: 100%; max-width: 1100px; padding: 32px; min-width: 0; }
+.demo-intro, .demo-section { display: grid; gap: 12px; min-width: 0; }
+.demo-table-scroll { overflow-x: auto; }
+.demo-scale { width: 100%; border-collapse: collapse; text-align: left; }
+.demo-scale th, .demo-scale td { padding: 16px; border-bottom: 1px solid var(--ui-border); }
+.demo-scale thead, .demo-specimen { background: var(--ui-surface-panel); }
+.demo-scale td { white-space: nowrap; }
+.demo-specimen { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--ui-border); border-radius: 4px; }
+.demo-code { margin: 0; padding: 16px; border: 1px solid var(--ui-border); border-radius: 4px; overflow-x: auto; }
+@media (max-width: 700px) {
+  .demo { grid-template-columns: minmax(0, 1fr); }
+  .demo-nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 16px 24px; border-right: 0; border-bottom: 1px solid var(--ui-border); }
+  .demo-content { padding: 24px; }
+}
