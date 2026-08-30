@@ -17,20 +17,11 @@ body { margin: 0; }
   border-bottom: 1px solid var(--ui-border);
 }
 .demo-themes { display: flex; gap: 4px; }
-/* Temporary native demo controls; not a second library button implementation. */
-.demo-themes button {
-  font: inherit;
-  padding: 6px 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: 4px;
-  color: var(--ui-text);
-  background: var(--ui-surface);
-  cursor: pointer;
-}
-.demo-themes button[aria-pressed='true'] { background: var(--ui-surface-panel); border-color: var(--ui-accent); }
-.demo button:focus-visible, .demo a:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.demo a:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.demo-button-row { display: flex; flex-wrap: wrap; gap: 10px; padding-block: 8px; }
 .demo-nav { display: flex; flex-direction: column; align-items: start; gap: 16px; padding: 28px 24px; border-right: 1px solid var(--ui-border); }
-.demo-nav a { text-decoration: none; padding-block: 4px; border-bottom: 2px solid var(--ui-accent); }
+.demo-nav a { text-decoration: none; padding-block: 4px; border-bottom: 2px solid transparent; }
+.demo-nav a[aria-current='page'] { border-bottom-color: var(--ui-accent); }
 .demo-content { display: grid; align-content: start; gap: 28px; width: 100%; max-width: 1100px; padding: 32px; min-width: 0; }
 .demo-intro, .demo-section { display: grid; gap: 12px; min-width: 0; }
 .demo-table-scroll { overflow-x: auto; }

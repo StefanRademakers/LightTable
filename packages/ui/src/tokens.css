@@ -27,6 +27,15 @@
   --ui-text-muted: #b5bdc7;
   --ui-border: #454c55;
   --ui-accent: #9cc4ff;
+  --ui-button-surface: #1c2127;
+  --ui-button-hover: #292f36;
+  --ui-button-active: #343d48;
+  --ui-button-text: #d0d4da;
+  --ui-button-border: #4c535b;
+  --ui-button-disabled-text: #626971;
+  --ui-button-disabled-border: #2e343b;
+  --ui-danger-text: #ff8f97;
+  --ui-danger-border: #754a4f;
 }
 
 [data-ui-theme='light'] {
@@ -37,4 +46,13 @@
   --ui-text-muted: #58616e;
   --ui-border: #c9cfd7;
   --ui-accent: #245ba3;
+  --ui-button-surface: #ffffff;
+  --ui-button-hover: #eef1f5;
+  --ui-button-active: #dde5ef;
+  --ui-button-text: #20252c;
+  --ui-button-border: #9099a5;
+  --ui-button-disabled-text: #949aa3;
+  --ui-button-disabled-border: #d6dae0;
+  --ui-danger-text: #b42332;
+  --ui-danger-border: #c88d94;
 }

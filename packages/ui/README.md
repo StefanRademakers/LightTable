@@ -1,4 +1,4 @@
-# Shared UI — first slice: typography
+# Shared UI — typography and buttons
 
 Clean library for the suite, independent of LightTable editor code. The current
 LightTable UI is not migrated yet. `apps/ui-demo` is the first real consumer.
@@ -42,3 +42,23 @@ does not fix the document root size; user font scaling and browser zoom remain a
   real new control needs one, rather than adding app-local sizes.
 
 Run `npm run dev:ui` to view all six styles, muted text and HTML semantics.
+
+## Button
+
+```tsx
+import { Button } from '@lighttable/ui';
+
+<Button onClick={save}>Save</Button>
+<Button disabled>Disabled</Button>
+<Button intent="destructive" onClick={remove}>Delete</Button>
+```
+
+One fixed 28 px border-box height, 12 px horizontal padding, 6 px corners and
+regular/normal typography. No size variants yet. Text is rendered directly
+inside one native button, without a `Text` wrapper. `type` defaults to `button`
+to avoid accidental form submissions; native button props and refs pass through.
+Hover, pressed, keyboard focus and disabled states use theme tokens; disabled
+buttons cannot execute or receive tab focus. Destructive changes visual intent,
+not behavior: the application still owns confirmation and the action itself.
+Labels should be plain text; do not put nested interactive elements inside.
+Demo theme switches also use the real Button; their temporary CSS was removed.
