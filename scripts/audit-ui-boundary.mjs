@@ -15,7 +15,7 @@ const violations = [];
 for (const file of await sourceFiles(uiRoot)) {
   if (!/\.(?:ts|tsx)$/.test(file)) continue;
   const source = await readFile(file, 'utf8');
-  if (/from\s+['"][^'"]*lighttable\//.test(source)) {
+  if (/from\s+['"](?!@lighttable\/ui(?:['"/]))[^'"]*lighttable\//.test(source)) {
     violations.push(`${path.relative(root, file)} imports the LightTable editor domain`);
   }
 }
@@ -29,8 +29,14 @@ const uiOwnedRoots = [
   'lighttable-style-advanced'
 ];
 for (const file of await sourceFiles(appSourceRoot)) {
-  if (!file.endsWith('.css') || file.startsWith(`${uiRoot}${path.sep}`)) continue;
+  if (!file.endsWith('.css')) continue;
   const source = await readFile(file, 'utf8');
+  for (const rootClass of ['ui-button', 'ui-segmented']) {
+    if (source.includes(`.${rootClass}`)) {
+      violations.push(`${path.relative(root, file)} reaches into package-owned .${rootClass}`);
+    }
+  }
+  if (file.startsWith(`${uiRoot}${path.sep}`)) continue;
   for (const rootClass of uiOwnedRoots) {
     if (source.includes(`.${rootClass}`)) {
       violations.push(`${path.relative(root, file)} reaches into UI-owned .${rootClass}`);

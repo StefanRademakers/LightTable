@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { FormSelect } from '../../../ui/FormSelect';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
@@ -45,8 +46,8 @@ export const NewGuideDialog = ({ open, onCancel, onCommit }: Props) => {
           <span>px</span>
         </label>
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
-          <ActionButton type="submit">OK</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" type="submit">OK</Button>
         </div>
       </form>
     </div>,

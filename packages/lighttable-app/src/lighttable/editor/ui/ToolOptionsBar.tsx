@@ -1,10 +1,11 @@
+import { SegmentedControl, Button } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { navigateFontPicker } from './fontPickerKeyboard';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+
 import type {
   BrushSettings,
   EditorSession,
@@ -31,7 +32,7 @@ import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import { GradientField } from '../../../ui/GradientField';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { FormSelect } from '../../../ui/FormSelect';
 import type { TextPaint } from '@lighttable/text-core';
 import {
@@ -395,9 +396,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           : TOOL_LABELS[activeTool]}</strong>
       </div>
       {isSelectionTool(activeTool) ? (
-        <SegmentedControl
+        <SegmentedControl data-ui-theme="dark"
           className="lighttable-tool-options__selection-mode"
-          ariaLabel="Selection combine mode"
+          label="Selection combine mode"
           value={activeTool === 'select-paint-brush'
             ? selectionCombineMode === 'subtract' ? 'subtract' : 'add'
             : selectionCombineMode}
@@ -575,7 +576,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <option value="high">High</option>
             </ToolOptionSelect>
           ) : null}
-          <ActionButton onClick={onSmartSelectionSelectSubject}>Select Subject</ActionButton>
+          <Button data-ui-theme="dark" onClick={onSmartSelectionSelectSubject}>Select Subject</Button>
           {smartSelectionBackendIdentity ? (
             <span className="lighttable-tool-options__hint"
               title={`${smartSelectionBackendIdentity.modelId} @ ${smartSelectionBackendIdentity.artifactRevision}`}>
@@ -767,26 +768,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       {activeTool === 'zoom' ? (
         <div className="lighttable-tool-options__zoom-presets" aria-label="Zoom presets">
           {ZOOM_PRESETS_PERCENT.map((percent) => (
-            <ButtonBase
+            <Button data-ui-theme="dark"
               key={percent}
               type="button"
-              className={
-                Math.abs(zoomPercent - percent) < 0.01
-                  ? 'lighttable-tool-options__preset lighttable-tool-options__preset--active'
-                  : 'lighttable-tool-options__preset'
-              }
+              aria-pressed={Math.abs(zoomPercent - percent) < 0.01}
               onClick={() => onZoomPreset(percent)}
             >
               {percent}%
-            </ButtonBase>
+            </Button>
           ))}
-          <ButtonBase
+          <Button data-ui-theme="dark"
             type="button"
-            className="lighttable-tool-options__preset"
             onClick={onZoomFit}
           >
             Fit screen
-          </ButtonBase>
+          </Button>
         </div>
       ) : null}
       {activeTool === 'warp' ? (
@@ -803,9 +799,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         || activeTool === 'text-vertical' || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
           {textLayoutMode && onTextLayoutModeChange ? (
-            <SegmentedControl
+            <SegmentedControl data-ui-theme="dark"
               className="lighttable-tool-options__text-layout-mode"
-              ariaLabel="Text layout mode"
+              label="Text layout mode"
               value={textLayoutMode}
               onChange={onTextLayoutModeChange}
               options={[

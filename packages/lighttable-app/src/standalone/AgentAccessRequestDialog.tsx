@@ -1,7 +1,8 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { LightTableAgentAccessService, LightTableAgentTunnelStatus } from '../platform/LightTableHost';
-import { ActionButton } from '../ui/ActionButton';
+
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 export const AgentAccessRequestDialog: React.FC<{
@@ -52,16 +53,16 @@ export const AgentAccessRequestDialog: React.FC<{
         <p className="muted">Always allow is saved only for this exact agent identity on the currently paired server. You can revoke it later in Preferences.</p>
         {error ? <p className="lighttable-agent-settings__error" role="alert">{error}</p> : null}
         <div className="modal__footer">
-          <ActionButton disabled={busy} onClick={close}>Deny</ActionButton>
-          {wantsEdit ? <ActionButton disabled={busy}
+          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={close}>Deny</Button>
+          {wantsEdit ? <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
             onClick={() => {
               setBusy(true); setError(null);
               void service.approveClient(request.id, ['read'], false).then(setStatus)
                 .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
                 .finally(() => setBusy(false));
-            }}>Allow read only</ActionButton> : null}
-          <ActionButton disabled={busy} onClick={() => approve(false)}>Allow once</ActionButton>
-          <ActionButton disabled={busy} onClick={() => approve(true)}>Always allow</ActionButton>
+            }}>Allow read only</Button> : null}
+          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => approve(false)}>Allow once</Button>
+          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => approve(true)}>Always allow</Button>
         </div>
       </div>
     </div>,

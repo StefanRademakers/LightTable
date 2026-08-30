@@ -1,3 +1,4 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -7,7 +8,7 @@ import {
 import { toolDefinition, type ToolDefinition } from '../tools/toolRegistry';
 import { ToolButton, toolFamilyFor } from './EditorToolbar';
 import type { ToolId } from '../session/editorSession';
-import { ActionButton } from '../../../ui/ActionButton';
+
 
 interface ToolOptionsContextMenuProps extends ToolOptionsProps {
   x: number;
@@ -140,14 +141,14 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
         <ToolOptionsContent {...toolOptions} orientation="vertical" />
         {toolOptions.activeTool === 'transform' && onAlignTransformAxesToDocument ? (
           <div className="lighttable-tool-options__content lighttable-tool-options__content--vertical">
-            <ActionButton size="control" layout="fill"
+            <Button data-ui-theme="dark" fullWidth
               title="Align the transform handles to the document without changing the layer"
               onClick={() => {
               onAlignTransformAxesToDocument();
               onClose();
             }}>
               Align Transform Box to Document
-            </ActionButton>
+            </Button>
           </div>
         ) : null}
       </div>

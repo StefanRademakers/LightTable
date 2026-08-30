@@ -15,10 +15,10 @@ describe('EditorStatusBar', () => {
     );
 
     expect(markup).toContain('aria-label="Workspaces"');
-    expect(markup).toContain('segmented-control--low-attention');
+    expect(markup).toContain('ui-segmented lighttable-toolbar__workspace-switches');
     expect(markup).toContain('aria-label="Switch to Gen AI workspace"');
     expect(markup).toContain('aria-label="Switch to Grading workspace"');
-    expect(markup).toContain('aria-checked="true"');
+    expect(markup).toContain('aria-checked="true" title="Grading workspace"');
     expect(markup).toContain('aria-label="Switch to Photo edit workspace"');
     expect(markup).toContain('aria-label="Switch to Video workspace"');
     expect(markup).toContain('genai.png');

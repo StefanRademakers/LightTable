@@ -1,3 +1,4 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -11,11 +12,11 @@ import type {
   GenAiWorkflowDefinition
 } from '@lighttable/genai-core';
 import { genAiFieldPlacement } from '@lighttable/genai-core';
-import { ActionButton } from '../../ui/ActionButton';
+
 import { ContextMenu } from '../../ui/ContextMenu';
 import { FormInput } from '../../ui/FormInput';
 import { FormSelect } from '../../ui/FormSelect';
-import { SegmentedControl } from '../../ui/SegmentedControl';
+
 import { SwitchControl } from '../../ui/SwitchControl';
 import { PanelNumberSlider, PanelSelectField } from '../../ui/PanelControls';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
@@ -307,21 +308,21 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
     {status !== 'connected' ? <div className="lighttable-panel__empty"><div>
       <p><strong>{providerName}</strong><br />{statusLabel[status]}</p>
       {message ? <p role={status === 'error' ? 'alert' : 'status'}>{message}</p> : null}
-      <ActionButton onClick={onConnect} disabled={!onConnect || status === 'connecting'}>
+      <Button data-ui-theme="dark" onClick={onConnect} disabled={!onConnect || status === 'connecting'}>
         {status === 'expired' ? 'Reconnect' : 'Connect'}
-      </ActionButton>
+      </Button>
     </div></div> : loading && !workflow ? <div className="lighttable-panel__empty">Loading image model…</div>
       : workflow || setupError ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
           <div className="genai-panel__body">
-            <SegmentedControl className="genai-panel__mode-switch" ariaLabel="Content type"
+            <SegmentedControl data-ui-theme="dark" className="genai-panel__mode-switch" label="Content type"
               value={task} onChange={selectTask} options={taskOptions} />
             <FormSelect className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {taskModels.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </FormSelect>
             {model?.description ? <p className="genai-panel__model-description">{model.description}</p> : null}
-            {task === 'video' && videoOptions.length > 1 ? <SegmentedControl
-              className="genai-panel__variant-switch" ariaLabel="Video input"
+            {task === 'video' && videoOptions.length > 1 ? <SegmentedControl data-ui-theme="dark"
+              className="genai-panel__variant-switch" label="Video input"
               value={mode} onChange={onModeChange ?? (() => undefined)} options={videoOptions} /> : null}
             {setupError ? <p className="genai-panel__error" role="alert">{setupError}</p> : null}
             {assetFields.length ? <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
@@ -442,11 +443,11 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               <strong>{count}/{countField?.maximum ?? 4}</strong>
               <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</ButtonBase>
             </div>
-            <ActionButton type="submit" size="control" layout="fill"
+            <Button data-ui-theme="dark" type="submit" fullWidth
               disabled={!canGenerate || !onGenerate}
               title={!generationReadiness?.ready ? generationReadiness?.message : undefined}>
               {generating ? 'Generating…' : 'Generate'}
-            </ActionButton>
+            </Button>
           </footer>
         </form> : <div className="lighttable-panel__empty">No compatible image workflow is available.</div>}
   </aside>;

@@ -1,8 +1,9 @@
 # Shared UI — typography, buttons and segments
 
 Clean library for the suite, independent of LightTable editor code. The current
-LightTable Grade panel now consumes the segmented control (including the shared
-Curves editor). Other controls remain on the old UI until explicitly migrated.
+LightTable consumes these segments throughout the app and uses Button for its
+standard text actions, including dialogs. Iconbuttons, tabs, menus, disclosures
+and other specialized controls remain distinct; they are not text action buttons.
 `apps/ui-demo` is the standalone catalog.
 Source exports follow the workspace convention; standalone distribution comes later.
 
@@ -68,14 +69,17 @@ buttons cannot execute or receive tab focus. Destructive changes visual intent,
 not behavior: the application still owns confirmation and the action itself.
 Labels should be plain text; do not put nested interactive elements inside.
 Demo theme switches also use the real Button; their temporary CSS was removed.
+`fullWidth` explicitly fills the available width without changing the control's
+height or skin. Plain buttons otherwise follow their content width.
 
 App controls have `tabIndex={-1}` by default. Dialogs opt into native tab order
 with `tabIndex={0}`. This is a host decision, not a global keyboard listener.
 
 ## SegmentedControl
 
-Controlled, single-selection group of native buttons. Supply `label` (accessible
-group name), `options` (`value`, `label`, optional `disabled` and `title`), `value` and
+Controlled, single-selection group of native buttons. `radiogroup`/`radio` and
+`aria-checked` express the one-of-many choice. Supply `label` (accessible group
+name), `options` (`value`, `label`, optional `disabled` and `title`), `value` and
 `onChange`. One wrapper plus one button per option; no label wrappers. Height
 is 28 px; each item's width follows its content and the whole group uses
 `max-content`, including in grid/flex containers. There is no stretch variant.
@@ -86,3 +90,7 @@ types. `className` is for external placement only, not skinning. An optional
 Disabled items do not execute; selecting the current item does not re-emit.
 Dark/light colors come from the same control tokens plus selection surface/text.
 The demo's Colors page shows these tokens directly, without copied color values.
+Options may supply an app-owned `icon` and `ariaLabel`; icon-only options require
+an accessible name. Only an icon adds one non-interactive slot span. The package
+owns its 14 px size and spacing. Labels still have no wrapper. There are no
+app-specific segment variants or option-level CSS classes.

@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 89,
+      "productionUsageCount": 121,
       "internalUsageCount": 5,
-      "contextCount": 26,
+      "contextCount": 36,
       "overrideCount": 0,
       "locations": [
         {
@@ -20,8 +20,33 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/application/tools/warp/WarpToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
+          "count": 6,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionStepRationaleEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
           "count": 8,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/AgentActivityPanel.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -70,6 +95,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/DebugPanel.tsx",
+          "count": 10,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/DuplicateImageDialog.tsx",
           "count": 2,
           "kind": "product"
@@ -85,6 +115,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "count": 4,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/MissingFontRecoveryDialog.tsx",
           "count": 3,
           "kind": "product"
@@ -95,13 +130,18 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/PointTextCreationDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/ThirdPartyLicensesDialog.tsx",
           "count": 1,
           "kind": "product"
         },
         {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
-          "count": 1,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -117,6 +157,16 @@
         {
           "path": "standalone/AgentAccessSettingsDialog.tsx",
           "count": 14,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/DocumentRuntimeErrorBoundary.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/GuidedSampleCoach.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -160,9 +210,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 152,
+      "productionUsageCount": 120,
       "internalUsageCount": 0,
-      "contextCount": 45,
+      "contextCount": 38,
       "overrideCount": 0,
       "locations": [
         {
@@ -181,11 +231,6 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/application/tools/warp/WarpToolOptions.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/composition/workspace/ChannelsWorkspacePanel.tsx",
           "count": 2,
           "kind": "product"
@@ -196,27 +241,12 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
           "count": 6,
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 8,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/ActionStepRationaleEditor.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/panels/AdjustmentPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/AgentActivityPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -276,11 +306,6 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/DebugPanel.tsx",
-          "count": 10,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/ui/EditorMenuBar.tsx",
           "count": 2,
           "kind": "product"
@@ -317,7 +342,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 10,
+          "count": 6,
           "kind": "product"
         },
         {
@@ -336,13 +361,8 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/PointTextCreationDialog.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
-          "count": 11,
+          "count": 9,
           "kind": "product"
         },
         {
@@ -366,13 +386,8 @@
           "kind": "product"
         },
         {
-          "path": "standalone/DocumentRuntimeErrorBoundary.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
           "path": "standalone/GuidedSampleCoach.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {

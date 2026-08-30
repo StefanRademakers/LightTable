@@ -1,7 +1,8 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useState } from 'react';
-import { ActionButton } from '../../../ui/ActionButton';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+
+
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../ui/FormSelect';
@@ -279,7 +280,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--focus" />
             <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--high" />
           </div>
-          <SegmentedControl
+          <SegmentedControl data-ui-theme="dark"
             options={LENS_BLUR_VIEWPORT_MODE_OPTIONS.map((option) => ({
               ...option,
               disabled: !lensBlur.enabled
@@ -287,18 +288,18 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             }))}
             value={model.viewportMode}
             onChange={commands.lensBlur.setViewportMode}
-            ariaLabel="Lens Blur viewport mode"
+            label="Lens Blur viewport mode"
             className="lighttable-lens-blur__viewport-modes"
           />
           <div className="lighttable-lens-blur__actions">
-            <ActionButton
-              layout="fill"
-              className={model.focusPickerActive ? 'action-button--active' : ''}
+            <Button data-ui-theme="dark"
+              fullWidth
+              aria-pressed={model.focusPickerActive}
               onClick={commands.lensBlur.toggleFocusPicker}
               disabled={!lensBlur.enabled || !model.depthResult || analyzing}
             >
               Pick focus
-            </ActionButton>
+            </Button>
           </div>
           {LENS_BLUR_SLIDERS.map((slider) => (
             <AdjustmentSlider

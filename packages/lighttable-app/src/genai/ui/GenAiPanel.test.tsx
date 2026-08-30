@@ -107,7 +107,7 @@ describe('GenAiPanel visual references', () => {
     expect(markup).toContain('Seedream');
     expect(markup).toContain('class="genai-prompt-composer"');
     expect(markup).toContain('OpenArt returned a model form without usable fields.');
-    expect(markup).toContain('disabled="">Generate');
+    expect(markup).toMatch(/<button\b[^>]*disabled=""[^>]*>Generate<\/button>/);
   });
 
   it('shows why generation is unavailable', () => {

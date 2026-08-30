@@ -1,6 +1,7 @@
+import { SegmentedControl, type SegmentOption } from '@lighttable/ui';
 import { ButtonBase } from '../ui/ButtonBase';
 import React from 'react';
-import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
+
 import { SwitchControl } from '../ui/SwitchControl';
 import { lightTableIcon } from '../assets/icons';
 import { Histogram } from './Histogram';
@@ -27,7 +28,7 @@ interface ScopesPanelProps {
   onSettingsChange: (settings: ScopeSettings) => void;
 }
 
-const VECTOR_RANGE_OPTIONS: Array<SegmentedControlOption<VectorscopeRange>> = [
+const VECTOR_RANGE_OPTIONS: Array<SegmentOption<VectorscopeRange>> = [
   { value: 'all', label: 'All' },
   { value: 'low', label: 'Low' },
   { value: 'mid', label: 'Mid' },
@@ -143,12 +144,12 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
           visible={visibility.vectorscope}
           onVisibleChange={(visible) => onVisibilityChange('vectorscope', visible)}
         >
-          <SegmentedControl
+          <SegmentedControl data-ui-theme="dark"
             className="lighttable-scope__range"
             value={settings.vectorscopeRange}
             options={VECTOR_RANGE_OPTIONS}
             onChange={(value) => update('vectorscopeRange', value)}
-            ariaLabel="Vectorscope tonal range"
+            label="Vectorscope tonal range"
           />
           <div className="lighttable-vectorscope">
             <canvas ref={vectorscopeCanvasRef} className="lighttable-scope__canvas" aria-label="Vectorscope" />

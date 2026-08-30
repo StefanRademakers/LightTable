@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import type { PositionedTextRecoveryAnalysis } from '@lighttable/text-core';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import type { ParagraphStylePatch, TextStylePatch } from '../../application/text/flowTextFormatting';
@@ -70,12 +71,12 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                     {entry.severity === 'blocker' ? 'Blocked: ' : 'Note: '}{entry.message}
                   </p>
                 ))}
-                <ActionButton
+                <Button data-ui-theme="dark"
                   onClick={recovery.onRecover}
                   disabled={analysis.status === 'blocked' || !analysis.preview}
                 >
                   Recover editable text
-                </ActionButton>
+                </Button>
               </div>
             </div>
           </section>

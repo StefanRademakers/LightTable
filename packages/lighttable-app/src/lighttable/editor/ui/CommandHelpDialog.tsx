@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 export const LIGHTTABLE_COMMAND_HELP = [
@@ -38,7 +39,7 @@ export const CommandHelpDialog: React.FC<{
         onMouseDown={(event) => event.stopPropagation()}>
         <header className="lighttable-psd-report__header">
           <div><h2>Commands and shortcuts</h2><p>Photoshop-compatible shortcuts where they match LightTable actions.</p></div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </header>
         <input autoFocus type="search" value={query} aria-label="Search commands"
           placeholder="Search commands or shortcuts"

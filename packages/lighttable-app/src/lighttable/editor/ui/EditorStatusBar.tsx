@@ -1,7 +1,8 @@
+import { SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+
 import type { LightTableWorkspacePreset } from '../workspace/workspaceLayoutPersistence';
 import type { SelectableLightTableWorkspacePreset } from '../workspace/workspacePresets';
 
@@ -72,10 +73,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
         alt=""
       />
     </ButtonBase>
-    <SegmentedControl
+    <SegmentedControl data-ui-theme="dark"
       className="lighttable-toolbar__workspace-switches"
-      variant="low-attention"
-      ariaLabel="Workspaces"
+      label="Workspaces"
       value={selectedWorkspacePreset(workspacePreset)}
       onChange={(preset) => onWorkspacePresetChange?.(preset)}
       options={WORKSPACE_SWITCHES.map(({ preset, label, icon }) => ({

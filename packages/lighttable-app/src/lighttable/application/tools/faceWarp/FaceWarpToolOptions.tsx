@@ -1,6 +1,7 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import React, { useState } from 'react';
-import { ActionButton } from '../../../../ui/ActionButton';
-import { SegmentedControl } from '../../../../ui/SegmentedControl';
+
+
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../../ui/FormSelect';
 import type {
@@ -95,13 +96,13 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   return <>
     {reviewPending ? <>
       <span className="lighttable-tool-options__hint">Check that the mesh follows the face.</span>
-      <ActionButton onClick={onAcceptDetection}>Accept mesh</ActionButton>
-      <ActionButton size="compact" onClick={onCancelDetection}>Cancel</ActionButton>
-    </> : <ActionButton disabled={busy} onClick={onDetect}>
+      <Button data-ui-theme="dark" onClick={onAcceptDetection}>Accept mesh</Button>
+      <Button data-ui-theme="dark" onClick={onCancelDetection}>Cancel</Button>
+    </> : <Button data-ui-theme="dark" disabled={busy} onClick={onDetect}>
       {busy ? 'Detecting faces…' : faces.length > 0 ? 'Redetect faces' : 'Detect faces'}
-    </ActionButton>}
-    {faces.length > 0 && !reviewPending ? <SegmentedControl value={mode} onChange={setMode}
-      ariaLabel="Face Warp editing mode" options={[
+    </Button>}
+    {faces.length > 0 && !reviewPending ? <SegmentedControl data-ui-theme="dark" value={mode} onChange={setMode}
+      label="Face Warp editing mode" options={[
         { value: 'sculpt', label: 'Sculpt' },
         { value: 'adjust', label: 'Adjust' }
       ]} /> : null}
@@ -182,6 +183,6 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
     </> : null}
-    {selected && !reviewPending ? <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton> : null}
+    {selected && !reviewPending ? <Button data-ui-theme="dark" onClick={onReset}>Reset face</Button> : null}
   </>;
 };

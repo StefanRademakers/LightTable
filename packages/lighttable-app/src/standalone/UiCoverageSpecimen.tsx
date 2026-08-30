@@ -1,9 +1,10 @@
+import { SegmentedControl, Button } from '@lighttable/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import manifestData from '../ui/uiComponentManifest.json';
 import inventoryData from '../ui/generatedUiUsageInventory.json';
 import { SearchField } from '../ui/SearchField';
-import { SegmentedControl } from '../ui/SegmentedControl';
-import { ActionButton } from '../ui/ActionButton';
+
+
 import type { UiInspectionTarget } from '../ui/uiInspection';
 
 interface ManifestEntry {
@@ -260,9 +261,9 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
             <div><dt>Classes</dt><dd>{inspection.className || 'none'}</dd></div>
           </dl>
           {onShowInApp ? (
-            <ActionButton size="compact" onClick={() => onShowInApp(inspection.controlId)}>
+            <Button data-ui-theme="dark" onClick={() => onShowInApp(inspection.controlId)}>
               Show in app
-            </ActionButton>
+            </Button>
           ) : null}
         </aside>
       ) : null}
@@ -272,7 +273,7 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
       </p>
 
       <div className="lighttable-ui-coverage__tools">
-        <SegmentedControl ariaLabel="UI coverage view" value={view} onChange={setView}
+        <SegmentedControl data-ui-theme="dark" label="UI coverage view" value={view} onChange={setView}
           options={[
             { value: 'nonstandard', label: 'Non-standard' },
             { value: 'attention', label: `Attention ${attentionCount}` },
@@ -366,9 +367,9 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
                           <span>{candidate.element} · {candidate.context}</span>
                         </div>
                         {onShowInApp ? (
-                          <ActionButton size="compact" onClick={() => onShowInApp(null, candidate.auditId)}>
+                          <Button data-ui-theme="dark" onClick={() => onShowInApp(null, candidate.auditId)}>
                             Show in app
-                          </ActionButton>
+                          </Button>
                         ) : null}
                       </li>
                     ))}

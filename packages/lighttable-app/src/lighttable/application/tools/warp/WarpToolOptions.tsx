@@ -1,4 +1,4 @@
-import { ButtonBase } from '../../../../ui/ButtonBase';
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../../ui/FormSelect';
@@ -135,12 +135,11 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       />
       Pressure strength
     </label>
-    <ButtonBase
+    <Button data-ui-theme="dark"
       type="button"
-      className="lighttable-tool-options__preset"
       onClick={onReset}
     >
       Reset Warp
-    </ButtonBase>
+    </Button>
   </>
 );

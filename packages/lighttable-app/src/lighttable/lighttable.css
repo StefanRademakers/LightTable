@@ -66,14 +66,14 @@
 /* Desktop chrome never uses Chromium's generic focus outline. Controls that
  * need keyboard focus expose it through their existing border or component
  * state instead of an offset browser ring. */
-.lighttable :focus {
+:where(.lighttable) :focus {
   outline: none;
 }
 
-.lighttable :is(button, [role='button']):focus-visible,
-.lighttable-launcher :is(button, [role='button']):focus-visible,
-.modal-backdrop :is(button, [role='button']):focus-visible,
-.lighttable-psd-report__backdrop :is(button, [role='button']):focus-visible {
+:where(.lighttable :is(button, [role='button'])):focus-visible,
+:where(.lighttable-launcher :is(button, [role='button'])):focus-visible,
+:where(.modal-backdrop :is(button, [role='button'])):focus-visible,
+:where(.lighttable-psd-report__backdrop :is(button, [role='button'])):focus-visible {
   outline: none;
 }
 
@@ -220,14 +220,6 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
-}
-
-.lighttable-tool-options__content--vertical .lighttable-tool-options__preset {
-  min-width: 0;
-}
-
-.lighttable-tool-options__content--vertical .lighttable-tool-options__preset:last-child {
-  grid-column: 1 / -1;
 }
 
 .lighttable-tool-options__identity {
@@ -572,26 +564,6 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-}
-
-.lighttable-tool-options__preset {
-  min-width: 48px;
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--lt-border);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--lt-text-secondary);
-  font: inherit;
-  font-size: var(--lt-type-small);
-  white-space: nowrap;
-}
-
-.lighttable-tool-options__preset:hover,
-.lighttable-tool-options__preset--active {
-  border-color: var(--lt-accent);
-  background: var(--lt-accent-muted);
-  color: var(--lt-text-primary);
 }
 
 .lighttable__header-left {
@@ -2428,17 +2400,7 @@
 }
 
 .lighttable-scope__range {
-  width: calc(100% - 16px);
-  min-height: 27px;
   margin: 8px 8px 7px;
-}
-
-.lighttable-scope__range .segmented-control__button {
-  flex: 1 1 25%;
-  min-width: 0;
-  min-height: 26px;
-  padding: 4px;
-  font-size: var(--lt-type-small);
 }
 
 .lighttable-vectorscope {
@@ -2519,7 +2481,6 @@
 
 .genai-panel__mode-switch {
   align-self: center;
-  width: max-content;
   margin: 0 0 12px;
 }
 
@@ -4287,9 +4248,7 @@
 }
 
 .lighttable-style-editor > header button,
-.lighttable-style-editor > footer > button,
-.lighttable-style-editor__effect-heading button,
-.lighttable-style-editor__add button {
+.lighttable-style-editor__effect-heading button {
   min-height: 28px;
   padding: 4px 10px;
   border: 1px solid var(--lt-border-strong);
@@ -4788,10 +4747,8 @@
 }
 .lighttable-tool-options__gradient-options { margin-top: 12px; }
 .lighttable-tool-options__paint-types {
-  width: 100%;
   margin-top: 12px;
 }
-.lighttable-tool-options__paint-types .segmented-control__button { flex: 1; }
 .lighttable-tool-options__paint-types + .lighttable-color-picker-prototype,
 .lighttable-tool-options__paint-types + .lighttable-style-gradient { margin-top: 12px; }
 
@@ -4831,11 +4788,6 @@
 .lighttable-style-editor__scale {
   min-width: 220px;
   margin-right: auto;
-}
-
-.lighttable-style-editor > footer > .lighttable-style-editor__primary {
-  border-color: #4f83d8;
-  background: var(--lt-accent-strong);
 }
 
 @media (max-width: 820px) {
@@ -5709,13 +5661,7 @@
 }
 
 .lighttable-lens-blur__viewport-modes {
-  width: 100%;
   margin: 0 0 8px;
-}
-
-.lighttable-lens-blur__viewport-modes .segmented-control__button {
-  flex: 1 1 50%;
-  min-width: 0;
 }
 
 .lighttable-lens-blur__visualization {
@@ -5867,25 +5813,6 @@
   display: flex;
   flex: 0 0 auto;
   gap: 6px;
-}
-
-.lighttable-debug-panel__actions button {
-  min-height: 26px;
-  padding: 3px 8px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  color: inherit;
-  cursor: pointer;
-}
-
-.lighttable-debug-panel__actions button:hover:not(:disabled) {
-  border-color: var(--color-tab-active, var(--lt-accent));
-}
-
-.lighttable-debug-panel__actions button:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .lighttable-debug-panel__messages {

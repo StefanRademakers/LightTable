@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { FormInput } from '../../../ui/FormInput';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
@@ -75,8 +76,8 @@ export const DuplicateImageDialog = ({
           {error ? <p className="lighttable-file-drop__error lighttable-new-document-dialog__wide-field" role="alert">{error}</p> : null}
         </div>
         <div className="modal__footer">
-          <ActionButton type="button" onClick={onCancel} disabled={busy}>Cancel</ActionButton>
-          <ActionButton type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</Button>
         </div>
       </form>
     </div>,

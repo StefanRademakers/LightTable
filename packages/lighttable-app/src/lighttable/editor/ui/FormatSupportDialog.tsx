@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
   LIGHTTABLE_FORMAT_CAPABILITIES,
@@ -35,7 +36,7 @@ export const FormatSupportDialog: React.FC<{
             <h2>Format support</h2>
             <p>Current product capabilities. Subset never means full source-format parity.</p>
           </div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </header>
         <div className="lighttable-format-support__table" role="table">
           <div className="lighttable-format-support__row lighttable-format-support__row--header" role="row">

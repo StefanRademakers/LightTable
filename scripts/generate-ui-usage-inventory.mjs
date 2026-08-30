@@ -29,8 +29,11 @@ const productionFiles = sourceFiles.filter((file) => !isCatalogSpecimen(relative
 const cssFiles = files.filter((file) => file.endsWith('.css'));
 const sourceCache = new Map(await Promise.all([...new Set([...productionFiles, ...cssFiles])]
   .map(async (file) => [file, await readFile(file, 'utf8')])));
+const packageUiFiles = (await walk(path.join(root, 'packages', 'ui', 'src')))
+  .filter((file) => /\.tsx?$/.test(file) && !isTest(file));
 const uiSource = sourceFiles.filter((file) => file.startsWith(`${uiRoot}${path.sep}`))
   .map((file) => sourceCache.get(file) ?? '')
+  .concat(await Promise.all(packageUiFiles.map((file) => readFile(file, 'utf8'))))
   .join('\n');
 
 const components = manifest.map((component) => {

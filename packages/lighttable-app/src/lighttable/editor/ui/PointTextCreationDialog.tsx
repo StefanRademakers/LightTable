@@ -1,4 +1,4 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useRef } from 'react';
 
 interface PointTextCreationDialogProps {
@@ -72,8 +72,8 @@ export const PointTextCreationDialog: React.FC<PointTextCreationDialogProps> = (
           />
         </label>
         <div>
-          <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
-          <ButtonBase type="submit" disabled={!value.length}>Create</ButtonBase>
+          <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!value.length}>Create</Button>
         </div>
       </form>
     </div>

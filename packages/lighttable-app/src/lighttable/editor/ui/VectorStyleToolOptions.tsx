@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
@@ -10,7 +11,7 @@ import { ColorPicker, colorPickerHex, colorPickerParseHex } from '../../../ui/Co
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 import { GradientField } from '../../../ui/GradientField';
 import { NonePaintField } from '../../../ui/NonePaintField';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+
 
 type PaintType = 'none' | 'color' | 'gradient';
 
@@ -108,8 +109,8 @@ const VectorPaintOption: React.FC<{
         <ButtonBase type="button" aria-label={`Close ${label.toLowerCase()} paint`}
           onClick={() => setOpen(false)}>×</ButtonBase>
       </div>
-      <SegmentedControl className="lighttable-tool-options__paint-types"
-        ariaLabel={`${label} paint type`} value={type} onChange={setType}
+      <SegmentedControl data-ui-theme="dark" className="lighttable-tool-options__paint-types"
+        label={`${label} paint type`} value={type} onChange={setType}
         options={[
           { value: 'none', label: 'None' },
           { value: 'color', label: 'Color' },

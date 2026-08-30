@@ -1,4 +1,4 @@
-import { ButtonBase } from '../ui/ButtonBase';
+import { Button } from '@lighttable/ui';
 import {
   Component,
   Fragment,
@@ -75,12 +75,12 @@ export class DocumentRuntimeErrorBoundary extends Component<
             <p>This document runtime stopped unexpectedly. Other open documents remain available.</p>
             <pre>{this.state.error.message}</pre>
             <div className="lighttable-document-failure__actions">
-              <ButtonBase className="action-button" type="button" onClick={this.retry}>
+              <Button data-ui-theme="dark" type="button" onClick={this.retry}>
                 Retry document
-              </ButtonBase>
-              <ButtonBase className="action-button" type="button" onClick={this.props.onClose}>
+              </Button>
+              <Button data-ui-theme="dark" type="button" onClick={this.props.onClose}>
                 Close document
-              </ButtonBase>
+              </Button>
             </div>
           </section>
         </main>

@@ -1,3 +1,4 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import type {
   GenAiAssetId,
@@ -5,7 +6,7 @@ import type {
   GenAiGenerationJob,
   GenAiProjectAssetCatalog
 } from '@lighttable/genai-core';
-import { ActionButton } from '../ui/ActionButton';
+
 import { EditorMenuBar } from '../lighttable/editor/ui/EditorMenuBar';
 import type { EditorMenuId } from '../lighttable/editor/menus/createEditorMenuOptions';
 import type { ContextMenuOption } from '../ui/ContextMenu';
@@ -139,11 +140,11 @@ export const ProjectHomeSurface = ({
           <h1 id="project-home-title">{project.name}</h1>
           <p>Drop media to add to {project.name}<br />or click to browse</p>
           <div className="lighttable-project-home__actions">
-            <ActionButton type="button"
+            <Button data-ui-theme="dark" type="button"
               disabled={importing || !workspaceSurfaceCan(surface, 'project-assets')}
-              onClick={() => fileInput.current?.click()}>Browse / Import</ActionButton>
-            <ActionButton type="button"
-              onClick={onNewDocument}>New Document</ActionButton>
+              onClick={() => fileInput.current?.click()}>Browse / Import</Button>
+            <Button data-ui-theme="dark" type="button"
+              onClick={onNewDocument}>New Document</Button>
           </div>
           {importing ? <p role="status">Importing media...</p> : null}
           {error ? <p className="lighttable-project-home__warning" role="alert">{error}</p> : null}

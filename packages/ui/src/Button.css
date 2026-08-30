@@ -21,6 +21,8 @@
   cursor: pointer;
 }
 
+.ui-button[data-full-width] { width: 100%; }
+
 .ui-button[data-intent='destructive'] {
   color: var(--ui-danger-text);
   border-color: var(--ui-danger-border);

@@ -1,7 +1,8 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import React, { useState } from 'react';
-import { ActionButton } from '../ui/ActionButton';
+
 import { GradientField, type GradientFieldValue } from '../ui/GradientField';
-import { SegmentedControl } from '../ui/SegmentedControl';
+
 import { CurvesEditor } from '../lighttable/CurvesEditor';
 import {
   createDefaultCurves,
@@ -114,10 +115,10 @@ export const LevelsAdjustmentDialog = () => <AdjustmentBody>
     <span>0</span><span>1.00</span><span>255</span>
   </div>
   <div className="lighttable-adjustment-dialog__eyedroppers" aria-label="Levels eyedroppers">
-    <ActionButton size="compact">Black</ActionButton>
-    <ActionButton size="compact">Gray</ActionButton>
-    <ActionButton size="compact">White</ActionButton>
-    <ActionButton size="compact">Auto</ActionButton>
+    <Button tabIndex={0} data-ui-theme="dark">Black</Button>
+    <Button tabIndex={0} data-ui-theme="dark">Gray</Button>
+    <Button tabIndex={0} data-ui-theme="dark">White</Button>
+    <Button tabIndex={0} data-ui-theme="dark">Auto</Button>
   </div>
   <span className="lighttable-adjustment-dialog__minor-label">Output Levels</span>
   <div className="lighttable-adjustment-output-ramp" aria-hidden="true"><i /><i /></div>
@@ -161,7 +162,7 @@ export const HueSaturationAdjustmentDialog = () => <AdjustmentBody>
 export const ColorBalanceAdjustmentDialog = () => {
   const [range, setRange] = useState('Midtones');
   return <AdjustmentBody>
-    <SegmentedControl value={range} onChange={setRange} ariaLabel="Tone range" options={[
+    <SegmentedControl tabIndex={0} data-ui-theme="dark" value={range} onChange={setRange} label="Tone range" options={[
       { value: 'Shadows', label: 'Shadows' },
       { value: 'Midtones', label: 'Midtones' },
       { value: 'Highlights', label: 'Highlights' }
@@ -191,7 +192,7 @@ export const PhotoFilterAdjustmentDialog = () => {
   const [color, setColor] = useState<PanelColor>({ r: 0.93, g: 0.55, b: 0.18, a: 1 });
   const [mode, setMode] = useState('Filter');
   return <AdjustmentBody>
-    <SegmentedControl value={mode} onChange={setMode} ariaLabel="Photo filter source" options={[
+    <SegmentedControl tabIndex={0} data-ui-theme="dark" value={mode} onChange={setMode} label="Photo filter source" options={[
       { value: 'Filter', label: 'Filter' }, { value: 'Color', label: 'Color' }
     ]} />
     {mode === 'Filter'
@@ -228,7 +229,7 @@ export const SelectiveColorAdjustmentDialog = () => {
     <Slider label="Magenta" />
     <Slider label="Yellow" />
     <Slider label="Black" />
-    <SegmentedControl value={method} onChange={setMethod} ariaLabel="Selective Color method" options={[
+    <SegmentedControl tabIndex={0} data-ui-theme="dark" value={method} onChange={setMethod} label="Selective Color method" options={[
       { value: 'Relative', label: 'Relative' }, { value: 'Absolute', label: 'Absolute' }
     ]} />
   </AdjustmentBody>;

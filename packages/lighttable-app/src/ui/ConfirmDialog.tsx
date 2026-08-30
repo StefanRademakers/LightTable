@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React, { type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from './ActionButton';
+
 import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface ConfirmDialogProps {
@@ -40,10 +41,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         {description ? <p className="muted">{description}</p> : null}
         {children}
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>{cancelLabel}</ActionButton>
-          <ActionButton className={danger ? 'admin-table__danger' : undefined} onClick={() => void onConfirm()}>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>{cancelLabel}</Button>
+          <Button tabIndex={0} data-ui-theme="dark" intent={danger ? "destructive" : "normal"} onClick={() => void onConfirm()}>
             {confirmLabel}
-          </ActionButton>
+          </Button>
         </div>
       </div>
     </div>,

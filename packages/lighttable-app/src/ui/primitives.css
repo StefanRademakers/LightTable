@@ -36,41 +36,6 @@ select option:checked {
   background: var(--lt-accent-strong) !important;
 }
 
-.action-button {
-  min-height: var(--lt-action-height-dialog);
-  padding: 8px 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--lt-control-border);
-  border-radius: var(--ui-control-radius);
-  background: var(--lt-surface-control);
-  color: var(--lt-control-text);
-  font-size: var(--lt-type-regular);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.action-button:hover:not(:disabled) {
-  color: var(--lt-text-on-accent);
-  background: var(--lt-surface-control-hover);
-}
-
-.action-button:focus-visible {
-  border-color: var(--lt-focus-ring);
-}
-
-.action-button:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-}
-
-.admin-table__danger {
-  color: var(--lt-danger);
-  border-color: color-mix(in srgb, var(--lt-danger) 35%, transparent);
-}
-
 .form-input {
   width: 100%;
   height: var(--lt-control-height);
@@ -395,26 +360,6 @@ select option:checked {
   transform: translateX(16px);
 }
 
-.action-button--compact {
-  min-height: var(--lt-control-height-compact);
-  padding: 3px 7px;
-  gap: 4px;
-  border-radius: var(--lt-radius-sm);
-  font-size: var(--lt-type-small);
-}
-
-.action-button--control {
-  min-height: var(--lt-control-height);
-  padding: 3px 10px;
-  border-radius: var(--lt-control-radius);
-  font-size: var(--lt-type-regular);
-}
-
-.action-button--fill {
-  width: 100%;
-  flex: 1 1 auto;
-}
-
 .gradient-field,
 .none-paint-field {
   width: 104px;
@@ -588,81 +533,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 .switch-control:disabled {
   opacity: 0.42;
   cursor: default;
-}
-
-.segmented-control {
-  height: var(--lt-control-height) !important;
-  min-height: var(--lt-control-height) !important;
-  display: inline-flex;
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--lt-control-border);
-  border-radius: var(--ui-control-radius);
-  background: var(--lt-surface-control);
-}
-
-.segmented-control__button {
-  height: calc(var(--lt-control-height) - 2px) !important;
-  min-height: calc(var(--lt-control-height) - 2px) !important;
-  padding: 0 10px;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--lt-control-text);
-  font-size: var(--lt-type-regular);
-}
-
-.segmented-control__button + .segmented-control__button::before {
-  content: "";
-  position: absolute;
-  inset: 5px auto 5px 0;
-  width: 1px;
-  background: var(--lt-control-border);
-}
-
-.segmented-control__button--active {
-  color: var(--lt-text-on-accent);
-  background: var(--lt-accent-strong);
-}
-
-.segmented-control--low-attention {
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.segmented-control--low-attention .segmented-control__button {
-  padding: 0 7px;
-  color: var(--lt-text-on-accent);
-  background: transparent;
-  opacity: 0.5;
-}
-
-.segmented-control--low-attention .segmented-control__button > img {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-}
-
-.segmented-control--low-attention .segmented-control__button + .segmented-control__button::before {
-  display: none;
-}
-
-.segmented-control--low-attention .segmented-control__button--active,
-.segmented-control--low-attention .segmented-control__button--active:hover:not(:disabled) {
-  color: var(--lt-text-on-accent);
-  background: transparent;
-  opacity: 1;
-}
-
-.segmented-control--low-attention .segmented-control__button:disabled {
-  opacity: 0.3;
 }
 
 .context-menu-backdrop {
@@ -2000,12 +1870,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   justify-content: space-between;
   gap: var(--lt-space-6);
 }
-
-.lighttable-ui-coverage__tools > .segmented-control {
-  width: auto;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
 .lighttable-ui-coverage__tools > .search-field { width: min(360px, 100%); }
 
 .lighttable-ui-coverage__table {
@@ -2216,7 +2080,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   background: var(--lt-surface-panel);
 }
 .lighttable-ui-guide__sample-content > .lighttable-adjustment-dialog { margin: 0 auto; }
-.lighttable-adjustment-dialog > .segmented-control { width: 100%; }
 .lighttable-adjustment-dialog .lighttable-curves-editor { min-width: 0; }
 .lighttable-adjustment-dialog__row,
 .lighttable-adjustment-dialog__gradient-row,
@@ -2234,7 +2097,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 }
 .lighttable-adjustment-dialog__gradient-row .gradient-field { min-width: 0; flex: 1; }
 .lighttable-adjustment-dialog__eyedroppers { justify-content: flex-end; }
-.lighttable-adjustment-dialog__eyedroppers .action-button { min-width: 0; padding-inline: 7px; }
 .lighttable-adjustment-dialog__inline-values {
   display: flex;
   justify-content: space-between;
@@ -2613,10 +2475,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   flex-direction: column;
   gap: var(--lt-layout-property-stack-gap);
 }
-.lighttable-file-field > .action-button {
-  min-width: var(--lt-layout-property-label-width);
-  justify-self: start;
-}
 .lighttable-style-advanced {
   width: 100%;
   border-bottom: 1px solid var(--lt-border);
@@ -2776,7 +2634,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   font-size: var(--lt-type-regular);
 }
 .lighttable-color-picker-prototype__palette-tabs {
-  width: 100%;
   margin-bottom: 4px;
 }
 .lighttable-color-picker-prototype__palette-icon {

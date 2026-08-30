@@ -1,7 +1,8 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorSwatchField } from './ColorSwatchField';
-import { ActionButton } from './ActionButton';
+
 import { FormSelect } from './FormSelect';
 
 export interface PanelColor {
@@ -80,9 +81,9 @@ export const PanelFileField: React.FC<{
         publish(event.dataTransfer.files);
       }}>
       <span>{label}</span>
-      <ActionButton size="control" disabled={disabled} onClick={() => inputRef.current?.click()}>
+      <Button data-ui-theme="dark" disabled={disabled} onClick={() => inputRef.current?.click()}>
         {buttonLabel}
-      </ActionButton>
+      </Button>
       <input ref={inputRef} type="file" accept={accept} hidden onChange={(event) => {
         publish(event.currentTarget.files);
         event.currentTarget.value = '';

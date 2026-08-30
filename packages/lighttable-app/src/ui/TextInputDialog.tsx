@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from './ActionButton';
+
 import { FormInput } from './FormInput';
 import { useDialogAccessibility } from './useDialogAccessibility';
 
@@ -100,13 +101,13 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
           <span>{checkboxLabel}</span>
         </label> : null}
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>{cancelLabel}</ActionButton>
-          <ActionButton
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>{cancelLabel}</Button>
+          <Button tabIndex={0} data-ui-theme="dark"
             disabled={!value.trim()}
             onClick={() => void onConfirm(value.trim())}
           >
             {okLabel}
-          </ActionButton>
+          </Button>
         </div>
       </div>
     </div>,

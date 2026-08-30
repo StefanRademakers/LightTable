@@ -1,5 +1,5 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ButtonBase } from '../../../../ui/ButtonBase';
 import { FormSelect } from '../../../../ui/FormSelect';
 import {
   isActionResultReference,
@@ -106,19 +106,19 @@ export const ActionBindingEditor: React.FC<ActionBindingEditorProps> = ({
           {variable.name} ({variable.type})
         </option>)}
       </FormSelect>
-      <ButtonBase type="button" disabled={disabled || !variableName}
-        onClick={() => apply(onBindVariable(selected.pointer, variableName))}>Bind variable</ButtonBase>
+      <Button data-ui-theme="dark" type="button" disabled={disabled || !variableName}
+        onClick={() => apply(onBindVariable(selected.pointer, variableName))}>Bind variable</Button>
     </div>
     <div className="lighttable-action-binding-editor__row">
       <input aria-label={`Step ${step.sequence} new variable name`} value={newVariableName}
         disabled={disabled} placeholder="variableName" maxLength={64}
         onChange={(event) => setNewVariableName(event.currentTarget.value)} />
-      <ButtonBase type="button" disabled={disabled || !newVariableName.trim()}
+      <Button data-ui-theme="dark" type="button" disabled={disabled || !newVariableName.trim()}
         onClick={() => {
           const result = onCreateVariable(selected.pointer, newVariableName);
           apply(result);
           if (result.ok) { setVariableName(newVariableName.trim()); setNewVariableName(''); }
-        }}>Promote</ButtonBase>
+        }}>Promote</Button>
     </div>
     <div className="lighttable-action-binding-editor__row">
       <FormSelect aria-label={`Step ${step.sequence} prior result`} value={resultKey}
@@ -128,15 +128,15 @@ export const ActionBindingEditor: React.FC<ActionBindingEditorProps> = ({
         {results.map((result) => <option key={`${result.sequence}:${result.dotPath}`}
           value={`${result.sequence}:${result.dotPath}`}>Step {result.sequence}: {result.label}</option>)}
       </FormSelect>
-      <ButtonBase type="button" disabled={disabled || !resultKey}
+      <Button data-ui-theme="dark" type="button" disabled={disabled || !resultKey}
         onClick={() => {
           const separator = resultKey.indexOf(':');
           apply(onBindResult(selected.pointer, Number(resultKey.slice(0, separator)),
             resultKey.slice(separator + 1)));
-        }}>Bind result</ButtonBase>
+        }}>Bind result</Button>
     </div>
-    <ButtonBase type="button" disabled={disabled || !selectedBinding}
-      onClick={() => apply(onRestoreLiteral(selected.pointer))}>Use recorded value</ButtonBase>
+    <Button data-ui-theme="dark" type="button" disabled={disabled || !selectedBinding}
+      onClick={() => apply(onRestoreLiteral(selected.pointer))}>Use recorded value</Button>
     {error ? <p className="lighttable-action-binding-editor__error" role="alert">{error}</p> : null}
   </div>;
 };
@@ -173,10 +173,10 @@ export const ActionVariableRow: React.FC<{
       <input aria-label={`${variable.name} default`} value={draft} disabled={disabled}
         onChange={(event) => setDraft(event.currentTarget.value)} onBlur={apply} />
     </label>
-    <ButtonBase type="button" disabled={disabled} onClick={apply}>Apply</ButtonBase>
-    <ButtonBase type="button" disabled={disabled} onClick={() => {
+    <Button data-ui-theme="dark" type="button" disabled={disabled} onClick={apply}>Apply</Button>
+    <Button data-ui-theme="dark" type="button" disabled={disabled} onClick={() => {
       const result = onDelete(); setError(result.ok ? null : result.error);
-    }}>Delete</ButtonBase>
+    }}>Delete</Button>
     {error ? <p role="alert">{error}</p> : null}
   </div>;
 };

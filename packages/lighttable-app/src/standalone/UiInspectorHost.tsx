@@ -1,5 +1,6 @@
+import { Button } from '@lighttable/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActionButton } from '../ui/ActionButton';
+
 import {
   describeUiInspectionTarget,
   isUiInspectionGesture,
@@ -120,12 +121,12 @@ export function UiInspectorHost() {
         <aside className="lighttable-ui-inspector" data-ui-inspector aria-label="UI control inspector">
           <strong>{inspection?.controlId ?? inspection?.label ?? 'Unregistered control'}</strong>
           <span>{hud.count ? `${hud.index + 1} / ${hud.count} live` : 'No live instances'}</span>
-          <ActionButton size="compact" disabled={hud.count < 2}
-            onClick={() => activateMatch(hud.index - 1)}>Previous</ActionButton>
-          <ActionButton size="compact" disabled={hud.count < 2}
-            onClick={() => activateMatch(hud.index + 1)}>Next</ActionButton>
-          <ActionButton size="compact" onClick={() => setStyleGuideOpen(true)}>Style Guide</ActionButton>
-          <ActionButton size="compact" onClick={closeInspector}>Exit</ActionButton>
+          <Button data-ui-theme="dark" disabled={hud.count < 2}
+            onClick={() => activateMatch(hud.index - 1)}>Previous</Button>
+          <Button data-ui-theme="dark" disabled={hud.count < 2}
+            onClick={() => activateMatch(hud.index + 1)}>Next</Button>
+          <Button data-ui-theme="dark" onClick={() => setStyleGuideOpen(true)}>Style Guide</Button>
+          <Button data-ui-theme="dark" onClick={closeInspector}>Exit</Button>
         </aside>
       ) : null}
     </>

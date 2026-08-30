@@ -1,5 +1,4 @@
-import type { SegmentedControlOption } from '../../../ui/SegmentedControl';
-import type { SegmentOption } from '@lighttable/ui';
+import { type SegmentOption } from '@lighttable/ui';
 import type { AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import type {
   NumericAdjustmentKey
@@ -171,7 +170,7 @@ export const LENS_BLUR_SLIDERS: ReadonlyArray<
 ];
 
 export const BOKEH_SHAPE_OPTIONS: Array<
-  SegmentedControlOption<BokehShape>
+  SegmentOption<BokehShape>
 > = [
   { value: 'circle', label: 'Round' },
   { value: 'hexagon', label: 'Hex' },
@@ -180,7 +179,7 @@ export const BOKEH_SHAPE_OPTIONS: Array<
 ];
 
 export const LENS_BLUR_QUALITY_OPTIONS: Array<
-  SegmentedControlOption<LensBlurQuality>
+  SegmentOption<LensBlurQuality>
 > = [
   { value: 'balanced', label: '48' },
   { value: 'high', label: '64' },
@@ -188,7 +187,7 @@ export const LENS_BLUR_QUALITY_OPTIONS: Array<
 ];
 
 export const LENS_BLUR_VIEWPORT_MODE_OPTIONS: Array<
-  SegmentedControlOption<LensBlurViewportMode>
+  SegmentOption<LensBlurViewportMode>
 > = [
   { value: 'result', label: 'Result' },
   { value: 'depth', label: 'Depth' }

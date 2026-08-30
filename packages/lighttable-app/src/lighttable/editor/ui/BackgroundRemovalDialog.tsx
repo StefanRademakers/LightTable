@@ -1,5 +1,6 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import type { BackgroundRemovalControllerState, BackgroundRemovalMaskMode }
   from '../../application/backgroundRemoval/useBackgroundRemovalController';
 
@@ -25,11 +26,11 @@ export const BackgroundRemovalDialog: React.FC<{
           )}
         </div>
         <footer className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
           {state.phase === 'choose-mask-mode' && <>
-            <ActionButton onClick={() => onChoose('new-layer')}>New masked layer</ActionButton>
-            <ActionButton onClick={() => onChoose('intersect')}>Intersect</ActionButton>
-            <ActionButton onClick={() => onChoose('replace')}>Replace</ActionButton>
+            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('new-layer')}>New masked layer</Button>
+            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('intersect')}>Intersect</Button>
+            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('replace')}>Replace</Button>
           </>}
         </footer>
       </section>

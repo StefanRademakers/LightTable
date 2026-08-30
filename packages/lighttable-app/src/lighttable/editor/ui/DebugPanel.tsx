@@ -1,4 +1,4 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { Button } from '@lighttable/ui';
 import React, { useMemo, useState } from 'react';
 import {
   formatLightTableDebugLog,
@@ -200,13 +200,13 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Include document filename
         </label>
         <div className="lighttable-debug-panel__actions">
-          <ButtonBase type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
+          <Button data-ui-theme="dark" type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
             {supportState === 'collecting' ? 'Collecting...' : 'Preview'}
-          </ButtonBase>
-          <ButtonBase type="button" onClick={() => void copySupportSummary()}>Copy summary</ButtonBase>
-          <ButtonBase type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
+          </Button>
+          <Button data-ui-theme="dark" type="button" onClick={() => void copySupportSummary()}>Copy summary</Button>
+          <Button data-ui-theme="dark" type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
             Export bundle
-          </ButtonBase>
+          </Button>
         </div>
         {supportState === 'exported' ? <small role="status">Diagnostic bundle exported.</small> : null}
         {supportState === 'failed' ? <small role="alert">Diagnostic collection or export failed.</small> : null}
@@ -240,8 +240,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {dockResizeActive ? ' Currently paused.' : ''}
         </small>
         <div className="lighttable-debug-panel__actions">
-          <ButtonBase type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</ButtonBase>
-          <ButtonBase type="button" onClick={onResetRenderTelemetry}>Reset render stats</ButtonBase>
+          <Button data-ui-theme="dark" type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</Button>
+          <Button data-ui-theme="dark" type="button" onClick={onResetRenderTelemetry}>Reset render stats</Button>
         </div>
       </fieldset>
       <fieldset className="lighttable-debug-panel__diagnostics">
@@ -271,29 +271,29 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           </details>
         ) : null}
         <div className="lighttable-debug-panel__actions">
-          <ButtonBase
+          <Button data-ui-theme="dark"
             type="button"
             onClick={onProbeTextEngine}
             disabled={textEngineStatus === 'loading'}
           >
             {textEngineStatus === 'loading' ? 'Loading text engine...' : 'Probe text engine'}
-          </ButtonBase>
-          <ButtonBase
+          </Button>
+          <Button data-ui-theme="dark"
             type="button"
             onClick={onRunTextCorpus}
             disabled={textEngineStatus === 'loading' || !textCorpusAvailable}
             title={textCorpusAvailable ? undefined : 'Corpus fixtures are development-only.'}
           >
             Run typography corpus
-          </ButtonBase>
-          <ButtonBase
+          </Button>
+          <Button data-ui-theme="dark"
             type="button"
             onClick={onRunTextRendererBakeoff}
             disabled={textRendererStatus === 'loading' || !textCorpusAvailable}
             title={textCorpusAvailable ? undefined : 'Renderer fixtures are development-only.'}
           >
             {textRendererStatus === 'loading' ? 'Running renderer bakeoff...' : 'Run renderer bakeoff'}
-          </ButtonBase>
+          </Button>
         </div>
         {textRendererPhase ? <small role="status">Renderer: {textRendererPhase}</small> : null}
         <label>
@@ -402,10 +402,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {messages.length} messages · {summary.warnings} warnings · {summary.errors} errors
         </span>
         <div className="lighttable-debug-panel__actions">
-          <ButtonBase type="button" onClick={onClear} disabled={!messages.length}>Clear</ButtonBase>
-          <ButtonBase type="button" onClick={() => void copyAll()} disabled={!messages.length}>
+          <Button data-ui-theme="dark" type="button" onClick={onClear} disabled={!messages.length}>Clear</Button>
+          <Button data-ui-theme="dark" type="button" onClick={() => void copyAll()} disabled={!messages.length}>
             {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy all'}
-          </ButtonBase>
+          </Button>
         </div>
       </header>
       <div className="lighttable-debug-panel__messages" role="log" aria-live="polite">

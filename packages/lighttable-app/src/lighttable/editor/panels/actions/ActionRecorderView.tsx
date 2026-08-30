@@ -1,3 +1,4 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
@@ -367,10 +368,10 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     {selectedStep ? <details className="lighttable-action-inspector">
       <summary>{labels.get(selectedStep.command) ?? selectedStep.command} options</summary>
       <div className="lighttable-action-recorder__step-controls">
-        <ButtonBase type="button" onClick={() => props.onPlayStep(selectedStep.sequence)}
-          disabled={busy}>Play step</ButtonBase>
-        <ButtonBase type="button" onClick={() => props.onPlayFromStep(selectedStep.sequence)}
-          disabled={busy}>Play from here</ButtonBase>
+        <Button data-ui-theme="dark" type="button" onClick={() => props.onPlayStep(selectedStep.sequence)}
+          disabled={busy}>Play step</Button>
+        <Button data-ui-theme="dark" type="button" onClick={() => props.onPlayFromStep(selectedStep.sequence)}
+          disabled={busy}>Play from here</Button>
       </div>
       <ActionStepRationaleEditor rationale={selectedStep.rationale}
         disabled={busy || recording.status !== 'stopped'}

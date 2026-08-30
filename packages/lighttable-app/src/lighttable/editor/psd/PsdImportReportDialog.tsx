@@ -1,8 +1,9 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+
 import type {
   DocumentFontAsset,
   LayerId,
@@ -170,7 +171,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
             <h2>Document compatibility report</h2>
             <p>Imported and current compatibility findings. Preserved source data remains unchanged until an explicit destructive action.</p>
           </div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </header>
         {metrics ? (
           <div className="lighttable-psd-report__metrics">
@@ -186,12 +187,12 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           <span><strong>{summary.missingAssets}</strong> missing assets</span>
           <span><strong>{summary.exportBlocking}</strong> block editable export</span>
         </div>
-        <SegmentedControl
+        <SegmentedControl tabIndex={0} data-ui-theme="dark"
           className="lighttable-psd-report__filters"
           value={filter}
           options={FILTERS}
           onChange={setFilter}
-          ariaLabel="Photoshop import support filter"
+          label="Photoshop import support filter"
         />
         {missingFontGroups.length > 0 && onReplaceTextFonts ? (
           <section className="lighttable-psd-report__font-manager" aria-label="Missing fonts">
@@ -210,7 +211,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                     ...current,
                     [group.sourceIdentity]: assetId
                   }))} />
-                <ActionButton
+                <Button tabIndex={0} data-ui-theme="dark"
                   disabled={!fontReplacements[group.sourceIdentity]}
                   onClick={() => onReplaceTextFonts(
                     group.layerIds,
@@ -220,7 +221,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                   )}
                 >
                   Replace all
-                </ActionButton>
+                </Button>
               </div>
             ))}
           </section>
@@ -245,14 +246,14 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                 ) : null}
                 <div className="lighttable-psd-report__actions">
                   {entry.layerId && (entry.feature === 'text-font' ? onResolveTextFont : onSelectLayer) ? (
-                    <ActionButton onClick={() => entry.feature === 'text-font'
+                    <Button tabIndex={0} data-ui-theme="dark" onClick={() => entry.feature === 'text-font'
                       ? onResolveTextFont?.(entry.layerId!)
                       : onSelectLayer?.(entry.layerId!)}>
                       {entry.feature === 'text-font' && entry.editable ? 'Choose font...' : 'Select layer'}
-                    </ActionButton>
+                    </Button>
                   ) : null}
                   {entry.actions.includes('keep-preview') ? (
-                    <ActionButton onClick={onClose}>Keep preview</ActionButton>
+                    <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Keep preview</Button>
                   ) : null}
                 </div>
               </div>

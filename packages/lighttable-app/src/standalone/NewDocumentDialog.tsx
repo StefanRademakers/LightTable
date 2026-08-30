@@ -1,7 +1,8 @@
+import { Button } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
-import { ActionButton } from '../ui/ActionButton';
+
 import { FormInput } from '../ui/FormInput';
 import { FormSelect } from '../ui/FormSelect';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
@@ -195,10 +196,10 @@ export function NewDocumentDialog({
           ) : null}
         </div>
         <div className="modal__footer">
-          {modal ? <ActionButton onClick={onCancel}>Cancel</ActionButton> : null}
-          <ActionButton type="submit" disabled={!optionsValid || creating}>
+          {modal ? <Button tabIndex={modal ? 0 : -1} data-ui-theme="dark" onClick={onCancel}>Cancel</Button> : null}
+          <Button tabIndex={modal ? 0 : -1} data-ui-theme="dark" type="submit" disabled={!optionsValid || creating}>
             {creating ? 'Creating…' : 'Create'}
-          </ActionButton>
+          </Button>
         </div>
       </form>
   );

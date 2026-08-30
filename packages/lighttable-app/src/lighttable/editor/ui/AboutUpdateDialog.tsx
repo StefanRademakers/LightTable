@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type {
   LightTableReleaseInfo,
@@ -81,23 +82,23 @@ export const AboutUpdateDialog: React.FC<{
         </div>
         <footer className="modal__footer lighttable-about__footer">
           <div className="lighttable-about__actions">
-            <ActionButton
+            <Button tabIndex={0} data-ui-theme="dark"
               disabled={checking || !release}
               onClick={() => {
                 if (!release) return;
                 setChecking(true);
                 void release.checkForUpdates().then(setUpdate).finally(() => setChecking(false));
               }}
-            >{checking ? 'Checking…' : 'Check for updates'}</ActionButton>
+            >{checking ? 'Checking…' : 'Check for updates'}</Button>
             {downloaded ? (
-              <ActionButton
+              <Button tabIndex={0} data-ui-theme="dark"
                 disabled={!downloaded.canInstall || dirtyDocuments}
                 title={dirtyDocuments ? 'Save or close dirty documents before restarting.' : undefined}
                 onClick={() => void release?.restartToInstall({ dirtyDocuments })}
-              >Restart to update</ActionButton>
+              >Restart to update</Button>
             ) : null}
           </div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </footer>
       </section>
     </div>,

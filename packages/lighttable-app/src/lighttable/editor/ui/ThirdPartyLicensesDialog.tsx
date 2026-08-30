@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { LIGHTTABLE_PRODUCT_DISCLOSURES } from '../../application/compliance/thirdPartyDisclosures.generated';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
@@ -33,7 +34,7 @@ export const ThirdPartyLicensesDialog: React.FC<{
             <h2>Third-party licenses</h2>
             <p>Key libraries, runtimes, fonts and assets included with LightTable.</p>
           </div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </header>
         <p className="lighttable-third-party-licenses__ownership">
           LightTable is proprietary software. The components listed here remain under their own licenses.

@@ -1,7 +1,8 @@
+import { Button, SegmentedControl } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
-import { ActionButton } from '../ui/ActionButton';
+
 import { AnchorGridControl } from '../ui/AnchorGridControl';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { FormInput } from '../ui/FormInput';
@@ -9,7 +10,7 @@ import { FormSelect } from '../ui/FormSelect';
 import { GradientField, type GradientFieldValue } from '../ui/GradientField';
 import { NonePaintField } from '../ui/NonePaintField';
 import { NumericExpressionInput } from '../ui/NumericExpressionInput';
-import { SegmentedControl } from '../ui/SegmentedControl';
+
 import { SearchField } from '../ui/SearchField';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
@@ -181,10 +182,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 </Sample>
               </> : null}
               {category === 'actions' ? <>
-                <Sample title="One button component - density by context">
-                  <ActionButton>Dialog · 36 px</ActionButton>
-                  <ActionButton size="control">Control row · 28 px</ActionButton>
-                  <ActionButton size="compact">Compact · 24 px</ActionButton>
+                <Sample title="Package Button — one height: 28 px">
+                  <Button tabIndex={0} data-ui-theme="dark">Text action</Button>
                 </Sample>
                 <Sample title="Icon buttons">
                   <SquareIconButton icon="+" aria-label="Add" />
@@ -192,13 +191,13 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <SquareIconButton icon="×" disabled aria-label="Disabled" />
                 </Sample>
                 <Sample title="States - geometry does not change">
-                  <ActionButton size="control">Enabled</ActionButton>
-                  <ActionButton size="control" disabled>Disabled</ActionButton>
-                  <ActionButton size="control" className="admin-table__danger">Destructive</ActionButton>
+                  <Button tabIndex={0} data-ui-theme="dark">Enabled</Button>
+                  <Button tabIndex={0} data-ui-theme="dark" disabled>Disabled</Button>
+                  <Button tabIndex={0} data-ui-theme="dark" intent="destructive">Destructive</Button>
                 </Sample>
                 <Sample title="Layout participation is explicit">
                   <div className="lighttable-ui-guide__fill-frame">
-                    <ActionButton size="control" layout="fill">Fill available width</ActionButton>
+                    <Button tabIndex={0} data-ui-theme="dark" fullWidth>Fill available width</Button>
                   </div>
                 </Sample>
               </> : null}
@@ -207,7 +206,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <FormInput aria-label="Aligned text field" defaultValue="Text" />
                   <NumericExpressionInput value={number} min={0} max={1000}
                     aria-label="Aligned numeric field" onValueChange={setNumber} />
-                  <ActionButton size="control">Control action</ActionButton>
+                  <Button tabIndex={0} data-ui-theme="dark">Control action</Button>
                 </Sample>
                 <Sample title="Text fields">
                   <FormInput aria-label="Text example" defaultValue="Layer name" />
@@ -250,13 +249,13 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <SwitchControl checked={false} onCheckedChange={() => undefined} label="Example disabled" disabled />
                 </Sample>
                 <Sample title="Segmented control">
-                  <SegmentedControl value={segment} onChange={setSegment} ariaLabel="Selection mode"
+                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value={segment} onChange={setSegment} label="Selection mode"
                     options={[{ value: 'new', label: 'New' }, { value: 'add', label: 'Add' },
                       { value: 'subtract', label: 'Subtract' }]} />
                 </Sample>
-                <Sample title="Low-attention segmented control">
-                  <SegmentedControl variant="low-attention" value={lowAttentionSegment}
-                    onChange={setLowAttentionSegment} ariaLabel="Low-attention navigation"
+                <Sample title="Package segments with app-owned icons">
+                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value={lowAttentionSegment}
+                    onChange={setLowAttentionSegment} label="Workspace navigation"
                     options={[
                       { value: 'ai', label: 'Gen AI',
                         icon: <img src={lightTableIcon('genai.png')} alt="" aria-hidden="true" /> },
@@ -267,7 +266,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     ]} />
                 </Sample>
                 <Sample title="Disabled segmented option">
-                  <SegmentedControl value="one" onChange={() => undefined} ariaLabel="Disabled option example"
+                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value="one" onChange={() => undefined} label="Disabled option example"
                     options={[{ value: 'one', label: 'Available' },
                       { value: 'two', label: 'Unavailable', disabled: true }]} />
                 </Sample>
@@ -371,7 +370,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 </Sample>
                 <Sample title="Empty and disabled states">
                   <div className="lighttable-panel__empty">Select editable content to show properties.</div>
-                  <ActionButton size="control" disabled>Unavailable action</ActionButton>
+                  <Button tabIndex={0} data-ui-theme="dark" disabled>Unavailable action</Button>
                 </Sample>
               </> : null}
               {category === 'adjustments' ? <>
@@ -389,8 +388,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     <div className="modal__header"><h3 className="modal__title">Confirm action</h3></div>
                     <p>Explain what will happen in one short, concrete sentence.</p>
                     <div className="modal__footer">
-                      <ActionButton>Cancel</ActionButton>
-                      <ActionButton>Continue</ActionButton>
+                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
+                      <Button tabIndex={0} data-ui-theme="dark">Continue</Button>
                     </div>
                   </div>
                 </Sample>
@@ -402,8 +401,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                       <FormInput aria-label="Dialog field example" defaultValue="Background copy" />
                     </label>
                     <div className="modal__footer">
-                      <ActionButton>Cancel</ActionButton>
-                      <ActionButton>Save</ActionButton>
+                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
+                      <Button tabIndex={0} data-ui-theme="dark">Save</Button>
                     </div>
                   </div>
                 </Sample>
@@ -412,8 +411,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     <div className="modal__header"><h3 className="modal__title">Delete layer?</h3></div>
                     <p>This cannot be undone after the document is closed.</p>
                     <div className="modal__footer">
-                      <ActionButton>Cancel</ActionButton>
-                      <ActionButton className="admin-table__danger">Delete</ActionButton>
+                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
+                      <Button tabIndex={0} data-ui-theme="dark" intent="destructive">Delete</Button>
                     </div>
                   </div>
                 </Sample>
@@ -425,8 +424,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                       <div><dt>Channel</dt><dd>Development</dd></div>
                     </dl>
                     <div className="modal__footer lighttable-ui-guide__split-footer">
-                      <ActionButton>Check for updates</ActionButton>
-                      <ActionButton>Close</ActionButton>
+                      <Button tabIndex={0} data-ui-theme="dark">Check for updates</Button>
+                      <Button tabIndex={0} data-ui-theme="dark">Close</Button>
                     </div>
                   </div>
                 </Sample>
@@ -435,7 +434,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
           </main>
         </div>
         <footer className="modal__footer lighttable-preferences__footer">
-          <ActionButton onClick={onClose}>Close</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
         </footer>
       </div>
     </div>,

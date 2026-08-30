@@ -1,5 +1,5 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
-import { ButtonBase } from '../../../../ui/ButtonBase';
 import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 
 export const ActionStepRationaleEditor: React.FC<{
@@ -22,12 +22,12 @@ export const ActionStepRationaleEditor: React.FC<{
         onChange={(event) => setValue(event.currentTarget.value)} />
     </label>
     <span>{value.length}/280</span>
-    <ButtonBase type="button" disabled={disabled || value.trim() === (rationale ?? '')}
+    <Button data-ui-theme="dark" type="button" disabled={disabled || value.trim() === (rationale ?? '')}
       onClick={() => {
         const result = onApply(value);
         if (result.ok) appliedRationale.current = value.trim() || null;
         setMessage(result.ok ? 'Rationale updated.' : result.error);
-      }}>Apply rationale</ButtonBase>
+      }}>Apply rationale</Button>
     {message ? <p role="status">{message}</p> : null}
   </div>;
 };

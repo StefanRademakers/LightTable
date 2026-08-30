@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from './AdjustmentSlider';
@@ -5,7 +6,7 @@ import { ContextMenu } from './ContextMenu';
 import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
-import { SegmentedControl } from './SegmentedControl';
+
 import { sampleScreenColor } from './colorSampling';
 import {
   useDocumentPaletteLoader,
@@ -283,9 +284,9 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     </div>
     {loadDocumentPalette ? <section className="lighttable-color-picker-prototype__palette"
       aria-label="Image Palette">
-      <SegmentedControl<PaletteView>
+      <SegmentedControl<PaletteView> data-ui-theme="dark"
         className="lighttable-color-picker-prototype__palette-tabs"
-        ariaLabel="Color collection"
+        label="Color collection"
         value={paletteView}
         onChange={setPaletteView}
         options={[

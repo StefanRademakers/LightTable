@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
@@ -198,8 +199,8 @@ export const ImageSizeDialog = ({
             onChange={(event) => setScaleStyles(event.currentTarget.checked)} /> Scale Styles</label>
         </div>
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
-          <ActionButton type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</Button>
         </div>
       </form>
     </div>,

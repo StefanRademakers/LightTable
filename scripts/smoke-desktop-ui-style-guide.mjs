@@ -38,9 +38,9 @@ try {
   const categories = {
     Foundations: ['.lighttable-ui-guide__type-stack', '.lighttable-ui-guide__geometry',
       '.lighttable-ui-guide__swatches'],
-    Actions: ['.action-button', '.action-button--control', '.square-icon-button'],
+    Actions: ['.ui-button', '.square-icon-button'],
     Fields: ['.form-input', '.lighttable-style-field', '.lighttable-file-field'],
-    Selection: ['.switch-control', '.segmented-control', '.segmented-control--low-attention'],
+    Selection: ['.switch-control', '.ui-segmented', '.ui-segmented__icon'],
     Sliders: ['.lighttable-adjustment--stacked', '.lighttable-adjustment--inline',
       '.lighttable-adjustment--bare', '.lighttable-adjustment--layer-row',
       '.lighttable-adjustment--tool-bar', '.lighttable-adjustment--tool-panel',
@@ -74,18 +74,18 @@ try {
     }
     if (category === 'Actions') {
       const densitySample = dialog.locator('.lighttable-ui-guide__sample')
-        .filter({ hasText: 'One button component' });
+        .filter({ hasText: 'Package Button' });
       const stateSample = dialog.locator('.lighttable-ui-guide__sample')
         .filter({ hasText: 'States - geometry' });
       actionGeometry = {
-        densityHeights: await densitySample.locator('.action-button').evaluateAll((buttons) => (
+        densityHeights: await densitySample.locator('.ui-button').evaluateAll((buttons) => (
           buttons.map((button) => Math.round(button.getBoundingClientRect().height))
         )),
-        stateHeights: await stateSample.locator('.action-button').evaluateAll((buttons) => (
+        stateHeights: await stateSample.locator('.ui-button').evaluateAll((buttons) => (
           buttons.map((button) => Math.round(button.getBoundingClientRect().height))
         ))
       };
-      if (JSON.stringify(actionGeometry.densityHeights) !== JSON.stringify([36, 28, 24])
+      if (JSON.stringify(actionGeometry.densityHeights) !== JSON.stringify([28])
         || actionGeometry.stateHeights.some((height) => height !== 28)) {
         throw new Error(`Button geometry drifted: ${JSON.stringify(actionGeometry)}`);
       }

@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { AnchorGridControl } from '../../../ui/AnchorGridControl';
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
@@ -80,8 +81,8 @@ export const CanvasSizeDialog = ({ open, document, busy = false, onCancel, onCom
         </div>
         {!valid ? <p className="lighttable-preferences__error">Resulting dimensions must be 1–{MAX_DOCUMENT_GEOMETRY_DIMENSION} pixels.</p> : null}
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
-          <ActionButton type="submit" disabled={!valid || busy}>{busy ? 'Applying…' : 'OK'}</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!valid || busy}>{busy ? 'Applying…' : 'OK'}</Button>
         </div>
       </form>
     </div>,

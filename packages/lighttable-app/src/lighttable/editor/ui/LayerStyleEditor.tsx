@@ -1,3 +1,4 @@
+import { Button } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
@@ -754,7 +755,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
             </FormSelect>
-            <ButtonBase type="button" onClick={addStyle}>Add</ButtonBase>
+            <Button data-ui-theme="dark" type="button" onClick={addStyle}>Add</Button>
           </div>
         </div>
       </div>
@@ -824,7 +825,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
             </FormSelect>
-            <ButtonBase type="button" onClick={addStyle}>Add</ButtonBase>
+            <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={addStyle}>Add</Button>
           </div>
         </aside>
         <main>
@@ -860,8 +861,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
-        <ButtonBase type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</ButtonBase>
+        <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel}>Cancel</Button>
+        <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCommit}>OK</Button>
       </footer>
     </div>
   );

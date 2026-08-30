@@ -1,6 +1,7 @@
+import { Button } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActionButton } from '../../../ui/ActionButton';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
@@ -69,9 +70,9 @@ export const MissingFontRecoveryDialog: React.FC<MissingFontRecoveryDialogProps>
             + ` → ${selectedFont?.weight}/${selectedFont?.stretch}%/${selectedFont?.italic ? 'italic' : 'normal'}.`
           : 'The original family, face and style request will be retained for future recovery.'}</p>
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
-          <ActionButton onClick={onManage}>Manage</ActionButton>
-          <ActionButton disabled={!assetId} onClick={() => onReplace(assetId)}>Replace</ActionButton>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} data-ui-theme="dark" onClick={onManage}>Manage</Button>
+          <Button tabIndex={0} data-ui-theme="dark" disabled={!assetId} onClick={() => onReplace(assetId)}>Replace</Button>
         </div>
       </section>
     </div>,

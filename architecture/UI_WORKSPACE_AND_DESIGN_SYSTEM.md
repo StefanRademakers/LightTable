@@ -122,11 +122,14 @@ global CSS reset, theme context or wrapper tree is required. Light-theme colors
 and demo-shell controls are initial review surfaces, not a migrated app theme or
 finished button family. See `packages/ui/README.md` for the initial contract.
 
-The first approved production adoption is Grade's segmented controls (Color
-Mixer, Color Grading, B&W treatment and the shared Curves channel selector).
-They consume `@lighttable/ui` directly, retaining existing state and commands.
+All segmented controls and standard text action buttons now consume
+`@lighttable/ui` directly, retaining existing state and commands. Text buttons
+use one 28-pixel height; the old regular/control/compact variants and local
+ActionButton/SegmentedControl implementations and skins are removed. Icon-only
+buttons, menu/list rows, tabs and disclosures are not text action buttons and
+remain distinct controls.
 Only each migrated control carries the new theme scope; old panel styling is
-unchanged. Component geometry is no longer overridden by Grade CSS. The suite
+unchanged. Component geometry is not overridden by app CSS. The suite
 demo remains the new controls' catalog. Generic UI icons belong to the library
 as needed; domain/tool icons stay app-owned. Controls own icon geometry, not
 the app. New controls default out of the Tab sequence; dialogs may opt in.
@@ -197,10 +200,10 @@ action. Layer-local attached Grade does not synthesize a separate layer mask.
 
 Panels use these primitives rather than feature-local visual copies:
 
-- `ActionButton` for labelled actions, with `regular`, 28-pixel `control` and
-  `compact` density variants; these are contextual densities of one component,
-  while disabled and destructive are states/intent, not additional button
-  families. `SquareIconButton` is the icon-only action;
+- `Button` from `@lighttable/ui` for labelled actions, always 28 pixels high;
+  disabled and destructive are states/intent, not additional button families.
+  `fullWidth` changes only layout participation. `SquareIconButton` remains
+  the icon-only action;
 - `SwitchControl` for an entire section/effect and a native labelled checkbox
   for a compatibility boolean inside a section;
 - `AdjustmentSlider` / `PanelNumberSlider` for continuous numeric values and
@@ -225,7 +228,7 @@ Styles are an editor inside contextual Properties, not a modal property language
 `GradientField` is the canonical compact gradient preview/dropdown trigger in
 toolbars and property rows. The shared gradient editor owns only the
 domain-specific ramp and draggable stops; its buttons, colors and numeric
-controls compose `ActionButton`, `PanelColorField` and `PanelNumberSlider`.
+controls compose `Button`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
 
 In a UI-devtools build, the live catalog is available from **View > UI Style
@@ -308,11 +311,10 @@ the shared controls. LightTable and future products keep only thin embedded
 inspection adapters that consume that catalog and contribute runtime usage
 data; they never maintain product-local copies of specimens.
 
-`SegmentedControl` has a `low-attention` variant for persistent secondary
-navigation such as workspace switches in the status bar. It keeps the selected
-option fully opaque and renders inactive options at half opacity without an
-accent fill; selection-mode and other primary segmented controls retain the
-standard treatment.
+`SegmentedControl` from `@lighttable/ui` also owns workspace switching. All
+segments use the same selected/disabled styling and content-fit geometry;
+the former `low-attention` variant no longer exists. Workspace icons are
+app-supplied; icon geometry and spacing are library-owned.
 
 The first combined catalog review exposed a remaining typography-system gap:
 panel titles, section headings and control-group headings are not yet distinct
