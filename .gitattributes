@@ -1,0 +1,2 @@
+/ui.sh text eol=lf
+/ui.bat text eol=crlf
