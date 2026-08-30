@@ -11,11 +11,13 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'small', label: 'Small', usage: 'Metadata and compact notes' }
 ];
 
+const currentPage = () => location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
+
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [page, setPage] = useState(() => location.hash === '#buttons' ? 'buttons' : 'typography');
+  const [page, setPage] = useState(currentPage);
   useEffect(() => {
-    const updatePage = () => setPage(location.hash === '#buttons' ? 'buttons' : 'typography');
+    const updatePage = () => setPage(currentPage());
     window.addEventListener('hashchange', updatePage);
     return () => window.removeEventListener('hashchange', updatePage);
   }, []);
@@ -33,6 +35,7 @@ function App() {
     <nav className="demo-nav" aria-label="Component categories">
       <Text as="p" weight="bold">Foundations</Text>
       <a href="#typography" aria-current={page === 'typography' ? 'page' : undefined}><Text>Typography</Text></a>
+      <a href="#colors" aria-current={page === 'colors' ? 'page' : undefined}><Text>Colors</Text></a>
       <Text as="p" weight="bold">Buttons &amp; Actions</Text>
       <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text>Button</Text></a>
       <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
@@ -78,6 +81,26 @@ function App() {
         <Text as="p" variant="small" tone="muted">One HTML element per Text. No wrappers. No editor dependencies. Fonts are bundled locally.</Text>
       </section>
 
+      </> : page === 'colors' ? <>
+        <header className="demo-intro">
+          <Text as="h1" variant="large" weight="bold">Colors</Text>
+          <Text as="p" tone="muted">Shared color roles. We will build this palette one color at a time.</Text>
+        </header>
+        <section className="demo-section" aria-labelledby="surfaces-title">
+          <Text as="h2" variant="large" weight="bold" id="surfaces-title">Surfaces</Text>
+          <div className="demo-colors">
+            <article className="demo-color">
+              <div className="demo-color-swatch" style={{ background: 'var(--ui-surface)' }} aria-hidden="true" />
+              <Text weight="bold">Navigation &amp; specimen surface</Text>
+              <Text as="code" variant="small" tone="muted">--ui-surface</Text>
+            </article>
+            <article className="demo-color">
+              <div className="demo-color-swatch" style={{ background: 'var(--ui-surface-panel)' }} aria-hidden="true" />
+              <Text weight="bold">Panel surface</Text>
+              <Text as="code" variant="small" tone="muted">--ui-surface-panel</Text>
+            </article>
+          </div>
+        </section>
       </> : <section className="demo-section" aria-labelledby="buttons-title">
         <Text as="h1" variant="large" weight="bold" id="buttons-title">Button</Text>
         <Text as="p" tone="muted">One height: 28 px. Regular typography. Content determines the width.</Text>

@@ -21,8 +21,8 @@
 
 [data-ui-theme='dark'] {
   color-scheme: dark;
-  --ui-surface: #171b20;
-  --ui-surface-panel: #2f3439;
+  --ui-surface: #171a1f;
+  --ui-surface-panel: #313539;
   --ui-text: #f3f4f6;
   --ui-text-muted: #b5bdc7;
   --ui-border: #454c55;
