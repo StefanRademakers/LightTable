@@ -46,8 +46,8 @@ export const NewGuideDialog = ({ open, onCancel, onCommit }: Props) => {
           <span>px</span>
         </label>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit">OK</Button>
+          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} type="submit">OK</Button>
         </div>
       </form>
     </div>,

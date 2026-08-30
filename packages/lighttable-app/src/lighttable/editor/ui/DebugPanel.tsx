@@ -200,11 +200,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Include document filename
         </label>
         <div className="lighttable-debug-panel__actions">
-          <Button data-ui-theme="dark" type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
+          <Button type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
             {supportState === 'collecting' ? 'Collecting...' : 'Preview'}
           </Button>
-          <Button data-ui-theme="dark" type="button" onClick={() => void copySupportSummary()}>Copy summary</Button>
-          <Button data-ui-theme="dark" type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
+          <Button type="button" onClick={() => void copySupportSummary()}>Copy summary</Button>
+          <Button type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
             Export bundle
           </Button>
         </div>
@@ -240,8 +240,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {dockResizeActive ? ' Currently paused.' : ''}
         </small>
         <div className="lighttable-debug-panel__actions">
-          <Button data-ui-theme="dark" type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</Button>
-          <Button data-ui-theme="dark" type="button" onClick={onResetRenderTelemetry}>Reset render stats</Button>
+          <Button type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</Button>
+          <Button type="button" onClick={onResetRenderTelemetry}>Reset render stats</Button>
         </div>
       </fieldset>
       <fieldset className="lighttable-debug-panel__diagnostics">
@@ -271,14 +271,14 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           </details>
         ) : null}
         <div className="lighttable-debug-panel__actions">
-          <Button data-ui-theme="dark"
+          <Button
             type="button"
             onClick={onProbeTextEngine}
             disabled={textEngineStatus === 'loading'}
           >
             {textEngineStatus === 'loading' ? 'Loading text engine...' : 'Probe text engine'}
           </Button>
-          <Button data-ui-theme="dark"
+          <Button
             type="button"
             onClick={onRunTextCorpus}
             disabled={textEngineStatus === 'loading' || !textCorpusAvailable}
@@ -286,7 +286,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           >
             Run typography corpus
           </Button>
-          <Button data-ui-theme="dark"
+          <Button
             type="button"
             onClick={onRunTextRendererBakeoff}
             disabled={textRendererStatus === 'loading' || !textCorpusAvailable}
@@ -402,8 +402,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {messages.length} messages · {summary.warnings} warnings · {summary.errors} errors
         </span>
         <div className="lighttable-debug-panel__actions">
-          <Button data-ui-theme="dark" type="button" onClick={onClear} disabled={!messages.length}>Clear</Button>
-          <Button data-ui-theme="dark" type="button" onClick={() => void copyAll()} disabled={!messages.length}>
+          <Button type="button" onClick={onClear} disabled={!messages.length}>Clear</Button>
+          <Button type="button" onClick={() => void copyAll()} disabled={!messages.length}>
             {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy all'}
           </Button>
         </div>

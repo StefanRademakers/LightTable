@@ -144,7 +144,7 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
           visible={visibility.vectorscope}
           onVisibleChange={(visible) => onVisibilityChange('vectorscope', visible)}
         >
-          <SegmentedControl data-ui-theme="dark"
+          <SegmentedControl
             className="lighttable-scope__range"
             value={settings.vectorscopeRange}
             options={VECTOR_RANGE_OPTIONS}

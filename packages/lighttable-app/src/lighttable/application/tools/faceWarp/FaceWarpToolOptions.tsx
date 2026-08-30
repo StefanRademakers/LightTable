@@ -96,12 +96,12 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   return <>
     {reviewPending ? <>
       <span className="lighttable-tool-options__hint">Check that the mesh follows the face.</span>
-      <Button data-ui-theme="dark" onClick={onAcceptDetection}>Accept mesh</Button>
-      <Button data-ui-theme="dark" onClick={onCancelDetection}>Cancel</Button>
-    </> : <Button data-ui-theme="dark" disabled={busy} onClick={onDetect}>
+      <Button onClick={onAcceptDetection}>Accept mesh</Button>
+      <Button onClick={onCancelDetection}>Cancel</Button>
+    </> : <Button disabled={busy} onClick={onDetect}>
       {busy ? 'Detecting faces…' : faces.length > 0 ? 'Redetect faces' : 'Detect faces'}
     </Button>}
-    {faces.length > 0 && !reviewPending ? <SegmentedControl data-ui-theme="dark" value={mode} onChange={setMode}
+    {faces.length > 0 && !reviewPending ? <SegmentedControl value={mode} onChange={setMode}
       label="Face Warp editing mode" options={[
         { value: 'sculpt', label: 'Sculpt' },
         { value: 'adjust', label: 'Adjust' }
@@ -183,6 +183,6 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
     </> : null}
-    {selected && !reviewPending ? <Button data-ui-theme="dark" onClick={onReset}>Reset face</Button> : null}
+    {selected && !reviewPending ? <Button onClick={onReset}>Reset face</Button> : null}
   </>;
 };

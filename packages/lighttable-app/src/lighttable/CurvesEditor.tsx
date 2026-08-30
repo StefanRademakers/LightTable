@@ -152,7 +152,6 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
           options={CHANNEL_OPTIONS}
           onChange={onChannelChange}
           label="Custom Curve channel"
-          data-ui-theme="dark"
         />
         <ButtonBase type="button" onClick={() => onReset(channel)} disabled={disabled} title={`Reset ${channel} curve`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />

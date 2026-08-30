@@ -28,8 +28,8 @@ export const ArbitraryRotationDialog = ({ open, busy = false, onCancel, onCommit
           <NumericExpressionInput autoFocus value={degrees} kind="float" step={0.1}
             onValueChange={setDegrees} aria-label="Clockwise rotation angle" /></label>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={busy || !Number.isFinite(degrees)}>{busy ? 'Applying…' : 'OK'}</Button>
+          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={busy || !Number.isFinite(degrees)}>{busy ? 'Applying…' : 'OK'}</Button>
         </div>
       </form>
     </div>, globalThis.document.body

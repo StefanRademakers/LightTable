@@ -396,7 +396,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           : TOOL_LABELS[activeTool]}</strong>
       </div>
       {isSelectionTool(activeTool) ? (
-        <SegmentedControl data-ui-theme="dark"
+        <SegmentedControl
           className="lighttable-tool-options__selection-mode"
           label="Selection combine mode"
           value={activeTool === 'select-paint-brush'
@@ -576,7 +576,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <option value="high">High</option>
             </ToolOptionSelect>
           ) : null}
-          <Button data-ui-theme="dark" onClick={onSmartSelectionSelectSubject}>Select Subject</Button>
+          <Button onClick={onSmartSelectionSelectSubject}>Select Subject</Button>
           {smartSelectionBackendIdentity ? (
             <span className="lighttable-tool-options__hint"
               title={`${smartSelectionBackendIdentity.modelId} @ ${smartSelectionBackendIdentity.artifactRevision}`}>
@@ -768,7 +768,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       {activeTool === 'zoom' ? (
         <div className="lighttable-tool-options__zoom-presets" aria-label="Zoom presets">
           {ZOOM_PRESETS_PERCENT.map((percent) => (
-            <Button data-ui-theme="dark"
+            <Button
               key={percent}
               type="button"
               aria-pressed={Math.abs(zoomPercent - percent) < 0.01}
@@ -777,7 +777,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               {percent}%
             </Button>
           ))}
-          <Button data-ui-theme="dark"
+          <Button
             type="button"
             onClick={onZoomFit}
           >
@@ -799,7 +799,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         || activeTool === 'text-vertical' || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
           {textLayoutMode && onTextLayoutModeChange ? (
-            <SegmentedControl data-ui-theme="dark"
+            <SegmentedControl
               className="lighttable-tool-options__text-layout-mode"
               label="Text layout mode"
               value={textLayoutMode}

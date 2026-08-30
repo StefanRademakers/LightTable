@@ -755,7 +755,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
             </FormSelect>
-            <Button data-ui-theme="dark" type="button" onClick={addStyle}>Add</Button>
+            <Button type="button" onClick={addStyle}>Add</Button>
           </div>
         </div>
       </div>
@@ -825,7 +825,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
             </FormSelect>
-            <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={addStyle}>Add</Button>
+            <Button tabIndex={0} type="button" onClick={addStyle}>Add</Button>
           </div>
         </aside>
         <main>
@@ -861,8 +861,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel}>Cancel</Button>
-        <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCommit}>OK</Button>
+        <Button tabIndex={0} type="button" onClick={onCancel}>Cancel</Button>
+        <Button tabIndex={0} type="button" onClick={onCommit}>OK</Button>
       </footer>
     </div>
   );

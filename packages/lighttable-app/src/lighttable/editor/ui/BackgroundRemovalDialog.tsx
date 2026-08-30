@@ -26,11 +26,11 @@ export const BackgroundRemovalDialog: React.FC<{
           )}
         </div>
         <footer className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
           {state.phase === 'choose-mask-mode' && <>
-            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('new-layer')}>New masked layer</Button>
-            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('intersect')}>Intersect</Button>
-            <Button tabIndex={0} data-ui-theme="dark" onClick={() => onChoose('replace')}>Replace</Button>
+            <Button tabIndex={0} onClick={() => onChoose('new-layer')}>New masked layer</Button>
+            <Button tabIndex={0} onClick={() => onChoose('intersect')}>Intersect</Button>
+            <Button tabIndex={0} onClick={() => onChoose('replace')}>Replace</Button>
           </>}
         </footer>
       </section>

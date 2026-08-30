@@ -53,16 +53,16 @@ export const AgentAccessRequestDialog: React.FC<{
         <p className="muted">Always allow is saved only for this exact agent identity on the currently paired server. You can revoke it later in Preferences.</p>
         {error ? <p className="lighttable-agent-settings__error" role="alert">{error}</p> : null}
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={close}>Deny</Button>
-          {wantsEdit ? <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+          <Button tabIndex={0} disabled={busy} onClick={close}>Deny</Button>
+          {wantsEdit ? <Button tabIndex={0} disabled={busy}
             onClick={() => {
               setBusy(true); setError(null);
               void service.approveClient(request.id, ['read'], false).then(setStatus)
                 .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
                 .finally(() => setBusy(false));
             }}>Allow read only</Button> : null}
-          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => approve(false)}>Allow once</Button>
-          <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => approve(true)}>Always allow</Button>
+          <Button tabIndex={0} disabled={busy} onClick={() => approve(false)}>Allow once</Button>
+          <Button tabIndex={0} disabled={busy} onClick={() => approve(true)}>Always allow</Button>
         </div>
       </div>
     </div>,

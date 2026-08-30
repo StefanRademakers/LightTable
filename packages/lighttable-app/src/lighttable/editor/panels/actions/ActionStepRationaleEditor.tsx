@@ -22,7 +22,7 @@ export const ActionStepRationaleEditor: React.FC<{
         onChange={(event) => setValue(event.currentTarget.value)} />
     </label>
     <span>{value.length}/280</span>
-    <Button data-ui-theme="dark" type="button" disabled={disabled || value.trim() === (rationale ?? '')}
+    <Button type="button" disabled={disabled || value.trim() === (rationale ?? '')}
       onClick={() => {
         const result = onApply(value);
         if (result.ok) appliedRationale.current = value.trim() || null;

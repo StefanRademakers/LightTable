@@ -82,7 +82,7 @@ export const AboutUpdateDialog: React.FC<{
         </div>
         <footer className="modal__footer lighttable-about__footer">
           <div className="lighttable-about__actions">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={checking || !release}
               onClick={() => {
                 if (!release) return;
@@ -91,14 +91,14 @@ export const AboutUpdateDialog: React.FC<{
               }}
             >{checking ? 'Checking…' : 'Check for updates'}</Button>
             {downloaded ? (
-              <Button tabIndex={0} data-ui-theme="dark"
+              <Button tabIndex={0}
                 disabled={!downloaded.canInstall || dirtyDocuments}
                 title={dirtyDocuments ? 'Save or close dirty documents before restarting.' : undefined}
                 onClick={() => void release?.restartToInstall({ dirtyDocuments })}
               >Restart to update</Button>
             ) : null}
           </div>
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
+          <Button tabIndex={0} onClick={onClose}>Close</Button>
         </footer>
       </section>
     </div>,

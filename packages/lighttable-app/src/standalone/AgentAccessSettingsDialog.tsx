@@ -131,7 +131,7 @@ export const AgentAccessSettingsPanel: React.FC<{
           {localMcp.message ? <p role="status">{localMcp.message}</p> : null}
           {localMcp.error ? <p className="lighttable-agent-settings__error" role="alert">{localMcp.error}</p> : null}
           <div className="lighttable-agent-settings__actions">
-            <Button tabIndex={0} data-ui-theme="dark" disabled={busy || !localActive}
+            <Button tabIndex={0} disabled={busy || !localActive}
               onClick={() => runLocalMcp(() => service.authorizeCodex())}>Connect Codex…</Button>
           </div>
           <p className="lighttable-agent-settings__note">Needed once per Codex installation. A newly connected MCP profile becomes available after opening or reloading a Codex session.</p>
@@ -148,7 +148,7 @@ export const AgentAccessSettingsPanel: React.FC<{
               value={pairingCode} disabled={busy}
               onChange={(event) => setPairingCode(event.currentTarget.value)} /></label>
             <div className="lighttable-agent-settings__actions">
-              <Button tabIndex={0} data-ui-theme="dark" disabled={busy || !serverUrl || pairingCode.length < 6}
+              <Button tabIndex={0} disabled={busy || !serverUrl || pairingCode.length < 6}
                 onClick={() => {
                   setBusy(true);
                   void service.pairServer(serverUrl, pairingCode).then((value) => {
@@ -176,21 +176,21 @@ export const AgentAccessSettingsPanel: React.FC<{
                   : `Requests: ${scopesLabel(client.requestedScopes)}`}</small></span>
                 {client.approved ? <>
                   {client.requestedScopes.includes('edit') && !client.scopes.includes('edit') ? <>
-                    <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                    <Button tabIndex={0} disabled={busy}
                       onClick={() => approve(client.id, ['read', 'edit'], false)}>Allow edit</Button>
-                    <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                    <Button tabIndex={0} disabled={busy}
                       onClick={() => approve(client.id, ['read', 'edit'], true)}>Always allow edit</Button>
                   </> : null}
-                  <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                  <Button tabIndex={0} disabled={busy}
                     onClick={() => runTunnel(() => service.revokeClient(client.id))}>Revoke</Button>
                 </> : <>
-                  {client.requestedScopes.includes('edit') ? <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                  {client.requestedScopes.includes('edit') ? <Button tabIndex={0} disabled={busy}
                     onClick={() => approve(client.id, ['read'], false)}>Allow read only</Button> : null}
-                  <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                  <Button tabIndex={0} disabled={busy}
                     onClick={() => approve(client.id, client.requestedScopes, false)}>Allow once</Button>
-                  <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                  <Button tabIndex={0} disabled={busy}
                     onClick={() => approve(client.id, client.requestedScopes, true)}>Always allow</Button>
-                  <Button tabIndex={0} data-ui-theme="dark" disabled={busy}
+                  <Button tabIndex={0} disabled={busy}
                     onClick={() => runTunnel(() => service.revokeClient(client.id))}>Deny</Button>
                 </>}
               </div>)}
@@ -206,9 +206,9 @@ export const AgentAccessSettingsPanel: React.FC<{
             </li>)}
           </ul> : null}
           <div className="lighttable-agent-settings__actions">
-            <Button tabIndex={0} data-ui-theme="dark" disabled={busy || tunnel.activity.status !== 'running' || !tunnel.activity.taskId}
+            <Button tabIndex={0} disabled={busy || tunnel.activity.status !== 'running' || !tunnel.activity.taskId}
               onClick={() => runTunnel(() => service.cancelActivity())}>Cancel</Button>
-            <Button tabIndex={0} data-ui-theme="dark" disabled={busy || tunnel.activity.status !== 'completed'}
+            <Button tabIndex={0} disabled={busy || tunnel.activity.status !== 'completed'}
               onClick={() => runTunnel(() => service.undoActivity())}>Undo Agent Action</Button>
           </div>
         </div> : null}
@@ -249,11 +249,11 @@ export const AgentAccessSettingsPanel: React.FC<{
             </label> : null}
             {status.error ? <p className="lighttable-agent-settings__error" role="alert">{status.error}</p> : null}
             <div className="lighttable-agent-settings__actions">
-              <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => run(() => service.rotateCredentials())}>Rotate credentials</Button>
-              <Button tabIndex={0} data-ui-theme="dark" disabled={busy || !status.enabled} onClick={() => run(() => service.disable())}>Stop</Button>
+              <Button tabIndex={0} disabled={busy} onClick={() => run(() => service.rotateCredentials())}>Rotate credentials</Button>
+              <Button tabIndex={0} disabled={busy || !status.enabled} onClick={() => run(() => service.disable())}>Stop</Button>
             </div>
           </div>
-          {tunnel.serverUrl ? <Button tabIndex={0} data-ui-theme="dark" disabled={busy} onClick={() => setConfirmDeviceRevoke(true)}>
+          {tunnel.serverUrl ? <Button tabIndex={0} disabled={busy} onClick={() => setConfirmDeviceRevoke(true)}>
             Unpair this LightTable installation…
           </Button> : null}
         </details>

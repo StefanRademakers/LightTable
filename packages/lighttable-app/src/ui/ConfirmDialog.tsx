@@ -41,8 +41,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         {description ? <p className="muted">{description}</p> : null}
         {children}
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>{cancelLabel}</Button>
-          <Button tabIndex={0} data-ui-theme="dark" intent={danger ? "destructive" : "normal"} onClick={() => void onConfirm()}>
+          <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
+          <Button tabIndex={0} intent={danger ? "destructive" : "normal"} onClick={() => void onConfirm()}>
             {confirmLabel}
           </Button>
         </div>

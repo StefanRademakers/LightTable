@@ -222,7 +222,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       <div className="lighttable-preferences__location" title={location?.path ?? storageLabel}
                         aria-label={`Autosave location: ${storageLabel}`}>{storageLabel}</div>
                       {location?.canChoose ? (
-                        <Button tabIndex={0} data-ui-theme="dark" disabled={locationBusy} onClick={() => {
+                        <Button tabIndex={0} disabled={locationBusy} onClick={() => {
                           setLocationBusy(true);
                           void host.recoveryLocation?.choose().then((value) => {
                             if (value) setLocation(value);
@@ -230,7 +230,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                         }}>Choose…</Button>
                       ) : null}
                       {location?.custom ? (
-                        <Button tabIndex={0} data-ui-theme="dark" disabled={locationBusy} onClick={() => {
+                        <Button tabIndex={0} disabled={locationBusy} onClick={() => {
                           setLocationBusy(true);
                           void host.recoveryLocation?.reset().then(setLocation)
                             .finally(() => setLocationBusy(false));
@@ -251,7 +251,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                     <h4 id="preferences-projects-heading">Project folders</h4>
                     <p>Choose the folder layout used when LightTable creates a new project.</p>
                   </div>
-                  <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={() => setDraft({
+                  <Button tabIndex={0} type="button" onClick={() => setDraft({
                     ...draft,
                     projects: {
                       folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
@@ -293,7 +293,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                     <FormInput value={newProjectFolderName} placeholder="New folder name"
                       aria-label="New project folder name"
                       onChange={(event) => setNewProjectFolderName(event.currentTarget.value)} />
-                    <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!newProjectFolderName.trim()}
+                    <Button tabIndex={0} type="button" disabled={!newProjectFolderName.trim()}
                       onClick={() => {
                         const name = newProjectFolderName.trim();
                         updateUserFolders([...draft.projects.userFolders, {
@@ -413,12 +413,12 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                         </div>
                         <div className="lighttable-preferences__location-row">
                           {builtIn && !localAiModel?.ready ? (
-                            <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!host.localAi || localAiModel?.installing}
+                            <Button tabIndex={0} type="button" disabled={!host.localAi || localAiModel?.installing}
                               onClick={() => void host.localAi?.install()}>
                               {localAiModel?.installing ? 'Installing…' : 'Install model'}
                             </Button>
                           ) : (
-                            <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!host.genAi || !provider.enabled
+                            <Button tabIndex={0} type="button" disabled={!host.genAi || !provider.enabled
                               || runtime?.status === 'connecting'} onClick={() => void (runtime?.status === 'connected'
                                 ? host.genAi!.disconnectProvider(provider.id as GenAiProviderSnapshot['id'])
                                 : host.genAi!.connectProvider(provider.id as GenAiProviderSnapshot['id']))}>
@@ -426,19 +426,19 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                                 : runtime?.status === 'connecting' ? 'Connecting…' : 'Connect'}
                             </Button>
                           )}
-                          <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!host.localAi || test?.busy === true} onClick={() => {
+                          <Button tabIndex={0} type="button" disabled={!host.localAi || test?.busy === true} onClick={() => {
                             setProviderTest({ id: provider.id, busy: true });
                             void host.localAi?.testProvider(provider).then((result) => setProviderTest({
                               id: provider.id, busy: false, message: result.message
                             })).catch((reason) => setProviderTest({ id: provider.id, busy: false,
                               message: reason instanceof Error ? reason.message : String(reason) }));
                           }}>{test?.busy ? 'Testing…' : 'Test'}</Button>
-                          <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!host.localAi} onClick={() => void host.localAi
+                          <Button tabIndex={0} type="button" disabled={!host.localAi} onClick={() => void host.localAi
                             ?.configureProviders(draft.genAi.providers)
                             .then(() => host.genAi?.connectProvider(provider.id as GenAiProviderSnapshot['id']))}>Refresh capabilities</Button>
-                          <Button tabIndex={0} data-ui-theme="dark" type="button" disabled={!host.localAi}
+                          <Button tabIndex={0} type="button" disabled={!host.localAi}
                             onClick={() => void host.localAi?.openProviderHelp(provider)}>Open API help</Button>
-                          {!builtIn ? <Button tabIndex={0} data-ui-theme="dark" type="button"
+                          {!builtIn ? <Button tabIndex={0} type="button"
                             onClick={() => removeProvider(provider.id)}>Remove</Button> : null}
                         </div>
                         <p>{builtIn ? localModelMessage(localAiModel)
@@ -447,7 +447,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       </div>
                     </div>;
                   })}
-                  <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={() => {
+                  <Button tabIndex={0} type="button" onClick={() => {
                     const id = `local-http-${Date.now().toString(36)}`;
                     setDraft((current) => ({ ...current, genAi: { ...current.genAi, providers: [
                       ...current.genAi.providers,
@@ -469,8 +469,8 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
           </div>
         </div>
         <div className="modal__footer lighttable-preferences__footer">
-          <Button tabIndex={0} data-ui-theme="dark" disabled={locationBusy} onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" disabled={locationBusy} type="submit">{locationBusy ? 'Saving…' : 'Save'}</Button>
+          <Button tabIndex={0} disabled={locationBusy} onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} disabled={locationBusy} type="submit">{locationBusy ? 'Saving…' : 'Save'}</Button>
         </div>
       </form>
     </div>,

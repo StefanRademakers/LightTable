@@ -121,12 +121,12 @@ export function UiInspectorHost() {
         <aside className="lighttable-ui-inspector" data-ui-inspector aria-label="UI control inspector">
           <strong>{inspection?.controlId ?? inspection?.label ?? 'Unregistered control'}</strong>
           <span>{hud.count ? `${hud.index + 1} / ${hud.count} live` : 'No live instances'}</span>
-          <Button data-ui-theme="dark" disabled={hud.count < 2}
+          <Button disabled={hud.count < 2}
             onClick={() => activateMatch(hud.index - 1)}>Previous</Button>
-          <Button data-ui-theme="dark" disabled={hud.count < 2}
+          <Button disabled={hud.count < 2}
             onClick={() => activateMatch(hud.index + 1)}>Next</Button>
-          <Button data-ui-theme="dark" onClick={() => setStyleGuideOpen(true)}>Style Guide</Button>
-          <Button data-ui-theme="dark" onClick={closeInspector}>Exit</Button>
+          <Button onClick={() => setStyleGuideOpen(true)}>Style Guide</Button>
+          <Button onClick={closeInspector}>Exit</Button>
         </aside>
       ) : null}
     </>

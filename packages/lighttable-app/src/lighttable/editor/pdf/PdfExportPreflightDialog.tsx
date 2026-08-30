@@ -231,7 +231,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
             <h2>PDF export preflight</h2>
             <p>Export a flattened page, native searchable text or native vectors when the page stack is compatible.</p>
           </div>
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
+          <Button tabIndex={0} onClick={onClose}>Close</Button>
         </header>
         <div className="lighttable-psd-report__metrics">
           <span>
@@ -249,7 +249,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         </div>
         {request.validateFonts ? (
           <div className="lighttable-psd-report__metrics">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={validation.kind === 'running'}
               onClick={() => { void validateFonts(); }}
             >
@@ -262,7 +262,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         ) : null}
         {request.exportFlattenedPage ? (
           <div className="lighttable-psd-report__metrics">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={pageExport.kind === 'running'}
               onClick={() => { void exportFlattenedPage(); }}
             >
@@ -275,7 +275,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         ) : null}
         {request.exportNativeTextPage ? (
           <div className="lighttable-psd-report__metrics">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={nativeExport.kind === 'running'}
               onClick={() => { void exportNativeTextPage(); }}
             >
@@ -292,7 +292,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         ) : null}
         {request.exportNativeVectorPage ? (
           <div className="lighttable-psd-report__metrics">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={vectorExport.kind === 'running'}
               onClick={() => { void exportNativeVectorPage(); }}
             >
@@ -309,7 +309,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         ) : null}
         {request.exportNativeMixedPage ? (
           <div className="lighttable-psd-report__metrics">
-            <Button tabIndex={0} data-ui-theme="dark"
+            <Button tabIndex={0}
               disabled={mixedExport.kind === 'running'}
               onClick={() => { void exportNativeMixedPage(); }}
             >

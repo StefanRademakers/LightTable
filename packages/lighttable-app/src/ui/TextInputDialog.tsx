@@ -101,8 +101,8 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
           <span>{checkboxLabel}</span>
         </label> : null}
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>{cancelLabel}</Button>
-          <Button tabIndex={0} data-ui-theme="dark"
+          <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
+          <Button tabIndex={0}
             disabled={!value.trim()}
             onClick={() => void onConfirm(value.trim())}
           >

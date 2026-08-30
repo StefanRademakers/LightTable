@@ -633,7 +633,6 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               }
             }}
             label="Color Mixer editor"
-            data-ui-theme="dark"
             className="lighttable-color-mixer__mode"
             options={[
               { value: 'mixer', label: 'Mixer' },
@@ -801,7 +800,6 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               value={colorGradingMode}
               onChange={setColorGradingMode}
               label="Color Grading tonal range"
-              data-ui-theme="dark"
               className="lighttable-color-grading__modes"
             />
             {colorGradingMode === 'all' ? (
@@ -869,7 +867,6 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               value={adjustments.blackWhiteMix.enabled ? 'black-white' : 'color'}
               onChange={(value) => commands.setBlackWhiteMixEnabled(value === 'black-white')}
               label="Image treatment"
-              data-ui-theme="dark"
               options={[
                 { value: 'color', label: 'Color', disabled: !metadata || !visible },
                 { value: 'black-white', label: 'B&W', disabled: !metadata || !visible }

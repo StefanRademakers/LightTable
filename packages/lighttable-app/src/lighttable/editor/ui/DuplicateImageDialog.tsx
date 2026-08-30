@@ -76,8 +76,8 @@ export const DuplicateImageDialog = ({
           {error ? <p className="lighttable-file-drop__error lighttable-new-document-dialog__wide-field" role="alert">{error}</p> : null}
         </div>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</Button>
+          <Button tabIndex={0} type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</Button>
         </div>
       </form>
     </div>,

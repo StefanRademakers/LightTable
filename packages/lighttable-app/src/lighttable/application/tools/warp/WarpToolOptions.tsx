@@ -135,7 +135,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       />
       Pressure strength
     </label>
-    <Button data-ui-theme="dark"
+    <Button
       type="button"
       onClick={onReset}
     >

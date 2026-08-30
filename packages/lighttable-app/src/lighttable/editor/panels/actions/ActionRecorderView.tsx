@@ -368,9 +368,9 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     {selectedStep ? <details className="lighttable-action-inspector">
       <summary>{labels.get(selectedStep.command) ?? selectedStep.command} options</summary>
       <div className="lighttable-action-recorder__step-controls">
-        <Button data-ui-theme="dark" type="button" onClick={() => props.onPlayStep(selectedStep.sequence)}
+        <Button type="button" onClick={() => props.onPlayStep(selectedStep.sequence)}
           disabled={busy}>Play step</Button>
-        <Button data-ui-theme="dark" type="button" onClick={() => props.onPlayFromStep(selectedStep.sequence)}
+        <Button type="button" onClick={() => props.onPlayFromStep(selectedStep.sequence)}
           disabled={busy}>Play from here</Button>
       </div>
       <ActionStepRationaleEditor rationale={selectedStep.rationale}

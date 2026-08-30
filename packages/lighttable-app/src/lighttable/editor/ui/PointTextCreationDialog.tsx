@@ -72,8 +72,8 @@ export const PointTextCreationDialog: React.FC<PointTextCreationDialogProps> = (
           />
         </label>
         <div>
-          <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!value.length}>Create</Button>
+          <Button tabIndex={0} type="button" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={!value.length}>Create</Button>
         </div>
       </form>
     </div>

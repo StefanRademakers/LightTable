@@ -183,7 +183,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
               </> : null}
               {category === 'actions' ? <>
                 <Sample title="Package Button — one height: 28 px">
-                  <Button tabIndex={0} data-ui-theme="dark">Text action</Button>
+                  <Button tabIndex={0}>Text action</Button>
                 </Sample>
                 <Sample title="Icon buttons">
                   <SquareIconButton icon="+" aria-label="Add" />
@@ -191,13 +191,13 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <SquareIconButton icon="×" disabled aria-label="Disabled" />
                 </Sample>
                 <Sample title="States - geometry does not change">
-                  <Button tabIndex={0} data-ui-theme="dark">Enabled</Button>
-                  <Button tabIndex={0} data-ui-theme="dark" disabled>Disabled</Button>
-                  <Button tabIndex={0} data-ui-theme="dark" intent="destructive">Destructive</Button>
+                  <Button tabIndex={0}>Enabled</Button>
+                  <Button tabIndex={0} disabled>Disabled</Button>
+                  <Button tabIndex={0} intent="destructive">Destructive</Button>
                 </Sample>
                 <Sample title="Layout participation is explicit">
                   <div className="lighttable-ui-guide__fill-frame">
-                    <Button tabIndex={0} data-ui-theme="dark" fullWidth>Fill available width</Button>
+                    <Button tabIndex={0} fullWidth>Fill available width</Button>
                   </div>
                 </Sample>
               </> : null}
@@ -206,7 +206,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <FormInput aria-label="Aligned text field" defaultValue="Text" />
                   <NumericExpressionInput value={number} min={0} max={1000}
                     aria-label="Aligned numeric field" onValueChange={setNumber} />
-                  <Button tabIndex={0} data-ui-theme="dark">Control action</Button>
+                  <Button tabIndex={0}>Control action</Button>
                 </Sample>
                 <Sample title="Text fields">
                   <FormInput aria-label="Text example" defaultValue="Layer name" />
@@ -249,12 +249,12 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <SwitchControl checked={false} onCheckedChange={() => undefined} label="Example disabled" disabled />
                 </Sample>
                 <Sample title="Segmented control">
-                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value={segment} onChange={setSegment} label="Selection mode"
+                  <SegmentedControl tabIndex={0} value={segment} onChange={setSegment} label="Selection mode"
                     options={[{ value: 'new', label: 'New' }, { value: 'add', label: 'Add' },
                       { value: 'subtract', label: 'Subtract' }]} />
                 </Sample>
                 <Sample title="Package segments with app-owned icons">
-                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value={lowAttentionSegment}
+                  <SegmentedControl tabIndex={0} value={lowAttentionSegment}
                     onChange={setLowAttentionSegment} label="Workspace navigation"
                     options={[
                       { value: 'ai', label: 'Gen AI',
@@ -266,7 +266,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     ]} />
                 </Sample>
                 <Sample title="Disabled segmented option">
-                  <SegmentedControl tabIndex={0} data-ui-theme="dark" value="one" onChange={() => undefined} label="Disabled option example"
+                  <SegmentedControl tabIndex={0} value="one" onChange={() => undefined} label="Disabled option example"
                     options={[{ value: 'one', label: 'Available' },
                       { value: 'two', label: 'Unavailable', disabled: true }]} />
                 </Sample>
@@ -370,7 +370,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 </Sample>
                 <Sample title="Empty and disabled states">
                   <div className="lighttable-panel__empty">Select editable content to show properties.</div>
-                  <Button tabIndex={0} data-ui-theme="dark" disabled>Unavailable action</Button>
+                  <Button tabIndex={0} disabled>Unavailable action</Button>
                 </Sample>
               </> : null}
               {category === 'adjustments' ? <>
@@ -388,8 +388,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     <div className="modal__header"><h3 className="modal__title">Confirm action</h3></div>
                     <p>Explain what will happen in one short, concrete sentence.</p>
                     <div className="modal__footer">
-                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
-                      <Button tabIndex={0} data-ui-theme="dark">Continue</Button>
+                      <Button tabIndex={0}>Cancel</Button>
+                      <Button tabIndex={0}>Continue</Button>
                     </div>
                   </div>
                 </Sample>
@@ -401,8 +401,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                       <FormInput aria-label="Dialog field example" defaultValue="Background copy" />
                     </label>
                     <div className="modal__footer">
-                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
-                      <Button tabIndex={0} data-ui-theme="dark">Save</Button>
+                      <Button tabIndex={0}>Cancel</Button>
+                      <Button tabIndex={0}>Save</Button>
                     </div>
                   </div>
                 </Sample>
@@ -411,8 +411,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     <div className="modal__header"><h3 className="modal__title">Delete layer?</h3></div>
                     <p>This cannot be undone after the document is closed.</p>
                     <div className="modal__footer">
-                      <Button tabIndex={0} data-ui-theme="dark">Cancel</Button>
-                      <Button tabIndex={0} data-ui-theme="dark" intent="destructive">Delete</Button>
+                      <Button tabIndex={0}>Cancel</Button>
+                      <Button tabIndex={0} intent="destructive">Delete</Button>
                     </div>
                   </div>
                 </Sample>
@@ -424,8 +424,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                       <div><dt>Channel</dt><dd>Development</dd></div>
                     </dl>
                     <div className="modal__footer lighttable-ui-guide__split-footer">
-                      <Button tabIndex={0} data-ui-theme="dark">Check for updates</Button>
-                      <Button tabIndex={0} data-ui-theme="dark">Close</Button>
+                      <Button tabIndex={0}>Check for updates</Button>
+                      <Button tabIndex={0}>Close</Button>
                     </div>
                   </div>
                 </Sample>
@@ -434,7 +434,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
           </main>
         </div>
         <footer className="modal__footer lighttable-preferences__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
+          <Button tabIndex={0} onClick={onClose}>Close</Button>
         </footer>
       </div>
     </div>,

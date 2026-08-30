@@ -261,7 +261,7 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
             <div><dt>Classes</dt><dd>{inspection.className || 'none'}</dd></div>
           </dl>
           {onShowInApp ? (
-            <Button data-ui-theme="dark" onClick={() => onShowInApp(inspection.controlId)}>
+            <Button onClick={() => onShowInApp(inspection.controlId)}>
               Show in app
             </Button>
           ) : null}
@@ -273,7 +273,7 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
       </p>
 
       <div className="lighttable-ui-coverage__tools">
-        <SegmentedControl data-ui-theme="dark" label="UI coverage view" value={view} onChange={setView}
+        <SegmentedControl label="UI coverage view" value={view} onChange={setView}
           options={[
             { value: 'nonstandard', label: 'Non-standard' },
             { value: 'attention', label: `Attention ${attentionCount}` },
@@ -367,7 +367,7 @@ export const UiCoverageSpecimen: React.FC<UiCoverageSpecimenProps> = ({
                           <span>{candidate.element} · {candidate.context}</span>
                         </div>
                         {onShowInApp ? (
-                          <Button data-ui-theme="dark" onClick={() => onShowInApp(null, candidate.auditId)}>
+                          <Button onClick={() => onShowInApp(null, candidate.auditId)}>
                             Show in app
                           </Button>
                         ) : null}

@@ -75,10 +75,10 @@ export class DocumentRuntimeErrorBoundary extends Component<
             <p>This document runtime stopped unexpectedly. Other open documents remain available.</p>
             <pre>{this.state.error.message}</pre>
             <div className="lighttable-document-failure__actions">
-              <Button data-ui-theme="dark" type="button" onClick={this.retry}>
+              <Button type="button" onClick={this.retry}>
                 Retry document
               </Button>
-              <Button data-ui-theme="dark" type="button" onClick={this.props.onClose}>
+              <Button type="button" onClick={this.props.onClose}>
                 Close document
               </Button>
             </div>

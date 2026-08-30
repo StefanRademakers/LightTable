@@ -73,7 +73,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
         alt=""
       />
     </ButtonBase>
-    <SegmentedControl data-ui-theme="dark"
+    <SegmentedControl
       className="lighttable-toolbar__workspace-switches"
       label="Workspaces"
       value={selectedWorkspacePreset(workspacePreset)}

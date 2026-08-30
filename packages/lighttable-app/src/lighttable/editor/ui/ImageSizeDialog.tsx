@@ -199,8 +199,8 @@ export const ImageSizeDialog = ({
             onChange={(event) => setScaleStyles(event.currentTarget.checked)} /> Scale Styles</label>
         </div>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</Button>
+          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</Button>
         </div>
       </form>
     </div>,

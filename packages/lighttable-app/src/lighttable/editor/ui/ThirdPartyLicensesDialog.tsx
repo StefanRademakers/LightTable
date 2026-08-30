@@ -34,7 +34,7 @@ export const ThirdPartyLicensesDialog: React.FC<{
             <h2>Third-party licenses</h2>
             <p>Key libraries, runtimes, fonts and assets included with LightTable.</p>
           </div>
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
+          <Button tabIndex={0} onClick={onClose}>Close</Button>
         </header>
         <p className="lighttable-third-party-licenses__ownership">
           LightTable is proprietary software. The components listed here remain under their own licenses.

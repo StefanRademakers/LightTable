@@ -1,4 +1,5 @@
 import './ui/theme.css';
+import './ui/appTheme';
 import './ui/primitives.css';
 
 export { LightTableStandaloneApp } from './standalone/LightTableStandaloneApp';

@@ -196,8 +196,8 @@ export function NewDocumentDialog({
           ) : null}
         </div>
         <div className="modal__footer">
-          {modal ? <Button tabIndex={modal ? 0 : -1} data-ui-theme="dark" onClick={onCancel}>Cancel</Button> : null}
-          <Button tabIndex={modal ? 0 : -1} data-ui-theme="dark" type="submit" disabled={!optionsValid || creating}>
+          {modal ? <Button tabIndex={modal ? 0 : -1} onClick={onCancel}>Cancel</Button> : null}
+          <Button tabIndex={modal ? 0 : -1} type="submit" disabled={!optionsValid || creating}>
             {creating ? 'Creating…' : 'Create'}
           </Button>
         </div>

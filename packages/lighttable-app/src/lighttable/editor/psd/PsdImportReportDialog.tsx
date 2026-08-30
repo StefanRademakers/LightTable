@@ -171,7 +171,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
             <h2>Document compatibility report</h2>
             <p>Imported and current compatibility findings. Preserved source data remains unchanged until an explicit destructive action.</p>
           </div>
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Close</Button>
+          <Button tabIndex={0} onClick={onClose}>Close</Button>
         </header>
         {metrics ? (
           <div className="lighttable-psd-report__metrics">
@@ -187,7 +187,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           <span><strong>{summary.missingAssets}</strong> missing assets</span>
           <span><strong>{summary.exportBlocking}</strong> block editable export</span>
         </div>
-        <SegmentedControl tabIndex={0} data-ui-theme="dark"
+        <SegmentedControl tabIndex={0}
           className="lighttable-psd-report__filters"
           value={filter}
           options={FILTERS}
@@ -211,7 +211,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                     ...current,
                     [group.sourceIdentity]: assetId
                   }))} />
-                <Button tabIndex={0} data-ui-theme="dark"
+                <Button tabIndex={0}
                   disabled={!fontReplacements[group.sourceIdentity]}
                   onClick={() => onReplaceTextFonts(
                     group.layerIds,
@@ -246,14 +246,14 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                 ) : null}
                 <div className="lighttable-psd-report__actions">
                   {entry.layerId && (entry.feature === 'text-font' ? onResolveTextFont : onSelectLayer) ? (
-                    <Button tabIndex={0} data-ui-theme="dark" onClick={() => entry.feature === 'text-font'
+                    <Button tabIndex={0} onClick={() => entry.feature === 'text-font'
                       ? onResolveTextFont?.(entry.layerId!)
                       : onSelectLayer?.(entry.layerId!)}>
                       {entry.feature === 'text-font' && entry.editable ? 'Choose font...' : 'Select layer'}
                     </Button>
                   ) : null}
                   {entry.actions.includes('keep-preview') ? (
-                    <Button tabIndex={0} data-ui-theme="dark" onClick={onClose}>Keep preview</Button>
+                    <Button tabIndex={0} onClick={onClose}>Keep preview</Button>
                   ) : null}
                 </div>
               </div>

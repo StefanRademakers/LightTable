@@ -308,20 +308,20 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
     {status !== 'connected' ? <div className="lighttable-panel__empty"><div>
       <p><strong>{providerName}</strong><br />{statusLabel[status]}</p>
       {message ? <p role={status === 'error' ? 'alert' : 'status'}>{message}</p> : null}
-      <Button data-ui-theme="dark" onClick={onConnect} disabled={!onConnect || status === 'connecting'}>
+      <Button onClick={onConnect} disabled={!onConnect || status === 'connecting'}>
         {status === 'expired' ? 'Reconnect' : 'Connect'}
       </Button>
     </div></div> : loading && !workflow ? <div className="lighttable-panel__empty">Loading image model…</div>
       : workflow || setupError ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
           <div className="genai-panel__body">
-            <SegmentedControl data-ui-theme="dark" className="genai-panel__mode-switch" label="Content type"
+            <SegmentedControl className="genai-panel__mode-switch" label="Content type"
               value={task} onChange={selectTask} options={taskOptions} />
             <FormSelect className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {taskModels.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </FormSelect>
             {model?.description ? <p className="genai-panel__model-description">{model.description}</p> : null}
-            {task === 'video' && videoOptions.length > 1 ? <SegmentedControl data-ui-theme="dark"
+            {task === 'video' && videoOptions.length > 1 ? <SegmentedControl
               className="genai-panel__variant-switch" label="Video input"
               value={mode} onChange={onModeChange ?? (() => undefined)} options={videoOptions} /> : null}
             {setupError ? <p className="genai-panel__error" role="alert">{setupError}</p> : null}
@@ -443,7 +443,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               <strong>{count}/{countField?.maximum ?? 4}</strong>
               <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</ButtonBase>
             </div>
-            <Button data-ui-theme="dark" type="submit" fullWidth
+            <Button type="submit" fullWidth
               disabled={!canGenerate || !onGenerate}
               title={!generationReadiness?.ready ? generationReadiness?.message : undefined}>
               {generating ? 'Generating…' : 'Generate'}

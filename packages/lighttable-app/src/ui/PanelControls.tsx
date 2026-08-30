@@ -81,7 +81,7 @@ export const PanelFileField: React.FC<{
         publish(event.dataTransfer.files);
       }}>
       <span>{label}</span>
-      <Button data-ui-theme="dark" disabled={disabled} onClick={() => inputRef.current?.click()}>
+      <Button disabled={disabled} onClick={() => inputRef.current?.click()}>
         {buttonLabel}
       </Button>
       <input ref={inputRef} type="file" accept={accept} hidden onChange={(event) => {

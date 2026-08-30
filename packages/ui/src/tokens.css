@@ -11,7 +11,11 @@
   --ui-line-height-large: 1.428571;
   --ui-selection-surface: #28569b;
   --ui-selection-text: #ffffff;
+}
 
+/* A document-root scope supplies tokens only; it must not resize rem units
+   or restyle a host application's unmigrated UI. */
+[data-ui-theme]:not(:root) {
   font-family: var(--ui-font-family);
   font-size: var(--ui-font-size-regular);
   font-weight: var(--ui-font-weight-normal);
@@ -22,7 +26,6 @@
 }
 
 [data-ui-theme='dark'] {
-  color-scheme: dark;
   --ui-surface: #171a1f;
   --ui-surface-panel: #313539;
   --ui-text: #f3f4f6;
@@ -41,7 +44,6 @@
 }
 
 [data-ui-theme='light'] {
-  color-scheme: light;
   --ui-surface: #f4f5f7;
   --ui-surface-panel: #ffffff;
   --ui-text: #20252c;
@@ -58,3 +60,6 @@
   --ui-danger-text: #b42332;
   --ui-danger-border: #c88d94;
 }
+
+[data-ui-theme='dark']:not(:root) { color-scheme: dark; }
+[data-ui-theme='light']:not(:root) { color-scheme: light; }

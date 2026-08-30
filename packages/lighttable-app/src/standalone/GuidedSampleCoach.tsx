@@ -168,7 +168,7 @@ export const GuidedSampleCoach: React.FC<{
         {['shape', 'undo', 'redo', 'png', 'psd', 'complete'].map((step) => <i key={step} data-active={step === session.step} />)}
       </div>
       {error ? <p className="lighttable-guide__error" role="alert">{error}</p> : null}
-      <Button data-ui-theme="dark" type="button" disabled={!ready || busy} onClick={() => void run()}>
+      <Button type="button" disabled={!ready || busy} onClick={() => void run()}>
         {busy ? 'Working...' : session.step === 'complete' ? 'Finish' : title}
       </Button>
     </aside>

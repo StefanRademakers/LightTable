@@ -284,7 +284,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     </div>
     {loadDocumentPalette ? <section className="lighttable-color-picker-prototype__palette"
       aria-label="Image Palette">
-      <SegmentedControl<PaletteView> data-ui-theme="dark"
+      <SegmentedControl<PaletteView>
         className="lighttable-color-picker-prototype__palette-tabs"
         label="Color collection"
         value={paletteView}

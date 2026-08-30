@@ -120,7 +120,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
   const label = schema.title ?? name;
   if (value === undefined) return <div className="lighttable-command-parameter-editor__optional">
     <span>{label}</span>
-    <Button data-ui-theme="dark" disabled={disabled}
+    <Button disabled={disabled}
       onClick={() => onChange(initialFieldValue(schema, rootSchema))}>Add</Button>
   </div>;
 
@@ -130,7 +130,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
     const branch = schema.oneOf[selected];
     return <fieldset>
       <legend>{label}</legend>
-      {!required && onRemove ? <Button data-ui-theme="dark" disabled={disabled}
+      {!required && onRemove ? <Button disabled={disabled}
         onClick={onRemove}>Remove</Button> : null}
       <label>
         <span>Variant</span>
@@ -154,7 +154,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
     const maximum = schema.maxItems ?? Number.MAX_SAFE_INTEGER;
     return <fieldset>
       <legend>{label}</legend>
-      {!required && onRemove ? <Button data-ui-theme="dark" disabled={disabled}
+      {!required && onRemove ? <Button disabled={disabled}
         onClick={onRemove}>Remove</Button> : null}
       {items.map((item, index) => <div
         className="lighttable-command-parameter-editor__array-item" key={index}>
@@ -163,12 +163,12 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
           onChange={(next) => onChange(items.map((current, itemIndex) => (
             itemIndex === index ? next : current
           )))} />
-        <Button data-ui-theme="dark" disabled={disabled || items.length <= minimum}
+        <Button disabled={disabled || items.length <= minimum}
           onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>
           Remove item
         </Button>
       </div>)}
-      <Button data-ui-theme="dark" disabled={disabled || items.length >= maximum}
+      <Button disabled={disabled || items.length >= maximum}
         onClick={() => onChange([...items, initialFieldValue(schema.items!, rootSchema)])}>
         Add item
       </Button>
@@ -180,7 +180,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
     const requiredProperties = new Set(schema.required ?? []);
     return <fieldset>
       <legend>{label}</legend>
-      {!required && onRemove ? <Button data-ui-theme="dark" disabled={disabled}
+      {!required && onRemove ? <Button disabled={disabled}
         onClick={onRemove}>Remove</Button> : null}
       {Object.entries(schema.properties ?? {}).map(([childName, childSchema]) => (
         <SchemaField key={childName} name={childName} schema={childSchema}
@@ -196,7 +196,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
 
   return <div className="lighttable-command-parameter-editor__field">
     <PrimitiveField name={name} schema={schema} value={value} disabled={disabled} onChange={onChange} />
-    {!required && onRemove ? <Button data-ui-theme="dark" disabled={disabled}
+    {!required && onRemove ? <Button disabled={disabled}
       onClick={onRemove}>Remove</Button> : null}
   </div>;
 };
@@ -262,7 +262,7 @@ export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
   return <div className="lighttable-command-parameter-editor">
     <CommandParameterFields schema={schema} parameters={parameters} disabled={disabled}
       onChange={setParameters} />
-    <Button data-ui-theme="dark" disabled={disabled || !validation.valid}
+    <Button disabled={disabled || !validation.valid}
       onClick={() => onRun(parameters)}>
       {running ? 'Running…' : runLabel}
     </Button>

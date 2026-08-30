@@ -280,7 +280,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--focus" />
             <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--high" />
           </div>
-          <SegmentedControl data-ui-theme="dark"
+          <SegmentedControl
             options={LENS_BLUR_VIEWPORT_MODE_OPTIONS.map((option) => ({
               ...option,
               disabled: !lensBlur.enabled
@@ -292,7 +292,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             className="lighttable-lens-blur__viewport-modes"
           />
           <div className="lighttable-lens-blur__actions">
-            <Button data-ui-theme="dark"
+            <Button
               fullWidth
               aria-pressed={model.focusPickerActive}
               onClick={commands.lensBlur.toggleFocusPicker}

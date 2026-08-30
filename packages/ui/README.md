@@ -37,6 +37,9 @@ does not fix the document root size; user font scaling and browser zoom remain a
 - Apps choose variant, weight and tone. Do not override typography with local
   font-size/weight/family declarations. App CSS may arrange components, not skin them.
 - `data-ui-theme="dark"` or `"light"` defines a scoped theme. Nested scopes work.
+  On the document root it supplies tokens only, leaving the host's root font
+  size and unmigrated UI untouched. LightTable uses this root scope for its
+  View > Theme preference, including controls mounted through portals.
   Theme changes affect semantic colors, not type metrics. Light is an initial
   reviewable palette, not a migrated LightTable theme.
 - Fonts and styles are explicit imports, without React context or global reset.

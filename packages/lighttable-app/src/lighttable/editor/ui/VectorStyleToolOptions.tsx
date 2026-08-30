@@ -109,7 +109,7 @@ const VectorPaintOption: React.FC<{
         <ButtonBase type="button" aria-label={`Close ${label.toLowerCase()} paint`}
           onClick={() => setOpen(false)}>×</ButtonBase>
       </div>
-      <SegmentedControl data-ui-theme="dark" className="lighttable-tool-options__paint-types"
+      <SegmentedControl className="lighttable-tool-options__paint-types"
         label={`${label} paint type`} value={type} onChange={setType}
         options={[
           { value: 'none', label: 'None' },

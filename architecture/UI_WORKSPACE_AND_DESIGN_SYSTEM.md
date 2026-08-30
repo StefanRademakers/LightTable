@@ -128,8 +128,10 @@ use one 28-pixel height; the old regular/control/compact variants and local
 ActionButton/SegmentedControl implementations and skins are removed. Icon-only
 buttons, menu/list rows, tabs and disclosures are not text action buttons and
 remain distinct controls.
-Only each migrated control carries the new theme scope; old panel styling is
-unchanged. Component geometry is not overridden by app CSS. The suite
+View > Theme > Light / Dark sets a persisted document-root package theme scope;
+old panel styling is unchanged. Individual migrated controls inherit this scope,
+including in portals, and must not force a local dark theme. Component geometry
+is not overridden by app CSS. The suite
 demo remains the new controls' catalog. Generic UI icons belong to the library
 as needed; domain/tool icons stay app-owned. Controls own icon geometry, not
 the app. New controls default out of the Tab sequence; dialogs may opt in.

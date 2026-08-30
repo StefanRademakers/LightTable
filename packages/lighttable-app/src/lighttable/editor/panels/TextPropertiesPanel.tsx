@@ -71,7 +71,7 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                     {entry.severity === 'blocker' ? 'Blocked: ' : 'Note: '}{entry.message}
                   </p>
                 ))}
-                <Button data-ui-theme="dark"
+                <Button
                   onClick={recovery.onRecover}
                   disabled={analysis.status === 'blocked' || !analysis.preview}
                 >

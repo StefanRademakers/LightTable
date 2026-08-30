@@ -6,6 +6,7 @@ import {
 } from '../../../ui/ContextMenu';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import { lightTableIcon } from '../../../assets/icons';
+import { getAppTheme, setAppTheme } from '../../../ui/appTheme';
 
 interface OpenEditorMenu {
   readonly id: EditorMenuId;
@@ -53,6 +54,13 @@ export const EditorMenuBar = ({
   const [openMenu, setOpenMenu] = useState<OpenEditorMenu | null>(null);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const options = openMenu ? optionsFor(openMenu.id) : [];
+  const menuOptions = openMenu?.id === 'view' ? [...options, {
+    value: 'theme', label: 'Theme', separatorBefore: options.length > 0,
+    children: (['light', 'dark'] as const).map((theme) => ({
+      value: `theme-${theme}`, label: theme === 'light' ? 'Light' : 'Dark',
+      selected: getAppTheme() === theme, onClick: () => setAppTheme(theme)
+    }))
+  }] : options;
   const openFromButton = (id: EditorMenuId, button: HTMLButtonElement) => {
     const rect = button.getBoundingClientRect();
     setOpenMenu({ id, x: rect.left, y: rect.bottom });
@@ -86,7 +94,7 @@ export const EditorMenuBar = ({
             ref={(node) => { buttonRefs.current[index] = node; }}
             type="button"
             role="menuitem"
-            disabled={!enabledFor(id)}
+            disabled={id !== 'view' && !enabledFor(id)}
             className={`shots-app-menu__button${openMenu?.id === id ? ' shots-app-menu__button--active' : ''}`}
             aria-haspopup="menu"
             aria-expanded={openMenu?.id === id}
@@ -137,7 +145,7 @@ export const EditorMenuBar = ({
         x={openMenu?.x ?? 0}
         y={openMenu?.y ?? 0}
         onClose={() => setOpenMenu(null)}
-        options={options}
+        options={menuOptions}
         className="lighttable-editor-menu"
         backdropTop={openMenu?.y}
       />

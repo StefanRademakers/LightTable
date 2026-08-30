@@ -70,9 +70,9 @@ export const MissingFontRecoveryDialog: React.FC<MissingFontRecoveryDialogProps>
             + ` → ${selectedFont?.weight}/${selectedFont?.stretch}%/${selectedFont?.italic ? 'italic' : 'normal'}.`
           : 'The original family, face and style request will be retained for future recovery.'}</p>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" onClick={onManage}>Manage</Button>
-          <Button tabIndex={0} data-ui-theme="dark" disabled={!assetId} onClick={() => onReplace(assetId)}>Replace</Button>
+          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} onClick={onManage}>Manage</Button>
+          <Button tabIndex={0} disabled={!assetId} onClick={() => onReplace(assetId)}>Replace</Button>
         </div>
       </section>
     </div>,

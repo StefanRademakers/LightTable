@@ -45,7 +45,7 @@ export function NewProjectDialog({
             <div className="lighttable-preferences__location-row">
               <FormInput readOnly aria-label="Project folder" value={location?.path ?? ''}
                 placeholder="Choose a project folder" title={location?.path} />
-              <Button tabIndex={0} data-ui-theme="dark" type="button" autoFocus={!location} onClick={onChooseLocation}>Choose...</Button>
+              <Button tabIndex={0} type="button" autoFocus={!location} onClick={onChooseLocation}>Choose...</Button>
             </div>
           </label>
           <p className="lighttable-preferences__note lighttable-new-document-dialog__wide-field">
@@ -54,8 +54,8 @@ export function NewProjectDialog({
           {error ? <p className="lighttable-file-drop__error lighttable-new-document-dialog__wide-field" role="alert">{error}</p> : null}
         </div>
         <div className="modal__footer">
-          <Button tabIndex={0} data-ui-theme="dark" type="button" onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} data-ui-theme="dark" type="submit" disabled={!valid}>{creating ? 'Creating...' : 'Create'}</Button>
+          <Button tabIndex={0} type="button" onClick={onCancel}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={!valid}>{creating ? 'Creating...' : 'Create'}</Button>
         </div>
       </form>
     </div>,

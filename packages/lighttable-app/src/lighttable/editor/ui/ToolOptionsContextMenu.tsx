@@ -141,7 +141,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
         <ToolOptionsContent {...toolOptions} orientation="vertical" />
         {toolOptions.activeTool === 'transform' && onAlignTransformAxesToDocument ? (
           <div className="lighttable-tool-options__content lighttable-tool-options__content--vertical">
-            <Button data-ui-theme="dark" fullWidth
+            <Button fullWidth
               title="Align the transform handles to the document without changing the layer"
               onClick={() => {
               onAlignTransformAxesToDocument();
