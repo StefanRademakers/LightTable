@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { ContextMenuOption } from '../../../ui/ContextMenu';
+import type { MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
@@ -192,7 +192,7 @@ export const createEditorMenuOptions = (
   labels: EditorMenuLabels,
   commands: EditorMenuCommands,
   aiProviders: EditorAiProviderState = { openArt: 'disconnected' }
-): Array<ContextMenuOption<string>> => {
+): Array<MenuOption<string>> => {
   const layer = state.layer;
   const snap = commands.snap && typeof commands.snap === 'object' && 'targets' in commands.snap
     ? commands.snap
@@ -537,7 +537,7 @@ export const createEditorMenuOptions = (
       ['sharpen', 'Sharpen'], ['stylize', 'Stylize'], ['filter-gallery', 'Filter Gallery'],
       ['other', 'Other']
     ] as const;
-    const option = (definition: (typeof FILTER_DEFINITIONS)[number]): ContextMenuOption<string> => ({
+    const option = (definition: (typeof FILTER_DEFINITIONS)[number]): MenuOption<string> => ({
         value: `filter-${definition.kind}`,
         label: definition.menuLabel,
         onClick: () => commands.createAdjustmentLayer(definition.kind),

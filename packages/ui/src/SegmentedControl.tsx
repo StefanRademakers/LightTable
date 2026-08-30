@@ -15,6 +15,7 @@ export interface SegmentedControlProps<T extends string = string> {
   value: T | '';
   onChange: (value: T) => void;
   className?: string;
+  variant?: 'default' | 'quiet';
   /** Optional local theme scope when migrating controls into an existing app. */
   'data-ui-theme'?: 'dark' | 'light';
   disabled?: boolean;
@@ -23,10 +24,10 @@ export interface SegmentedControlProps<T extends string = string> {
 }
 
 export function SegmentedControl<T extends string>({
-  label, options, value, onChange, className, 'data-ui-theme': theme, disabled = false, tabIndex = -1
+  label, options, value, onChange, className, variant = 'default', 'data-ui-theme': theme, disabled = false, tabIndex = -1
 }: SegmentedControlProps<T>) {
   return <div className={['ui-segmented', className].filter(Boolean).join(' ')} role="radiogroup" aria-label={label}
-    data-ui-theme={theme} data-ui-component="segmented-control" data-suite-control="segmented-control">
+    data-ui-theme={theme} data-variant={variant} data-ui-component="segmented-control" data-suite-control="segmented-control">
     {options.map(option => <button key={option.value} type="button"
       className="ui-segmented__item" tabIndex={tabIndex}
       disabled={disabled || option.disabled} role="radio" aria-checked={value === option.value}

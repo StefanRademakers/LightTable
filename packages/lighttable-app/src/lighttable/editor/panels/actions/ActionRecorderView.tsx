@@ -7,7 +7,7 @@ import {
 import { lightTableIcon } from '../../../../assets/icons';
 import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { ContextMenu, type ContextMenuOption } from '../../../../ui/ContextMenu';
+import { Menu, type MenuOption } from '@lighttable/ui';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
@@ -202,7 +202,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
     else setEditError(`The ${dialog.kind.includes('set') ? 'Action Set' : 'Action'} could not be saved.`);
     setDialogBusy(false);
   };
-  const contextMenuOptions: ContextMenuOption<string>[] = menu ? [
+  const contextMenuOptions: MenuOption<string>[] = menu ? [
     ...(menu.selection.kind !== 'step' ? [{ value: 'rename', label: 'Rename',
       onClick: () => beginRename(menu.selection) }] : []),
     ...(menu.selection.kind === 'action' ? [{ value: 'duplicate-action', label: 'Duplicate',
@@ -438,7 +438,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
         }}><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
     </PanelStackFooter>
 
-    <ContextMenu open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
+    <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       onClose={() => setMenu(null)} options={contextMenuOptions} width={180} />
 
     <TextInputDialog open={dialog !== null} title={dialog?.title ?? ''}

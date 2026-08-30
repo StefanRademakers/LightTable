@@ -1,6 +1,6 @@
 import React from 'react';
 import { ButtonBase } from '../ui/ButtonBase';
-import { ContextMenu, type ContextMenuOption } from '../ui/ContextMenu';
+import { Menu, type MenuOption } from '@lighttable/ui';
 
 export interface LauncherGalleryItem {
   readonly id: string;
@@ -95,7 +95,7 @@ export const LauncherJustifiedGallery = ({ items, opening }: {
       .filter(([id]) => retained.has(id))));
   }, [itemIdsKey]);
 
-  const menuOptions: Array<ContextMenuOption<string>> = menu ? [
+  const menuOptions: Array<MenuOption<string>> = menu ? [
     { value: 'open', label: 'Open', disabled: menu.item.available === false, onClick: menu.item.onOpen },
     { value: 'reveal', label: 'Open File Location', disabled: menu.item.available === false || !menu.item.onReveal,
       onClick: menu.item.onReveal },
@@ -117,7 +117,7 @@ export const LauncherJustifiedGallery = ({ items, opening }: {
           }} />
       </div>;
     })}
-    <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0}
+    <Menu data-editor-native-tab-navigation open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0}
       onClose={() => setMenu(undefined)} options={menuOptions} />
   </div>;
 };

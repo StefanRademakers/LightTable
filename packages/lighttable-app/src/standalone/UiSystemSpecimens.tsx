@@ -1,3 +1,4 @@
+import { Button, Menu, type MenuOption } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../ui/AdjustmentSlider';
@@ -74,60 +75,25 @@ export const UiGradientEditorSpecimen = () => {
   return <GradientAssetEditor value={gradient} onChange={setGradient} />;
 };
 
-export const UiMenuListSpecimen = () => (
-  <div className="context-menu context-menu--specimen" role="menu" aria-label="Menu style specimen">
-    <div className="context-menu__item-wrap">
-      <button className="context-menu__item context-menu__item--selected" type="button" role="menuitem">
-        <span className="context-menu__item-icon"><img src={lightTableIcon('tool_pen_bezier_tool.png')} alt="" /></span>
-        <span className="context-menu__item-label"><span>Selected command</span></span>
-        <span className="context-menu__item-shortcut">P</span>
-      </button>
-    </div>
-    <div className="context-menu__item-wrap">
-      <button className="context-menu__item" type="button" role="menuitem">
-        <span className="context-menu__item-icon"><img src={lightTableIcon('layer_adjustment.png')} alt="" /></span>
-        <span className="context-menu__item-label"><span>Regular command</span></span>
-      </button>
-    </div>
-    <div className="context-menu__item-wrap">
-      <div className="context-menu__separator" aria-hidden="true" />
-      <button className="context-menu__item context-menu__item--disabled" type="button"
-        role="menuitem" aria-disabled="true">
-        <span className="context-menu__item-label"><span>Disabled command</span></span>
-      </button>
-    </div>
-  </div>
-);
+const MenuSpecimen = ({ label, options }: { label: string; options: MenuOption[] }) => {
+  const [open, setOpen] = React.useState(false);
+  const anchor = React.useRef<HTMLButtonElement>(null);
+  return <><Button ref={anchor} onClick={() => setOpen(!open)}>{label}</Button>
+    <Menu data-editor-native-tab-navigation open={open} anchor={anchor} label={label} options={options} onClose={() => setOpen(false)} /></>;
+};
 
-export const UiSplitActionListSpecimen = () => (
-  <div className="lighttable-layers__create-flyout lighttable-ui-guide__split-menu"
-    role="menu" aria-label="Split action list specimen">
-    <div className="lighttable-layers__create-option" role="none">
-      <button className="lighttable-layers__create-layer" type="button" role="menuitem">
-        <img src={lightTableIcon('add_adjustment_layer.png')} alt="" /><span>Grade</span>
-      </button>
-      <button className="lighttable-layers__create-attached" type="button" role="menuitem"
-        aria-label="Attach Grade to selected layer">
-        <img src={lightTableIcon('link_vertical.png')} alt="" />
-      </button>
-    </div>
-    <div className="lighttable-layers__create-option lighttable-layers__create-option--section-start"
-      role="none">
-      <button className="lighttable-layers__create-layer" type="button" role="menuitem">
-        <img src={lightTableIcon('layer_adjustment.png')} alt="" /><span>Brightness / Contrast</span>
-      </button>
-      <button className="lighttable-layers__create-attached" type="button" role="menuitem"
-        aria-label="Attach Brightness / Contrast to selected layer">
-        <img src={lightTableIcon('link_vertical.png')} alt="" />
-      </button>
-    </div>
-    <div className="lighttable-layers__create-option" role="none">
-      <button className="lighttable-layers__create-layer" type="button" role="menuitem">
-        <img src={lightTableIcon('tool_gradient.png')} alt="" /><span>Gradient Fill</span>
-      </button>
-    </div>
-  </div>
-);
+export const UiMenuListSpecimen = () => <MenuSpecimen label="Menu style specimen" options={[
+  { value: 'selected', label: 'Selected command', selected: true, shortcut: 'P', icon: <img src={lightTableIcon('tool_pen_bezier_tool.png')} alt="" /> },
+  { value: 'regular', label: 'Regular command', icon: <img src={lightTableIcon('layer_adjustment.png')} alt="" /> },
+  { value: 'disabled', label: 'Disabled command', disabled: true, separatorBefore: true }
+]} />;
+
+export const UiSplitActionListSpecimen = () => <MenuSpecimen label="Split action list specimen" options={[
+  { value: 'grade', label: 'Grade', icon: <img src={lightTableIcon('add_adjustment_layer.png')} alt="" />,
+    trailingAction: { value: 'attach-grade', label: 'Attach Grade to selected layer', icon: <img src={lightTableIcon('link_vertical.png')} alt="" />, onClick: noop } },
+  { value: 'contrast', label: 'Brightness / Contrast', separatorBefore: true, icon: <img src={lightTableIcon('layer_adjustment.png')} alt="" />,
+    trailingAction: { value: 'attach-contrast', label: 'Attach Brightness / Contrast to selected layer', icon: <img src={lightTableIcon('link_vertical.png')} alt="" />, onClick: noop } }
+]} />;
 
 export const UiChoiceListSpecimen = () => (
   <div className="lighttable-ui-guide__listbox" role="listbox" aria-label="Grouped choice list">

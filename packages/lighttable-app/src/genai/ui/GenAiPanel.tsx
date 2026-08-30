@@ -13,7 +13,7 @@ import type {
 } from '@lighttable/genai-core';
 import { genAiFieldPlacement } from '@lighttable/genai-core';
 
-import { ContextMenu } from '../../ui/ContextMenu';
+import { Menu } from '@lighttable/ui';
 import { FormInput } from '../../ui/FormInput';
 import { FormSelect } from '../../ui/FormSelect';
 
@@ -145,8 +145,7 @@ const GenAiFeaturedSelect = ({ field, value, icon, update }: {
     }}>
       <span className="genai-panel__setting-icon">{icon}</span><strong>{selectedLabel}</strong>
     </ButtonBase>
-    <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} placement="above"
-      className="context-menu--select" width={menu?.width}
+    <Menu data-editor-native-tab-navigation open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} placement="above" width={menu?.width}
       onClose={() => setMenu(undefined)}
       options={(field.options ?? []).map((option) => ({
         value: option.value,

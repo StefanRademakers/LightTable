@@ -34,7 +34,7 @@ describe('EditorToolbar', () => {
         onResetColors={vi.fn()}
       />
     );
-    expect(markup).toContain('class="lighttable-toolbox"');
+    expect(markup).toContain('class="ui-toolbar"');
     expect(markup).toContain('aria-label="Video tools"');
     expect(markup).toContain('data-document-kind="video"');
     expect(markup).toContain('aria-label="Move canvas (H)"');
@@ -52,20 +52,20 @@ describe('EditorToolbar', () => {
         onClick={vi.fn()}
       />
     );
-    expect(markup).toContain('lighttable-toolbox__button--detailed');
+    expect(markup).toContain('data-detailed="true"');
     expect(markup).toContain('Magic Wand');
-    expect(markup).toContain('lighttable-toolbox__button-shortcut');
+    expect(markup).toContain('ui-toolbar__shortcut');
     expect(markup).toContain('>W<');
   });
 
   it('splits selection tools into Photoshop-compatible M, L and W slots', () => {
     const markup = renderToolbar('brush');
     expect(markup).toContain('aria-label="Rectangular selection (M)"');
-    expect(markup).toContain('aria-label="Show marquee tools"');
+    expect(markup).toContain('data-tool-group="Marquee tools"');
     expect(markup).toContain('aria-label="Free selection (L)"');
-    expect(markup).toContain('aria-label="Show lasso tools"');
+    expect(markup).toContain('data-tool-group="Lasso tools"');
     expect(markup).toContain('aria-label="Magic Wand (W)"');
-    expect(markup).toContain('aria-label="Show smart selection tools"');
+    expect(markup).toContain('data-tool-group="Smart selection tools"');
     expect(markup).not.toContain('aria-label="Elliptical selection (M)"');
   });
 
@@ -78,7 +78,7 @@ describe('EditorToolbar', () => {
   it('collapses shapes and projects the active shape into their master slot', () => {
     const defaultMarkup = renderToolbar('brush');
     expect(defaultMarkup).toContain('aria-label="Rectangle (U)"');
-    expect(defaultMarkup).toContain('aria-label="Show shape tools"');
+    expect(defaultMarkup).toContain('data-tool-group="Shape tools"');
     expect(defaultMarkup).not.toContain('aria-label="Ellipse (U)"');
 
     const activeMarkup = renderToolbar('shape-triangle');
@@ -89,7 +89,7 @@ describe('EditorToolbar', () => {
   it('collapses pen modes and projects the active mode into their master slot', () => {
     const defaultMarkup = renderToolbar('brush');
     expect(defaultMarkup).toContain('aria-label="Pen (P)"');
-    expect(defaultMarkup).toContain('aria-label="Show pen tools"');
+    expect(defaultMarkup).toContain('data-tool-group="Pen tools"');
     expect(defaultMarkup).not.toContain('aria-label="Add anchor point"');
 
     const activeMarkup = renderToolbar('vector-add-anchor');
@@ -100,7 +100,7 @@ describe('EditorToolbar', () => {
   it('collapses Path and Direct Selection into one A slot', () => {
     const defaultMarkup = renderToolbar('brush');
     expect(defaultMarkup).toContain('aria-label="Path selection (A)"');
-    expect(defaultMarkup).toContain('aria-label="Show path selection tools"');
+    expect(defaultMarkup).toContain('data-tool-group="Path selection tools"');
     expect(defaultMarkup).not.toContain('aria-label="Direct selection (A)"');
 
     const activeMarkup = renderToolbar('vector-direct-select');
@@ -122,7 +122,7 @@ describe('EditorToolbar', () => {
   it('exposes one Type Tool for click-created point and drag-created paragraph text', () => {
     const markup = renderToolbar('text-point');
     expect(markup).toContain('aria-label="Type tool (T)"');
-    expect(markup).toContain('aria-label="Show text tools"');
+    expect(markup).toContain('data-tool-group="Text tools"');
     expect(markup).not.toContain('aria-label="Paragraph text"');
     expect(markup).toContain('aria-pressed="true"');
   });
@@ -135,6 +135,6 @@ describe('EditorToolbar', () => {
     expect(zoom).toBeGreaterThan(-1);
     expect(expand).toBeGreaterThan(zoom);
     expect(colors).toBeGreaterThan(expand);
-    expect(markup).toContain('more_horizontal.png');
+    expect(markup).toContain('data-ui-component="toolbar"');
   });
 });

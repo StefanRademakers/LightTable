@@ -4,6 +4,7 @@ import '@lighttable/ui/fonts.css';
 import '@lighttable/ui/styles.css';
 import { Button, SegmentedControl, Text, type TextVariant } from '@lighttable/ui';
 import './demo.css';
+import { MenusDemo } from './MenusDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -11,7 +12,7 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'small', label: 'Small', usage: 'Metadata and compact notes' }
 ];
 
-const currentPage = () => location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
+const currentPage = () => location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
 
 const controlColors = [
   ['button-surface', 'Control background'], ['button-text', 'Control text'],
@@ -19,11 +20,12 @@ const controlColors = [
   ['button-active', 'Pressed'], ['button-disabled-text', 'Disabled text'],
   ['button-disabled-border', 'Disabled border'], ['danger-text', 'Destructive text'],
   ['danger-border', 'Destructive border'], ['selection-surface', 'Selected segment'],
-  ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border']
+  ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border'], ['success', 'Connected status']
 ] as const;
 
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  useEffect(() => { document.documentElement.dataset.uiTheme = theme; }, [theme]);
   const [page, setPage] = useState(currentPage);
   useEffect(() => {
     const updatePage = () => setPage(currentPage());
@@ -47,10 +49,11 @@ function App() {
       <a href="#typography" aria-current={page === 'typography' ? 'page' : undefined}><Text>Typography</Text></a>
       <a href="#colors" aria-current={page === 'colors' ? 'page' : undefined}><Text>Colors</Text></a>
       <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text weight="bold">Buttons &amp; Actions</Text></a>
+      <a href="#menus" aria-current={page === 'menus' ? 'page' : undefined}><Text weight="bold">Menus &amp; navigation</Text></a>
       <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
     </nav>
     <main className="demo-content">
-      {page === 'typography' ? <>
+      {page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>
@@ -138,6 +141,10 @@ function App() {
         <SegmentedControl label="Alignment" value={alignment} onChange={setAlignment}
           options={[{value:'left',label:'Left'}, {value:'center',label:'Center'}, {value:'right',label:'Right'}]} />
         <Text as="p" variant="small" tone="muted">Selected: {alignment}</Text>
+        <Text as="h3" weight="bold">Quiet variant</Text>
+        <SegmentedControl label="Quiet alignment" variant="quiet" value={alignment} onChange={setAlignment}
+          options={[{value:'left',label:'Left'}, {value:'center',label:'Center'}, {value:'right',label:'Right'}]} />
+        <Text as="p" variant="small" tone="muted">For unobtrusive navigation: no outer border or blue selection fill. Same sizing and behavior.</Text>
         <pre className="demo-code"><Text as="code">{'<SegmentedControl label="Alignment" options={options} value={alignment} onChange={setAlignment} />'}</Text></pre>
       </section></>}
     </main>

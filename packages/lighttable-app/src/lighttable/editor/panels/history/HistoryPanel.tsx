@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { ContextMenu } from '../../../../ui/ContextMenu';
+import { Menu } from '@lighttable/ui';
 import type { DocumentCommandHistorySnapshot } from '../../../application/commands/documentCommandHistory';
 import {
   PanelStackButtonRow,
@@ -55,7 +55,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         onClick={(event) => setMenu({ x: event.clientX, y: event.clientY })}><img
           src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
     </PanelStackFooter>
-    <ContextMenu open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
+    <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       width={170} onClose={() => setMenu(null)} options={[{
         value: 'clear', label: 'Clear History', disabled: history.busy || history.states.length <= 1,
         onClick: onClear

@@ -2,7 +2,7 @@ import { SegmentedControl } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from './AdjustmentSlider';
-import { ContextMenu } from './ContextMenu';
+import { Menu } from '@lighttable/ui';
 import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
@@ -324,7 +324,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             title={color} onClick={() => chooseStoredColor(color)} />)}
         </div>
       </div> : null}
-      <ContextMenu<'remove'> open={Boolean(paletteMenu)} x={paletteMenu?.x ?? 0} y={paletteMenu?.y ?? 0}
+      <Menu<'remove'> data-editor-native-tab-navigation open={Boolean(paletteMenu)} x={paletteMenu?.x ?? 0} y={paletteMenu?.y ?? 0}
         onClose={() => setPaletteMenu(undefined)} options={paletteMenu ? [{
           value: 'remove', label: 'Remove', onClick: () => removePaletteColor(paletteMenu.color)
         }] : []} />

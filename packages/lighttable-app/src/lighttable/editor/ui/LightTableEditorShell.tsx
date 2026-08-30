@@ -1,6 +1,6 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
 import { SquareIconButton } from '../../../ui/SquareIconButton';
-import type { ContextMenuOption } from '../../../ui/ContextMenu';
+import type { MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import type { EditorSession, ToolId } from '../session/editorSession';
@@ -25,7 +25,7 @@ export interface LightTableEditorShellProps {
   projectName?: string;
   onRevealProject?: () => void;
   onClose: () => void;
-  menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
+  menuOptionsFor: (menuId: EditorMenuId) => Array<MenuOption<string>>;
   activeTool: ToolId;
   brush: EditorSession['brush'];
   sampledBrush: EditorSession['sampledBrush'];

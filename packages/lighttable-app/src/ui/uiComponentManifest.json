@@ -20,8 +20,9 @@
   { "id": "none-paint", "name": "None Paint Field", "family": "Paint & color", "symbols": ["NonePaintField"], "roots": ["none-paint-field"], "packageStatus": "ready" },
   { "id": "gradient-field", "name": "Gradient Field", "family": "Gradients", "symbols": ["GradientField"], "roots": ["gradient-field"], "packageStatus": "ready" },
   { "id": "panel-section", "name": "Panel Section", "family": "Containers", "symbols": ["PanelSection"], "roots": ["lighttable-group"], "packageStatus": "coupled" },
-  { "id": "context-menu", "name": "Context Menu", "family": "Lists & navigation", "symbols": ["ContextMenu"], "roots": ["context-menu"], "packageStatus": "ready" },
-  { "id": "anchored-menu", "name": "Anchored Viewport Menu", "family": "Containers", "symbols": ["AnchoredViewportMenu"], "roots": [], "packageStatus": "ready" },
+  { "id": "context-menu", "name": "Menu", "family": "Lists & navigation", "symbols": ["Menu"], "roots": ["ui-menu"], "packageStatus": "ready" },
+  { "id": "menu-bar", "name": "Menu Bar", "family": "Lists & navigation", "symbols": ["MenuBar"], "roots": ["ui-menu-bar"], "packageStatus": "ready" },
+  { "id": "toolbar", "name": "Toolbar", "family": "Lists & navigation", "symbols": ["Toolbar"], "roots": ["ui-toolbar"], "packageStatus": "ready" },
   { "id": "confirm-dialog", "name": "Confirm Dialog", "family": "Dialogs", "symbols": ["ConfirmDialog"], "roots": ["modal"], "packageStatus": "ready" },
   { "id": "text-input-dialog", "name": "Text Input Dialog", "family": "Dialogs", "symbols": ["TextInputDialog"], "roots": ["modal"], "packageStatus": "ready" }
 ]

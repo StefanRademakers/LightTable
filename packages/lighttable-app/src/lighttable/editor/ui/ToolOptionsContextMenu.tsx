@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, ToolStrip } from '@lighttable/ui';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -122,11 +122,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
       onContextMenu={(event) => event.preventDefault()}
     >
       {relatedTools.length > 0 ? (
-        <div
-          className="lighttable-tool-options-menu__family lighttable-toolbox__flyout"
-          role="toolbar"
-          aria-label={family?.label}
-        >
+        <ToolStrip label={family?.label ?? 'Related tools'}>
           {relatedTools.map((tool) => (
             <ToolButton
               key={tool.id}
@@ -135,7 +131,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
               onClick={() => onToolChange(tool.id)}
             />
           ))}
-        </div>
+        </ToolStrip>
       ) : null}
       <div className="lighttable-tool-options-menu">
         <ToolOptionsContent {...toolOptions} orientation="vertical" />

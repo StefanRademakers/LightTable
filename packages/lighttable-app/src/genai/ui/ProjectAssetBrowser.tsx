@@ -2,7 +2,7 @@ import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import type { GenAiAssetId, GenAiAssetReference, GenAiGenerationJob, GenAiProjectAssetSection } from '@lighttable/genai-core';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
-import { ContextMenu, type ContextMenuOption } from '../../ui/ContextMenu';
+import { Menu, type MenuOption } from '@lighttable/ui';
 import { TextInputDialog } from '../../ui/TextInputDialog';
 import { PanelSection } from '../../ui/PanelSection';
 import { buildJustifiedLayout } from './justifiedLayout';
@@ -247,7 +247,7 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
   const context = (event: React.MouseEvent, asset: GenAiAssetReference) => {
     event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, asset, job: jobByAssetId.get(asset.id) });
   };
-  const menuOptions: Array<ContextMenuOption<string>> = menu ? [
+  const menuOptions: Array<MenuOption<string>> = menu ? [
     { value: 'open', label: 'Open', disabled: !menu.asset || (!onOpenAsset && !onOpenResult), onClick: () => {
       if (menu.job && onOpenResult) onOpenResult(menu.job); else if (menu.asset) onOpenAsset?.(menu.asset);
     } },
@@ -309,7 +309,7 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
         {searching ? `No assets match “${searchQuery.trim()}”.` : 'Project images will appear here.'}
       </div> : null}
     </div>
-    <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} onClose={() => setMenu(undefined)} options={menuOptions} />
+    <Menu data-editor-native-tab-navigation open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} onClose={() => setMenu(undefined)} options={menuOptions} />
     <TextInputDialog open={Boolean(renameAsset)} compact title="Rename file" initialValue={renameAsset ? withoutExtension(renameAsset.label) : ''}
       selectAllOnOpen onCancel={() => setRenameAsset(undefined)} onConfirm={async (name) => {
         if (!renameAsset || !onRenameAsset) return;

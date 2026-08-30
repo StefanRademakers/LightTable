@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
-import type { ContextMenuOption } from '../../../ui/ContextMenu';
+import type { MenuOption } from '@lighttable/ui';
 import {
   createEditorMenuOptions,
   type EditorMenuCommands,
@@ -60,9 +60,9 @@ const labels = {
 };
 
 const findMenuOption = (
-  options: readonly ContextMenuOption<string>[],
+  options: readonly MenuOption<string>[],
   value: string
-): ContextMenuOption<string> | undefined => {
+): MenuOption<string> | undefined => {
   for (const option of options) {
     if (option.value === value) return option;
     const nested = findMenuOption(option.children ?? [], value);

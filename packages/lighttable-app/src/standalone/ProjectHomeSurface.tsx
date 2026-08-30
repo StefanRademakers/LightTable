@@ -9,7 +9,7 @@ import type {
 
 import { EditorMenuBar } from '../lighttable/editor/ui/EditorMenuBar';
 import type { EditorMenuId } from '../lighttable/editor/menus/createEditorMenuOptions';
-import type { ContextMenuOption } from '../ui/ContextMenu';
+import type { MenuOption } from '@lighttable/ui';
 import { ProjectAssetBrowser } from '../genai/ui/ProjectAssetBrowser';
 import type {
   LightTableGenAiService,
@@ -97,7 +97,7 @@ export const ProjectHomeSurface = ({
     }).catch(() => undefined);
   }, [previews, project.id, service]);
 
-  const optionsFor = React.useCallback((id: EditorMenuId): Array<ContextMenuOption<string>> => {
+  const optionsFor = React.useCallback((id: EditorMenuId): Array<MenuOption<string>> => {
     if (id !== 'file') return [];
     return [
       { value: 'open', label: 'Open...', onClick: onOpenFile },

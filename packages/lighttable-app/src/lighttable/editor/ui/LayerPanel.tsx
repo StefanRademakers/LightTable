@@ -1,8 +1,7 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { PanelStackDisclosure, PanelStackFooter, PanelStackRow } from './PanelStackPrimitives';
-import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
-import { AnchoredViewportMenu } from '../../../ui/AnchoredViewportMenu';
+import { Menu, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../ui/FormSelect';
@@ -599,7 +598,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     ? findLayerNode(document.layers, selectedStyleTarget.layerId)?.node.styleStack.effects
       .find((effect) => effect.id === selectedStyleTarget.effectId)?.name
     : null;
-  const subtargetMenuOptions: Array<ContextMenuOption<string>> = subtargetMenu.target
+  const subtargetMenuOptions: Array<MenuOption<string>> = subtargetMenu.target
     ? [{
         value: 'remove-subtarget',
         label: subtargetMenu.target.kind === 'processing'
@@ -621,7 +620,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     ? planSoloLayerVisibility(document, visibilityMenuLayer.id)
         .some((change) => !change.visible && change.layerIds.length > 0)
     : false;
-  const visibilityMenuOptions: Array<ContextMenuOption<string>> = visibilityMenuLayer
+  const visibilityMenuOptions: Array<MenuOption<string>> = visibilityMenuLayer
     ? [
         {
           value: 'toggle-layer-visibility',
@@ -648,7 +647,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     : [];
   const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); onInspectLayer(layerId, 'pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
 
-  const moreMenuOptions: Array<ContextMenuOption<string>> = [
+  const moreMenuOptions: Array<MenuOption<string>> = [
     ...(moreMenu.source === 'footer' ? [
       { value: 'new-layer', label: 'New layer', onClick: onCreate },
       { value: 'new-group', label: 'New group', onClick: onCreateGroup }
@@ -1614,25 +1613,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           aria-expanded={styleMenuOpen}
         >fx</ButtonBase>
         {styleMenuOpen ? (
-          <AnchoredViewportMenu
+          <Menu data-editor-native-tab-navigation open modal={false}
             anchor={styleMenuTriggerRef}
-            className="lighttable-layers__create-flyout"
-            ariaLabel="Add layer effect"
+            width={220} align="end" gap={6} topInset={40}
+            label="Add layer effect"
             onClose={closeStyleMenu}
-          >
-            {LAYER_STYLE_OPTIONS.map(([kind, label]) => (
-              <ButtonBase
-                key={kind}
-                className="lighttable-layers__create-layer"
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setStyleMenuOpen(false);
-                  onAddStyle(kind);
-                }}
-              ><span>{label}</span></ButtonBase>
-            ))}
-          </AnchoredViewportMenu>
+            options={LAYER_STYLE_OPTIONS.map(([kind, label]) => ({
+              value: kind, label, onClick: () => onAddStyle(kind)
+            }))} />
         ) : null}
         <ButtonBase
           type="button"
@@ -1712,42 +1700,23 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             aria-expanded={createLayerMenuOpen}
           ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
           {createLayerMenuOpen ? (
-            <AnchoredViewportMenu
+            <Menu data-editor-native-tab-navigation open modal={false}
               anchor={createLayerMenuTriggerRef}
-              className="lighttable-layers__create-flyout"
-              ariaLabel="New fill or processing layer"
+              width={220} align="end" gap={6} topInset={40}
+              label="New fill or processing layer"
               onClose={closeCreateLayerMenu}
-            >
-              {LAYER_CREATION_OPTIONS.map((option) => (
-                <div
-                  className={`lighttable-layers__create-option${
-                    option.sectionStart
-                      ? ' lighttable-layers__create-option--section-start'
-                      : ''
-                  }`}
-                  role="none"
-                  key={option.id}
-                >
-                  <ButtonBase
-                    className="lighttable-layers__create-layer"
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setCreateLayerMenuOpen(false);
-                      layerCreationHandlers(option.id)();
-                    }}
-                    title={option.label}
-                    aria-label={option.label}
-                  >
-                    <img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" />
-                    <span>{option.menuLabel}</span>
-                  </ButtonBase>
-                  <ButtonBase
-                      className="lighttable-layers__create-attached"
-                      type="button"
-                      role="menuitem"
-                      disabled={activeLayer?.type !== 'raster' || activeLayer.locks.all}
-                      onClick={() => {
+              options={LAYER_CREATION_OPTIONS.map(option => ({
+                value: option.id, label: option.menuLabel,
+                ariaLabel: option.label, title: option.label,
+                separatorBefore: option.sectionStart,
+                icon: <img src={lightTableIcon(option.iconName)} alt="" />,
+                onClick: layerCreationHandlers(option.id),
+                trailingAction: {
+                  value: `attach-${option.id}`,
+                  label: `Attach ${option.menuLabel} to selected layer`,
+                  icon: <img src={lightTableIcon('link_vertical.png')} alt="" />,
+                  disabled: activeLayer?.type !== 'raster' || activeLayer.locks.all,
+                  onClick: () => {
                         if (activeLayer?.type !== 'raster') return;
                         setCreateLayerMenuOpen(false);
                         if (option.id === 'grade' || option.id === 'curves' || option.id === 'lens-fx') {
@@ -1762,13 +1731,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         if (adjustmentId) {
                           onInspectAttachedAdjustment(activeLayer.id, adjustmentId);
                         }
-                      }}
-                      title={`Attach ${option.menuLabel} to selected layer`}
-                      aria-label={`Attach ${option.menuLabel} to selected layer`}
-                    ><img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" /></ButtonBase>
-                </div>
-              ))}
-            </AnchoredViewportMenu>
+                  }
+                }
+              }))} />
           ) : null}
         </div>
         <ButtonBase
@@ -1888,21 +1853,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           aria-label="Layers menu"
         ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
       </PanelStackFooter>
-      <ContextMenu
+      <Menu data-editor-native-tab-navigation
         open={moreMenu.open}
         x={moreMenu.x}
         y={moreMenu.y}
         onClose={() => setMoreMenu((current) => ({ ...current, open: false }))}
         options={moreMenuOptions}
       />
-      <ContextMenu
+      <Menu data-editor-native-tab-navigation
         open={subtargetMenu.open}
         x={subtargetMenu.x}
         y={subtargetMenu.y}
         onClose={() => setSubtargetMenu((current) => ({ ...current, open: false }))}
         options={subtargetMenuOptions}
       />
-      <ContextMenu
+      <Menu data-editor-native-tab-navigation
         open={visibilityMenu.open}
         x={visibilityMenu.x}
         y={visibilityMenu.y}

@@ -210,7 +210,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 120,
+      "productionUsageCount": 113,
       "internalUsageCount": 0,
       "contextCount": 38,
       "overrideCount": 0,
@@ -307,7 +307,7 @@
         },
         {
           "path": "lighttable/editor/ui/EditorMenuBar.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -322,7 +322,7 @@
         },
         {
           "path": "lighttable/editor/ui/EditorToolbar.tsx",
-          "count": 5,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -337,7 +337,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 22,
+          "count": 19,
           "kind": "product"
         },
         {
@@ -1149,9 +1149,9 @@
     {
       "id": "context-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 9,
+      "productionUsageCount": 10,
       "internalUsageCount": 0,
-      "contextCount": 7,
+      "contextCount": 6,
       "overrideCount": 0,
       "locations": [
         {
@@ -1175,13 +1175,8 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/EditorMenuBar.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 3,
+          "count": 5,
           "kind": "product"
         },
         {
@@ -1193,16 +1188,32 @@
       "overrides": []
     },
     {
-      "id": "anchored-menu",
+      "id": "menu-bar",
       "metadataDeclared": true,
-      "productionUsageCount": 2,
+      "productionUsageCount": 1,
       "internalUsageCount": 0,
       "contextCount": 1,
       "overrideCount": 0,
       "locations": [
         {
-          "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 2,
+          "path": "lighttable/editor/ui/EditorMenuBar.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "toolbar",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/EditorToolbar.tsx",
+          "count": 1,
           "kind": "product"
         }
       ],

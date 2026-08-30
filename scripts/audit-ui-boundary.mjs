@@ -31,7 +31,7 @@ const uiOwnedRoots = [
 for (const file of await sourceFiles(appSourceRoot)) {
   if (!file.endsWith('.css')) continue;
   const source = await readFile(file, 'utf8');
-  for (const rootClass of ['ui-button', 'ui-segmented']) {
+  for (const rootClass of ['ui-button', 'ui-segmented', 'ui-menu', 'ui-toolbar']) {
     if (source.includes(`.${rootClass}`)) {
       violations.push(`${path.relative(root, file)} reaches into package-owned .${rootClass}`);
     }
