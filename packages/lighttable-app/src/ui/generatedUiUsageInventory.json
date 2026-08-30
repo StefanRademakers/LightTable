@@ -747,7 +747,7 @@
       "productionUsageCount": 14,
       "internalUsageCount": 0,
       "contextCount": 10,
-      "overrideCount": 1,
+      "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
@@ -800,14 +800,7 @@
           "kind": "product"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "segmented-control"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "switch-control",

@@ -5236,13 +5236,8 @@
   border-top: 1px solid var(--lt-border-subtle);
 }
 
-.lighttable-color-mixer > .segmented-control {
-  width: 100%;
+.lighttable-color-mixer__mode {
   margin-bottom: var(--lt-space-2);
-}
-
-.lighttable-color-mixer > .segmented-control .segmented-control__button {
-  flex: 1 1 50%;
 }
 
 .lighttable-point-color__samples {
@@ -5363,17 +5358,7 @@
 }
 
 .lighttable-color-grading__modes {
-  width: 100%;
-  min-height: 27px;
   margin-bottom: 10px;
-}
-
-.lighttable-color-grading__modes .segmented-control__button {
-  flex: 1 1 20%;
-  min-width: 0;
-  min-height: 25px;
-  padding: 4px 3px;
-  font-size: var(--lt-type-small);
 }
 
 .lighttable-color-grading__three-way > .lighttable-color-grading__wheel-block {
@@ -5534,19 +5519,6 @@
   align-items: center;
   gap: 7px;
   margin-bottom: 7px;
-}
-
-.lighttable-curves-editor__channels {
-  flex: 1 1 auto;
-  min-height: 29px;
-}
-
-.lighttable-curves-editor__channels .segmented-control__button {
-  flex: 1 1 25%;
-  min-width: 0;
-  min-height: 27px;
-  padding: 5px 4px;
-  font-size: var(--lt-type-small);
 }
 
 .lighttable-curves-editor__toolbar > button {

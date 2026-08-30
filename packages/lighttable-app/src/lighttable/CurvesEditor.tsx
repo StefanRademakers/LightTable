@@ -1,6 +1,6 @@
 import { ButtonBase } from '../ui/ButtonBase';
 import React, { useMemo, useRef } from 'react';
-import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
+import { SegmentedControl, type SegmentOption } from '@lighttable/ui';
 import { lightTableIcon } from '../assets/icons';
 import {
   evaluateToneCurve,
@@ -14,7 +14,7 @@ import type { RgbHistogram } from './types';
 const WIDTH = 280;
 const HEIGHT = 210;
 const PADDING = 12;
-const CHANNEL_OPTIONS: Array<SegmentedControlOption<CurveChannel>> = [
+const CHANNEL_OPTIONS: Array<SegmentOption<CurveChannel>> = [
   { value: 'master', label: 'RGB' },
   { value: 'red', label: 'R' },
   { value: 'green', label: 'G' },
@@ -148,11 +148,11 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     <div className={`lighttable-curves-editor${disabled ? ' lighttable-curves-editor--disabled' : ''}`}>
       <div className="lighttable-curves-editor__toolbar">
         <SegmentedControl
-          className="lighttable-curves-editor__channels"
           value={channel}
           options={CHANNEL_OPTIONS}
           onChange={onChannelChange}
-          ariaLabel="Custom Curve channel"
+          label="Custom Curve channel"
+          data-ui-theme="dark"
         />
         <ButtonBase type="button" onClick={() => onReset(channel)} disabled={disabled} title={`Reset ${channel} curve`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />

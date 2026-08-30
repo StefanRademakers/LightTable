@@ -1,4 +1,5 @@
 import type { SegmentedControlOption } from '../../../ui/SegmentedControl';
+import type { SegmentOption } from '@lighttable/ui';
 import type { AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import type {
   NumericAdjustmentKey
@@ -229,7 +230,7 @@ export const nearestColorMixerRange = (position: number) => {
 };
 
 export const GRADING_MODE_OPTIONS: Array<
-  SegmentedControlOption<ColorGradingMode>
+  SegmentOption<ColorGradingMode>
 > = [
   { value: 'all', label: '3-Way', title: 'Three-way grading' },
   { value: 'global', label: 'Global' },

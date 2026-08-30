@@ -2,7 +2,9 @@
   box-sizing: border-box;
   display: inline-flex;
   width: max-content;
-  flex: none;
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
   justify-self: start;
   align-self: start;
   height: 28px;
@@ -13,7 +15,8 @@
 
 .ui-segmented__item {
   position: relative;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
   padding: 0 12px;
   border: 0;
@@ -25,6 +28,8 @@
   line-height: var(--ui-line-height-regular);
   font-synthesis: none;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--ui-button-text);
   background: transparent;
   cursor: pointer;

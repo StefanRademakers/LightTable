@@ -1,6 +1,6 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useEffect, useRef, useState } from 'react';
-import { SegmentedControl } from '../../../ui/SegmentedControl';
+import { SegmentedControl } from '@lighttable/ui';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
@@ -632,7 +632,9 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
                 commands.togglePointColorPicker();
               }
             }}
-            ariaLabel="Color Mixer editor"
+            label="Color Mixer editor"
+            data-ui-theme="dark"
+            className="lighttable-color-mixer__mode"
             options={[
               { value: 'mixer', label: 'Mixer' },
               { value: 'point', label: 'Point Color' }
@@ -798,7 +800,8 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               options={GRADING_MODE_OPTIONS}
               value={colorGradingMode}
               onChange={setColorGradingMode}
-              ariaLabel="Color Grading tonal range"
+              label="Color Grading tonal range"
+              data-ui-theme="dark"
               className="lighttable-color-grading__modes"
             />
             {colorGradingMode === 'all' ? (
@@ -865,7 +868,8 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
             <SegmentedControl
               value={adjustments.blackWhiteMix.enabled ? 'black-white' : 'color'}
               onChange={(value) => commands.setBlackWhiteMixEnabled(value === 'black-white')}
-              ariaLabel="Image treatment"
+              label="Image treatment"
+              data-ui-theme="dark"
               options={[
                 { value: 'color', label: 'Color', disabled: !metadata || !visible },
                 { value: 'black-white', label: 'B&W', disabled: !metadata || !visible }

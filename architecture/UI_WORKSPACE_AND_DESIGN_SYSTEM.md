@@ -122,6 +122,15 @@ global CSS reset, theme context or wrapper tree is required. Light-theme colors
 and demo-shell controls are initial review surfaces, not a migrated app theme or
 finished button family. See `packages/ui/README.md` for the initial contract.
 
+The first approved production adoption is Grade's segmented controls (Color
+Mixer, Color Grading, B&W treatment and the shared Curves channel selector).
+They consume `@lighttable/ui` directly, retaining existing state and commands.
+Only each migrated control carries the new theme scope; old panel styling is
+unchanged. Component geometry is no longer overridden by Grade CSS. The suite
+demo remains the new controls' catalog. Generic UI icons belong to the library
+as needed; domain/tool icons stay app-owned. Controls own icon geometry, not
+the app. New controls default out of the Tab sequence; dialogs may opt in.
+
 Shared visual meaning uses LightTable-owned tokens for surfaces, headers, tab
 strips, active tabs, borders, text hierarchy, selection, focus, sliders,
 scrollbars and layer states. Repeated controls use shared components; a new

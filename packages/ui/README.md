@@ -1,7 +1,9 @@
 # Shared UI — typography, buttons and segments
 
 Clean library for the suite, independent of LightTable editor code. The current
-LightTable UI is not migrated yet. `apps/ui-demo` is the first real consumer.
+LightTable Grade panel now consumes the segmented control (including the shared
+Curves editor). Other controls remain on the old UI until explicitly migrated.
+`apps/ui-demo` is the standalone catalog.
 Source exports follow the workspace convention; standalone distribution comes later.
 
 ```tsx
@@ -40,6 +42,10 @@ does not fix the document root size; user font scaling and browser zoom remain a
   Import fonts before the UI stylesheet. No LightTable CSS is required.
 - These six styles are the complete initial scale. Add roles centrally when a
   real new control needs one, rather than adding app-local sizes.
+- Generic UI icons belong here as controls need them. Domain icons (brush,
+  grading, selection tools, etc.) stay app-owned and are passed into controls
+  when an icon slot is supported. Controls own icon sizing, alignment and spacing;
+  tintable artwork uses `currentColor`. Do not copy the app's icon collection here.
 
 Run `npm run dev:ui` to view all six styles, muted text and HTML semantics.
 
@@ -69,10 +75,14 @@ with `tabIndex={0}`. This is a host decision, not a global keyboard listener.
 ## SegmentedControl
 
 Controlled, single-selection group of native buttons. Supply `label` (accessible
-group name), `options` (`value`, `label`, optional `disabled`), `value` and
+group name), `options` (`value`, `label`, optional `disabled` and `title`), `value` and
 `onChange`. One wrapper plus one button per option; no label wrappers. Height
 is 28 px; each item's width follows its content and the whole group uses
 `max-content`, including in grid/flex containers. There is no stretch variant.
+In a narrower container, labels truncate with an ellipsis and retain their full
+text in tooltips and accessible names. Values and callbacks preserve string-union
+types. `className` is for external placement only, not skinning. An optional
+`data-ui-theme` scopes just this control during incremental app migration.
 Disabled items do not execute; selecting the current item does not re-emit.
 Dark/light colors come from the same control tokens plus selection surface/text.
 The demo's Colors page shows these tokens directly, without copied color values.
