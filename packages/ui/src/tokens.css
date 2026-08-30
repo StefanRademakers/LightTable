@@ -9,6 +9,8 @@
   --ui-line-height-small: 1.4;
   --ui-line-height-regular: 1.5;
   --ui-line-height-large: 1.428571;
+  --ui-selection-surface: #28569b;
+  --ui-selection-text: #ffffff;
 
   font-family: var(--ui-font-family);
   font-size: var(--ui-font-size-regular);
@@ -46,10 +48,10 @@
   --ui-text-muted: #58616e;
   --ui-border: #c9cfd7;
   --ui-accent: #245ba3;
-  --ui-button-surface: #ffffff;
+  --ui-button-surface: var(--ui-surface-panel);
   --ui-button-hover: #eef1f5;
   --ui-button-active: #dde5ef;
-  --ui-button-text: #20252c;
+  --ui-button-text: var(--ui-text);
   --ui-button-border: #9099a5;
   --ui-button-disabled-text: #949aa3;
   --ui-button-disabled-border: #d6dae0;

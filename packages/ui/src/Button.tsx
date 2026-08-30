@@ -8,10 +8,11 @@ export interface ButtonProps extends ComponentPropsWithRef<'button'> {
 export function Button({
   intent = 'normal',
   type = 'button',
+  tabIndex = -1,
   className,
   ...props
 }: ButtonProps) {
-  return <button {...props} type={type}
+  return <button {...props} type={type} tabIndex={tabIndex}
     className={className ? `ui-button ${className}` : 'ui-button'}
     data-ui-component="button" data-intent={intent}
   />;

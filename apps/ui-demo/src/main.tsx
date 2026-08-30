@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@lighttable/ui/fonts.css';
 import '@lighttable/ui/styles.css';
-import { Button, Text, type TextVariant } from '@lighttable/ui';
+import { Button, SegmentedControl, Text, type TextVariant } from '@lighttable/ui';
 import './demo.css';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
@@ -13,6 +13,15 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
 
 const currentPage = () => location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
 
+const controlColors = [
+  ['button-surface', 'Control background'], ['button-text', 'Control text'],
+  ['button-border', 'Control border'], ['button-hover', 'Hover'],
+  ['button-active', 'Pressed'], ['button-disabled-text', 'Disabled text'],
+  ['button-disabled-border', 'Disabled border'], ['danger-text', 'Destructive text'],
+  ['danger-border', 'Destructive border'], ['selection-surface', 'Selected segment'],
+  ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border']
+] as const;
+
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [page, setPage] = useState(currentPage);
@@ -22,6 +31,7 @@ function App() {
     return () => window.removeEventListener('hashchange', updatePage);
   }, []);
   const [buttonFeedback, setButtonFeedback] = useState('Click a button to try it.');
+  const [alignment, setAlignment] = useState('left');
   return <div className="demo" data-ui-theme={theme}>
     <header className="demo-header">
       <Text variant="large" weight="bold">LightTable UI</Text>
@@ -100,8 +110,18 @@ function App() {
             </article>
           </div>
         </section>
-      </> : <section className="demo-section" aria-labelledby="buttons-title">
-        <Text as="h1" variant="large" weight="bold" id="buttons-title">Button</Text>
+        <section className="demo-section" aria-labelledby="control-colors-title">
+          <Text as="h2" variant="large" weight="bold" id="control-colors-title">Buttons &amp; segments</Text>
+          <div className="demo-colors">{controlColors.map(([token, label]) => <article className="demo-color" key={token}>
+            <div className="demo-color-swatch" style={{ background: `var(--ui-${token})` }} aria-hidden="true" />
+            <Text weight="bold">{label}</Text>
+            <Text as="code" variant="small" tone="muted">{`--ui-${token}`}</Text>
+          </article>)}</div>
+        </section>
+      </> : <>
+      <header className="demo-intro"><Text as="h1" variant="large" weight="bold">Buttons &amp; Actions</Text></header>
+      <section className="demo-section" aria-labelledby="buttons-title">
+        <Text as="h2" variant="large" weight="bold" id="buttons-title">Button</Text>
         <Text as="p" tone="muted">One height: 28 px. Regular typography. Content determines the width.</Text>
         <div className="demo-button-row">
           <Button onClick={() => setButtonFeedback('Enabled button activated.')}>Enabled</Button>
@@ -110,8 +130,16 @@ function App() {
         </div>
         <Text as="p" variant="small" tone="muted" role="status">{buttonFeedback}</Text>
         <pre className="demo-code"><Text as="code">{`<Button onClick={save}>Save</Button>\n<Button disabled>Disabled</Button>\n<Button intent="destructive" onClick={remove}>Delete</Button>`}</Text></pre>
-        <Text as="p" variant="small" tone="muted">Hover, pressed and keyboard focus are library-owned states. Disabled is native. No inner spans or wrapper divs.</Text>
-      </section>}
+        <Text as="p" variant="small" tone="muted">No tab stop in app chrome. Dialogs opt into tab navigation. No inner spans or wrapper divs.</Text>
+      </section>
+      <section className="demo-section" aria-labelledby="segments-title">
+        <Text as="h2" variant="large" weight="bold" id="segments-title">Segment control</Text>
+        <Text as="p" tone="muted">Three items, 28 px high. Fits its content, never stretches to the container.</Text>
+        <SegmentedControl label="Alignment" value={alignment} onChange={setAlignment}
+          options={[{value:'left',label:'Left'}, {value:'center',label:'Center'}, {value:'right',label:'Right'}]} />
+        <Text as="p" variant="small" tone="muted">Selected: {alignment}</Text>
+        <pre className="demo-code"><Text as="code">{'<SegmentedControl label="Alignment" options={options} value={alignment} onChange={setAlignment} />'}</Text></pre>
+      </section></>}
     </main>
   </div>;
 }

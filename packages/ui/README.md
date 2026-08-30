@@ -1,4 +1,4 @@
-# Shared UI — typography and buttons
+# Shared UI — typography, buttons and segments
 
 Clean library for the suite, independent of LightTable editor code. The current
 LightTable UI is not migrated yet. `apps/ui-demo` is the first real consumer.
@@ -62,3 +62,17 @@ buttons cannot execute or receive tab focus. Destructive changes visual intent,
 not behavior: the application still owns confirmation and the action itself.
 Labels should be plain text; do not put nested interactive elements inside.
 Demo theme switches also use the real Button; their temporary CSS was removed.
+
+App controls have `tabIndex={-1}` by default. Dialogs opt into native tab order
+with `tabIndex={0}`. This is a host decision, not a global keyboard listener.
+
+## SegmentedControl
+
+Controlled, single-selection group of native buttons. Supply `label` (accessible
+group name), `options` (`value`, `label`, optional `disabled`), `value` and
+`onChange`. One wrapper plus one button per option; no label wrappers. Height
+is 28 px; each item's width follows its content and the whole group uses
+`max-content`, including in grid/flex containers. There is no stretch variant.
+Disabled items do not execute; selecting the current item does not re-emit.
+Dark/light colors come from the same control tokens plus selection surface/text.
+The demo's Colors page shows these tokens directly, without copied color values.
