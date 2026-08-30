@@ -36,8 +36,7 @@ function App() {
       <Text as="p" weight="bold">Foundations</Text>
       <a href="#typography" aria-current={page === 'typography' ? 'page' : undefined}><Text>Typography</Text></a>
       <a href="#colors" aria-current={page === 'colors' ? 'page' : undefined}><Text>Colors</Text></a>
-      <Text as="p" weight="bold">Buttons &amp; Actions</Text>
-      <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text>Button</Text></a>
+      <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text weight="bold">Buttons &amp; Actions</Text></a>
       <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
     </nav>
     <main className="demo-content">
