@@ -13,7 +13,7 @@ export interface EditorDocumentScopeCanvasRefs {
 
 export interface ResolvedEditorDocumentCanvases {
   readonly viewport: HTMLCanvasElement;
-  readonly scopes: DocumentRendererScopeCanvases;
+  readonly scopes: DocumentRendererScopeCanvases | null;
 }
 
 export const resolveEditorDocumentCanvases = (
@@ -25,21 +25,15 @@ export const resolveEditorDocumentCanvases = (
     canvases.colorMixerHueDistribution.current;
   const parade = canvases.parade.current;
   const vectorscope = canvases.vectorscope.current;
-  if (
-    !viewport
-    || !hueDistribution
-    || !parade
-    || !vectorscope
-  ) {
-    return null;
-  }
+  if (!viewport) return null;
   return {
     viewport,
-    scopes: {
+    // Hidden workspace panels need not be mounted to open a document.
+    scopes: hueDistribution && parade && vectorscope ? {
       hueDistribution,
       ...(colorMixerHueDistribution ? { colorMixerHueDistribution } : {}),
       parade,
       vectorscope
-    }
+    } : null
   };
 };

@@ -26,7 +26,7 @@ export interface DocumentRendererLifecycleBridgeOptions<
   readonly isCurrent: () => boolean;
   readonly telemetry: DocumentStartupTelemetry;
   readonly lifecycle: DocumentRendererLifecycle;
-  readonly scopeCanvases: DocumentRendererScopeCanvases;
+  readonly scopeCanvases: DocumentRendererScopeCanvases | null;
   readonly getScopeOptions: () => {
     readonly histogramVisible: boolean;
     readonly options: WebGpuScopeOptions;
@@ -91,12 +91,13 @@ export const createDocumentRendererLifecycleBridge = <
       if (!completed || !renderer) return;
       options.publishTimings(completed);
       options.logTimings?.(completed);
-      const scopeStartedAt = options.telemetry.beginDeferredScopes();
       const scopeOptions = options.getScopeOptions();
       renderer.setScopeOptions(
         scopeOptions.histogramVisible,
         scopeOptions.options
       );
+      if (!options.scopeCanvases) return;
+      const scopeStartedAt = options.telemetry.beginDeferredScopes();
       void renderer.initializeScopes(options.scopeCanvases).then(() => {
         if (!options.isCurrent()) return;
         options.publishTimings(

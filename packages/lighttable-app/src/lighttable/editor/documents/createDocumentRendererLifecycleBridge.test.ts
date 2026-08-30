@@ -19,7 +19,7 @@ const createRenderer = () => ({
 });
 
 describe('createDocumentRendererLifecycleBridge', () => {
-  it('initializes deferred scopes once for the renderer first frame', async () => {
+  it.each([true, false])('completes the first frame with scope surfaces present: %s', async (scopesPresent) => {
     let time = 10;
     const telemetry = new DocumentStartupTelemetry(() => time);
     telemetry.begin();
@@ -29,7 +29,7 @@ describe('createDocumentRendererLifecycleBridge', () => {
       isCurrent: () => true,
       telemetry,
       lifecycle: new DocumentRendererLifecycle(),
-      scopeCanvases: canvases,
+      scopeCanvases: scopesPresent ? canvases : null,
       getScopeOptions: () => ({
         histogramVisible: true,
         options: {
@@ -60,8 +60,8 @@ describe('createDocumentRendererLifecycleBridge', () => {
     expect(renderer.setActive).toHaveBeenCalledWith(true);
     expect(renderer.setLensBlurDepthVisualization).toHaveBeenCalledWith(false);
     expect(renderer.setScopeOptions).toHaveBeenCalledTimes(2);
-    expect(renderer.initializeScopes).toHaveBeenCalledOnce();
-    expect(publishTimings).toHaveBeenCalledTimes(2);
+    expect(renderer.initializeScopes).toHaveBeenCalledTimes(scopesPresent ? 1 : 0);
+    expect(publishTimings).toHaveBeenCalledTimes(scopesPresent ? 2 : 1);
   });
 
   it('publishes current open failures and rejects late events after replacement', () => {

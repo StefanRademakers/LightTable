@@ -196,9 +196,10 @@ export const planRecoveryWorkspace = (
  * documents do not keep hidden React or GPU editor trees mounted.
  */
 export function LightTableStandaloneApp({
-  host = createBrowserHost(),
+  host: suppliedHost,
   onOpenStyleGuide
 }: LightTableStandaloneAppProps) {
+  const host = useMemo(() => suppliedHost ?? createBrowserHost(), [suppliedHost]);
   useReleaseSelectFocusAfterChange();
   const {
     controller,

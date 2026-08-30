@@ -12,6 +12,16 @@ const ref = (
 const canvas = (name: string) => ({ name } as unknown as HTMLCanvasElement);
 
 describe('resolveEditorDocumentCanvases', () => {
+  it('opens with only the viewport when Scopes is hidden', () => {
+    const viewport = canvas('viewport');
+    const refs: EditorDocumentScopeCanvasRefs = {
+      viewport: ref(viewport), hueDistribution: ref(null),
+      colorMixerHueDistribution: ref(null), parade: ref(null), vectorscope: ref(null)
+    };
+    expect(resolveEditorDocumentCanvases(refs)).toEqual({ viewport, scopes: null });
+    refs.viewport.current = null;
+    expect(resolveEditorDocumentCanvases(refs)).toBeNull();
+  });
   it('starts without the optional contextual color-mixer surface', () => {
     const viewport = canvas('viewport');
     const hue = canvas('hue');

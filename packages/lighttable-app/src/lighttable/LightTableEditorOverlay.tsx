@@ -1078,6 +1078,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
   useEffect(() => {
+    if (rendererSnapshot.status !== 'ready') return;
+    const renderer = engineRef.current;
+    const hueDistribution = hueDistributionCanvasRef.current;
+    const parade = paradeCanvasRef.current;
+    const vectorscope = vectorscopeCanvasRef.current;
+    if (!renderer || !hueDistribution || !parade || !vectorscope) return;
+    // Scopes may mount after the first image (for example when leaving Gen AI).
+    let current = true;
+    void renderer.initializeScopes({
+      hueDistribution, parade, vectorscope,
+      ...(colorMixerHueCanvasRef.current ? { colorMixerHueDistribution: colorMixerHueCanvasRef.current } : {})
+    }).catch((reason: unknown) => {
+      if (current) setScopeError(reason instanceof Error ? reason.message : String(reason));
+    });
+    return () => { current = false; };
+  }, [documentSurfaceRevision, rendererSnapshot.status, rendererSnapshot.generation]);
+  useEffect(() => {
     if (workspaceDocumentKind === 'image') return;
     // The application shell is retained across document kinds, but image
     // presentation must not leak into a video/model binding. Canonical image

@@ -27,7 +27,9 @@ const GalleryCard = ({ item, preview, opening, onPreview, onContextMenu }: {
   readonly onContextMenu: (event: React.MouseEvent) => void;
 }) => {
   const target = React.useRef<HTMLDivElement>(null);
-  const requested = React.useRef(false);
+  const request = React.useRef<{ id: string; promise: Promise<string | null> } | null>(null);
+  const loadPreviewRef = React.useRef(item.loadPreview);
+  loadPreviewRef.current = item.loadPreview;
   const onPreviewRef = React.useRef(onPreview);
   onPreviewRef.current = onPreview;
   const [nearViewport, setNearViewport] = React.useState(
@@ -37,10 +39,17 @@ const GalleryCard = ({ item, preview, opening, onPreview, onContextMenu }: {
     const element = target.current;
     if (!element) return undefined;
     let mounted = true;
+    let subscribed = false;
     const load = () => {
-      if (preview || !item.loadPreview || requested.current) return;
-      requested.current = true;
-      void item.loadPreview().then((url) => {
+      const loadPreview = loadPreviewRef.current;
+      if (preview || !loadPreview || subscribed) return;
+      subscribed = true;
+      // Reconnect to pending work after Strict Mode effect replay. Ordinary
+      // parent renders may replace the callback, but must not discard its result.
+      if (request.current?.id !== item.id) {
+        request.current = { id: item.id, promise: Promise.resolve().then(loadPreview) };
+      }
+      void request.current.promise.then((url) => {
         if (mounted && url) onPreviewRef.current(url);
       }).catch(() => undefined);
     };
@@ -60,7 +69,7 @@ const GalleryCard = ({ item, preview, opening, onPreview, onContextMenu }: {
       mounted = false;
       observer.disconnect();
     };
-  }, [item.id, item.loadPreview, preview]);
+  }, [item.id, preview]);
 
   const available = item.available !== false;
   return <article ref={target} className={`lighttable-launcher-gallery__card${available ? '' : ' is-missing'}`}
