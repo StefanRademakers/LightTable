@@ -8,6 +8,7 @@
   justify-self: start;
   align-self: start;
   height: 28px;
+  min-height: 28px;
   border: 1px solid var(--ui-button-border);
   border-radius: 6px;
   background: var(--ui-button-surface);
