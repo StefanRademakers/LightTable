@@ -1273,7 +1273,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--lt-text-secondary);
+  color: var(--ui-text-muted);
   cursor: pointer;
   box-shadow: none;
 }
@@ -1315,7 +1315,7 @@
 
 .lighttable-toolbox__reset-colors:hover,
 .lighttable-toolbox__swap-colors:hover {
-  color: var(--lt-text-on-accent);
+  color: var(--ui-text);
   filter: brightness(1.2);
 }
 

@@ -1,6 +1,6 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
-import { Toolbar, ToolButton as PackageToolButton, type ToolbarTool, type ToolbarGroup } from '@lighttable/ui';
+import { MaskIcon, Toolbar, ToolButton as PackageToolButton, type ToolbarTool, type ToolbarGroup } from '@lighttable/ui';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
@@ -33,7 +33,7 @@ interface EditorToolbarProps {
 
 export const toolbarTool = (tool: ToolDefinition): ToolbarTool<ToolId> => ({
   value: tool.id, label: tool.label, shortcut: tool.shortcutLabel,
-  icon: <img src={lightTableIcon(tool.iconName)} alt="" />
+  icon: <MaskIcon src={lightTableIcon(tool.iconName)} />
 });
 
 /** Domain adapter also used in the contextual tool settings panel. */

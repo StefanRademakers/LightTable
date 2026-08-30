@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, Toolbar, Text } from '@lighttable/ui';
+import { Button, MaskIcon, Toolbar, Text } from '@lighttable/ui';
 
-const square = <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><path d="M3 3h14v14H3Z" /></svg>;
+// A white source asset must also follow the control's light/dark/selected color.
+const square = <MaskIcon src={`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="white"><path d="M3 3h14v14H3Z" /></svg>')}`} />;
 const circle = <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><circle cx="10" cy="10" r="7" /></svg>;
 const pointer = <svg viewBox="0 0 20 20" fill="currentColor"><path d="m4 2 12 9-6 1-3 6Z" /></svg>;
 export function ToolbarDemo() {
@@ -19,7 +20,7 @@ export function ToolbarDemo() {
       ]} extension={<Button title="Custom extension action" onClick={()=>setExtensionCount(count=>count+1)}>X</Button>} />
       <Text>Tool: {tool}. Custom extension clicks: {extensionCount}.</Text>
     </div>
-    <Text as="p" tone="muted">One click activates the remembered tool and opens its group. The corner is part of the same button. The bottom slot belongs to the app; LightTable places its color picker there.</Text>
+    <Text as="p" tone="muted">One click activates the remembered tool and opens its group. The corner is part of the same button. The bottom slot belongs to the app; LightTable places its color picker there. Rectangle uses MaskIcon to tint a white source asset in both themes; other tools use currentColor SVGs.</Text>
     <pre className="demo-code"><Text as="code">{'<Toolbar items={tools} value={activeTool} onChange={selectTool} extension={<AppColorPicker />} />'}</Text></pre>
   </section>;
 }

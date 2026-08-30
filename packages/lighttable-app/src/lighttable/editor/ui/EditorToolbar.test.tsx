@@ -56,6 +56,9 @@ describe('EditorToolbar', () => {
     expect(markup).toContain('Magic Wand');
     expect(markup).toContain('ui-toolbar__shortcut');
     expect(markup).toContain('>W<');
+    expect(markup).toContain('class="ui-mask-icon"');
+    expect(markup).toContain('mask-image:');
+    expect(markup).not.toContain('<img');
   });
 
   it('splits selection tools into Photoshop-compatible M, L and W slots', () => {

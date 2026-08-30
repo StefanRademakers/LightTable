@@ -51,6 +51,12 @@ does not fix the document root size; user font scaling and browser zoom remain a
   when an icon slot is supported. Controls own icon sizing, alignment and spacing;
   tintable artwork uses `currentColor`. Do not copy the app's icon collection here.
 
+`MaskIcon` accepts an app-owned monochrome PNG/SVG URL and uses its alpha as a
+CSS mask tinted with `currentColor`. Use it instead of an image element for
+white tool artwork: light/dark, selected and disabled states then inherit the
+control's existing colors. It is decorative; the owning control supplies the
+accessible label and icon dimensions. Full-color artwork remains an image.
+
 Run `npm run dev:ui` to view all six styles, muted text and HTML semantics.
 
 ## Button

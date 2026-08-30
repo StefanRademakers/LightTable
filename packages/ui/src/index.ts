@@ -1,4 +1,5 @@
 export { Text, type TextProps, type TextVariant, type TextWeight, type TextTone } from './Text';
+export { MaskIcon } from './MaskIcon';
 export { Button, type ButtonProps } from './Button';
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl';
 export { Menu, type MenuProps, type MenuOption } from './Menu';
