@@ -40,8 +40,11 @@ try {
 
   const rows = window.locator('.lighttable-layer[data-layer-id]');
   for (let index = 0; index < 4; index += 1) {
-    await window.getByRole('menuitem', { name: 'Layer' }).click();
-    await window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
+    await window.getByRole('menuitem', { name: 'Layer', exact: true }).click();
+    await window.getByRole('menu', { name: 'Layer menu' })
+      .getByRole('menuitem', { name: 'New', exact: true }).click();
+    await window.getByRole('menu', { name: 'New' })
+      .getByRole('menuitem', { name: 'New Raster Layer', exact: true }).click();
   }
   await rows.nth(4).waitFor();
 

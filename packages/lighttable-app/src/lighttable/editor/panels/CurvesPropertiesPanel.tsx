@@ -1,5 +1,5 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
-import React, { useState } from 'react';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { useState } from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { CurvesEditor } from '../../CurvesEditor';
 import type { CurveChannel } from '../../curves';
@@ -14,20 +14,9 @@ export const CurvesPropertiesPanel = ({ model, commands }: GradePanelProps) => {
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label="Curves properties">
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>Curves</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase
-              type="button"
-              className="lighttable-group__reset"
-              onClick={() => commands.resetGroup('curves')}
-              aria-label="Reset Curves"
-              title="Reset Curves"
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-          </div>
-        </div>
+        <PanelSectionHeader label="Curves" actions={<>
+            <IconButton variant="quiet" type="button" onClick={() => commands.resetGroup('curves')} aria-label="Reset Curves" title="Reset Curves" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">

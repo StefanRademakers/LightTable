@@ -1,9 +1,9 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, PanelSection, IconButton, MaskIcon, PanelSectionHeader, Button } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
-import { SwitchControl } from '../../../ui/SwitchControl';
-import { FormSelect } from '../../../ui/FormSelect';
+import { SwitchControl } from '@lighttable/ui';
+import { Select } from '@lighttable/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import {
@@ -21,7 +21,6 @@ import type {
 import { LayerStyleContourEditor } from './LayerStyleContourEditor';
 import { LayerStyleGradientEditor } from './LayerStyleGradientEditor';
 import {
-  PanelAdvancedDisclosure,
   PanelAngleControl as AngleField,
   PanelCheckboxField as ToggleField,
   PanelColorSwatch as ColorSwatch,
@@ -185,7 +184,7 @@ const ShadowControls: React.FC<{
         />
       </div>
     </div>
-    <PanelAdvancedDisclosure edge="panel-bleed">
+    <PanelSection label="Advanced" variant="disclosure" keepMounted contentClassName="lighttable-property-stack">
         <SelectField
           label="Blend mode"
           value={effect.blendMode}
@@ -231,7 +230,7 @@ const ShadowControls: React.FC<{
           value={effect.contour}
           onChange={(contour) => patch({ contour })}
         />
-    </PanelAdvancedDisclosure>
+    </PanelSection>
   </>;
 };
 
@@ -264,7 +263,7 @@ const GlowControls: React.FC<{
         ]} onChange={(source) => patch({ source: source as typeof effect.source })} />
       ) : null}
     </div>
-    <PanelAdvancedDisclosure edge="panel-bleed">
+    <PanelSection label="Advanced" variant="disclosure" keepMounted contentClassName="lighttable-property-stack">
       <SelectField label="Fill" value={effect.gradient ? 'gradient' : 'color'} options={[
         { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }
       ]} onChange={(fill) => patch({
@@ -289,7 +288,7 @@ const GlowControls: React.FC<{
         suffix="%" resetValue={0} onChange={(noise) => patch({ noise: noise / 100 })} />
       <LayerStyleContourEditor value={effect.contour}
         onChange={(contour) => patch({ contour })} />
-    </PanelAdvancedDisclosure>
+    </PanelSection>
   </>;
 };
 
@@ -349,7 +348,7 @@ const StrokeControls: React.FC<{
       <NumberSlider label="Opacity" value={effect.opacity * 100} min={0} max={100}
         suffix="%" resetValue={100} onChange={(opacity) => patch({ opacity: opacity / 100 })} />
     </div>
-    <PanelAdvancedDisclosure edge="panel-bleed">
+    <PanelSection label="Advanced" variant="disclosure" keepMounted contentClassName="lighttable-property-stack">
       <SelectField label="Blend mode" value={effect.blendMode}
         options={BLEND_MODES.map((mode) => ({ value: mode.id, label: mode.label }))}
         onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })} />
@@ -373,7 +372,7 @@ const StrokeControls: React.FC<{
       </> : null}
       <ToggleField label="Overprint" checked={effect.overprint}
         onChange={(overprint) => patch({ overprint })} />
-    </PanelAdvancedDisclosure>
+    </PanelSection>
   </>;
 };
 
@@ -703,18 +702,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
         aria-label="Layer Style"
       >
         <section className="lighttable-group lighttable-master-group">
-          <div className="lighttable-group__header">
-            <div className="lighttable-master-group__label"><strong>All</strong></div>
-            <div className="lighttable-group__actions">
-              <ButtonBase
-                type="button"
-                className="lighttable-group__reset"
-                onClick={resetAllEffects}
-                aria-label="Reset all layer effects"
-                title="Reset all layer effects"
-              >
-                <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-              </ButtonBase>
+          <PanelSectionHeader label="All" actions={<>
+              <IconButton variant="quiet" type="button" onClick={resetAllEffects} aria-label="Reset all layer effects" title="Reset all layer effects" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
               <SwitchControl
                 checked={draft.enabled}
                 onCheckedChange={(enabled) => updateDraft((current) => ({
@@ -724,8 +713,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                 }))}
                 label={`${draft.enabled ? 'Disable' : 'Enable'} all layer effects`}
               />
-            </div>
-          </div>
+            </>} />
         </section>
         <div className="lighttable-panel__controls lighttable-style-editor__groups">
           {[...draft.effects].reverse().map((effect) => (
@@ -752,9 +740,9 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             </EffectPanel>
           ))}
           <div className="lighttable-style-editor__add">
-            <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
+            <Select value={newKind} onValueChange={(nextValue) => setNewKind(nextValue as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
-            </FormSelect>
+            </Select>
             <Button type="button" onClick={addStyle}>Add</Button>
           </div>
         </div>
@@ -779,7 +767,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       <div className="lighttable-style-editor__body">
         <aside>
           <label className="lighttable-style-stack-toggle">
-            <input type="checkbox" checked={draft.enabled}
+            <Checkbox tabIndex={0} checked={draft.enabled}
               onChange={(event) => updateDraft((current) => ({
                 ...current,
                 enabled: event.currentTarget.checked,
@@ -793,8 +781,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                 key={effect.id}
                 className={effect.id === selectedId ? 'lighttable-style-editor__effect--active' : ''}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
+                  tabIndex={0}
                   checked={effect.enabled}
                   aria-label={`${effect.enabled ? 'Disable' : 'Enable'} ${effect.name}`}
                   onChange={(event) => {
@@ -822,9 +810,9 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             ))}
           </div>
           <div className="lighttable-style-editor__add">
-            <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
+            <Select value={newKind} onValueChange={(nextValue) => setNewKind(nextValue as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
-            </FormSelect>
+            </Select>
             <Button tabIndex={0} type="button" onClick={addStyle}>Add</Button>
           </div>
         </aside>

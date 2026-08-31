@@ -1,7 +1,8 @@
+import { SearchField } from '@lighttable/ui';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { SearchField } from './SearchField';
+
 
 describe('SearchField', () => {
   it('only exposes its clear action while a controlled value is present', () => {

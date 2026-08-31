@@ -580,6 +580,8 @@ export interface LightTableEditorOverlayProps {
     title: string;
     dirty?: boolean;
     thumbnailUrl?: string;
+    kind?: 'image' | 'video';
+    onReveal?: () => Promise<void>;
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
@@ -788,6 +790,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle.getSnapshot
   );
   const [rendererRecoverySequence, setRendererRecoverySequence] = useState(0);
+  const [presentedWorkspaceDocumentId, setPresentedWorkspaceDocumentId] = useState<string | null>(null);
+  const presentedWorkspaceDocumentIdRef = useRef<string | null>(null);
+  const pendingWorkspacePresentationRef = useRef<string | null>(null);
   const recoveredFailureGenerationRef = useRef<number | null>(null);
   const consecutiveDeviceLossRecoveriesRef = useRef(0);
   const replaceRendererOnNextOpenRef = useRef(false);
@@ -834,6 +839,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }, [onDocumentThumbnailChange]);
   const publishCompositeRendered = useCallback(() => {
+    const workspaceId = workspaceDocumentIdRef.current;
+    const renderer = engineRef.current;
+    if (renderer && presentedWorkspaceDocumentIdRef.current !== workspaceId
+      && pendingWorkspacePresentationRef.current !== workspaceId) {
+      pendingWorkspacePresentationRef.current = workspaceId;
+      void renderer.waitForPresentation().then(() => {
+        if (workspaceDocumentIdRef.current !== workspaceId) return;
+        presentedWorkspaceDocumentIdRef.current = workspaceId;
+        setPresentedWorkspaceDocumentId(workspaceId);
+      }, () => undefined).finally(() => {
+        if (pendingWorkspacePresentationRef.current === workspaceId) {
+          pendingWorkspacePresentationRef.current = null;
+        }
+      });
+    }
     if (!onDocumentThumbnailChange) return;
     if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
     thumbnailTimerRef.current = window.setTimeout(() => {
@@ -1200,6 +1220,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const artifact = await commandPorts.exportPngArtifact(documentId as DocumentSessionId);
     return importGenAiReferenceFile(artifact);
   }, [commandPorts, importGenAiReferenceFile]);
+  const [pendingTabReference, setPendingTabReference] = useState<{ id: string; origin: string } | null>(null);
+  useEffect(() => {
+    if (!pendingTabReference) return;
+    const { id, origin } = pendingTabReference;
+    if (!workspaceDocuments?.some(item => item.id === id)
+      || (workspaceDocumentId !== id && workspaceDocumentId !== origin)
+      || (workspaceDocumentId === id && rendererSnapshot.status === 'failed')) {
+      setPendingTabReference(null);
+      return;
+    }
+    if (workspaceDocumentId !== id || rendererSnapshot.status !== 'ready'
+      || !imageDocument || imageDocument.id !== documentSession?.getSnapshot().document?.id
+      || !commandPorts?.supportsPort(id as DocumentSessionId, 'exportPngArtifact')) return;
+    // Registration is a layout effect: the current document's presentation port
+    // is bound before this effect. Never export the tab we just switched away from.
+    setPendingTabReference(null);
+    void importGenAiDocumentReference(id).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
+  }, [pendingTabReference, workspaceDocumentId, workspaceDocuments, rendererSnapshot.status,
+    imageDocument, documentSession, commandPorts, importGenAiDocumentReference]);
   const genAiBaseImageScope = `${activeGenAiProjectId ?? 'session'}:${String(workspaceDocumentId)}`;
   React.useEffect(() => {
     const previousScope = genAiBaseImageScopeRef.current;
@@ -8317,6 +8356,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               title: sourceName
             }]).map((workspaceDocument) => ({
               ...workspaceDocument,
+              ready: workspaceDocument.id === workspaceDocumentId && workspaceDocumentKind === 'image'
+                ? presentedWorkspaceDocumentId === workspaceDocumentId
+                : true,
+              presentationError: workspaceDocument.id === workspaceDocumentId && rendererSnapshot.status === 'failed'
+                ? rendererSnapshot.error ?? 'The document could not be presented.' : undefined,
+              getPreviewBounds: workspaceDocument.id === workspaceDocumentId && workspaceDocumentKind === 'image' ? () => {
+                const bounds = viewportRef.current?.getBoundingClientRect();
+                return bounds ? { left: bounds.left + imageRect.x, top: bounds.top + imageRect.y,
+                  width: imageRect.width, height: imageRect.height } : undefined;
+              } : undefined,
+              contextMenu: [
+                { value: 'reveal', label: 'Open file location', disabled: !workspaceDocument.onReveal,
+                  disabledReason: 'This document has no file location in this host.',
+                  onClick: () => { void workspaceDocument.onReveal?.().catch(reason => setError(reason instanceof Error ? reason.message : String(reason))); } },
+                { value: 'reference', label: 'Add as reference',
+                  disabled: workspaceDocument.kind === 'video' || !genAiService || Boolean(pendingTabReference)
+                    || !genAiSetup.workflow?.fields.some(field => field.kind === 'asset')
+                    || !workspacePanels.some(panel => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi && panel.visible),
+                  disabledReason: 'Open GenAI with a model that accepts image references.',
+                  onClick: () => {
+                    setPendingTabReference({ id: workspaceDocument.id, origin: workspaceDocumentId });
+                    if (workspaceDocument.id !== workspaceDocumentId) onActivateWorkspaceDocument?.(workspaceDocument.id);
+                  } }
+              ],
               onClose: () => {
                 if (onCloseWorkspaceDocument) {
                   onCloseWorkspaceDocument(workspaceDocument.id);

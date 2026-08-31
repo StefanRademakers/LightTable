@@ -1,14 +1,14 @@
-import { ButtonBase } from '../../ui/ButtonBase';
+import { IconButton, MaskIcon, Menu, type MenuOption, PanelSection, SearchField } from '@lighttable/ui';
 import React from 'react';
 import type { GenAiAssetId, GenAiAssetReference, GenAiGenerationJob, GenAiProjectAssetSection } from '@lighttable/genai-core';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
-import { Menu, type MenuOption } from '@lighttable/ui';
+
 import { TextInputDialog } from '../../ui/TextInputDialog';
-import { PanelSection } from '../../ui/PanelSection';
+
 import { buildJustifiedLayout } from './justifiedLayout';
 import { writeProjectAssetDrag } from './projectAssetDrag';
 import { lightTableIcon } from '../../assets/icons';
-import { SearchField } from '../../ui/SearchField';
+
 
 export interface ProjectAssetBrowserProps {
   readonly jobs: readonly GenAiGenerationJob[];
@@ -288,11 +288,7 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
           const rightTime = rightJob?.updatedAt ?? (Date.parse(right.modifiedAt ?? '') || 0);
           return rightTime - leftTime || left.label.localeCompare(right.label);
         }) : sectionAssets;
-        return <PanelSection key={name} label={name} expanded={expanded} actions={onRefreshAssets ? <ButtonBase
-          type="button" className="lighttable-group__reset" aria-label={`Rescan ${name}`}
-          title="Rescan project folders" onClick={() => void run(onRefreshAssets)}>
-          <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-        </ButtonBase> : undefined} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
+        return <PanelSection key={name} label={name} expanded={expanded} actions={onRefreshAssets ? <IconButton variant="quiet" type="button" aria-label={`Rescan ${name}`} title="Rescan project folders" onClick={() => void run(onRefreshAssets)} icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} /> : undefined} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
           if (searching) return current;
           const next = new Set(current); if (nextExpanded) next.add(name); else next.delete(name); return next;
         })}>

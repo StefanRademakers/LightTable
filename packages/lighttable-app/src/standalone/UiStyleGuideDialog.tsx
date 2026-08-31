@@ -1,19 +1,19 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
+import { PanelSection, Button, SegmentedControl, TextInput, SearchField, Histogram, ColorWheel } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
 
 import { AnchorGridControl } from '../ui/AnchorGridControl';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
-import { FormInput } from '../ui/FormInput';
-import { FormSelect } from '../ui/FormSelect';
-import { GradientField, type GradientFieldValue } from '../ui/GradientField';
-import { NonePaintField } from '../ui/NonePaintField';
-import { NumericExpressionInput } from '../ui/NumericExpressionInput';
 
-import { SearchField } from '../ui/SearchField';
+import { Select } from '@lighttable/ui';
+import { GradientField, type GradientFieldValue } from '@lighttable/ui';
+import { NonePaintField } from '@lighttable/ui';
+import { NumberField } from '@lighttable/ui';
+
+
 import { SquareIconButton } from '../ui/SquareIconButton';
-import { SwitchControl } from '../ui/SwitchControl';
+import { SwitchControl } from '@lighttable/ui';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { UiInspectionTarget } from '../ui/uiInspection';
 import type { CanvasAnchor } from '../lighttable/application/documentGeometry/documentGeometryModel';
@@ -35,7 +35,6 @@ import {
   UiTabListSpecimen
 } from './UiSystemSpecimens';
 import {
-  PanelAdvancedDisclosure,
   PanelAngleControl,
   PanelCheckboxField,
   PanelFileField,
@@ -51,6 +50,7 @@ export const UI_STYLE_GUIDE_CATEGORIES = [
   { id: 'sliders', label: 'Sliders' },
   { id: 'paint', label: 'Paint & color' },
   { id: 'gradients', label: 'Gradients' },
+  { id: 'scopes', label: 'Scopes' },
   { id: 'lists', label: 'Lists & navigation' },
   { id: 'containers', label: 'Containers' },
   { id: 'layout', label: 'Layout & geometry' },
@@ -61,6 +61,11 @@ export const UI_STYLE_GUIDE_CATEGORIES = [
 ] as const;
 
 type StyleGuideCategory = typeof UI_STYLE_GUIDE_CATEGORIES[number]['id'];
+const scopeHistogramSample = {
+  red: Uint32Array.from({ length: 256 }, (_, x) => 500 * Math.exp(-1 * ((x - 176) / 35) ** 2)),
+  green: Uint32Array.from({ length: 256 }, (_, x) => 650 * Math.exp(-1 * ((x - 134) / 25) ** 2)),
+  blue: Uint32Array.from({ length: 256 }, (_, x) => 550 * Math.exp(-1 * ((x - 92) / 30) ** 2))
+};
 
 const DEMO_GRADIENT: GradientFieldValue = {
   colorStops: [
@@ -111,6 +116,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
   const [gradientExpanded, setGradientExpanded] = useState(false);
   const [noneExpanded, setNoneExpanded] = useState(false);
   const [angle, setAngle] = useState(315);
+  const [wheel, setWheel] = useState({ hue: 323, saturation: 25 });
   const [search, setSearch] = useState('');
   const [anchor, setAnchor] = useState<{ x: CanvasAnchor; y: CanvasAnchor }>({ x: 0.5, y: 0.5 });
 
@@ -176,8 +182,8 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 </Sample>
                 <Sample title="Text input states">
                   <div className="lighttable-ui-guide__field-stack">
-                    <label><span>Label</span><FormInput aria-label="Typography input" defaultValue="Editable value" /></label>
-                    <label><span>Disabled</span><FormInput aria-label="Disabled typography input" defaultValue="Unavailable" disabled /></label>
+                    <label><span>Label</span><TextInput tabIndex={0} aria-label="Typography input" defaultValue="Editable value" /></label>
+                    <label><span>Disabled</span><TextInput tabIndex={0} aria-label="Disabled typography input" defaultValue="Unavailable" disabled /></label>
                   </div>
                 </Sample>
               </> : null}
@@ -203,29 +209,29 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
               </> : null}
               {category === 'fields' ? <>
                 <Sample title="Standard control height · 28 px">
-                  <FormInput aria-label="Aligned text field" defaultValue="Text" />
-                  <NumericExpressionInput value={number} min={0} max={1000}
+                  <TextInput tabIndex={0} aria-label="Aligned text field" defaultValue="Text" />
+                  <NumberField value={number} min={0} max={1000}
                     aria-label="Aligned numeric field" onValueChange={setNumber} />
                   <Button tabIndex={0}>Control action</Button>
                 </Sample>
                 <Sample title="Text fields">
-                  <FormInput aria-label="Text example" defaultValue="Layer name" />
-                  <FormInput aria-label="Disabled text example" defaultValue="Unavailable" disabled />
+                  <TextInput tabIndex={0} aria-label="Text example" defaultValue="Layer name" />
+                  <TextInput tabIndex={0} aria-label="Disabled text example" defaultValue="Unavailable" disabled />
                 </Sample>
                 <Sample title="Dropdown field">
-                  <FormSelect aria-label="Standard dropdown" value={select}
-                    onChange={(event) => setSelect(event.currentTarget.value)}>
+                  <Select tabIndex={0} aria-label="Standard dropdown" value={select}
+                    onValueChange={(nextValue) => setSelect(nextValue)}>
                     <option value="normal">Normal</option>
                     <option value="multiply">Multiply</option>
                     <option value="screen">Screen</option>
-                  </FormSelect>
+                  </Select>
                 </Sample>
                 <Sample title="Search field">
                   <SearchField aria-label="Search example" placeholder="Search" value={search}
                     onChange={(event) => setSearch(event.currentTarget.value)} />
                 </Sample>
                 <Sample title="Numeric expression">
-                  <NumericExpressionInput value={number} min={0} max={1000}
+                  <NumberField value={number} min={0} max={1000}
                     aria-label="Size" onValueChange={setNumber} />
                   <span>{number} px · accepts expressions such as 1920/2</span>
                 </Sample>
@@ -275,7 +281,12 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 <UiSliderSpecimens />
               </Sample> : null}
               {category === 'paint' ? <>
-                <Sample title="Paint fields · 104 × 28 px">
+                <Sample title="Color wheel">
+                  <ColorWheel label="Midtones" hue={wheel.hue} saturation={wheel.saturation} luminance={0}
+                    onChange={(hue, saturation) => setWheel({ hue, saturation })}
+                    onReset={() => setWheel({ hue: 0, saturation: 0 })} />
+                </Sample>
+                <Sample title="Paint fields · 72 × 28 px">
                   <div className="lighttable-ui-guide__control-table">
                     <div className="lighttable-ui-guide__control-row">
                       <span>Color swatch</span>
@@ -306,16 +317,21 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                 </Sample>
               </> : null}
               {category === 'gradients' ? <>
-                <Sample title="Gradient triggers · regular and compact">
-                  <GradientField value={DEMO_GRADIENT} ariaLabel="Regular gradient trigger"
+                <Sample title="Gradient trigger · 72 × 28 px">
+                  <GradientField value={DEMO_GRADIENT} ariaLabel="Gradient trigger"
                     onClick={() => undefined} />
-                  <GradientField value={DEMO_GRADIENT} size="compact"
-                    ariaLabel="Compact gradient trigger" onClick={() => undefined} />
                 </Sample>
                 <Sample title="Complete gradient editor" wide>
                   <UiGradientEditorSpecimen />
                 </Sample>
               </> : null}
+              {category === 'scopes' ? <Sample title="Shared histogram">
+                <PanelSection label="Histogram" expanded={enabled} onExpandedChange={setEnabled} keepMounted padding="none"
+                  actions={<SwitchControl checked={enabled} onCheckedChange={setEnabled} label="Show histogram" />}>
+                  <Histogram histogram={scopeHistogramSample} />
+                </PanelSection>
+                <p className="muted">Scope scales, canvases and overlays come from @lighttable/ui. The standalone Scopes catalog also shows the GPU plots.</p>
+              </Sample> : null}
               {category === 'lists' ? <>
                 <Sample title="Command menu · icons, shortcut, separator and disabled">
                   <UiMenuListSpecimen />
@@ -341,10 +357,10 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <PanelAngleControl label="Angle" value={angle} onChange={setAngle} />
                 </Sample>
                 <Sample title="Advanced disclosure">
-                  <PanelAdvancedDisclosure>
+                  <PanelSection label="Advanced" variant="disclosure" keepMounted>
                     <PanelSelectField label="Method" value="classic" onChange={() => undefined}
                       options={[{ value: 'classic', label: 'Classic' }]} />
-                  </PanelAdvancedDisclosure>
+                  </PanelSection>
                 </Sample>
               </> : null}
               {category === 'layout' ? <>
@@ -398,7 +414,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                     <div className="modal__header"><h3 className="modal__title">Rename layer</h3></div>
                     <label className="lighttable-ui-guide__dialog-field">
                       <span>Name</span>
-                      <FormInput aria-label="Dialog field example" defaultValue="Background copy" />
+                      <TextInput tabIndex={0} aria-label="Dialog field example" defaultValue="Background copy" />
                     </label>
                     <div className="modal__footer">
                       <Button tabIndex={0}>Cancel</Button>

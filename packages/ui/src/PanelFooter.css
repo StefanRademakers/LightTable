@@ -1,0 +1,44 @@
+.ui-panel-footer {
+  box-sizing: border-box;
+  min-height: 34px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin: 0 -8px -8px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--ui-border);
+  background: var(--ui-surface-panel);
+}
+
+.ui-panel-footer button {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.ui-panel-footer button:hover:not(:disabled),
+.ui-panel-footer button:focus-visible:not(:disabled) {
+  border-color: var(--ui-button-border);
+  background: var(--ui-button-hover);
+}
+
+.ui-panel-footer button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.ui-panel-footer img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}

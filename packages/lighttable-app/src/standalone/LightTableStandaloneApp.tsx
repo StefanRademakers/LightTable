@@ -1,4 +1,5 @@
 import { ButtonBase } from '../ui/ButtonBase';
+import { getAppTheme, setAppTheme } from '../ui/appTheme';
 import {
   lazy,
   Suspense,
@@ -50,7 +51,6 @@ import type {
   LightTableRecoveryListing,
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
-import { useReleaseSelectFocusAfterChange } from '../ui/useReleaseSelectFocusAfterChange';
 import type { GuidedSampleSession } from './GuidedSampleCoach';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
@@ -200,7 +200,6 @@ export function LightTableStandaloneApp({
   onOpenStyleGuide
 }: LightTableStandaloneAppProps) {
   const host = useMemo(() => suppliedHost ?? createBrowserHost(), [suppliedHost]);
-  useReleaseSelectFocusAfterChange();
   const {
     controller,
     snapshot,
@@ -430,6 +429,17 @@ export function LightTableStandaloneApp({
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projectImporting, setProjectImporting] = useState(false);
   const [documentThumbnailUrls, setDocumentThumbnailUrls] = useState<Record<string, string>>({});
+  const [documentSavedPaths, setDocumentSavedPaths] = useState<Record<string, string>>({});
+  const publishDocumentSavedPath = useCallback((id: DocumentSessionId, path: string) => {
+    if (controller.workspace.getDocument(id)) setDocumentSavedPaths(current => ({ ...current, [id]: path }));
+  }, [controller]);
+  useEffect(() => {
+    setDocumentSavedPaths(current => {
+      const openIds = new Set(documents.map(item => String(item.id)));
+      if (Object.keys(current).every(id => openIds.has(id))) return current;
+      return Object.fromEntries(Object.entries(current).filter(([id]) => openIds.has(id)));
+    });
+  }, [documents]);
   const documentThumbnailUrlsRef = useRef(documentThumbnailUrls);
   documentThumbnailUrlsRef.current = documentThumbnailUrls;
   const [documentSourcePreviewUrls, setDocumentSourcePreviewUrls] = useState<Record<string, string>>({});
@@ -979,10 +989,12 @@ export function LightTableStandaloneApp({
     const handleApplicationShortcut = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
       const key = event.key.toLowerCase();
-      if (key !== 'n' && key !== 'k') return;
+      if (key !== 'n' && key !== 'k' && key !== 'p') return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (key === 'n') requestNewDocument();
+      if (key === 'p') {
+        if (!event.repeat) setAppTheme(getAppTheme() === 'dark' ? 'light' : 'dark');
+      } else if (key === 'n') requestNewDocument();
       else setSettingsOpen(true);
     };
     window.addEventListener('keydown', handleApplicationShortcut, true);
@@ -1041,10 +1053,12 @@ export function LightTableStandaloneApp({
   }, [host, importProjectFiles]);
 
   const workspaceDocuments = useMemo(
-    () => documents.map(({ id, title, dirty }) => ({
-      id, title, dirty, thumbnailUrl: documentThumbnailUrls[id] ?? documentSourcePreviewUrls[id]
-    })),
-    [documentSourcePreviewUrls, documentThumbnailUrls, documents]
+    () => documents.map(({ id, title, dirty, kind, runtime }) => {
+      const path = documentSavedPaths[id] ?? (runtime.file as File & { lightTableSourcePath?: string }).lightTableSourcePath;
+      return { id, title, dirty, kind, thumbnailUrl: documentThumbnailUrls[id] ?? documentSourcePreviewUrls[id],
+        onReveal: path && host.revealFile ? () => host.revealFile!(path) : undefined };
+    }),
+    [documentSourcePreviewUrls, documentThumbnailUrls, documentSavedPaths, documents, host]
   );
 
   const activeLifecycle = snapshot.activeDocumentId
@@ -1248,6 +1262,7 @@ export function LightTableStandaloneApp({
           <StandaloneDocumentRuntimeView
           document={activeWorkspaceDocument}
           workspaceDocuments={workspaceDocuments}
+          onDocumentSaved={publishDocumentSavedPath}
           host={host}
           commandService={commandService}
           commandPorts={commandPorts}

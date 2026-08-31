@@ -1,4 +1,4 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
+import { Button, PanelSection, SegmentedControl } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -262,14 +262,13 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           {!entries.length ? <p className="lighttable-psd-report__empty">No entries in this category.</p> : null}
         </div>
         {report?.warnings.length ? (
-          <details className="lighttable-psd-report__warnings">
-            <summary>Parser and compatibility warnings ({report.warnings.length})</summary>
+          <PanelSection label={`Parser and compatibility warnings (${report.warnings.length})`} keepMounted>
             <ul>
               {report.warnings.map((warning, index) => (
                 <li key={`${warning}-${index}`}>{sanitizeCompatibilityText(warning)}</li>
               ))}
             </ul>
-          </details>
+          </PanelSection>
         ) : null}
       </section>
     </div>,

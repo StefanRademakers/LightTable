@@ -12,9 +12,14 @@
   --ui-selection-surface: #28569b;
   --ui-selection-text: #ffffff;
   --ui-slider-thumb-size: 18px;
+  --ui-tool-row-height: 34px;
   --ui-slider-track-height: 14px;
   --ui-checker-dark: #8b8f92;
   --ui-checker-light: #c5c8ca;
+  /* Matches LightTable's fullscreen GPU document transparency presentation. */
+  --ui-document-checker-dark: #1d1d1d;
+  --ui-document-checker-light: #2b2b2b;
+  --ui-document-checker-pattern-size: 24px;
 }
 
 /* A document-root scope supplies tokens only; it must not resize rem units
@@ -30,8 +35,12 @@
 }
 
 [data-ui-theme='dark'] {
+  --ui-scope-red: #ff424c;
+  --ui-scope-green: #34e070;
+  --ui-scope-blue: #488bff;
   --ui-surface: #171a1f;
   --ui-surface-panel: #313539;
+  --ui-surface-inset: #222528;
   --ui-text: #f3f4f6;
   --ui-text-muted: #b5bdc7;
   --ui-border: #454c55;
@@ -52,8 +61,12 @@
 }
 
 [data-ui-theme='light'] {
+  --ui-scope-red: #d92d3c;
+  --ui-scope-green: #159447;
+  --ui-scope-blue: #2469dc;
   --ui-surface: #f4f5f7;
   --ui-surface-panel: #ffffff;
+  --ui-surface-inset: var(--ui-surface);
   --ui-text: #20252c;
   --ui-text-muted: #58616e;
   --ui-border: #c9cfd7;

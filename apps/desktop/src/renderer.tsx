@@ -329,6 +329,9 @@ const desktopHost: LightTableHost = {
   revealRecentFile(id) {
     return window.lightTableDesktop.revealRecentFile(id);
   },
+  revealFile(path) {
+    return window.lightTableDesktop.revealFile(path);
+  },
   removeRecentFile(id) {
     return window.lightTableDesktop.removeRecentFile(id);
   },

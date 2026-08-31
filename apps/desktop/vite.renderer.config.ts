@@ -9,7 +9,8 @@ const isolationHeaders = {
   'Permissions-Policy': 'cross-origin-isolated=(self)'
 };
 
-const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
+// Temporarily default on in every build during the shared-control migration.
+const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS !== '0';
 const vectorDetailedProfiling = process.env.LIGHTTABLE_VECTOR_PROFILE === '1';
 const renderTelemetryEnabled = process.env.LIGHTTABLE_RENDER_TELEMETRY === '1';
 const debugBuild = process.env.LIGHTTABLE_BUILD_PROFILE === 'debug';

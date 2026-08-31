@@ -229,7 +229,7 @@ export const nearestColorMixerRange = (position: number) => {
 };
 
 export const GRADING_MODE_OPTIONS: Array<
-  SegmentOption<ColorGradingMode>
+  { value: ColorGradingMode; label: string; title?: string }
 > = [
   { value: 'all', label: '3-Way', title: 'Three-way grading' },
   { value: 'global', label: 'Global' },

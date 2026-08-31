@@ -1,6 +1,11 @@
 @import './tokens.css';
 @import './Text.css';
 @import './MaskIcon.css';
+@import './PanelSection.css';
+@import './PanelTab.css';
+@import './PanelFooter.css';
+@import './SwitchControl.css';
+@import './Checkbox.css';
 @import './Button.css';
 @import './SegmentedControl.css';
 @import './Menu.css';
@@ -10,6 +15,13 @@
 @import './GradientEditor.css';
 @import './TextInput.css';
 @import './IconButton.css';
+@import './SearchField.css';
 @import './ColorArea.css';
 @import './ColorSwatches.css';
 @import './ColorPicker.css';
+@import './Select.css';
+@import './PaintField.css';
+@import './Scopes.css';
+@import './ColorWheel.css';
+@import './DocumentTabs.css';
+@import './DocumentOverview.css';

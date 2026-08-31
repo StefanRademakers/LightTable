@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { UI_STYLE_GUIDE_CATEGORIES } from './UiStyleGuideDialog';
 import usageInventory from '../ui/generatedUiUsageInventory.json';
+import componentManifest from '../ui/uiComponentManifest.json';
 
 describe('UI Style Guide taxonomy', () => {
   it('keeps every canonical UI family directly inspectable', () => {
@@ -12,6 +13,7 @@ describe('UI Style Guide taxonomy', () => {
       'Sliders',
       'Paint & color',
       'Gradients',
+      'Scopes',
       'Lists & navigation',
       'Containers',
       'Layout & geometry',
@@ -23,7 +25,7 @@ describe('UI Style Guide taxonomy', () => {
   });
 
   it('keeps every catalogued control identifiable in the running suite UI', () => {
-    expect(usageInventory.components).toHaveLength(25);
+    expect(usageInventory.components.map(({ id }) => id)).toEqual(componentManifest.map(({ id }) => id));
     expect(usageInventory.components.every(({ metadataDeclared }) => metadataDeclared)).toBe(true);
   });
 });

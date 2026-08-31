@@ -1,8 +1,8 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { FormInput } from '../../../ui/FormInput';
+
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
   duplicateDocumentDefaultName,
@@ -69,7 +69,7 @@ export const DuplicateImageDialog = ({
           </div>
           <label className="lighttable-new-document-dialog__wide-field">
             <span>As</span>
-            <FormInput ref={inputRef} value={name} maxLength={255}
+            <TextInput tabIndex={0} ref={inputRef} value={name} maxLength={255}
               aria-invalid={!normalizedName}
               onChange={(event) => setName(event.currentTarget.value)} />
           </label>

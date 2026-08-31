@@ -1,6 +1,6 @@
 .ui-text-input {
   box-sizing: border-box; appearance: none; width: 100%; min-width: 0;
-  height: 28px; margin: 0; padding: 0 8px;
+  height: 28px; min-height: 28px; flex-shrink: 0; margin: 0; padding: 0 8px;
   border: 1px solid var(--ui-button-border); border-radius: 6px;
   background: var(--ui-button-surface); color: var(--ui-button-text);
   font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
@@ -10,3 +10,7 @@
 .ui-text-input[data-align='right'] { text-align: right; font-variant-numeric: tabular-nums; }
 .ui-text-input:disabled { color: var(--ui-button-disabled-text); border-color: var(--ui-button-disabled-border); }
 .ui-text-input[aria-invalid='true'] { border-color: var(--ui-danger-border); }
+.ui-text-input::placeholder { color: var(--ui-text-muted); opacity: 1; }
+.ui-text-input[type='number'] { appearance: textfield; }
+.ui-text-input::-webkit-inner-spin-button,
+.ui-text-input::-webkit-outer-spin-button { appearance: none; margin: 0; }

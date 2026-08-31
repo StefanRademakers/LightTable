@@ -2121,6 +2121,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     shell.showItemInFolder(entry.path);
   });
 
+  ipcMain.handle('lighttable:reveal-file', async (event, filePath: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof filePath !== 'string' || filePath.length > 32_768 || !path.isAbsolute(filePath)) {
+      throw new Error('Invalid file location.');
+    }
+    if (!(await stat(filePath)).isFile()) throw new Error('The document file is no longer available.');
+    shell.showItemInFolder(path.resolve(filePath));
+  });
+
   ipcMain.handle('lighttable:remove-recent-file', async (event, id: string) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (typeof id !== 'string' || id.length > 128) throw new Error('Invalid recent-file request.');
@@ -2388,7 +2397,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
           filePath: targetPath
         });
       }
-      return { status: 'committed', durability: committed.durability };
+      return { status: 'committed', durability: committed.durability, path: targetPath };
     } catch (reason) {
       const failure = reason instanceof AtomicWriteError
         ? reason

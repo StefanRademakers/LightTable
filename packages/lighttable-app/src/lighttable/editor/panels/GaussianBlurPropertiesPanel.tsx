@@ -1,7 +1,8 @@
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { ButtonBase } from '../../../ui/ButtonBase';
-import { SwitchControl } from '../../../ui/SwitchControl';
+
+import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import {
   DEFAULT_GAUSSIAN_BLUR_RADIUS,
@@ -23,25 +24,14 @@ export const GaussianBlurPropertiesPanel: React.FC<GaussianBlurPropertiesPanelPr
 }) => (
   <aside className="lighttable-panel lighttable-grade-panel" aria-label="Gaussian Blur properties">
     <section className="lighttable-group lighttable-master-group">
-      <div className="lighttable-group__header">
-        <div className="lighttable-master-group__label"><strong>Gaussian Blur</strong></div>
-        <div className="lighttable-group__actions">
-          <ButtonBase
-            type="button"
-            className="lighttable-group__reset"
-            onClick={commands.reset}
-            aria-label="Reset Gaussian Blur"
-            title="Reset Gaussian Blur"
-          >
-            <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-          </ButtonBase>
+      <PanelSectionHeader label="Gaussian Blur" actions={<>
+          <IconButton variant="quiet" type="button" onClick={commands.reset} aria-label="Reset Gaussian Blur" title="Reset Gaussian Blur" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
           <SwitchControl
             checked={model.enabled}
             onCheckedChange={commands.toggleEnabled}
             label={model.enabled ? 'Disable Gaussian Blur' : 'Enable Gaussian Blur'}
           />
-        </div>
-      </div>
+        </>} />
     </section>
     <div className="lighttable-panel__controls">
       <section className={`lighttable-group${model.enabled ? '' : ' lighttable-group--disabled'}`}>

@@ -1,8 +1,7 @@
 import React, {
   forwardRef,
   type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type PropsWithChildren
+  type HTMLAttributes
 } from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { ButtonBase } from '../../../ui/ButtonBase';
@@ -55,16 +54,6 @@ export const PanelStackDisclosure: React.FC<{
     onClick={onClick} aria-label={label} title={label}>
     <img src={lightTableIcon('chevron_layer.png')} alt="" aria-hidden="true" />
   </ButtonBase>
-);
-
-export const PanelStackFooter: React.FC<PropsWithChildren<{
-  readonly className?: string;
-  readonly ariaLabel?: string;
-}>> = ({ className, ariaLabel, children }) => (
-  <footer className={['lighttable-panel-stack-footer', className ?? ''].filter(Boolean).join(' ')}
-    aria-label={ariaLabel}>
-    {children}
-  </footer>
 );
 
 export const handlePanelCollectionNavigation = (

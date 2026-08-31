@@ -1,8 +1,8 @@
-import { ButtonBase } from '../../ui/ButtonBase';
+import { IconButton, MaskIcon, PanelSection } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../../assets/icons';
-import { PanelSection } from '../../ui/PanelSection';
-import { SwitchControl } from '../../ui/SwitchControl';
+
+import { SwitchControl } from '@lighttable/ui';
 
 interface EffectPanelProps {
   label: string;
@@ -14,6 +14,8 @@ interface EffectPanelProps {
   onReset: () => void;
   onRemove?: () => void;
   children: React.ReactNode;
+  contentClassName?: string;
+  keepMounted?: boolean;
 }
 
 export const EffectPanel: React.FC<EffectPanelProps> = ({
@@ -25,41 +27,28 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
   onEnabledChange,
   onReset,
   onRemove,
-  children
+  children,
+  contentClassName,
+  keepMounted
 }) => (
   <PanelSection
     label={label}
     expanded={expanded}
     onExpandedChange={onExpandedChange}
     className={`lighttable-effect${enabled ? '' : ' lighttable-group--disabled'}`}
+    contentClassName={contentClassName}
+    keepMounted={keepMounted}
     title={resetModifierActive ? `Reset ${label}` : label}
-    onTogglePointerDown={(event) => {
-          if (event.button === 0 && (event.shiftKey || resetModifierActive)) {
-            event.preventDefault();
-            onReset();
-          }
-        }}
     onToggleClick={(event) => {
-          if (event.button === 0 && (event.shiftKey || resetModifierActive)) {
-            event.preventDefault();
-            return;
-          }
-          onExpandedChange(!expanded);
-        }}
+      if (event.shiftKey || resetModifierActive) {
+        event.preventDefault();
+        onReset();
+      }
+    }}
     actions={<>
-        <ButtonBase type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
-          <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-        </ButtonBase>
+        <IconButton variant="quiet" type="button" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`} icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
         {onRemove ? (
-          <ButtonBase
-            type="button"
-            className="lighttable-group__remove"
-            onClick={onRemove}
-            aria-label={`Remove ${label}`}
-            title={`Remove ${label}`}
-          >
-            <img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />
-          </ButtonBase>
+          <IconButton variant="quiet" type="button" onClick={onRemove} aria-label={`Remove ${label}`} title={`Remove ${label}`} icon={<MaskIcon src={lightTableIcon('layer_trash.png')} />} />
         ) : null}
         <SwitchControl
           checked={enabled}

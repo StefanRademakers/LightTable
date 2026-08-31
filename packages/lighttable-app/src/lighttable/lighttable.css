@@ -95,11 +95,11 @@
 }
 
 .lighttable :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus,
+  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus,
 .lighttable-launcher :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus,
+  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus,
 .modal-backdrop :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus {
+  input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus {
   border-color: var(--lt-focus-ring, var(--lt-accent, #4d9cff));
   outline: none;
   box-shadow: none;
@@ -132,11 +132,11 @@
   }
 
   .lighttable :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus,
+    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus,
   .lighttable-launcher :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus,
+    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus,
   .modal-backdrop :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
-    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus {
+    input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):not([data-ui-component]):focus {
     border-color: Highlight;
     outline: 1px solid Highlight;
     outline-offset: -1px;
@@ -252,11 +252,6 @@
   user-select: none;
 }
 
-.lighttable-tool-options__toggle input {
-  margin: 0;
-  accent-color: var(--lt-accent);
-}
-
 .lighttable-tool-options__hint {
   color: var(--lt-text-muted);
   font-size: var(--lt-type-small);
@@ -275,97 +270,8 @@
   user-select: none;
 }
 
-.lighttable-tool-options__field select {
-  min-width: 0;
-  height: 25px;
-  padding: 2px 4px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  color: var(--lt-text-secondary);
-  font: inherit;
-}
-
 .lighttable-tool-options__font-field {
   grid-template-columns: auto 94px;
-}
-
-.lighttable-font-picker__trigger {
-  min-width: 0;
-  width: 94px;
-  height: 25px;
-  padding: 2px 6px 2px 7px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  color: var(--lt-text-secondary);
-  font: inherit;
-}
-
-.lighttable-font-picker__trigger > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lighttable-font-picker__menu {
-  position: fixed;
-  z-index: 10030;
-  width: 244px;
-  padding: 6px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  box-shadow: var(--lt-shadow-floating);
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-small);
-}
-
-.lighttable-font-picker__menu input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 27px;
-  margin-bottom: 5px;
-  padding: 3px 7px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-app);
-  color: var(--lt-text-primary);
-  font: inherit;
-}
-
-.lighttable-font-picker__options {
-  max-height: min(440px, calc(100vh - 140px));
-  overflow-y: auto;
-}
-
-.lighttable-font-picker__group,
-.lighttable-font-picker__empty {
-  padding: 5px 7px 3px;
-  color: var(--lt-text-muted);
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-font-picker__option {
-  width: 100%;
-  padding: 5px 9px 5px 16px;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  color: var(--lt-text-secondary);
-  font: inherit;
-  text-align: left;
-  white-space: normal;
-}
-
-.lighttable-font-picker__option:hover,
-.lighttable-font-picker__option--selected {
-  background: var(--lt-accent-muted);
-  color: var(--lt-text-primary);
 }
 
 .lighttable-tool-options__vector-style,
@@ -471,17 +377,6 @@
   font-size: var(--lt-type-small);
 }
 
-.lighttable-point-text input {
-  width: 100%;
-  height: 32px;
-  padding: 4px 9px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  color: var(--lt-text-primary);
-  font: inherit;
-}
-
 .lighttable-point-text form > div {
   display: flex;
   justify-content: flex-end;
@@ -539,13 +434,6 @@
 
 .lighttable-tool-options__weight-field input {
   width: 54px;
-  height: 24px;
-  padding: 2px 6px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-  color: var(--lt-text-primary);
-  font: inherit;
 }
 
 .lighttable-tool-options__content--vertical .lighttable-tool-options__field {
@@ -682,7 +570,7 @@
   --dv-background-color: var(--lt-surface-collapsible-content);
   --dv-paneview-header-border-color: var(--lt-border);
   --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel-tab-strip);
-  --dv-tabs-and-actions-container-height: 34px;
+  --dv-tabs-and-actions-container-height: 30px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel-tab-inactive);
   /* A selected tab keeps the same semantic surface when another dock group
@@ -717,6 +605,10 @@
  * runtime theme-token edit; these selectors target the painted elements. */
 .lighttable-dock-workspace .dv-tabs-and-actions-container {
   background-color: var(--lt-surface-panel-tab-strip);
+}
+
+.lighttable-dock-workspace .dv-tabs-and-actions-container .dv-tab {
+  padding: 0;
 }
 
 .lighttable-dock-workspace
@@ -993,98 +885,8 @@
   background: var(--lt-surface-app);
 }
 
-.lighttable-document-tabs {
-  min-height: var(--lt-layout-document-tabs-height);
-  flex: 0 0 var(--lt-layout-document-tabs-height);
-  overflow-x: auto;
-  overflow-y: hidden;
-  display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid var(--lt-border);
-  background: var(--lt-surface-panel);
-  scrollbar-width: thin;
-}
-
-.lighttable-document-tab {
-  position: relative;
-  min-width: 120px;
-  max-width: 280px;
-  display: flex;
-  align-items: center;
-  border-right: 1px solid var(--lt-border);
-  color: var(--lt-text-muted);
-  background: var(--lt-surface-tab);
-}
-
-.lighttable-document-tab__preview {
-  position: fixed;
-  z-index: 130;
-  display: none;
-  width: max-content;
-  max-width: 180px;
-  max-height: 180px;
-  padding: 0;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: 0 0 var(--lt-radius-sm) var(--lt-radius-sm);
-  background: var(--lt-surface-popover);
-  box-shadow: 0 8px 18px rgb(0 0 0 / 58%);
-  pointer-events: none;
-}
-
-.lighttable-document-tab:hover .lighttable-document-tab__preview {
-  display: grid;
-}
-
-.lighttable-document-tab__preview img {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 180px;
-  max-height: 180px;
-  object-fit: contain;
-  background: var(--lt-surface-canvas);
-}
-
-.lighttable-document-tab--active {
-  color: var(--lt-text-primary);
-  background: var(--lt-surface-control-hover);
-  box-shadow: inset 0 1px 0 var(--lt-accent);
-}
-
-.lighttable-document-tab__title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  padding: 0 4px 0 10px;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  font-size: var(--lt-type-small);
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lighttable-document-tab__close {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  margin-right: 2px;
-  border: 0;
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-muted);
-  background: transparent;
-  font-size: var(--lt-type-large);
-  line-height: 1;
-}
-
-.lighttable-document-tab__close:hover {
-  color: var(--lt-text-on-accent);
-  background: var(--lt-border-strong);
-}
-
 .lighttable-document-host__content {
+  position: relative;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
@@ -1243,17 +1045,7 @@
 
 .lighttable-toolbox__color {
   position: absolute;
-  display: block;
-  width: 17px;
-  min-width: 17px;
-  height: 17px;
-  min-height: 17px;
-  border: 1px solid var(--lt-gizmo);
-  box-shadow: 0 0 0 1px #060708;
-  cursor: pointer;
 }
-
-.lighttable-toolbox__color.color-swatch-field { overflow: visible; }
 
 .lighttable-toolbox__color--background {
   right: 2px;
@@ -2043,256 +1835,6 @@
   gap: 6px;
 }
 
-.lighttable-scopes {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--lt-border);
-  background: var(--lt-surface-collapsible-content);
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.lighttable-scopes__content {
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-
-.lighttable-scopes__shared-controls {
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px 12px;
-  border-bottom: 1px solid var(--lt-border);
-}
-
-.lighttable-scopes__shared-controls label,
-.lighttable-scope__select-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-small);
-  user-select: none;
-}
-
-.lighttable-scopes select,
-.lighttable-scope__select-row select {
-  min-height: 26px;
-  padding: 3px 4px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-secondary);
-  background: var(--lt-surface-control);
-  font: inherit;
-}
-
-.lighttable-scopes__error {
-  margin: 8px;
-  padding: 8px;
-  border: 1px solid rgba(210, 75, 75, 0.48);
-  border-radius: var(--lt-radius-md);
-  color: var(--lt-danger);
-  background: rgba(91, 23, 23, 0.24);
-  font-size: var(--lt-type-small);
-}
-
-.lighttable-scope {
-  border-bottom: 1px solid var(--lt-border);
-}
-
-.lighttable-scope__header {
-  width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px;
-  border: 0;
-  color: var(--lt-text-secondary);
-  background: var(--lt-surface-collapsible-header);
-}
-
-.lighttable-scope__toggle {
-  min-width: 0;
-  align-self: stretch;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.lighttable-scope__toggle img {
-  width: 12px;
-  height: 12px;
-  object-fit: contain;
-  opacity: 0.8;
-}
-
-.lighttable-scope__toggle strong {
-  font-size: var(--lt-type-regular);
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-scope__body {
-  padding: 0;
-  background: var(--lt-surface-inset);
-}
-
-.lighttable-scope__body .lighttable-histogram {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  margin: 0;
-  border-right: 0;
-  border-left: 0;
-  border-radius: 0;
-}
-
-.lighttable-scope__canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.lighttable-hue-distribution {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-top: 1px solid var(--lt-border-strong);
-  border-bottom: 1px solid var(--lt-border-strong);
-  background: var(--lt-surface-plot);
-}
-
-.lighttable-parade__channels {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 5px 4px 3px 35px;
-  font-size: var(--lt-type-small);
-  font-weight: var(--lt-weight-bold);
-  text-align: center;
-}
-
-.lighttable-parade__channels span:nth-child(1) { color: var(--lt-channel-red); }
-.lighttable-parade__channels span:nth-child(2) { color: var(--lt-channel-green); }
-.lighttable-parade__channels span:nth-child(3) { color: var(--lt-channel-blue); }
-
-.lighttable-parade__plot {
-  display: grid;
-  grid-template-columns: 31px minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.lighttable-parade__scale {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 1px 5px 1px 0;
-  color: var(--lt-text-subtle);
-  font-size: var(--lt-type-small);
-  line-height: 1;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.lighttable-parade__canvas-wrap,
-.lighttable-vectorscope {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-plot);
-}
-
-.lighttable-parade__canvas-wrap {
-  aspect-ratio: 16 / 9;
-  border-right: 0;
-  border-radius: var(--lt-radius-sm) 0 0 var(--lt-radius-sm);
-}
-
-.lighttable-parade__grid {
-  position: absolute;
-  inset: 0;
-  border-left: 1px solid var(--lt-hover-overlay);
-  background:
-    linear-gradient(to right,
-      transparent calc(33.333% - 0.5px), var(--lt-border-overlay) 33.333%, transparent calc(33.333% + 0.5px),
-      transparent calc(66.666% - 0.5px), var(--lt-border-overlay) 66.666%, transparent calc(66.666% + 0.5px)),
-    repeating-linear-gradient(to bottom,
-      var(--lt-grid-line) 0, var(--lt-grid-line) 1px,
-      transparent 1px, transparent 12.5%);
-  pointer-events: none;
-}
-
-.lighttable-scope__select-row {
-  margin-top: 7px;
-}
-
-.lighttable-scope__range {
-  margin: 8px 8px 7px;
-}
-
-.lighttable-vectorscope {
-  width: 100%;
-  aspect-ratio: 1;
-  margin: 0 auto;
-  border-right: 0;
-  border-left: 0;
-  border-radius: 0;
-}
-
-.lighttable-vectorscope__overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.lighttable-vectorscope__graticule circle,
-.lighttable-vectorscope__graticule line {
-  fill: none;
-  stroke: rgba(190, 202, 211, 0.34);
-  stroke-width: 0.45;
-  vector-effect: non-scaling-stroke;
-}
-
-.lighttable-vectorscope__graticule text {
-  fill: rgba(208, 216, 223, 0.7);
-  /* SVG user-space scales this back to the same visual size; keep its source
-     tied to the single small typography token. */
-  font-size: calc(var(--lt-type-small) * 0.36);
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-vectorscope__skin-line {
-  stroke: rgba(255, 173, 116, 0.74);
-  stroke-width: 0.65;
-  stroke-dasharray: 2 1.4;
-  vector-effect: non-scaling-stroke;
-}
-
-.lighttable-histogram {
-  width: calc(100% - 24px);
-  height: 132px;
-  flex: 0 0 132px;
-  margin: 12px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: 5px;
-}
 
 .lighttable-panel__controls {
   min-height: 0;
@@ -2325,10 +1867,9 @@
   margin: 0 0 12px;
 }
 
-.genai-panel__workflow.form-input {
+.genai-panel__workflow {
   width: 100%;
   margin-bottom: 12px;
-  font-weight: var(--lt-weight-semibold);
 }
 
 .genai-panel__reference-well {
@@ -2612,15 +2153,6 @@
   grid-template-columns: minmax(86px, 38%) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-}
-
-.genai-panel__advanced {
-  margin-top: 12px;
-  color: var(--lt-text-secondary);
-}
-
-.genai-panel__advanced summary {
-  cursor: pointer;
 }
 
 .genai-panel__error {
@@ -2937,11 +2469,10 @@
   text-align: center;
 }
 
-.lighttable-channel-row__active-marker {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
+.lighttable-channel-row__visibility img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
 }
 
 .lighttable-channel-row__thumbnail {
@@ -3060,7 +2591,7 @@
   margin-bottom: 7px;
 }
 
-.lighttable-global-grade-controls__preset-row .form-input {
+.lighttable-global-grade-controls__preset-row > :first-child {
   width: 100%;
   height: 25px;
   min-height: 25px;
@@ -3119,42 +2650,6 @@
   gap: 2px;
 }
 
-.lighttable-panel-stack-footer {
-  min-height: 33px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  margin: 0 -8px -8px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--lt-border);
-  background: var(--lt-surface-panel);
-}
-
-.lighttable-panel-stack-footer button {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-secondary);
-  background: transparent;
-  cursor: pointer;
-}
-
-.lighttable-panel-stack-footer button:hover:not(:disabled) {
-  border-color: var(--lt-border-strong);
-  background: var(--lt-surface-control-hover);
-}
-
-.lighttable-panel-stack-footer button:focus-visible:not(:disabled) {
-  border-color: var(--lt-focus-ring);
-  background: var(--lt-surface-control-hover);
-}
-
 .lighttable-layers__footer .lighttable-layers__trash--drop-active {
   border-color: var(--lt-danger-strong);
   background: rgba(216, 91, 98, 0.22);
@@ -3173,19 +2668,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--lt-focus-ring) 18%, transparent);
 }
 
-.lighttable-panel-stack-footer button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.lighttable-panel-stack-footer img {
-  width: 17px;
-  height: 17px;
-  object-fit: contain;
-}
-
 .lighttable-layers__footer .lighttable-layers__fx-button {
-  margin-right: auto;
   font-family: Georgia, serif;
   font-size: var(--lt-type-large);
   font-style: italic;
@@ -3819,18 +3302,6 @@
   flex: 0 1 50%;
   width: 50%;
   min-width: 0;
-  height: 25px;
-  padding: 2px 4px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-secondary);
-  background: var(--lt-surface-control);
-  font: inherit;
-  font-size: var(--lt-type-small);
-}
-
-.lighttable-layers__blend-mode:disabled {
-  opacity: 0.45;
 }
 
 .lighttable-layers__channel-actions {
@@ -4263,7 +3734,7 @@
   align-items: center;
   gap: 7px;
 }
-.lighttable-tool-options__line-style-options .lighttable-tool-options__field select,
+.lighttable-tool-options__line-style-options .lighttable-tool-options__field > :last-child,
 .lighttable-tool-options__line-style-options .lighttable-tool-options__weight-field input {
   width: 100%;
 }
@@ -4284,7 +3755,7 @@
   align-items: center;
   gap: 7px;
 }
-.lighttable-tool-options__shape-geometry-options .lighttable-tool-options__field select,
+.lighttable-tool-options__shape-geometry-options .lighttable-tool-options__field > :last-child,
 .lighttable-tool-options__shape-geometry-options .lighttable-tool-options__weight-field input {
   width: 100%;
 }
@@ -4363,9 +3834,6 @@
   border-top: 0;
 }
 
-.lighttable-master-group .lighttable-histogram {
-  display: block;
-}
 
 .lighttable-levels {
   display: flex;
@@ -4377,36 +3845,16 @@
   height: 142px;
   min-height: 142px;
   overflow: hidden;
-  border-radius: var(--lt-radius-md);
-  background: var(--lt-surface-plot);
 }
 
-.lighttable-levels__histogram .lighttable-histogram {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  border-radius: var(--lt-radius-md);
-}
 
 .lighttable-grade-histogram {
   position: relative;
   height: 118px;
   margin-bottom: var(--lt-space-4);
   overflow: hidden;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-md);
-  background: var(--lt-surface-plot);
 }
 
-.lighttable-grade-histogram .lighttable-histogram {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  border: 0;
-  border-radius: inherit;
-}
 
 .lighttable-grade-histogram__ranges {
   position: absolute;
@@ -4505,110 +3953,6 @@
 
 .lighttable-levels__input-values { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.lighttable-levels__input-values .form-input {
-  min-width: 0;
-  height: var(--lt-control-height);
-  min-height: var(--lt-control-height);
-  padding-inline: 6px;
-  border-radius: var(--lt-radius-md);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.lighttable-master-group__label {
-  min-width: 0;
-  flex: 1 1 auto;
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-large);
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-group__header {
-  min-height: var(--lt-layout-section-header-height);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lt-space-4);
-  padding: 0 var(--lt-space-5);
-  background: var(--lt-surface-collapsible-header);
-  user-select: none;
-}
-
-.lighttable-group__toggle,
-.lighttable-group__reset,
-.lighttable-group__remove,
-.lighttable-group__visibility {
-  border: 0;
-  outline: 0;
-  box-shadow: none;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.lighttable-group__toggle {
-  min-width: 0;
-  flex: 1 1 auto;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  text-align: left;
-}
-
-.lighttable-group__toggle img {
-  width: 13px;
-  height: 13px;
-  object-fit: contain;
-  opacity: 0.86;
-}
-
-.lighttable-group__toggle strong {
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-large);
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-group__actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.lighttable-group__reset,
-.lighttable-group__remove,
-.lighttable-group__visibility {
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--lt-radius-sm);
-}
-
-.lighttable-group__reset:hover,
-.lighttable-group__remove:hover,
-.lighttable-group__visibility:hover {
-  background: var(--lt-hover-overlay);
-}
-
-.lighttable-group__reset img,
-.lighttable-group__remove img,
-.lighttable-group__visibility img {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  opacity: 0.72;
-}
-
-.lighttable-group__remove:hover img {
-  filter: sepia(1) saturate(8) hue-rotate(315deg) brightness(1.2);
-}
-
-.lighttable-group--disabled .lighttable-group__visibility img {
-  opacity: 0.48;
-}
-
 .lighttable-group__controls {
   padding: var(--lt-layout-section-padding);
   background: var(--lt-surface-collapsible-content);
@@ -4619,42 +3963,9 @@
   gap: var(--lt-space-4);
 }
 
-.lighttable-detail-controls__subgroup {
-  display: grid;
-  gap: var(--lt-space-3);
-}
-
-.lighttable-detail-controls__subgroup + .lighttable-detail-controls__subgroup {
-  padding-top: var(--lt-space-3);
-  border-top: 1px solid var(--lt-border-subtle);
-}
-
-.lighttable-detail-controls__subgroup-toggle {
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  gap: var(--lt-space-2);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-regular);
-  font-weight: var(--lt-weight-semibold);
-  text-align: left;
-}
-
-.lighttable-detail-controls__subgroup-toggle img {
-  width: 12px;
-  height: 12px;
-  object-fit: contain;
-  opacity: 0.82;
-}
-
 .lighttable-detail-controls__advanced {
   display: grid;
   gap: var(--lt-space-3);
-  padding-top: var(--lt-space-2);
-  border-top: 1px solid var(--lt-border-subtle);
 }
 
 .lighttable-color-mixer__mode {
@@ -4798,128 +4109,6 @@
   min-width: 0;
 }
 
-.lighttable-grading-wheel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-}
-
-.lighttable-grading-wheel--disabled {
-  opacity: 0.48;
-}
-
-.lighttable-grading-wheel__label {
-  width: 100%;
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 5px;
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-small);
-  cursor: default;
-  user-select: none;
-}
-
-.lighttable-grading-wheel__label strong {
-  font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-grading-wheel__label span {
-  color: var(--lt-text-subtle);
-  font-size: var(--lt-type-small);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.lighttable-grading-wheel__disc {
-  position: relative;
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
-  background:
-    radial-gradient(
-      circle,
-      rgba(249, 249, 249, 0.98) 0%,
-      rgba(249, 249, 249, 0.78) 18%,
-      rgba(249, 249, 249, 0.34) 43%,
-      rgba(249, 249, 249, 0) 72%
-    ),
-    conic-gradient(
-      from 0deg,
-      #d8ff22 0deg,
-      #ffb21c 45deg,
-      #ff4538 90deg,
-      #ff2c91 135deg,
-      #ca2cff 180deg,
-      #4148ff 225deg,
-      #14d5e6 270deg,
-      #23e66e 315deg,
-      #d8ff22 360deg
-    );
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 1px 4px rgba(0, 0, 0, 0.38);
-  cursor: crosshair;
-  touch-action: none;
-  user-select: none;
-}
-
-.lighttable-grading-wheel__guide {
-  position: absolute;
-  inset: 27.5%;
-  border: 2px solid rgba(22, 25, 30, 0.74);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--lt-border-overlay);
-  pointer-events: none;
-}
-
-.lighttable-grading-wheel__hue-marker {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.lighttable-grading-wheel__disc:focus-visible {
-  outline: 2px solid var(--color-tab-active);
-  outline-offset: 3px;
-}
-
-.lighttable-grading-wheel--disabled .lighttable-grading-wheel__disc {
-  cursor: default;
-}
-
-.lighttable-grading-wheel--compact .lighttable-grading-wheel__disc {
-  width: 94px;
-  height: 94px;
-}
-
-.lighttable-grading-wheel--compact .lighttable-grading-wheel__label {
-  display: block;
-  min-height: 31px;
-  text-align: center;
-}
-
-.lighttable-grading-wheel--compact .lighttable-grading-wheel__label span {
-  display: block;
-  margin-top: 2px;
-}
-
-.lighttable-grading-wheel__handle {
-  position: absolute;
-  width: 15px;
-  height: 15px;
-  border: 2px solid rgba(255, 255, 255, 0.92);
-  border-radius: 50%;
-  background: rgba(244, 245, 247, 0.92);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.5);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
 
 .lighttable-color-grading__range-controls {
   margin-top: 11px;
@@ -5016,13 +4205,6 @@
 
 .lighttable-curves-editor__point:active {
   cursor: grabbing;
-}
-
-
-.lighttable-subgroup {
-  margin-top: 10px;
-  padding-top: 7px;
-  border-top: 1px solid var(--lt-border);
 }
 
 .lighttable-subgroup__toggle {

@@ -14,7 +14,7 @@ describe('ProjectAssetBrowser', () => {
     expect(markup).toContain('History');
     expect(markup).toContain('Characters');
     expect(markup).toContain('ExtraFolder');
-    expect(markup.match(/lighttable-group__header/g)).toHaveLength(3);
+    expect(markup.match(/ui-panel-section__header/g)).toHaveLength(3);
     expect(markup).toContain('area_open.png');
     expect(markup).toContain('area_closed.png');
   });

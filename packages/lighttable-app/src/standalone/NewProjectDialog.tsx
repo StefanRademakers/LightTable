@@ -1,8 +1,8 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput } from '@lighttable/ui';
 import { createPortal } from 'react-dom';
 import type { LightTableProjectLocation } from '../platform/LightTableHost';
 
-import { FormInput } from '../ui/FormInput';
+
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 interface NewProjectDialogProps {
@@ -43,7 +43,7 @@ export function NewProjectDialog({
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Project folder</span>
             <div className="lighttable-preferences__location-row">
-              <FormInput readOnly aria-label="Project folder" value={location?.path ?? ''}
+              <TextInput tabIndex={0} readOnly aria-label="Project folder" value={location?.path ?? ''}
                 placeholder="Choose a project folder" title={location?.path} />
               <Button tabIndex={0} type="button" autoFocus={!location} onClick={onChooseLocation}>Choose...</Button>
             </div>

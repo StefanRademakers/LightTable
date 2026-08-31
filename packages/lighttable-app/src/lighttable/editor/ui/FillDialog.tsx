@@ -1,3 +1,4 @@
+import { Checkbox } from '@lighttable/ui';
 import React from 'react';
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { ToolOptionSelect } from './ToolOptionControls';
@@ -38,18 +39,18 @@ export const FillDialog = ({
       }}
     >
       <div className="lighttable-tool-options__content lighttable-tool-options__content--vertical">
-        <ToolOptionSelect
+        <ToolOptionSelect tabIndex={0}
           label="Contents"
           aria-label="Fill contents"
           value={source}
-          onChange={(event) => setSource(event.currentTarget.value as typeof source)}
+          onValueChange={(nextValue) => setSource(nextValue as typeof source)}
         >
           <option value="foreground">Foreground color</option>
           <option value="background">Background color</option>
         </ToolOptionSelect>
         <label className="lighttable-tool-options__toggle">
-          <input
-            type="checkbox"
+          <Checkbox
+            tabIndex={0}
             checked={preserveTransparency}
             onChange={(event) => setPreserveTransparency(event.currentTarget.checked)}
           />

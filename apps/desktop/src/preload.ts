@@ -29,6 +29,7 @@ const bridge: LightTableDesktopBridge = {
   rememberOpenedFiles: (files) => ipcRenderer.invoke('lighttable:remember-opened-files',
     files.map((file) => webUtils.getPathForFile(file)).filter(Boolean)),
   revealRecentFile: (id) => ipcRenderer.invoke('lighttable:reveal-recent-file', id),
+  revealFile: (path) => ipcRenderer.invoke('lighttable:reveal-file', path),
   removeRecentFile: (id: string) => ipcRenderer.invoke('lighttable:remove-recent-file', id),
   clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
   chooseProjectLocation: () => ipcRenderer.invoke('lighttable:project-choose-location'),

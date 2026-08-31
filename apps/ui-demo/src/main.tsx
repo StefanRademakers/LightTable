@@ -1,12 +1,17 @@
+import { Button, Text, type TextVariant } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@lighttable/ui/fonts.css';
 import '@lighttable/ui/styles.css';
-import { Button, SegmentedControl, Text, type TextVariant } from '@lighttable/ui';
+
 import './demo.css';
 import { MenusDemo } from './MenusDemo';
 import { SlidersDemo } from './SlidersDemo';
 import { ColorPickerDemo } from './ColorPickerDemo';
+import { PanelsDemo } from './PanelsDemo';
+import { SelectionDemo } from './SelectionDemo';
+import { FieldsDemo } from './FieldsDemo';
+import { ScopesDemo } from './ScopesDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -14,7 +19,19 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'small', label: 'Small', usage: 'Metadata and compact notes' }
 ];
 
-const currentPage = () => location.hash === '#color-picker' ? 'color-picker' : location.hash === '#sliders' ? 'sliders' : location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
+const catalog = [
+  { label: 'Foundations', pages: [{ id: 'typography', label: 'Typography' }, { id: 'colors', label: 'Colors' }] },
+  { label: 'Controls', pages: [
+    { id: 'buttons', label: 'Buttons & actions' }, { id: 'fields', label: 'Fields' }, { id: 'selection', label: 'Selection' },
+    { id: 'sliders', label: 'Sliders & gradients' }, { id: 'color-picker', label: 'Paint & color' },
+    { id: 'menus', label: 'Menus & navigation' },
+    { id: 'document-tabs', label: 'Document tabs' }
+  ] },
+  { label: 'Containers', pages: [{ id: 'panels', label: 'Panel sections' }] },
+  { label: 'Visualization', pages: [{ id: 'scopes', label: 'Scopes' }] }
+] as const;
+const catalogPages = catalog.flatMap(group => [...group.pages]);
+const currentPage = () => catalogPages.find(page => `#${page.id}` === location.hash)?.id ?? 'typography';
 
 const controlColors = [
   ['button-surface', 'Control background'], ['button-text', 'Control text'],
@@ -24,7 +41,9 @@ const controlColors = [
   ['danger-border', 'Destructive border'], ['selection-surface', 'Selected segment'],
   ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border'], ['success', 'Connected status'],
   ['slider-track', 'Slider track'], ['slider-fill', 'Slider fill'], ['slider-thumb', 'Slider handle'],
-  ['checker-dark', 'Transparency dark'], ['checker-light', 'Transparency light']
+  ['checker-dark', 'Transparency dark'], ['checker-light', 'Transparency light'],
+  ['surface-inset', 'Panel content'],
+  ['scope-red', 'Red channel'], ['scope-green', 'Green channel'], ['scope-blue', 'Blue channel']
 ] as const;
 
 function App() {
@@ -37,7 +56,9 @@ function App() {
     return () => window.removeEventListener('hashchange', updatePage);
   }, []);
   const [buttonFeedback, setButtonFeedback] = useState('Click a button to try it.');
-  const [alignment, setAlignment] = useState('left');
+  useEffect(() => {
+    document.title = `LightTable UI · ${catalogPages.find(entry => entry.id === page)?.label}`;
+  }, [page]);
   return <div className="demo" data-ui-theme={theme}>
     <header className="demo-header">
       <Text variant="large" weight="bold">LightTable UI</Text>
@@ -49,17 +70,15 @@ function App() {
       </div>
     </header>
     <nav className="demo-nav" aria-label="Component categories">
-      <Text as="p" weight="bold">Foundations</Text>
-      <a href="#typography" aria-current={page === 'typography' ? 'page' : undefined}><Text>Typography</Text></a>
-      <a href="#colors" aria-current={page === 'colors' ? 'page' : undefined}><Text>Colors</Text></a>
-      <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text weight="bold">Buttons &amp; Actions</Text></a>
-      <a href="#menus" aria-current={page === 'menus' ? 'page' : undefined}><Text weight="bold">Menus &amp; navigation</Text></a>
-      <a href="#sliders" aria-current={page === 'sliders' ? 'page' : undefined}><Text weight="bold">Sliders &amp; gradients</Text></a>
-      <a href="#color-picker" aria-current={page === 'color-picker' ? 'page' : undefined}><Text weight="bold">Color picker</Text></a>
-      <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
+      {catalog.map(group => <React.Fragment key={group.label}>
+        <Text as="p" weight="bold">{group.label}</Text>
+        {group.pages.map(entry => <a key={entry.id} href={`#${entry.id}`} aria-current={page === entry.id ? 'page' : undefined}>
+          <Text>{entry.label}</Text>
+        </a>)}
+      </React.Fragment>)}
     </nav>
     <main className="demo-content">
-      {page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
+      {page === 'document-tabs' ? <DocumentTabsDemo /> : page === 'scopes' ? <ScopesDemo /> : page === 'fields' ? <FieldsDemo /> : page === 'selection' ? <SelectionDemo /> : page === 'panels' ? <PanelsDemo /> : page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>
@@ -141,20 +160,10 @@ function App() {
         <pre className="demo-code"><Text as="code">{`<Button onClick={save}>Save</Button>\n<Button disabled>Disabled</Button>\n<Button intent="destructive" onClick={remove}>Delete</Button>`}</Text></pre>
         <Text as="p" variant="small" tone="muted">No tab stop in app chrome. Dialogs opt into tab navigation. No inner spans or wrapper divs.</Text>
       </section>
-      <section className="demo-section" aria-labelledby="segments-title">
-        <Text as="h2" variant="large" weight="bold" id="segments-title">Segment control</Text>
-        <Text as="p" tone="muted">Three items, 28 px high. Fits its content, never stretches to the container.</Text>
-        <SegmentedControl label="Alignment" value={alignment} onChange={setAlignment}
-          options={[{value:'left',label:'Left'}, {value:'center',label:'Center'}, {value:'right',label:'Right'}]} />
-        <Text as="p" variant="small" tone="muted">Selected: {alignment}</Text>
-        <Text as="h3" weight="bold">Quiet variant</Text>
-        <SegmentedControl label="Quiet alignment" variant="quiet" value={alignment} onChange={setAlignment}
-          options={[{value:'left',label:'Left'}, {value:'center',label:'Center'}, {value:'right',label:'Right'}]} />
-        <Text as="p" variant="small" tone="muted">For unobtrusive navigation: no outer border or blue selection fill. Same sizing and behavior.</Text>
-        <pre className="demo-code"><Text as="code">{'<SegmentedControl label="Alignment" options={options} value={alignment} onChange={setAlignment} />'}</Text></pre>
-      </section></>}
+      </>}
     </main>
   </div>;
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+import { DocumentTabsDemo } from './DocumentTabsDemo';

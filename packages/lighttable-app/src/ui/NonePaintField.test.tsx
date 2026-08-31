@@ -1,17 +1,17 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { NonePaintField } from './NonePaintField';
+import { NonePaintField } from '@lighttable/ui';
 
 describe('NonePaintField', () => {
   it('uses the canonical regular paint-field shape', () => {
     const markup = renderToStaticMarkup(
       <NonePaintField ariaLabel="No paint" expanded onClick={vi.fn()} />
     );
-    expect(markup).toContain('class="none-paint-field none-paint-field--regular"');
-    expect(markup).toContain('class="none-paint-field__preview"');
-    expect(markup).toContain('class="paint-field__arrow"');
-    expect(markup).toContain('aria-haspopup="listbox"');
+    expect(markup).toContain('data-suite-control="none-paint"');
+    expect(markup).toContain('data-kind="none"');
+    expect(markup).toContain('class="ui-paint-field__chevron"');
+    expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('aria-expanded="true"');
   });
 
@@ -19,6 +19,6 @@ describe('NonePaintField', () => {
     const markup = renderToStaticMarkup(
       <NonePaintField ariaLabel="No paint" size="compact" onClick={vi.fn()} />
     );
-    expect(markup).toContain('class="none-paint-field none-paint-field--compact"');
+    expect(markup).toContain('data-suite-control="none-paint"');
   });
 });

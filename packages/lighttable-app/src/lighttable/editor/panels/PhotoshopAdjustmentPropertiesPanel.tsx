@@ -1,4 +1,4 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
@@ -202,14 +202,9 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label={`${titleFor(kind)} properties`}>
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>{titleFor(kind)}</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.resetPhotoshopAdjustment} aria-label={`Reset ${titleFor(kind)}`} title={`Reset ${titleFor(kind)}`}>
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-          </div>
-        </div>
+        <PanelSectionHeader label={titleFor(kind)} actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.resetPhotoshopAdjustment} aria-label={`Reset ${titleFor(kind)}`} title={`Reset ${titleFor(kind)}`} icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">

@@ -1,12 +1,12 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, Button } from '@lighttable/ui';
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
-import { SwitchControl } from '../../../ui/SwitchControl';
+import { NumberField } from '@lighttable/ui';
+import { SwitchControl } from '@lighttable/ui';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import type { ImageDocument } from '../document/documentTypes';
 import {
   MAX_IMAGE_SIZE_DIMENSION,
@@ -138,28 +138,28 @@ export const ImageSizeDialog = ({
         <div className="image-size-dialog__body">
           <label className="image-size-dialog__row">
             <span>Fit To</span>
-            <FormSelect value={preset} onChange={(event) => {
-              if (event.currentTarget.value === 'original') restoreOriginal();
+            <Select tabIndex={0} value={preset} onValueChange={(nextValue) => {
+              if (nextValue === 'original') restoreOriginal();
               else setPreset('custom');
-            }}><option value="original">Original Size</option><option value="custom">Custom</option></FormSelect>
+            }}><option value="original">Original Size</option><option value="custom">Custom</option></Select>
           </label>
           <div className="image-size-dialog__dimensions">
-            <label><span>Width</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
+            <label><span>Width</span><NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
               kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
               formatValue={(value) => displayedNumber(value, widthUnit)}
               onValueChange={(value) => changeDimension('width', value)} /></label>
-            <FormSelect aria-label="Width unit" value={widthUnit}
-              onChange={(event) => setWidthUnit(event.currentTarget.value as ImageSizeUnit)}>
+            <Select tabIndex={0} aria-label="Width unit" value={widthUnit}
+              onValueChange={(nextValue) => setWidthUnit(nextValue as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </FormSelect>
-            <label><span>Height</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
+            </Select>
+            <label><span>Height</span><NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
               kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
               formatValue={(value) => displayedNumber(value, heightUnit)}
               onValueChange={(value) => changeDimension('height', value)} /></label>
-            <FormSelect aria-label="Height unit" value={heightUnit}
-              onChange={(event) => setHeightUnit(event.currentTarget.value as ImageSizeUnit)}>
+            <Select tabIndex={0} aria-label="Height unit" value={heightUnit}
+              onValueChange={(nextValue) => setHeightUnit(nextValue as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </FormSelect>
+            </Select>
           </div>
           <div className="image-size-dialog__link-row">
             <span>Constrain proportions</span>
@@ -167,26 +167,26 @@ export const ImageSizeDialog = ({
           </div>
           <label className="image-size-dialog__row">
             <span>Resolution</span>
-            <NumericExpressionInput min={resolutionFromPpi(1, resolutionUnit)} max={resolutionFromPpi(2400, resolutionUnit)} step={1}
+            <NumberField tabIndex={0} min={resolutionFromPpi(1, resolutionUnit)} max={resolutionFromPpi(2400, resolutionUnit)} step={1}
               value={resolutionFromPpi(resolutionPpi, resolutionUnit)}
               formatValue={(value) => String(Number(value.toFixed(3)))}
               onValueChange={(value) => {
                 const next = resolutionToPpi(value, resolutionUnit);
                 if (Number.isFinite(next)) { setResolutionPpi(next); setPreset('custom'); }
               }} />
-            <FormSelect value={resolutionUnit}
-              onChange={(event) => setResolutionUnit(event.currentTarget.value as ResolutionUnit)}>
+            <Select tabIndex={0} value={resolutionUnit}
+              onValueChange={(nextValue) => setResolutionUnit(nextValue as ResolutionUnit)}>
               <option value="pixels-per-inch">Pixels/Inch</option>
               <option value="pixels-per-centimeter">Pixels/Centimeter</option>
-            </FormSelect>
+            </Select>
           </label>
           <div className="image-size-dialog__row image-size-dialog__resample-row">
             <span>Resample</span>
             <SwitchControl checked={resample} onCheckedChange={setResample} label="Resample image pixels" />
-            <FormSelect aria-label="Resampling method" value={method} disabled={!resample}
-              onChange={(event) => setMethod(event.currentTarget.value as ResampleMethod)}>
+            <Select tabIndex={0} aria-label="Resampling method" value={method} disabled={!resample}
+              onValueChange={(nextValue) => setMethod(nextValue as ResampleMethod)}>
               {RESAMPLE_METHODS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </FormSelect>
+            </Select>
           </div>
           {method === 'preserve-details-2' && resample ? (
             <div className="image-size-dialog__noise">
@@ -195,7 +195,7 @@ export const ImageSizeDialog = ({
                 onChange={setNoiseReduction} onReset={() => setNoiseReduction(0)} />
             </div>
           ) : null}
-          <label className="image-size-dialog__check"><input type="checkbox" checked={scaleStyles}
+          <label className="image-size-dialog__check"><Checkbox tabIndex={0} checked={scaleStyles}
             onChange={(event) => setScaleStyles(event.currentTarget.checked)} /> Scale Styles</label>
         </div>
         <div className="modal__footer">

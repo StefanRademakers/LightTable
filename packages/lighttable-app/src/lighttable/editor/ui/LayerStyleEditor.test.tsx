@@ -26,7 +26,7 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('role="region"');
     expect(markup).toContain('lighttable-style-editor--panel');
     expect(markup).toContain('lighttable-group lighttable-master-group');
-    expect(markup).toContain('lighttable-group lighttable-effect');
+    expect(markup).toContain('ui-panel-section lighttable-effect');
     expect(markup).toContain('role="switch"');
     expect(markup).toContain('aria-label="Disable all layer effects"');
     expect(markup).toContain('aria-label="Reset Drop Shadow"');
@@ -50,7 +50,7 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('aria-label="Angle degrees"');
     expect(markup).toContain('aria-label="Shadow color"');
     expect(markup).not.toContain('<span>Color</span>');
-    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('title="Advanced"');
     expect(markup).toContain('title="Spread"');
   });
 
@@ -71,7 +71,7 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('title="Opacity"');
     expect(markup).toContain('aria-label="Inner shadow color"');
     expect(markup).toContain('aria-label="Angle"');
-    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('title="Advanced"');
     expect(markup).toContain('title="Choke"');
     expect(markup).toContain('<span>Blend mode</span>');
     expect(markup).not.toContain('<h4>Color</h4>');
@@ -94,9 +94,9 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('title="Size"');
     expect(markup).toContain('aria-label="Color"');
     expect(markup).toContain('title="Opacity"');
-    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('title="Advanced"');
     expect(markup).toContain('<span>Blend mode</span>');
-    expect(markup).toContain('<span>Overprint</span>');
+    expect(markup).toContain('aria-label="Overprint"');
     expect(markup).not.toContain('<h4>Blend</h4>');
   });
 
@@ -114,7 +114,7 @@ describe('LayerStyleEditor', () => {
       expect(markup).toContain('<span>Fill</span>');
       expect(markup).toContain('aria-label="Color"');
       expect(markup).toContain('title="Size"');
-      expect(markup).toContain('<summary>Advanced</summary>');
+      expect(markup).toContain('title="Advanced"');
       expect(markup).toContain('<span>Blend mode</span>');
       expect(markup).toContain('<span>Technique</span>');
       expect(markup).toContain('title="Range"');
@@ -122,7 +122,7 @@ describe('LayerStyleEditor', () => {
       expect(markup).not.toContain('<h4>Blend</h4>');
       expect(markup).not.toContain('<h4>Structure</h4>');
       expect(markup).not.toContain('<h4>Quality</h4>');
-      expect(markup.indexOf('<span>Fill</span>')).toBeGreaterThan(markup.indexOf('<summary>Advanced</summary>'));
+      expect(markup.indexOf('<span>Fill</span>')).toBeGreaterThan(markup.indexOf('title="Advanced"'));
       if (kind === 'inner-glow') {
         expect(markup).toContain('<span>Source</span>');
         expect(markup).toContain('title="Choke"');

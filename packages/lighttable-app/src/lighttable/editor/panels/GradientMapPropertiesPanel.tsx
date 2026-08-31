@@ -1,7 +1,6 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
-import React from 'react';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
-import { SwitchControl } from '../../../ui/SwitchControl';
+import { SwitchControl } from '@lighttable/ui';
 import { useGradePresentation } from '../../application/adjustments/adjustmentPresentationStore';
 import { GradientAssetEditor } from '../ui/LayerStyleGradientEditor';
 import type { LayerStyleGradient } from '../styles/layerStyleTypes';
@@ -38,14 +37,9 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label="Gradient Map properties">
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>Gradient Map</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.resetGradientMap} aria-label="Reset Gradient Map" title="Reset Gradient Map">
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-          </div>
-        </div>
+        <PanelSectionHeader label="Gradient Map" actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.resetGradientMap} aria-label="Reset Gradient Map" title="Reset Gradient Map" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">

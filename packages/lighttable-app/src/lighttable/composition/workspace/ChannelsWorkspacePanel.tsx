@@ -1,5 +1,6 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useMemo } from 'react';
+import { lightTableIcon } from '../../../assets/icons';
 import type {
   ImageDocument,
   LayerId
@@ -100,7 +101,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
               type="button"
             >
               <span className="lighttable-channel-row__visibility" aria-hidden="true">
-                {active ? <span className="lighttable-channel-row__active-marker" /> : null}
+                <img src={lightTableIcon(active ? 'visible.png' : 'visible_off.png')} alt="" />
               </span>
               <span
                 className={`lighttable-channel-row__thumbnail lighttable-channel-row__thumbnail--${channel.id}`}
@@ -132,7 +133,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
               type="button"
             >
               <span className="lighttable-channel-row__visibility" aria-hidden="true">
-                {active ? <span className="lighttable-channel-row__active-marker" /> : null}
+                <img src={lightTableIcon(active ? 'visible.png' : 'visible_off.png')} alt="" />
               </span>
               <span className="lighttable-channel-row__thumbnail">
                 {preview ? <img alt="" src={preview.url} /> : null}

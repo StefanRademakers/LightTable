@@ -162,8 +162,8 @@ for (const variant of matrix) {
     if (await focusedRow.getAttribute('tabindex') !== '0') {
       throw new Error('Layer tree rows are not keyboard reachable.');
     }
-    await window.keyboard.press('Tab');
     await focusedRow.focus();
+    await window.keyboard.press('Home');
     const focus = await focusedRow.evaluate((row) => {
       const style = getComputedStyle(row);
       return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };

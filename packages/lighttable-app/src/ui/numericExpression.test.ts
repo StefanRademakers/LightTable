@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateNumericExpression, resolveNumericExpression } from './numericExpression';
+import { evaluateNumericExpression, resolveNumericExpression } from '@lighttable/ui';
 
 describe('numeric expressions', () => {
   it('evaluates arithmetic with standard precedence and parentheses', () => {

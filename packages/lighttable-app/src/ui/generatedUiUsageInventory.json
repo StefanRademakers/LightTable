@@ -2,6 +2,75 @@
   "schema": 1,
   "components": [
     {
+      "id": "document-tabs",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/workspace/LightTableDockWorkspace.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "color-wheel",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "histogram",
+      "metadataDeclared": true,
+      "productionUsageCount": 2,
+      "internalUsageCount": 0,
+      "contextCount": 2,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/panels/GradeHistogramControl.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "scopes",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/composition/workspace/createEditorWorkspacePanels.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
       "id": "action-button",
       "metadataDeclared": true,
       "productionUsageCount": 121,
@@ -210,9 +279,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 107,
+      "productionUsageCount": 83,
       "internalUsageCount": 0,
-      "contextCount": 37,
+      "contextCount": 22,
       "overrideCount": 0,
       "locations": [
         {
@@ -222,11 +291,6 @@
         },
         {
           "path": "genai/ui/GenAiPromptComposer.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "genai/ui/ProjectAssetBrowser.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -246,63 +310,13 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/AdjustmentPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/CurvesPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/panels/GradeHistogramControl.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 4,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GradientMapPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GrainPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
         {
           "path": "lighttable/editor/panels/history/HistoryPanel.tsx",
           "count": 2,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/LensFxPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
-          "count": 1,
           "kind": "product"
         },
         {
@@ -326,11 +340,6 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/FontAssetPicker.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/ui/LayerCompatibilityBadge.tsx",
           "count": 1,
           "kind": "product"
@@ -342,7 +351,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 6,
+          "count": 5,
           "kind": "product"
         },
         {
@@ -357,27 +366,12 @@
         },
         {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
-          "count": 9,
+          "count": 7,
           "kind": "product"
         },
         {
           "path": "lighttable/editor/ui/VectorStyleToolOptions.tsx",
           "count": 3,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/workspace/LightTableDockWorkspace.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/effects/EffectPanel.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/ScopesPanel.tsx",
-          "count": 1,
           "kind": "product"
         },
         {
@@ -432,10 +426,10 @@
     {
       "id": "form-input",
       "metadataDeclared": true,
-      "productionUsageCount": 16,
-      "internalUsageCount": 2,
-      "contextCount": 6,
-      "overrideCount": 1,
+      "productionUsageCount": 17,
+      "internalUsageCount": 1,
+      "contextCount": 9,
+      "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
@@ -443,8 +437,13 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
-          "count": 5,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -453,8 +452,18 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/PointTextCreationDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 3,
+          "kind": "product"
+        },
+        {
           "path": "standalone/NewDocumentDialog.tsx",
-          "count": 4,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -468,32 +477,20 @@
           "kind": "product"
         },
         {
-          "path": "ui/NumericExpressionInput.tsx",
-          "count": 1,
-          "kind": "internal"
-        },
-        {
           "path": "ui/TextInputDialog.tsx",
           "count": 1,
           "kind": "internal"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "form-input"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 31,
+      "productionUsageCount": 34,
       "internalUsageCount": 1,
-      "contextCount": 15,
-      "overrideCount": 1,
+      "contextCount": 17,
+      "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
@@ -521,12 +518,22 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
           "count": 2,
           "kind": "product"
         },
         {
           "path": "lighttable/editor/ui/DebugPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/FontAssetPicker.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -557,7 +564,7 @@
         },
         {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -576,25 +583,23 @@
           "kind": "internal"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "form-input"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "search-field",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 2,
       "internalUsageCount": 0,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/CommandHelpDialog.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -604,11 +609,21 @@
     {
       "id": "numeric-expression",
       "metadataDeclared": true,
-      "productionUsageCount": 11,
-      "internalUsageCount": 0,
-      "contextCount": 5,
+      "productionUsageCount": 20,
+      "internalUsageCount": 1,
+      "contextCount": 12,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
           "count": 4,
@@ -630,9 +645,39 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/MixedNumberInput.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/NewGuideDialog.tsx",
           "count": 1,
           "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/SelectionToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ToolOptionControls.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/NewDocumentDialog.tsx",
+          "count": 3,
+          "kind": "product"
+        },
+        {
+          "path": "ui/PanelControls.tsx",
+          "count": 1,
+          "kind": "internal"
         }
       ],
       "overrides": []
@@ -697,20 +742,100 @@
     {
       "id": "panel-checkbox",
       "metadataDeclared": true,
-      "productionUsageCount": 9,
-      "internalUsageCount": 0,
-      "contextCount": 2,
+      "productionUsageCount": 43,
+      "internalUsageCount": 2,
+      "contextCount": 16,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/application/tools/faceWarp/FaceWarpToolOptions.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/application/tools/warp/WarpToolOptions.tsx",
+          "count": 3,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
           "count": 3,
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
           "count": 6,
           "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/TextPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/DebugPanel.tsx",
+          "count": 5,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/FillDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/SelectionToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ToolOptionControls.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
+          "count": 13,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/VectorStyleToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "ui/PanelControls.tsx",
+          "count": 1,
+          "kind": "internal"
+        },
+        {
+          "path": "ui/TextInputDialog.tsx",
+          "count": 1,
+          "kind": "internal"
         }
       ],
       "overrides": []
@@ -726,27 +851,11 @@
       "overrides": []
     },
     {
-      "id": "advanced-disclosure",
-      "metadataDeclared": true,
-      "productionUsageCount": 3,
-      "internalUsageCount": 0,
-      "contextCount": 1,
-      "overrideCount": 0,
-      "locations": [
-        {
-          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 3,
-          "kind": "product"
-        }
-      ],
-      "overrides": []
-    },
-    {
       "id": "segmented-control",
       "metadataDeclared": true,
-      "productionUsageCount": 14,
+      "productionUsageCount": 12,
       "internalUsageCount": 0,
-      "contextCount": 10,
+      "contextCount": 9,
       "overrideCount": 0,
       "locations": [
         {
@@ -766,7 +875,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 3,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -793,11 +902,6 @@
           "path": "lighttable/editor/ui/VectorStyleToolOptions.tsx",
           "count": 1,
           "kind": "product"
-        },
-        {
-          "path": "lighttable/ScopesPanel.tsx",
-          "count": 1,
-          "kind": "product"
         }
       ],
       "overrides": []
@@ -805,9 +909,9 @@
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 22,
+      "productionUsageCount": 20,
       "internalUsageCount": 0,
-      "contextCount": 12,
+      "contextCount": 11,
       "overrideCount": 0,
       "locations": [
         {
@@ -822,7 +926,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 3,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -852,11 +956,6 @@
         },
         {
           "path": "lighttable/effects/EffectPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/ScopesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1030,9 +1129,9 @@
       "id": "color-swatch",
       "metadataDeclared": true,
       "productionUsageCount": 5,
-      "internalUsageCount": 1,
+      "internalUsageCount": 2,
       "contextCount": 4,
-      "overrideCount": 1,
+      "overrideCount": 0,
       "locations": [
         {
           "path": "lighttable/editor/ui/EditorToolbar.tsx",
@@ -1055,19 +1154,17 @@
           "kind": "product"
         },
         {
+          "path": "ui/ColorSwatchField.tsx",
+          "count": 1,
+          "kind": "internal"
+        },
+        {
           "path": "ui/PanelControls.tsx",
           "count": 1,
           "kind": "internal"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "color-swatch-field"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "color-picker",
@@ -1135,30 +1232,103 @@
     {
       "id": "panel-section",
       "metadataDeclared": true,
-      "productionUsageCount": 2,
+      "productionUsageCount": 28,
       "internalUsageCount": 0,
-      "contextCount": 2,
-      "overrideCount": 1,
+      "contextCount": 18,
+      "overrideCount": 0,
       "locations": [
+        {
+          "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
           "count": 1,
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/AdjustmentPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/CurvesPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GradientMapPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GrainPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/LensFxPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/TextPropertiesPanel.tsx",
+          "count": 5,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/psd/PsdImportReportDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/DebugPanel.tsx",
+          "count": 3,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "count": 4,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/effects/EffectPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
           "count": 1,
           "kind": "product"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "lighttable-group"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "context-menu",
@@ -1321,26 +1491,9 @@
     {
       "id": "number",
       "label": "Raw number inputs",
-      "count": 4,
-      "fileCount": 4,
-      "locations": [
-        {
-          "path": "lighttable/editor/ui/MixedNumberInput.tsx",
-          "count": 1
-        },
-        {
-          "path": "lighttable/editor/ui/SelectionToolOptions.tsx",
-          "count": 1
-        },
-        {
-          "path": "lighttable/editor/ui/ToolOptionControls.tsx",
-          "count": 1
-        },
-        {
-          "path": "standalone/AgentAccessSettingsDialog.tsx",
-          "count": 1
-        }
-      ]
+      "count": 0,
+      "fileCount": 0,
+      "locations": []
     }
   ],
   "deepSelectorCount": 8,

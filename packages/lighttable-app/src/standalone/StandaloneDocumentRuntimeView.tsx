@@ -37,12 +37,15 @@ export interface WorkspaceDocumentTab {
   readonly title: string;
   readonly dirty: boolean;
   readonly thumbnailUrl?: string;
+  readonly kind?: 'image' | 'video';
+  readonly onReveal?: () => Promise<void>;
 }
 
 interface StandaloneDocumentRuntimeViewProps {
   readonly document: StandaloneWorkspaceDocument;
   readonly workspaceDocuments: readonly WorkspaceDocumentTab[];
   readonly host: LightTableHost;
+  readonly onDocumentSaved?: (id: DocumentSessionId, path: string) => void;
   readonly commandService: LightTableCommandService;
   readonly commandPorts: LightTableCommandPortRegistry;
   readonly applicationEditorSession: EditorApplicationSession;
@@ -91,6 +94,7 @@ const titleWithoutExtension = (name: string) =>
 export function StandaloneDocumentRuntimeView({
   document,
   workspaceDocuments,
+  onDocumentSaved,
   host,
   commandService,
   commandPorts,
@@ -307,13 +311,17 @@ export function StandaloneDocumentRuntimeView({
         }}
         onClose={() => onClose(id)}
         onSave={document.kind === 'image'
-          ? (output, recipe, transaction, replaceSource) => host.save({
+          ? async (output, recipe, transaction, replaceSource) => {
+            const result = await host.save({
               file: output,
               recipe,
               replaceSource,
               projectManifestPath: activeProject?.manifestPath,
               transaction
-            })
+            });
+            if (result.status === 'committed' && result.path) onDocumentSaved?.(transaction.documentId as DocumentSessionId, result.path);
+            return result;
+          }
           : () => Promise.reject(new Error('Video documents are read-only.'))}
         onExportFile={(file) => host.save({ file, recipe: null })}
       />

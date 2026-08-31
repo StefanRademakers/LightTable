@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, Button, PanelSection } from '@lighttable/ui';
 import React, { useMemo, useState } from 'react';
 import {
   formatLightTableDebugLog,
@@ -10,7 +10,7 @@ import type { TextRenderPresentationSnapshot } from '../../application/rendering
 import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
 import type { WebGpuSupportTier } from '../../gpu/webGpuSupportTier';
 import { useLocalBetaDiagnostics } from '../hooks/useLocalBetaDiagnostics';
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -175,8 +175,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           WebGPU support: {gpuSupport?.label ?? 'Not initialized'}. {gpuSupport?.action ?? 'Open a document to probe this device.'}
         </small>
         <label>
-          <input
-            type="checkbox"
+          <Checkbox
+
             checked={betaDiagnostics.enabled}
             onChange={(event) => {
               setSupportArtifact(null);
@@ -189,8 +189,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Nothing is sent automatically. {betaDiagnostics.eventCount} bounded event(s) stored. Turning this off clears them.
         </small>
         <label>
-          <input
-            type="checkbox"
+          <Checkbox
+
             checked={includeFileName}
             onChange={(event) => {
               setIncludeFileName(event.currentTarget.checked);
@@ -211,25 +211,24 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         {supportState === 'exported' ? <small role="status">Diagnostic bundle exported.</small> : null}
         {supportState === 'failed' ? <small role="alert">Diagnostic collection or export failed.</small> : null}
         {supportArtifact ? (
-          <details open>
-            <summary>Redacted preview ({supportArtifact.collectionDurationMs.toFixed(2)} ms)</summary>
+          <PanelSection label={`Redacted preview (${supportArtifact.collectionDurationMs.toFixed(2)} ms)`} defaultExpanded keepMounted>
             <pre className="lighttable-debug-panel__preview">{supportArtifact.json}</pre>
-          </details>
+          </PanelSection>
         ) : null}
       </fieldset>
       <fieldset className="lighttable-debug-panel__diagnostics">
         <legend>Development diagnostics</legend>
         <label>
-          <input
-            type="checkbox"
+          <Checkbox
+
             checked={accessoryWidthConstraintsEnabled}
             onChange={(event) => onAccessoryWidthConstraintsChange(event.currentTarget.checked)}
           />
           Accessory width constraints (250–520 px)
         </label>
         <label>
-          <input
-            type="checkbox"
+          <Checkbox
+
             checked={editorResizeObserversEnabled}
             onChange={(event) => onEditorResizeObserversChange(event.currentTarget.checked)}
           />
@@ -251,8 +250,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <small>Contract fixtures: {textContractFixtureCount} (flow + positioned).</small>
         <small>Last layout error: {lastTextLayoutError ?? 'None.'}</small>
         {textCorpusReport ? (
-          <details>
-            <summary>Typography corpus metrics</summary>
+          <PanelSection label="Typography corpus metrics" keepMounted>
             <dl>
               <dt>Cold roundtrip</dt><dd>{textCorpusReport.coldRoundTripMs.toFixed(2)} ms</dd>
               <dt>WASM initialization</dt><dd>{textCorpusReport.wasmInitializationMs.toFixed(2)} ms</dd>
@@ -268,7 +266,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
                 <li key={entry.id}>{entry.passed ? 'Pass' : 'Fail'}: {entry.id} ({entry.glyphCount} glyphs)</li>
               ))}
             </ul>
-          </details>
+          </PanelSection>
         ) : null}
         <div className="lighttable-debug-panel__actions">
           <Button
@@ -297,8 +295,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         </div>
         {textRendererPhase ? <small role="status">Renderer: {textRendererPhase}</small> : null}
         <label>
-          <input
-            type="checkbox"
+          <Checkbox
+
             checked={developmentTextFixtureEnabled}
             disabled={!textCorpusAvailable || developmentTextFixtureStatus === 'preparing'}
             onChange={(event) => onDevelopmentTextFixtureChange(event.currentTarget.checked)}
@@ -368,18 +366,17 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {' / '}{textRenderTelemetry.supersededTextInputs} superseded
         </small>
         {textRendererReport ? (
-          <details>
-            <summary>GPU renderer bakeoff report</summary>
+          <PanelSection label="GPU renderer bakeoff report" keepMounted>
             <label>
               Renderer view
-              <FormSelect
+              <Select
                 value={rendererView}
-                onChange={(event) => setRendererView(event.currentTarget.value as typeof rendererView)}
+                onValueChange={(nextValue) => setRendererView(nextValue as typeof rendererView)}
               >
                 <option value="coverage-atlas">Coverage atlas</option>
                 <option value="hb-gpu">hb-gpu</option>
                 <option value="side-by-side">Side by side</option>
-              </FormSelect>
+              </Select>
             </label>
             <dl>
               <dt>Coverage atlas</dt><dd>{textRendererReport.decision.coverageAtlas}</dd>
@@ -394,7 +391,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
                 ? textRendererReport.measurements
                 : textRendererReport.measurements.filter((entry) => entry.candidate === rendererView)
             }, null, 2)}</pre>
-          </details>
+          </PanelSection>
         ) : null}
       </fieldset>
       <header className="lighttable-debug-panel__toolbar">

@@ -1,7 +1,7 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, Button } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
-import { FormSelect } from '../../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import type { EditorSession } from '../../../editor/session/editorSession';
 import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
 import { MAX_STROKE_SMOOTH } from '../../../editor/tools/brush/strokeSmoother';
@@ -28,20 +28,20 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
   <>
     <label className="lighttable-tool-options__field">
       <span>Mode</span>
-      <FormSelect
+      <Select
         value={warp.mode}
-        onChange={(event) => onChange({ mode: event.currentTarget.value as WarpBrushMode })}
+        onValueChange={(nextValue) => onChange({ mode: nextValue as WarpBrushMode })}
       >
         <option value="push">Push</option>
         <option value="twirl-cw">Twirl clockwise</option>
         <option value="twirl-ccw">Twirl counter-clockwise</option>
         <option value="pinch">Pinch</option>
         <option value="bloat">Bloat</option>
-      </FormSelect>
+      </Select>
     </label>
     <label className="lighttable-tool-options__toggle">
-      <input
-        type="checkbox"
+      <Checkbox
+
         checked={warp.debugView === 'displacement'}
         onChange={(event) => onChange({
           debugView: event.currentTarget.checked ? 'displacement' : 'result'
@@ -116,8 +116,8 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ smooth: value / 100 })}
     />
     <label className="lighttable-tool-options__toggle">
-      <input
-        type="checkbox"
+      <Checkbox
+
         checked={warp.pressureSize}
         onChange={(event) => onChange({
           pressureSize: event.currentTarget.checked
@@ -126,8 +126,8 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       Pressure size
     </label>
     <label className="lighttable-tool-options__toggle">
-      <input
-        type="checkbox"
+      <Checkbox
+
         checked={warp.pressureStrength}
         onChange={(event) => onChange({
           pressureStrength: event.currentTarget.checked

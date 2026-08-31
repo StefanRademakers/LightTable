@@ -1,4 +1,5 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
+import { DocumentTabs, PanelTab, type MenuOption, type DocumentPreviewBounds } from '@lighttable/ui';
 import React, {
   createContext,
   forwardRef,
@@ -13,7 +14,6 @@ import React, {
 } from 'react';
 import { writeLightTableDocumentDrag } from './documentTabDrag';
 import {
-  DockviewDefaultTab,
   DockviewReact,
   type DockviewApi,
   type DockviewReadyEvent,
@@ -49,7 +49,7 @@ const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // overriding the new product default.
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
-const PANEL_TAB_BAR_HEIGHT = 34;
+const PANEL_TAB_BAR_HEIGHT = 30;
 const TAB_MERGE_PRIORITY_EXTENSION = 18;
 const SIDE_DOCK_ACTIVATION_DISTANCE = 22;
 
@@ -127,6 +127,8 @@ export interface LightTableWorkspaceDocument {
   dirty?: boolean;
   thumbnailUrl?: string;
   onClose?: () => void;
+  contextMenu?: readonly MenuOption[];
+  getPreviewBounds?: () => DocumentPreviewBounds | undefined;
 }
 
 interface LightTableDockWorkspaceProps {
@@ -184,9 +186,18 @@ const WorkspacePanel: React.FC<IDockviewPanelProps<{ contentKey: WorkspaceConten
   return <>{content[params.contentKey]}</>;
 };
 
-const PersistentPanelTab: React.FC<IDockviewPanelHeaderProps> = (props) => (
-  <DockviewDefaultTab {...props} hideClose />
-);
+const PersistentPanelTab: React.FC<IDockviewPanelHeaderProps> = ({ api }) => {
+  const [title, setTitle] = useState(api.title ?? '');
+  const [selected, setSelected] = useState(api.isActive);
+  useEffect(() => {
+    const titleChange = api.onDidTitleChange(({ title: nextTitle }) => setTitle(nextTitle));
+    const activeChange = api.onDidActiveChange(({ isActive }) => setSelected(isActive));
+    setTitle(api.title ?? '');
+    setSelected(api.isActive);
+    return () => { titleChange.dispose(); activeChange.dispose(); };
+  }, [api]);
+  return <PanelTab selected={selected} title={title}>{title}</PanelTab>;
+};
 
 const applyWorkspacePanelConstraints = (
   api: DockviewApi,
@@ -479,7 +490,7 @@ const DocumentHost: React.FC<{
   onSurfaceReady?: () => void;
 }> = ({ documents, activeDocumentId, onActiveDocumentChange, onSurfaceReady }) => {
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0];
-  const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
+  const overviewContainer = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     // Dockview creates panel contents after the parent editor effects have
@@ -491,64 +502,13 @@ const DocumentHost: React.FC<{
 
   return (
     <section className="lighttable-document-host">
-      <div className="lighttable-document-tabs" role="tablist" aria-label="Open LightTable documents">
-        {documents.map((document) => {
-          const active = document.id === activeDocument?.id;
-          return (
-            <div
-              key={document.id}
-              className={`lighttable-document-tab${active ? ' lighttable-document-tab--active' : ''}`}
-              role="tab"
-              aria-selected={active}
-              draggable
-              onDragStart={(event) => writeLightTableDocumentDrag(event.dataTransfer, document.id, document.title)}
-              onMouseEnter={(event) => {
-                setHoveredDocumentId(document.id);
-                const bounds = event.currentTarget.getBoundingClientRect();
-                const preview = event.currentTarget.querySelector<HTMLElement>('.lighttable-document-tab__preview');
-                if (!preview) return;
-                preview.style.left = `${Math.round(bounds.left)}px`;
-                preview.style.top = `${Math.round(bounds.bottom)}px`;
-                // Dockview positions panels with transforms. A fixed descendant
-                // therefore uses that transformed panel as its containing block,
-                // not the viewport. Measure the actual result and remove that
-                // container offset so the preview touches its tab exactly.
-                const positioned = preview.getBoundingClientRect();
-                preview.style.left = `${Math.round(bounds.left * 2 - positioned.left)}px`;
-                preview.style.top = `${Math.round(bounds.bottom * 2 - positioned.top)}px`;
-              }}
-              onMouseLeave={() => setHoveredDocumentId((current) => current === document.id ? null : current)}
-            >
-              {document.thumbnailUrl && !active ? (
-                <div className="lighttable-document-tab__preview" role="tooltip">
-                  {hoveredDocumentId === document.id ? <img src={document.thumbnailUrl} alt="" /> : null}
-                </div>
-              ) : null}
-              <ButtonBase
-                type="button"
-                className="lighttable-document-tab__title"
-                title={document.title}
-                onClick={() => onActiveDocumentChange?.(document.id)}
-              >
-                {document.title}
-                {document.dirty ? <span aria-label="Unsaved changes"> *</span> : null}
-              </ButtonBase>
-              {document.onClose ? (
-                <ButtonBase
-                  type="button"
-                  className="lighttable-document-tab__close"
-                  aria-label={`Close ${document.title}`}
-                  title={`Close ${document.title}`}
-                  onClick={document.onClose}
-                >
-                  ×
-                </ButtonBase>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-      <div className="lighttable-document-host__content">
+      <DocumentTabs documents={documents} activeId={activeDocument?.id ?? ''}
+        overview={{ container: overviewContainer, getActiveBounds: activeDocument?.getPreviewBounds }}
+        overviewShortcut="Backquote"
+        label="Open LightTable documents" onSelect={id => onActiveDocumentChange?.(id)}
+        onDocumentDragStart={(event, item) => writeLightTableDocumentDrag(event.dataTransfer, item.id, item.title)}
+        contextMenu={item => documents.find(document => document.id === item.id)?.contextMenu ?? []} />
+      <div ref={overviewContainer} className="lighttable-document-host__content">
         {activeDocument?.content ?? (
           <div className="lighttable-document-host__empty">No document open</div>
         )}

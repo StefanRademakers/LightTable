@@ -34,6 +34,12 @@ describe('P0FilterPropertiesPanel', () => {
         edgeMode: 'clamp', interpolation: 'bicubic' } }} commands={commands} />);
     expect(displace).toContain('Displacement Map');
     expect(displace).toContain('Maps / Cloth');
-    expect(displace).toContain('None (bypass)');
+
+    const bypass = renderToStaticMarkup(<P0FilterPropertiesPanel
+      model={{ kind: 'displace', label: 'Displace', enabled: true, rasterSources: [
+        { value: 'map-layer', label: 'Maps / Cloth' }
+      ], settings: { horizontalScale: 10, verticalScale: 10, mapAssetId: null,
+        edgeMode: 'clamp', interpolation: 'bicubic' } }} commands={commands} />);
+    expect(bypass).toContain('None (bypass)');
   });
 });

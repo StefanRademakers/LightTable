@@ -1,4 +1,4 @@
-import { SegmentedControl } from '@lighttable/ui';
+import { Checkbox, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
@@ -9,8 +9,8 @@ import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import { ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { ColorPicker, colorPickerHex, colorPickerParseHex } from '../../../ui/ColorPicker';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
-import { GradientField } from '../../../ui/GradientField';
-import { NonePaintField } from '../../../ui/NonePaintField';
+import { GradientField } from '@lighttable/ui';
+import { NonePaintField } from '@lighttable/ui';
 
 
 type PaintType = 'none' | 'color' | 'gradient';
@@ -25,15 +25,15 @@ const GradientOptions: React.FC<{
   return <div className="lighttable-tool-options__gradient-options">
     <ToolOptionSelect label="Style" value={paint.shape}
       aria-label={`${gradientLabel} style`}
-      onChange={(event) => onChange({
-        ...paint, shape: event.currentTarget.value as GradientPaintInstance['shape']
+      onValueChange={(nextValue) => onChange({
+        ...paint, shape: nextValue as GradientPaintInstance['shape']
       })}>
       <option value="linear">Linear</option><option value="radial">Radial</option>
       <option value="angle">Angle</option><option value="reflected">Reflected</option>
       <option value="diamond">Diamond</option>
     </ToolOptionSelect>
     <label className="lighttable-tool-options__toggle">
-      <input type="checkbox" checked={paint.reverse}
+      <Checkbox  checked={paint.reverse}
         aria-label={reverseLabel}
         onChange={(event) => onChange({ ...paint, reverse: event.currentTarget.checked })} />
       <span>Reverse</span>
@@ -151,32 +151,32 @@ const VectorLineStyleOption: React.FC<{
       <div className="lighttable-tool-options__line-style-options">
         <ToolOptionSelect label="Style" value={style.strokeStyle ?? 'solid'}
           aria-label="Stroke style"
-          onChange={(event) => onChange({
-            strokeStyle: event.currentTarget.value as NonNullable<VectorToolStyleSettings['strokeStyle']>
+          onValueChange={(nextValue) => onChange({
+            strokeStyle: nextValue as NonNullable<VectorToolStyleSettings['strokeStyle']>
           })}>
           <option value="solid">Solid</option><option value="dashed">Dashed</option>
           <option value="dotted">Dotted</option>
         </ToolOptionSelect>
         <ToolOptionSelect label="Align" value={style.strokeAlignment}
           aria-label="Stroke alignment"
-          onChange={(event) => onChange({
-            strokeAlignment: event.currentTarget.value as VectorToolStyleSettings['strokeAlignment']
+          onValueChange={(nextValue) => onChange({
+            strokeAlignment: nextValue as VectorToolStyleSettings['strokeAlignment']
           })}>
           <option value="inside">Inside</option><option value="center">Center</option>
           <option value="outside">Outside</option>
         </ToolOptionSelect>
         <ToolOptionSelect label="Cap" value={style.strokeCap ?? 'round'}
           aria-label="Stroke cap"
-          onChange={(event) => onChange({
-            strokeCap: event.currentTarget.value as VectorToolStyleSettings['strokeCap']
+          onValueChange={(nextValue) => onChange({
+            strokeCap: nextValue as VectorToolStyleSettings['strokeCap']
           })}>
           <option value="butt">Butt</option><option value="round">Round</option>
           <option value="square">Square</option>
         </ToolOptionSelect>
         <ToolOptionSelect label="Join" value={style.strokeJoin ?? 'round'}
           aria-label="Stroke join"
-          onChange={(event) => onChange({
-            strokeJoin: event.currentTarget.value as VectorToolStyleSettings['strokeJoin']
+          onValueChange={(nextValue) => onChange({
+            strokeJoin: nextValue as VectorToolStyleSettings['strokeJoin']
           })}>
           <option value="miter">Miter</option><option value="round">Round</option>
           <option value="bevel">Bevel</option>

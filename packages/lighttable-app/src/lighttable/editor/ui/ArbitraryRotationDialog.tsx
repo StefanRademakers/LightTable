@@ -2,7 +2,7 @@ import { Button } from '@lighttable/ui';
 import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
+import { NumberField } from '@lighttable/ui';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 export interface ArbitraryRotationDialogProps {
@@ -25,7 +25,7 @@ export const ArbitraryRotationDialog = ({ open, busy = false, onCancel, onCommit
         onSubmit={(event) => { event.preventDefault(); if (!busy && Number.isFinite(degrees)) onCommit(degrees); }}>
         <div className="modal__header"><h3 className="modal__title">Rotate Canvas</h3></div>
         <label className="lighttable-ui-guide__dialog-field"><span>Angle (clockwise)</span>
-          <NumericExpressionInput autoFocus value={degrees} kind="float" step={0.1}
+          <NumberField tabIndex={0} autoFocus value={degrees} kind="float" step={0.1}
             onValueChange={setDegrees} aria-label="Clockwise rotation angle" /></label>
         <div className="modal__footer">
           <Button tabIndex={0} onClick={onCancel}>Cancel</Button>

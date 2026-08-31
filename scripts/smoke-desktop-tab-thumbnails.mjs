@@ -67,18 +67,18 @@ try {
     }));
   }, files);
 
-  const tabs = page.locator('.lighttable-document-tabs:visible .lighttable-document-tab');
+  const tabs = page.locator('.ui-document-tabs:visible .ui-document-tabs__tab');
   await tabs.nth(1).waitFor({ state: 'visible', timeout: 60_000 });
   const inactiveTab = tabs.filter({ hasText: 'landscape.png' });
   await inactiveTab.waitFor({ state: 'visible' });
-  if (await inactiveTab.getAttribute('aria-selected') !== 'false') {
+  if (await inactiveTab.getByRole('tab').getAttribute('aria-selected') !== 'false') {
     throw new Error('The target thumbnail tab was activated before the hover check.');
   }
 
-  const previewImage = inactiveTab.locator('.lighttable-document-tab__preview img');
+  const previewImage = page.locator('.ui-document-tabs__preview img');
   await inactiveTab.hover();
   await previewImage.waitFor({ state: 'attached', timeout: 60_000 });
-  await inactiveTab.locator('.lighttable-document-tab__preview').waitFor({ state: 'visible' });
+  await page.locator('.ui-document-tabs__preview').waitFor({ state: 'visible' });
   const dimensions = await previewImage.evaluate((image) => ({
     naturalWidth: image.naturalWidth,
     naturalHeight: image.naturalHeight,

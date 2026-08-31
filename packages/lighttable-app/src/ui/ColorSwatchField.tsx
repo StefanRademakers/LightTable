@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { lightTableIcon } from '../assets/icons';
+import { PaintField } from '@lighttable/ui';
 import { ColorPicker, colorPickerHex, colorPickerParseHex } from './ColorPicker';
 import { sampleScreenColor } from './colorSampling';
 
@@ -37,13 +37,14 @@ export const colorPickerPopoverPosition = (
 export interface ColorSwatchFieldProps {
   readonly value: string;
   readonly ariaLabel: string;
-  readonly size?: 'regular' | 'compact' | 'chip';
+  readonly size?: 'compact' | 'chip';
   readonly accessory?: 'sampler' | 'chevron';
   /** Lets a composite paint control own the popover while reusing this trigger. */
   readonly expanded?: boolean;
   readonly onActivate?: () => void;
   readonly className?: string;
   readonly disabled?: boolean;
+  readonly tabIndex?: number;
   readonly onChange: (value: string) => void;
   readonly onInteractionStart?: () => void;
   readonly onInteractionCommit?: () => void;
@@ -54,12 +55,13 @@ export interface ColorSwatchFieldProps {
 export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   value,
   ariaLabel,
-  size = 'regular',
+  size = 'compact',
   accessory = 'sampler',
   expanded,
   onActivate,
   className,
   disabled = false,
+  tabIndex = -1,
   onChange,
   onInteractionStart,
   onInteractionCommit,
@@ -113,12 +115,12 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
       if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
       // A picker's context menu is portalled outside the popover. Let its action
       // finish instead of unmounting it during the capture phase.
-      if (target instanceof Element && target.closest('[data-ui-menu-owner]')) return;
+      if (target instanceof Element && target.closest('[data-ui-menu-owner], [data-ui-component="select-popup"]')) return;
       close(true);
     };
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (event.target instanceof Element && event.target.closest('[data-ui-menu-owner]')) return;
+      if (event.target instanceof Element && event.target.closest('[data-ui-menu-owner], [data-ui-component="select-popup"]')) return;
       event.preventDefault();
       close(false);
     };
@@ -159,25 +161,18 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   };
 
   return (
-    <span className={`color-swatch-field color-swatch-field--${size}${className ? ` ${className}` : ''}`}
-      data-suite-control="color-swatch" data-suite-variant={`${size}:${accessory}`}>
-      <button ref={triggerRef} type="button" className="color-swatch-field__well"
-        style={{ backgroundColor: value }} disabled={disabled} aria-label={ariaLabel}
-        aria-haspopup="dialog" aria-expanded={presentedOpen} onClick={togglePicker} />
-      {size !== 'chip' && accessory === 'sampler' ? <button type="button" className="color-swatch-field__sampler"
-        disabled={disabled || sampling} aria-label={`Sample ${ariaLabel.toLowerCase()}`}
-        title={`Sample ${ariaLabel.toLowerCase()}`} onClick={() => void sample()}>
-        <img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />
-      </button> : size !== 'chip' ? <button type="button" className="paint-field__arrow"
-        disabled={disabled} aria-label={`Open ${ariaLabel.toLowerCase()}`}
-        aria-haspopup="dialog" aria-expanded={presentedOpen} onClick={togglePicker} /> : null}
+    <>
+      <PaintField ref={triggerRef} kind="color" value={value} size={size} className={className}
+        ariaLabel={ariaLabel} disabled={disabled} tabIndex={tabIndex} expanded={presentedOpen} sampling={sampling}
+        onClick={togglePicker} onSample={accessory === 'sampler' ? () => void sample() : undefined} />
       {open && !onActivate ? createPortal(
         <div ref={popoverRef} className="color-swatch-field__popover"
+          data-ui-component="color-popover" data-ui-theme={triggerRef.current?.closest('[data-ui-theme]')?.getAttribute('data-ui-theme') ?? undefined}
           data-editor-floating-control style={position}>
           <ColorPicker value={colorPickerParseHex(value) ?? { r: 0, g: 0, b: 0, a: 1 }}
             onChange={(color) => onChange(colorPickerHex(color).toLowerCase())} />
         </div>, document.body
       ) : null}
-    </span>
+    </>
   );
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { GradientField, gradientFieldBackground, type GradientFieldValue } from './GradientField';
+import { GradientField, gradientFieldBackground, type GradientFieldValue } from '@lighttable/ui';
 
 const gradient: GradientFieldValue = {
   colorStops: [
@@ -20,10 +20,10 @@ describe('GradientField', () => {
     const markup = renderToStaticMarkup(
       <GradientField value={gradient} ariaLabel="Edit gradient" expanded onClick={vi.fn()} />
     );
-    expect(markup).toContain('class="gradient-field gradient-field--regular"');
+    expect(markup).toContain('data-suite-control="gradient-field"');
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain('class="paint-field__arrow"');
+    expect(markup).toContain('class="ui-paint-field__chevron"');
     expect(markup).not.toContain('>Gradient<');
   });
 
@@ -31,6 +31,6 @@ describe('GradientField', () => {
     const markup = renderToStaticMarkup(
       <GradientField value={gradient} size="compact" ariaLabel="Edit gradient" onClick={vi.fn()} />
     );
-    expect(markup).toContain('class="gradient-field gradient-field--compact"');
+    expect(markup).toContain('data-suite-variant="compact"');
   });
 });

@@ -1,0 +1,32 @@
+.ui-document-overview {
+  position: absolute; inset: 0; z-index: 20; overflow: hidden;
+  display: flex; flex-direction: column; background: var(--ui-surface); color: var(--ui-text);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
+}
+.ui-document-overview > header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 34px; padding: 8px 16px; }
+.ui-document-overview__grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 240px)); justify-content: center;
+  align-content: start; gap: 20px; padding: 16px 24px 24px; overflow: auto; min-height: 0;
+}
+.ui-document-overview__grid > button {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px;
+  min-width: 0; margin: 0; padding: 12px; height: 208px; border: 1px solid var(--ui-border); border-radius: 4px;
+  background: var(--ui-surface-inset); color: inherit; font: inherit;
+}
+.ui-document-overview__grid > button:hover { background: var(--ui-button-hover); }
+.ui-document-overview__grid > button[aria-current], .ui-document-overview__grid > button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -1px; }
+.ui-document-overview__grid > button[aria-busy] { opacity: 0; outline: 0; transition: opacity 50ms linear; }
+.ui-document-overview__grid img { position: relative; display: block; max-width: 100%; max-height: 152px; width: auto; height: auto; margin-block: auto; transform-origin: top left; pointer-events: none; }
+.ui-document-overview__name { width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; }
+.ui-document-overview__missing { flex: 1; display: grid; place-items: center; color: var(--ui-text-muted); }
+.ui-document-overview__flying { position: absolute; z-index: 2; pointer-events: none; transform-origin: top left; }
+.ui-document-overview img {
+  background: repeating-conic-gradient(
+    var(--ui-document-checker-dark) 0% 25%,
+    var(--ui-document-checker-light) 0% 50%
+  ) 0 / var(--ui-document-checker-pattern-size) var(--ui-document-checker-pattern-size);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-document-overview__grid > button { animation: ui-document-tile-in 200ms ease-out; }
+  @keyframes ui-document-tile-in { from { opacity: 0; } }
+}

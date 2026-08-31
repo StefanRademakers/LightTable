@@ -1,9 +1,9 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
+import { Checkbox, Button, SegmentedControl } from '@lighttable/ui';
 import React, { useState } from 'react';
 
 
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
-import { FormSelect } from '../../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import type {
   FaceWarpFace,
   FaceWarpFeatureSide,
@@ -108,12 +108,12 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       ]} /> : null}
     {faces.length > 0 && !reviewPending ? <label className="lighttable-tool-options__field">
       <span>Face</span>
-      <FormSelect value={selected?.id ?? ''} onChange={(event) => onSelectFace(event.currentTarget.value)}>
+      <Select value={selected?.id ?? ''} onValueChange={(nextValue) => onSelectFace(nextValue)}>
         {faces.map((face, index) => <option key={face.id} value={face.id}>Face {index + 1}</option>)}
-      </FormSelect>
+      </Select>
     </label> : null}
     <label className="lighttable-tool-options__toggle">
-      <input type="checkbox" checked={meshVisible}
+      <Checkbox  checked={meshVisible}
         disabled={faces.length === 0 || reviewPending}
         onChange={(event) => onMeshVisibleChange(event.currentTarget.checked)} />
       Show mesh
@@ -132,41 +132,41 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
     {selected && !reviewPending && mode === 'adjust' ? <>
       <label className="lighttable-tool-options__field">
         <span>Target</span>
-        <FormSelect value={semanticTarget}
-          onChange={(event) => onSemanticTargetChange(event.currentTarget.value as FaceWarpSemanticTarget)}>
+        <Select value={semanticTarget}
+          onValueChange={(nextValue) => onSemanticTargetChange(nextValue as FaceWarpSemanticTarget)}>
           <option value="both">Both sides</option>
           <option value="left">Left side</option>
           <option value="right">Right side</option>
-        </FormSelect>
+        </Select>
       </label>
       <label className="lighttable-tool-options__field">
         <span>Protect</span>
-        <FormSelect value={protectedFeature}
-          onChange={(event) => onProtectedFeatureChange(
-            event.currentTarget.value as FaceWarpProtectedFeature
+        <Select value={protectedFeature}
+          onValueChange={(nextValue) => onProtectedFeatureChange(
+            nextValue as FaceWarpProtectedFeature
           )}>
           <option value="eyes">Eyes</option>
           <option value="lips">Lips</option>
           <option value="nose">Nose</option>
           <option value="face-outline">Face outline</option>
-        </FormSelect>
+        </Select>
       </label>
       <label className="lighttable-tool-options__toggle">
-        <input type="checkbox" checked={selected.protection?.[protectedFeature] === true}
+        <Checkbox  checked={selected.protection?.[protectedFeature] === true}
           onChange={(event) => onProtectionChange(protectedFeature, event.currentTarget.checked)} />
         Locked
       </label>
       <label className="lighttable-tool-options__field">
         <span>Feature</span>
-        <FormSelect value={semanticFeature}
-          onChange={(event) => setSemanticFeature(
-            event.currentTarget.value as typeof semanticFeature
+        <Select value={semanticFeature}
+          onValueChange={(nextValue) => setSemanticFeature(
+            nextValue as typeof semanticFeature
           )}>
           <option value="face">Face width</option>
           <option value="eyes">Eye size</option>
           <option value="nose">Nose width</option>
           <option value="smile">Smile</option>
-        </FormSelect>
+        </Select>
       </label>
       {semanticFeature === 'face' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.faceWidth}

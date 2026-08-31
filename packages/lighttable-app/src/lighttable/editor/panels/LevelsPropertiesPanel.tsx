@@ -1,12 +1,10 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
-import React from 'react';
-import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
+import { IconButton, MaskIcon, PanelSectionHeader, RangeSlider } from '@lighttable/ui';
+import { NumberField } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
 import { PanelSelectField } from '../../../ui/PanelControls';
-import { RangeSlider } from '@lighttable/ui';
 
 type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
 type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];
@@ -61,7 +59,7 @@ export const LevelsTrack = ({
     return [next[0]!, levelsGammaPosition([next[0]!, gamma, next[2]!]), next[2]!];
   }}
   renderValues={showValues ? current => current.map((value, index) =>
-    <NumericExpressionInput key={ariaLabels[index]} aria-label={`${ariaLabels[index]} value`}
+    <NumberField key={ariaLabels[index]} aria-label={`${ariaLabels[index]} value`}
       value={value} min={0} max={255} step={1} kind="integer" formatValue={formatters?.[index]}
       disabled={disabled} onValueChange={next => {
         onInteractionStart(); onChange(index, next); onInteractionEnd();
@@ -119,15 +117,9 @@ export const LevelsPropertiesPanel = ({
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label="Levels properties">
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>Levels</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase type="button" className="lighttable-group__reset"
-              onClick={commands.resetPhotoshopAdjustment} aria-label="Reset Levels" title="Reset Levels">
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-          </div>
-        </div>
+        <PanelSectionHeader label="Levels" actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.resetPhotoshopAdjustment} aria-label="Reset Levels" title="Reset Levels" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">
@@ -141,7 +133,7 @@ export const LevelsPropertiesPanel = ({
                 levelsChannel: levelsChannel as PhotoshopAdjustmentSettings['levelsChannel']
               }))} />
             <div className="lighttable-levels__histogram">
-              <Histogram histogram={model.histogram}
+              <Histogram histogram={model.histogram} fit="container"
                 channel={settings.levelsChannel as HistogramChannel} />
             </div>
             <LevelsTrack
@@ -156,14 +148,14 @@ export const LevelsPropertiesPanel = ({
               onInteractionEnd={commands.endAdjustment}
             />
             <div className="lighttable-levels__input-values">
-              <NumericExpressionInput aria-label="Black input value"
+              <NumberField align="center" aria-label="Black input value"
                 value={selected.input[0]} min={0} max={selected.input[2] - 1}
                 kind="integer" onValueChange={(value) => commit(() => updateInput(0, value))} disabled={disabled} />
-              <NumericExpressionInput aria-label="Gamma value"
+              <NumberField align="center" aria-label="Gamma value"
                 value={selected.input[1]} min={0.1} max={9.99} step={0.01}
                 formatValue={(value) => value.toFixed(2)}
                 onValueChange={(value) => commit(() => updateInput(1, value))} disabled={disabled} />
-              <NumericExpressionInput aria-label="White input value"
+              <NumberField align="center" aria-label="White input value"
                 value={selected.input[2]} min={selected.input[0] + 1} max={255}
                 kind="integer" onValueChange={(value) => commit(() => updateInput(2, value))} disabled={disabled} />
             </div>

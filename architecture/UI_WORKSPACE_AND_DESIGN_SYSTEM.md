@@ -215,7 +215,7 @@ Panels use these primitives rather than feature-local visual copies:
   projected by `PanelColorSwatch` and `ToolOptionColor`, plus the shared
   gradient editor for gradient paint values;
 - `PanelAngleControl` for dial, keyboard and numeric angle input;
-- `PanelAdvancedDisclosure` for Photoshop/interchange parameters that are
+- `PanelSection variant="disclosure"` for Photoshop/interchange parameters that are
   preserved but are not part of the frequent editing path.
 - `PanelFileField` for a labelled file action with click and drop support, and
   `lighttable-property-stack` when multiple full-width property rows must be
@@ -232,6 +232,15 @@ toolbars and property rows. The shared gradient editor owns only the
 domain-specific ramp and draggable stops; its buttons, colors and numeric
 controls compose `Button`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
+
+`@lighttable/ui` now owns one `PaintField` base for color, gradient and no-paint
+previews. `GradientField` and `NonePaintField` compose it; the app's
+`ColorSwatchField` retains only picker positioning, document-palette access,
+screen sampling and transaction callbacks. All fields are 72×28px;
+there are no wider or stretched variants. The toolbar's
+foreground/background chips remain a distinct 17px variant. A chevron field
+is one editor-opener button; a pipette field has two distinct buttons. All
+skins and transparency colors come from the package, including light theme.
 
 In a UI-devtools build, the live catalog is available from **View > UI Style
 Guide...**. It uses the
@@ -290,6 +299,14 @@ product menu uses the same generic DOM event so the host remains replaceable.
 
 ### Optional devtools build boundary
 
+Temporary owner decision (2026-08-31): while controls move to `@lighttable/ui`,
+both web and desktop hosts include **View > UI Style Guide...** by default in
+development and release builds. The separate entry point remains intact.
+`LIGHTTABLE_UI_DEVTOOLS=0` explicitly opts out for boundary verification; absence
+checks must use that opt-out instead of assuming a normal build omits the guide.
+Return to opt-in after the migration, when the owner requests removal. This
+temporarily overrides the default-build exclusion described below.
+
 The Style Guide, coverage scanner and bidirectional inspector are host-provided
 development tools. `@lighttable/app` exposes them only through the separate
 `@lighttable/app/ui-devtools` entry point. The base `LightTableStandaloneApp`
@@ -340,12 +357,43 @@ writes screenshots plus JSON evidence under `tmp/panel-language-audit/`.
 
 ## Interaction contract
 
+`@lighttable/ui` owns `PanelSection` and its standalone `PanelSectionHeader`.
+All migrated section headers are 34px high, sharing the toolbar-row token.
+Grade, Lens FX, layer effects, Assets, Scopes, fixed adjustment/property titles
+and their Advanced disclosures compose this system; Layers/Actions/History trees
+remain separate. Open state and enable state are distinct consumer concerns.
+Scopes and Grade Color Mixer retain hidden mounted canvases; ordinary sections
+unmount collapsed content. Asset search retains its app-owned forced expansion.
+Header actions cannot toggle the body. Shift-reset is handled once by the app
+effect adapter. Shared artwork uses the existing icons moved into the package.
+The standalone demo's Panel sections page and embedded Containers specimens
+exercise the same package control, without app CSS header overrides.
+
+The package also owns the existing 36×20 `SwitchControl` and native `Checkbox`.
+Section switches and the app's `PanelCheckboxField` use them without local skins;
+both reuse existing selection/control colors. Inline Advanced disclosures have no
+header surface or added horizontal padding; revealed content stays aligned.
+
 The shared `@lighttable/ui` package owns `Slider`, `SliderField`, `RangeSlider`
 and `GradientEditor` styling and interaction scheduling. `AdjustmentSlider`
 is now a thin app adapter for existing domain tracks/layout choices, and the
 gradient adapter only supplies the app color picker and asset metadata. Levels
 keeps gamma math in its panel and delegates handle interaction to `RangeSlider`.
 Do not add slider skins to app CSS. The standalone UI demo documents each variant.
+
+`DocumentTabs` owns the 30px document strip, title truncation, hidden-scrollbar
+overflow with an all-documents menu, thumbnail hover and context-menu presentation.
+The host retains document selection/close transactions, preview URL lifetimes,
+drag payloads and file/GenAI actions. File reveal follows the last committed save
+path; adding an inactive document as a reference first binds its renderer before
+using the existing artifact export/import path. Tabs never render document pixels.
+The optional document overview button remains visible with one document. Its
+package-owned overlay uses the same preview URLs and a 200ms transform-only image
+transition, honoring reduced motion. LightTable supplies the current screen-space
+image bounds; the canvas stays mounted and its zoom/pan state is not changed.
+When another document is chosen, the host binds it behind the overview and only
+dismisses the overlay after that renderer generation reports a presented
+composite. An initializing or stale canvas therefore never becomes the transition.
 
 The color picker also lives in `@lighttable/ui`, composing exported `ColorArea`,
 `ColorSwatches`, `TextInput` and `IconButton` with the existing sliders and segments.

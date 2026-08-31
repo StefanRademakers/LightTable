@@ -243,7 +243,7 @@ describe('editor keymap', () => {
       DEFAULT_EDITOR_KEYMAP,
       input({ key: '`', code: 'Backquote' }),
       context({ activeTool: 'brush' })
-    )).toBe('temporary-erase-start');
+    )).toBeNull();
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: '5', code: 'Digit5' }),

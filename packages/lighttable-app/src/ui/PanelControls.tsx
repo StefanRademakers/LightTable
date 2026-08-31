@@ -1,9 +1,9 @@
-import { Button } from '@lighttable/ui';
+import { Button, Checkbox, NumberField } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorSwatchField } from './ColorSwatchField';
 
-import { FormSelect } from './FormSelect';
+import { Select } from '@lighttable/ui';
 
 export interface PanelColor {
   readonly r: number;
@@ -35,11 +35,11 @@ export const PanelSelectField: React.FC<{
   <label className="lighttable-style-field" data-suite-control="panel-select"
     style={labelWidth ? { '--lt-property-label-width': labelWidth } as React.CSSProperties : undefined}>
     <span>{label}</span>
-    <FormSelect value={value} onChange={(event) => onChange(event.currentTarget.value)}>
+    <Select value={value} onValueChange={(nextValue) => onChange(nextValue)}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>{option.label}</option>
       ))}
-    </FormSelect>
+    </Select>
   </label>
 );
 
@@ -99,12 +99,7 @@ export const PanelCheckboxField: React.FC<{
   compact?: boolean;
   onChange: (checked: boolean) => void;
 }> = ({ label, checked, disabled = false, compact = false, onChange }) => (
-  <label className={`lighttable-style-toggle${compact ? ' lighttable-style-toggle--compact' : ''}`}
-    data-suite-control="panel-checkbox">
-    <input type="checkbox" checked={checked} disabled={disabled}
-      onChange={(event) => onChange(event.currentTarget.checked)} />
-    <span className={compact ? 'lighttable-visually-hidden' : undefined}>{label}</span>
-  </label>
+  <Checkbox label={label} checked={checked} disabled={disabled} compact={compact} onCheckedChange={onChange} />
 );
 
 export const PanelColorSwatch = <T extends PanelColor>({
@@ -252,24 +247,11 @@ export const PanelAngleControl: React.FC<{
           style={{ transform: `rotate(${-normalized}deg)` }} aria-hidden="true" />
       </div>
       <span className="lighttable-style-angle__number">
-        <input type="number" min={0} max={359} step={1} value={Math.round(normalized)}
+        <NumberField updateMode="input" align="right" min={0} max={359} step={1} value={Math.round(normalized)}
           aria-label={`${label} degrees`}
-          onChange={(event) => {
-            const next = event.currentTarget.valueAsNumber;
-            if (Number.isFinite(next)) onChange(normalizeAngle(next));
-          }} />
+          onValueChange={(next) => onChange(normalizeAngle(next))} />
         <span>°</span>
       </span>
     </span>
   </div>;
 };
-
-export const PanelAdvancedDisclosure: React.FC<React.PropsWithChildren<{
-  edge?: 'contained' | 'panel-bleed';
-}>> = ({ children, edge = 'contained' }) => (
-  <details className={`lighttable-style-advanced lighttable-style-advanced--${edge}`}
-    data-suite-control="advanced-disclosure">
-    <summary>Advanced</summary>
-    <div className="lighttable-style-advanced__content">{children}</div>
-  </details>
-);

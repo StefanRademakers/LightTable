@@ -1,0 +1,7 @@
+.ui-search-field { position: relative; width: 100%; min-width: 0; height: 28px; flex-shrink: 0; color: var(--ui-button-text); }
+.ui-search-field > .ui-text-input { padding-inline: 31px 10px; border-radius: 14px; }
+.ui-search-field[data-clear] > .ui-text-input { padding-right: 31px; }
+.ui-search-field__icon { position: absolute; left: 10px; top: 7px; width: 14px; height: 14px; pointer-events: none; opacity: .82; }
+.ui-search-field > .ui-search-field__clear { position: absolute; right: 4px; top: 4px; width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; }
+.ui-search-field__clear > .ui-mask-icon { width: 12px; height: 12px; }
+.ui-search-field input::-webkit-search-cancel-button { display: none; }

@@ -69,7 +69,7 @@ describe('DebugPanel text engine diagnostic', () => {
     expect(markup).toContain('Run typography corpus');
     expect(markup).toContain('Run renderer bakeoff');
     expect(markup).toContain('Show fixed coverage-atlas text on canvas');
-    expect(markup).toContain('<input type="checkbox"/>Show fixed coverage-atlas text on canvas');
+    expect(markup).toContain('data-ui-component="checkbox"');
     expect(markup).toContain('Contract fixtures: 2');
     expect(markup).toContain('Last layout error: None.');
   });

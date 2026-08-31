@@ -61,6 +61,8 @@ export type LightTableSaveResult =
   | {
       readonly status: 'committed';
       readonly durability: LightTableSaveDurability;
+      /** Host-owned saved location, for revealing the file after Save As. */
+      readonly path?: string;
     }
   | { readonly status: 'canceled' }
   | {
@@ -311,6 +313,7 @@ export interface LightTableHost {
   openRecentFile?(id: string): Promise<File | null>;
   rememberRecentFiles?(files: readonly File[]): Promise<void>;
   revealRecentFile?(id: string): Promise<void>;
+  revealFile?(path: string): Promise<void>;
   removeRecentFile?(id: string): Promise<void>;
   clearRecentFiles?(): Promise<void>;
   /** Enter or leave the host window's native/browser fullscreen presentation. */

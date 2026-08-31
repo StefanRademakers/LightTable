@@ -1,8 +1,7 @@
-import React from 'react';
+import { PanelSection } from '@lighttable/ui';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  PanelAdvancedDisclosure,
   PanelAngleControl,
   PanelCheckboxField,
   PanelColorSwatch,
@@ -24,24 +23,24 @@ describe('shared panel controls', () => {
       <PanelNumberSlider label="Opacity" value={50} min={0} max={100} suffix="%"
         onChange={vi.fn()} />
       <PanelAngleControl label="Angle" value={120} onChange={vi.fn()} />
-      <PanelAdvancedDisclosure><span>Compatibility</span></PanelAdvancedDisclosure>
+      <PanelSection label="Advanced" keepMounted><span>Compatibility</span></PanelSection>
     </>);
 
     expect(markup).toContain('<span>Mode</span>');
     expect(markup).toContain('<span>3D LUT</span>');
     expect(markup).toContain('Load .cube...');
     expect(markup).toContain('class="ui-button"');
-    expect(markup).toContain('<span>Enabled</span>');
-    expect(markup).toContain('background-color:#ff0000');
+    expect(markup).toContain('aria-label="Enabled"');
+    expect(markup).toContain('--ui-paint-preview:linear-gradient(#ff0000, #ff0000)');
     expect(markup).toContain('aria-label="Sample color"');
     expect(markup).toContain('title="Opacity"');
     expect(markup).toContain('aria-label="Angle"');
-    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('Compatibility');
     expect(markup).toContain('data-suite-control="panel-select"');
     expect(markup).toContain('data-suite-control="panel-file"');
     expect(markup).toContain('data-suite-control="panel-checkbox"');
     expect(markup).toContain('data-suite-control="panel-angle"');
-    expect(markup).toContain('data-suite-control="advanced-disclosure"');
+    expect(markup).toContain('data-suite-control="panel-section"');
   });
 });

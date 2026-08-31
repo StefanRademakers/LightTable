@@ -202,6 +202,7 @@ export class WebGpuEngine {
   private startupTimeline: DocumentStartupTimeline | null = null;
   private startupPresentationArmed = false;
   private readonly presentationWaiters = new Set<() => void>();
+  private presentationCompletionPending = false;
   private readonly canvas: HTMLCanvasElement;
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
@@ -3186,12 +3187,15 @@ export class WebGpuEngine {
       () => undefined
     );
     this.reportGpuMemoryEstimate();
-    if (renderedCorrection && this.firstFramePending && this.startupPresentationArmed) {
-      this.firstFramePending = false;
-      const startupTimeline = this.startupTimeline;
+    const completesFirstFrame = this.firstFramePending && this.startupPresentationArmed;
+    if (renderedCorrection && !this.presentationCompletionPending
+      && (completesFirstFrame || this.presentationWaiters.size > 0)) {
+      this.presentationCompletionPending = true;
+      if (completesFirstFrame) this.firstFramePending = false;
+      const startupTimeline = completesFirstFrame ? this.startupTimeline : null;
       void this.device.queue.onSubmittedWorkDone().then(() => {
         if (this.destroyed) return;
-        this.callbacks.onFirstFrame?.();
+        if (completesFirstFrame) this.callbacks.onFirstFrame?.();
         if (startupTimeline && this.startupTimeline === startupTimeline) {
           startupTimeline.mark('request-animation-frame');
         }
@@ -3208,12 +3212,14 @@ export class WebGpuEngine {
             }
             const waiters = [...this.presentationWaiters];
             this.presentationWaiters.clear();
+            this.presentationCompletionPending = false;
             for (const resolve of waiters) resolve();
           });
         });
       }, () => {
         const waiters = [...this.presentationWaiters];
         this.presentationWaiters.clear();
+        this.presentationCompletionPending = false;
         for (const resolve of waiters) resolve();
       });
     }

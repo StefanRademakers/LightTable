@@ -1,8 +1,8 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, Button, TextInput } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { FormInput } from './FormInput';
+
 import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface TextInputDialogProps {
@@ -74,7 +74,7 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
           <h3 className="modal__title">{title}</h3>
         </div>
         {description ? <p className="muted">{description}</p> : null}
-        <FormInput
+        <TextInput tabIndex={0}
           ref={inputRef}
           className="text-input-dialog__input"
           autoFocus
@@ -93,8 +93,8 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
           }}
         />
         {checkboxLabel ? <label className="text-input-dialog__check">
-          <input
-            type="checkbox"
+          <Checkbox
+            tabIndex={0}
             checked={checkboxChecked}
             onChange={(event) => onCheckboxChange?.(event.currentTarget.checked)}
           />

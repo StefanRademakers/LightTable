@@ -67,6 +67,7 @@ export type DesktopSaveResult =
   | {
       readonly status: 'committed';
       readonly durability: 'atomic-replace' | 'safe-replace';
+      readonly path?: string;
     }
   | { readonly status: 'canceled' }
   | {
@@ -164,6 +165,7 @@ export interface LightTableDesktopBridge {
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
   rememberOpenedFiles(files: readonly File[]): Promise<void>;
   revealRecentFile(id: string): Promise<void>;
+  revealFile(path: string): Promise<void>;
   removeRecentFile(id: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
   chooseProjectLocation(): Promise<DesktopProjectLocation | null>;

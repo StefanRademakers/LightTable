@@ -76,23 +76,23 @@ try {
   await window.keyboard.press('ArrowRight');
   if ((await activeSnapshot(window))?.name !== 'Edit') throw new Error('Menubar ArrowRight did not focus Edit.');
   await window.keyboard.press('ArrowDown');
-  await window.waitForFunction(() => document.activeElement?.matches('.context-menu [role="menuitem"]'), undefined, { timeout: 5_000 });
+  await window.waitForFunction(() => document.activeElement?.matches('.ui-menu [role="menuitem"]'), undefined, { timeout: 5_000 });
   report.journey.push({ id: 'menu-open-and-focus', active: await activeSnapshot(window) });
   await window.keyboard.press('Escape');
   await window.waitForTimeout(100);
   const restoredMenuFocus = await activeSnapshot(window);
   if (restoredMenuFocus?.name !== 'Edit') throw new Error(`Escape did not restore menubar focus: ${JSON.stringify(restoredMenuFocus)}`);
 
-  await window.locator('.lighttable-toolbox__button').first().focus();
+  await window.locator('.ui-toolbar__button').first().focus();
   const tool = await activeSnapshot(window);
-  if (!String(tool?.className).includes('lighttable-toolbox__button')) {
+  if (!String(tool?.className).includes('ui-toolbar__button')) {
     throw new Error(`Toolbox could not receive keyboard focus: ${JSON.stringify(tool)}`);
   }
   report.journey.push({ id: 'toolbar-focus', active: tool });
   const activeToolHasPopup = await window.evaluate(() => document.activeElement?.getAttribute('aria-haspopup') === 'true');
   if (activeToolHasPopup) {
     await window.keyboard.press('ArrowDown');
-    if (!(await activeSnapshot(window))?.className.includes('lighttable-toolbox__button')) {
+    if (!(await activeSnapshot(window))?.className.includes('ui-toolbar__button')) {
       throw new Error('Tool family ArrowDown did not focus its flyout.');
     }
     await window.keyboard.press('Escape');

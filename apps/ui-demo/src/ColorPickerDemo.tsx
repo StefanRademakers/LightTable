@@ -1,4 +1,6 @@
 import React from 'react';
+import { PaintFieldsDemo } from './PaintFieldsDemo';
+import { ColorWheelDemo } from './ColorWheelDemo';
 import { ColorArea, ColorPicker, ColorSwatches, IconButton, TextInput, Text,
   colorPickerHex, type ColorPickerColor } from '@lighttable/ui';
 
@@ -12,9 +14,11 @@ export function ColorPickerDemo() {
   const [field, setField] = React.useState('Editable value');
   return <>
     <header className="demo-intro">
-      <Text as="h1" variant="large" weight="bold">Color picker</Text>
+      <Text as="h1" variant="large" weight="bold">Paint &amp; color</Text>
       <Text as="p" tone="muted">One composite, shared controls. The host supplies document colors, palette storage and screen sampling.</Text>
     </header>
+    <PaintFieldsDemo />
+    <ColorWheelDemo />
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Popover · 320 px</Text>
       <ColorPicker value={value} onChange={setValue} opacity={opacity} onOpacityChange={setOpacity}

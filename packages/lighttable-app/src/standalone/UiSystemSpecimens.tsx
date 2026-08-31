@@ -1,4 +1,4 @@
-import { Button, Menu, type MenuOption } from '@lighttable/ui';
+import { Button, DocumentTabs, Menu, type MenuOption, PanelSection, Select } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../ui/AdjustmentSlider';
@@ -10,7 +10,6 @@ import { LocalProcessingTreeRows } from '../lighttable/editor/ui/LocalProcessing
 import { PanelFileField, PanelSelectField } from '../ui/PanelControls';
 import { ToolOptionNumber, ToolOptionSelect } from '../lighttable/editor/ui/ToolOptionControls';
 import { OpacitySlider } from '../ui/OpacitySlider';
-import { PanelSection } from '../ui/PanelSection';
 
 const noop = () => undefined;
 
@@ -95,18 +94,12 @@ export const UiSplitActionListSpecimen = () => <MenuSpecimen label="Split action
     trailingAction: { value: 'attach-contrast', label: 'Attach Brightness / Contrast to selected layer', icon: <img src={lightTableIcon('link_vertical.png')} alt="" />, onClick: noop } }
 ]} />;
 
-export const UiChoiceListSpecimen = () => (
-  <div className="lighttable-ui-guide__listbox" role="listbox" aria-label="Grouped choice list">
-    <div className="lighttable-font-picker__group">Document fonts</div>
-    <button type="button" role="option" aria-selected="true"
-      className="lighttable-font-picker__option lighttable-font-picker__option--selected">Inter Regular</button>
-    <button type="button" role="option" aria-selected="false"
-      className="lighttable-font-picker__option">Source Serif 4</button>
-    <div className="lighttable-font-picker__group">System fonts</div>
-    <button type="button" role="option" aria-selected="false"
-      className="lighttable-font-picker__option">Segoe UI</button>
-  </div>
-);
+export const UiChoiceListSpecimen = () => <Select aria-label="Grouped choice list" searchable tabIndex={0}
+  defaultValue="inter" options={[
+    { value: 'inter', label: 'Inter Regular', group: 'Document fonts' },
+    { value: 'source', label: 'Source Serif 4', group: 'Document fonts' },
+    { value: 'segoe', label: 'Segoe UI', group: 'System fonts' }
+  ]} />;
 
 export const UiLayerTreeSpecimen = () => (
   <div className="lighttable-ui-guide__layer-tree-shell">
@@ -164,16 +157,15 @@ export const UiLayerTreeSpecimen = () => (
   </div>
 );
 
-export const UiTabListSpecimen = () => (
-  <div className="lighttable-document-tabs lighttable-ui-guide__tabs" role="tablist" aria-label="Document tabs specimen">
-    <div className="lighttable-document-tab lighttable-document-tab--active" role="tab" aria-selected="true">
-      <button type="button" className="lighttable-document-tab__title">portrait.psd *</button>
-    </div>
-    <div className="lighttable-document-tab" role="tab" aria-selected="false">
-      <button type="button" className="lighttable-document-tab__title">layout.png</button>
-    </div>
-  </div>
-);
+export const UiTabListSpecimen = () => {
+  const [activeId, setActiveId] = React.useState('portrait');
+  const container = React.useRef<HTMLDivElement>(null);
+  return <div>
+    <DocumentTabs label="Document tabs specimen" activeId={activeId} onSelect={setActiveId} overview={{ container }}
+      documents={[{ id: 'portrait', title: 'portrait.psd', dirty: true }, { id: 'layout', title: 'layout.png' }]} />
+    <div ref={container} style={{ position: 'relative', height: 280 }} />
+  </div>;
+};
 
 export const UiContainerSpecimens = () => {
   const [expanded, setExpanded] = React.useState(true);
@@ -189,7 +181,7 @@ export const UiContainerSpecimens = () => {
       </div>
     </PanelSection>
     <div className="lighttable-ui-guide__toolbar-group">
-      <ToolOptionSelect label="Mode" value="shape" onChange={noop}>
+      <ToolOptionSelect label="Mode" value="shape" onValueChange={noop}>
         <option value="shape">Shape</option><option value="path">Path</option>
       </ToolOptionSelect>
       <ToolOptionNumber label="Weight" value={3} unit="px" onChange={noop} />

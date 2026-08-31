@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, PanelSection, Button, TextInput, NumberField } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import type {
   LightTableAgentAccessService,
@@ -9,7 +9,7 @@ import type {
 } from '../platform/LightTableHost';
 
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { SwitchControl } from '../ui/SwitchControl';
+import { SwitchControl } from '@lighttable/ui';
 
 const unavailable: LightTableAgentAccessStatus = {
   supported: false, enabled: false, state: 'stopped'
@@ -142,9 +142,9 @@ export const AgentAccessSettingsPanel: React.FC<{
             <span className={`lighttable-agent-settings__status is-${tunnel.state}`}>{tunnel.state}</span>
           </div>
           {!onlinePaired ? <>
-            <label>Server URL<input type="url" placeholder="https://mcp.example.com" value={serverUrl}
+            <label>Server URL<TextInput tabIndex={0} type="url" placeholder="https://mcp.example.com" value={serverUrl}
               disabled={busy} onChange={(event) => setServerUrl(event.currentTarget.value)} /></label>
-            <label>One-time pairing code<input type="text" autoComplete="one-time-code" maxLength={64}
+            <label>One-time pairing code<TextInput tabIndex={0} type="text" autoComplete="one-time-code" maxLength={64}
               value={pairingCode} disabled={busy}
               onChange={(event) => setPairingCode(event.currentTarget.value)} /></label>
             <div className="lighttable-agent-settings__actions">
@@ -213,8 +213,7 @@ export const AgentAccessSettingsPanel: React.FC<{
           </div>
         </div> : null}
 
-        <details className="lighttable-agent-settings__advanced">
-          <summary>Advanced and diagnostics</summary>
+        <PanelSection label="Advanced and diagnostics" variant="disclosure" keepMounted>
           <dl>
             <div><dt>Connection</dt><dd>{tunnel.state}</dd></div>
             <div><dt>Server</dt><dd>{tunnel.serverId ?? 'Not paired'}</dd></div>
@@ -229,15 +228,15 @@ export const AgentAccessSettingsPanel: React.FC<{
             <h4>Direct local automation endpoint</h4>
             <p>Development-only low-level access. Normal MCP use does not require this endpoint.</p>
             <label className="lighttable-agent-settings__toggle">
-              <input type="checkbox" checked={status.enabled} disabled={busy}
+              <Checkbox tabIndex={0} checked={status.enabled} disabled={busy}
                 onChange={(event) => event.currentTarget.checked
                   ? run(() => service.enable(port ? { port: Number(port) } : undefined))
                   : run(() => service.disable())} />
               <span>{status.enabled ? 'Direct endpoint enabled' : 'Enable direct endpoint'}</span>
             </label>
             <label className="lighttable-agent-settings__port">Preferred port
-              <input type="number" min="1024" max="65535" placeholder="Automatic" value={port}
-                disabled={status.enabled || busy} onChange={(event) => setPort(event.currentTarget.value)} />
+              <NumberField tabIndex={0} updateMode="input" kind="integer" min="1024" max="65535" placeholder="Automatic" value={port ? Number(port) : null}
+                disabled={status.enabled || busy} onValueChange={next => setPort(String(next))} onEmpty={() => setPort('')} />
             </label>
             <dl>
               <div><dt>Status</dt><dd>{status.state}</dd></div>
@@ -245,7 +244,7 @@ export const AgentAccessSettingsPanel: React.FC<{
               <div><dt>Device</dt><dd>{status.deviceId ?? 'Created when enabled'}</dd></div>
             </dl>
             {status.token ? <label className="lighttable-agent-settings__token">Connection token
-              <input readOnly value={status.token} onFocus={(event) => event.currentTarget.select()} />
+              <TextInput tabIndex={0} readOnly value={status.token} onFocus={(event) => event.currentTarget.select()} />
             </label> : null}
             {status.error ? <p className="lighttable-agent-settings__error" role="alert">{status.error}</p> : null}
             <div className="lighttable-agent-settings__actions">
@@ -256,7 +255,7 @@ export const AgentAccessSettingsPanel: React.FC<{
           {tunnel.serverUrl ? <Button tabIndex={0} disabled={busy} onClick={() => setConfirmDeviceRevoke(true)}>
             Unpair this LightTable installation…
           </Button> : null}
-        </details>
+        </PanelSection>
 
         <ConfirmDialog open={confirmDeviceRevoke} title="Unpair LightTable from the MCP server?"
           description="This removes this installation's server pairing and every saved agent permission. Connecting again requires a new pairing."

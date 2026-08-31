@@ -1,7 +1,7 @@
 import { Button, SegmentedControl } from '@lighttable/ui';
 import React, { useState } from 'react';
 
-import { GradientField, type GradientFieldValue } from '../ui/GradientField';
+import { GradientField, type GradientFieldValue } from '@lighttable/ui';
 
 import { CurvesEditor } from '../lighttable/CurvesEditor';
 import {

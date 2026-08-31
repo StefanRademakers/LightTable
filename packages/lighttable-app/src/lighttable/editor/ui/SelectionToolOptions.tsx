@@ -1,3 +1,4 @@
+import { Checkbox, NumberField } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../ui/AdjustmentSlider';
 import type { EditorSession, ToolId } from '../session/editorSession';
@@ -57,8 +58,8 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
         <ToolOptionNumber label="Feather" unit="px" value={feather} min={0} max={250} step={1}
           onChange={(value) => onFeatherChange(finiteFeather(value))} />
         <ToolOptionSelect label="Style" value={marqueeStyle} aria-label="Marquee selection style"
-          onChange={(event) => onMarqueeStyleChange(
-            event.currentTarget.value as EditorSession['selectionMarqueeStyle']
+          onValueChange={(nextValue) => onMarqueeStyleChange(
+            nextValue as EditorSession['selectionMarqueeStyle']
           )}>
           <option value="free">Free</option>
           <option value="ratio">Ratio</option>
@@ -85,10 +86,9 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
     return (
       <label className="lighttable-tool-options__weight-field">
         <span>{horizontal ? 'Height' : 'Width'}</span>
-        <input type="number" min={1} max={10000} step={1}
+        <NumberField kind="integer" updateMode="input" min={1} max={10000} step={1}
           value={horizontal ? rowHeight : columnWidth}
-          onChange={(event) => {
-            const size = Math.max(1, Math.round(Number(event.currentTarget.value) || 1));
+          onValueChange={(size) => {
             if (horizontal) onRowHeightChange(size);
             else onColumnWidthChange(size);
           }} />
@@ -109,7 +109,7 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
       <ToolOptionNumber label="Feather" unit="px" value={feather} min={0} max={250} step={1}
         onChange={(value) => onFeatherChange(finiteFeather(value))} />
       <label className="lighttable-tool-options__toggle">
-        <input type="checkbox" checked={antiAlias}
+        <Checkbox  checked={antiAlias}
           onChange={(event) => onAntiAliasChange(event.currentTarget.checked)} />
         Anti-alias
       </label>

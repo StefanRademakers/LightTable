@@ -1,11 +1,8 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { Button, PanelSection, SegmentedControl } from '@lighttable/ui';
 import React, { useState } from 'react';
 
-
-import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 import {
   DEFAULT_CHROMATIC_ABERRATION_SETTINGS
@@ -242,29 +239,29 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           <div className="lighttable-lens-blur__select-controls">
             <label className="lighttable-lens-blur__select-row">
               <span>Render quality</span>
-              <FormSelect
+              <Select
                 aria-label="Lens Blur render quality"
                 value={lensBlur.quality}
                 disabled={!lensBlur.enabled || analyzing}
-                onChange={(event) => commands.lensBlur.setQuality(event.currentTarget.value as LensBlurQuality)}
+                onValueChange={(nextValue) => commands.lensBlur.setQuality(nextValue as LensBlurQuality)}
               >
                 {LENS_BLUR_QUALITY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
-              </FormSelect>
+              </Select>
             </label>
             <label className="lighttable-lens-blur__select-row">
               <span>Bokeh shape</span>
-              <FormSelect
+              <Select
                 aria-label="Lens Blur bokeh shape"
                 value={lensBlur.bokehShape}
                 disabled={!lensBlur.enabled || analyzing}
-                onChange={(event) => commands.lensBlur.setShape(event.currentTarget.value as BokehShape)}
+                onValueChange={(nextValue) => commands.lensBlur.setShape(nextValue as BokehShape)}
               >
                 {BOKEH_SHAPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
-              </FormSelect>
+              </Select>
             </label>
           </div>
           <div
@@ -422,22 +419,8 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onInteractionEnd={commands.endAdjustment}
             />
           ))}
-          <div className="lighttable-subgroup">
-            <ButtonBase
-              type="button"
-              className="lighttable-subgroup__toggle"
-              onClick={() => setGrainAdvancedExpanded((current) => !current)}
-              aria-expanded={grainAdvancedExpanded}
-            >
-              <img
-                src={lightTableIcon(grainAdvancedExpanded ? 'area_open.png' : 'area_closed.png')}
-                alt=""
-                aria-hidden="true"
-              />
-              <strong>Advanced</strong>
-            </ButtonBase>
-            {grainAdvancedExpanded ? (
-              <div className="lighttable-subgroup__controls">
+          <PanelSection label="Advanced" variant="disclosure" expanded={grainAdvancedExpanded}
+            onExpandedChange={setGrainAdvancedExpanded}>
                 {GRAIN_ADVANCED_SLIDERS.map((slider) => (
                   <AdjustmentSlider
                     key={slider.key}
@@ -457,9 +440,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                     onInteractionEnd={commands.endAdjustment}
                   />
                 ))}
-              </div>
-            ) : null}
-          </div>
+          </PanelSection>
         </EffectPanel>
       </div>
     </aside>

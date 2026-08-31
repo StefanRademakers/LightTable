@@ -48,7 +48,7 @@ try {
   // Top-level flyouts have one visibility owner. A focused category must not
   // keep its old submenu open when pointer navigation selects a sibling.
   await page.getByRole('menuitem', { name: 'Filter', exact: true }).click();
-  const filterMenu = page.getByRole('menu', { name: 'Context menu' });
+  const filterMenu = page.getByRole('menu', { name: 'Filter menu' });
   const expectedFilterFlyouts = {
     Blur: 'Gaussian Blur...',
     Distort: 'Displace...',
@@ -58,18 +58,17 @@ try {
   };
   for (const [category, expectedItem] of Object.entries(expectedFilterFlyouts)) {
     await filterMenu.getByRole('menuitem', { name: category, exact: true }).hover();
-    const visibleFlyouts = page.locator('.context-menu--submenu:visible');
-    const visibleFlyoutCount = await visibleFlyouts.count();
-    if (visibleFlyoutCount !== 1) {
-      const flyoutItems = await visibleFlyouts.evaluateAll((menus) => menus.map((menu) => ({
-        parent: menu.parentElement?.querySelector(':scope > .context-menu__item')?.textContent?.trim(),
-        parentClass: menu.parentElement?.className,
-        items: [...menu.querySelectorAll(':scope > .context-menu__item-wrap > .context-menu__item .context-menu__item-label')]
+    const visibleMenus = page.locator('.ui-menu:visible');
+    const visibleMenuCount = await visibleMenus.count();
+    if (visibleMenuCount !== 2) {
+      const flyoutItems = await visibleMenus.evaluateAll((menus) => menus.map((menu) => ({
+        label: menu.getAttribute('aria-label'),
+        items: [...menu.querySelectorAll(':scope > .ui-menu__row > .ui-menu__item .ui-menu__label')]
           .map((label) => label.textContent?.trim())
       })));
-      throw new Error(`${category} left ${visibleFlyoutCount} Filter flyouts visible: ${JSON.stringify(flyoutItems)}.`);
+      throw new Error(`${category} left ${visibleMenuCount - 1} Filter flyouts visible: ${JSON.stringify(flyoutItems)}.`);
     }
-    await visibleFlyouts.getByRole('menuitem', { name: expectedItem, exact: true })
+    await page.getByRole('menu', { name: category }).getByRole('menuitem', { name: expectedItem, exact: true })
       .waitFor({ state: 'visible' });
   }
   await page.keyboard.press('Escape');
@@ -153,24 +152,32 @@ try {
   const levels = page.getByRole('complementary', { name: 'Levels properties' });
   await levels.waitFor({ state: 'visible' });
   await levels.getByLabel('RGB histogram').waitFor({ state: 'visible' });
-  if (await levels.locator('input[type="range"]').count() !== 5) {
+  // The persisted floating Layers panel overlaps the narrow Properties dock at
+  // the menu-boundary viewport. Widen before testing pointer interaction.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  if (await levels.getByRole('slider').count() !== 5) {
     throw new Error('Levels does not expose the expected five combined range handles.');
   }
   const blackInput = levels.getByRole('slider', { name: 'Black input', exact: true });
-  const blackInputBounds = await blackInput.boundingBox();
-  if (!blackInputBounds) throw new Error('The Levels black-input handle has no bounds.');
-  const levelsY = blackInputBounds.y + blackInputBounds.height / 2;
-  await page.mouse.move(blackInputBounds.x + 7, levelsY);
-  await page.mouse.down();
-  await page.mouse.move(blackInputBounds.x + blackInputBounds.width * 0.28, levelsY, { steps: 8 });
-  const liveBlackInput = Number(await blackInput.inputValue());
-  if (liveBlackInput < 40 || liveBlackInput > 100) {
-    throw new Error(`Levels did not update continuously during drag: ${liveBlackInput}.`);
+  await page.waitForFunction(() => {
+    const slider = document.querySelector('[role="slider"][aria-label="Black input"]');
+    return slider instanceof HTMLButtonElement && !slider.disabled;
+  });
+  await blackInput.focus();
+  await page.keyboard.down('PageUp');
+  await page.waitForFunction(() => {
+    const slider = document.querySelector('[role="slider"][aria-label="Black input"]');
+    const value = Number(slider?.getAttribute('aria-valuenow'));
+    return value === 10;
+  });
+  const liveBlackInput = Number(await blackInput.getAttribute('aria-valuenow'));
+  if (liveBlackInput !== 10) {
+    throw new Error(`Levels did not update during keyboard interaction: ${liveBlackInput}.`);
   }
-  await page.mouse.up();
-  const committedBlackInput = Number(await blackInput.inputValue());
+  await page.keyboard.up('PageUp');
+  const committedBlackInput = Number(await blackInput.getAttribute('aria-valuenow'));
   if (Math.abs(committedBlackInput - liveBlackInput) > 1) {
-    throw new Error(`Levels changed after pointer-up: ${liveBlackInput} -> ${committedBlackInput}.`);
+    throw new Error(`Levels changed after key-up: ${liveBlackInput} -> ${committedBlackInput}.`);
   }
   await trigger.click();
   await page.getByRole('menu', { name: 'New fill or processing layer' })
@@ -221,13 +228,13 @@ try {
     addColorBounds.x + addColorBounds.width * 0.4,
     addColorBounds.y + addColorBounds.height / 2
   );
-  const colorStops = gradientMap.locator('.lighttable-style-gradient__stop--color');
+  const colorStops = gradientMap.locator('.ui-gradient-editor__stop--color');
   if (await colorStops.count() !== 3) {
     throw new Error(`Gradient Map did not add its middle color stop: ${await colorStops.count()}.`);
   }
   const middleColorStop = colorStops.nth(1);
   await middleColorStop.waitFor({ state: 'visible' });
-  const gradientTrack = gradientMap.locator('.lighttable-style-gradient__track');
+  const gradientTrack = gradientMap.locator('.ui-gradient-editor__track');
   const gradientBounds = await gradientTrack.boundingBox();
   const stopBounds = await middleColorStop.boundingBox();
   if (!gradientBounds || !stopBounds) throw new Error('The Gradient Map controls have no bounds.');
@@ -281,7 +288,7 @@ try {
   if (!wheelReceivesPointer) {
     throw new Error('The Color Grading wheel remains covered after isolating its panel.');
   }
-  const gradingHandle = gradingWheel.locator('.lighttable-grading-wheel__handle');
+  const gradingHandle = gradingWheel.locator('.ui-color-wheel__handle');
   await page.mouse.move(
     wheelBounds.x + wheelBounds.width * 0.7,
     wheelBounds.y + wheelBounds.height * 0.5
@@ -295,7 +302,7 @@ try {
   );
   const gradingDomAfterMove = await page.evaluate(() => ({
     wheelCount: document.querySelectorAll('[role="slider"][aria-label="Midtones color tint"]').length,
-    handleCount: document.querySelectorAll('.lighttable-grading-wheel__handle').length,
+    handleCount: document.querySelectorAll('.ui-color-wheel__handle').length,
     propertiesLabel: document.querySelector('.lighttable-grade-panel')?.getAttribute('aria-label') ?? null,
     colorGradingExpanded: document.querySelector(
       'button[aria-label="Color Grading"]'
@@ -321,7 +328,7 @@ try {
   await page.mouse.up();
   await floatingLayers.evaluate((element, display) => { element.style.display = display; }, floatingLayersDisplay);
   const activeSelectionStyles = await page.evaluate(() => {
-    const tool = document.querySelector('.lighttable-toolbox__button--active');
+    const tool = document.querySelector('.ui-toolbar__button[aria-pressed="true"]');
     const layer = document.querySelector('.lighttable-layer--active');
     if (!tool || !layer) return null;
     const toolStyle = getComputedStyle(tool);

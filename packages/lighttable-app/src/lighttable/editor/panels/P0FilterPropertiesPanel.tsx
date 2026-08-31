@@ -1,9 +1,10 @@
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
 import React from 'react';
 import { filterDefinition } from '@lighttable/filter-core';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { ButtonBase } from '../../../ui/ButtonBase';
+
 import { PanelSelectField } from '../../../ui/PanelControls';
-import { SwitchControl } from '../../../ui/SwitchControl';
+import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type {
   P0FilterCommands,
@@ -40,17 +41,11 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
     <aside className="lighttable-panel lighttable-grade-panel"
       aria-label={`${model.label} properties`}>
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>{model.label}</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase type="button" className="lighttable-group__reset"
-              onClick={commands.reset} aria-label={`Reset ${model.label}`} title={`Reset ${model.label}`}>
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
+        <PanelSectionHeader label={model.label} actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.reset} aria-label={`Reset ${model.label}`} title={`Reset ${model.label}`} icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
             <SwitchControl checked={model.enabled} onCheckedChange={commands.toggleEnabled}
               label={model.enabled ? `Disable ${model.label}` : `Enable ${model.label}`} />
-          </div>
-        </div>
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className={`lighttable-group${model.enabled ? '' : ' lighttable-group--disabled'}`}>

@@ -28,6 +28,8 @@ const app = await electron.launch({
 });
 
 const normalizedColor = (value) => value.replace(/\s+/g, '').toLowerCase();
+const paintPreview = async (field) => normalizedColor(await field.locator('.ui-paint-field__preview')
+  .evaluate((element) => getComputedStyle(element).backgroundImage));
 const rectanglesOverlap = (left, right) => !(
   left.x + left.width <= right.x || right.x + right.width <= left.x
   || left.y + left.height <= right.y || right.y + right.height <= left.y
@@ -52,7 +54,7 @@ try {
     await picker.getByRole('slider', { name, exact: true }).waitFor({ state: 'visible' });
   }
   await picker.getByRole('region', { name: 'Image palette' }).waitFor({ state: 'visible' });
-  const imagePaletteColors = picker.locator('button[aria-label^="Use image color"]');
+  const imagePaletteColors = picker.locator('button[aria-label^="Use document color"]');
   await imagePaletteColors.first().waitFor({ state: 'visible', timeout: 30_000 });
   const imagePaletteColorCount = await imagePaletteColors.count();
   const imagePaletteLoadMs = Date.now() - paletteStartedAt;
@@ -61,7 +63,7 @@ try {
   }
   const triggerBounds = await foreground.boundingBox();
   const pickerBounds = await picker.boundingBox();
-  const toolbarBounds = await page.locator('.lighttable-toolbox').boundingBox();
+  const toolbarBounds = await page.locator('.ui-toolbar').boundingBox();
   const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
   if (!triggerBounds || !pickerBounds || !toolbarBounds || !viewport) throw new Error('Color picker geometry is unavailable.');
   if (pickerBounds.x < 0 || pickerBounds.y < 0
@@ -76,18 +78,22 @@ try {
     throw new Error(`The color picker overlaps the toolbar: ${JSON.stringify({ toolbarBounds, pickerBounds })}`);
   }
 
-  const originalForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
-  await imagePaletteColors.first().click();
-  const paletteForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  const originalForeground = await paintPreview(foreground);
+  const swatchIndex = await imagePaletteColors.evaluateAll((elements) => elements.findIndex(element =>
+    element.getAttribute('title')?.toLowerCase() !== '#000000'
+  ));
+  if (swatchIndex < 0) throw new Error('Image Palette did not expose a color different from the foreground.');
+  await imagePaletteColors.nth(swatchIndex).click();
+  const paletteForeground = await paintPreview(foreground);
   if (paletteForeground === originalForeground) {
     throw new Error('Selecting an Image Palette swatch did not update the foreground color.');
   }
   const hex = picker.getByRole('textbox', { name: 'Hex color' });
   await hex.fill('#12ab34');
-  const changedForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  const changedForeground = await paintPreview(foreground);
   if (changedForeground === originalForeground) throw new Error('Manual color input did not update the production foreground swatch.');
   await page.keyboard.press('Escape');
-  const cancelledForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  const cancelledForeground = await paintPreview(foreground);
   if (cancelledForeground !== originalForeground) {
     throw new Error(`Escape did not restore the foreground color: ${originalForeground} -> ${cancelledForeground}`);
   }
@@ -96,7 +102,7 @@ try {
   await picker.getByRole('textbox', { name: 'Hex color' }).fill('#3456ab');
   await page.locator('.lighttable-tool-options__identity').click();
   await picker.waitFor({ state: 'hidden' });
-  const committedForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  const committedForeground = await paintPreview(foreground);
   if (committedForeground === originalForeground) throw new Error('Outside-click did not commit the foreground color.');
 
   await page.keyboard.press('g');
@@ -104,19 +110,19 @@ try {
   const gradientEditor = page.getByRole('dialog', { name: 'Gradient editor' });
   await gradientEditor.waitFor({ state: 'visible' });
   const gradientColor = gradientEditor.getByRole('button', { name: 'Color', exact: true });
-  const beforeGradient = normalizedColor(await gradientColor.evaluate((element) => element.style.backgroundColor));
+  const beforeGradient = await paintPreview(gradientColor);
   await gradientColor.click();
   await picker.waitFor({ state: 'visible' });
   await picker.getByRole('textbox', { name: 'Hex color' }).fill('#00cc66');
   await gradientEditor.getByText('Gradient', { exact: true }).click();
   await picker.waitFor({ state: 'hidden' });
-  const committedGradient = normalizedColor(await gradientColor.evaluate((element) => element.style.backgroundColor));
+  const committedGradient = await paintPreview(gradientColor);
   if (committedGradient === beforeGradient) throw new Error('The gradient-stop swatch did not commit a custom color.');
 
   await gradientColor.click();
   await picker.getByRole('textbox', { name: 'Hex color' }).fill('#ff00ff');
   await page.keyboard.press('Escape');
-  const cancelledGradient = normalizedColor(await gradientColor.evaluate((element) => element.style.backgroundColor));
+  const cancelledGradient = await paintPreview(gradientColor);
   if (cancelledGradient !== committedGradient) {
     throw new Error(`Escape did not restore the gradient-stop color: ${committedGradient} -> ${cancelledGradient}`);
   }

@@ -132,20 +132,18 @@ describe('Free Transform tool options', () => {
 });
 
 describe('brush tool options', () => {
-  it('keeps Basic and GPU effect brushes in one compact preset control', () => {
+  it('shows the shared brush preset trigger with the selected preset', () => {
     const markup = renderOptions('brush');
-    expect(markup).toContain('<optgroup label="Basic">');
-    expect(markup).toContain('<optgroup label="Effects">');
-    expect(markup).toContain('<option value="liquify">Liquify</option>');
+    expect(markup).toContain('aria-label="Brush preset"');
+    expect(markup).toContain('data-suite-control="form-select"');
+    expect(markup).toContain('<span>Round</span>');
   });
 
   it('uses the shared sampled-brush controls without exposing effect engines', () => {
     for (const tool of ['clone-stamp', 'healing-brush'] as const) {
       const markup = renderOptions(tool);
       expect(markup).toContain('aria-label="Sample layers"');
-      expect(markup).toContain('<option value="current">Current Layer</option>');
-      expect(markup).toContain('<option value="current-and-below" selected="">Current &amp; Below</option>');
-      expect(markup).toContain('<option value="all">All Layers</option>');
+      expect(markup).toContain('<span>Current &amp; Below</span>');
       expect(markup).toContain('checked=""/><span>Aligned</span>');
       if (tool === 'healing-brush') expect(markup).toContain('Diffusion');
       else expect(markup).not.toContain('Diffusion');
@@ -210,8 +208,7 @@ describe('vector style tool options', () => {
     const markup = renderOptions('gradient');
     expect(markup).toContain('aria-label="Edit gradient"');
     expect(markup).toContain('aria-label="Gradient application"');
-    expect(markup).toContain('value="fill-layer"');
-    expect(markup).toContain('value="pixels"');
+    expect(markup).toContain('<span>Fill layer</span>');
     expect(markup).toContain('aria-label="Gradient type"');
     expect(markup).not.toContain('aria-label="Gradient interpolation"');
     expect(markup).not.toContain('>Method<');
@@ -245,7 +242,7 @@ describe('vector style tool options', () => {
       strokeAlignment: 'center'
     });
     expect(markup).toContain('aria-label="Fill paint"');
-    expect(markup).toContain('class="gradient-field gradient-field--compact"');
+    expect(markup).toContain('data-suite-variant="compact"');
     expect(markup).not.toContain('>Gradient</button>');
   });
 
@@ -258,8 +255,8 @@ describe('vector style tool options', () => {
     for (const tool of ['shape-rectangle', 'vector-select', 'vector-direct-select'] as const) {
       const markup = renderOptions(tool, 1, 1, undefined, selected);
       expect(markup).toContain('aria-label="Vector style"');
-      expect(markup).toContain('background-color:#123456');
-      expect(markup).toContain('background-color:#abcdef');
+      expect(markup).toContain('linear-gradient(#123456, #123456)');
+      expect(markup).toContain('linear-gradient(#abcdef, #abcdef)');
       expect(markup).toContain('aria-label="Line Style"');
       expect(markup).toContain('value="7"');
     }
@@ -268,8 +265,8 @@ describe('vector style tool options', () => {
   it('keeps new-shape defaults when no vector element is selected', () => {
     const markup = renderOptions('shape-rectangle');
     const defaults = createEditorSession().vectorStyle;
-    expect(markup).toContain(`background-color:${defaults.fillColor}`);
-    expect(markup).toContain(`background-color:${defaults.strokeColor}`);
+    expect(markup).toContain(`linear-gradient(${defaults.fillColor}, ${defaults.fillColor})`);
+    expect(markup).toContain(`linear-gradient(${defaults.strokeColor}, ${defaults.strokeColor})`);
   });
 
   it('presents imported no-fill and no-stroke states with the shared None control', () => {
@@ -281,7 +278,7 @@ describe('vector style tool options', () => {
 
     expect(markup).toContain('aria-label="Fill paint"');
     expect(markup).toContain('aria-label="Line paint"');
-    expect(markup).toContain('class="none-paint-field none-paint-field--compact"');
+    expect(markup).toContain('data-suite-control="none-paint"');
     expect(markup).toMatch(/<button[^>]+aria-label="Line Style"[^>]+disabled=""/);
     expect(markup).not.toContain('aria-label="Fill: enabled"');
     expect(markup).not.toContain('aria-label="Line: enabled"');
@@ -299,7 +296,7 @@ describe('vector style tool options', () => {
     expect(markup).not.toContain('aria-label="Stroke cap"');
     expect(markup).not.toContain('aria-label="Stroke join"');
     expect(markup).toContain('aria-label="Line paint"');
-    expect(markup).toContain('aria-label="Open line paint"');
+    expect(markup).toContain('class="ui-paint-field__chevron"');
     expect(markup).not.toContain('<span>Line opacity</span>');
     expect(markup).not.toContain('<span>Opacity</span>');
   });
@@ -309,19 +306,19 @@ describe('tone brush tool options', () => {
   it('shows compact Dodge controls without duplicate paint strength controls', () => {
     const markup = renderOptions('dodge');
     expect(markup).toContain('aria-label="Tone range"');
-    expect(markup).toContain('<span>Exposure</span>');
+    expect(markup).toContain('aria-label="Exposure"');
     expect(markup).toContain('Protect Tones');
-    expect(markup).toContain('<span>Size</span>');
-    expect(markup).toContain('<span>Hardness</span>');
-    expect(markup).toContain('<span>Smooth</span>');
-    expect(markup).not.toContain('<span>Opacity</span>');
+    expect(markup).toContain('aria-label="Size"');
+    expect(markup).toContain('aria-label="Hardness"');
+    expect(markup).toContain('aria-label="Smooth"');
+    expect(markup).not.toContain('aria-label="Opacity"');
   });
 
   it('shows Sponge mode, Flow and Vibrance', () => {
     const markup = renderOptions('sponge');
     expect(markup).toContain('aria-label="Sponge mode"');
-    expect(markup).toContain('<option value="saturate" selected="">Saturate</option>');
-    expect(markup).toContain('<span>Flow</span>');
+    expect(markup).toContain('<span>Saturate</span>');
+    expect(markup).toContain('aria-label="Flow"');
     expect(markup).toContain('Vibrance');
   });
 });
@@ -333,7 +330,7 @@ describe('selection strip tool options', () => {
       expect(markup).toContain('aria-label="Marquee selection settings"');
       expect(markup).toContain('<span>Feather</span>');
       expect(markup).toContain('aria-label="Marquee selection style"');
-      expect(markup).toContain('<option value="free" selected="">Free</option>');
+      expect(markup).toContain('<span>Free</span>');
       expect(markup).not.toContain('Snap to pixels');
       expect(markup).not.toContain('<span>Width</span>');
       expect(markup).not.toContain('<span>Height</span>');
@@ -348,9 +345,8 @@ describe('selection strip tool options', () => {
     const markup = renderOptions('select-magic-wand');
     expect(markup).toContain('aria-label="Magic Wand settings"');
     expect(markup).toContain('aria-label="Magic Wand sample size"');
-    for (const size of [1, 3, 5, 11, 31, 51, 101]) {
-      expect(markup).toContain(`<option value="${size}"`);
-    }
+    expect(markup).toContain('data-suite-control="form-select"');
+    expect(markup).toContain('<span>Point Sample</span>');
     expect(markup).toContain('<span>Tolerance</span>');
     expect(markup).toContain('value="20"');
     expect(markup).toContain('checked=""/>Anti-alias');
@@ -426,12 +422,12 @@ describe('point text tool options', () => {
       advancedUnavailableReason: 'Unavailable'
     });
     expect(markup).toContain('placeholder="Mixed"');
-    expect(markup).toContain('background-color:#ff0000');
+    expect(markup).toContain('linear-gradient(#ff0000, #ff0000)');
     expect(markup).toContain('aria-label="Text line"');
-    expect(markup).toContain('background-color:#00ff00');
+    expect(markup).toContain('linear-gradient(#00ff00, #00ff00)');
     expect(markup).toContain('value="3"');
     expect(markup).toContain('aria-label="Text layout mode"');
     expect(markup).toContain('Convert to paragraph text');
-    expect(markup).toContain('<option value="center" selected="">Center</option>');
+    expect(markup).toContain('<span>Center</span>');
   });
 });

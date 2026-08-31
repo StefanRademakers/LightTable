@@ -71,14 +71,12 @@ try {
   await renameSetDialog.getByRole('button', { name: 'Cancel' }).click();
   await emptySetEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Smoke Set"]');
     return input instanceof HTMLInputElement && !input.checked;
   });
   await emptySetEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Smoke Set"]');
     return input instanceof HTMLInputElement && input.checked;
   });
 
@@ -129,9 +127,7 @@ try {
   }
   const setEnabled = panel.getByRole('checkbox', { name: 'Enable Smoke Set' });
   await window.waitForFunction(() => {
-    const input = document.querySelector('input[aria-label="Enable Smoke Set"]')
-      ?? Array.from(document.querySelectorAll('label')).find((label) =>
-        label.textContent?.includes('Enable Smoke Set'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Smoke Set"]');
     return input instanceof HTMLInputElement && !input.disabled;
   });
   await setEnabled.click();
@@ -144,8 +140,7 @@ try {
   const actionEnabled = panel.getByRole('checkbox', { name: 'Enable Layer setup' });
   await actionEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Layer setup"]');
     return input instanceof HTMLInputElement && !input.checked;
   });
   if (!(await panel.getByRole('button', { name: 'Play', exact: true }).isDisabled())) {
@@ -153,8 +148,7 @@ try {
   }
   await actionEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Layer setup"]');
     return input instanceof HTMLInputElement && input.checked;
   });
   const emptyEnabled = panel.getByRole('checkbox', { name: 'Enable Empty one' });
@@ -163,14 +157,12 @@ try {
   }
   await emptyEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Empty one'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Empty one"]');
     return input instanceof HTMLInputElement && !input.checked;
   });
   await emptyEnabled.click();
   await window.waitForFunction(() => {
-    const input = Array.from(document.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('Enable Empty one'))?.querySelector('input');
+    const input = document.querySelector('input[aria-label="Enable Empty one"]');
     return input instanceof HTMLInputElement && input.checked;
   });
 

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { Menu } from '@lighttable/ui';
+import { Menu, PanelFooter } from '@lighttable/ui';
 import type { DocumentCommandHistorySnapshot } from '../../../application/commands/documentCommandHistory';
 import {
   PanelStackButtonRow,
-  PanelStackFooter,
   handlePanelCollectionNavigation
 } from '../../ui/PanelStackPrimitives';
 import './historyPanel.css';
@@ -43,7 +42,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         <span>{state.position === 0 ? documentName || state.label : state.label}</span>
       </PanelStackButtonRow>)}
     </div>
-    <PanelStackFooter className="lighttable-history-panel__footer" ariaLabel="History controls">
+    <PanelFooter className="lighttable-history-panel__footer" aria-label="History controls">
       <ButtonBase type="button"
         aria-label="Delete current history state"
         title="Delete current history state and later states"
@@ -54,7 +53,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         aria-label="History menu" title="History menu"
         onClick={(event) => setMenu({ x: event.clientX, y: event.clientY })}><img
           src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
-    </PanelStackFooter>
+    </PanelFooter>
     <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       width={170} onClose={() => setMenu(null)} options={[{
         value: 'clear', label: 'Clear History', disabled: history.busy || history.states.length <= 1,

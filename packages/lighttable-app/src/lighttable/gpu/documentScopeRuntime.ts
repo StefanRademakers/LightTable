@@ -114,7 +114,7 @@ export class DocumentScopeRuntime {
 
   private async create(canvases: DocumentRendererScopeCanvases): Promise<void> {
     try {
-      const engine = await WebGpuScopeEngine.create(this.device, canvases, this.onError);
+      const engine = await WebGpuScopeEngine.create(this.device, canvases, this.onError, this.onReady);
       if (this.destroyed) {
         engine.destroy();
         return;

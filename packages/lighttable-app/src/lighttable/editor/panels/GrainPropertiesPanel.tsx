@@ -1,5 +1,4 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
-import React from 'react';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { useLensFxPresentation } from '../../application/adjustments/adjustmentPresentationStore';
@@ -13,14 +12,9 @@ export const GrainPropertiesPanel = ({ model, commands }: LensFxPanelProps) => {
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label="Grain properties">
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label"><strong>Grain</strong></div>
-          <div className="lighttable-group__actions">
-            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.grain.reset} aria-label="Reset Grain" title="Reset Grain">
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-          </div>
-        </div>
+        <PanelSectionHeader label="Grain" actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.grain.reset} aria-label="Reset Grain" title="Reset Grain" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group"><div className="lighttable-group__controls">

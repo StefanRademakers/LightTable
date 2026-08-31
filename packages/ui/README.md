@@ -181,3 +181,130 @@ tokens; only actual color ramps/contrast markers use literal colors.
 callbacks through the existing slider scheduler, including cleanup on unmount.
 `TextInput` and `IconButton` are single native elements with default `tabIndex=-1`;
 fields support explicit text alignment. No app CSS is needed to skin these controls.
+
+## Panel sections
+
+`SwitchControl` retains the compact 36×20 switch and boolean `onCheckedChange` contract.
+`Checkbox` is a native 13px input with an optional compact (label-free) rendering;
+its label supplies the accessible name. Omit `label` inside an existing native
+label, or supply `aria-label`, to render just the input without extra wrappers.
+Both support disabled, refs and native events,
+default out of the Tab sequence (`tabIndex={0}` in dialogs), and reuse the existing
+selection/control color tokens. The Selection catalog page owns their interactive,
+disabled and compact examples, alongside segmented controls. Panel sections only
+uses them in context; changing a header switch does not collapse its section.
+
+`PanelSection` owns a flat section/header/body structure, dark/light surfaces,
+ellipsis, existing disclosure artwork and one 34px header height (the same token
+as toolbar flyout rows). `PanelSectionHeader` is the same header without a body,
+for fixed property titles. Header actions are siblings of the toggle, never nested
+buttons; use `IconButton variant="quiet"` for reset/refresh/remove actions.
+
+Use `expanded` / `onExpandedChange` for app-owned state, or `defaultExpanded` for
+local state. Multiple sections can stay open. `collapsible={false}` keeps the body
+visible without a chevron. Collapsed content unmounts by default; `keepMounted`
+hides it without destroying DOM/canvas bindings. `alwaysVisible` keeps primary
+controls outside the collapsed content. `padding="none"` supports edge-to-edge
+content. Content layout classes may arrange children, not restyle the header.
+
+Use `variant="disclosure"` for inline Advanced controls: no header background,
+separator or additional horizontal padding; revealed controls align with surrounding content.
+
+Header `onToggleClick` may preventDefault for consumer gestures such as Shift-reset.
+Enabled state, storage, commands, rendering and data loading remain app-owned.
+Headers are outside the Tab sequence by default; dialogs can pass `tabIndex={0}`.
+Generic chevron, reset, trash and pipette artwork is exported from this package;
+LightTable's existing icon catalog references those same assets without copies.
+The demo's **Panel sections** page covers static/nested/controlled sections,
+retained versus unmounted content and long titles at narrow and wide sizes.
+
+## Fields
+
+`TextInput` is one native input, 28px high with Regular typography. It retains
+native refs, events, input types and controlled/uncontrolled values. `align`
+selects left/center/right alignment; numeric alignment uses tabular digits.
+`SearchField` composes that input with the existing search/close artwork and an
+optional `onClear` action for controlled values. Its pill shape and icon spacing
+are package-owned. Both default out of Tab navigation; dialogs opt in with
+`tabIndex={0}`. The **Fields** catalog page covers text, search, read-only,
+disabled, invalid and password states.
+
+`NumberField` uses that same single input, with safe arithmetic expressions,
+min/max bounds, coarse/fine arrow increments and nullable/mixed values.
+`updateMode="input"` publishes settings immediately; the default commits on Enter
+or blur. `onPreview` and `onBegin/onCommit/onCancel` retain document transactions.
+Escape cancels; Enter followed by blur ends a transaction only once. `onEmpty`
+supports optional settings without converting an empty string to zero. Domain
+adapters such as mixed text formatting still own undo and document commands.
+
+`Select` owns a 28px trigger and 28px listbox rows, disabled options, optgroups,
+keyboard/typeahead, viewport placement and optional search. Supply `options` or
+existing option/optgroup children, and use `onValueChange(value)`; no synthetic
+native change events. `placement="above"` uses the same listbox as dropdowns.
+Popup content is portalled only while open and inherits the trigger's theme.
+Both controls are documented in **Fields**, not Menus or Panel sections.
+# Paint fields
+
+`PaintField` renders a color, gradient or none preview and an editor opener.
+`GradientField` projects color/opacity stops; `NonePaintField` renders no paint.
+All use one size: 72×28px. There are no wider or stretched variants.
+The toolbar-only `chip` is a 17px color square without accessory. `onSample`
+adds the existing pipette as a separate action; otherwise the whole control opens
+the editor. The host owns popup content, sampling, transactions and persistence.
+The controls use existing theme tokens and default to `tabIndex={-1}`; dialogs
+can opt in. See Paint & color in the standalone catalog.
+
+## Document tabs
+
+`DocumentTabs` owns the 30px strip, 120–280px tab sizing, ellipsis, dirty marker,
+close buttons, inactive thumbnail preview and overflow menu. It accepts
+`documents`, `activeId`, `onSelect`, optional `onDocumentDragStart` and
+`contextMenu(document)`. Context actions use the existing `Menu` control.
+The host owns document contents, URL lifetimes, save/close and domain actions.
+The row shrinks tabs before overflowing; the scrollbar is hidden, wheel/trackpad
+navigation remains available and selecting a document reveals its tab without
+reordering. The demo's Document tabs page exercises overflow, close and previews.
+
+Supply `overview={{ container: contentRef, getActiveBounds }}` to keep the grid
+button at the left, including with one document. The referenced content element
+must be positioned (`position: relative`). `getActiveBounds` optionally returns
+the active image's screen-space bounds for the 200ms preview transition. The
+overview reuses `thumbnailUrl`, preserves aspect ratio, supports Escape and arrow
+keys, and skips motion when the OS requests reduced motion. It never captures
+pixels or changes document rendering. Missing previews remain selectable.
+When a host needs time to bind a document renderer, it sets that document's
+`ready` to `false` until a valid frame has actually been presented. The overview
+then remains over the canvas during the handoff; `presentationError` can explain
+a failed handoff without exposing an intermediate renderer surface.
+
+## Color wheel
+
+`ColorWheel` exposes hue (degrees), saturation (0–100), optional luminance
+readout, regular/compact sizes and the existing reset gestures. Labels use shared
+typography and theme tokens; the hue surface keeps its diagnostic colors in both
+themes. Luminance sliders and tonal-range selection are host compositions.
+The shared interaction scheduler provides immediate local feedback and a single
+interaction end on release, cancellation, blur or unmount. Publishing defaults
+to direct input to preserve grading behavior; hosts can explicitly throttle it.
+Like other package controls, keyboard focus defaults to `tabIndex={-1}`.
+See **Paint & color** in the demo.
+
+## Scopes
+
+`Histogram` accepts RGB bin arrays and an optional channel; `fit="container"`
+fills an editor-owned interactive histogram frame. `ScopesPanel` composes the
+shared sections/switches, tonal-range segments, canvas plots and SVG scales.
+Canvas refs and visibility/range callbacks connect it to the host renderer.
+Collapsed sections retain their canvases. Reference target positions are supplied
+by the host to match its analysis color space.
+
+`@lighttable/ui/scopeRendering` contains the presentation-only WebGPU shaders
+and `observeScopeTheme`. The existing host analysis buffers are consumed without
+readback or conversion. Display uniforms are two vec4s: brightness/zoom/light/0,
+then the resolved background RGB/1. The returned theme-observer disposer must run
+on destruction. Theme changes require presentation only, not image reanalysis.
+
+Surfaces, scales and text reuse existing tokens; the three semantic scope channel
+colors are shown in Colors. Light traces use colored ink rather than additive
+white-on-white. Demo **Visualization → Scopes** renders the same GPU shaders with
+static bin fixtures. No editor dependency, polling loop or hidden image renderer.

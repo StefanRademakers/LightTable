@@ -160,7 +160,7 @@ describe('GenAiPanel visual references', () => {
       projectName="Project" models={[model]} workflow={workflow('image2image')} selectedModelId={modelId}
       selectedMode="image2image" baseImageSelected values={{ prompt: 'Retouch', visualReferences: [asset] }}
       mentionOptions={createGenAiAssetMentionOptions([asset])} />);
-    expect(markup).toContain('type="checkbox" checked=""');
+    expect(markup).toMatch(/<input[^>]*type="checkbox"[^>]*checked=""/);
     expect(markup.indexOf('genai-panel__base-image')).toBeGreaterThan(markup.indexOf('genai-panel__reference-well'));
   });
 
@@ -170,7 +170,7 @@ describe('GenAiPanel visual references', () => {
       selectedMode="text2image" baseImageSelected={false} values={{ prompt: 'Create', visualReferences: [asset] }}
       mentionOptions={createGenAiAssetMentionOptions([asset])} />);
     expect(markup).toContain('Add base image');
-    expect(markup).not.toContain('type="checkbox" checked=""');
+    expect(markup).not.toMatch(/<input[^>]*type="checkbox"[^>]*checked=""/);
   });
 
   it('keeps Nano Banana aspect ratio and resolution in the fixed bottom settings row', () => {

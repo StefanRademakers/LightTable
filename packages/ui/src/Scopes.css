@@ -1,0 +1,89 @@
+.ui-scopes {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ui-text);
+  background: var(--ui-surface-inset);
+  font: var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
+  user-select: none;
+}
+.ui-scopes__content { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.ui-scopes__error { padding: 8px; color: var(--ui-danger-text); }
+.ui-histogram, .ui-scope__canvas {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--ui-button-surface);
+}
+.ui-histogram {
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--ui-border);
+}
+.ui-histogram[data-fit='container'] { height: 100%; aspect-ratio: auto; }
+.ui-scope__canvas { height: 100%; }
+.ui-hue-distribution, .ui-parade__canvas-wrap, .ui-vectorscope {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+}
+.ui-hue-distribution, .ui-parade__canvas-wrap { aspect-ratio: 16 / 9; }
+.ui-parade__channels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 5px 4px 3px 35px;
+  font-size: var(--ui-font-size-small);
+  font-weight: var(--ui-font-weight-bold);
+  text-align: center;
+}
+.ui-parade__channels span:nth-child(1) { color: var(--ui-scope-red); }
+.ui-parade__channels span:nth-child(2) { color: var(--ui-scope-green); }
+.ui-parade__channels span:nth-child(3) { color: var(--ui-scope-blue); }
+.ui-parade__plot { display: grid; grid-template-columns: 31px minmax(0, 1fr); }
+.ui-parade__scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1px 5px 1px 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-size-small);
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ui-parade__grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right,
+      transparent calc(33.333% - 0.5px), var(--ui-border) 33.333%, transparent calc(33.333% + 0.5px),
+      transparent calc(66.666% - 0.5px), var(--ui-border) 66.666%, transparent calc(66.666% + 0.5px)),
+    repeating-linear-gradient(to bottom, var(--ui-border) 0, var(--ui-border) 1px, transparent 1px, transparent 12.5%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.ui-scope__range { margin: 8px 8px 7px; }
+.ui-vectorscope { aspect-ratio: 1; }
+.ui-vectorscope__overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ui-vectorscope__graticule circle, .ui-vectorscope__graticule line {
+  fill: none;
+  stroke: var(--ui-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.ui-vectorscope__graticule text {
+  fill: var(--ui-text-muted);
+  font-size: calc(var(--ui-font-size-small) * 0.36);
+  font-weight: var(--ui-font-weight-bold);
+}
+.ui-vectorscope__skin-line {
+  stroke: var(--ui-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 1.4;
+  vector-effect: non-scaling-stroke;
+}

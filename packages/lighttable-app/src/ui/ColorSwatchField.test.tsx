@@ -21,11 +21,11 @@ describe('ColorSwatchField', () => {
       <ColorSwatchField value="#123456" ariaLabel="Fill color" onChange={vi.fn()} />
     );
 
-    expect(markup).toContain('class="color-swatch-field color-swatch-field--regular"');
+    expect(markup).toContain('data-suite-control="color-swatch"');
     expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain('background-color:#123456');
+    expect(markup).toContain('linear-gradient(#123456, #123456)');
     expect(markup).toContain('aria-label="Sample fill color"');
-    expect(markup).toContain('tool_sample_color');
+    expect(markup).toContain('pipette.png');
   });
 
   it('can reuse the picker with a dropdown chevron instead of the sampler', () => {
@@ -34,10 +34,10 @@ describe('ColorSwatchField', () => {
         ariaLabel="Fill color" onChange={vi.fn()} />
     );
 
-    expect(markup).toContain('class="paint-field__arrow"');
-    expect(markup).toContain('aria-label="Open fill color"');
-    expect(markup).not.toContain('color-swatch-field__sampler');
-    expect(markup).not.toContain('tool_sample_color');
+    expect(markup).toContain('class="ui-paint-field__chevron"');
+    expect(markup).toContain('aria-label="Fill color"');
+    expect(markup).not.toContain('aria-label="Sample fill color"');
+    expect(markup).not.toContain('pipette.png');
   });
 
   it('keeps the picker inside the viewport and away from the trigger where possible', () => {

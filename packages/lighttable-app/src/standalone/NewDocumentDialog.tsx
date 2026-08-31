@@ -1,10 +1,10 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput, NumberField } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 
-import { FormInput } from '../ui/FormInput';
-import { FormSelect } from '../ui/FormSelect';
+
+import { Select } from '@lighttable/ui';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
@@ -134,63 +134,61 @@ export function NewDocumentDialog({
         <div className="lighttable-new-document-dialog__fields">
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Name</span>
-            <FormInput value={name} maxLength={255} onChange={(event) => setName(event.currentTarget.value)} />
+            <TextInput tabIndex={0} value={name} maxLength={255} onChange={(event) => setName(event.currentTarget.value)} />
           </label>
           <label>
             <span>Width</span>
-            <FormInput
+            <NumberField tabIndex={0} updateMode="input" kind="integer"
               autoFocus={modal}
-              type="number"
               inputMode="numeric"
               min="1"
               max={MAX_DIMENSION}
               value={width}
-              onChange={(event) => setWidth(event.currentTarget.valueAsNumber)}
+              onValueChange={setWidth} onEmpty={() => setWidth(NaN)}
             />
           </label>
           <label>
             <span>Height</span>
-            <FormInput
-              type="number"
+            <NumberField tabIndex={0} updateMode="input" kind="integer"
               inputMode="numeric"
               min="1"
               max={MAX_DIMENSION}
               value={height}
-              onChange={(event) => setHeight(event.currentTarget.valueAsNumber)}
+              onValueChange={setHeight} onEmpty={() => setHeight(NaN)}
             />
           </label>
           <label>
             <span>Resolution (ppi)</span>
-            <FormInput type="number" min="1" max="2400" value={resolutionPpi}
-              onChange={(event) => setResolutionPpi(event.currentTarget.valueAsNumber)} />
+            <NumberField tabIndex={0} updateMode="input" min="1" max="2400" value={resolutionPpi}
+              onValueChange={setResolutionPpi} onEmpty={() => setResolutionPpi(NaN)} />
           </label>
           <label>
             <span>Bit depth</span>
-            <FormSelect value={bitDepth}
-              onChange={(event) => setBitDepth(Number(event.currentTarget.value) as 8 | 16)}>
+            <Select tabIndex={0} value={bitDepth}
+              onValueChange={(nextValue) => setBitDepth(Number(nextValue) as 8 | 16)}>
               <option value="8">8 bit</option><option value="16">16 bit</option>
-            </FormSelect>
+            </Select>
           </label>
           <label>
             <span>Blend compatibility</span>
-            <FormSelect value={profile}
+            <Select tabIndex={0} value={profile}
               title={documentBlendProfileDescription(profile)}
-              onChange={(event) => setProfile(event.currentTarget.value as typeof profile)}>
+              onValueChange={(nextValue) => setProfile(nextValue as typeof profile)}>
               <option value="srgb">{documentBlendProfileDisplayName('srgb')}</option>
               <option value="adobe-rgb-1998">{documentBlendProfileDisplayName('adobe-rgb-1998')}</option>
-            </FormSelect>
+            </Select>
           </label>
           <label>
             <span>Background</span>
-            <FormSelect value={backgroundKind}
-              onChange={(event) => setBackgroundKind(event.currentTarget.value as typeof backgroundKind)}>
+            <Select tabIndex={0} value={backgroundKind}
+              onValueChange={(nextValue) => setBackgroundKind(nextValue as typeof backgroundKind)}>
               <option value="transparent">Transparent</option><option value="solid">Solid color</option>
-            </FormSelect>
+            </Select>
           </label>
           {backgroundKind === 'solid' ? (
             <label className="lighttable-new-document-dialog__wide-field">
               <span>Background color</span>
-              <ColorSwatchField value={backgroundColor} ariaLabel="Background color"
+              <ColorSwatchField tabIndex={0} value={backgroundColor} ariaLabel="Background color"
                 onChange={setBackgroundColor} />
             </label>
           ) : null}

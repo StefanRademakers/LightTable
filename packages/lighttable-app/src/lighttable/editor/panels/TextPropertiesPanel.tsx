@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, PanelSectionHeader, Button } from '@lighttable/ui';
 import React from 'react';
 import type { PositionedTextRecoveryAnalysis } from '@lighttable/text-core';
 
@@ -44,15 +44,11 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
     return (
       <aside className="lighttable-panel" aria-label="Text properties">
         <section className="lighttable-group lighttable-master-group">
-          <div className="lighttable-group__header">
-            <div className="lighttable-master-group__label"><strong>Imported text</strong></div>
-          </div>
+          <PanelSectionHeader label="Imported text" />
         </section>
         <div className="lighttable-panel__controls">
           <section className="lighttable-group">
-            <div className="lighttable-group__header">
-              <div className="lighttable-master-group__label"><strong>Recovery preview</strong></div>
-            </div>
+            <PanelSectionHeader label="Recovery preview" />
             <div className="lighttable-group__controls lighttable-tool-options__content lighttable-tool-options__content--vertical">
               <div className="lighttable-tool-options__text">
                 <p>
@@ -106,22 +102,16 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
   return (
     <aside className="lighttable-panel" aria-label="Text properties">
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label">
-            <strong>{model.target === 'selection' ? 'Selection' : model.target === 'insertion' ? 'Insertion point' : 'Text layer'}</strong>
-          </div>
-        </div>
+        <PanelSectionHeader label={model.target === 'selection' ? 'Selection' : model.target === 'insertion' ? 'Insertion point' : 'Text layer'} />
       </section>
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">
-          <div className="lighttable-group__header">
-            <div className="lighttable-master-group__label"><strong>Character</strong></div>
-          </div>
+          <PanelSectionHeader label="Character" />
           <div className="lighttable-group__controls lighttable-tool-options__content lighttable-tool-options__content--vertical">
             <div className="lighttable-tool-options__text">
               <ToolOptionSelect label="Family" value={family}
                 disabled={model.family.kind === 'unavailable'}
-                onChange={(event) => applyFamily(event.currentTarget.value)}>
+                onValueChange={(nextValue) => applyFamily(nextValue)}>
                 {model.family.kind === 'mixed' ? mixedOption : null}
                 {model.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
                 {([
@@ -138,7 +128,7 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               </ToolOptionSelect>
               <ToolOptionSelect label="Face" value={selectedFace}
                 disabled={model.face.kind === 'unavailable'}
-                onChange={(event) => onFontAsset(event.currentTarget.value)}>
+                onValueChange={(nextValue) => onFontAsset(nextValue)}>
                 {model.face.kind === 'mixed' ? mixedOption : null}
                 {model.face.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
                 {faces.map((font) => (
@@ -183,8 +173,8 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <ToolOptionSelect label="Kerning"
                 value={model.kerning.kind === 'value' ? model.kerning.value : ''}
                 disabled={model.kerning.kind === 'unavailable'}
-                onChange={(event) => {
-                  onBegin(); onStyle({ kerning: event.currentTarget.value as 'auto' | 'metrics' }); onCommit();
+                onValueChange={(nextValue) => {
+                  onBegin(); onStyle({ kerning: nextValue as 'auto' | 'metrics' }); onCommit();
                 }}>
                 {model.kerning.kind === 'mixed' ? mixedOption : null}
                 <option value="auto">Auto</option>
@@ -208,7 +198,7 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                   .map(([label, property]) => {
                     const value = model[property];
                     return <label className="lighttable-tool-options__toggle" key={property}>
-                      <input type="checkbox" aria-label={label}
+                      <Checkbox  aria-label={label}
                         checked={value.kind === 'value' && value.value}
                         ref={(input) => { if (input) input.indeterminate = value.kind === 'mixed'; }}
                         disabled={value.kind === 'unavailable'}
@@ -222,7 +212,7 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <ToolOptionSelect label="Orientation"
                 value={model.writingMode.kind === 'value' ? model.writingMode.value : ''}
                 disabled={model.writingMode.kind === 'unavailable'}
-                onChange={(event) => onWritingMode(event.currentTarget.value as
+                onValueChange={(nextValue) => onWritingMode(nextValue as
                   'horizontal-tb' | 'vertical-rl' | 'vertical-lr')}>
                 <option value="horizontal-tb">Horizontal</option>
                 <option value="vertical-rl">Vertical, right to left</option>
@@ -232,16 +222,14 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
           </div>
         </section>
         <section className="lighttable-group">
-          <div className="lighttable-group__header">
-            <div className="lighttable-master-group__label"><strong>Paragraph</strong></div>
-          </div>
+          <PanelSectionHeader label="Paragraph" />
           <div className="lighttable-group__controls lighttable-tool-options__content lighttable-tool-options__content--vertical">
             <div className="lighttable-tool-options__text">
               <ToolOptionSelect label="Align"
                 value={model.alignment.kind === 'value' ? model.alignment.value : ''}
                 disabled={model.alignment.kind === 'unavailable'}
-                onChange={(event) => applyParagraphDiscrete({
-                  alignment: event.currentTarget.value as 'start' | 'center' | 'end' | 'justify'
+                onValueChange={(nextValue) => applyParagraphDiscrete({
+                  alignment: nextValue as 'start' | 'center' | 'end' | 'justify'
                 })}>
                 {model.alignment.kind === 'mixed' ? mixedOption : null}
                 <option value="start">Left</option><option value="center">Center</option>
@@ -249,8 +237,8 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               </ToolOptionSelect>
               <ToolOptionSelect label="Leading" value={lineHeightKind}
                 disabled={model.lineHeight.kind === 'unavailable'}
-                onChange={(event) => {
-                  const kind = event.currentTarget.value;
+                onValueChange={(nextValue) => {
+                  const kind = nextValue;
                   applyParagraphDiscrete({ lineHeight: kind === 'normal'
                     ? { kind: 'normal' }
                     : kind === 'multiple' ? { kind: 'multiple', value: 1.2 }

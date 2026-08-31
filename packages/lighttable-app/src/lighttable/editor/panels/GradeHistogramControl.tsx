@@ -82,7 +82,7 @@ export const GradeHistogramControl = ({
 
   return (
     <div className={`lighttable-grade-histogram${disabled ? ' lighttable-grade-histogram--disabled' : ''}`}>
-      <Histogram histogram={histogram} />
+      <Histogram histogram={histogram} fit="container" />
       <span
         className={`lighttable-grade-histogram__clip lighttable-grade-histogram__clip--shadows${
           edgeIsClipped(histogram, 0) ? ' lighttable-grade-histogram__clip--active' : ''

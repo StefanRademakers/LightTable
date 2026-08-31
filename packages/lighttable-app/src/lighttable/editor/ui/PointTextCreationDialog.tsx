@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput } from '@lighttable/ui';
 import React, { useEffect, useRef } from 'react';
 
 interface PointTextCreationDialogProps {
@@ -59,7 +59,7 @@ export const PointTextCreationDialog: React.FC<PointTextCreationDialogProps> = (
       >
         <label>
           <span>Text</span>
-          <input
+          <TextInput tabIndex={0}
             ref={inputRef}
             value={value}
             onChange={(event) => onChange(event.currentTarget.value)}

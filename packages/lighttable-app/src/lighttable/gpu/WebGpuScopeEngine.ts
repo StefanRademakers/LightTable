@@ -1,3 +1,4 @@
+import { observeScopeTheme, HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@lighttable/ui/scopeRendering';
 import type { LightTableImageMetadata } from '../types';
 import {
   DEFAULT_SCOPE_SETTINGS,
@@ -9,11 +10,8 @@ import { FULLSCREEN_VERTEX_WGSL } from './shaders';
 import {
   COMBINED_SCOPE_ANALYSIS_WGSL,
   HUE_DISTRIBUTION_ANALYSIS_WGSL,
-  HUE_DISTRIBUTION_DISPLAY_WGSL,
   PARADE_SCOPE_ANALYSIS_WGSL,
-  PARADE_SCOPE_DISPLAY_WGSL,
-  VECTOR_SCOPE_ANALYSIS_WGSL,
-  VECTOR_SCOPE_DISPLAY_WGSL
+  VECTOR_SCOPE_ANALYSIS_WGSL
 } from './scopeShaders';
 import { InteractiveRefreshGate } from '../application/rendering/interactiveRefreshGate';
 import { resolveScopeCanvasSize } from '../application/rendering/scopeCanvasSize';
@@ -22,7 +20,7 @@ const PARADE_BIN_BYTES = 3 * 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
 const VECTOR_BIN_BYTES = 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
 const HUE_BIN_BYTES = 256 * Uint32Array.BYTES_PER_ELEMENT;
 const SCOPE_UNIFORM_BYTES = 8 * Uint32Array.BYTES_PER_ELEMENT;
-const DISPLAY_UNIFORM_BYTES = 4 * Float32Array.BYTES_PER_ELEMENT;
+const DISPLAY_UNIFORM_BYTES = 8 * Float32Array.BYTES_PER_ELEMENT;
 
 export interface WebGpuScopeOptions {
   hueDistributionVisible: boolean;
@@ -164,6 +162,9 @@ export class WebGpuScopeEngine {
   private displayDirty = true;
   private failed = false;
   private destroyed = false;
+  private stopTheme?: () => void;
+  private lightTheme = false;
+  private background = [0, 0, 0];
 
   private constructor(
     device: GPUDevice,
@@ -185,7 +186,7 @@ export class WebGpuScopeEngine {
     this.onError = onError;
   }
 
-  static async create(device: GPUDevice, canvases: ScopeCanvases, onError?: (message: string) => void) {
+  static async create(device: GPUDevice, canvases: ScopeCanvases, onError?: (message: string) => void, onPresentationChange?: () => void) {
     const hueDistributionContext = canvases.hueDistribution.getContext('webgpu');
     const colorMixerHueDistributionContext =
       canvases.colorMixerHueDistribution?.getContext('webgpu') ?? null;
@@ -225,6 +226,13 @@ export class WebGpuScopeEngine {
       engine.destroy();
       throw new Error(`LightTable scopes are unavailable: ${error.message}`);
     }
+    engine.stopTheme = observeScopeTheme(canvases.hueDistribution, theme => {
+      engine.lightTheme = theme.light;
+      engine.background = theme.background;
+      engine.writeDisplayUniforms();
+      engine.markPresentationDirty();
+      onPresentationChange?.();
+    });
     return engine;
   }
 
@@ -669,17 +677,18 @@ export class WebGpuScopeEngine {
   private writeDisplayUniforms() {
     const brightness = Math.max(10, Math.min(400, this.options.traceBrightness)) / 100;
     if (this.hueDisplayUniforms) {
-      this.device.queue.writeBuffer(this.hueDisplayUniforms, 0, new Float32Array([brightness, 0, 0, 0]));
+      this.device.queue.writeBuffer(this.hueDisplayUniforms, 0, new Float32Array([brightness, 0, Number(this.lightTheme), 0, ...this.background, 1]));
     }
     if (this.paradeDisplayUniforms) {
-      this.device.queue.writeBuffer(this.paradeDisplayUniforms, 0, new Float32Array([brightness, 1, 0, 0]));
+      this.device.queue.writeBuffer(this.paradeDisplayUniforms, 0, new Float32Array([brightness, 1, Number(this.lightTheme), 0, ...this.background, 1]));
     }
     if (this.vectorDisplayUniforms) {
       this.device.queue.writeBuffer(this.vectorDisplayUniforms, 0, new Float32Array([
         brightness,
         this.options.vectorscopeZoom2x ? 2 : 1,
+        Number(this.lightTheme),
         0,
-        0
+        ...this.background, 1
       ]));
     }
   }
@@ -697,7 +706,7 @@ export class WebGpuScopeEngine {
       label: 'LightTable scope display',
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
-        clearValue: { r: 0.018, g: 0.023, b: 0.03, a: 1 },
+        clearValue: { r: this.background[0], g: this.background[1], b: this.background[2], a: 1 },
         loadOp: 'clear',
         storeOp: 'store'
       }]
@@ -716,6 +725,8 @@ export class WebGpuScopeEngine {
 
   destroy() {
     this.destroyed = true;
+    this.stopTheme?.();
+    this.stopTheme = undefined;
     this.clearTextures();
     this.hueBins?.destroy();
     this.paradeBins?.destroy();

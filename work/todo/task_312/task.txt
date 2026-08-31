@@ -1,5 +1,0 @@
-Image generation maakt wel een image, de gta 2 images in de asset browser.
-
-na image generation -> image openen -> zwart scherm. Image werkt wel gewoon in de explorer view of met preview of op openart..
-
-Kan laatste image ook niet meer sluiten dan, zie kort "drop media  to add to lighttable project etc..." maar dan weer de black image.

@@ -1,9 +1,10 @@
+import { Checkbox, NumberField, type NumberFieldProps, type SelectProps } from '@lighttable/ui';
 import React from 'react';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 
 export interface ToolOptionSelectProps
-  extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
+  extends Omit<SelectProps, 'children'> {
   readonly label: string;
   readonly children: React.ReactNode;
 }
@@ -15,7 +16,7 @@ export const ToolOptionSelect: React.FC<ToolOptionSelectProps> = ({
 }) => (
   <label className="lighttable-tool-options__field">
     <span>{label}</span>
-    <FormSelect {...selectProps}>{children}</FormSelect>
+    <Select {...selectProps}>{children}</Select>
   </label>
 );
 
@@ -54,8 +55,8 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
         className="lighttable-tool-options__toggle"
         title={enabled ? `Disable ${label.toLowerCase()}` : `Enable ${label.toLowerCase()}`}
       >
-        <input
-          type="checkbox"
+        <Checkbox
+
           checked={enabled}
           aria-label={`${ariaLabel}: enabled`}
           onChange={(event) => onEnabledChange(event.currentTarget.checked)}
@@ -77,7 +78,7 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
 );
 
 export interface ToolOptionNumberProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'type'> {
+  extends Omit<NumberFieldProps, 'onValueChange'> {
   readonly label: string;
   readonly unit?: string;
   readonly onChange: (value: number) => void;
@@ -91,10 +92,10 @@ export const ToolOptionNumber: React.FC<ToolOptionNumberProps> = ({
 }) => (
   <label className="lighttable-tool-options__weight-field">
     <span>{label}</span>
-    <input
+    <NumberField
       {...inputProps}
-      type="number"
-      onChange={(event) => onChange(Number(event.currentTarget.value))}
+      updateMode="input"
+      onValueChange={onChange}
     />
     {unit ? <span>{unit}</span> : null}
   </label>

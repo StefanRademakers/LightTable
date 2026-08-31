@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput } from '@lighttable/ui';
 import { ButtonBase } from '../ui/ButtonBase';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,9 +8,9 @@ import type {
   LightTableLocalAiModelStatus
 } from '../platform/LightTableHost';
 
-import { FormInput } from '../ui/FormInput';
-import { FormSelect } from '../ui/FormSelect';
-import { SwitchControl } from '../ui/SwitchControl';
+
+import { Select } from '@lighttable/ui';
+import { SwitchControl } from '@lighttable/ui';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
 import {
@@ -206,15 +206,15 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                 <div className="lighttable-preferences__fields" aria-disabled={!draft.autosave.enabled}>
                   <label>
                     <span>Save recovery copy</span>
-                    <FormSelect disabled={!draft.autosave.enabled}
+                    <Select tabIndex={0} disabled={!draft.autosave.enabled}
                       value={draft.autosave.intervalMs}
-                      onChange={(event) => setDraft({ ...draft, autosave: {
-                        ...draft.autosave, intervalMs: Number(event.currentTarget.value)
+                      onValueChange={(nextValue) => setDraft({ ...draft, autosave: {
+                        ...draft.autosave, intervalMs: Number(nextValue)
                       } })}>
                       {[30_000, 60_000, 120_000, 300_000, 600_000].map((value) => (
                         <option key={value} value={value}>Every {intervalLabel(value)}</option>
                       ))}
-                    </FormSelect>
+                    </Select>
                   </label>
                   <label>
                     <span>Location</span>
@@ -290,7 +290,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       </div>
                     ))}
                   <div className="lighttable-preferences__project-folder-add">
-                    <FormInput value={newProjectFolderName} placeholder="New folder name"
+                    <TextInput tabIndex={0} value={newProjectFolderName} placeholder="New folder name"
                       aria-label="New project folder name"
                       onChange={(event) => setNewProjectFolderName(event.currentTarget.value)} />
                     <Button tabIndex={0} type="button" disabled={!newProjectFolderName.trim()}
@@ -358,25 +358,25 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                 <div className="lighttable-preferences__fields">
                   <label>
                     <span>Image Create</span>
-                    <FormSelect value={draft.genAi.createProviderId}
-                      onChange={(event) => setDraft({ ...draft, genAi: {
-                        ...draft.genAi, createProviderId: event.currentTarget.value
+                    <Select tabIndex={0} value={draft.genAi.createProviderId}
+                      onValueChange={(nextValue) => setDraft({ ...draft, genAi: {
+                        ...draft.genAi, createProviderId: nextValue
                       } })}>
                       {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
-                    </FormSelect>
+                    </Select>
                   </label>
                   <label>
                     <span>Image Edit</span>
-                    <FormSelect value={draft.genAi.editProviderId}
-                      onChange={(event) => setDraft({ ...draft, genAi: {
-                        ...draft.genAi, editProviderId: event.currentTarget.value
+                    <Select tabIndex={0} value={draft.genAi.editProviderId}
+                      onValueChange={(nextValue) => setDraft({ ...draft, genAi: {
+                        ...draft.genAi, editProviderId: nextValue
                       } })}>
                       {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
-                    </FormSelect>
+                    </Select>
                   </label>
                 </div>
                 <div className="lighttable-preferences__option-list">
@@ -386,15 +386,15 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                     const runtime = genAiProviders.find(({ id }) => id === provider.id);
                     return <div className="lighttable-preferences__option" key={`config-${provider.id}`}>
                       <div className="lighttable-preferences__fields">
-                        <label><span>Name</span><FormInput value={provider.displayName}
+                        <label><span>Name</span><TextInput tabIndex={0} value={provider.displayName}
                           onChange={(event) => updateProvider(provider.id, (current) => ({
                             ...current, displayName: event.currentTarget.value
                           }))} /></label>
-                        <label><span>Base URL</span><FormInput value={provider.transport.baseUrl}
+                        <label><span>Base URL</span><TextInput tabIndex={0} value={provider.transport.baseUrl}
                           onChange={(event) => updateProvider(provider.id, (current) => ({
                             ...current, transport: { ...current.transport, baseUrl: event.currentTarget.value }
                           }))} /></label>
-                        <label><span>API token</span><FormInput type="password" autoComplete="off" placeholder="Optional"
+                        <label><span>API token</span><TextInput tabIndex={0} type="password" autoComplete="off" placeholder="Optional"
                           value={provider.transport.apiToken ?? ''}
                           onChange={(event) => updateProvider(provider.id, (current) => ({
                             ...current, transport: { ...current.transport, apiToken: event.currentTarget.value || undefined }

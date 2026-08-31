@@ -3,8 +3,8 @@ import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { AnchorGridControl } from '../../../ui/AnchorGridControl';
-import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
-import { SwitchControl } from '../../../ui/SwitchControl';
+import { NumberField } from '@lighttable/ui';
+import { SwitchControl } from '@lighttable/ui';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type { ImageDocument } from '../document/documentTypes';
 import {
@@ -63,11 +63,11 @@ export const CanvasSizeDialog = ({ open, document, busy = false, onCancel, onCom
         </div>
         <div className="canvas-size-dialog__fields">
           <label><span>{relative ? 'Width change' : 'Width'}</span>
-            <NumericExpressionInput value={width} kind="integer" step={1}
+            <NumberField tabIndex={0} value={width} kind="integer" step={1}
               onValueChange={(value) => Number.isFinite(value) && setWidth(value)} /></label>
           <span className="canvas-size-dialog__unit">Pixels</span>
           <label><span>{relative ? 'Height change' : 'Height'}</span>
-            <NumericExpressionInput value={height} kind="integer" step={1}
+            <NumberField tabIndex={0} value={height} kind="integer" step={1}
               onValueChange={(value) => Number.isFinite(value) && setHeight(value)} /></label>
           <span className="canvas-size-dialog__unit">Pixels</span>
         </div>

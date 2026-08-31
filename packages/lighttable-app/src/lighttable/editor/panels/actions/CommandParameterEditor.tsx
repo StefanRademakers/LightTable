@@ -1,12 +1,12 @@
-import { Button } from '@lighttable/ui';
+import { Checkbox, Button, TextInput, NumberField } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   formatSchemaValidationIssues,
   validateJsonSchemaValue,
   type LightTableJsonSchema
 } from '@lighttable/command-contract';
-import { FormInput } from '../../../../ui/FormInput';
-import { FormSelect } from '../../../../ui/FormSelect';
+
+import { Select } from '@lighttable/ui';
 
 
 const record = (value: unknown): value is Readonly<Record<string, unknown>> => (
@@ -71,40 +71,39 @@ const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove' | 
   const label = schema.title ?? name;
   if (schema.const !== undefined) return <label>
     <span>{label}</span>
-    <FormInput value={String(schema.const)} disabled readOnly />
+    <TextInput tabIndex={0} value={String(schema.const)} disabled readOnly />
   </label>;
   if (schema.type === 'boolean') return <label className="is-checkbox">
-    <FormInput type="checkbox" checked={value === true}
+    <Checkbox tabIndex={0} checked={value === true}
       disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
     <span>{label}</span>
   </label>;
   if (schema.enum) return <label>
     <span>{label}</span>
-    <FormSelect value={String(value)} disabled={disabled}
-      onChange={(event) => onChange(event.currentTarget.value)}>
+    <Select value={String(value)} disabled={disabled}
+      onValueChange={(nextValue) => onChange(nextValue)}>
       {schema.enum.map((option) => <option key={String(option)} value={String(option)}>
         {String(option)}
       </option>)}
-    </FormSelect>
+    </Select>
   </label>;
   if (schema.type === 'array' && schema.items?.type === 'string') return <label>
     <span>{label}</span>
-    <FormInput value={Array.isArray(value) ? value.join(', ') : ''} disabled={disabled}
+    <TextInput tabIndex={0} value={Array.isArray(value) ? value.join(', ') : ''} disabled={disabled}
       placeholder="layer-id, layer-id"
       onChange={(event) => onChange(event.currentTarget.value.split(',')
         .map((item) => item.trim()).filter(Boolean))} />
   </label>;
   if (schema.type === 'number' || schema.type === 'integer') return <label>
     <span>{label}</span>
-    <FormInput type="number" value={typeof value === 'number' ? String(value) : ''} disabled={disabled}
+    <NumberField tabIndex={0} updateMode="input" kind={schema.type === 'integer' ? 'integer' : 'float'} value={typeof value === 'number' ? value : null} disabled={disabled}
       min={schema.minimum} max={schema.maximum}
       step={schema['x-lighttable-step'] ?? (schema.type === 'integer' ? 1 : 'any')}
-      onChange={(event) => onChange(event.currentTarget.value === ''
-        ? '' : Number(event.currentTarget.value))} />
+      onValueChange={onChange} onEmpty={() => onChange('')} />
   </label>;
   return <label>
     <span>{label}</span>
-    <FormInput value={typeof value === 'string' ? value : ''} disabled={disabled}
+    <TextInput tabIndex={0} value={typeof value === 'string' ? value : ''} disabled={disabled}
       minLength={schema.minLength} maxLength={schema.maxLength}
       onChange={(event) => onChange(event.currentTarget.value)} />
   </label>;
@@ -134,14 +133,14 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
         onClick={onRemove}>Remove</Button> : null}
       <label>
         <span>Variant</span>
-        <FormSelect value={String(selected)} disabled={disabled}
-          onChange={(event) => onChange(initialFieldValue(
-            schema.oneOf![Number(event.currentTarget.value)], rootSchema
+        <Select value={String(selected)} disabled={disabled}
+          onValueChange={(nextValue) => onChange(initialFieldValue(
+            schema.oneOf![Number(nextValue)], rootSchema
           ))}>
           {schema.oneOf.map((option, index) => <option key={index} value={index}>
             {option.title ?? `Variant ${index + 1}`}
           </option>)}
-        </FormSelect>
+        </Select>
       </label>
       <SchemaField name="Value" schema={branch} value={value} required disabled={disabled}
         onChange={onChange} rootSchema={rootSchema} />

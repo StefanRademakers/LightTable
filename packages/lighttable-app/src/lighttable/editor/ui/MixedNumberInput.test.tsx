@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numericIncrement, parseBoundedNumber } from './MixedNumberInput';
+import { numericIncrement, parseBoundedNumber } from '@lighttable/ui';
 
 describe('mixed numeric property input', () => {
   it('uses normal, coarse and fine keyboard increments', () => {

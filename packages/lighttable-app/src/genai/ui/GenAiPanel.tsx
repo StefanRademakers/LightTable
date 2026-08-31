@@ -1,4 +1,4 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
+import { Checkbox, PanelSection, Button, SegmentedControl, Menu, TextInput, NumberField } from '@lighttable/ui';
 import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -13,11 +13,10 @@ import type {
 } from '@lighttable/genai-core';
 import { genAiFieldPlacement } from '@lighttable/genai-core';
 
-import { Menu } from '@lighttable/ui';
-import { FormInput } from '../../ui/FormInput';
-import { FormSelect } from '../../ui/FormSelect';
 
-import { SwitchControl } from '../../ui/SwitchControl';
+import { Select } from '@lighttable/ui';
+
+import { SwitchControl } from '@lighttable/ui';
 import { PanelNumberSlider, PanelSelectField } from '../../ui/PanelControls';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
 import { containsProjectAssetDrag, readProjectAssetDrag } from './projectAssetDrag';
@@ -85,11 +84,12 @@ const FieldControl = ({ field, value, update }: {
       min={field.minimum} max={field.maximum} step={field.step ?? (field.kind === 'integer' ? 1 : 0.1)}
       resetValue={typeof field.defaultValue === 'number' ? field.defaultValue : field.minimum} onChange={update} />
   );
-  return <FormInput type={field.kind === 'number' || field.kind === 'integer' ? 'number' : 'text'}
-    required={field.required} value={String(value ?? '')} min={field.minimum} max={field.maximum}
-    step={field.step ?? (field.kind === 'integer' ? 1 : undefined)}
-    onChange={(event) => update(field.kind === 'number' || field.kind === 'integer'
-      ? event.currentTarget.valueAsNumber : event.currentTarget.value)} />;
+  if (field.kind === 'number' || field.kind === 'integer') return <NumberField
+    updateMode="input" kind={field.kind === 'integer' ? 'integer' : 'float'} required={field.required}
+    value={typeof value === 'number' ? value : null} min={field.minimum} max={field.maximum}
+    step={field.step ?? (field.kind === 'integer' ? 1 : undefined)} onValueChange={update} onEmpty={() => update(undefined)} />;
+  return <TextInput required={field.required} value={String(value ?? '')}
+    onChange={event => update(event.currentTarget.value)} />;
 };
 
 const GenAiField = ({ field, value, update }: {
@@ -315,10 +315,10 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
           <div className="genai-panel__body">
             <SegmentedControl className="genai-panel__mode-switch" label="Content type"
               value={task} onChange={selectTask} options={taskOptions} />
-            <FormSelect className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
-              aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
+            <Select className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
+              aria-label="Generation model" onValueChange={(nextValue) => onModelChange?.(nextValue as GenAiModelSummary['id'])}>
               {taskModels.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-            </FormSelect>
+            </Select>
             {model?.description ? <p className="genai-panel__model-description">{model.description}</p> : null}
             {task === 'video' && videoOptions.length > 1 ? <SegmentedControl
               className="genai-panel__variant-switch" label="Video input"
@@ -395,7 +395,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               </p> : null}
             </section> : null}
             {!videoMode ? <label className="genai-panel__base-image">
-              <input type="checkbox" checked={baseImageSelected}
+              <Checkbox  checked={baseImageSelected}
                 onChange={(event) => onBaseImageSelectedChange?.(event.currentTarget.checked)} />
               <span>Add base image</span>
             </label> : null}
@@ -408,12 +408,12 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               {basicFields.map((field) => <GenAiField key={field.key} field={field} value={values[field.key]}
                 update={(value) => onFieldChange?.(field.key, value)} />)}
             </section> : null}
-            {advancedFields.length ? <details className="genai-panel__advanced"><summary>Advanced</summary>
+            {advancedFields.length ? <PanelSection label="Advanced" variant="disclosure" keepMounted>
               <div className="genai-panel__settings">{advancedFields.map((field) => (
                 <GenAiField key={field.key} field={field} value={values[field.key]}
                   update={(value) => onFieldChange?.(field.key, value)} />
               ))}</div>
-            </details> : null}
+            </PanelSection> : null}
             {!projectName ? <p className="genai-panel__notice">Open a project to generate and retain output history.</p> : null}
             {generalGenerationError ? <p className="genai-panel__error" role="alert">{generalGenerationError}</p> : null}
             {referenceIssue ? <p className="genai-panel__notice" role="status">{referenceIssue}</p> : null}

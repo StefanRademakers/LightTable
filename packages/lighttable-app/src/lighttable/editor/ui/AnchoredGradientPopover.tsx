@@ -54,10 +54,12 @@ export const AnchoredGradientPopover: React.FC<{
     const pointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (anchor.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('[data-ui-component="select-popup"]')) return;
       onClose();
     };
     const keyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (event.target instanceof Element && event.target.closest('[data-ui-component="select-popup"]')) return;
       event.preventDefault();
       event.stopPropagation();
       onClose();

@@ -1,6 +1,6 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextInput } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FormSelect } from '../../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import {
   isActionResultReference,
   isActionVariableReference,
@@ -91,26 +91,26 @@ export const ActionBindingEditor: React.FC<ActionBindingEditorProps> = ({
   if (!selected) return <p className="lighttable-action-binding-editor__empty">No bindable parameters.</p>;
   return <div className="lighttable-action-binding-editor">
     <label>Parameter
-      <FormSelect aria-label={`Step ${step.sequence} parameter`} value={selected.pointer}
-        disabled={disabled} onChange={(event) => setParameterPath(event.currentTarget.value)}>
+      <Select aria-label={`Step ${step.sequence} parameter`} value={selected.pointer}
+        disabled={disabled} onValueChange={(nextValue) => setParameterPath(nextValue)}>
         {parameters.map((path) => <option key={path.pointer} value={path.pointer}>{path.label}</option>)}
-      </FormSelect>
+      </Select>
     </label>
     {selectedBinding ? <p className="lighttable-action-binding-editor__current">{selectedBinding}</p> : null}
     <div className="lighttable-action-binding-editor__row">
-      <FormSelect aria-label={`Step ${step.sequence} variable`} value={variableName}
+      <Select aria-label={`Step ${step.sequence} variable`} value={variableName}
         disabled={disabled || variables.length === 0}
-        onChange={(event) => setVariableName(event.currentTarget.value)}>
+        onValueChange={(nextValue) => setVariableName(nextValue)}>
         {variables.length === 0 ? <option value="">No variables</option> : null}
         {variables.map((variable) => <option key={variable.name} value={variable.name}>
           {variable.name} ({variable.type})
         </option>)}
-      </FormSelect>
+      </Select>
       <Button type="button" disabled={disabled || !variableName}
         onClick={() => apply(onBindVariable(selected.pointer, variableName))}>Bind variable</Button>
     </div>
     <div className="lighttable-action-binding-editor__row">
-      <input aria-label={`Step ${step.sequence} new variable name`} value={newVariableName}
+      <TextInput aria-label={`Step ${step.sequence} new variable name`} value={newVariableName}
         disabled={disabled} placeholder="variableName" maxLength={64}
         onChange={(event) => setNewVariableName(event.currentTarget.value)} />
       <Button type="button" disabled={disabled || !newVariableName.trim()}
@@ -121,13 +121,13 @@ export const ActionBindingEditor: React.FC<ActionBindingEditorProps> = ({
         }}>Promote</Button>
     </div>
     <div className="lighttable-action-binding-editor__row">
-      <FormSelect aria-label={`Step ${step.sequence} prior result`} value={resultKey}
+      <Select aria-label={`Step ${step.sequence} prior result`} value={resultKey}
         disabled={disabled || results.length === 0}
-        onChange={(event) => setResultKey(event.currentTarget.value)}>
+        onValueChange={(nextValue) => setResultKey(nextValue)}>
         {results.length === 0 ? <option value="">No prior results</option> : null}
         {results.map((result) => <option key={`${result.sequence}:${result.dotPath}`}
           value={`${result.sequence}:${result.dotPath}`}>Step {result.sequence}: {result.label}</option>)}
-      </FormSelect>
+      </Select>
       <Button type="button" disabled={disabled || !resultKey}
         onClick={() => {
           const separator = resultKey.indexOf(':');
@@ -170,7 +170,7 @@ export const ActionVariableRow: React.FC<{
   };
   return <div className="lighttable-action-variable-row">
     <label><span><strong>{variable.name}</strong> <small>{variable.type}</small></span>
-      <input aria-label={`${variable.name} default`} value={draft} disabled={disabled}
+      <TextInput aria-label={`${variable.name} default`} value={draft} disabled={disabled}
         onChange={(event) => setDraft(event.currentTarget.value)} onBlur={apply} />
     </label>
     <Button type="button" disabled={disabled} onClick={apply}>Apply</Button>

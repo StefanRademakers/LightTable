@@ -1,10 +1,10 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
-import { PanelStackDisclosure, PanelStackFooter, PanelStackRow } from './PanelStackPrimitives';
-import { MaskIcon, Menu, type MenuOption } from '@lighttable/ui';
+import { PanelStackDisclosure, PanelStackRow } from './PanelStackPrimitives';
+import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import { SquareIconButton } from '../../../ui/SquareIconButton';
 import {
   layerSupportsContentCompositing,
@@ -791,7 +791,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       {activeLayer ? (
         <>
           <div className="lighttable-layers__blend-lock-row">
-            <FormSelect
+            <Select
               className="lighttable-layers__blend-mode"
               aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
@@ -801,12 +801,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   ? 'Pass-through group compositing'
                   : undefined
               }
-              onChange={(event) => onBlendMode(activeLayer.id, event.currentTarget.value as BlendMode)}
+              onValueChange={(nextValue) => onBlendMode(activeLayer.id, nextValue as BlendMode)}
             >
               {activeLayer.type === 'group'
                 ? <option value="pass-through">Pass Through</option>
                 : BLEND_MODES.map((mode) => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
-            </FormSelect>
+            </Select>
             <div className="lighttable-layers__locks" aria-label="Layer locks">
             {([
               ['transparency', 'lock_transparent_pixels.png', 'Lock transparent pixels'],
@@ -1593,25 +1593,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
         })}
       </div>
-      <PanelStackFooter className="lighttable-layers__footer">
-        <ButtonBase
-          ref={styleMenuTriggerRef}
-          type="button"
-          className="lighttable-layers__fx-button"
-          onClick={() => {
-            if (!activeLayer || !layerSupportsLayerStyles(activeLayer)) return;
-            onEditStyles(activeLayer.id);
-            setCreateLayerMenuOpen(false);
-            setStyleMenuOpen((open) => !open);
-          }}
-          disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
-          title={activeIsDocumentFx
-            ? 'Layer styles are not available for document-final effects'
-            : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
-          aria-label="Add layer style"
-          aria-haspopup="menu"
-          aria-expanded={styleMenuOpen}
-        >fx</ButtonBase>
+      <PanelFooter className="lighttable-layers__footer">
         {styleMenuOpen ? (
           <Menu data-editor-native-tab-navigation open modal={false}
             anchor={styleMenuTriggerRef}
@@ -1683,6 +1665,24 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="Add layer mask"
           aria-label="Add layer mask"
         ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></ButtonBase>
+        <ButtonBase
+          ref={styleMenuTriggerRef}
+          type="button"
+          className="lighttable-layers__fx-button"
+          onClick={() => {
+            if (!activeLayer || !layerSupportsLayerStyles(activeLayer)) return;
+            onEditStyles(activeLayer.id);
+            setCreateLayerMenuOpen(false);
+            setStyleMenuOpen((open) => !open);
+          }}
+          disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
+          title={activeIsDocumentFx
+            ? 'Layer styles are not available for document-final effects'
+            : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
+          aria-label="Add layer style"
+          aria-haspopup="menu"
+          aria-expanded={styleMenuOpen}
+        >fx</ButtonBase>
         <div
           className="lighttable-layers__create-menu"
         >
@@ -1852,7 +1852,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="Layers menu"
           aria-label="Layers menu"
         ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
-      </PanelStackFooter>
+      </PanelFooter>
       <Menu data-editor-native-tab-navigation
         open={moreMenu.open}
         x={moreMenu.x}

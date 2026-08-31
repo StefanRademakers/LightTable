@@ -41,7 +41,8 @@ describe('CurvesPropertiesPanel', () => {
     />);
 
     expect(markup).toContain('aria-label="Curves properties"');
-    expect(markup).toContain('<strong>Curves</strong>');
+    expect(markup).toContain('data-ui-component="panel-section-header"');
+    expect(markup).toContain('>Curves</span>');
     expect(markup).toContain('RGB');
     expect(markup).not.toContain('Grade - All');
     expect(markup).not.toContain('Color Mixer');

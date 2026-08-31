@@ -1,8 +1,8 @@
-import { SegmentedControl, Button } from '@lighttable/ui';
+import { SegmentedControl, Button, SearchField } from '@lighttable/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import manifestData from '../ui/uiComponentManifest.json';
 import inventoryData from '../ui/generatedUiUsageInventory.json';
-import { SearchField } from '../ui/SearchField';
+
 
 
 import type { UiInspectionTarget } from '../ui/uiInspection';

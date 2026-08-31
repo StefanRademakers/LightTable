@@ -1,0 +1,20 @@
+.ui-panel-tab {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  overflow: hidden;
+  color: var(--ui-text-muted);
+  background: var(--ui-button-surface);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ui-panel-tab[data-selected] {
+  color: var(--ui-text);
+  background: var(--ui-button-hover);
+}

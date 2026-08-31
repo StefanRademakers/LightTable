@@ -7,12 +7,11 @@ import {
 import { lightTableIcon } from '../../../../assets/icons';
 import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { Menu, type MenuOption } from '@lighttable/ui';
+import { Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
   PanelStackDisclosure,
-  PanelStackFooter,
   PanelStackRow,
   handlePanelCollectionNavigation
 } from '../../ui/PanelStackPrimitives';
@@ -409,7 +408,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
     </p> : null}
 
-    <PanelStackFooter className="lighttable-action-recorder__footer" ariaLabel="Action controls">
+    <PanelFooter className="lighttable-action-recorder__footer" aria-label="Action controls">
       <ButtonBase type="button" aria-label="Stop"
         onClick={busy ? props.onStopPlayback : props.onStop}
         disabled={!busy && recording.status !== 'recording'}><span className="lighttable-action-recorder__stop" /></ButtonBase>
@@ -436,7 +435,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
           if (selection?.kind === 'action') props.onDelete(selection.id);
           if (selection?.kind === 'step' && selection.sequence) edit(props.onDeleteStep(selection.sequence));
         }}><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
-    </PanelStackFooter>
+    </PanelFooter>
 
     <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       onClose={() => setMenu(null)} options={contextMenuOptions} width={180} />

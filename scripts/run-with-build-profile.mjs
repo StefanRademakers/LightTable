@@ -7,7 +7,7 @@ if (!['release', 'instrumented', 'debug'].includes(profile) || !command) {
 }
 
 const env = { ...process.env };
-delete env.LIGHTTABLE_UI_DEVTOOLS;
+// Preserve an explicit opt-out for UI-boundary checks while the guide defaults on.
 delete env.LIGHTTABLE_VECTOR_PROFILE;
 delete env.LIGHTTABLE_RENDER_TELEMETRY;
 delete env.LIGHTTABLE_BUILD_PROFILE;

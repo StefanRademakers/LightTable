@@ -34,9 +34,9 @@
   --lt-surface-layer-row-hover: var(--lt-surface-control-hover);
   /* Multi-selection stays quiet; the primary active row matches the active tool treatment. */
   --lt-surface-layer-row-selected: #28497c;
-  --lt-surface-layer-row-active: var(--lt-accent-strong);
+  --lt-surface-layer-row-active: var(--ui-selection-surface);
   --lt-border-layer-row: transparent;
-  --lt-border-layer-row-active: var(--lt-accent);
+  --lt-border-layer-row-active: var(--ui-accent);
   --lt-surface-inset: #0c0f13;
   --lt-surface-plot: #05070a;
   --lt-surface-overlay: rgb(0 0 0 / 62%);
@@ -147,12 +147,6 @@
   --lt-range-thumb-hover: #b5b8bb;
   --lt-range-track-height: 14px;
   --lt-range-thumb-size: 18px;
-  --lt-switch-track-off: #242629;
-  --lt-switch-track-off-hover: #242629;
-  --lt-switch-track-on: #455773;
-  --lt-switch-track-on-hover: #455773;
-  --lt-switch-thumb-off: #5a5b5d;
-  --lt-switch-thumb-on: #b4b6b8;
   --lt-scrollbar-track: transparent;
   --lt-scrollbar-thumb: #4a515b;
   --lt-scrollbar-thumb-hover: #626b78;

@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, SearchField } from '@lighttable/ui';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -41,7 +41,7 @@ export const CommandHelpDialog: React.FC<{
           <div><h2>Commands and shortcuts</h2><p>Photoshop-compatible shortcuts where they match LightTable actions.</p></div>
           <Button tabIndex={0} onClick={onClose}>Close</Button>
         </header>
-        <input autoFocus type="search" value={query} aria-label="Search commands"
+        <SearchField tabIndex={0} autoFocus  value={query} aria-label="Search commands"
           placeholder="Search commands or shortcuts"
           onChange={(event) => setQuery(event.currentTarget.value)} />
         <div className="lighttable-command-help__list" role="list">

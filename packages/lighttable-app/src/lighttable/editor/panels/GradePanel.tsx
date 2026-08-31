@@ -1,11 +1,13 @@
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { IconButton, MaskIcon, PanelSectionHeader, PanelSection, SegmentedControl } from '@lighttable/ui';
+import { EffectPanel } from '../../effects/EffectPanel';
+
 import React, { useEffect, useRef, useState } from 'react';
-import { SegmentedControl } from '@lighttable/ui';
-import { SwitchControl } from '../../../ui/SwitchControl';
+
+import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { SquareIconButton } from '../../../ui/SquareIconButton';
-import { ColorGradingWheel } from '../../ColorGradingWheel';
+import { ColorWheel, Select } from '@lighttable/ui';
 import {
   COLOR_GRADING_ZONE_LABELS,
   colorGradingZoneIndex,
@@ -157,72 +159,6 @@ const DEFAULT_EXPANDED: Readonly<Record<GradeGroup, boolean>> = {
   curves: true
 };
 
-interface GroupHeaderProps {
-  readonly label: string;
-  readonly expanded: boolean;
-  readonly visible: boolean;
-  readonly resetModifierActive: boolean;
-  readonly setExpanded: (expanded: boolean) => void;
-  readonly reset: () => void;
-  readonly toggleVisibility: () => void;
-}
-
-const GroupHeader = ({
-  label,
-  expanded,
-  visible,
-  resetModifierActive,
-  setExpanded,
-  reset,
-  toggleVisibility
-}: GroupHeaderProps) => (
-  <div className="lighttable-group__header">
-    <ButtonBase
-      type="button"
-      className="lighttable-group__toggle"
-      onPointerDown={(event) => {
-        if (event.button === 0 && (event.shiftKey || resetModifierActive)) {
-          event.preventDefault();
-          reset();
-        }
-      }}
-      onClick={(event) => {
-        if (event.shiftKey || resetModifierActive) {
-          event.preventDefault();
-          reset();
-          return;
-        }
-        setExpanded(!expanded);
-      }}
-      aria-expanded={expanded}
-      title={resetModifierActive ? `Reset ${label}` : label}
-    >
-      <img
-        src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')}
-        alt=""
-        aria-hidden="true"
-      />
-      <strong>{label}</strong>
-    </ButtonBase>
-    <div className="lighttable-group__actions">
-      <ButtonBase
-        type="button"
-        className="lighttable-group__reset"
-        onClick={reset}
-        aria-label={`Reset ${label} adjustments`}
-        title={`Reset ${label} adjustments`}
-      >
-        <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-      </ButtonBase>
-      <SwitchControl
-        checked={visible}
-        onCheckedChange={toggleVisibility}
-        label={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
-      />
-    </div>
-  </div>
-);
-
 export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: GradePanelProps) => {
   const [expanded, setExpanded] = useState(DEFAULT_EXPANDED);
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
@@ -330,18 +266,13 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     label: string,
     sliders: readonly SliderDefinition[]
   ) => (
-    <section className={`lighttable-group${visibility[group] ? '' : ' lighttable-group--disabled'}`}>
-      <GroupHeader
-        label={label}
-        expanded={expanded[group]}
-        visible={visibility[group]}
-        resetModifierActive={resetModifierActive}
-        setExpanded={(next) => setGroupExpanded(group, next)}
-        reset={() => commands.resetGroup(group)}
-        toggleVisibility={() => commands.toggleVisibility(group)}
-      />
-      {expanded[group] ? (
-        <div className="lighttable-group__controls">
+    <EffectPanel label={label}
+expanded={expanded[group]}
+enabled={visibility[group]}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)}>
           {group === 'light' ? (
             <GradeHistogramControl
               histogram={model.histogram}
@@ -373,9 +304,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionEnd={commands.endAdjustment}
             />
           ))}
-        </div>
-      ) : null}
-    </section>
+        </EffectPanel>
   );
 
   const renderDetail = () => {
@@ -417,40 +346,22 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     ) => {
       const subgroupExpanded = detailSubgroupsExpanded[key];
       return (
-        <div className="lighttable-detail-controls__subgroup">
-          <ButtonBase
-            type="button"
-            className="lighttable-detail-controls__subgroup-toggle"
-            aria-expanded={subgroupExpanded}
-            onClick={() => setDetailSubgroupsExpanded((current) => ({
+        <PanelSection label={label} expanded={subgroupExpanded} alwaysVisible={primary}
+            onExpandedChange={(next) => setDetailSubgroupsExpanded((current) => ({
               ...current,
-              [key]: !current[key]
+              [key]: next
             }))}
-          >
-            <img src={lightTableIcon(subgroupExpanded ? 'area_open.png' : 'area_closed.png')}
-              alt="" aria-hidden="true" />
-            <strong>{label}</strong>
-          </ButtonBase>
-          {primary}
-          {subgroupExpanded ? (
-            <div className="lighttable-detail-controls__advanced">{advanced}</div>
-          ) : null}
-        </div>
+            contentClassName="lighttable-detail-controls__advanced">{advanced}</PanelSection>
       );
     };
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Detail"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={() => commands.resetGroup(group)}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        {expanded[group] ? (
-          <div className="lighttable-group__controls lighttable-detail-controls">
+      <EffectPanel label="Detail"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="lighttable-detail-controls">
             {subgroup(
               'sharpening',
               'Sharpening',
@@ -479,9 +390,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
                 {sliderFor('colorSmoothness', 'Smoothness')}
               </>
             )}
-          </div>
-        ) : null}
-      </section>
+          </EffectPanel>
     );
   };
 
@@ -610,20 +519,13 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     };
 
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Color Mixer"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={() => commands.resetGroup(group)}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        <div
-          className="lighttable-group__controls lighttable-color-mixer"
-          hidden={!expanded[group]}
-        >
+      <EffectPanel label="Color Mixer"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClassName="lighttable-color-mixer">
           <SegmentedControl
             value={colorMixerView}
             onChange={(next) => {
@@ -682,7 +584,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
           >
             <canvas
               ref={model.colorMixerHueCanvasRef}
-              className="lighttable-color-mixer__scope"
+              className="ui-scope__canvas lighttable-color-mixer__scope"
               aria-hidden="true"
             />
             <div className="lighttable-color-mixer__hue-strip" aria-hidden="true" />
@@ -735,8 +637,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
             />
           ))}
           </> : renderPointColor()}
-        </div>
-      </section>
+        </EffectPanel>
     );
   };
 
@@ -745,7 +646,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const visible = visibility.colorGrading;
     return (
       <div className="lighttable-color-grading__wheel-block" key={zone}>
-        <ColorGradingWheel
+        <ColorWheel
           label={COLOR_GRADING_ZONE_LABELS[zone]}
           hue={adjustments.colorGrading.hue[index]}
           saturation={adjustments.colorGrading.saturation[index]}
@@ -783,23 +684,18 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const group = 'colorGrading' as const;
     const visible = visibility[group];
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Color Grading"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={() => commands.resetGroup(group)}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        {expanded[group] ? (
-          <div className="lighttable-group__controls lighttable-color-grading">
-            <SegmentedControl
+      <EffectPanel label="Color Grading"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="lighttable-color-grading">
+            <Select
               options={GRADING_MODE_OPTIONS}
               value={colorGradingMode}
-              onChange={setColorGradingMode}
-              label="Color Grading tonal range"
+              onValueChange={value => setColorGradingMode(value as ColorGradingMode)}
+              aria-label="Color Grading tonal range"
               className="lighttable-color-grading__modes"
             />
             {colorGradingMode === 'all' ? (
@@ -840,9 +736,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
                 onInteractionEnd={commands.endAdjustment}
               />
             </div>
-          </div>
-        ) : null}
-      </section>
+          </EffectPanel>
     );
   };
 
@@ -851,18 +745,13 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const visible = visibility[group];
     const range = COLOR_MIXER_RANGES[selectedBlackWhiteRange];
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Black & White Mix"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={() => commands.resetGroup(group)}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        {expanded[group] ? (
-          <div className="lighttable-group__controls lighttable-black-white-mix">
+      <EffectPanel label="Black & White Mix"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="lighttable-black-white-mix">
             <SegmentedControl
               value={adjustments.blackWhiteMix.enabled ? 'black-white' : 'color'}
               onChange={(value) => commands.setBlackWhiteMixEnabled(value === 'black-white')}
@@ -901,9 +790,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
             />
-          </div>
-        ) : null}
-      </section>
+          </EffectPanel>
     );
   };
 
@@ -911,18 +798,13 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const group = 'look' as const;
     const visible = visibility[group];
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Look"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={commands.resetGradeLook}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        {expanded[group] ? (
-          <div className="lighttable-group__controls">
+      <EffectPanel label="Look"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={commands.resetGradeLook}
+onEnabledChange={() => commands.toggleVisibility(group)}>
             <PanelSelectField
               label="Look"
               value={adjustments.gradeLook.assetId ?? 'none'}
@@ -957,9 +839,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               title="Choose or drop a 3D .cube Look"
               onFile={(file) => commands.loadGradeLook?.(file)}
             />
-          </div>
-        ) : null}
-      </section>
+          </EffectPanel>
     );
   };
 
@@ -967,18 +847,13 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const group = 'curves' as const;
     const visible = visibility[group];
     return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <GroupHeader
-          label="Custom Curves"
-          expanded={expanded[group]}
-          visible={visible}
-          resetModifierActive={resetModifierActive}
-          setExpanded={(next) => setGroupExpanded(group, next)}
-          reset={() => commands.resetGroup(group)}
-          toggleVisibility={() => commands.toggleVisibility(group)}
-        />
-        {expanded[group] ? (
-          <div className="lighttable-group__controls">
+      <EffectPanel label="Custom Curves"
+expanded={expanded[group]}
+enabled={visible}
+resetModifierActive={resetModifierActive}
+onExpandedChange={(next) => setGroupExpanded(group, next)}
+onReset={() => commands.resetGroup(group)}
+onEnabledChange={() => commands.toggleVisibility(group)}>
             <CurvesEditor
               curves={adjustments.curves}
               channel={curveChannel}
@@ -990,36 +865,21 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
             />
-          </div>
-        ) : null}
-      </section>
+          </EffectPanel>
     );
   };
 
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label={`${gradeTitle} properties`}>
       <section className="lighttable-group lighttable-master-group">
-        <div className="lighttable-group__header">
-          <div className="lighttable-master-group__label">
-            <strong>{gradeTitle}</strong>
-          </div>
-          <div className="lighttable-group__actions">
-            <ButtonBase
-              type="button"
-              className="lighttable-group__reset"
-              onClick={commands.resetAll}
-              aria-label="Reset all corrections"
-              title="Reset all corrections"
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
+        <PanelSectionHeader label={gradeTitle} actions={<>
+            <IconButton variant="quiet" type="button" onClick={commands.resetAll} aria-label="Reset all corrections" title="Reset all corrections" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
             <SwitchControl
               checked={model.masterEnabled}
               onCheckedChange={commands.toggleMasterEnabled}
               label={model.masterEnabled ? `Disable ${gradeTitle}` : `Enable ${gradeTitle}`}
             />
-          </div>
-        </div>
+          </>} />
       </section>
       <div className="lighttable-panel__controls">
         {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}

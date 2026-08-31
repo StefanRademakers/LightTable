@@ -57,14 +57,14 @@ describe('GradePanel', () => {
 
     expect(enabled).toContain('aria-label="Disable Global Grade"');
     expect(enabled).toContain('aria-label="Global Grade properties"');
-    expect(enabled).toContain('<strong>Global Grade</strong>');
+    expect(enabled).toContain('title="Global Grade"');
     expect(enabled).toContain('aria-checked="true"');
     expect(disabled).toContain('aria-label="Enable Global Grade"');
     expect(disabled).toContain('aria-checked="false"');
     expect(enabled).not.toContain('Gradient Map');
     expect(enabled).toContain('Point Color');
     expect(enabled).toContain('Black &amp; White Mix');
-    expect(enabled).toContain('<strong>Look</strong>');
+    expect(enabled).toContain('title="Look"');
     expect(enabled).toContain('Load .cube...');
     expect(enabled).toContain('Texture / Clarity / Dehaze');
     expect(enabled).toContain('Sharpening');
@@ -74,22 +74,22 @@ describe('GradePanel', () => {
     expect(enabled).toContain('>Luminance<');
     expect(enabled).toContain('>Color<');
     expect(enabled).not.toContain('>Radius<');
-    expect(enabled.indexOf('<strong>Look</strong>'))
-      .toBeGreaterThan(enabled.indexOf('<strong>Custom Curves</strong>'));
+    expect(enabled.indexOf('title="Look"'))
+      .toBeGreaterThan(enabled.indexOf('title="Custom Curves"'));
   });
 
   it('retains Gradient Map as its focused adjustment editor', () => {
     const markup = renderToStaticMarkup(<GradientMapPropertiesPanel {...props(true)} />);
 
     expect(markup).toContain('aria-label="Gradient Map properties"');
-    expect(markup).toContain('<strong>Gradient Map</strong>');
+    expect(markup).toContain('title="Gradient Map"');
   });
 
   it.each(['Grade Layer', 'Local Grade'] as const)('presents the %s ownership context', (gradeTitle) => {
     const markup = renderToStaticMarkup(<GradePanel {...props(true)} gradeTitle={gradeTitle} />);
 
     expect(markup).toContain(`aria-label="${gradeTitle} properties"`);
-    expect(markup).toContain(`<strong>${gradeTitle}</strong>`);
+    expect(markup).toContain(`title="${gradeTitle}"`);
     expect(markup).toContain(`aria-label="Disable ${gradeTitle}"`);
   });
 });

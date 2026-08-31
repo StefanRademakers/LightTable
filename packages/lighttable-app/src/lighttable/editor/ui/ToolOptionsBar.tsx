@@ -1,8 +1,7 @@
-import { SegmentedControl, Button } from '@lighttable/ui';
+import { Checkbox, SegmentedControl, Button } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
-import { navigateFontPicker } from './fontPickerKeyboard';
-import { createPortal } from 'react-dom';
+import { resolveTextToolFont } from '../../application/text/pointTextCreation';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 
@@ -31,9 +30,9 @@ import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
-import { GradientField } from '../../../ui/GradientField';
+import { GradientField } from '@lighttable/ui';
 
-import { FormSelect } from '../../../ui/FormSelect';
+import { Select } from '@lighttable/ui';
 import type { TextPaint } from '@lighttable/text-core';
 import {
   BRUSH_PRESETS,
@@ -176,88 +175,18 @@ const TextFontPicker: React.FC<{
   readonly placeholder?: string;
   readonly onChange: (family: string) => void;
 }> = ({ value, fonts, disabled = false, placeholder, onChange }) => {
-  const anchorRef = React.useRef<HTMLButtonElement>(null);
-  const searchRef = React.useRef<HTMLInputElement>(null);
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const [position, setPosition] = React.useState({ left: 0, top: 0 });
-  const groups = React.useMemo(() => ([
-    ['Bundled', (font: DocumentFontAsset) => font.source === 'bundled'],
-    ['Document', (font: DocumentFontAsset) => font.source !== 'bundled' && font.source !== 'system'],
-    ['System', (font: DocumentFontAsset) => font.source === 'system']
-  ] as const).map(([label, accepts]) => ({
-    label,
-    families: [...new Set(fonts.filter(accepts)
-      .flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
-      .filter((family) => family.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
-  })).filter(({ families }) => families.length > 0), [fonts, query]);
-
-  React.useLayoutEffect(() => {
-    if (!open) return undefined;
-    const update = () => {
-      const bounds = anchorRef.current?.getBoundingClientRect();
-      if (!bounds) return;
-      setPosition({
-        left: Math.max(8, Math.min(bounds.left, window.innerWidth - 252)),
-        top: bounds.bottom + 3
-      });
-    };
-    update();
-    searchRef.current?.focus({ preventScroll: true });
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [open]);
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const close = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (anchorRef.current?.contains(target)
-        || document.querySelector('.lighttable-font-picker__menu')?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [open]);
-
-  return <div className="lighttable-tool-options__field lighttable-tool-options__font-field">
+  const options = React.useMemo(() => (['bundled', 'document', 'system'] as const).flatMap(source => {
+    const group = source === 'bundled' ? 'Bundled' : source === 'system' ? 'System' : 'Document';
+    return [...new Set(fonts.filter(font => source === 'document'
+      ? font.source !== 'bundled' && font.source !== 'system' : font.source === source)
+      .flatMap(font => font.familyNames.slice(0, 1)))].map(family => ({ value: family, label: family, group }));
+  }), [fonts]);
+  return <label className="lighttable-tool-options__field lighttable-tool-options__font-field">
     <span>Font</span>
-    <ButtonBase ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
-      disabled={disabled} aria-haspopup="listbox" aria-expanded={open}
-      title={placeholder ?? value}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={() => { setQuery(''); setOpen((current) => !current); }}>
-      <span>{placeholder ?? value}</span><span aria-hidden="true">▾</span>
-    </ButtonBase>
-    {open ? createPortal(
-      <div className="lighttable-font-picker__menu" style={position}
-        data-editor-native-tab-navigation
-        onPointerDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault(); setOpen(false); anchorRef.current?.focus();
-            return;
-          }
-          navigateFontPicker(event);
-        }}>
-        <input ref={searchRef} type="search" value={query} placeholder="Search fonts"
-          aria-label="Search fonts" onChange={(event) => setQuery(event.currentTarget.value)} />
-        <div className="lighttable-font-picker__options" role="listbox" aria-label="Fonts">
-          {groups.map((group) => <React.Fragment key={group.label}>
-            <div className="lighttable-font-picker__group">{group.label}</div>
-            {group.families.map((family) => <ButtonBase key={`${group.label}:${family}`}
-              type="button" role="option" aria-selected={family === value}
-              className={family === value ? 'lighttable-font-picker__option lighttable-font-picker__option--selected'
-                : 'lighttable-font-picker__option'}
-              onClick={() => { onChange(family); setOpen(false); anchorRef.current?.focus(); }}>
-              {family}
-            </ButtonBase>)}
-          </React.Fragment>)}
-          {groups.length === 0 ? <div className="lighttable-font-picker__empty">No matching fonts</div> : null}
-        </div>
-      </div>, document.body
-    ) : null}
-  </div>;
+    <Select value={value} options={options} disabled={disabled} placeholder={placeholder} aria-label="Font"
+      searchable searchPlaceholder="Search fonts" title={placeholder ?? value}
+      onPointerDown={event => event.stopPropagation()} onValueChange={onChange} />
+  </label>;
 };
 
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {
@@ -370,20 +299,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   const presentedTextFamily = textProperties?.family.kind === 'value'
     ? textProperties.family.value : text.family;
 
-  const releaseCompletedSelect = (event: React.ChangeEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) return;
-
-    // A tool-mode choice is a completed command, not an ongoing text-editing
-    // session. Returning focus immediately keeps document shortcuts such as
-    // the shared brush-size [ / ] bindings available after the choice.
-    target.blur();
-  };
-
   return (
     <div
       className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}
-      onChange={releaseCompletedSelect}
     >
       <div className="lighttable-tool-options__identity">
         <img src={lightTableIcon(activeToolDefinition.iconName)} alt="" aria-hidden="true" />
@@ -457,7 +375,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'transform' ? (
         <label className="lighttable-tool-options__toggle">
-          <input type="checkbox" checked={transformAutoSelectLayer}
+          <Checkbox  checked={transformAutoSelectLayer}
             onChange={(event) => onTransformAutoSelectLayerChange(event.currentTarget.checked)} />
           <span>Auto select layer</span>
         </label>
@@ -488,8 +406,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             label="Sample size"
             value={magicWand.sampleSize}
             aria-label="Magic Wand sample size"
-            onChange={(event) => onMagicWandChange({
-              sampleSize: Number(event.currentTarget.value) as EditorSession['magicWand']['sampleSize']
+            onValueChange={(nextValue) => onMagicWandChange({
+              sampleSize: Number(nextValue) as EditorSession['magicWand']['sampleSize']
             })}
           >
             <option value={1}>Point Sample</option>
@@ -511,17 +429,17 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             })}
           />
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={magicWand.antiAlias}
+            <Checkbox  checked={magicWand.antiAlias}
               onChange={(event) => onMagicWandChange({ antiAlias: event.currentTarget.checked })} />
             Anti-alias
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={magicWand.contiguous}
+            <Checkbox  checked={magicWand.contiguous}
               onChange={(event) => onMagicWandChange({ contiguous: event.currentTarget.checked })} />
             Contiguous
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={magicWand.sampleAllLayers}
+            <Checkbox  checked={magicWand.sampleAllLayers}
               onChange={(event) => onMagicWandChange({ sampleAllLayers: event.currentTarget.checked })} />
             Sample All Layers
           </label>
@@ -545,8 +463,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             label="Mode"
             value={smartSelection.mode}
             aria-label="Object Selection mode"
-            onChange={(event) => onSmartSelectionChange({
-              mode: event.currentTarget.value as EditorSession['smartSelection']['mode']
+            onValueChange={(nextValue) => onSmartSelectionChange({
+              mode: nextValue as EditorSession['smartSelection']['mode']
             })}
           >
             <option value="object-finder">Object Finder</option>
@@ -554,22 +472,22 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="lasso">Lasso</option>
           </ToolOptionSelect>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={smartSelection.sampleAllLayers}
+            <Checkbox  checked={smartSelection.sampleAllLayers}
               onChange={(event) => onSmartSelectionChange({
                 sampleAllLayers: event.currentTarget.checked
               })} />
             Sample All Layers
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={smartSelection.refineEdges}
+            <Checkbox  checked={smartSelection.refineEdges}
               onChange={(event) => onSmartSelectionChange({ refineEdges: event.currentTarget.checked })} />
             Refine edges
           </label>
           {smartSelection.refineEdges ? (
             <ToolOptionSelect label="Quality" value={smartSelection.refinementQuality}
               aria-label="Edge refinement quality"
-              onChange={(event) => onSmartSelectionChange({
-                refinementQuality: event.currentTarget.value as EditorSession['smartSelection']['refinementQuality']
+              onValueChange={(nextValue) => onSmartSelectionChange({
+                refinementQuality: nextValue as EditorSession['smartSelection']['refinementQuality']
               })}>
               <option value="fast">Fast</option>
               <option value="standard">Standard</option>
@@ -595,8 +513,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         <div className="lighttable-tool-options__vector-style" aria-label="Gradient settings">
           <ToolOptionSelect label="Apply" value={gradient.application}
             aria-label="Gradient application"
-            onChange={(event) => onGradientChange({
-              application: event.currentTarget.value as EditorSession['gradient']['application']
+            onValueChange={(nextValue) => onGradientChange({
+              application: nextValue as EditorSession['gradient']['application']
             })}>
             <option value="fill-layer">Fill layer</option>
             <option value="pixels">Pixels</option>
@@ -631,9 +549,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           ) : null}
           <ToolOptionSelect label="Type" value={gradient.paint.shape}
             aria-label="Gradient type"
-            onChange={(event) => onGradientChange({ paint: {
+            onValueChange={(nextValue) => onGradientChange({ paint: {
               ...gradient.paint,
-              shape: event.currentTarget.value as GradientPaintInstance['shape']
+              shape: nextValue as GradientPaintInstance['shape']
             } })}>
             <option value="linear">Linear</option>
             <option value="radial">Radial</option>
@@ -642,7 +560,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="diamond">Diamond</option>
           </ToolOptionSelect>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={gradient.paint.reverse}
+            <Checkbox  checked={gradient.paint.reverse}
               aria-label="Reverse gradient"
               onChange={(event) => onGradientChange({ paint: {
                 ...gradient.paint, reverse: event.currentTarget.checked
@@ -650,7 +568,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <span>Reverse</span>
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={gradient.paint.dither}
+            <Checkbox  checked={gradient.paint.dither}
               aria-label="Dither gradient"
               onChange={(event) => onGradientChange({ paint: {
                 ...gradient.paint, dither: event.currentTarget.checked
@@ -678,16 +596,16 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         <div className="lighttable-tool-options__shape-geometry-options" aria-label="Shape geometry">
           <ToolOptionSelect label="Mode" value={shape.mode}
             aria-label="Shape application mode"
-            onChange={(event) => onShapeChange({
-              mode: event.currentTarget.value as EditorSession['shape']['mode']
+            onValueChange={(nextValue) => onShapeChange({
+              mode: nextValue as EditorSession['shape']['mode']
             })}>
             <option value="shape">Shape</option>
             <option value="pixels">Pixels</option>
           </ToolOptionSelect>
           <ToolOptionSelect label="Geometry" value={presentedShape.geometry}
             aria-label="Shape geometry mode"
-            onChange={(event) => changeShape({
-              geometry: event.currentTarget.value as EditorSession['shape']['geometry']
+            onValueChange={(nextValue) => changeShape({
+              geometry: nextValue as EditorSession['shape']['geometry']
             })}>
             <option value="unrestricted">Unrestricted</option>
             <option value="fixed">Fixed size</option>
@@ -700,19 +618,19 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             value={presentedShape.height}
             onChange={(height) => changeShape({ height: Math.max(0.01, height || 0.01) })} />
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={presentedShape.fromCenter}
+            <Checkbox  checked={presentedShape.fromCenter}
               onChange={(event) => changeShape({ fromCenter: event.currentTarget.checked })} />
             <span>From center</span>
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={presentedShape.snapToPixels}
+            <Checkbox  checked={presentedShape.snapToPixels}
               onChange={(event) => changeShape({ snapToPixels: event.currentTarget.checked })} />
             <span>Snap pixels</span>
           </label>
           {rectangleGeometryActive ? (
             <>
               <label className="lighttable-tool-options__toggle">
-                <input type="checkbox" checked={presentedShape.linkedCorners}
+                <Checkbox  checked={presentedShape.linkedCorners}
                   aria-label="Link rectangle corners"
                   onChange={(event) => changeShape({ linkedCorners: event.currentTarget.checked })} />
                 <span>Link corners</span>
@@ -815,7 +733,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               value={textProperties.writingMode.kind === 'value'
                 ? textProperties.writingMode.value : ''}
               disabled={textProperties.writingMode.kind === 'unavailable'}
-              onChange={(event) => onTextWritingModeChange(event.currentTarget.value as
+              onValueChange={(nextValue) => onTextWritingModeChange(nextValue as
                 'horizontal-tb' | 'vertical-rl' | 'vertical-lr')}>
               <option value="horizontal-tb">Horizontal</option>
               <option value="vertical-rl">Vertical</option>
@@ -841,13 +759,15 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             label="Style"
             value={textProperties?.face.kind === 'mixed' ? ''
               : textProperties?.face.kind === 'unavailable' ? ''
-                : textProperties?.face.kind === 'value' ? textProperties.face.value : text.style}
+                : textProperties?.face.kind === 'value' ? textProperties.face.value : resolveTextToolFont(textFonts, text)?.assetId ?? ''}
             disabled={textProperties?.face.kind === 'unavailable'}
-            onChange={(event) => {
+            onValueChange={(nextValue) => {
               if (!textProperties || !onTextFontAssetChange) {
-                onTextChange({ style: event.currentTarget.value }); return;
+                const font = textFonts.find(entry => entry.assetId === nextValue);
+                if (font) onTextChange({ style: font.styleName });
+                return;
               }
-              onTextFontAssetChange(event.currentTarget.value);
+              onTextFontAssetChange(nextValue);
             }}
           >
             {textProperties?.face.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
@@ -914,9 +834,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <div className="lighttable-tool-options__gradient-options">
                 <ToolOptionSelect label="Style" value={presentedTextGradient.shape}
                   aria-label="Text gradient style"
-                  onChange={(event) => onTextFillPaintChange({
+                  onValueChange={(nextValue) => onTextFillPaintChange({
                     ...presentedTextGradient,
-                    shape: event.currentTarget.value as GradientPaintInstance['shape']
+                    shape: nextValue as GradientPaintInstance['shape']
                   })}>
                   <option value="linear">Linear</option><option value="radial">Radial</option>
                   <option value="angle">Angle</option><option value="reflected">Reflected</option>
@@ -949,9 +869,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>
-            <FormSelect defaultValue={text.antiAlias} disabled aria-label="Text antialias mode">
+            <Select defaultValue={text.antiAlias} disabled aria-label="Text antialias mode">
               <option value="smooth">Smooth</option>
-            </FormSelect>
+            </Select>
           </label>
           <ToolOptionSelect
             label="Align"
@@ -960,8 +880,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               : textProperties ? '' : text.alignment}
             disabled={textProperties?.alignment.kind === 'unavailable'}
             aria-label="Text alignment"
-            onChange={(event) => {
-              const alignment = event.currentTarget.value as TextToolSettings['alignment'];
+            onValueChange={(nextValue) => {
+              const alignment = nextValue as TextToolSettings['alignment'];
               if (textProperties && onTextAlignmentChange) onTextAlignmentChange(alignment);
               else onTextChange({ alignment });
             }}
@@ -987,8 +907,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 label="Sample"
                 value={sampledBrush.sampleMode}
                 aria-label="Sample layers"
-                onChange={(event) => onSampledBrushChange({
-                  sampleMode: event.currentTarget.value as EditorSession['sampledBrush']['sampleMode']
+                onValueChange={(nextValue) => onSampledBrushChange({
+                  sampleMode: nextValue as EditorSession['sampledBrush']['sampleMode']
                 })}
               >
                 <option value="current">Current Layer</option>
@@ -996,7 +916,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 <option value="all">All Layers</option>
               </ToolOptionSelect>
               <label className="lighttable-tool-options__toggle">
-                <input type="checkbox" checked={sampledBrush.aligned}
+                <Checkbox  checked={sampledBrush.aligned}
                   onChange={(event) => onSampledBrushChange({ aligned: event.currentTarget.checked })} />
                 <span>Aligned</span>
               </label>
@@ -1021,8 +941,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                   label="Mode"
                   value={toneBrush.spongeMode}
                   aria-label="Sponge mode"
-                  onChange={(event) => onToneBrushChange({
-                    spongeMode: event.currentTarget.value as EditorSession['toneBrush']['spongeMode']
+                  onValueChange={(nextValue) => onToneBrushChange({
+                    spongeMode: nextValue as EditorSession['toneBrush']['spongeMode']
                   })}
                 >
                   <option value="desaturate">Desaturate</option>
@@ -1033,8 +953,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                   label="Range"
                   value={toneBrush.range}
                   aria-label="Tone range"
-                  onChange={(event) => onToneBrushChange({
-                    range: event.currentTarget.value as EditorSession['toneBrush']['range']
+                  onValueChange={(nextValue) => onToneBrushChange({
+                    range: nextValue as EditorSession['toneBrush']['range']
                   })}
                 >
                   <option value="shadows">Shadows</option>
@@ -1056,8 +976,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                   ? { spongeFlow: value / 100 } : { exposure: value / 100 })}
               />
               <label className="lighttable-tool-options__toggle">
-                <input
-                  type="checkbox"
+                <Checkbox
+
                   checked={activeTool === 'sponge' ? toneBrush.vibrance : toneBrush.protectTones}
                   onChange={(event) => onToneBrushChange(activeTool === 'sponge'
                     ? { vibrance: event.currentTarget.checked }
@@ -1071,8 +991,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             label="Preset"
             value={brush.presetId}
             aria-label="Brush preset"
-            onChange={(event) => onBrushChange(
-              brushPresetChange(event.currentTarget.value as BrushPresetId)
+            onValueChange={(nextValue) => onBrushChange(
+              brushPresetChange(nextValue as BrushPresetId)
             )}
           >
             <optgroup label="Basic">

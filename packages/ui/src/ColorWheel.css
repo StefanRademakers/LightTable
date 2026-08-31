@@ -1,0 +1,123 @@
+.ui-color-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  font-family: var(--ui-font-family);
+}
+
+.ui-color-wheel[data-disabled='true'] {
+  opacity: 0.48;
+}
+
+.ui-color-wheel__label {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: var(--ui-text);
+  font-size: var(--ui-font-size-small);
+  cursor: default;
+  user-select: none;
+}
+
+.ui-color-wheel__label strong {
+  font-weight: var(--ui-font-weight-bold);
+}
+
+.ui-color-wheel__label span {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-size-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ui-color-wheel__disc {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(249, 249, 249, 0.98) 0%,
+      rgba(249, 249, 249, 0.78) 18%,
+      rgba(249, 249, 249, 0.34) 43%,
+      rgba(249, 249, 249, 0) 72%
+    ),
+    conic-gradient(
+      from 0deg,
+      #d8ff22 0deg,
+      #ffb21c 45deg,
+      #ff4538 90deg,
+      #ff2c91 135deg,
+      #ca2cff 180deg,
+      #4148ff 225deg,
+      #14d5e6 270deg,
+      #23e66e 315deg,
+      #d8ff22 360deg
+    );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 1px 4px rgba(0, 0, 0, 0.38);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.ui-color-wheel__guide {
+  position: absolute;
+  inset: 27.5%;
+  border: 2px solid rgba(22, 25, 30, 0.74);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--ui-border);
+  pointer-events: none;
+}
+
+.ui-color-wheel__hue-marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ui-color-wheel__disc:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
+
+.ui-color-wheel[data-disabled='true'] .ui-color-wheel__disc {
+  cursor: default;
+}
+
+.ui-color-wheel[data-compact='true'] .ui-color-wheel__disc {
+  width: 94px;
+  height: 94px;
+}
+
+.ui-color-wheel[data-compact='true'] .ui-color-wheel__label {
+  display: block;
+  min-height: 31px;
+  text-align: center;
+}
+
+.ui-color-wheel[data-compact='true'] .ui-color-wheel__label span {
+  display: block;
+  margin-top: 2px;
+}
+
+.ui-color-wheel__handle {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: rgba(244, 245, 247, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}

@@ -283,9 +283,6 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       'temporary-pan-start',
       { documentKinds: ['image', 'video'] }
     ),
-    command('tool.temporary-erase', { key: '`', primary: false, alt: false, shift: false }, 'temporary-erase-start', {
-      when: (context) => context.activeTool === 'brush'
-    }),
     command('fill.foreground', { key: 'delete', primary: false, alt: true, shift: false }, 'fill-foreground'),
     command('fill.background', { key: 'delete', primary: true, alt: false, shift: false }, 'fill-background'),
     command('fill.foreground-preserve', { key: 'delete', primary: false, alt: true, shift: true }, 'fill-foreground-preserve'),

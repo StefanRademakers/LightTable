@@ -1,15 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { FormSelect } from './FormSelect';
+import { Select } from '@lighttable/ui';
 
-describe('FormSelect', () => {
+describe('Select', () => {
   it('owns the canonical dropdown class and runtime identity', () => {
     const markup = renderToStaticMarkup(
-      <FormSelect aria-label="Mode" className="feature-select" defaultValue="normal">
+      <Select aria-label="Mode" className="feature-select" defaultValue="normal">
         <option value="normal">Normal</option>
-      </FormSelect>
+      </Select>
     );
-    expect(markup).toContain('class="form-input feature-select"');
+    expect(markup).toContain('class="ui-select feature-select"');
     expect(markup).toContain('data-suite-control="form-select"');
   });
 });
