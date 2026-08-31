@@ -1,7 +1,7 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { PanelStackDisclosure, PanelStackFooter, PanelStackRow } from './PanelStackPrimitives';
-import { Menu, type MenuOption } from '@lighttable/ui';
+import { MaskIcon, Menu, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../ui/FormSelect';
@@ -1709,12 +1709,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 value: option.id, label: option.menuLabel,
                 ariaLabel: option.label, title: option.label,
                 separatorBefore: option.sectionStart,
-                icon: <img src={lightTableIcon(option.iconName)} alt="" />,
+                icon: <MaskIcon src={lightTableIcon(option.iconName)} mode="luminance" />,
                 onClick: layerCreationHandlers(option.id),
                 trailingAction: {
                   value: `attach-${option.id}`,
                   label: `Attach ${option.menuLabel} to selected layer`,
-                  icon: <img src={lightTableIcon('link_vertical.png')} alt="" />,
+                  icon: <MaskIcon src={lightTableIcon('link_vertical.png')} mode="luminance" />,
                   disabled: activeLayer?.type !== 'raster' || activeLayer.locks.all,
                   onClick: () => {
                         if (activeLayer?.type !== 'raster') return;

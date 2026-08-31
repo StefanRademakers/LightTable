@@ -46,6 +46,7 @@
 .ui-menu__action { flex: 0 0 24px; justify-content: center; padding: 0; }
 .ui-menu__icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex: 0 0 16px; }
 .ui-menu__icon > * { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ui-menu__icon > .ui-mask-icon { width: 100%; height: 100%; }
 .ui-menu__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ui-menu__label small { display: block; color: var(--ui-text-muted); font-size: var(--ui-font-size-small); line-height: var(--ui-line-height-small); }
 .ui-menu__item:has(small) { height: auto; min-height: 42px; padding-block: 5px; }

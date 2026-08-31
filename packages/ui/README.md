@@ -56,6 +56,8 @@ CSS mask tinted with `currentColor`. Use it instead of an image element for
 white tool artwork: light/dark, selected and disabled states then inherit the
 control's existing colors. It is decorative; the owning control supplies the
 accessible label and icon dimensions. Full-color artwork remains an image.
+For light monochrome artwork containing opaque dark details or gray gradients,
+`mode="luminance"` preserves that shading instead of flattening it into a silhouette.
 
 Run `npm run dev:ui` to view all six styles, muted text and HTML semantics.
 
