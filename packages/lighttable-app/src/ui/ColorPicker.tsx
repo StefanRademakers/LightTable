@@ -1,6 +1,5 @@
 import React from 'react';
-import { ColorPicker as SharedColorPicker, MaskIcon, type ColorPickerProps as SharedColorPickerProps } from '@lighttable/ui';
-import { lightTableIcon } from '../assets/icons';
+import { ColorPicker as SharedColorPicker, type ColorPickerProps as SharedColorPickerProps } from '@lighttable/ui';
 import { sampleScreenColor } from './colorSampling';
 import { useDocumentPaletteLoader, useDocumentPaletteRevision, type DocumentPaletteColor } from './DocumentPaletteContext';
 
@@ -82,7 +81,6 @@ export function ColorPicker(props: ColorPickerProps) {
 
   return <SharedColorPicker {...props}
     onSample={sampleScreenColor}
-    sampleIcon={<MaskIcon src={lightTableIcon('tool_sample_color.png')} />}
     documentColors={loadDocumentPalette ? imagePalette?.map(color => ({
       color: color.hex, title: `${color.hex} · ${Math.round(color.coverage * 100)}%`
     })) ?? [] : undefined}

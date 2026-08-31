@@ -3,6 +3,8 @@ import { Slider, SliderField } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { TextInput } from './TextInput';
 import { IconButton } from './IconButton';
+import { MaskIcon } from './MaskIcon';
+import { pipetteIconUrl } from './icons';
 import { ColorArea } from './ColorArea';
 import { ColorSwatches, type ColorSwatch } from './ColorSwatches';
 import { colorPickerHex, colorPickerParseHex, colorPickerHsvFromValue, colorPickerHsvToRgb,
@@ -25,11 +27,7 @@ export interface ColorPickerProps {
   sampleIcon?: React.ReactNode;
 }
 const byte = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255);
-const defaultSampler = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-  <path d="m10 9-7 7v3l-1 2 2-1h3l7-7" />
-  <path d="m9 6 2 2 6-6a2.8 2.8 0 0 1 4 4l-6 6 2 2-2 2-8-8Z" fill="currentColor" />
-</svg>;
+const defaultSampler = <MaskIcon src={pipetteIconUrl} />;
 
 /** Complete color editor; contains no app services, storage or document work. */
 export function ColorPicker({ value, onChange, opacity, onOpacityChange, variant = 'popover',

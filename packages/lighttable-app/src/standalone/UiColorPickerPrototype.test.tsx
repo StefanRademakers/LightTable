@@ -28,7 +28,7 @@ describe('UI color picker prototype', () => {
     expect(markup).toContain('aria-label="Saturation and brightness"');
     expect(markup).toContain('aria-label="Hue"');
     expect(markup).toContain('aria-label="Sample color from screen"');
-    expect(markup).toContain('tool_sample_color');
+    expect(markup).toContain('pipette.png');
     expect(markup).toContain('data-ui-component="icon-button"');
     expect(markup.match(/data-ui-component="text-input"/g)).toHaveLength(4);
     expect(markup).toContain('value="#007ACC"');

@@ -1,5 +1,6 @@
 export { Text, type TextProps, type TextVariant, type TextWeight, type TextTone } from './Text';
 export { MaskIcon } from './MaskIcon';
+export { pipetteIconUrl } from './icons';
 export { TextInput, type TextInputProps } from './TextInput';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { ColorArea, type ColorAreaProps, type ColorAreaValue } from './ColorArea';
