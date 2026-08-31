@@ -25,8 +25,10 @@ export interface ColorPickerProps {
   sampleIcon?: React.ReactNode;
 }
 const byte = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255);
-const defaultSampler = <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
-  <path d="m9 3 4 4M8 4 2 10v4h4l6-6M10 2l1-1 4 4-1 1" />
+const defaultSampler = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <path d="m10 9-7 7v3l-1 2 2-1h3l7-7" />
+  <path d="m9 6 2 2 6-6a2.8 2.8 0 0 1 4 4l-6 6 2 2-2 2-8-8Z" fill="currentColor" />
 </svg>;
 
 /** Complete color editor; contains no app services, storage or document work. */
