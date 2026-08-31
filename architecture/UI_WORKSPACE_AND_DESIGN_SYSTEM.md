@@ -340,12 +340,21 @@ writes screenshots plus JSON evidence under `tmp/panel-language-audit/`.
 
 ## Interaction contract
 
+The shared `@lighttable/ui` package owns `Slider`, `SliderField`, `RangeSlider`
+and `GradientEditor` styling and interaction scheduling. `AdjustmentSlider`
+is now a thin app adapter for existing domain tracks/layout choices, and the
+gradient adapter only supplies the app color picker and asset metadata. Levels
+keeps gamma math in its panel and delegates handle interaction to `RangeSlider`.
+Do not add slider skins to app CSS. The standalone UI demo documents each variant.
+
 - Menus, dropdowns and panels return shortcuts to the editor unless a text
   field intentionally owns them.
 - Tool property bars and pointer-local quick settings bind to the same command
   and settings model.
-- Continuous UI gestures publish at most once per animation frame and commit
-  one history entry.
+- Continuous UI gestures update their local handle/readout immediately and commit
+  one history entry. Preview scheduling remains consumer-specific: ordinary
+  sliders approximately 30 Hz, Lens FX 60 Hz, Levels animation frames and video
+  direct input. Release flushes any pending preview before closing the transaction.
 - Disabled controls stay spatially stable and explain unavailable semantics.
 - Layer rows use fixed layout slots for thumbnails/status icons; thumbnails
   preserve aspect ratio inside a bounded box.

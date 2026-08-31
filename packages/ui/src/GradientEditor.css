@@ -1,0 +1,28 @@
+.ui-gradient-editor { display: grid; gap: 8px; min-width: 0; color: var(--ui-text); font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family); user-select: none; }
+.ui-gradient-editor__opacity-control { margin-top: 12px; }
+.ui-gradient-editor__track { position: relative; height: 68px; margin-inline: 7px; }
+.ui-gradient-editor__preview { position: absolute; z-index: 2; inset: 17px 0 auto; height: 34px; border: 1px solid var(--ui-border); border-radius: 2px; background-image: var(--ui-gradient-ramp), conic-gradient(var(--ui-checker-dark) 25%, var(--ui-checker-light) 0 50%, var(--ui-checker-dark) 0 75%, var(--ui-checker-light) 0); background-size: auto, 8px 8px; }
+.ui-gradient-editor button { appearance: none; box-sizing: border-box; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; }
+.ui-gradient-editor button:focus-visible { outline: 1px solid var(--ui-accent); outline-offset: 1px; }
+.ui-gradient-editor__hit-region { position: absolute; z-index: 1; inset-inline: 0; height: 17px; cursor: crosshair; }
+.ui-gradient-editor__hit-region--opacity { top: 0; }
+.ui-gradient-editor__hit-region--color { bottom: 0; }
+.ui-gradient-editor__stop { position: absolute; z-index: 3; width: 12px; height: 17px; transform: translateX(-50%); cursor: grab; touch-action: none; }
+.ui-gradient-editor__stop:active { cursor: grabbing; }
+.ui-gradient-editor__stop::before, .ui-gradient-editor__stop::after { position: absolute; content: ''; pointer-events: none; }
+.ui-gradient-editor__stop::before { inset: 0; clip-path: polygon(50% 0, 100% 34%, 100% 100%, 0 100%, 0 34%); background: var(--ui-text-muted); }
+.ui-gradient-editor__stop::after { inset: auto 1px 1px; height: 9px; border: 1px solid var(--ui-border); background: var(--gradient-stop-color, var(--ui-text)); }
+.ui-gradient-editor__stop--opacity { top: -17px; transform: translateX(-50%) rotate(180deg); }
+.ui-gradient-editor__stop--color { bottom: -17px; }
+.ui-gradient-editor__stop--active::before { background: var(--ui-accent); }
+.ui-gradient-editor__midpoint { position: absolute; z-index: 2; width: 16px; height: 14px; transform: translateX(-50%); cursor: ew-resize; touch-action: none; }
+.ui-gradient-editor__midpoint::before { position: absolute; left: 3px; content: ''; border-inline: 5px solid transparent; }
+.ui-gradient-editor__midpoint--opacity { top: -15px; }
+.ui-gradient-editor__midpoint--opacity::before { top: 3px; border-top: 7px solid var(--ui-text-muted); }
+.ui-gradient-editor__midpoint--color { bottom: -15px; }
+.ui-gradient-editor__midpoint--color::before { bottom: 3px; border-bottom: 7px solid var(--ui-text-muted); }
+.ui-gradient-editor__midpoint:hover::before { border-top-color: var(--ui-accent); border-bottom-color: var(--ui-accent); }
+.ui-gradient-editor__color-control { padding-block: 2px; }
+.ui-gradient-editor__color-field { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: inherit; }
+.ui-gradient-editor__color-field input { width: 46px; height: 28px; padding: 2px; border: 1px solid var(--ui-button-border); border-radius: 6px; background: var(--ui-button-surface); }
+.ui-gradient-editor__hint { font-size: var(--ui-font-size-small); line-height: var(--ui-line-height-small); color: var(--ui-text-muted); }

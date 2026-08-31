@@ -45,3 +45,4 @@ body { margin: 0; }
   .demo-nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 16px 24px; border-right: 0; border-bottom: 1px solid var(--ui-border); }
   .demo-content { padding: 24px; }
 }
+.demo-slider-examples { display: grid; gap: 16px; max-width: 360px; margin-block: 16px; }

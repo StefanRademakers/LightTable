@@ -1,5 +1,10 @@
 export { Text, type TextProps, type TextVariant, type TextWeight, type TextTone } from './Text';
 export { MaskIcon } from './MaskIcon';
+export { Slider, SliderField, type SliderProps, type SliderFieldProps } from './Slider';
+export { RangeSlider, type RangeSliderProps } from './RangeSlider';
+export { GradientEditor, type GradientEditorProps, type GradientColorFieldProps, type GradientValue, type GradientColor, type GradientColorStop, type GradientOpacityStop } from './GradientEditor';
+export { gradientStopPosition, gradientMidpointPosition, gradientMidpointValue, removableGradientStops, gradientPreview } from './gradientUtils';
+export { sliderValueAtPosition } from './useSliderInteraction';
 export { Button, type ButtonProps } from './Button';
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl';
 export { Menu, type MenuProps, type MenuOption } from './Menu';

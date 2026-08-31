@@ -5,6 +5,7 @@ import '@lighttable/ui/styles.css';
 import { Button, SegmentedControl, Text, type TextVariant } from '@lighttable/ui';
 import './demo.css';
 import { MenusDemo } from './MenusDemo';
+import { SlidersDemo } from './SlidersDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -12,7 +13,7 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'small', label: 'Small', usage: 'Metadata and compact notes' }
 ];
 
-const currentPage = () => location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
+const currentPage = () => location.hash === '#sliders' ? 'sliders' : location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
 
 const controlColors = [
   ['button-surface', 'Control background'], ['button-text', 'Control text'],
@@ -20,7 +21,9 @@ const controlColors = [
   ['button-active', 'Pressed'], ['button-disabled-text', 'Disabled text'],
   ['button-disabled-border', 'Disabled border'], ['danger-text', 'Destructive text'],
   ['danger-border', 'Destructive border'], ['selection-surface', 'Selected segment'],
-  ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border'], ['success', 'Connected status']
+  ['selection-text', 'Selected text'], ['accent', 'Focus / toggle border'], ['success', 'Connected status'],
+  ['slider-track', 'Slider track'], ['slider-fill', 'Slider fill'], ['slider-thumb', 'Slider handle'],
+  ['checker-dark', 'Transparency dark'], ['checker-light', 'Transparency light']
 ] as const;
 
 function App() {
@@ -50,10 +53,11 @@ function App() {
       <a href="#colors" aria-current={page === 'colors' ? 'page' : undefined}><Text>Colors</Text></a>
       <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text weight="bold">Buttons &amp; Actions</Text></a>
       <a href="#menus" aria-current={page === 'menus' ? 'page' : undefined}><Text weight="bold">Menus &amp; navigation</Text></a>
+      <a href="#sliders" aria-current={page === 'sliders' ? 'page' : undefined}><Text weight="bold">Sliders &amp; gradients</Text></a>
       <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
     </nav>
     <main className="demo-content">
-      {page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
+      {page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>
@@ -114,7 +118,7 @@ function App() {
           </div>
         </section>
         <section className="demo-section" aria-labelledby="control-colors-title">
-          <Text as="h2" variant="large" weight="bold" id="control-colors-title">Buttons &amp; segments</Text>
+          <Text as="h2" variant="large" weight="bold" id="control-colors-title">Controls</Text>
           <div className="demo-colors">{controlColors.map(([token, label]) => <article className="demo-color" key={token}>
             <div className="demo-color-swatch" style={{ background: `var(--ui-${token})` }} aria-hidden="true" />
             <Text weight="bold">{label}</Text>

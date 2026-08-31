@@ -6,17 +6,13 @@ import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
 import { PanelSelectField } from '../../../ui/PanelControls';
-import { adjustmentSliderValueAtPosition } from '../../../ui/AdjustmentSlider';
+import { RangeSlider } from '@lighttable/ui';
 
 type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
 type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
-const LEVELS_EDIT_KEYS = new Set([
-  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-  'PageUp', 'PageDown', 'Home', 'End'
-]);
 
 export const levelsGammaPosition = ([black, gamma, white]: Readonly<LevelsInput>) =>
   black + (white - black) * Math.pow(0.5, gamma);
@@ -43,212 +39,33 @@ export interface LevelsTrackProps {
   readonly onInteractionEnd: () => void;
 }
 
-const LevelsHandle: React.FC<{
-  readonly value: number;
-  readonly minimum: number;
-  readonly maximum: number;
-  readonly step: number;
-  readonly disabled: boolean;
-  readonly ariaLabel: string;
-  readonly className: string;
-  readonly onChange: (value: number) => void;
-  readonly onInteractionStart: () => void;
-  readonly onInteractionEnd: () => void;
-}> = ({
-  value, minimum, maximum, step, disabled, ariaLabel, className,
-  onChange, onInteractionStart, onInteractionEnd
-}) => {
-  const pointerRef = React.useRef<number | null>(null);
-  const frameRef = React.useRef<number | null>(null);
-  const latestRef = React.useRef(value);
-  const publishedRef = React.useRef(value);
-  const [displayValue, setDisplayValue] = React.useState(value);
-
-  const publish = React.useCallback((force = false) => {
-    if (frameRef.current !== null) {
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-    }
-    if (!force && latestRef.current === publishedRef.current) return;
-    publishedRef.current = latestRef.current;
-    onChange(latestRef.current);
-  }, [onChange]);
-  const updateFromPointer = (input: HTMLInputElement, clientX: number) => {
-    const bounds = input.getBoundingClientRect();
-    const next = clamp(adjustmentSliderValueAtPosition(
-      clientX, bounds.left, bounds.width, 0, 255, step
-    ), minimum, maximum);
-    latestRef.current = next;
-    setDisplayValue(next);
-    if (frameRef.current === null) {
-      frameRef.current = requestAnimationFrame(() => {
-        frameRef.current = null;
-        publish();
-      });
-    }
-  };
-  const finish = (pointerId: number) => {
-    if (pointerRef.current !== pointerId) return;
-    pointerRef.current = null;
-    publish(true);
-    onInteractionEnd();
-  };
-
-  React.useEffect(() => {
-    if (pointerRef.current !== null) return;
-    latestRef.current = value;
-    publishedRef.current = value;
-    setDisplayValue(value);
-  }, [value]);
-  React.useEffect(() => () => {
-    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-  }, []);
-
-  return <input
-    className={className}
-    type="range"
-    min={0}
-    max={255}
-    step={step}
-    value={displayValue}
-    disabled={disabled}
-    aria-label={ariaLabel}
-    onPointerDown={(event) => {
-      if (event.button !== 0 || !event.isPrimary || pointerRef.current !== null) return;
-      event.preventDefault();
-      pointerRef.current = event.pointerId;
-      onInteractionStart();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      updateFromPointer(event.currentTarget, event.clientX);
-    }}
-    onPointerMove={(event) => {
-      if (pointerRef.current === event.pointerId) {
-        updateFromPointer(event.currentTarget, event.clientX);
-      }
-    }}
-    onPointerUp={(event) => {
-      if (pointerRef.current !== event.pointerId) return;
-      updateFromPointer(event.currentTarget, event.clientX);
-      finish(event.pointerId);
-    }}
-    onPointerCancel={(event) => finish(event.pointerId)}
-    onLostPointerCapture={(event) => finish(event.pointerId)}
-    onKeyDown={(event) => {
-      if (!LEVELS_EDIT_KEYS.has(event.key) || event.repeat) return;
-      onInteractionStart();
-    }}
-    onKeyUp={(event) => {
-      if (LEVELS_EDIT_KEYS.has(event.key)) onInteractionEnd();
-    }}
-    onBlur={onInteractionEnd}
-    onChange={(event) => {
-      if (pointerRef.current !== null) return;
-      const next = Number(event.currentTarget.value);
-      latestRef.current = next;
-      publishedRef.current = next;
-      setDisplayValue(next);
-      onChange(next);
-    }}
-    onDragStart={(event) => event.preventDefault()}
-  />;
-};
-
 export const LevelsTrack = ({
-  label,
-  values,
-  ariaLabels,
-  formatters,
-  showValues = true,
-  background,
-  disabled,
-  onChange,
-  onInteractionStart,
-  onInteractionEnd
-}: LevelsTrackProps) => {
-  const interactionRef = React.useRef(false);
-  const previewValuesRef = React.useRef<readonly number[]>(values);
-  const [previewValues, setPreviewValues] = React.useState<readonly number[]>(values);
-
-  React.useEffect(() => {
-    if (interactionRef.current) return;
-    previewValuesRef.current = values;
-    setPreviewValues(values);
-  }, [values]);
-
-  const beginInteraction = () => {
-    if (interactionRef.current) return;
-    interactionRef.current = true;
-    previewValuesRef.current = values;
-    setPreviewValues(values);
-    onInteractionStart();
-  };
-  const finishInteraction = () => {
-    if (!interactionRef.current) return;
-    interactionRef.current = false;
-    onInteractionEnd();
-  };
-  const changeHandle = (index: number, value: number) => {
-    const current = previewValuesRef.current;
-    const next = [...current];
-    if (next.length === 3 && index !== 1) {
-      const gamma = levelsGammaFromPosition(current[1]!, current[0]!, current[2]!);
-      next[index] = value;
-      next[1] = levelsGammaPosition([next[0]!, gamma, next[2]!]);
-    } else next[index] = value;
-    previewValuesRef.current = next;
-    setPreviewValues(next);
-    onChange(index, value);
-  };
-
-  return <div className={`lighttable-levels__range lighttable-levels__range--${values.length}`}>
-    <span className="lighttable-levels__range-label">{label}</span>
-    <div className="lighttable-levels__track">
-      <span
-        className="lighttable-levels__track-axis"
-        style={{ ['--lighttable-slider-track' as string]: background }}
-        aria-hidden="true"
-      />
-      {previewValues.map((value, index) => {
-        const minimum = index === 0 ? 0 : previewValues[index - 1] ?? 0;
-        const maximum = index === previewValues.length - 1 ? 255 : previewValues[index + 1] ?? 255;
-        const endpointGap = previewValues.length === 3 && index !== 1 ? 1 : 0;
-        return <LevelsHandle
-          key={ariaLabels[index]}
-          className={`lighttable-levels__handle lighttable-levels__handle--${index}`}
-          minimum={minimum + (index > 0 ? endpointGap : 0)}
-          maximum={maximum - (index < values.length - 1 ? endpointGap : 0)}
-          step={index === 1 && previewValues.length === 3 ? 0.1 : 1}
-          value={value}
-          disabled={disabled}
-          ariaLabel={ariaLabels[index]}
-          onInteractionStart={beginInteraction}
-          onInteractionEnd={finishInteraction}
-          onChange={(next) => changeHandle(index, next)}
-        />;
-      })}
-    </div>
-    {showValues ? <div className="lighttable-levels__values">
-      {previewValues.map((value, index) => (
-        <NumericExpressionInput
-          key={ariaLabels[index]}
-          aria-label={`${ariaLabels[index]} value`}
-          value={value}
-          min={index === 1 && previewValues.length === 3 ? 0.1 : 0}
-          max={index === 1 && previewValues.length === 3 ? 9.99 : 255}
-          step={index === 1 && previewValues.length === 3 ? 0.01 : 1}
-          kind={index === 1 && previewValues.length === 3 ? 'float' : 'integer'}
-          formatValue={formatters?.[index]}
-          disabled={disabled}
-          onValueChange={(next) => {
-            beginInteraction();
-            onChange(index, next);
-            finishInteraction();
-          }}
-        />
-      ))}
-    </div> : null}
-  </div>;
-};
+  label, values, ariaLabels, formatters, showValues = true, background, disabled,
+  onChange, onInteractionStart, onInteractionEnd
+}: LevelsTrackProps) => <RangeSlider label={label} values={values} labels={ariaLabels}
+  min={0} max={255} step={values.length === 3 ? [1, 0.1, 1] : 1}
+  disabled={disabled} trackBackground={background}
+  onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+  onChange={(next, index) => onChange(index, next[index]!)}
+  getBounds={(index, current) => {
+    // Gamma follows the endpoints; it must never constrain their travel.
+    if (current.length === 3) return index === 0
+      ? { min: 0, max: current[2]! - 1 }
+      : index === 2 ? { min: current[0]! + 1, max: 255 }
+      : { min: current[0]!, max: current[2]! };
+    return { min: index === 0 ? 0 : current[index - 1]!, max: index === current.length - 1 ? 255 : current[index + 1]! };
+  }}
+  resolveValues={(next, index, previous) => {
+    if (next.length !== 3 || index === 1) return next;
+    const gamma = levelsGammaFromPosition(previous[1]!, previous[0]!, previous[2]!);
+    return [next[0]!, levelsGammaPosition([next[0]!, gamma, next[2]!]), next[2]!];
+  }}
+  renderValues={showValues ? current => current.map((value, index) =>
+    <NumericExpressionInput key={ariaLabels[index]} aria-label={`${ariaLabels[index]} value`}
+      value={value} min={0} max={255} step={1} kind="integer" formatValue={formatters?.[index]}
+      disabled={disabled} onValueChange={next => {
+        onInteractionStart(); onChange(index, next); onInteractionEnd();
+      }} />) : undefined} />;
 
 export const LevelsPropertiesPanel = ({
   model,

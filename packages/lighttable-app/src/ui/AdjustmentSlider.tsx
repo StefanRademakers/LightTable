@@ -1,4 +1,5 @@
 import React from 'react';
+import { Slider, SliderField, sliderValueAtPosition, type SliderProps } from '@lighttable/ui';
 
 export type AdjustmentSliderTrack =
   | 'luminance'
@@ -31,300 +32,26 @@ const TRACK_BACKGROUNDS: Record<AdjustmentSliderTrack, string> = {
   'white-black': 'linear-gradient(to right, #f2f4f6 0%, #777c82 50%, #1b1d20 100%)'
 };
 
-export interface AdjustmentSliderProps {
-  label: string;
-  ariaLabel?: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  format?: (value: number) => string;
-  resetValue?: number;
+/** App-only labels, units, track presets and placement; interaction and skin live in the package. */
+export interface AdjustmentSliderProps extends Omit<SliderProps, 'onReset'> {
   track?: AdjustmentSliderTrack;
-  trackBackground?: string;
   layout?: 'stacked' | 'inline' | 'bare' | 'layer-row' | 'tool-bar' | 'tool-panel';
   density?: 'default' | 'spaced' | 'compact';
-  showResetMarker?: boolean;
-  disabled?: boolean;
-  /** Use browser-native pointer input for cheap, continuously seekable targets. */
   interactionMode?: 'managed' | 'native';
-  /** Maximum publication cadence for expensive consumers; the thumb remains pointer-rate. */
-  publishIntervalMs?: number;
-  resetModifierActive?: boolean;
-  onChange: (value: number) => void;
   onReset: () => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
 }
-
-const RANGE_EDIT_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);
-// Keep the native control responsive on lower-power GPUs. The thumb and label
-// update locally at pointer speed, while expensive React/WebGPU work is
-// coalesced to an interactive preview rate. The final value is always flushed.
-const INTERACTION_PUBLISH_INTERVAL_MS = 33;
-
-export const adjustmentSliderValueAtPosition = (
-  clientX: number,
-  left: number,
-  width: number,
-  min: number,
-  max: number,
-  step: number
-) => {
-  const ratio = width > 0 ? Math.min(1, Math.max(0, (clientX - left) / width)) : 0;
-  const raw = min + ratio * (max - min);
-  const increment = Number.isFinite(step) && step > 0 ? step : 1;
-  const snapped = min + Math.round((raw - min) / increment) * increment;
-  return Math.min(max, Math.max(min, Number(snapped.toFixed(10))));
-};
-
-export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
-  label,
-  ariaLabel,
-  value,
-  min,
-  max,
-  step = 1,
-  format = (current) => String(Math.round(current)),
-  resetValue = 0,
-  track,
-  trackBackground: customTrackBackground,
-  layout = 'stacked',
-  density = 'default',
-  showResetMarker = true,
-  disabled = false,
-  interactionMode = 'managed',
-  publishIntervalMs = INTERACTION_PUBLISH_INTERVAL_MS,
-  resetModifierActive = false,
-  onChange,
-  onReset,
-  onInteractionStart,
-  onInteractionEnd
-}) => {
-  const activePointerRef = React.useRef<number | null>(null);
-  const keyboardInteractionRef = React.useRef(false);
-  const [displayValue, setDisplayValue] = React.useState(value);
-  const latestValueRef = React.useRef(value);
-  const publishedValueRef = React.useRef(value);
-  const lastPublishTimeRef = React.useRef(0);
-  const publishTimerRef = React.useRef<number | null>(null);
-  const onChangeRef = React.useRef(onChange);
-  const onInteractionStartRef = React.useRef(onInteractionStart);
-  const onInteractionEndRef = React.useRef(onInteractionEnd);
-  const publishIntervalRef = React.useRef(publishIntervalMs);
-  onChangeRef.current = onChange;
-  onInteractionStartRef.current = onInteractionStart;
-  onInteractionEndRef.current = onInteractionEnd;
-  publishIntervalRef.current = Math.max(0, publishIntervalMs);
-
-  const cancelScheduledPublish = React.useCallback(() => {
-    if (publishTimerRef.current === null) return;
-    window.clearTimeout(publishTimerRef.current);
-    publishTimerRef.current = null;
-  }, []);
-
-  const publishLatestValue = React.useCallback((force = false) => {
-    if (!force && latestValueRef.current === publishedValueRef.current) return;
-    cancelScheduledPublish();
-    const next = latestValueRef.current;
-    publishedValueRef.current = next;
-    lastPublishTimeRef.current = performance.now();
-    onChangeRef.current(next);
-  }, [cancelScheduledPublish]);
-
-  const scheduleValuePublish = React.useCallback(() => {
-    const elapsed = performance.now() - lastPublishTimeRef.current;
-    const interval = publishIntervalRef.current;
-    if (elapsed >= interval) {
-      publishLatestValue();
-      return;
-    }
-    if (publishTimerRef.current !== null) return;
-    publishTimerRef.current = window.setTimeout(() => {
-      publishTimerRef.current = null;
-      publishLatestValue();
-    }, interval - elapsed);
-  }, [publishLatestValue]);
-
-  const finishPointerInteraction = React.useCallback((pointerId: number) => {
-    if (activePointerRef.current !== pointerId) return;
-    activePointerRef.current = null;
-    publishLatestValue(true);
-    onInteractionEndRef.current?.();
-  }, [publishLatestValue]);
-
-  const updateFromPointer = React.useCallback((input: HTMLInputElement, clientX: number) => {
-    const bounds = input.getBoundingClientRect();
-    const next = adjustmentSliderValueAtPosition(
-      clientX,
-      bounds.left,
-      bounds.width,
-      min,
-      max,
-      step
-    );
-    latestValueRef.current = next;
-    setDisplayValue(next);
-    scheduleValuePublish();
-  }, [max, min, scheduleValuePublish, step]);
-
-  React.useEffect(() => {
-    if (activePointerRef.current !== null || keyboardInteractionRef.current) return;
-    latestValueRef.current = value;
-    publishedValueRef.current = value;
-    setDisplayValue(value);
-  }, [value]);
-
-  React.useEffect(() => () => {
-      cancelScheduledPublish();
-  }, [cancelScheduledPublish]);
-
-  const percentage = ((displayValue - min) / (max - min)) * 100;
-  const neutral = Math.min(100, Math.max(0, ((resetValue - min) / (max - min)) * 100));
-  const trackBackground = customTrackBackground ?? (track
-    ? TRACK_BACKGROUNDS[track]
-    : `linear-gradient(to right, var(--lt-range-track-fill) 0%, var(--lt-range-track-fill) ${percentage}%, var(--lt-range-track) ${percentage}%, var(--lt-range-track) 100%)`);
-  return (
-    <label className={`lighttable-adjustment lighttable-adjustment--${layout} lighttable-adjustment--density-${density}${disabled ? ' lighttable-adjustment--disabled' : ''}`}
-      data-suite-control="adjustment-slider" data-suite-variant={`${layout}:${density}`}>
-      {layout !== 'bare' ? <span
-        className="lighttable-adjustment__header"
-        title={resetModifierActive ? `Reset ${label}` : label}
-        onPointerDown={(event) => {
-          // Pointer-down makes modifier-reset deterministic even when the
-          // browser synthesizes a later label click without modifier flags.
-          if (event.button === 0 && !disabled && (event.shiftKey || resetModifierActive)) {
-            event.preventDefault();
-            event.stopPropagation();
-            onReset();
-          }
-        }}
-        onClick={(event) => {
-          if (!disabled && (event.shiftKey || resetModifierActive)) {
-            event.preventDefault();
-            event.stopPropagation();
-            onReset();
-          }
-        }}
-        onDoubleClick={(event) => {
-          if (!disabled) {
-            event.preventDefault();
-            onReset();
-          }
-        }}
-      >
-        <span>{label}</span>
-        <output>{format(displayValue)}</output>
-      </span> : null}
-      <span className="lighttable-adjustment__track-wrap">
-        <span
-          className="lighttable-adjustment__track-axis"
-          style={{ ['--lighttable-slider-track' as string]: trackBackground }}
-          aria-hidden="true"
-        >
-          {showResetMarker ? (
-            <span className="lighttable-adjustment__neutral" style={{ left: `${neutral}%` }} />
-          ) : null}
-        </span>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={displayValue}
-          disabled={disabled}
-          onPointerDown={(event) => {
-            if (
-              event.button !== 0
-              || !event.isPrimary
-              || activePointerRef.current !== null
-            ) return;
-            if (interactionMode === 'native') {
-              activePointerRef.current = event.pointerId;
-              onInteractionStartRef.current?.();
-              return;
-            }
-            // Pointer editing is explicit so native range dragging, React's
-            // controlled value and pointer capture have only one writer.
-            event.preventDefault();
-            event.currentTarget.focus({ preventScroll: true });
-            activePointerRef.current = event.pointerId;
-            onInteractionStartRef.current?.();
-            event.currentTarget.setPointerCapture(event.pointerId);
-            updateFromPointer(event.currentTarget, event.clientX);
-          }}
-          onPointerMove={(event) => {
-            if (interactionMode === 'managed' && activePointerRef.current === event.pointerId) {
-              updateFromPointer(event.currentTarget, event.clientX);
-            }
-          }}
-          onPointerUp={(event) => {
-            if (activePointerRef.current !== event.pointerId) return;
-            if (interactionMode === 'native') {
-              activePointerRef.current = null;
-              onInteractionEndRef.current?.();
-              return;
-            }
-            updateFromPointer(event.currentTarget, event.clientX);
-            finishPointerInteraction(event.pointerId);
-          }}
-          onPointerCancel={(event) => {
-            if (interactionMode === 'native' && activePointerRef.current === event.pointerId) {
-              activePointerRef.current = null;
-              onInteractionEndRef.current?.();
-            } else finishPointerInteraction(event.pointerId);
-          }}
-          onLostPointerCapture={(event) => {
-            if (interactionMode === 'managed') finishPointerInteraction(event.pointerId);
-          }}
-          onKeyDown={(event) => {
-            if (RANGE_EDIT_KEYS.has(event.key) && !keyboardInteractionRef.current) {
-              keyboardInteractionRef.current = true;
-              onInteractionStartRef.current?.();
-            }
-          }}
-          onKeyUp={(event) => {
-            if (RANGE_EDIT_KEYS.has(event.key) && keyboardInteractionRef.current) {
-              keyboardInteractionRef.current = false;
-              publishLatestValue(true);
-              onInteractionEndRef.current?.();
-            }
-          }}
-          onBlur={() => {
-            if (keyboardInteractionRef.current) {
-              keyboardInteractionRef.current = false;
-              publishLatestValue(true);
-              onInteractionEndRef.current?.();
-            }
-          }}
-          onDragStart={(event) => event.preventDefault()}
-          // React still uses `onChange` to classify a controlled range as
-          // editable. Continuous native range updates arrive through input;
-          // Chromium/WebKit may defer change until pointer-up.
-          onChange={() => undefined}
-          onInput={(event) => {
-            // Pointer values come from updateFromPointer. Native input remains
-            // available for keyboard and assistive-technology edits.
-            const next = Number(event.currentTarget.value);
-            latestValueRef.current = next;
-            setDisplayValue(next);
-            if (interactionMode === 'native') {
-              publishedValueRef.current = next;
-              onChangeRef.current(next);
-              return;
-            }
-            if (activePointerRef.current !== null) return;
-            if (keyboardInteractionRef.current) {
-              scheduleValuePublish();
-            } else {
-              onInteractionStartRef.current?.();
-              publishLatestValue(true);
-              onInteractionEndRef.current?.();
-            }
-          }}
-          aria-label={ariaLabel ?? label}
-        />
-      </span>
-    </label>
-  );
+export const adjustmentSliderValueAtPosition = sliderValueAtPosition;
+export const AdjustmentSlider = ({
+  track, trackBackground, layout = 'stacked', density = 'default', interactionMode = 'managed',
+  publishIntervalMs, format = current => String(Math.round(current)), resetValue = 0, ...props
+}: AdjustmentSliderProps) => {
+  const common = { ...props, format, resetValue,
+    trackBackground: trackBackground ?? (track ? TRACK_BACKGROUNDS[track] : undefined),
+    publishIntervalMs: publishIntervalMs ?? (interactionMode === 'native' ? 0 : 33)
+  };
+  if (layout === 'bare') return <Slider {...common} />;
+  const control = <SliderField {...common}
+    layout={layout === 'inline' || layout === 'layer-row' ? 'inline' : 'stacked'}
+    size={layout === 'layer-row' || layout === 'tool-bar' || density === 'compact' ? 'small' : 'regular'} />;
+  return layout === 'tool-bar' ? <div style={{ width: 148, flexShrink: 0 }}>{control}</div> : control;
 };

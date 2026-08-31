@@ -210,9 +210,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 113,
+      "productionUsageCount": 107,
       "internalUsageCount": 0,
-      "contextCount": 38,
+      "contextCount": 37,
       "overrideCount": 0,
       "locations": [
         {
@@ -342,11 +342,6 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 6,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/LayerStyleGradientEditor.tsx",
           "count": 6,
           "kind": "product"
         },
@@ -892,7 +887,7 @@
       "id": "adjustment-slider",
       "metadataDeclared": true,
       "productionUsageCount": 46,
-      "internalUsageCount": 5,
+      "internalUsageCount": 7,
       "contextCount": 14,
       "overrideCount": 0,
       "locations": [
@@ -967,6 +962,11 @@
           "kind": "product"
         },
         {
+          "path": "ui/AdjustmentSlider.tsx",
+          "count": 2,
+          "kind": "internal"
+        },
+        {
           "path": "ui/ColorPicker.tsx",
           "count": 3,
           "kind": "internal"
@@ -985,18 +985,60 @@
       "overrides": []
     },
     {
-      "id": "opacity-slider",
+      "id": "range-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
-      "internalUsageCount": 1,
+      "productionUsageCount": 3,
+      "internalUsageCount": 0,
       "contextCount": 1,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
+          "count": 3,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "gradient-editor",
+      "metadataDeclared": true,
+      "productionUsageCount": 5,
+      "internalUsageCount": 0,
+      "contextCount": 4,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/panels/GradientMapPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/ui/LayerStyleGradientEditor.tsx",
           "count": 1,
           "kind": "product"
         },
+        {
+          "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/VectorStyleToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "opacity-slider",
+      "metadataDeclared": true,
+      "productionUsageCount": 0,
+      "internalUsageCount": 1,
+      "contextCount": 0,
+      "overrideCount": 0,
+      "locations": [
         {
           "path": "ui/ColorPicker.tsx",
           "count": 1,
@@ -1300,14 +1342,9 @@
     {
       "id": "range",
       "label": "Raw range inputs",
-      "count": 1,
-      "fileCount": 1,
-      "locations": [
-        {
-          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
-          "count": 1
-        }
-      ]
+      "count": 0,
+      "fileCount": 0,
+      "locations": []
     },
     {
       "id": "number",
@@ -1338,17 +1375,17 @@
   "deepestSelectors": [
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview\r\n  > .dv-tabs-and-actions-container\r\n  .dv-tabs-container\r\n  > .dv-tab.dv-active-tab",
+      "selector": ".lighttable-dock-workspace\n  .dv-groupview\n  > .dv-tabs-and-actions-container\n  .dv-tabs-container\n  > .dv-tab.dv-active-tab",
       "depth": 5
     },
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview\r\n  > .dv-tabs-and-actions-container\r\n  .dv-tabs-container\r\n  > .dv-tab.dv-inactive-tab",
+      "selector": ".lighttable-dock-workspace\n  .dv-groupview\n  > .dv-tabs-and-actions-container\n  .dv-tabs-container\n  > .dv-tab.dv-inactive-tab",
       "depth": 5
     },
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview:has(.lighttable-document-host)\r\n  :is(\r\n    .dv-drop-target-selection.dv-drop-target-center",
+      "selector": ".lighttable-dock-workspace\n  .dv-groupview:has(.lighttable-document-host)\n  :is(\n    .dv-drop-target-selection.dv-drop-target-center",
       "depth": 4
     },
     {

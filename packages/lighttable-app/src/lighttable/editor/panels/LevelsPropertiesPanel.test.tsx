@@ -55,7 +55,7 @@ describe('LevelsPropertiesPanel', () => {
     expect(markup).toContain('aria-label="RGB histogram"');
     expect(markup).toContain('Input Levels');
     expect(markup).toContain('Output Levels');
-    expect(markup.match(/type="range"/g)).toHaveLength(5);
+    expect(markup.match(/role="slider"/g)).toHaveLength(5);
     expect(markup).not.toContain('Black input</span>');
   });
 

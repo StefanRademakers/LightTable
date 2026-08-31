@@ -32,8 +32,8 @@ describe('ColorPicker opacity', () => {
     );
     expect(markup).toContain('aria-label="Color opacity"');
     expect(markup).not.toContain('aria-label="Color opacity percentage"');
-    expect(markup).toContain('lighttable-adjustment--inline');
-    expect(markup).toContain('<output>45%</output>');
+    expect(markup).toContain('data-layout="inline"');
+    expect(markup).toContain('>45%</output>');
     expect(markup).toContain('type="range"');
     expect(markup).toContain('value="45"');
   });

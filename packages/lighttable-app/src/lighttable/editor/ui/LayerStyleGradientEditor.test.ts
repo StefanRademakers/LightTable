@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { gradientPreview, type GradientValue } from '@lighttable/ui';
 import {
   GradientAssetEditor,
   gradientMidpointPosition,
@@ -10,6 +11,25 @@ import {
 } from './LayerStyleGradientEditor';
 
 describe('GradientAssetEditor stop interactions', () => {
+  it('previews midpoint/opacity interpolation and extends the last authored stop', () => {
+    const gradient: GradientValue = {
+      colorStops: [
+        { id: 'a', position: 0.2, midpoint: 0.25, color: { r: 0, g: 0, b: 0, a: 1 } },
+        { id: 'b', position: 0.8, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+      ],
+      opacityStops: [
+        { id: 'oa', position: 0, midpoint: 0.5, opacity: 0 },
+        { id: 'ob', position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    };
+    const authored = structuredClone(gradient);
+    const ramp = gradientPreview(gradient);
+    expect(ramp).toContain('rgba(0, 0, 0, 0) 0%');
+    expect(ramp).toContain('rgba(180, 180, 180, 0.5) 50%');
+    expect(ramp).toContain('rgba(255, 255, 255, 1) 100%');
+    expect(gradient).toEqual(authored);
+  });
+
   it('maps pointer positions to a clamped gradient location', () => {
     expect(gradientStopPosition(150, 100, 200)).toBe(0.25);
     expect(gradientStopPosition(50, 100, 200)).toBe(0);
@@ -44,9 +64,9 @@ describe('GradientAssetEditor stop interactions', () => {
       roughness: 0, seed: 0
     }, onChange: vi.fn() }));
     expect(markup).toContain('class="lighttable-style-field"');
-    expect(markup).toContain('class="opacity-slider"');
+    expect(markup).toContain('data-ui-component="slider-field"');
     expect(markup).toContain('aria-label="Gradient stop opacity"');
-    expect(markup).toContain('lighttable-adjustment--inline');
+    expect(markup).toContain('data-layout="inline"');
     expect(markup).not.toContain('Gradient stop opacity percentage');
     expect(markup).toContain('aria-label="Add opacity stop"');
     expect(markup).toContain('aria-label="Add color stop"');

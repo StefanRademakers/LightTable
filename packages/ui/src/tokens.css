@@ -11,6 +11,10 @@
   --ui-line-height-large: 1.428571;
   --ui-selection-surface: #28569b;
   --ui-selection-text: #ffffff;
+  --ui-slider-thumb-size: 18px;
+  --ui-slider-track-height: 14px;
+  --ui-checker-dark: #8b8f92;
+  --ui-checker-light: #c5c8ca;
 }
 
 /* A document-root scope supplies tokens only; it must not resize rem units
@@ -42,6 +46,9 @@
   --ui-danger-text: #ff8f97;
   --ui-danger-border: #754a4f;
   --ui-success: #49c86b;
+  --ui-slider-track: #414346;
+  --ui-slider-fill: #62666b;
+  --ui-slider-thumb: #96999d;
 }
 
 [data-ui-theme='light'] {
@@ -61,6 +68,9 @@
   --ui-danger-text: #b42332;
   --ui-danger-border: #c88d94;
   --ui-success: #19743a;
+  --ui-slider-track: var(--ui-button-active);
+  --ui-slider-fill: var(--ui-button-border);
+  --ui-slider-thumb: var(--ui-surface-panel);
 }
 
 [data-ui-theme='dark']:not(:root) { color-scheme: dark; }

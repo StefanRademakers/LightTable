@@ -1,4 +1,4 @@
-# Shared UI — typography, buttons and segments
+# Shared UI
 
 Clean library for the suite, independent of LightTable editor code. The current
 LightTable consumes these segments throughout the app and uses Button for its
@@ -103,3 +103,47 @@ Options may supply an app-owned `icon` and `ariaLabel`; icon-only options requir
 an accessible name. Only an icon adds one non-interactive slot span. The package
 owns its 14 px size and spacing. Labels still have no wrapper. There are no
 app-specific segment variants or option-level CSS classes.
+
+## Sliders and gradient editing
+
+`Slider` is only the track/handle. `SliderField` composes that same control with
+its label and formatted value, using `layout="stacked"` (default) or `"inline"`
+and `size="regular"` or `"small"`. Typography, geometry and dark/light colors are
+package-owned. Apps supply domain ranges, formatting and optional track gradients,
+not replacement CSS. Double-click or Shift-click the label/value resets to
+`resetValue`; an optional `onReset` can delegate a domain-specific reset.
+
+```tsx
+<SliderField label="Exposure" value={exposure} min={-5} max={5} step={0.01}
+  resetValue={0} format={v => `${v.toFixed(2)} EV`}
+  onChange={previewExposure} onInteractionStart={beginAdjustment}
+  onInteractionEnd={endAdjustment} />
+```
+
+All three controls separate immediate local feedback from app preview updates.
+`onInteractionStart` opens one transaction; `onChange` publishes previews;
+`onInteractionEnd` runs once after the final value has been flushed. The app owns
+history/commands. Pointer release/cancel, keyboard release and unmount close the
+transaction and cancel scheduled work. `publishIntervalMs` accepts a numeric
+interval (33 ms by default for scalar/gradient), `0` for direct input, or
+`"animation-frame"` (RangeSlider default). LightTable keeps Lens FX at 60 Hz,
+Levels on animation frames and video controls on direct input.
+
+`RangeSlider` accepts `values`, accessible handle `labels`, min/max and step.
+By default handles cannot cross. `getBounds` and `resolveValues` supply constraints
+and coupling without putting Levels gamma or other domain math in the library.
+`renderValues` optionally composes numeric fields or readouts below the track.
+Pointer and Arrow/Page/Home/End keyboard input use the same constraints.
+
+`GradientEditor` accepts color/opacity stops with stable IDs, position and midpoint.
+Add by clicking above/below the ramp; drag stops/midpoints; remove via right-click
+or Delete. At least two stops remain per track, with eight maximum by default.
+Arrow keys move a focused stop/midpoint. The preview includes midpoint and opacity
+interpolation; authored data is never rasterized. `renderColorField` accepts a
+host color picker; the default is a native color field. LightTable's adapter keeps
+asset metadata and supplies its existing picker. Rendering/document math remains
+outside the package. These controls default to `tabIndex={-1}` like other app
+controls; dialogs can opt into tab order.
+
+The **Sliders & gradients** demo includes bare, stacked, compact inline, transparent,
+two-/three-handle and gradient examples, with live preview/commit counters.
