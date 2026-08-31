@@ -45,7 +45,7 @@ try {
       '.lighttable-adjustment--bare', '.lighttable-adjustment--layer-row',
       '.lighttable-adjustment--tool-bar', '.lighttable-adjustment--tool-panel',
       '.opacity-slider', '.lighttable-levels__track'],
-    'Paint & color': ['.color-swatch-field', '.lighttable-color-picker-prototype',
+    'Paint & color': ['.color-swatch-field', '.ui-color-picker',
       '.gradient-field', '.none-paint-field'],
     Gradients: ['.gradient-field--regular', '.gradient-field--compact', '.lighttable-style-gradient'],
     'Lists & navigation': ['.context-menu--specimen', '.lighttable-ui-guide__split-menu',

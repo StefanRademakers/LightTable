@@ -1,0 +1,7 @@
+.ui-color-swatches { display: grid; grid-template-columns: repeat(auto-fill, 28px); gap: 6px; min-width: 0; align-content: start; }
+.ui-color-swatches__swatch {
+  box-sizing: border-box; appearance: none; display: block; width: 28px; height: 28px; min-width: 0;
+  margin: 0; padding: 0; border: 1px solid var(--ui-button-border); border-radius: 2px; cursor: pointer;
+}
+.ui-color-swatches__swatch:hover { border-color: var(--ui-accent); }
+.ui-color-swatches__swatch:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }

@@ -1,5 +1,12 @@
 export { Text, type TextProps, type TextVariant, type TextWeight, type TextTone } from './Text';
 export { MaskIcon } from './MaskIcon';
+export { TextInput, type TextInputProps } from './TextInput';
+export { IconButton, type IconButtonProps } from './IconButton';
+export { ColorArea, type ColorAreaProps, type ColorAreaValue } from './ColorArea';
+export { ColorSwatches, type ColorSwatchesProps, type ColorSwatch } from './ColorSwatches';
+export { ColorPicker, type ColorPickerProps } from './ColorPicker';
+export { colorPickerHex, colorPickerParseHex, colorPickerRgbToHsv, colorPickerHsvToRgb,
+  colorPickerRgbToHsl, colorPickerHslToRgb, colorPickerHsvFromValue, type ColorPickerColor } from './colorUtils';
 export { Slider, SliderField, type SliderProps, type SliderFieldProps } from './Slider';
 export { RangeSlider, type RangeSliderProps } from './RangeSlider';
 export { GradientEditor, type GradientEditorProps, type GradientColorFieldProps, type GradientValue, type GradientColor, type GradientColorStop, type GradientOpacityStop } from './GradientEditor';

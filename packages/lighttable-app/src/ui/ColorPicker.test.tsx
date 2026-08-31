@@ -19,6 +19,9 @@ describe('ColorPicker opacity', () => {
     expect(markup).not.toContain('aria-label="Color opacity"');
     expect(markup).not.toContain('aria-label="Color opacity percentage"');
     expect(markup).toContain('aria-label="Hue"');
+    expect(markup).toContain('data-ui-component="color-area"');
+    expect(markup.match(/data-ui-component="text-input"/g)).toHaveLength(4);
+    expect(markup).not.toContain('Recent Colors');
     expect(markup).toContain('aria-label="Saturation"');
     expect(markup).toContain('aria-label="Luminosity"');
     expect(markup).not.toContain('>Hue<');

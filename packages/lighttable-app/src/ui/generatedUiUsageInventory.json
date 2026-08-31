@@ -407,7 +407,7 @@
       "id": "square-icon-button",
       "metadataDeclared": true,
       "productionUsageCount": 7,
-      "internalUsageCount": 2,
+      "internalUsageCount": 0,
       "contextCount": 3,
       "overrideCount": 0,
       "locations": [
@@ -425,11 +425,6 @@
           "path": "standalone/VideoControlsPanel.tsx",
           "count": 1,
           "kind": "product"
-        },
-        {
-          "path": "ui/ColorPicker.tsx",
-          "count": 2,
-          "kind": "internal"
         }
       ],
       "overrides": []
@@ -438,7 +433,7 @@
       "id": "form-input",
       "metadataDeclared": true,
       "productionUsageCount": 16,
-      "internalUsageCount": 4,
+      "internalUsageCount": 2,
       "contextCount": 6,
       "overrideCount": 1,
       "locations": [
@@ -471,11 +466,6 @@
           "path": "standalone/PreferencesDialog.tsx",
           "count": 4,
           "kind": "product"
-        },
-        {
-          "path": "ui/ColorPicker.tsx",
-          "count": 2,
-          "kind": "internal"
         },
         {
           "path": "ui/NumericExpressionInput.tsx",
@@ -887,7 +877,7 @@
       "id": "adjustment-slider",
       "metadataDeclared": true,
       "productionUsageCount": 46,
-      "internalUsageCount": 7,
+      "internalUsageCount": 4,
       "contextCount": 14,
       "overrideCount": 0,
       "locations": [
@@ -967,11 +957,6 @@
           "kind": "internal"
         },
         {
-          "path": "ui/ColorPicker.tsx",
-          "count": 3,
-          "kind": "internal"
-        },
-        {
           "path": "ui/OpacitySlider.tsx",
           "count": 1,
           "kind": "internal"
@@ -1035,16 +1020,10 @@
       "id": "opacity-slider",
       "metadataDeclared": true,
       "productionUsageCount": 0,
-      "internalUsageCount": 1,
+      "internalUsageCount": 0,
       "contextCount": 0,
       "overrideCount": 0,
-      "locations": [
-        {
-          "path": "ui/ColorPicker.tsx",
-          "count": 1,
-          "kind": "internal"
-        }
-      ],
+      "locations": [],
       "overrides": []
     },
     {
@@ -1096,7 +1075,7 @@
       "productionUsageCount": 2,
       "internalUsageCount": 1,
       "contextCount": 2,
-      "overrideCount": 1,
+      "overrideCount": 0,
       "locations": [
         {
           "path": "lighttable/composition/workspace/createEditorWorkspacePanels.tsx",
@@ -1114,14 +1093,7 @@
           "kind": "internal"
         }
       ],
-      "overrides": [
-        {
-          "path": "lighttable/lighttable.css",
-          "roots": [
-            "lighttable-color-picker-prototype"
-          ]
-        }
-      ]
+      "overrides": []
     },
     {
       "id": "none-paint",

@@ -347,6 +347,12 @@ gradient adapter only supplies the app color picker and asset metadata. Levels
 keeps gamma math in its panel and delegates handle interaction to `RangeSlider`.
 Do not add slider skins to app CSS. The standalone UI demo documents each variant.
 
+The color picker also lives in `@lighttable/ui`, composing exported `ColorArea`,
+`ColorSwatches`, `TextInput` and `IconButton` with the existing sliders and segments.
+The app adapter retains deferred document-palette analysis, user-palette persistence
+and OS sampling. Recent Colors is removed. Popup/panel geometry is an explicit
+package variant, not an app stylesheet override; the suite demo catalogs both.
+
 - Menus, dropdowns and panels return shortcuts to the editor unless a text
   field intentionally owns them.
 - Tool property bars and pointer-local quick settings bind to the same command

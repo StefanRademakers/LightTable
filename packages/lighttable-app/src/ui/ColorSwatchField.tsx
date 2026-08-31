@@ -111,10 +111,14 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
     const pointer = (event: PointerEvent) => {
       const target = event.target as Node;
       if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      // A picker's context menu is portalled outside the popover. Let its action
+      // finish instead of unmounting it during the capture phase.
+      if (target instanceof Element && target.closest('[data-ui-menu-owner]')) return;
       close(true);
     };
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (event.target instanceof Element && event.target.closest('[data-ui-menu-owner]')) return;
       event.preventDefault();
       close(false);
     };

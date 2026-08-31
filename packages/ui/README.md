@@ -149,3 +149,35 @@ controls; dialogs can opt into tab order.
 
 The **Sliders & gradients** demo includes bare, stacked, compact inline, transparent,
 two-/three-handle and gradient examples, with live preview/commit counters.
+
+## Color controls
+
+`ColorPicker` composes `ColorArea`, `Slider`/`SliderField`, `TextInput`, `IconButton`,
+`SegmentedControl` and `ColorSwatches`. Each building block is exported separately.
+The **Color picker** demo shows the blocks and the complete popover/panel in both themes.
+
+```tsx
+<ColorPicker value={color} onChange={setColor}
+  documentColors={documentColors} palette={palette} onPaletteChange={setPalette}
+  onSample={sampleScreenColor} />
+```
+
+RGB and alpha use normalized 0–1 values. Optional `opacity`/`onOpacityChange`
+represent paint opacity separately. The package owns color conversions and keeps
+hue when RGB is achromatic. The optional `onSample` host capability returns a hex
+color or null; `sampleIcon` accepts app-owned artwork. No OS API, document analysis,
+storage or recent-color tracking lives in the library. Missing collection props
+hide those collections; `documentColorsStatus` supplies a loading/error message.
+Palette changes are controlled callbacks, including add and right-click Remove.
+
+Default `variant="popover"` has 320px outer width, limited by available space.
+`variant="panel"` fills its width without an outer border; the host owns remaining
+panel space. Both keep content at the top with 8px padding/gaps, 4px between sliders,
+a 1.55:1 color plane, 28px fields/buttons, and fixed 28px swatches with 6px gaps.
+Wider grids add columns instead of stretching swatches. Theme colors reuse existing
+tokens; only actual color ramps/contrast markers use literal colors.
+
+`ColorArea` has immediate marker feedback, bounded previews and interaction-end
+callbacks through the existing slider scheduler, including cleanup on unmount.
+`TextInput` and `IconButton` are single native elements with default `tabIndex=-1`;
+fields support explicit text alignment. No app CSS is needed to skin these controls.

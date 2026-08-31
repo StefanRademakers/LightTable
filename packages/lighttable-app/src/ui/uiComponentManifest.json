@@ -18,7 +18,7 @@
   { "id": "gradient-editor", "name": "Gradient Editor", "family": "Gradients", "symbols": ["GradientEditor", "GradientAssetEditor"], "roots": ["ui-gradient-editor"], "packageStatus": "ready" },
   { "id": "opacity-slider", "name": "Opacity Slider", "family": "Sliders", "symbols": ["OpacitySlider"], "roots": ["opacity-slider"], "packageStatus": "ready" },
   { "id": "color-swatch", "name": "Color Swatch Field", "family": "Paint & color", "symbols": ["ColorSwatchField"], "roots": ["color-swatch-field"], "packageStatus": "coupled" },
-  { "id": "color-picker", "name": "Color Picker", "family": "Paint & color", "symbols": ["ColorPicker"], "roots": ["lighttable-color-picker-prototype"], "packageStatus": "coupled" },
+  { "id": "color-picker", "name": "Color Picker", "family": "Paint & color", "symbols": ["ColorPicker"], "roots": ["ui-color-picker"], "packageStatus": "ready" },
   { "id": "none-paint", "name": "None Paint Field", "family": "Paint & color", "symbols": ["NonePaintField"], "roots": ["none-paint-field"], "packageStatus": "ready" },
   { "id": "gradient-field", "name": "Gradient Field", "family": "Gradients", "symbols": ["GradientField"], "roots": ["gradient-field"], "packageStatus": "ready" },
   { "id": "panel-section", "name": "Panel Section", "family": "Containers", "symbols": ["PanelSection"], "roots": ["lighttable-group"], "packageStatus": "coupled" },

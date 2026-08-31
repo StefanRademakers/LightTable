@@ -8,3 +8,8 @@
 @import './Toolbar.css';
 @import './Slider.css';
 @import './GradientEditor.css';
+@import './TextInput.css';
+@import './IconButton.css';
+@import './ColorArea.css';
+@import './ColorSwatches.css';
+@import './ColorPicker.css';

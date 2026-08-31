@@ -46,3 +46,4 @@ body { margin: 0; }
   .demo-content { padding: 24px; }
 }
 .demo-slider-examples { display: grid; gap: 16px; max-width: 360px; margin-block: 16px; }
+.demo-color-panel { width: 420px; max-width: 100%; min-width: 220px; resize: horizontal; overflow: auto; }

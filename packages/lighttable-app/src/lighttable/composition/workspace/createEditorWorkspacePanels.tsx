@@ -194,6 +194,7 @@ export const createEditorWorkspacePanels = ({
     aiHistory: <ProjectAssetBrowser {...aiHistory} />,
     color: <aside className="lighttable-color-panel" aria-label="Color">
       <ColorPicker
+        variant="panel"
         value={colorPickerParseHex(color.value) ?? { r: 0, g: 0, b: 0, a: 1 }}
         onChange={(value) => color.onChange(colorPickerHex(value).toLowerCase())}
       />

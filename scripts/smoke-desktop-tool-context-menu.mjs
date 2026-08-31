@@ -166,7 +166,7 @@ try {
   await page.screenshot({ path: gradientEditorScreenshotPath });
   await recordPaintField('gradient', '.gradient-field');
   await paintTypes.getByRole('radio', { name: 'Color' }).click();
-  const picker = paintDropdown.locator('.lighttable-color-picker-prototype');
+  const picker = paintDropdown.locator('.ui-color-picker');
   await picker.waitFor({ state: 'visible' });
   if (paintFieldDimensions.some(({ width, height }) => width !== 72 || height !== 28)) {
     throw new Error(`Paint field states differ: ${JSON.stringify(paintFieldDimensions)}`);

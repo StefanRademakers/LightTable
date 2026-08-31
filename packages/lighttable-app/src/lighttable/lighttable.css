@@ -4310,21 +4310,13 @@
 .lighttable-tool-options__paint-types {
   margin-top: 12px;
 }
-.lighttable-tool-options__paint-types + .lighttable-color-picker-prototype,
 
 .lighttable-color-panel {
   width: 100%;
   height: 100%;
   overflow: auto;
   box-sizing: border-box;
-  background: var(--color-card);
-}
-.lighttable-color-panel .lighttable-color-picker-prototype {
-  width: 100%;
-  max-width: none;
-  box-sizing: border-box;
-  border: 0;
-  border-radius: 0;
+  background: var(--ui-surface-panel);
 }
 
 .lighttable-style-editor__empty {

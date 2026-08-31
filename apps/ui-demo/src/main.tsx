@@ -6,6 +6,7 @@ import { Button, SegmentedControl, Text, type TextVariant } from '@lighttable/ui
 import './demo.css';
 import { MenusDemo } from './MenusDemo';
 import { SlidersDemo } from './SlidersDemo';
+import { ColorPickerDemo } from './ColorPickerDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -13,7 +14,7 @@ const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'small', label: 'Small', usage: 'Metadata and compact notes' }
 ];
 
-const currentPage = () => location.hash === '#sliders' ? 'sliders' : location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
+const currentPage = () => location.hash === '#color-picker' ? 'color-picker' : location.hash === '#sliders' ? 'sliders' : location.hash === '#menus' ? 'menus' : location.hash === '#buttons' ? 'buttons' : location.hash === '#colors' ? 'colors' : 'typography';
 
 const controlColors = [
   ['button-surface', 'Control background'], ['button-text', 'Control text'],
@@ -54,10 +55,11 @@ function App() {
       <a href="#buttons" aria-current={page === 'buttons' ? 'page' : undefined}><Text weight="bold">Buttons &amp; Actions</Text></a>
       <a href="#menus" aria-current={page === 'menus' ? 'page' : undefined}><Text weight="bold">Menus &amp; navigation</Text></a>
       <a href="#sliders" aria-current={page === 'sliders' ? 'page' : undefined}><Text weight="bold">Sliders &amp; gradients</Text></a>
+      <a href="#color-picker" aria-current={page === 'color-picker' ? 'page' : undefined}><Text weight="bold">Color picker</Text></a>
       <Text as="p" variant="small" tone="muted">Built one component at a time.</Text>
     </nav>
     <main className="demo-content">
-      {page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
+      {page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>
