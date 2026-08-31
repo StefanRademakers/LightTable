@@ -29,13 +29,14 @@ describe('ColorPicker opacity', () => {
     expect(markup).not.toContain('>Luminosity<');
   });
 
-  it('uses the canonical inline slider without a duplicate percentage field', () => {
+  it('uses the full-width stacked slider without a duplicate percentage field', () => {
     const markup = renderToStaticMarkup(
       <ColorPicker value={color} onChange={vi.fn()} opacity={0.45} onOpacityChange={vi.fn()} />
     );
     expect(markup).toContain('aria-label="Color opacity"');
     expect(markup).not.toContain('aria-label="Color opacity percentage"');
-    expect(markup).toContain('data-layout="inline"');
+    expect(markup).not.toContain('data-layout="inline"');
+    expect(markup).toContain('data-layout="stacked"');
     expect(markup).toContain('>45%</output>');
     expect(markup).toContain('type="range"');
     expect(markup).toContain('value="45"');

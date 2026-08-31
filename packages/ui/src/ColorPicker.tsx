@@ -96,7 +96,7 @@ export function ColorPicker({ value, onChange, opacity, onOpacityChange, variant
         onReset={() => commitHsl({ ...hsl, l: 0.5 })} />
     </div>
     {opacity !== undefined && onOpacityChange ? (
-      <SliderField label="Opacity" ariaLabel="Color opacity" layout="inline"
+      <SliderField label="Opacity" ariaLabel="Color opacity" layout="stacked"
         value={opacity * 100} min={0} max={100} resetValue={100}
         format={current => `${Math.round(current)}%`} transparency
         trackBackground={`linear-gradient(to right, transparent, rgb(${byte(value.r)} ${byte(value.g)} ${byte(value.b)}))`}
