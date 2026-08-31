@@ -27,7 +27,7 @@ body,
   padding-right: 138px;
 }
 
-.lighttable-windows-titlebar .lighttable__app-menu .shots-app-menu__button,
+.lighttable-windows-titlebar .lighttable__app-menu [data-ui-component='menu-bar'],
 .lighttable-windows-titlebar .lighttable__project-name {
   -webkit-app-region: no-drag;
 }
