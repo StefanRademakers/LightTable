@@ -6,9 +6,10 @@
   font: var(--ui-font-weight-normal) var(--ui-font-size-small)/var(--ui-line-height-small) var(--ui-font-family);
 }
 .ui-document-tabs__strip {
-  display: flex; align-items: stretch; min-width: 0; flex: 1; height: 100%;
+  display: flex; align-items: stretch; min-width: 0; flex: 0 1 auto; height: 100%;
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior: contain;
 }
+.ui-document-tabs[data-overflow] .ui-document-tabs__strip { flex: 1 1 auto; }
 .ui-document-tabs__strip::-webkit-scrollbar { display: none; }
 .ui-document-tabs > .ui-document-tabs__overview-button,
 .ui-document-tabs > .ui-document-tabs__more-button {
@@ -16,7 +17,7 @@
   border: 0; border-radius: 0;
   background: var(--ui-button-hover); color: var(--ui-text-muted);
 }
-.ui-document-tabs > .ui-document-tabs__overview-button { border-right: 1px solid var(--ui-border); }
+.ui-document-tabs > .ui-document-tabs__overview-button { border-left: 1px solid var(--ui-border); }
 .ui-document-tabs > .ui-document-tabs__more-button { border-left: 1px solid var(--ui-border); }
 .ui-document-tabs__tab {
   box-sizing: border-box; min-width: var(--ui-document-tab-min-width); max-width: 280px;

@@ -310,17 +310,17 @@ describe('editor keymap', () => {
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 'ArrowLeft', code: 'ArrowLeft' }),
       context({ activeTool: 'select-rectangle', hasSelection: true })
-    )).toEqual({ type: 'nudge', x: -1, y: 0 });
+    )).toEqual({ type: 'nudge', x: -1, y: 0, target: 'selection-mask' });
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 'ArrowDown', code: 'ArrowDown', shiftKey: true }),
       context({ activeTool: 'transform', hasSelection: false, transforming: true })
-    )).toEqual({ type: 'nudge', x: 0, y: 10 });
+    )).toEqual({ type: 'nudge', x: 0, y: 10, target: 'content' });
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 'ArrowRight', code: 'ArrowRight' }),
       context({ activeTool: 'transform', hasSelection: false, transforming: false })
-    )).toBeNull();
+    )).toEqual({ type: 'nudge', x: 1, y: 0, target: 'content' });
   });
 
   it('supports Fill shortcuts with a transient preserve-transparency modifier', () => {

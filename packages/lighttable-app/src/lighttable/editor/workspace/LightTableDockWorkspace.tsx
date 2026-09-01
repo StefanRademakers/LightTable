@@ -188,13 +188,16 @@ const WorkspacePanel: React.FC<IDockviewPanelProps<{ contentKey: WorkspaceConten
 
 const PersistentPanelTab: React.FC<IDockviewPanelHeaderProps> = ({ api }) => {
   const [title, setTitle] = useState(api.title ?? '');
-  const [selected, setSelected] = useState(api.isActive);
+  // Dockview's `isActive` also requires this dock group to own focus. A tab
+  // remains selected when its panel is visible, even while the canvas or a
+  // different panel has focus.
+  const [selected, setSelected] = useState(api.isVisible);
   useEffect(() => {
     const titleChange = api.onDidTitleChange(({ title: nextTitle }) => setTitle(nextTitle));
-    const activeChange = api.onDidActiveChange(({ isActive }) => setSelected(isActive));
+    const visibilityChange = api.onDidVisibilityChange(({ isVisible }) => setSelected(isVisible));
     setTitle(api.title ?? '');
-    setSelected(api.isActive);
-    return () => { titleChange.dispose(); activeChange.dispose(); };
+    setSelected(api.isVisible);
+    return () => { titleChange.dispose(); visibilityChange.dispose(); };
   }, [api]);
   return <PanelTab selected={selected} title={title}>{title}</PanelTab>;
 };
@@ -1257,7 +1260,7 @@ export const LightTableDockWorkspace = forwardRef<
       const target = event.target;
       if (
         target instanceof Element
-        && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+        && target.closest('[role="dialog"], input, textarea, select, [contenteditable="true"], [role="textbox"]')
       ) return;
       const api = apiRef.current;
       const documentGroup = api?.getPanel(DOCUMENT_HOST_PANEL_ID)?.group;

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Checkbox, SwitchControl, IconButton, MaskIcon, resetIconUrl, PanelFooter, PanelSection, PanelSectionHeader, PanelTab, SliderField, Text, TextInput } from '@lighttable/ui';
+import { Checkbox, SwitchControl, IconButton, MaskIcon, resetIconUrl, sectionOpenIconUrl,
+  PanelFooter, PanelSection, PanelSectionHeader, PanelTab, SliderField, Text, TextInput,
+  TreeDisclosure, TreeRow, handleTreeCollectionNavigation } from '@lighttable/ui';
 
 const resetIcon = <MaskIcon src={resetIconUrl} />;
 
@@ -9,6 +11,7 @@ export function PanelsDemo() {
   const [value, setValue] = useState(35);
   const [preserveColor, setPreserveColor] = useState(true);
   const [feedback, setFeedback] = useState('Header actions do not collapse the section.');
+  const [treeOpen, setTreeOpen] = useState(true);
   const reset = () => { setValue(35); setFeedback('Reset once; expansion unchanged.'); };
   return <>
     <header className="demo-intro">
@@ -61,6 +64,26 @@ export function PanelsDemo() {
         </PanelFooter>
       </div>
       <Text as="p" tone="muted">PanelTab owns the shared 30 px tab surface. PanelFooter owns footer geometry; each feature supplies its own actions and behavior.</Text>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Hierarchical panel rows</Text>
+      <div style={{ width: 320, maxWidth: '100%', display: 'grid', gap: 2 }} role="tree"
+        data-tree-keyboard-collection>
+        <TreeRow role="treeitem" aria-level={1} aria-expanded={treeOpen} tabIndex={0} active
+          onKeyDown={event => handleTreeCollectionNavigation(event, '[role=treeitem]')}>
+          <Checkbox compact aria-label="Enable Example group" defaultChecked />
+          <TreeDisclosure expanded={treeOpen} label="Toggle Example group" onClick={() => setTreeOpen(value => !value)}
+            icon={<MaskIcon src={sectionOpenIconUrl} />} />
+          <Text weight="bold">Example group</Text>
+        </TreeRow>
+        {treeOpen ? <TreeRow role="treeitem" aria-level={2} tabIndex={0}
+          style={{ paddingLeft: 24 }}
+          onKeyDown={event => handleTreeCollectionNavigation(event, '[role=treeitem]')}>
+          <Checkbox compact aria-label="Enable Example child" defaultChecked />
+          <Text>Example child</Text>
+        </TreeRow> : null}
+      </div>
+      <Text as="p" tone="muted">TreeRow owns the 28 px row, selection surface, disclosure geometry and keyboard traversal. The app owns columns, thumbnails, indentation, rename and drag behavior.</Text>
     </section>
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Usage</Text>

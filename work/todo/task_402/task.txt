@@ -1,0 +1,1 @@
+tab focus out but active in panel(s) color, color should stay in active color like we see now.

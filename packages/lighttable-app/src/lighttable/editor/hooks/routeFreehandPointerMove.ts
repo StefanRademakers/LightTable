@@ -21,6 +21,9 @@ interface RouteFreehandPointerMoveOptions {
   warp: WarpSessionController;
   paint: PaintSessionController;
   snapBypass?: boolean;
+  repositionSelection?: boolean;
+  selectionMarqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean };
+  constrainSelectionTranslation?: boolean;
 }
 
 /**
@@ -38,12 +41,34 @@ export const routeFreehandPointerMove = ({
   selection,
   warp,
   paint,
-  snapBypass = false
+  snapBypass = false,
+  repositionSelection = false,
+  selectionMarqueeModifiers,
+  constrainSelectionTranslation = false
 }: RouteFreehandPointerMoveOptions): boolean => {
   if (intent === 'selection') {
-    if (activeTool !== 'select-free') return selection.move(pointerId, currentPoint, snapBypass);
+    if (repositionSelection
+      && activeTool !== 'select-rectangle'
+      && activeTool !== 'select-ellipse') return true;
+    if (activeTool !== 'select-free') {
+      return selection.move(
+        pointerId,
+        currentPoint,
+        snapBypass,
+        repositionSelection,
+        selectionMarqueeModifiers,
+        constrainSelectionTranslation
+      );
+    }
     const points = samples.map(project).filter((point): point is BrushPoint => Boolean(point));
-    return selection.moveMany(pointerId, points, snapBypass);
+    return selection.moveMany(
+      pointerId,
+      points,
+      snapBypass,
+      repositionSelection,
+      selectionMarqueeModifiers,
+      constrainSelectionTranslation
+    );
   }
   if (intent === 'warp') {
     const points = samples.flatMap((sample) => {

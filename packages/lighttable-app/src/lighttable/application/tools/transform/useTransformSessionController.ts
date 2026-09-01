@@ -100,11 +100,15 @@ export interface TransformSessionController {
   checkpoint(): void;
   alignFrameToDocument(): void;
   commit(): void;
+  commitPending(): Promise<void>;
   cancel(): void;
   reset(): void;
   isActive(): boolean;
+  ownsTemporaryMove(): boolean;
   repeat(duplicate?: boolean): void;
   nudge(x: number, y: number): void;
+  applyNudge(x: number, y: number, duplicate?: boolean, continueTransform?: boolean): void;
+  beginTemporaryMove(duplicate?: boolean): Promise<boolean>;
   setDuplicate(duplicate: boolean): void;
   applyFixed(operation: FixedTransformOperation): Promise<FixedTransformTarget | null>;
 }
@@ -145,6 +149,9 @@ export const useTransformSessionController = (
   const selectedLayerKey = transformTargetLayerIds.join('\u0000');
   const automaticLaunchKeyRef = useRef<string | null>(null);
   const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
+  const nudgeTransactionRef = useRef<Promise<void>>(Promise.resolve());
+  const temporaryMoveRef = useRef(false);
+  const temporaryMoveOwnerToolRef = useRef<string | null>(null);
   const groupRef = useRef<{
     before: ImageDocument;
     layerIds: readonly LayerId[];
@@ -186,6 +193,32 @@ export const useTransformSessionController = (
       return;
     }
 
+    if (result.kind === 'raster-layer') {
+      current.applyDocumentSnapshot(result.afterDocument);
+      current.pushHistoryEntry({
+        label: 'Free Transform',
+        type: 'transform.layer',
+        byteSize: result.pixelEdit.byteSize,
+        layerIds: [result.layerId],
+        undo: () => {
+          const latest = dependenciesRef.current;
+          if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
+            throw new Error('Transform undo is no longer available.');
+          }
+          latest.applyDocumentSnapshot(result.beforeDocument);
+        },
+        redo: () => {
+          const latest = dependenciesRef.current;
+          if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
+            throw new Error('Transform redo is no longer available.');
+          }
+          latest.applyDocumentSnapshot(result.afterDocument);
+        },
+        dispose: result.pixelEdit.destroy
+      });
+      return;
+    }
+
     const {
       beforeDocument,
       afterDocument,
@@ -219,6 +252,8 @@ export const useTransformSessionController = (
   }, []);
 
   const finish = useCallback((commit: boolean, preserveContinuation = false) => {
+    temporaryMoveRef.current = false;
+    temporaryMoveOwnerToolRef.current = null;
     if (!preserveContinuation) continuationFrameRef.current = null;
     setFrameOverride(null);
     const mask = maskRef.current;
@@ -286,6 +321,8 @@ export const useTransformSessionController = (
   }, [applyFinishedTransform, setFrameOverride]);
 
   const reset = useCallback(() => {
+    temporaryMoveRef.current = false;
+    temporaryMoveOwnerToolRef.current = null;
     const mask = maskRef.current;
     if (mask && dependenciesRef.current.getDocument()?.id === mask.before.id) {
       dependenciesRef.current.applyDocumentSnapshot(mask.before);
@@ -312,7 +349,7 @@ export const useTransformSessionController = (
     setState(null);
   }, [setFrameOverride]);
 
-  const begin = useCallback(async (reportEmptyLayer = true) => {
+  const begin = useCallback(async (reportEmptyLayer = true, allowInactiveTool = false) => {
     const current = dependenciesRef.current;
     const document = current.getDocument();
     const renderer = current.getRenderer();
@@ -329,7 +366,7 @@ export const useTransformSessionController = (
     const launchIsCurrent = () => {
       const latest = dependenciesRef.current;
       const latestDocument = latest.getDocument();
-      return latest.activeTool === 'transform'
+      return (allowInactiveTool || latest.activeTool === 'transform')
         && latestDocument?.id === document.id
         && latestDocument.activeLayerId === document.activeLayerId
         && latest.activeChannel === current.activeChannel
@@ -538,7 +575,10 @@ export const useTransformSessionController = (
 
   const applyFixed = useCallback(async (operation: FixedTransformOperation) => {
     if (isActive()) finish(true);
-    await begin();
+    // Menu and command-layer fixed transforms are one-shot operations. They
+    // use the same selection-aware transform transaction without requiring
+    // the interactive Transform tool or its gizmo to be active first.
+    await begin(true, true);
     const active = controllerRef.current?.state;
     const bounds = active?.sourceBounds ?? groupRef.current?.bounds ?? maskRef.current?.bounds;
     if (!bounds) return null;
@@ -645,6 +685,81 @@ export const useTransformSessionController = (
     current.setError(null);
   }, []);
 
+  const applyNudge = useCallback((
+    x: number,
+    y: number,
+    duplicate = false,
+    continueTransform = false
+  ) => {
+    if (continueTransform) {
+      temporaryMoveRef.current = true;
+      temporaryMoveOwnerToolRef.current = dependenciesRef.current.activeTool;
+    }
+    if (isActive() && !duplicate) {
+      nudge(x, y);
+      return;
+    }
+    nudgeTransactionRef.current = nudgeTransactionRef.current.then(async () => {
+      if (isActive() && !duplicate) {
+        nudge(x, y);
+        return;
+      }
+      if (isActive()) finish(true);
+      await begin(true, true);
+      if (!isActive()) {
+        if (continueTransform) {
+          temporaryMoveRef.current = false;
+          temporaryMoveOwnerToolRef.current = null;
+        }
+        return;
+      }
+      if (duplicate) controllerRef.current?.setDuplicate(true);
+      nudge(x, y);
+      const keepActive = continueTransform
+        || dependenciesRef.current.activeTool === 'transform';
+      if (!keepActive) {
+        finish(true);
+      }
+    }).catch((reason) => {
+      if (continueTransform) {
+        temporaryMoveRef.current = false;
+        temporaryMoveOwnerToolRef.current = null;
+      }
+      dependenciesRef.current.setError(
+        reason instanceof Error ? reason.message : 'The content could not be moved.'
+      );
+    });
+  }, [begin, finish, isActive, nudge]);
+
+  const commitPending = useCallback(async () => {
+    // Keyboard nudges may still be waiting for the asynchronous transform
+    // launch. A command must cross that queue before it reads pixels or the
+    // selection, otherwise the preview can be newer than the command state.
+    await nudgeTransactionRef.current;
+    if (isActive()) finish(true);
+  }, [finish, isActive]);
+
+  const beginTemporaryMove = useCallback(async (duplicate = false) => {
+    if (isActive()) {
+      if (duplicate) controllerRef.current?.setDuplicate(true);
+      return true;
+    }
+    temporaryMoveRef.current = true;
+    temporaryMoveOwnerToolRef.current = dependenciesRef.current.activeTool;
+    try {
+      await begin(true, true);
+      const active = isActive();
+      if (active && duplicate) controllerRef.current?.setDuplicate(true);
+      if (!active) temporaryMoveRef.current = false;
+      if (!active) temporaryMoveOwnerToolRef.current = null;
+      return active;
+    } catch (reason) {
+      temporaryMoveRef.current = false;
+      temporaryMoveOwnerToolRef.current = null;
+      throw reason;
+    }
+  }, [begin, isActive]);
+
   useEffect(() => {
     const controller = controllerRef.current;
     const activeGroup = groupRef.current;
@@ -668,7 +783,9 @@ export const useTransformSessionController = (
       setState(null);
     }
     const activeController = controllerRef.current;
-    if (dependencies.activeTool !== 'transform') {
+    const temporaryMoveStillOwned = temporaryMoveRef.current
+      && dependencies.activeTool === temporaryMoveOwnerToolRef.current;
+    if (dependencies.activeTool !== 'transform' && !temporaryMoveStillOwned) {
       automaticLaunchKeyRef.current = null;
       activeController?.invalidatePendingLaunch();
       if (activeController?.state || groupRef.current || maskRef.current) finish(true);
@@ -750,11 +867,15 @@ export const useTransformSessionController = (
     checkpoint,
     alignFrameToDocument,
     commit: () => finish(true),
+    commitPending,
     cancel: () => finish(false),
     reset,
     isActive,
+    ownsTemporaryMove: () => temporaryMoveRef.current,
     repeat,
     nudge,
+    applyNudge,
+    beginTemporaryMove,
     setDuplicate: (duplicate) => {
       if (controllerRef.current?.setDuplicate(duplicate)) {
         const next = controllerRef.current.state;

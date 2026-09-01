@@ -2606,14 +2606,47 @@ struct InvertSettings {
 @group(0) @binding(1) var selectionTexture: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> settings: InvertSettings;
 
+fn linearToSrgbChannel(value: f32) -> f32 {
+  let linear = clamp(value, 0.0, 1.0);
+  if (linear <= 0.0031308) {
+    return 12.92 * linear;
+  }
+  return 1.055 * pow(linear, 1.0 / 2.4) - 0.055;
+}
+
+fn srgbToLinearChannel(value: f32) -> f32 {
+  let encoded = clamp(value, 0.0, 1.0);
+  if (encoded <= 0.04045) {
+    return encoded / 12.92;
+  }
+  return pow((encoded + 0.055) / 1.055, 2.4);
+}
+
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let dimensions = vec2i(textureDimensions(sourceTexture));
   let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
   let source = textureLoad(sourceTexture, pixel, 0);
-  // Raster layers use premultiplied linear RGBA. Invert the straight color
-  // while retaining both transparency and valid premultiplied output.
-  let inverted = max(vec3f(source.a) - source.rgb, vec3f(0.0));
+  var inverted = source;
+  if (settings.transformRow0.w > 0.5) {
+    // Masks are linear scalar data, not encoded color.
+    inverted.r = 1.0 - clamp(source.r, 0.0, 1.0);
+  } else {
+    // Raster layers use premultiplied linear RGBA. A visual RGB inverse is
+    // defined in encoded sRGB space, then converted back for GPU storage.
+    let straight = clamp(source.rgb / max(source.a, 0.000001), vec3f(0.0), vec3f(1.0));
+    let encoded = vec3f(
+      linearToSrgbChannel(straight.r),
+      linearToSrgbChannel(straight.g),
+      linearToSrgbChannel(straight.b)
+    );
+    let inverseLinear = vec3f(
+      srgbToLinearChannel(1.0 - encoded.r),
+      srgbToLinearChannel(1.0 - encoded.g),
+      srgbToLinearChannel(1.0 - encoded.b)
+    );
+    inverted = vec4f(inverseLinear * source.a, source.a);
+  }
   let documentPosition = vec2f(
     dot(settings.transformRow0.xyz, vec3f(vec2f(pixel), 1.0)),
     dot(settings.transformRow1.xyz, vec3f(vec2f(pixel), 1.0))
@@ -2627,7 +2660,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     clamp(textureLoad(selectionTexture, selectionPixel, 0).r, 0.0, 1.0),
     selectionInside
   );
-  return mix(source, vec4f(inverted, source.a), selection);
+  return mix(source, inverted, selection);
 }
 `;
 

@@ -1,0 +1,29 @@
+.ui-anchor-grid {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(3, 24px);
+  gap: 2px;
+  width: 80px;
+  height: 80px;
+  padding: 2px;
+  border: 1px solid var(--ui-button-border);
+  border-radius: 2px;
+  background: var(--ui-button-surface);
+  color: var(--ui-button-text);
+}
+
+.ui-anchor-grid button {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.ui-anchor-grid button:hover:not(:disabled) { background: var(--ui-button-hover); }
+.ui-anchor-grid button[data-selected] { background: var(--ui-button-active); color: var(--ui-button-text); }
+.ui-anchor-grid button:focus-visible { outline: 1px solid var(--ui-accent); outline-offset: -1px; }
+.ui-anchor-grid button span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }

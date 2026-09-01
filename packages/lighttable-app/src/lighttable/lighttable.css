@@ -2229,6 +2229,11 @@
   background: var(--lt-surface-panel);
 }
 
+.genai-panel__generate {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
 .genai-panel__cost {
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-small);
@@ -2668,13 +2673,6 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--lt-focus-ring) 18%, transparent);
 }
 
-.lighttable-layers__footer .lighttable-layers__fx-button {
-  font-family: Georgia, serif;
-  font-size: var(--lt-type-large);
-  font-style: italic;
-  font-weight: var(--lt-weight-bold);
-}
-
 .lighttable-layers__create-menu {
   position: relative;
   width: 26px;
@@ -2711,6 +2709,18 @@
   --lt-layer-thumbnail-slot: 42px;
   --lt-layer-thumbnail-content-max: 40px;
   --lt-layer-status-width: 46px;
+  --ui-tree-row-height: var(--lt-layer-row-min-height);
+  --ui-tree-row-gap: var(--lt-layer-prefix-gap);
+  --ui-tree-row-padding-inline: var(--lt-layer-row-padding-inline);
+  --ui-tree-row-padding-block: var(--lt-layer-row-padding-block);
+  --ui-tree-row-radius: var(--lt-radius-sm);
+  --ui-tree-row-surface: var(--lt-surface-layer-row);
+  --ui-tree-row-hover: var(--lt-surface-layer-row-hover);
+  --ui-tree-row-selected: var(--lt-surface-layer-row-selected);
+  --ui-tree-row-active: var(--lt-surface-layer-row-active);
+  --ui-tree-row-border: var(--lt-border-layer-row);
+  --ui-tree-row-active-border: var(--lt-border-layer-row-active);
+  --ui-tree-row-focus: var(--lt-focus-ring);
   min-height: 42px;
   max-height: 170px;
   min-width: 0;
@@ -2801,7 +2811,6 @@
   text-align: left;
 }
 
-.lighttable-panel-stack-row,
 .lighttable-layer {
   position: relative;
   box-sizing: border-box;
@@ -2821,18 +2830,13 @@
   cursor: pointer;
 }
 
-.lighttable-panel-stack-row:hover,
 .lighttable-layer:hover { background: var(--lt-surface-layer-row-hover); }
-.lighttable-panel-stack-row--selected,
 .lighttable-layer--selected { background: var(--lt-surface-layer-row-selected); }
-.lighttable-panel-stack-row--active,
-.lighttable-panel-stack-row--active:hover,
 .lighttable-layer--active,
 .lighttable-layer--active:hover {
   border-color: var(--lt-border-layer-row-active);
   background: var(--lt-surface-layer-row-active);
 }
-.lighttable-panel-stack-row:focus-visible,
 .lighttable-layer:focus-visible {
   outline: 2px solid var(--lt-focus-ring);
   outline-offset: -2px;
@@ -2956,19 +2960,12 @@
   pointer-events: none;
 }
 
-.lighttable-panel-stack-disclosure {
-  width: 14px;
-  height: 24px;
-  flex: 0 0 14px;
-}
-
 .lighttable-layer__disclosure {
   width: var(--lt-layer-prefix-column);
   height: 26px;
   flex: 0 0 var(--lt-layer-prefix-column);
 }
 
-.lighttable-panel-stack-disclosure,
 .lighttable-layer__disclosure {
   display: grid;
   place-items: center;
@@ -2978,7 +2975,6 @@
   cursor: pointer;
 }
 
-.lighttable-panel-stack-disclosure img,
 .lighttable-layer__disclosure img {
   width: 12px;
   height: 16px;
@@ -2991,7 +2987,6 @@
   flex: 0 0 18px;
 }
 
-.lighttable-panel-stack-disclosure--collapsed img,
 .lighttable-layer__disclosure--collapsed img {
   transform: rotate(-90deg);
 }

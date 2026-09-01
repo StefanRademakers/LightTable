@@ -5,7 +5,6 @@ import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { Select } from '@lighttable/ui';
-import { SquareIconButton } from '../../../ui/SquareIconButton';
 import {
   layerSupportsContentCompositing,
   layerSupportsLayerStyles
@@ -1289,7 +1288,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               className="lighttable-layer__name"
               defaultValue={layer.name}
               readOnly={renamingLayerId !== layer.id}
-              tabIndex={renamingLayerId === layer.id ? 0 : -1}
+              tabIndex={-1}
               draggable={renamingLayerId !== layer.id && !documentFx}
               onPointerDown={() => {
                 if (renamingLayerId === layer.id) return;
@@ -1353,7 +1352,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     <span
                       className={`lighttable-layer__text-status lighttable-layer__text-status--${fontStatus.kind}`}
                       role="button"
-                      tabIndex={0}
+                      tabIndex={-1}
                       aria-label={`${fontStatus.label}. Open font compatibility report`}
                       title={`${fontStatus.detail}. Open font compatibility report.`}
                       onClick={(event) => {
@@ -1682,7 +1681,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           aria-label="Add layer style"
           aria-haspopup="menu"
           aria-expanded={styleMenuOpen}
-        >fx</ButtonBase>
+        ><img src={lightTableIcon('layer_effects.png')} alt="" aria-hidden="true" /></ButtonBase>
         <div
           className="lighttable-layers__create-menu"
         >

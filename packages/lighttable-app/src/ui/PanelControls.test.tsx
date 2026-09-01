@@ -1,13 +1,11 @@
-import { PanelSection } from '@lighttable/ui';
+import { FileField as PanelFileField, PanelSection, SelectField as PanelSelectField } from '@lighttable/ui';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PanelAngleControl,
   PanelCheckboxField,
   PanelColorSwatch,
-  PanelFileField,
-  PanelNumberSlider,
-  PanelSelectField
+  PanelNumberSlider
 } from './PanelControls';
 
 describe('shared panel controls', () => {
@@ -37,8 +35,7 @@ describe('shared panel controls', () => {
     expect(markup).toContain('aria-label="Angle"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('Compatibility');
-    expect(markup).toContain('data-suite-control="panel-select"');
-    expect(markup).toContain('data-suite-control="panel-file"');
+    expect(markup).toContain('data-suite-control="field-row"');
     expect(markup).toContain('data-suite-control="panel-checkbox"');
     expect(markup).toContain('data-suite-control="panel-angle"');
     expect(markup).toContain('data-suite-control="panel-section"');

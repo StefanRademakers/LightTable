@@ -899,6 +899,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const paintGestureRef = useRef(new PaintGestureController());
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
+  const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const transformPickRevisionRef = useRef(0);
   const resetTransformRef = useRef<() => void>(() => undefined);
@@ -951,6 +952,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => void>(() => undefined);
   const deleteActiveTargetRef = useRef<() => void>(() => undefined);
   const temporaryToolRef = useRef(new TemporaryToolController());
+  const beginSelectionContentMoveRef = useRef<(duplicate: boolean) => Promise<boolean>>(
+    async () => false
+  );
+  const updateSelectionContentMoveRef = useRef<(x: number, y: number) => void>(() => undefined);
+  const finishSelectionContentMoveRef = useRef<(commit: boolean) => void>(() => undefined);
   const groupVisibilityRef = useRef<GroupVisibility>(
     documentSession?.getSnapshot().processing.groupVisibility ?? createDefaultGroupVisibility()
   );
@@ -2654,8 +2660,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
-    getSelection: () => editorSession.selection,
+    getSelection: () => editorSessionRef.current.selection,
     publishSelection: (selection, pointerId) => {
+      editorSessionRef.current = { ...editorSessionRef.current, pointerId, selection };
       setEditorSession((current) => ({ ...current, pointerId, selection }));
     },
     publishDraft: setSelectionDraft,
@@ -3640,58 +3647,70 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearCurrentSelectionOwner = selectionSessionController.clear;
   const invertCurrentSelectionOwner = selectionSessionController.invert;
   const selectAllContent = () => {
-    if (!executeRegisteredCommand('selection.modify', {
-      kind: 'modify', operation: 'all'
-    })) selectAllContentOwner();
+    void settlePixelInteractionRef.current().then(() => {
+      if (!executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'all'
+      })) selectAllContentOwner();
+    });
   };
   const clearCurrentSelection = () => {
-    if (!executeRegisteredCommand('selection.modify', {
-      kind: 'modify', operation: 'clear'
-    })) clearCurrentSelectionOwner();
+    void settlePixelInteractionRef.current().then(() => {
+      if (!executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'clear'
+      })) clearCurrentSelectionOwner();
+    });
   };
   const invertCurrentSelection = () => {
-    if (!executeRegisteredCommand('selection.modify', {
-      kind: 'modify', operation: 'invert'
-    })) invertCurrentSelectionOwner();
+    void settlePixelInteractionRef.current().then(() => {
+      if (!executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'invert'
+      })) invertCurrentSelectionOwner();
+    });
   };
   const selectSimilarColors = () => {
-    const document = imageDocumentRef.current;
-    if (!document?.activeLayerId || !editorSessionRef.current.selection.length) return;
-    const magicWand = editorSessionRef.current.magicWand;
-    const parameters = {
-      kind: 'modify' as const,
-      operation: 'similar' as const,
-      layerId: document.activeLayerId,
-      tolerance: magicWand.tolerance,
-      antiAlias: magicWand.antiAlias,
-      sampleAllLayers: magicWand.sampleAllLayers
-    };
-    if (!executeRegisteredCommand('selection.modify', parameters)) {
-      void selectionSessionController.selectSimilar(parameters.layerId, {
-        tolerance: parameters.tolerance,
-        antiAlias: parameters.antiAlias,
-        sampleAllLayers: parameters.sampleAllLayers
-      });
-    }
+    void settlePixelInteractionRef.current().then(() => {
+      const document = imageDocumentRef.current;
+      if (!document?.activeLayerId || !editorSessionRef.current.selection.length) return;
+      const magicWand = editorSessionRef.current.magicWand;
+      const parameters = {
+        kind: 'modify' as const,
+        operation: 'similar' as const,
+        layerId: document.activeLayerId,
+        tolerance: magicWand.tolerance,
+        antiAlias: magicWand.antiAlias,
+        sampleAllLayers: magicWand.sampleAllLayers
+      };
+      if (!executeRegisteredCommand('selection.modify', parameters)) {
+        void selectionSessionController.selectSimilar(parameters.layerId, {
+          tolerance: parameters.tolerance,
+          antiAlias: parameters.antiAlias,
+          sampleAllLayers: parameters.sampleAllLayers
+        });
+      }
+    });
   };
   const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
-    if (!executeRegisteredCommand('selection.modify', {
-      kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
-    })) void selectionSessionController.feather(radius, applyAtCanvasBounds);
+    void settlePixelInteractionRef.current().then(() => {
+      if (!executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
+      })) void selectionSessionController.feather(radius, applyAtCanvasBounds);
+    });
   };
   const modifyCurrentSelection = (
     operation: 'border' | 'smooth' | 'expand' | 'contract',
     amount: number,
     applyAtCanvasBounds: boolean
   ) => {
-    const parameters = operation === 'border'
-      ? { kind: 'modify' as const, operation, width: amount }
-      : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
-    if (executeRegisteredCommand('selection.modify', parameters)) return;
-    if (operation === 'border') void selectionSessionController.border(amount);
-    else if (operation === 'smooth') {
-      void selectionSessionController.smooth(amount, applyAtCanvasBounds);
-    } else void selectionSessionController.morphology(operation, amount, applyAtCanvasBounds);
+    void settlePixelInteractionRef.current().then(() => {
+      const parameters = operation === 'border'
+        ? { kind: 'modify' as const, operation, width: amount }
+        : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
+      if (executeRegisteredCommand('selection.modify', parameters)) return;
+      if (operation === 'border') void selectionSessionController.border(amount);
+      else if (operation === 'smooth') {
+        void selectionSessionController.smooth(amount, applyAtCanvasBounds);
+      } else void selectionSessionController.morphology(operation, amount, applyAtCanvasBounds);
+    });
   };
   const presentViewportImmediately = useCallback((
     scale: number,
@@ -3761,7 +3780,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
       hasSelection: editorSession.selection.length > 0,
       hasSelectionClipboard: selectionClipboardAvailable,
-      transforming: transformActiveRef.current(),
+      transforming: transformActiveRef.current() || transformSession.ownsTemporaryMove(),
       editingBlocked: historySnapshot.busy
     }),
     commands: {
@@ -3904,9 +3923,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const layerId = imageDocumentRef.current?.activeLayerId;
         if (layerId) layerPanelController.setOpacity(layerId, percent / 100);
       },
-      nudge: (x, y) => {
-        if (transformActiveRef.current()) nudgeTransformRef.current(x, y);
-        else selectionSessionController.translate(x, y);
+      nudgeSelectionMask: (x, y) => selectionSessionController.translate(x, y),
+      nudgeContent: (x, y, duplicate, continueTransform) => {
+        void selectionSessionController.settle().then(() => {
+          transformSession.applyNudge(x, y, duplicate, continueTransform);
+        });
       },
       openBrushSettings: () => {
         const bounds = viewportRef.current?.getBoundingClientRect();
@@ -4021,7 +4042,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   });
   const fillActiveTarget = fillCommandController.fill;
-  fillActiveTargetRef.current = fillActiveTarget;
+  fillActiveTargetRef.current = (color, preserveTransparency) => {
+    void settlePixelInteractionRef.current().then(() => {
+      fillActiveTarget(color, preserveTransparency);
+    });
+  };
 
   const rasterGradientPortsRef = useRef<RasterGradientDependencies>({
     getDocument: () => null,
@@ -4862,6 +4887,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryTools: temporaryToolRef.current,
     temporaryZoomOut: temporaryZoomOutActive,
     onTransformPick: pickTransformAtPoint,
+    selectionContentMove: {
+      begin: (duplicate) => beginSelectionContentMoveRef.current(duplicate),
+      update: (x, y) => updateSelectionContentMoveRef.current(x, y),
+      finish: (commit) => finishSelectionContentMoveRef.current(commit)
+    },
     preciseBrushCursor,
     eyedropperActive: pointColorPickerActive || ((editorSession.activeTool === 'brush'
       || editorSession.activeTool === 'fill'
@@ -5239,11 +5269,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   const copyPixels = async (source: 'active-layer' | 'merged') => {
+    await settlePixelInteractionRef.current();
     const execution = executeRegisteredCommand('selection.copyPixels', { source });
     if (!execution) {
       await (source === 'active-layer'
-        ? layerDocumentCommands.copySelectedContent(editorSession.selection)
-        : layerDocumentCommands.copyMergedContent(editorSession.selection));
+        ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
+        : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection));
       return;
     }
     await execution;
@@ -5252,6 +5283,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   copySelectedContentRef.current = copySelectedContent;
 
   const cutPixels = async () => {
+    await settlePixelInteractionRef.current();
     const document = imageDocumentRef.current;
     const layerId = document?.activeLayerId;
     if (!document || !layerId || editorSessionRef.current.selection.length === 0) return null;
@@ -5282,8 +5314,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const pasteSelectedContent = () => {
     void (async () => {
+      await settlePixelInteractionRef.current();
       if (!commandService) {
-        await layerDocumentCommands.pasteSelectedContent(editorSession.selection);
+        await layerDocumentCommands.pasteSelectedContent(editorSessionRef.current.selection);
         return;
       }
       // Always inspect the host clipboard. A prior LightTable copy must never
@@ -5481,14 +5514,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
     createAdjustmentLayerOfKind: layerDocumentCommands.createAdjustmentLayerOfKind,
     createAttachedAdjustment: layerDocumentCommands.createAttachedAdjustment,
-    addActiveLayerMask: () => layerDocumentCommands.addActiveLayerMask(
-      editorSession.selection.length > 0
-    ),
+    addActiveLayerMask: async () => {
+      await settlePixelInteractionRef.current();
+      return layerDocumentCommands.addActiveLayerMask(
+        editorSessionRef.current.selection.length > 0
+      );
+    },
     duplicateActiveLayer,
     rasterizeActiveTextLayer,
     rasterizeActiveLayer: layerDocumentCommands.rasterizeActiveLayer,
-    loadLayerMaskSelection: selectionSessionController.selectLayerMask,
-    loadLayerTransparencySelection: selectionSessionController.selectLayerTransparency,
+    loadLayerMaskSelection: async (layerId) => {
+      await settlePixelInteractionRef.current();
+      await selectionSessionController.selectLayerMask(layerId);
+    },
+    loadLayerTransparencySelection: async (layerId) => {
+      await settlePixelInteractionRef.current();
+      await selectionSessionController.selectLayerTransparency(layerId);
+    },
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedLayers: mergeLayersCommand,
     flattenGroup: flattenGroupCommand,
@@ -5585,11 +5627,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       vectorToolSessionController.deleteSelection();
       return;
     }
-    if (transformActiveRef.current()) cancelTransformRef.current();
     if (target === 'pixel-selection') {
-      fillCommandController.clearSelection();
+      void settlePixelInteractionRef.current().then(() => {
+        fillCommandController.clearSelection();
+      });
       return;
     }
+
+    if (transformActiveRef.current()) cancelTransformRef.current();
 
     const layerIds = selectedLayerIdsRef.current.length > 0
       ? selectedLayerIdsRef.current
@@ -5638,9 +5683,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         else applyExactZoom(viewport.scale * 100);
       },
       createRasterLayer: layerPanelController.createRasterLayer,
-      copyPixels: (source) => source === 'active-layer'
-        ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
-        : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection),
+      copyPixels: async (source) => {
+        await settlePixelInteractionRef.current();
+        return source === 'active-layer'
+          ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
+          : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection);
+      },
       cutPixels,
       pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
         file, { ...command.bounds, name: command.name,
@@ -5681,20 +5729,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         recordHistory: pushDocumentHistory,
         createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
       }),
-      executeFillCommand: (command) => fillCommandController.apply(command),
-      executeRasterGradientCommand: (command) => rasterGradientController.apply(command),
+      executeFillCommand: async (command) => {
+        await settlePixelInteractionRef.current();
+        return fillCommandController.apply(command);
+      },
+      executeRasterGradientCommand: async (command) => {
+        await settlePixelInteractionRef.current();
+        return rasterGradientController.apply(command);
+      },
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,
         applyDocument: applyDocumentSnapshot,
         recordHistory: pushDocumentHistory
       }),
-      executeLayerCommand: (command) => {
+      executeLayerCommand: async (command) => {
         if (command.kind === 'duplicate') {
           const layerId = layerDocumentCommands.duplicateLayer(command.layerId);
           return layerId ? { sourceLayerId: command.layerId, layerId } : null;
         }
         if (command.kind === 'copy-to-new-layer') {
+          await settlePixelInteractionRef.current();
           const layerId = layerDocumentCommands.layerViaCopy(
             command.layerId,
             editorSessionRef.current.selection
@@ -5729,6 +5784,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         if (command.kind === 'set-mask') {
           if (command.operation === 'add') {
+            if (command.source === 'selection') {
+              await settlePixelInteractionRef.current();
+            }
             return layerDocumentCommands.addLayerMask(
               command.layerId,
               command.source === 'selection'
@@ -5753,6 +5811,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
       executeSelectionCommand: async (command) => {
+        await settlePixelInteractionRef.current();
         if (command.kind === 'modify') {
           if (command.operation === 'similar') {
             const applied = await selectionSessionController.selectSimilar(command.layerId, {
@@ -5870,9 +5929,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
-      executeRasterInvert: (command) => layerDocumentCommands.invertLayerColors(
-        command.layerId, command.channel
-      ) ? command : null,
+      executeRasterInvert: async (command) => {
+        await settlePixelInteractionRef.current();
+        return layerDocumentCommands.invertLayerColors(
+          command.layerId, command.channel
+        ) ? command : null;
+      },
       executeLayerRasterize: async (command) => {
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
         if (!await layerDocumentCommands.rasterizeLayerWhenReady(command.layerId)) return null;
@@ -6311,6 +6373,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     applyDocumentAndSelection: (document, selection) => {
       applyDocumentSnapshot(document);
+      editorSessionRef.current = {
+        ...editorSessionRef.current,
+        pointerId: null,
+        selection
+      };
       setEditorSession((current) => ({
         ...current,
         pointerId: null,
@@ -6331,16 +6398,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     }
   });
+  beginSelectionContentMoveRef.current = (duplicate) =>
+    transformSession.beginTemporaryMove(duplicate);
+  updateSelectionContentMoveRef.current = (x, y) => {
+    transformSession.update({ a: 1, b: 0, c: 0, d: 1, tx: x, ty: y });
+  };
+  finishSelectionContentMoveRef.current = (commit) => {
+    if (commit) transformSession.commit();
+    else transformSession.cancel();
+  };
   const transformState = transformSession.state;
-  const activeTransformFrame = useMemo(() => transformState
+  const temporarySelectionMoveActive = transformSession.ownsTemporaryMove();
+  const activeTransformFrame = useMemo(() => transformState && !temporarySelectionMoveActive
     ? transformSession.frameOverride ?? transformSessionFrame(
         transformState,
         toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
       )
-    : null, [toolPreferences?.preserveTransformLocalAxes, transformSession.frameOverride, transformState]);
-  const transformFrame = useMemo(() => transformState
+    : null, [
+      temporarySelectionMoveActive,
+      toolPreferences?.preserveTransformLocalAxes,
+      transformSession.frameOverride,
+      transformState
+    ]);
+  const transformFrame = useMemo(() => transformState && !temporarySelectionMoveActive
     ? buildTransformEditingFrame(transformState, activeScale, activeTransformFrame ?? undefined)
-    : null, [activeScale, activeTransformFrame, transformState]);
+    : null, [activeScale, activeTransformFrame, temporarySelectionMoveActive, transformState]);
   const getTransformSnapTargets = useCallback(() => {
     const document = imageDocumentRef.current;
     const snap = editorSessionRef.current.snap;
@@ -6435,6 +6517,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (matches.length === 0) engineRef.current?.setSmartGuideEditingFrame(null);
   }, []);
   commitTransformRef.current = transformSession.commit;
+  settlePixelInteractionRef.current = async () => {
+    await selectionSessionController.settle();
+    await transformSession.commitPending();
+  };
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
@@ -6639,12 +6725,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   activateToolRef.current = activatePersistentTool;
 
   const invertActiveLayerColors = () => {
-    const layerId = imageDocumentRef.current?.activeLayerId;
-    if (!layerId || !executeRegisteredCommand('raster.invert', {
-      layerId, channel: editorSession.activeChannel
-    })) {
-      if (layerId) layerDocumentCommands.invertLayerColors(layerId, editorSession.activeChannel);
-    }
+    void settlePixelInteractionRef.current().then(() => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      const channel = editorSessionRef.current.activeChannel;
+      if (!layerId || !executeRegisteredCommand('raster.invert', {
+        layerId, channel
+      })) {
+        if (layerId) layerDocumentCommands.invertLayerColors(layerId, channel);
+      }
+    });
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
 
@@ -7319,8 +7408,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setIsolatedMaskLayerId(layerId);
         if (layerId) setIsolatedCompositeChannel(null);
       }}
-      onSelectCompositeChannel={selectionSessionController.selectCompositeChannel}
-      onSelectLayerMask={selectionSessionController.selectLayerMask}
+      onSelectCompositeChannel={(channel) => {
+        void settlePixelInteractionRef.current().then(() => (
+          selectionSessionController.selectCompositeChannel(channel)
+        ));
+      }}
+      onSelectLayerMask={(layerId) => {
+        void settlePixelInteractionRef.current().then(() => (
+          selectionSessionController.selectLayerMask(layerId)
+        ));
+      }}
     />
   );
 
@@ -7852,7 +7949,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         imageRect,
         scale: activeScale,
         viewportSize,
-        transformState,
+        transformState: temporarySelectionMoveActive ? null : transformState,
         loading,
         unavailable: Boolean(error && !metadata),
         inputBridge: textEditing.status === 'editing' ? (

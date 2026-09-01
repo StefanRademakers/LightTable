@@ -1173,7 +1173,8 @@ export const createLayerDocumentCommands = (
         width: placement.width,
         height: placement.height,
         x: placement.x,
-        y: placement.y
+        y: placement.y,
+        transformCommitMode: 'pixels'
       });
       const pastedLayerId = after === before ? null : after.activeLayerId;
       const pastedLayer = pastedLayerId ? findRasterLayer(after, pastedLayerId) : null;
@@ -1204,6 +1205,8 @@ export const createLayerDocumentCommands = (
     let after = createRasterLayer(before, placement.name?.trim() || 'Pasted Selection', insertionTarget);
     const pastedLayerId = after.activeLayerId;
     if (!pastedLayerId) return null;
+    const pastedLayer = findRasterLayer(after, pastedLayerId);
+    if (pastedLayer) pastedLayer.transformCommitMode = 'pixels';
     const dirtyBounds = {
       x: placement.x, y: placement.y, width: placement.width, height: placement.height
     };

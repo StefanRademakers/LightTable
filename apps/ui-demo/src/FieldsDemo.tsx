@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NumberField, SearchField, Select, Text, TextInput } from '@lighttable/ui';
+import { FileField, LinkedFields, NumberField, PathField, SearchField, Select, SelectField, Text, TextInput } from '@lighttable/ui';
 
 export function FieldsDemo() {
   const [name, setName] = useState('Background copy');
@@ -8,6 +8,11 @@ export function FieldsDemo() {
   const [preview, setPreview] = useState<number | null>(null);
   const [commits, setCommits] = useState(0);
   const [mode, setMode] = useState('normal');
+  const [fileName, setFileName] = useState('No file selected');
+  const [path, setPath] = useState('D:\\Pictures\\LightTableProject');
+  const [width, setWidth] = useState(3000);
+  const [height, setHeight] = useState(900);
+  const [dimensionsLinked, setDimensionsLinked] = useState(true);
   const modes = [{ value: 'normal', label: 'Normal' }, { value: 'multiply', label: 'Multiply' },
     { value: 'screen', label: 'Screen' }, { value: 'unavailable', label: 'Unavailable', disabled: true }];
   return <>
@@ -40,6 +45,39 @@ export function FieldsDemo() {
       </div>
       <Text as="p" variant="small" tone="muted">One native input; refs, selection, autofill and native input events stay available. No extra wrapper.</Text>
       <pre className="demo-code"><Text as="code">{'<TextInput value={name} onChange={event => setName(event.currentTarget.value)} />'}</Text></pre>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Path field</Text>
+      <div className="demo-colors">
+        <label className="demo-color"><Text>Editable path</Text>
+          <PathField value={path} onChange={event => setPath(event.currentTarget.value)}
+            onBrowse={() => setPath('D:\\Pictures\\SelectedProject')} />
+        </label>
+        <label className="demo-color"><Text>Picker-owned path</Text>
+          <PathField value="/Users/example/Pictures/LightTableProject" readOnly buttonLabel="Choose…"
+            onBrowse={() => undefined} />
+        </label>
+        <label className="demo-color"><Text>Disabled</Text>
+          <PathField value="Unavailable" disabled onBrowse={() => undefined} />
+        </label>
+      </div>
+      <Text as="p" tone="muted">The package composes the 28 px field and button. The app supplies the native folder picker.</Text>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Linked fields</Text>
+      <div className="demo-colors">
+        <LinkedFields firstLabel="Width" secondLabel="Height" linked={dimensionsLinked}
+          onLinkedChange={setDimensionsLinked}
+          firstField={<NumberField value={width} min={1} kind="integer" onValueChange={(value) => {
+            setWidth(value);
+            if (dimensionsLinked) setHeight(Math.max(1, Math.round(value * 0.3)));
+          }} />}
+          secondField={<NumberField value={height} min={1} kind="integer" onValueChange={(value) => {
+            setHeight(value);
+            if (dimensionsLinked) setWidth(Math.max(1, Math.round(value / 0.3)));
+          }} />} />
+      </div>
+      <Text as="p" tone="muted">The connector keeps its vertical proportions; field content remains standard package controls.</Text>
     </section>
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Search field</Text>
@@ -85,6 +123,17 @@ export function FieldsDemo() {
         <label className="demo-color"><Text>Disabled choice</Text><Select aria-label="Disabled choice" value={mode} options={modes} disabled /></label>
       </div>
       <Text as="p" tone="muted">One listbox with 28 px rows, keyboard navigation, disabled options, grouping and automatic viewport positioning.</Text>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Labeled panel fields</Text>
+      <div className="demo-colors">
+        <SelectField label="Blend mode" value={mode} options={modes} onChange={setMode} />
+        <SelectField label="Channel" labelWidth="56px" value={mode} options={modes} onChange={setMode} />
+        <FileField label="3D LUT" buttonLabel="Load .cube…" accept=".cube"
+          onFile={file => setFileName(file.name)} />
+      </div>
+      <Text as="p" variant="small" tone="muted" role="status">{fileName}</Text>
+      <Text as="p" tone="muted">The row owns label geometry; Select and Button retain their normal 28 px behavior.</Text>
     </section>
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Dialog keyboard access</Text>

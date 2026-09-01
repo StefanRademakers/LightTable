@@ -41,6 +41,15 @@ function readOptions(children: ReactNode, group?: string, disabled = false): Sel
   });
 }
 
+const popupZIndex = (anchor: HTMLElement): number => {
+  let highest = 10000;
+  for (let element: HTMLElement | null = anchor; element; element = element.parentElement) {
+    const value = Number.parseInt(window.getComputedStyle(element).zIndex, 10);
+    if (Number.isFinite(value)) highest = Math.max(highest, value + 1);
+  }
+  return highest;
+};
+
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select({
   value, defaultValue, onValueChange, options, children, searchable = false, searchPlaceholder = 'Search',
   placeholder, placement = 'auto', className, tabIndex = -1, disabled, onClick, onKeyDown, ...props
@@ -96,14 +105,15 @@ function SelectPopup({ id, anchor, options, selectedValue, searchable, searchPla
   const active = filtered.findIndex(option => option.value === activeValue && !option.disabled);
   const activeIndex = active >= 0 ? active : filtered.findIndex(option => !option.disabled);
   const prefix = useRef({ text: '', time: 0 });
-  const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 0 });
+  const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 0, zIndex: 10000 });
   useLayoutEffect(() => {
     const update = () => {
       if (!anchor.current || !root.current || !list.current) return;
       const bounds = anchor.current.getBoundingClientRect();
       const width = Math.min(Math.max(bounds.width, searchable ? 252 : 120), window.innerWidth - 16);
       const height = Math.min(list.current.scrollHeight + (searchable ? 34 : 0) + 12, 400);
-      const next = { ...menuPosition(bounds, { width, height }, { width: window.innerWidth, height: window.innerHeight }, placement, 'start', 8, 2), width };
+      const next = { ...menuPosition(bounds, { width, height }, { width: window.innerWidth, height: window.innerHeight }, placement, 'start', 8, 2), width,
+        zIndex: popupZIndex(anchor.current) };
       next.maxHeight = Math.min(next.maxHeight, 400);
       setPosition(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
     };

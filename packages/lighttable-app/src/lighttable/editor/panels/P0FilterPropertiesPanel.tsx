@@ -1,9 +1,8 @@
-import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader, SelectField as PanelSelectField } from '@lighttable/ui';
 import React from 'react';
 import { filterDefinition } from '@lighttable/filter-core';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 
-import { PanelSelectField } from '../../../ui/PanelControls';
 import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type {

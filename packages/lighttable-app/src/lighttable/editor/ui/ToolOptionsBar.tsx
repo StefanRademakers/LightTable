@@ -689,6 +689,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <Button
               key={percent}
               type="button"
+              variant="quiet"
               aria-pressed={Math.abs(zoomPercent - percent) < 0.01}
               onClick={() => onZoomPreset(percent)}
             >
@@ -697,6 +698,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           ))}
           <Button
             type="button"
+            variant="quiet"
             onClick={onZoomFit}
           >
             Fit screen

@@ -54,6 +54,12 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     selectionTransform: { getBindGroupLayout: vi.fn(() => ({})) }
   }));
   const sourceTexture = gpuTexture();
+  const selectionTextures = {
+    active: false,
+    mask: null as GPUTexture | null,
+    result: null as GPUTexture | null
+  };
+  const drawFullscreen = vi.fn();
   const runtime = {
     texture: sourceTexture,
     width: runtimeDimensions.width,
@@ -91,11 +97,7 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
         return displaced;
       }
     } as never,
-    selectionTextures: {
-      active: false,
-      mask: null,
-      result: null
-    } as never,
+    selectionTextures: selectionTextures as never,
     sessions,
     dimensions: () => ({ width: 64, height: 32 }),
     pipelines: pipelines as never,
@@ -104,7 +106,7 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     createSelectionTexture: vi.fn(() => gpuTexture()),
     clearTexture: vi.fn(),
     invalidateLayer: vi.fn(),
-    drawFullscreen: vi.fn()
+    drawFullscreen
   });
   return {
     rasterizer,
@@ -114,7 +116,9 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     copyTextureToTexture,
     submit,
     runtime,
-    sourceTexture
+    sourceTexture,
+    selectionTextures,
+    drawFullscreen
   };
 };
 
@@ -207,6 +211,29 @@ describe('TransformRasterizer', () => {
     });
     expect(edit?.redo()).toBe(true);
     expect(harness.runtime).toMatchObject({ width: 64, height: 32 });
+  });
+
+  it('materializes a placed raster before applying its document-space selection', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const harness = createHarness({ width: 23, height: 17 });
+    harness.selectionTextures.active = true;
+    harness.selectionTextures.mask = gpuTexture();
+    harness.selectionTextures.result = gpuTexture();
+
+    harness.rasterizer.begin(
+      rasterLayer({ width: 23, height: 17 }),
+      true,
+      false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 11, ty: 7 }
+    );
+
+    expect(harness.drawFullscreen).toHaveBeenCalledTimes(3);
+    expect(harness.sessions.current).toMatchObject({
+      usesSelection: true,
+      bakeLayer: false,
+      previewMode: 'selection',
+      matrix: identityAffineMatrix()
+    });
   });
 
   it('rejects hidden or position-locked layers before allocating GPU resources', () => {

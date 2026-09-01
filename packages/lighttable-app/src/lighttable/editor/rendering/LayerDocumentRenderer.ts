@@ -349,8 +349,14 @@ export class LayerDocumentRenderer {
   }
 
   selectionMaskTexture() {
+    const preview = this.runtime.transformRasterizer.selectionPreviewTexture();
+    if (preview) return preview;
     const textures = this.runtime.selectionTextures;
     return textures.active ? textures.mask : null;
+  }
+
+  selectionTransformPreviewActive() {
+    return Boolean(this.runtime.transformRasterizer.selectionPreviewTexture());
   }
 
   releaseSubmittedResources() {
@@ -607,8 +613,18 @@ export class LayerDocumentRenderer {
     return this.runtime.pixelEditHistory.cancel();
   }
 
-  beginTransform(layer: RasterLayer, useSelection: boolean) {
-    return this.runtime.transformRasterizer.begin(layer, useSelection);
+  beginTransform(
+    layer: RasterLayer,
+    useSelection: boolean,
+    bakeLayer = false,
+    sourceTransform?: AffineMatrix
+  ) {
+    return this.runtime.transformRasterizer.begin(
+      layer,
+      useSelection,
+      bakeLayer,
+      sourceTransform
+    );
   }
 
   updateTransform(matrix: AffineMatrix) {

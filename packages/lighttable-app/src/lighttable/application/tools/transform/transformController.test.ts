@@ -31,6 +31,7 @@ const pixelEdit = (): ReversiblePixelEdit => ({
 
 const renderer = (): TransformRendererPort => ({
   measureSelectedLayerContent: vi.fn(async () => coverage),
+  measureSelectionBounds: vi.fn(async () => coverage),
   measureLayerContent: vi.fn(async () => coverage),
   beginLayerTransform: vi.fn(),
   setDuplicateLayerTransform: vi.fn(() => true),
@@ -120,12 +121,16 @@ describe('TransformController', () => {
     expect(port.beginLayerTransform).toHaveBeenCalledWith(document.layers[0], true);
   });
 
-  it('keeps a transformed layer non-destructive instead of mixing selection spaces', async () => {
+  it('edits selected pixels on a placed pixel layer in document space', async () => {
     const base = createImageDocument('Transform', 320, 180, 'asset');
     const layer = base.layers[0] as RasterLayer;
     const transformed = {
       ...base,
-      layers: [{ ...layer, transform: translationMatrix(12, -3) }]
+      layers: [{
+        ...layer,
+        transform: translationMatrix(12, -3),
+        transformCommitMode: 'pixels' as const
+      }]
     };
     const port = renderer();
     const controller = new TransformController(port);
@@ -133,10 +138,16 @@ describe('TransformController', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.state.sourceKind).toBe('layer');
-      expect(result.notice).toContain('rasterize');
+      expect(result.state.sourceKind).toBe('selection');
+      expect(result.notice).toBeNull();
     }
-    expect(port.measureSelectedLayerContent).not.toHaveBeenCalled();
+    expect(port.measureSelectionBounds).toHaveBeenCalledOnce();
+    expect(port.beginLayerTransform).toHaveBeenCalledWith(
+      transformed.layers[0],
+      true,
+      false,
+      translationMatrix(12, -3)
+    );
   });
 
   it('falls back to visible layer content when the selection misses all pixels', async () => {

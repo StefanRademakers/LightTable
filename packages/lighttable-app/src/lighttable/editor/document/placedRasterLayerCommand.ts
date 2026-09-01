@@ -8,6 +8,7 @@ export interface PlacedRasterLayerOptions {
   readonly height: number;
   readonly x: number;
   readonly y: number;
+  readonly transformCommitMode?: 'pixels';
 }
 
 /** Creates a tight native raster whose transform owns document-space placement. */
@@ -28,6 +29,7 @@ export const createPlacedRasterLayer = (
   if (!raster || !layerId) return document;
   raster.width = options.width;
   raster.height = options.height;
+  raster.transformCommitMode = options.transformCommitMode;
   return setLayerTransform(created, layerId, {
     a: 1, b: 0, c: 0, d: 1, tx: options.x, ty: options.y
   });

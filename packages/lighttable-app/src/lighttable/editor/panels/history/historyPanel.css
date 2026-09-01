@@ -7,6 +7,17 @@
 }
 
 .lighttable-history-panel__states {
+  --ui-tree-row-height: 28px;
+  --ui-tree-row-gap: var(--lt-layer-prefix-gap, 4px);
+  --ui-tree-row-padding-inline: var(--lt-layer-row-padding-inline, 2px);
+  --ui-tree-row-radius: var(--lt-radius-sm);
+  --ui-tree-row-surface: var(--lt-surface-layer-row);
+  --ui-tree-row-hover: var(--lt-surface-layer-row-hover);
+  --ui-tree-row-selected: var(--lt-surface-layer-row-selected);
+  --ui-tree-row-active: var(--lt-surface-layer-row-active);
+  --ui-tree-row-border: var(--lt-border-layer-row);
+  --ui-tree-row-active-border: var(--lt-border-layer-row-active);
+  --ui-tree-row-focus: var(--lt-focus-ring);
   display: flex;
   flex-direction: column;
   gap: 2px;

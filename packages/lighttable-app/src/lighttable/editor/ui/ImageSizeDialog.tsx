@@ -1,12 +1,7 @@
-import { Checkbox, Button } from '@lighttable/ui';
+import { Checkbox, Button, Dialog, FieldRow, LinkedFields, MaskIcon, NumberField, Select, Text } from '@lighttable/ui';
 import { useLayoutEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-import { NumberField } from '@lighttable/ui';
-import { SwitchControl } from '@lighttable/ui';
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { Select } from '@lighttable/ui';
+import { lightTableIcon } from '../../../assets/icons';
 import type { ImageDocument } from '../document/documentTypes';
 import {
   MAX_IMAGE_SIZE_DIMENSION,
@@ -70,9 +65,6 @@ export const ImageSizeDialog = ({
   const [resample, setResample] = useState(true);
   const [method, setMethod] = useState<ResampleMethod>('automatic');
   const [noiseReduction, setNoiseReduction] = useState(0);
-  const [scaleStyles, setScaleStyles] = useState(true);
-  const [preset, setPreset] = useState<'original' | 'custom'>('original');
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
 
   useLayoutEffect(() => {
     if (!open || !original) return;
@@ -80,7 +72,6 @@ export const ImageSizeDialog = ({
     setResolutionPpi(original.resolutionPpi);
     setWidthUnit('pixels'); setHeightUnit('pixels'); setResolutionUnit('pixels-per-inch');
     setLinked(true); setResample(true); setMethod('automatic'); setNoiseReduction(0);
-    setScaleStyles(true); setPreset('original');
   }, [open, original]);
 
   if (!open || !document || !original) return null;
@@ -102,108 +93,76 @@ export const ImageSizeDialog = ({
       setHeightPx(pixels);
       if (linked) setWidthPx(Math.max(1, Math.round(pixels * original.aspectRatio)));
     }
-    setPreset('custom');
-  };
-  const restoreOriginal = () => {
-    setWidthPx(original.widthPx); setHeightPx(original.heightPx);
-    setResolutionPpi(original.resolutionPpi); setPreset('original');
   };
 
-  return createPortal(
-    <div className="modal-backdrop lighttable-dialog-backdrop" onMouseDown={onCancel}>
-      <form
-        ref={dialogRef}
-        className="modal image-size-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Image Size"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={onDialogKeyDown}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!valid || busy) return;
-          onCommit({
-            width: resultWidth, height: resultHeight, resolutionPpi,
-            resample, method, preserveDetailsNoiseReduction: noiseReduction, scaleStyles
-          });
-        }}
-      >
-        <div className="modal__header"><h3 className="modal__title">Image Size</h3></div>
-        <div className="image-size-dialog__summary">
-          <div><span>Image Size</span><strong>{formattedSize(estimateDocumentImageBytes(resultWidth, resultHeight, document.colorSettings.bitDepth))}</strong></div>
-          <div><span>Dimensions</span><strong>{resultWidth} px × {resultHeight} px</strong></div>
-        </div>
-        <div className="image-size-dialog__body">
-          <label className="image-size-dialog__row">
-            <span>Fit To</span>
-            <Select tabIndex={0} value={preset} onValueChange={(nextValue) => {
-              if (nextValue === 'original') restoreOriginal();
-              else setPreset('custom');
-            }}><option value="original">Original Size</option><option value="custom">Custom</option></Select>
-          </label>
-          <div className="image-size-dialog__dimensions">
-            <label><span>Width</span><NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
-              kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
-              formatValue={(value) => displayedNumber(value, widthUnit)}
-              onValueChange={(value) => changeDimension('width', value)} /></label>
-            <Select tabIndex={0} aria-label="Width unit" value={widthUnit}
-              onValueChange={(nextValue) => setWidthUnit(nextValue as ImageSizeUnit)}>
-              {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </Select>
-            <label><span>Height</span><NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
-              kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
-              formatValue={(value) => displayedNumber(value, heightUnit)}
-              onValueChange={(value) => changeDimension('height', value)} /></label>
-            <Select tabIndex={0} aria-label="Height unit" value={heightUnit}
-              onValueChange={(nextValue) => setHeightUnit(nextValue as ImageSizeUnit)}>
-              {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </Select>
-          </div>
-          <div className="image-size-dialog__link-row">
-            <span>Constrain proportions</span>
-            <SwitchControl checked={linked} onCheckedChange={setLinked} label="Constrain proportions" />
-          </div>
-          <label className="image-size-dialog__row">
-            <span>Resolution</span>
-            <NumberField tabIndex={0} min={resolutionFromPpi(1, resolutionUnit)} max={resolutionFromPpi(2400, resolutionUnit)} step={1}
-              value={resolutionFromPpi(resolutionPpi, resolutionUnit)}
-              formatValue={(value) => String(Number(value.toFixed(3)))}
-              onValueChange={(value) => {
-                const next = resolutionToPpi(value, resolutionUnit);
-                if (Number.isFinite(next)) { setResolutionPpi(next); setPreset('custom'); }
-              }} />
-            <Select tabIndex={0} value={resolutionUnit}
-              onValueChange={(nextValue) => setResolutionUnit(nextValue as ResolutionUnit)}>
-              <option value="pixels-per-inch">Pixels/Inch</option>
-              <option value="pixels-per-centimeter">Pixels/Centimeter</option>
-            </Select>
-          </label>
-          <div className="image-size-dialog__row image-size-dialog__resample-row">
-            <span>Resample</span>
-            <SwitchControl checked={resample} onCheckedChange={setResample} label="Resample image pixels" />
-            <Select tabIndex={0} aria-label="Resampling method" value={method} disabled={!resample}
-              onValueChange={(nextValue) => setMethod(nextValue as ResampleMethod)}>
-              {RESAMPLE_METHODS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </Select>
-          </div>
-          {method === 'preserve-details-2' && resample ? (
-            <div className="image-size-dialog__noise">
-              <AdjustmentSlider label="Reduce Noise" value={noiseReduction} min={0} max={100}
-                layout="inline" format={(value) => `${Math.round(value)}%`}
-                onChange={setNoiseReduction} onReset={() => setNoiseReduction(0)} />
-            </div>
-          ) : null}
-          <label className="image-size-dialog__check"><Checkbox tabIndex={0} checked={scaleStyles}
-            onChange={(event) => setScaleStyles(event.currentTarget.checked)} /> Scale Styles</label>
-        </div>
-        <div className="modal__footer">
-          <Button tabIndex={0} onClick={onCancel}>Cancel</Button>
-          <Button tabIndex={0} type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</Button>
-        </div>
-      </form>
-    </div>,
-    globalThis.document.body
-  );
+  const submit = () => onCommit({
+    width: resultWidth, height: resultHeight, resolutionPpi,
+    resample, method, preserveDetailsNoiseReduction: noiseReduction, scaleStyles: true
+  });
+  const megapixels = ((resultWidth * resultHeight) / 1_000_000).toFixed(2);
+
+  return <Dialog open={open} as="form" size="regular" title="Image Size"
+    description={`Image Size: ${megapixels} MP · ${formattedSize(estimateDocumentImageBytes(resultWidth, resultHeight, document.colorSettings.bitDepth))}`}
+    onDismiss={onCancel} closeOnBackdrop className="image-size-dialog"
+    onSubmit={(event) => {
+      event.preventDefault();
+      if (valid && !busy) submit();
+    }}
+    footer={<>
+      <Button tabIndex={0} type="button" onClick={onCancel}>Cancel</Button>
+      <Button tabIndex={0} type="submit" disabled={!valid || busy}>{busy ? 'Resizing…' : 'OK'}</Button>
+    </>}>
+    <LinkedFields firstLabel="Width" secondLabel="Height" linked={linked} tabIndex={0}
+      linkLabel={linked ? 'Unlink width and height' : 'Link width and height'}
+      linkIcon={<MaskIcon src={lightTableIcon('link_vertical.png')} mode="luminance" />}
+      onLinkedChange={setLinked}
+      firstField={<span className="image-size-dialog__field-pair">
+        <NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
+          kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
+          formatValue={(value) => displayedNumber(value, widthUnit)}
+          onValueChange={(value) => changeDimension('width', value)} />
+        <Select tabIndex={0} aria-label="Width unit" value={widthUnit}
+          onValueChange={(nextValue) => setWidthUnit(nextValue as ImageSizeUnit)}>
+          {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+        </Select>
+      </span>}
+      secondField={<span className="image-size-dialog__field-pair">
+        <NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
+          kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
+          formatValue={(value) => displayedNumber(value, heightUnit)}
+          onValueChange={(value) => changeDimension('height', value)} />
+        <Select tabIndex={0} aria-label="Height unit" value={heightUnit}
+          onValueChange={(nextValue) => setHeightUnit(nextValue as ImageSizeUnit)}>
+          {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+        </Select>
+      </span>}
+    />
+    <FieldRow label="Resolution">
+      <span className="image-size-dialog__field-pair">
+        <NumberField tabIndex={0} min={resolutionFromPpi(1, resolutionUnit)} max={resolutionFromPpi(2400, resolutionUnit)} step={1}
+          value={resolutionFromPpi(resolutionPpi, resolutionUnit)}
+          formatValue={(value) => String(Number(value.toFixed(3)))}
+          onValueChange={(value) => {
+            const next = resolutionToPpi(value, resolutionUnit);
+            if (Number.isFinite(next)) setResolutionPpi(next);
+          }} />
+        <Select tabIndex={0} aria-label="Resolution unit" value={resolutionUnit}
+          onValueChange={(nextValue) => setResolutionUnit(nextValue as ResolutionUnit)}>
+          <option value="pixels-per-inch">Pixels/Inch</option>
+          <option value="pixels-per-centimeter">Pixels/Centimeter</option>
+        </Select>
+      </span>
+    </FieldRow>
+    <label className="image-size-dialog__option">
+      <Checkbox tabIndex={0} checked={resample} onChange={(event) => setResample(event.currentTarget.checked)} />
+      <Text>Resample</Text>
+      <Select tabIndex={0} aria-label="Resampling method" value={method} disabled={!resample}
+        onValueChange={(nextValue) => setMethod(nextValue as ResampleMethod)}>
+        {RESAMPLE_METHODS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+      </Select>
+    </label>
+    {method === 'preserve-details-2' && resample ? <AdjustmentSlider label="Reduce Noise"
+      value={noiseReduction} min={0} max={100} layout="inline" format={(value) => `${Math.round(value)}%`}
+      onChange={setNoiseReduction} onReset={() => setNoiseReduction(0)} /> : null}
+  </Dialog>;
 };

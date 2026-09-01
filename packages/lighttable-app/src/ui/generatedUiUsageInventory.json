@@ -18,6 +18,22 @@
       "overrides": []
     },
     {
+      "id": "tree-row",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/PanelStackPrimitives.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
       "id": "color-wheel",
       "metadataDeclared": true,
       "productionUsageCount": 1,
@@ -73,8 +89,8 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 121,
-      "internalUsageCount": 5,
+      "productionUsageCount": 120,
+      "internalUsageCount": 4,
       "contextCount": 36,
       "overrideCount": 0,
       "locations": [
@@ -245,7 +261,7 @@
         },
         {
           "path": "standalone/NewProjectDialog.tsx",
-          "count": 3,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -264,11 +280,6 @@
           "kind": "internal"
         },
         {
-          "path": "ui/PanelControls.tsx",
-          "count": 1,
-          "kind": "internal"
-        },
-        {
           "path": "ui/TextInputDialog.tsx",
           "count": 2,
           "kind": "internal"
@@ -279,9 +290,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 83,
+      "productionUsageCount": 81,
       "internalUsageCount": 0,
-      "contextCount": 22,
+      "contextCount": 21,
       "overrideCount": 0,
       "locations": [
         {
@@ -360,11 +371,6 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/PanelStackPrimitives.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
           "count": 7,
           "kind": "product"
@@ -398,37 +404,11 @@
       "overrides": []
     },
     {
-      "id": "square-icon-button",
-      "metadataDeclared": true,
-      "productionUsageCount": 7,
-      "internalUsageCount": 0,
-      "contextCount": 3,
-      "overrideCount": 0,
-      "locations": [
-        {
-          "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 5,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/LightTableEditorShell.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "standalone/VideoControlsPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        }
-      ],
-      "overrides": []
-    },
-    {
       "id": "form-input",
       "metadataDeclared": true,
-      "productionUsageCount": 17,
+      "productionUsageCount": 16,
       "internalUsageCount": 1,
-      "contextCount": 9,
+      "contextCount": 8,
       "overrideCount": 0,
       "locations": [
         {
@@ -467,11 +447,6 @@
           "kind": "product"
         },
         {
-          "path": "standalone/NewProjectDialog.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
           "path": "standalone/PreferencesDialog.tsx",
           "count": 4,
           "kind": "product"
@@ -487,9 +462,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 34,
-      "internalUsageCount": 1,
-      "contextCount": 17,
+      "productionUsageCount": 35,
+      "internalUsageCount": 0,
+      "contextCount": 18,
       "overrideCount": 0,
       "locations": [
         {
@@ -528,6 +503,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/DebugPanel.tsx",
           "count": 1,
           "kind": "product"
@@ -539,7 +519,7 @@
         },
         {
           "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
-          "count": 5,
+          "count": 4,
           "kind": "product"
         },
         {
@@ -576,11 +556,6 @@
           "path": "standalone/PreferencesDialog.tsx",
           "count": 3,
           "kind": "product"
-        },
-        {
-          "path": "ui/PanelControls.tsx",
-          "count": 1,
-          "kind": "internal"
         }
       ],
       "overrides": []
@@ -683,43 +658,33 @@
       "overrides": []
     },
     {
-      "id": "panel-select",
+      "id": "field-row",
       "metadataDeclared": true,
-      "productionUsageCount": 11,
+      "productionUsageCount": 16,
       "internalUsageCount": 0,
-      "contextCount": 5,
+      "contextCount": 3,
       "overrideCount": 0,
       "locations": [
         {
-          "path": "genai/ui/GenAiPanel.tsx",
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
           "count": 1,
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
           "count": 1,
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
-          "count": 2,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
-          "count": 6,
+          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "count": 14,
           "kind": "product"
         }
       ],
       "overrides": []
     },
     {
-      "id": "panel-file",
+      "id": "linked-fields",
       "metadataDeclared": true,
       "productionUsageCount": 2,
       "internalUsageCount": 0,
@@ -727,12 +692,44 @@
       "overrideCount": 0,
       "locations": [
         {
-          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
           "count": 1,
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
+          "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "anchor-grid",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "path-field",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "standalone/NewProjectDialog.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -742,9 +739,9 @@
     {
       "id": "panel-checkbox",
       "metadataDeclared": true,
-      "productionUsageCount": 43,
+      "productionUsageCount": 44,
       "internalUsageCount": 2,
-      "contextCount": 16,
+      "contextCount": 17,
       "overrideCount": 0,
       "locations": [
         {
@@ -779,6 +776,11 @@
         },
         {
           "path": "lighttable/editor/panels/TextPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -909,9 +911,9 @@
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 20,
+      "productionUsageCount": 17,
       "internalUsageCount": 0,
-      "contextCount": 11,
+      "contextCount": 9,
       "overrideCount": 0,
       "locations": [
         {
@@ -937,16 +939,6 @@
         {
           "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
           "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
-          "count": 2,
           "kind": "product"
         },
         {
@@ -1404,47 +1396,16 @@
       "overrides": []
     },
     {
-      "id": "confirm-dialog",
+      "id": "dialog",
       "metadataDeclared": true,
-      "productionUsageCount": 4,
-      "internalUsageCount": 0,
-      "contextCount": 4,
+      "productionUsageCount": 10,
+      "internalUsageCount": 2,
+      "contextCount": 7,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/EditorDialogs.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/FillDialog.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "standalone/AgentAccessSettingsDialog.tsx",
-          "count": 1,
-          "kind": "product"
-        }
-      ],
-      "overrides": []
-    },
-    {
-      "id": "text-input-dialog",
-      "metadataDeclared": true,
-      "productionUsageCount": 4,
-      "internalUsageCount": 0,
-      "contextCount": 3,
-      "overrideCount": 0,
-      "locations": [
-        {
-          "path": "genai/ui/ProjectAssetBrowser.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -1453,9 +1414,39 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/EditorDialogs.tsx",
-          "count": 2,
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 1,
           "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/EditorDialogs.tsx",
+          "count": 3,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/FillDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "ui/ConfirmDialog.tsx",
+          "count": 1,
+          "kind": "internal"
+        },
+        {
+          "path": "ui/TextInputDialog.tsx",
+          "count": 1,
+          "kind": "internal"
         }
       ],
       "overrides": []

@@ -1,4 +1,4 @@
-import { Button, SegmentedControl } from '@lighttable/ui';
+import { Button, SegmentedControl, SelectField as PanelSelectField } from '@lighttable/ui';
 import React, { useState } from 'react';
 
 import { GradientField, type GradientFieldValue } from '@lighttable/ui';
@@ -14,7 +14,6 @@ import {
   PanelCheckboxField,
   PanelColorSwatch,
   PanelNumberSlider,
-  PanelSelectField,
   type PanelColor
 } from '../ui/PanelControls';
 

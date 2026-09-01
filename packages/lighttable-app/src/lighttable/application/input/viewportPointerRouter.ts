@@ -136,8 +136,10 @@ export const resolveViewportPointerDownIntent = (
 export const resolveViewportPointerMoveIntent = (
   context: ViewportPointerMoveContext
 ): ViewportPointerMoveIntent => {
-  if (context.temporaryPan || context.panGestureMatches) return 'pan';
+  // A captured marquee keeps ownership while Space is held: Photoshop uses
+  // that chord to reposition the in-progress marquee, not to pan the viewport.
   if (context.selectionGestureMatches) return 'selection';
+  if (context.temporaryPan || context.panGestureMatches) return 'pan';
   if (context.warpGestureMatches) {
     return context.hasDocumentPoint ? 'warp' : 'ignore';
   }

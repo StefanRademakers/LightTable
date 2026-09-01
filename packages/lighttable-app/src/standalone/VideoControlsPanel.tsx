@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import type { VideoDocumentSession } from '@lighttable/video-core';
+import { IconButton } from '@lighttable/ui';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from '../ui/AdjustmentSlider';
-import { SquareIconButton } from '../ui/SquareIconButton';
 
 export interface VideoControlsPanelCommands {
   readonly togglePlayback: () => void;
@@ -38,8 +38,8 @@ const TransportButton = ({
   readonly onClick: () => void;
   readonly disabled?: boolean;
 }) => (
-  <SquareIconButton
-    appearance="quiet"
+  <IconButton
+    variant="quiet"
     icon={<img src={lightTableIcon(icon)} alt="" aria-hidden />}
     aria-label={label}
     title={label}

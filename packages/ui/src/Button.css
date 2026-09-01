@@ -23,6 +23,12 @@
 
 .ui-button[data-full-width] { width: 100%; }
 
+.ui-button[data-variant='quiet'] {
+  padding-inline: 8px;
+  border-color: transparent;
+  background: transparent;
+}
+
 .ui-button[data-intent='destructive'] {
   color: var(--ui-danger-text);
   border-color: var(--ui-danger-border);
@@ -38,6 +44,10 @@
   border-color: var(--ui-button-disabled-border);
   background: var(--ui-button-surface);
   cursor: default;
+}
+.ui-button[data-variant='quiet']:disabled {
+  border-color: transparent;
+  background: transparent;
 }
 
 @media (forced-colors: active) {

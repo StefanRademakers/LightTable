@@ -49,7 +49,17 @@ interface TransformRasterizerOptions {
 export class TransformRasterizer {
   constructor(private readonly options: TransformRasterizerOptions) {}
 
-  begin(layer: RasterLayer, useSelection: boolean) {
+  selectionPreviewTexture() {
+    const session = this.options.sessions.current;
+    return session?.usesSelection ? session.selectionPreview : null;
+  }
+
+  begin(
+    layer: RasterLayer,
+    useSelection: boolean,
+    bakeLayer = false,
+    sourceTransform?: AffineMatrix
+  ) {
     if (useSelection) this.options.ensureSelectionTargets();
     if (this.options.sessions.current) {
       throw new Error('Finish or cancel the active transform first.');
@@ -66,7 +76,7 @@ export class TransformRasterizer {
       throw new Error('The active selection is not available on the GPU.');
     }
     const { width, height } = this.options.dimensions();
-    if (!useSelection) {
+    if (!useSelection && !bakeLayer) {
       this.options.sessions.begin({
         layerId: layer.id,
         matrix: identityAffineMatrix(),
@@ -76,6 +86,7 @@ export class TransformRasterizer {
         selectionPreview: null,
         settingsBuffer: null,
         usesSelection: false,
+        bakeLayer: false,
         previewMode: 'none',
         duplicateSelection: false
       });
@@ -113,9 +124,16 @@ export class TransformRasterizer {
         { texture: selectionTexture },
         [width, height]
       );
+      if (selectionPreview) {
+        encoder.copyTextureToTexture(
+          { texture: selectionTextures.mask },
+          { texture: selectionPreview },
+          [width, height]
+        );
+      }
     }
     this.options.device.queue.submit([encoder.finish()]);
-    this.options.sessions.begin({
+    const session = this.options.sessions.begin({
       layerId: layer.id,
       matrix: identityAffineMatrix(),
       sourceTexture,
@@ -124,9 +142,33 @@ export class TransformRasterizer {
       selectionPreview,
       settingsBuffer,
       usesSelection: useSelection,
-      previewMode: useSelection ? 'selection' : 'none',
+      bakeLayer,
+      previewMode: useSelection ? 'selection' : 'baked-layer',
       duplicateSelection: false
     });
+    if (useSelection && sourceTransform) {
+      // Placed clipboard rasters keep a tight local surface until the first
+      // pixel edit. Materialize that surface into document space inside this
+      // same transform transaction so the document-space selection and the
+      // pixels it visibly covers cannot fall into different coordinate spaces.
+      session.usesSelection = false;
+      session.bakeLayer = true;
+      if (!this.update(sourceTransform)) {
+        this.cancel();
+        throw new Error('The placed raster could not be prepared for pixel editing.');
+      }
+      const localSource = session.sourceTexture;
+      session.sourceTexture = session.previewTexture;
+      session.previewTexture = localSource;
+      session.usesSelection = true;
+      session.bakeLayer = false;
+      session.matrix = identityAffineMatrix();
+      session.previewMode = 'selection';
+      if (!this.update(identityAffineMatrix())) {
+        this.cancel();
+        throw new Error('The selected pixels could not be prepared for editing.');
+      }
+    }
   }
 
   update(matrix: AffineMatrix) {
@@ -135,16 +177,18 @@ export class TransformRasterizer {
     const inverse = invertMatrix(matrix);
     if (!inverse) return false;
     session.matrix = matrix;
-    session.previewMode = session.usesSelection ? 'selection' : 'none';
+    session.previewMode = session.usesSelection
+      ? 'selection'
+      : session.bakeLayer ? 'baked-layer' : 'none';
     // Whole-layer transforms are compositor geometry overrides. No pixels are
     // resampled until an explicit rasterize/merge operation.
-    if (!session.usesSelection) return true;
+    if (!session.usesSelection && !session.bakeLayer) return true;
 
     return this.renderPreview([
       inverse.a, inverse.c, inverse.tx, 0,
       inverse.b, inverse.d, inverse.ty, 0,
       0, 0, 1, 0
-    ], true, isIntegerTranslation(matrix));
+    ], session.usesSelection, isIntegerTranslation(matrix));
   }
 
   updateProjective(source: TransformQuad, destination: TransformQuad) {

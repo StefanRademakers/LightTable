@@ -199,6 +199,12 @@ export interface CommonLayer {
 export interface RasterLayer extends CommonLayer {
   type: 'raster';
   /**
+   * Pixel layers created by clipboard extraction bake a completed layer
+   * transform back into their editable surface. Other raster layers retain
+   * LightTable's live layer-transform geometry.
+   */
+  transformCommitMode?: 'pixels';
+  /**
    * Non-destructive corrections owned by this raster layer.
    *
    * `null` is an exact bypass: the layer has no local grade and allocates no

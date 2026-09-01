@@ -1,6 +1,5 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
-import { SquareIconButton } from '../../../ui/SquareIconButton';
-import type { MenuOption } from '@lighttable/ui';
+import { IconButton, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import type { EditorSession, ToolId } from '../session/editorSession';
@@ -249,7 +248,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
             enabledFor={(menuId) => editorMenuEnabledForDocumentKind(workspaceDocumentKind, menuId)}
             onRevealProject={onRevealProject} />
         </div>
-        <SquareIconButton
+        <IconButton
           className="lighttable__close-button"
           onClick={onClose}
           disabled={saving}

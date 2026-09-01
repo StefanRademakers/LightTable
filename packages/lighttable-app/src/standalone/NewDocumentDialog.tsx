@@ -134,11 +134,11 @@ export function NewDocumentDialog({
         <div className="lighttable-new-document-dialog__fields">
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Name</span>
-            <TextInput tabIndex={0} value={name} maxLength={255} onChange={(event) => setName(event.currentTarget.value)} />
+            <TextInput tabIndex={modal ? 0 : -1} value={name} maxLength={255} onChange={(event) => setName(event.currentTarget.value)} />
           </label>
           <label>
             <span>Width</span>
-            <NumberField tabIndex={0} updateMode="input" kind="integer"
+            <NumberField tabIndex={modal ? 0 : -1} updateMode="input" kind="integer"
               autoFocus={modal}
               inputMode="numeric"
               min="1"
@@ -149,7 +149,7 @@ export function NewDocumentDialog({
           </label>
           <label>
             <span>Height</span>
-            <NumberField tabIndex={0} updateMode="input" kind="integer"
+            <NumberField tabIndex={modal ? 0 : -1} updateMode="input" kind="integer"
               inputMode="numeric"
               min="1"
               max={MAX_DIMENSION}
@@ -159,19 +159,19 @@ export function NewDocumentDialog({
           </label>
           <label>
             <span>Resolution (ppi)</span>
-            <NumberField tabIndex={0} updateMode="input" min="1" max="2400" value={resolutionPpi}
+            <NumberField tabIndex={modal ? 0 : -1} updateMode="input" min="1" max="2400" value={resolutionPpi}
               onValueChange={setResolutionPpi} onEmpty={() => setResolutionPpi(NaN)} />
           </label>
           <label>
             <span>Bit depth</span>
-            <Select tabIndex={0} value={bitDepth}
+            <Select tabIndex={modal ? 0 : -1} value={bitDepth}
               onValueChange={(nextValue) => setBitDepth(Number(nextValue) as 8 | 16)}>
               <option value="8">8 bit</option><option value="16">16 bit</option>
             </Select>
           </label>
           <label>
             <span>Blend compatibility</span>
-            <Select tabIndex={0} value={profile}
+            <Select tabIndex={modal ? 0 : -1} value={profile}
               title={documentBlendProfileDescription(profile)}
               onValueChange={(nextValue) => setProfile(nextValue as typeof profile)}>
               <option value="srgb">{documentBlendProfileDisplayName('srgb')}</option>
@@ -180,7 +180,7 @@ export function NewDocumentDialog({
           </label>
           <label>
             <span>Background</span>
-            <Select tabIndex={0} value={backgroundKind}
+            <Select tabIndex={modal ? 0 : -1} value={backgroundKind}
               onValueChange={(nextValue) => setBackgroundKind(nextValue as typeof backgroundKind)}>
               <option value="transparent">Transparent</option><option value="solid">Solid color</option>
             </Select>
@@ -188,7 +188,7 @@ export function NewDocumentDialog({
           {backgroundKind === 'solid' ? (
             <label className="lighttable-new-document-dialog__wide-field">
               <span>Background color</span>
-              <ColorSwatchField tabIndex={0} value={backgroundColor} ariaLabel="Background color"
+              <ColorSwatchField tabIndex={modal ? 0 : -1} value={backgroundColor} ariaLabel="Background color"
                 onChange={setBackgroundColor} />
             </label>
           ) : null}

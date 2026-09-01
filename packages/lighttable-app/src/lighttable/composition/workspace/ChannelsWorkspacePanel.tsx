@@ -82,9 +82,11 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
     <div className="lighttable-channels-panel">
       <div className="lighttable-channels-panel__list" role="list">
         {COLOR_CHANNELS.map((channel) => {
+          const compositeVisible = !isolatedCompositeChannel && !isolatedMaskLayerId;
           const active = channel.id === 'composite'
-            ? !isolatedCompositeChannel && !isolatedMaskLayerId
+            ? compositeVisible
             : isolatedCompositeChannel === channel.id && !isolatedMaskLayerId;
+          const visible = compositeVisible || active;
           return (
             <ButtonBase
               className={`lighttable-channel-row${active ? ' lighttable-channel-row--active' : ''}`}
@@ -101,7 +103,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
               type="button"
             >
               <span className="lighttable-channel-row__visibility" aria-hidden="true">
-                <img src={lightTableIcon(active ? 'visible.png' : 'visible_off.png')} alt="" />
+                <img src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')} alt="" />
               </span>
               <span
                 className={`lighttable-channel-row__thumbnail lighttable-channel-row__thumbnail--${channel.id}`}

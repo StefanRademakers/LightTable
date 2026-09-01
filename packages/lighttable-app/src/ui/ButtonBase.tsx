@@ -12,10 +12,11 @@ interface ButtonBaseProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  */
 export const ButtonBase = forwardRef<HTMLButtonElement, ButtonBaseProps>(function ButtonBase({
   type = 'button',
+  tabIndex = -1,
   status = 'provisional',
   'data-suite-control': _ignoredSuiteControl,
   ...props
 }, ref) {
-  return <button ref={ref} type={type} data-suite-control="button-base"
+  return <button ref={ref} type={type} tabIndex={tabIndex} data-suite-control="button-base"
     data-suite-status={status} {...props} />;
 });

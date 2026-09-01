@@ -529,7 +529,7 @@ export class RasterPaintService {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
-      transform.a, transform.c, transform.tx, 0,
+      transform.a, transform.c, transform.tx, channel === 'mask' ? 1 : 0,
       transform.b, transform.d, transform.ty, 0
     ]));
     const bindGroup = this.options.device.createBindGroup({

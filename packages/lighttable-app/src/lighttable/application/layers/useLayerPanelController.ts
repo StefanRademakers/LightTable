@@ -82,12 +82,12 @@ export interface LayerPanelControllerDependencies {
     settings?: AdjustmentInitialSettings): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
-  addActiveLayerMask(): boolean;
+  addActiveLayerMask(): boolean | Promise<boolean>;
   duplicateActiveLayer(): boolean;
   rasterizeActiveTextLayer(): boolean;
   rasterizeActiveLayer(): Promise<boolean>;
-  loadLayerMaskSelection(layerId: LayerId): void;
-  loadLayerTransparencySelection(layerId: LayerId): void;
+  loadLayerMaskSelection(layerId: LayerId): void | Promise<void>;
+  loadLayerTransparencySelection(layerId: LayerId): void | Promise<void>;
   mergeActiveLayerDown(): void;
   mergeSelectedLayers(layerIds: LayerId[]): void;
   flattenGroup(groupId: LayerId): void;
@@ -293,9 +293,14 @@ export const createLayerPanelController = (
         moveLayerSelection(current, layerIds, targetLayerId, placement)),
     addMask: () => {
       const dependencies = resolveDependencies();
-      if (dependencies.addActiveLayerMask()) {
-        dependencies.setPaintTarget('mask', '#000000');
+      const result = dependencies.addActiveLayerMask();
+      if (typeof result === 'boolean') {
+        if (result) dependencies.setPaintTarget('mask', '#000000');
+        return;
       }
+      void result.then((added) => {
+        if (added) resolveDependencies().setPaintTarget('mask', '#000000');
+      });
     },
     loadMaskSelection: (layerId) =>
       resolveDependencies().loadLayerMaskSelection(layerId),

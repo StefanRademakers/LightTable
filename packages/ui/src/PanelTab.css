@@ -16,5 +16,5 @@
 
 .ui-panel-tab[data-selected] {
   color: var(--ui-text);
-  background: var(--ui-button-hover);
+  background: var(--ui-surface-panel);
 }

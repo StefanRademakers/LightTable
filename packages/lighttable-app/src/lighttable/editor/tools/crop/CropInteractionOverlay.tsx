@@ -74,7 +74,7 @@ export const CropInteractionOverlay = ({
       <i className="crop-interaction-overlay__third crop-interaction-overlay__third--v2" />
       <i className="crop-interaction-overlay__third crop-interaction-overlay__third--h1" />
       <i className="crop-interaction-overlay__third crop-interaction-overlay__third--h2" />
-      {handles.map((handle) => <button key={handle} type="button" aria-label={`Crop ${handle} handle`}
+      {handles.map((handle) => <button key={handle} type="button" tabIndex={-1} aria-label={`Crop ${handle} handle`}
         className={`crop-interaction-overlay__handle crop-interaction-overlay__handle--${handle}`}
         onPointerDown={(event) => begin(handle, event)} onPointerMove={move} onPointerUp={end} onPointerCancel={end} />)}
     </div>

@@ -1,10 +1,9 @@
-import { IconButton, MaskIcon, PanelSectionHeader, RangeSlider } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader, RangeSlider, SelectField as PanelSelectField } from '@lighttable/ui';
 import { NumberField } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
-import { PanelSelectField } from '../../../ui/PanelControls';
 
 type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
 type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];

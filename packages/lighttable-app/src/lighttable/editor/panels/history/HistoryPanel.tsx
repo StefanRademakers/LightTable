@@ -28,7 +28,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   const current = history.states.find((state) => state.current) ?? history.states[0];
   return <aside className="lighttable-panel lighttable-history-panel" aria-label="History">
     <div className="lighttable-history-panel__states" role="listbox" aria-label="Document history"
-      data-panel-keyboard-collection
+      data-tree-keyboard-collection
       data-editor-native-tab-navigation="tab-only">
       {history.states.map((state) => <PanelStackButtonRow key={`${state.id}:${state.position}`}
         className={`lighttable-history-panel__state${state.future ? ' is-future' : ''}`}

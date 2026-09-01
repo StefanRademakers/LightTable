@@ -1,0 +1,9 @@
+.ui-field-row {
+  box-sizing: border-box; width: 100%; min-width: 0;
+  display: grid; grid-template-columns: var(--ui-field-label-width, 92px) minmax(0, 1fr);
+  align-items: center; gap: 8px;
+  color: var(--ui-text-muted);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-small)/var(--ui-line-height-small) var(--ui-font-family);
+}
+.ui-field-row__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-field-row[data-layout='column'] { grid-template-columns: minmax(0, 1fr); gap: 4px; }

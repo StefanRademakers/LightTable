@@ -79,8 +79,13 @@ export const useEditorKeyboardController = ({
     onKeyDown: (event, physicalModifiers) => {
       if (event.target instanceof HTMLElement) {
         const nativeScope = event.target.closest<HTMLElement>('[data-editor-native-tab-navigation]');
-        if (nativeScope && (nativeScope.dataset.editorNativeTabNavigation !== 'tab-only'
-          || event.key === 'Tab')) return false;
+        const dialogScope = event.target.closest<HTMLElement>('[role="dialog"]');
+        // Tab is application chrome everywhere except an actual dialog. Menus,
+        // toolbars and panel trees may own their other navigation keys without
+        // turning the whole editor into a browser-style tab order.
+        if (nativeScope && (event.key !== 'Tab' || dialogScope)) {
+          if (nativeScope.dataset.editorNativeTabNavigation !== 'tab-only' || event.key === 'Tab') return false;
+        }
       }
       const context = getContext();
       const command = resolveEditorKeyboardCommand({

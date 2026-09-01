@@ -28,6 +28,20 @@
   --lt-layer-row-padding-block: 0;
   --lt-layer-thumbnail-slot: var(--lt-action-tree-column);
   --lt-layer-thumbnail-content-max: 16px;
+  --ui-tree-row-height: var(--lt-layer-row-min-height);
+  --ui-tree-row-gap: var(--lt-action-tree-column-gap);
+  --ui-tree-row-padding-inline: var(--lt-layer-row-padding-inline);
+  --ui-tree-row-padding-block: var(--lt-layer-row-padding-block);
+  --ui-tree-row-radius: var(--lt-radius-sm);
+  --ui-tree-row-surface: var(--lt-surface-layer-row);
+  --ui-tree-row-hover: var(--lt-surface-layer-row-hover);
+  --ui-tree-row-selected: var(--lt-surface-layer-row-selected);
+  --ui-tree-row-active: var(--lt-surface-layer-row-active);
+  --ui-tree-row-border: var(--lt-border-layer-row);
+  --ui-tree-row-active-border: var(--lt-border-layer-row-active);
+  --ui-tree-row-focus: var(--lt-focus-ring);
+  --ui-tree-disclosure-width: var(--lt-action-tree-column);
+  --ui-tree-disclosure-height: calc(var(--lt-control-height) - 2px);
   flex: 1 1 auto;
   min-height: 72px;
   display: flex;
@@ -62,7 +76,6 @@
   padding-left: calc(var(--lt-layer-row-padding-inline) + 2 * var(--lt-action-tree-indent));
 }
 
-.lighttable-action-tree .lighttable-panel-stack-disclosure,
 .lighttable-action-tree__enabled {
   width: var(--lt-action-tree-column);
   height: calc(var(--lt-control-height) - 2px);

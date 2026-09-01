@@ -1,0 +1,42 @@
+.ui-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 20px;
+  background: var(--ui-backdrop);
+}
+
+.ui-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(410px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--ui-text);
+  background: var(--ui-surface-panel);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
+  outline: none;
+  user-select: none;
+}
+
+.ui-dialog input,
+.ui-dialog textarea,
+.ui-dialog [contenteditable='true'] { user-select: text; }
+
+.ui-dialog[data-size='compact'] { width: min(280px, calc(100vw - 40px)); }
+.ui-dialog[data-size='wide'] { width: min(720px, calc(100vw - 40px)); }
+
+.ui-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}

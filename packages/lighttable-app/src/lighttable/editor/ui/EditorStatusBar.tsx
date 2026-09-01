@@ -96,7 +96,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
     <div
       className={`lighttable-toolbar__meta${reportAvailable ? ' lighttable-toolbar__meta--report' : ''}`}
       role={reportAvailable ? 'button' : undefined}
-      tabIndex={reportAvailable ? 0 : undefined}
+      tabIndex={-1}
       onClick={reportAvailable ? onOpenReport : undefined}
       onKeyDown={reportAvailable ? (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;

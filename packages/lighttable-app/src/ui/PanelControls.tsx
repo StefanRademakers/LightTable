@@ -1,9 +1,8 @@
-import { Button, Checkbox, NumberField } from '@lighttable/ui';
+import { Checkbox, NumberField } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorSwatchField } from './ColorSwatchField';
 
-import { Select } from '@lighttable/ui';
 
 export interface PanelColor {
   readonly r: number;
@@ -24,73 +23,6 @@ export const parsePanelHexColor = <T extends PanelColor>(value: string, alpha: n
   b: Number.parseInt(value.slice(5, 7), 16) / 255,
   a: alpha
 } as T);
-
-export const PanelSelectField: React.FC<{
-  label: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  labelWidth?: string;
-  onChange: (value: string) => void;
-}> = ({ label, value, options, labelWidth, onChange }) => (
-  <label className="lighttable-style-field" data-suite-control="panel-select"
-    style={labelWidth ? { '--lt-property-label-width': labelWidth } as React.CSSProperties : undefined}>
-    <span>{label}</span>
-    <Select value={value} onValueChange={(nextValue) => onChange(nextValue)}>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
-    </Select>
-  </label>
-);
-
-const acceptedFile = (file: File, accept: string) => {
-  const rules = accept.split(',').map((rule) => rule.trim().toLowerCase()).filter(Boolean);
-  if (!rules.length) return true;
-  const name = file.name.toLowerCase();
-  const mediaType = file.type.toLowerCase();
-  return rules.some((rule) => rule.startsWith('.') ? name.endsWith(rule) : mediaType === rule);
-};
-
-export const PanelFileField: React.FC<{
-  label: string;
-  buttonLabel: string;
-  accept: string;
-  disabled?: boolean;
-  title?: string;
-  onFile: (file: File) => void | Promise<void>;
-  onRejected?: () => void;
-}> = ({ label, buttonLabel, accept, disabled = false, title, onFile, onRejected }) => {
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-  const publish = (files: FileList | null) => {
-    const file = Array.from(files ?? []).find((candidate) => acceptedFile(candidate, accept));
-    if (file) void onFile(file);
-    else if (files?.length) onRejected?.();
-  };
-  return (
-    <div className="lighttable-style-field lighttable-file-field" title={title}
-      data-suite-control="panel-file"
-      onDragEnter={(event) => { event.preventDefault(); event.stopPropagation(); }}
-      onDragOver={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        event.dataTransfer.dropEffect = 'copy';
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        publish(event.dataTransfer.files);
-      }}>
-      <span>{label}</span>
-      <Button disabled={disabled} onClick={() => inputRef.current?.click()}>
-        {buttonLabel}
-      </Button>
-      <input ref={inputRef} type="file" accept={accept} hidden onChange={(event) => {
-        publish(event.currentTarget.files);
-        event.currentTarget.value = '';
-      }} />
-    </div>
-  );
-};
 
 export const PanelCheckboxField: React.FC<{
   label: string;

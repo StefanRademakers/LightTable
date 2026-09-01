@@ -1,9 +1,9 @@
-import { PanelSection, Button, SegmentedControl, TextInput, SearchField, Histogram, ColorWheel } from '@lighttable/ui';
+import { AnchorGrid, PanelSection, Button, FileField as PanelFileField, SegmentedControl, TextInput, SearchField,
+  Histogram, ColorWheel, SelectField as PanelSelectField } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
 
-import { AnchorGridControl } from '../ui/AnchorGridControl';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 
 import { Select } from '@lighttable/ui';
@@ -12,7 +12,7 @@ import { NonePaintField } from '@lighttable/ui';
 import { NumberField } from '@lighttable/ui';
 
 
-import { SquareIconButton } from '../ui/SquareIconButton';
+import { IconButton } from '@lighttable/ui';
 import { SwitchControl } from '@lighttable/ui';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { UiInspectionTarget } from '../ui/uiInspection';
@@ -37,8 +37,6 @@ import {
 import {
   PanelAngleControl,
   PanelCheckboxField,
-  PanelFileField,
-  PanelSelectField,
   type PanelColor
 } from '../ui/PanelControls';
 
@@ -192,9 +190,9 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <Button tabIndex={0}>Text action</Button>
                 </Sample>
                 <Sample title="Icon buttons">
-                  <SquareIconButton icon="+" aria-label="Add" />
-                  <SquareIconButton icon="−" active aria-label="Remove active" />
-                  <SquareIconButton icon="×" disabled aria-label="Disabled" />
+                  <IconButton icon="+" aria-label="Add" />
+                  <IconButton icon="−" active aria-label="Remove active" />
+                  <IconButton icon="×" disabled aria-label="Disabled" />
                 </Sample>
                 <Sample title="States - geometry does not change">
                   <Button tabIndex={0}>Enabled</Button>
@@ -368,7 +366,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
                   <UiLayoutGeometrySpecimens />
                 </Sample>
                 <Sample title="3 × 3 anchor control">
-                  <AnchorGridControl x={anchor.x} y={anchor.y}
+                  <AnchorGrid x={anchor.x} y={anchor.y}
                     onChange={(x, y) => setAnchor({ x, y })} />
                 </Sample>
               </> : null}

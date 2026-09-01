@@ -55,9 +55,9 @@ export function Menu<T extends string>(props: MenuProps<T>) {
 function OpenMenu<T extends string>(props: MenuProps<T>) {
   const owner = useId();
   const opener = useRef(props.anchor?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null));
-  const close = () => {
+  const close = (restoreFocus = true) => {
     // Restore before invoking a command, so a newly opened dialog keeps its focus.
-    if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+    if (restoreFocus && opener.current?.isConnected) opener.current.focus({ preventScroll: true });
     props.onClose();
   };
   useEffect(() => {
@@ -82,7 +82,7 @@ function OpenMenu<T extends string>(props: MenuProps<T>) {
 interface MenuLevelProps<T extends string> extends MenuProps<T> {
   owner: string;
   theme?: string;
-  close: () => void;
+  close: (restoreFocus?: boolean) => void;
   autoFocus?: boolean;
   parent?: HTMLButtonElement;
   closeLevel?: () => void;
@@ -172,6 +172,9 @@ function MenuLevel<T extends string>({ options, label = 'Context menu', anchor, 
         {option.separatorBefore ? <div className="ui-menu__separator" role="separator" /> : null}
         <div className="ui-menu__row" onPointerEnter={event => {
           retain();
+          if (!option.disabled) {
+            (event.currentTarget.firstElementChild as HTMLButtonElement | null)?.focus({ preventScroll: true });
+          }
           setChild(option.children?.length && !option.disabled
             ? { value: option.value, anchor: event.currentTarget.firstElementChild as HTMLButtonElement, focus: false } : null);
         }}>
@@ -186,7 +189,7 @@ function MenuLevel<T extends string>({ options, label = 'Context menu', anchor, 
             onClick={event => {
               if (option.disabled) return;
               if (option.children?.length) { retain(); setChild({ value: option.value, anchor: event.currentTarget, focus: true }); }
-              else { close(); option.onClick?.(); }
+              else { close(event.detail === 0); option.onClick?.(); }
             }}>
             {option.status ? <span className="ui-menu__status" data-status={option.status} aria-label={option.status === 'connected' ? 'Connected' : 'Not connected'} />
               : option.icon ? <span className="ui-menu__icon" aria-hidden="true">{option.icon}</span> : null}
@@ -197,7 +200,9 @@ function MenuLevel<T extends string>({ options, label = 'Context menu', anchor, 
           {option.trailingAction ? <button type="button" className="ui-menu__action" role="menuitem" tabIndex={-1}
             aria-label={option.trailingAction.label} aria-disabled={option.trailingAction.disabled || undefined}
             title={option.trailingAction.disabled ? option.trailingAction.disabledReason ?? 'Unavailable in the current context.' : option.trailingAction.label}
-            onClick={() => { if (!option.trailingAction?.disabled) { close(); option.trailingAction?.onClick(); } }}>
+            onClick={event => { if (!option.trailingAction?.disabled) {
+              close(event.detail === 0); option.trailingAction?.onClick();
+            } }}>
             <span className="ui-menu__icon" aria-hidden="true">{option.trailingAction.icon}</span>
           </button> : null}
         </div>

@@ -33,8 +33,14 @@ import type {
 
 export interface TransformRendererPort {
   measureSelectedLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null>;
+  measureSelectionBounds(): Promise<SelectionCoverageBounds | null>;
   measureLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null>;
-  beginLayerTransform(layer: RasterLayer, useSelection: boolean): void;
+  beginLayerTransform(
+    layer: RasterLayer,
+    useSelection: boolean,
+    bakeLayer?: boolean,
+    sourceTransform?: AffineMatrix
+  ): void;
   updateLayerTransform(matrix: AffineMatrix): boolean;
   updateLayerProjectiveTransform(source: TransformQuad, destination: TransformQuad): boolean;
   commitLayerTransform(): ReversiblePixelEdit | null;
@@ -78,6 +84,13 @@ export type FinishTransformResult =
     readonly pixelEdit: ReversiblePixelEdit;
   }
   | {
+    readonly kind: 'raster-layer';
+    readonly beforeDocument: ImageDocument;
+    readonly afterDocument: ImageDocument;
+    readonly layerId: LayerId;
+    readonly pixelEdit: ReversiblePixelEdit;
+  }
+  | {
     readonly kind: 'error';
     readonly message: string;
   };
@@ -110,6 +123,7 @@ const mergeBounds = (first: Rect, second: Rect): Rect => {
 export class TransformController {
   private activeState: TransformSessionState | null = null;
   private activeSemanticLayer: LayerNode | null = null;
+  private activeRasterLayerBake = false;
   private launchRevision = 0;
 
   constructor(private readonly renderer: TransformRendererPort) {}
@@ -155,13 +169,18 @@ export class TransformController {
     }
 
     const selectionRequested = layer.type === 'raster' && selection.length > 0;
+    const placedPixelLayer = layer.type === 'raster'
+      && layer.transformCommitMode === 'pixels'
+      && !matrixApproximatelyEqual(layer.transform, identityMatrix());
     let usesSelection = selectionRequested
-      && matrixApproximatelyEqual(layer.transform, identityMatrix());
+      && (matrixApproximatelyEqual(layer.transform, identityMatrix()) || placedPixelLayer);
     let sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
 
     try {
       let measuredContent = semanticLayer
         ? await this.renderer.measureSemanticLayerContent(layer)
+        : usesSelection && placedPixelLayer
+          ? await this.renderer.measureSelectionBounds()
         : usesSelection
           ? await this.renderer.measureSelectedLayerContent(layer as RasterLayer)
           : await this.renderer.measureLayerContent(layer as RasterLayer);
@@ -201,9 +220,24 @@ export class TransformController {
         sourceKind: usesSelection ? 'selection' : 'layer',
         previewKind: semanticLayer ? 'semantic' : 'raster'
       };
+      const bakeRasterLayer = layer.type === 'raster'
+        && layer.transformCommitMode === 'pixels'
+        && !usesSelection;
       const previewStarted = semanticLayer
         ? this.renderer.beginSemanticLayerTransform(layer)
-        : (this.renderer.beginLayerTransform(layer as RasterLayer, usesSelection), true);
+        : (
+            bakeRasterLayer
+              ? this.renderer.beginLayerTransform(layer as RasterLayer, usesSelection, true)
+              : usesSelection && placedPixelLayer
+                ? this.renderer.beginLayerTransform(
+                    layer as RasterLayer,
+                    true,
+                    false,
+                    layer.transform
+                  )
+                : this.renderer.beginLayerTransform(layer as RasterLayer, usesSelection),
+            true
+          );
       const previewUpdated = previewStarted && (semanticLayer
         ? this.renderer.updateSemanticLayerTransform(layer, sourceMatrix)
         : this.renderer.updateLayerTransform(sourceMatrix));
@@ -222,6 +256,7 @@ export class TransformController {
       if (semanticLayer) this.renderer.setSemanticLayerInteraction(layer, true);
       this.activeState = state;
       this.activeSemanticLayer = semanticLayer ? layer : null;
+      this.activeRasterLayerBake = bakeRasterLayer;
       return {
         ok: true,
         state: this.state!,
@@ -286,9 +321,11 @@ export class TransformController {
   ): FinishTransformResult {
     const state = this.activeState;
     const semanticLayer = this.activeSemanticLayer;
+    const bakeRasterLayer = this.activeRasterLayerBake;
     this.launchRevision += 1;
     this.activeState = null;
     this.activeSemanticLayer = null;
+    this.activeRasterLayerBake = false;
     if (!state) return { kind: 'unchanged' };
     if (
       !commit
@@ -299,7 +336,7 @@ export class TransformController {
       return { kind: commit ? 'unchanged' : 'cancelled' };
     }
 
-    if (state.sourceKind === 'layer' && !state.projectiveQuad) {
+    if (state.sourceKind === 'layer' && !state.projectiveQuad && !bakeRasterLayer) {
       this.cancelPreview(state, semanticLayer);
       return {
         kind: 'layer',
@@ -327,6 +364,21 @@ export class TransformController {
         ? quadBounds(state.projectiveQuad)
         : transformedBounds(state.matrix, state.supportBounds)
     );
+    if (state.sourceKind === 'layer' && bakeRasterLayer) {
+      const afterDocument = setRasterLayerDocumentSurface(
+        markLayerPixelsChanged(document, state.layerId, dirtyBounds),
+        state.layerId,
+        document.width,
+        document.height
+      );
+      return {
+        kind: 'raster-layer',
+        beforeDocument: document,
+        afterDocument,
+        layerId: state.layerId,
+        pixelEdit
+      };
+    }
     const beforeSelection = cloneSelection(selection);
     const afterSelection = state.projectiveQuad
       ? projectSelectionOperations(

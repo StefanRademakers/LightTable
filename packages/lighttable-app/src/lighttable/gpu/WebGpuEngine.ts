@@ -952,8 +952,13 @@ export class WebGpuEngine {
     this.documentRenderer?.cancelPixelEdit();
   }
 
-  beginLayerTransform(layer: RasterLayer, useSelection: boolean) {
-    this.documentRenderer?.beginTransform(layer, useSelection);
+  beginLayerTransform(
+    layer: RasterLayer,
+    useSelection: boolean,
+    bakeLayer = false,
+    sourceTransform?: AffineMatrix
+  ) {
+    this.documentRenderer?.beginTransform(layer, useSelection, bakeLayer, sourceTransform);
     this.markDocumentPreviewDirty();
   }
 
@@ -3747,7 +3752,11 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
           this.vectorSelectionPreviewTransform
         )
       : canonicalOverlayScene;
-    const directShape = this.selectionOverlayVisible && !this.selectionPaintOverlayVisible
+    const selectionTransformPreviewActive =
+      this.documentRenderer?.selectionTransformPreviewActive() === true;
+    const directShape = this.selectionOverlayVisible
+      && !this.selectionPaintOverlayVisible
+      && !selectionTransformPreviewActive
       ? directSelectionShape(this.selectionOverlayOperations)
       : null;
     // A draft may extend over the pasteboard. Once committed, the selection

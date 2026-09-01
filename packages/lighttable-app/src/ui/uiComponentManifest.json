@@ -1,17 +1,19 @@
 [
   { "id": "document-tabs", "name": "Document Tabs", "family": "Lists & navigation", "symbols": ["DocumentTabs"], "roots": ["ui-document-tabs"], "packageStatus": "ready" },
+  { "id": "tree-row", "name": "Tree Row", "family": "Lists & navigation", "symbols": ["TreeRow", "TreeButtonRow", "TreeDisclosure"], "roots": ["ui-tree-row", "ui-tree-disclosure"], "packageStatus": "ready" },
   { "id": "color-wheel", "name": "Color Wheel", "family": "Paint & color", "symbols": ["ColorWheel"], "roots": ["ui-color-wheel"], "packageStatus": "ready" },
   { "id": "histogram", "name": "Histogram", "family": "Visualization", "symbols": ["Histogram"], "roots": ["ui-histogram"], "packageStatus": "ready" },
   { "id": "scopes", "name": "Scopes", "family": "Visualization", "symbols": ["ScopesPanel"], "roots": ["ui-scopes"], "packageStatus": "ready" },
   { "id": "action-button", "name": "Button", "family": "Actions", "symbols": ["Button"], "roots": ["ui-button"], "packageStatus": "ready" },
   { "id": "button-base", "name": "Button Base", "family": "Actions", "symbols": ["ButtonBase"], "roots": [], "packageStatus": "coupled" },
-  { "id": "square-icon-button", "name": "Square Icon Button", "family": "Actions", "symbols": ["SquareIconButton"], "roots": ["square-icon-button"], "packageStatus": "ready" },
   { "id": "form-input", "name": "Text Field", "family": "Fields", "symbols": ["TextInput"], "roots": ["ui-text-input"], "packageStatus": "ready" },
   { "id": "form-select", "name": "Dropdown", "family": "Fields", "symbols": ["Select"], "roots": ["ui-select"], "packageStatus": "ready" },
   { "id": "search-field", "name": "Search Field", "family": "Fields", "symbols": ["SearchField"], "roots": ["ui-search-field"], "packageStatus": "ready" },
   { "id": "numeric-expression", "name": "Numeric Expression Input", "family": "Fields", "symbols": ["NumberField"], "roots": [], "packageStatus": "ready" },
-  { "id": "panel-select", "name": "Panel Select Field", "family": "Fields", "symbols": ["PanelSelectField"], "roots": ["lighttable-style-field"], "packageStatus": "coupled" },
-  { "id": "panel-file", "name": "Panel File Field", "family": "Fields", "symbols": ["PanelFileField"], "roots": ["lighttable-file-field"], "packageStatus": "coupled" },
+  { "id": "field-row", "name": "Labeled Field Row", "family": "Fields", "symbols": ["FieldRow", "SelectField", "FileField"], "roots": ["ui-field-row"], "packageStatus": "ready" },
+  { "id": "linked-fields", "name": "Linked Fields", "family": "Fields", "symbols": ["LinkedFields"], "roots": ["ui-linked-fields"], "packageStatus": "ready" },
+  { "id": "anchor-grid", "name": "Anchor Grid", "family": "Selection", "symbols": ["AnchorGrid"], "roots": ["ui-anchor-grid"], "packageStatus": "ready" },
+  { "id": "path-field", "name": "Path Field", "family": "Fields", "symbols": ["PathField"], "roots": ["ui-path-field"], "packageStatus": "ready" },
   { "id": "panel-checkbox", "name": "Panel Checkbox Field", "family": "Selection", "symbols": ["PanelCheckboxField", "Checkbox"], "roots": ["ui-checkbox"], "packageStatus": "ready" },
   { "id": "panel-angle", "name": "Panel Angle Control", "family": "Fields", "symbols": ["PanelAngleControl"], "roots": ["lighttable-style-angle"], "packageStatus": "coupled" },
   { "id": "segmented-control", "name": "Segmented Control", "family": "Selection", "symbols": ["SegmentedControl"], "roots": ["ui-segmented"], "packageStatus": "ready" },
@@ -28,6 +30,5 @@
   { "id": "context-menu", "name": "Menu", "family": "Lists & navigation", "symbols": ["Menu"], "roots": ["ui-menu"], "packageStatus": "ready" },
   { "id": "menu-bar", "name": "Menu Bar", "family": "Lists & navigation", "symbols": ["MenuBar"], "roots": ["ui-menu-bar"], "packageStatus": "ready" },
   { "id": "toolbar", "name": "Toolbar", "family": "Lists & navigation", "symbols": ["Toolbar"], "roots": ["ui-toolbar"], "packageStatus": "ready" },
-  { "id": "confirm-dialog", "name": "Confirm Dialog", "family": "Dialogs", "symbols": ["ConfirmDialog"], "roots": ["modal"], "packageStatus": "ready" },
-  { "id": "text-input-dialog", "name": "Text Input Dialog", "family": "Dialogs", "symbols": ["TextInputDialog"], "roots": ["modal"], "packageStatus": "ready" }
+  { "id": "dialog", "name": "Dialog", "family": "Dialogs", "symbols": ["Dialog", "ConfirmDialog", "TextInputDialog"], "roots": ["ui-dialog"], "packageStatus": "ready" }
 ]

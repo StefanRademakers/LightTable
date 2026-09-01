@@ -48,7 +48,8 @@ export interface EditorKeyboardCommandPorts {
   openBrushSettings(): void;
   inputBrushPercent(target: 'opacity' | 'flow', digit: number): void;
   setActiveLayerOpacity(percent: number): void;
-  nudge(x: number, y: number): void;
+  nudgeSelectionMask(x: number, y: number): void;
+  nudgeContent(x: number, y: number, duplicate?: boolean, continueTransform?: boolean): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
   changeZoom(direction: -1 | 1): void;
@@ -82,7 +83,16 @@ export const executeEditorKeyboardCommand = (
       return;
     }
     if (command.type === 'nudge') {
-      ports.nudge(command.x, command.y);
+      if (command.target === 'selection-mask') {
+        ports.nudgeSelectionMask(command.x, command.y);
+      } else {
+        ports.nudgeContent(
+          command.x,
+          command.y,
+          command.duplicate,
+          command.continueTransform
+        );
+      }
       return;
     }
     if (ports.isTransformActive() && command.tool !== 'transform') {

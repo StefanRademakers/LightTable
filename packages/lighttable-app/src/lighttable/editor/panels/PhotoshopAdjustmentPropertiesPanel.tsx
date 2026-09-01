@@ -1,4 +1,5 @@
-import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { FileField as PanelFileField, IconButton, MaskIcon, PanelSectionHeader,
+  SelectField as PanelSelectField } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
@@ -12,9 +13,7 @@ import type { GradePanelProps } from './GradePanel';
 import { LevelsPropertiesPanel } from './LevelsPropertiesPanel';
 import {
   PanelCheckboxField,
-  PanelColorSwatch,
-  PanelFileField,
-  PanelSelectField
+  PanelColorSwatch
 } from '../../../ui/PanelControls';
 import { COLOR_TEMPERATURE_RANGE } from '../config/adjustmentControls';
 

@@ -1,0 +1,97 @@
+.ui-linked-fields {
+  --ui-linked-label-width: var(--ui-field-label-width, 92px);
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--ui-linked-label-width) minmax(0, 1fr);
+  grid-template-rows: 28px 28px;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  min-width: 0;
+  color: var(--ui-text-muted);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-small)/var(--ui-line-height-small) var(--ui-font-family);
+}
+
+.ui-linked-fields__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-linked-fields__field { min-width: 0; }
+
+.ui-linked-fields__link {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  left: var(--ui-linked-label-width);
+  width: 18px;
+  padding: 0;
+  border: 0;
+  transform: translateX(-50%);
+  background: transparent;
+  color: var(--ui-text);
+  cursor: pointer;
+}
+
+.ui-linked-fields__link::before {
+  content: '';
+  position: absolute;
+  inset: 4px 1px 4px 8px;
+  border: solid currentColor;
+  border-width: 1px 0 1px 1px;
+  border-radius: 3px 0 0 3px;
+  opacity: .56;
+}
+
+.ui-linked-fields__link-icon {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 1;
+  left: 4px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 20px;
+  transform: translateY(-50%);
+  background: var(--ui-surface-panel);
+  opacity: 1;
+}
+
+.ui-linked-fields__chain {
+  position: relative;
+  width: 8px;
+  height: 16px;
+}
+
+.ui-linked-fields__chain::before,
+.ui-linked-fields__chain::after {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  left: 1px;
+  width: 6px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+.ui-linked-fields__chain::before { top: 0; }
+.ui-linked-fields__chain::after { bottom: 0; }
+
+.ui-linked-fields__link-icon > .ui-mask-icon {
+  width: 9px;
+  height: 16px;
+}
+
+.ui-linked-fields__link[aria-pressed='false'] {
+  color: var(--ui-text-muted);
+}
+.ui-linked-fields__link[aria-pressed='false']::before { opacity: .18; }
+.ui-linked-fields__link[aria-pressed='false'] .ui-linked-fields__link-icon { opacity: .26; }
+
+.ui-linked-fields__link[aria-pressed='false']:hover .ui-linked-fields__link-icon { opacity: .62; }
+.ui-linked-fields__link:focus-visible { outline: none; }

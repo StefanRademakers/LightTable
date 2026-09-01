@@ -1,4 +1,4 @@
-import { Button, TextInput } from '@lighttable/ui';
+import { Button, PathField } from '@lighttable/ui';
 import { createPortal } from 'react-dom';
 import type { LightTableProjectLocation } from '../platform/LightTableHost';
 
@@ -42,11 +42,9 @@ export function NewProjectDialog({
         <div className="lighttable-new-document-dialog__fields">
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Project folder</span>
-            <div className="lighttable-preferences__location-row">
-              <TextInput tabIndex={0} readOnly aria-label="Project folder" value={location?.path ?? ''}
-                placeholder="Choose a project folder" title={location?.path} />
-              <Button tabIndex={0} type="button" autoFocus={!location} onClick={onChooseLocation}>Choose...</Button>
-            </div>
+            <PathField tabIndex={0} readOnly inputAriaLabel="Project folder" value={location?.path ?? ''}
+              placeholder="Choose a project folder" title={location?.path} buttonLabel="Choose…"
+              autoFocusButton={!location} onBrowse={onChooseLocation} />
           </label>
           <p className="lighttable-preferences__note lighttable-new-document-dialog__wide-field">
             LightTable project files will be added to this folder. Existing files are kept.

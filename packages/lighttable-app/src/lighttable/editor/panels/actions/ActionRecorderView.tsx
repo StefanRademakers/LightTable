@@ -241,7 +241,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   return <section className="lighttable-action-recorder" aria-label="Actions"
     onClick={() => setMenu(null)}>
     <div className="lighttable-action-tree" role="tree" aria-label="Action Sets"
-      data-panel-keyboard-collection
+      data-tree-keyboard-collection
       data-editor-native-tab-navigation="tab-only">
       {library.sets.map((set) => {
         const setOpen = expandedSets.has(set.id);
@@ -252,7 +252,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
               createdAt: recording.startedAt ?? 0, updatedAt: recording.stoppedAt ?? Date.now(), recording }]
           : savedActions;
         return <div className="lighttable-action-tree__set" key={set.id}>
-          <PanelStackRow role="treeitem" aria-level={1} aria-expanded={setOpen} tabIndex={0}
+          <PanelStackRow role="treeitem" aria-level={1} aria-expanded={setOpen} tabIndex={-1}
             selected={selection?.kind === 'set' && selection.id === set.id}
             active={selection?.kind === 'set' && selection.id === set.id}
             className="lighttable-action-tree__row is-set"
@@ -292,7 +292,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
               const shown = actionRecording(action.id, action.recording);
               const actionEnabled = action.enabled !== false;
               return <div key={action.id}>
-                <PanelStackRow role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={0}
+                <PanelStackRow role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={-1}
                   selected={selection?.kind === 'action' && selection.id === action.id}
                   active={selection?.kind === 'action' && selection.id === action.id}
                   className="lighttable-action-tree__row is-action"
@@ -337,7 +337,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                       active={selected}
                       role="treeitem" key={`${step.sequence}-${step.requestId}`}
                       data-command={step.command}
-                      aria-level={3} tabIndex={0}
+                      aria-level={3} tabIndex={-1}
                       onClick={(event) => {
                         event.stopPropagation();
                         chooseAction(action.id);

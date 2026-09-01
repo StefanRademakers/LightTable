@@ -1,4 +1,5 @@
-import { Button, DocumentTabs, Menu, type MenuOption, PanelSection, Select } from '@lighttable/ui';
+import { Button, DocumentTabs, FileField as PanelFileField, Menu, type MenuOption, PanelSection, Select,
+  SelectField as PanelSelectField } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../ui/AdjustmentSlider';
@@ -7,7 +8,6 @@ import type { LayerId } from '../lighttable/editor/document/documentTypes';
 import { createDefaultLayerStyleGradient } from '../lighttable/editor/styles/layerStyleDefaults';
 import { GradientAssetEditor } from '../lighttable/editor/ui/LayerStyleGradientEditor';
 import { LocalProcessingTreeRows } from '../lighttable/editor/ui/LocalProcessingTreeRows';
-import { PanelFileField, PanelSelectField } from '../ui/PanelControls';
 import { ToolOptionNumber, ToolOptionSelect } from '../lighttable/editor/ui/ToolOptionControls';
 import { OpacitySlider } from '../ui/OpacitySlider';
 

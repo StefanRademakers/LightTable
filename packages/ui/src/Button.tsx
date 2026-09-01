@@ -2,12 +2,14 @@ import type { ComponentPropsWithRef } from 'react';
 
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {
   intent?: 'normal' | 'destructive';
+  variant?: 'default' | 'quiet';
   fullWidth?: boolean;
 }
 
 /** A single native button. One height; native focus, keyboard and disabled behavior. */
 export function Button({
   intent = 'normal',
+  variant = 'default',
   fullWidth = false,
   type = 'button',
   tabIndex = -1,
@@ -17,6 +19,7 @@ export function Button({
   return <button {...props} type={type} tabIndex={tabIndex}
     className={className ? `ui-button ${className}` : 'ui-button'}
     data-ui-component="button" data-suite-control="action-button" data-intent={intent}
+    data-variant={variant}
     data-full-width={fullWidth || undefined}
   />;
 }

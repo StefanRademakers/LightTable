@@ -1,4 +1,4 @@
-import { Checkbox, PanelSection, Button, SegmentedControl, Menu, TextInput, NumberField } from '@lighttable/ui';
+import { Checkbox, PanelSection, Button, SegmentedControl, Menu, TextInput, NumberField, SelectField as PanelSelectField } from '@lighttable/ui';
 import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -17,7 +17,7 @@ import { genAiFieldPlacement } from '@lighttable/genai-core';
 import { Select } from '@lighttable/ui';
 
 import { SwitchControl } from '@lighttable/ui';
-import { PanelNumberSlider, PanelSelectField } from '../../ui/PanelControls';
+import { PanelNumberSlider } from '../../ui/PanelControls';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
 import { containsProjectAssetDrag, readProjectAssetDrag } from './projectAssetDrag';
 import {
@@ -442,7 +442,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               <strong>{count}/{countField?.maximum ?? 4}</strong>
               <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</ButtonBase>
             </div>
-            <Button type="submit" fullWidth
+            <Button type="submit" className="genai-panel__generate"
               disabled={!canGenerate || !onGenerate}
               title={!generationReadiness?.ready ? generationReadiness?.message : undefined}>
               {generating ? 'Generating…' : 'Generate'}

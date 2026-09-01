@@ -71,10 +71,10 @@ const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove' | 
   const label = schema.title ?? name;
   if (schema.const !== undefined) return <label>
     <span>{label}</span>
-    <TextInput tabIndex={0} value={String(schema.const)} disabled readOnly />
+    <TextInput tabIndex={-1} value={String(schema.const)} disabled readOnly />
   </label>;
   if (schema.type === 'boolean') return <label className="is-checkbox">
-    <Checkbox tabIndex={0} checked={value === true}
+    <Checkbox tabIndex={-1} checked={value === true}
       disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
     <span>{label}</span>
   </label>;
@@ -89,21 +89,21 @@ const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove' | 
   </label>;
   if (schema.type === 'array' && schema.items?.type === 'string') return <label>
     <span>{label}</span>
-    <TextInput tabIndex={0} value={Array.isArray(value) ? value.join(', ') : ''} disabled={disabled}
+    <TextInput tabIndex={-1} value={Array.isArray(value) ? value.join(', ') : ''} disabled={disabled}
       placeholder="layer-id, layer-id"
       onChange={(event) => onChange(event.currentTarget.value.split(',')
         .map((item) => item.trim()).filter(Boolean))} />
   </label>;
   if (schema.type === 'number' || schema.type === 'integer') return <label>
     <span>{label}</span>
-    <NumberField tabIndex={0} updateMode="input" kind={schema.type === 'integer' ? 'integer' : 'float'} value={typeof value === 'number' ? value : null} disabled={disabled}
+    <NumberField tabIndex={-1} updateMode="input" kind={schema.type === 'integer' ? 'integer' : 'float'} value={typeof value === 'number' ? value : null} disabled={disabled}
       min={schema.minimum} max={schema.maximum}
       step={schema['x-lighttable-step'] ?? (schema.type === 'integer' ? 1 : 'any')}
       onValueChange={onChange} onEmpty={() => onChange('')} />
   </label>;
   return <label>
     <span>{label}</span>
-    <TextInput tabIndex={0} value={typeof value === 'string' ? value : ''} disabled={disabled}
+    <TextInput tabIndex={-1} value={typeof value === 'string' ? value : ''} disabled={disabled}
       minLength={schema.minLength} maxLength={schema.maxLength}
       onChange={(event) => onChange(event.currentTarget.value)} />
   </label>;

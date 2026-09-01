@@ -15,6 +15,10 @@
 @import './GradientEditor.css';
 @import './TextInput.css';
 @import './IconButton.css';
+@import './FieldRow.css';
+@import './LinkedFields.css';
+@import './AnchorGrid.css';
+@import './PathField.css';
 @import './SearchField.css';
 @import './ColorArea.css';
 @import './ColorSwatches.css';
@@ -25,3 +29,5 @@
 @import './ColorWheel.css';
 @import './DocumentTabs.css';
 @import './DocumentOverview.css';
+@import './TreeRow.css';
+@import './Dialog.css';

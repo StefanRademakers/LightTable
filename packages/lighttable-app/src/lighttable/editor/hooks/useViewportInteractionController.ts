@@ -90,6 +90,11 @@ interface ViewportInteractionOptions {
   temporaryTools: TemporaryToolController;
   temporaryZoomOut: boolean;
   onTransformPick: (point: { x: number; y: number }, extend: boolean) => void;
+  selectionContentMove: {
+    begin(duplicate: boolean): Promise<boolean>;
+    update(x: number, y: number): void;
+    finish(commit: boolean): void;
+  };
   preciseBrushCursor: boolean;
   eyedropperActive: boolean;
   sampleSourceActive: boolean;
@@ -205,6 +210,7 @@ export const useViewportInteractionController = ({
   temporaryTools,
   temporaryZoomOut,
   onTransformPick,
+  selectionContentMove,
   preciseBrushCursor,
   eyedropperActive,
   sampleSourceActive,
@@ -251,6 +257,14 @@ export const useViewportInteractionController = ({
     startDocument: { x: number; y: number };
     currentDocument: { x: number; y: number };
     zoomOut: boolean;
+  } | null>(null);
+  const selectionContentMoveRef = useRef<{
+    pointerId: number;
+    origin: { x: number; y: number };
+    current: { x: number; y: number };
+    delta: { x: number; y: number };
+    ready: boolean;
+    ended: boolean | null;
   } | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastBrushPointRef = useRef<BrushPoint | null>(null);
@@ -616,6 +630,50 @@ export const useViewportInteractionController = ({
       }
       const activeTool = effectiveTool;
       if (
+        point
+        && event.button === 0
+        && (event.ctrlKey || event.metaKey)
+        && isSelectionTool(editorSession.activeTool)
+        && editorSession.selection.length > 0
+        && selection.contains(point)
+      ) {
+        const gesture = {
+          pointerId: event.pointerId,
+          origin: { x: point.x, y: point.y },
+          current: { x: point.x, y: point.y },
+          delta: { x: 0, y: 0 },
+          ready: false,
+          ended: null as boolean | null
+        };
+        selectionContentMoveRef.current = gesture;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        void selectionContentMove.begin(event.altKey).then((ready) => {
+          if (selectionContentMoveRef.current !== gesture) {
+            if (ready) selectionContentMove.finish(false);
+            return;
+          }
+          if (!ready) {
+            selectionContentMoveRef.current = null;
+            return;
+          }
+          gesture.ready = true;
+          selectionContentMove.update(
+            gesture.delta.x,
+            gesture.delta.y
+          );
+          if (gesture.ended !== null) {
+            selectionContentMoveRef.current = null;
+            selectionContentMove.finish(gesture.ended);
+          }
+        }).catch(() => {
+          if (selectionContentMoveRef.current === gesture) {
+            selectionContentMoveRef.current = null;
+          }
+        });
+        event.preventDefault();
+        return;
+      }
+      if (
         isSampledBrushTool(activeTool)
         && (event.altKey || sampleSourceActive)
         && point
@@ -816,11 +874,17 @@ export const useViewportInteractionController = ({
         && activeTool !== 'select-object'
         && activeTool !== 'select-paint-brush'
       ) {
-        const selectionCombineMode = resolveSelectionCombineMode(
-          editorSession.selectionCombineMode,
-          event.shiftKey,
-          event.altKey
-        );
+        const geometricModifiers = (
+          activeTool === 'select-rectangle' || activeTool === 'select-ellipse'
+        ) && editorSession.selection.length === 0
+          && editorSession.selectionCombineMode === 'replace';
+        const selectionCombineMode = geometricModifiers
+          ? 'replace'
+          : resolveSelectionCombineMode(
+              editorSession.selectionCombineMode,
+              event.shiftKey,
+              event.altKey
+            );
         const stripSize = activeTool === 'select-horizontal'
           ? editorSession.selectionRowHeight
           : activeTool === 'select-vertical'
@@ -840,7 +904,9 @@ export const useViewportInteractionController = ({
                 style: editorSession.selectionMarqueeStyle,
                 width: editorSession.selectionMarqueeWidth,
                 height: editorSession.selectionMarqueeHeight,
-                featherRadius: editorSession.selectionFeather
+                featherRadius: editorSession.selectionFeather,
+                constrainAspect: geometricModifiers && event.shiftKey,
+                fromCenter: geometricModifiers && event.altKey
               }
             : undefined,
           activeTool === 'select-free'
@@ -1065,6 +1131,22 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
+      const contentMove = selectionContentMoveRef.current;
+      if (point && contentMove?.pointerId === event.pointerId) {
+        contentMove.current = { x: point.x, y: point.y };
+        let dx = point.x - contentMove.origin.x;
+        let dy = point.y - contentMove.origin.y;
+        if (event.shiftKey && (dx || dy)) {
+          const distance = Math.hypot(dx, dy);
+          const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+          dx = Math.cos(angle) * distance;
+          dy = Math.sin(angle) * distance;
+        }
+        contentMove.delta = { x: dx, y: dy };
+        if (contentMove.ready) selectionContentMove.update(dx, dy);
+        event.preventDefault();
+        return;
+      }
       if (point && selection.ownsPaint(event.pointerId)) {
         const points = coalescedPointerSamples(event.nativeEvent)
           .map((sample) => documentPointFromSample(sample, bounds))
@@ -1153,11 +1235,30 @@ export const useViewportInteractionController = ({
           // disappear when the event is object-spread. Preserve the native
           // sample so drag interpolation receives its real coordinates.
           project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint,
-          snapBypass: event.ctrlKey || event.metaKey
+          snapBypass: event.ctrlKey || event.metaKey,
+          repositionSelection: temporaryPan,
+          selectionMarqueeModifiers: (
+            editorSession.activeTool === 'select-rectangle'
+            || editorSession.activeTool === 'select-ellipse'
+          ) && editorSession.selection.length === 0
+            && editorSession.selectionCombineMode === 'replace'
+            ? { constrainAspect: event.shiftKey, fromCenter: event.altKey }
+            : undefined,
+          constrainSelectionTranslation: event.shiftKey
         })) event.preventDefault();
       }
     },
     onPointerUp: (event) => {
+      const contentMove = selectionContentMoveRef.current;
+      if (contentMove?.pointerId === event.pointerId) {
+        contentMove.ended = true;
+        if (contentMove.ready) {
+          selectionContentMoveRef.current = null;
+          selectionContentMove.finish(true);
+        }
+        event.preventDefault();
+        return;
+      }
       if (smartSelection.owns(event.pointerId)) {
         if (smartSelection.finishRegion(event.pointerId)) event.preventDefault();
         return;
@@ -1267,6 +1368,16 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      const contentMove = selectionContentMoveRef.current;
+      if (contentMove?.pointerId === event.pointerId) {
+        contentMove.ended = false;
+        if (contentMove.ready) {
+          selectionContentMoveRef.current = null;
+          selectionContentMove.finish(false);
+        }
+        event.preventDefault();
+        return;
+      }
       if (smartSelection.owns(event.pointerId)) {
         if (smartSelection.cancelRegion(event.pointerId)) event.preventDefault();
         return;

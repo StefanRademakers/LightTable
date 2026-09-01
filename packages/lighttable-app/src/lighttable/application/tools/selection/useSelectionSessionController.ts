@@ -119,6 +119,7 @@ export interface SelectionSessionController {
   get polygonActive(): boolean;
   get draft(): SelectionShape | null;
   owns(pointerId: number): boolean;
+  contains(point: SelectionPoint): boolean;
   begin(
     pointerId: number,
     tool: GeometricSelectionToolId,
@@ -131,8 +132,22 @@ export interface SelectionSessionController {
     marqueeOptions?: SelectionMarqueeOptions,
     rasterOptions?: SelectionGestureRasterOptions
   ): boolean;
-  move(pointerId: number, point: SelectionPoint, snapBypass?: boolean): boolean;
-  moveMany(pointerId: number, points: readonly SelectionPoint[], snapBypass?: boolean): boolean;
+  move(
+    pointerId: number,
+    point: SelectionPoint,
+    snapBypass?: boolean,
+    repositionDraft?: boolean,
+    marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
+    constrainTranslation?: boolean
+  ): boolean;
+  moveMany(
+    pointerId: number,
+    points: readonly SelectionPoint[],
+    snapBypass?: boolean,
+    repositionDraft?: boolean,
+    marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
+    constrainTranslation?: boolean
+  ): boolean;
   finish(pointerId: number): boolean;
   cancel(pointerId: number): boolean;
   polygonClick(
@@ -162,6 +177,7 @@ export interface SelectionSessionController {
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
+  settle(): Promise<void>;
   magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
   applyMagicWand(
     layerId: LayerId,
@@ -325,30 +341,54 @@ export const createSelectionSessionController = (
     sourceBounds: Rect;
     x: number;
     y: number;
+    rawX: number;
+    rawY: number;
+    rebuildFromSource: boolean;
   } | null = null;
+  let translateQueue: Promise<void> = Promise.resolve();
+  let queuedTranslationSelection: SelectionOperation[] | null = null;
   const translateSnapshot = (x: number, y: number) => {
     if (!x && !y) return;
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    const before = cloneSelectionOperations(dependencies.getSelection());
+    const before = cloneSelectionOperations(
+      queuedTranslationSelection ?? dependencies.getSelection()
+    );
     if (!document || !renderer || !before.length) return;
     const operation = createTranslateSelectionOperation(document.width, document.height, x, y);
     const after = [...before, operation];
-    void renderer.transformSelection(operation.transform!)
-      .then((applied) => {
-        if (!applied || !isCurrent(document, renderer)) return;
-        const latest = resolveDependencies();
-        latest.publishSelection(after, null);
-        pushHistory(document, before, after);
-        latest.setError(null);
-      })
-      .catch((reason) => {
-        if (!isCurrent(document, renderer)) return;
-        resolveDependencies().setError(
-          reason instanceof Error ? reason.message : 'The selection could not be moved.'
-        );
-      });
+    queuedTranslationSelection = after;
+    const execution = translateQueue.then(async () => {
+      let applied = false;
+      try {
+        applied = await renderer.transformSelection(operation.transform!);
+      } catch {
+        // Rebuild the exact queued snapshot below. This keeps a later nudge
+        // from inheriting a CPU recipe that the GPU never received.
+      }
+      if (!isCurrent(document, renderer)) return;
+      if (!applied) {
+        try {
+          applied = await renderer.replaceSelection(after);
+        } catch (reason) {
+          if (isCurrent(document, renderer)) {
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The selection could not be moved.'
+            );
+          }
+          return;
+        }
+      }
+      if (!applied || !isCurrent(document, renderer)) return;
+      const latest = resolveDependencies();
+      latest.publishSelection(after, null);
+      pushHistory(document, before, after);
+      latest.setError(null);
+    }).finally(() => {
+      if (queuedTranslationSelection === after) queuedTranslationSelection = null;
+    });
+    translateQueue = execution;
   };
   const isCurrent = (
     document: ImageDocument,
@@ -570,14 +610,25 @@ export const createSelectionSessionController = (
   const moveMany = (
     pointerId: number,
     points: readonly SelectionPoint[],
-    snapBypass = false
+    snapBypass = false,
+    repositionDraft = false,
+    marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
+    constrainTranslation = false
   ): boolean => {
     if (!points.length) return false;
     const point = points[points.length - 1];
     if (translation?.pointerId === pointerId) {
-      const rawX = translation.x + point.x - translation.last.x;
-      const rawY = translation.y + point.y - translation.last.y;
+      translation.rawX += point.x - translation.last.x;
+      translation.rawY += point.y - translation.last.y;
       translation.last = point;
+      let rawX = translation.rawX;
+      let rawY = translation.rawY;
+      if (constrainTranslation && (rawX || rawY)) {
+        const distance = Math.hypot(rawX, rawY);
+        const angle = Math.round(Math.atan2(rawY, rawX) / (Math.PI / 4)) * (Math.PI / 4);
+        rawX = Math.cos(angle) * distance;
+        rawY = Math.sin(angle) * distance;
+      }
       const proposedBounds = translateSnapRect(translation.sourceBounds, rawX, rawY);
       const snapContext = resolveDependencies().getSnapContext?.(proposedBounds);
       const snap = snapContext
@@ -595,13 +646,32 @@ export const createSelectionSessionController = (
       const dy = nextY - translation.y;
       translation.x = nextX;
       translation.y = nextY;
+      const translatedBounds = translateSnapRect(
+        translation.sourceBounds,
+        translation.x,
+        translation.y
+      );
+      if (
+        translatedBounds.x < 0
+        || translatedBounds.y < 0
+        || translatedBounds.x + translatedBounds.width > translation.document.width
+        || translatedBounds.y + translatedBounds.height > translation.document.height
+      ) translation.rebuildFromSource = true;
       if (dx || dy) {
+        const operation = createTranslateSelectionOperation(
+          translation.document.width,
+          translation.document.height,
+          translation.x,
+          translation.y
+        );
         observeRendererOperation(
           translation.document,
           translation.renderer,
-          translation.renderer.transformSelection({
-            a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
-          }),
+          translation.rebuildFromSource
+            ? translation.renderer.replaceSelection([...translation.before, operation])
+            : translation.renderer.transformSelection({
+                a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
+              }),
           'The selection could not be moved.'
         );
       }
@@ -620,7 +690,7 @@ export const createSelectionSessionController = (
     }
     let marqueeMatches: readonly SnapMatch[] = [];
     let gesturePoints = points;
-    if (marqueeTool && marqueeTool !== 'select-free') {
+    if (marqueeTool && marqueeTool !== 'select-free' && !repositionDraft) {
       const snapContext = resolveDependencies().getSnapContext?.({
         x: point.x, y: point.y, width: 0, height: 0
       });
@@ -644,7 +714,12 @@ export const createSelectionSessionController = (
         ];
       }
     }
-    const draft = gesture.moveMany(pointerId, gesturePoints);
+    const draft = gesture.moveMany(
+      pointerId,
+      gesturePoints,
+      repositionDraft,
+      marqueeModifiers
+    );
     if (!draft) return false;
     resolveDependencies().publishDraft(draft);
     if (marqueeTool && marqueeTool !== 'select-free') {
@@ -772,6 +847,7 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
+    contains: (point) => selectionContainsPoint(resolveDependencies().getSelection(), point),
     begin: (
       pointerId,
       tool,
@@ -793,7 +869,23 @@ export const createSelectionSessionController = (
         const sourceBounds = selectionOperationsBounds(before, {
           x: 0, y: 0, width: document.width, height: document.height
         });
-        translation = { pointerId, document, renderer, before, last: point, sourceBounds, x: 0, y: 0 };
+        translation = {
+          pointerId,
+          document,
+          renderer,
+          before,
+          last: point,
+          sourceBounds,
+          x: 0,
+          y: 0,
+          rawX: 0,
+          rawY: 0,
+          // A previously translated selection may contain coverage outside the
+          // document even though the live GPU mask can only retain in-canvas
+          // texels. Replay its canonical operation list during the next drag
+          // so moving it back restores that off-canvas coverage.
+          rebuildFromSource: before.some((operation) => operation.mode === 'transform')
+        };
         dependencies.publishSelection(before, pointerId);
         dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
@@ -831,7 +923,21 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
     },
-    move: (pointerId, point, snapBypass) => moveMany(pointerId, [point], snapBypass),
+    move: (
+      pointerId,
+      point,
+      snapBypass,
+      repositionDraft,
+      marqueeModifiers,
+      constrainTranslation
+    ) => moveMany(
+      pointerId,
+      [point],
+      snapBypass,
+      repositionDraft,
+      marqueeModifiers,
+      constrainTranslation
+    ),
     moveMany,
     finish: (pointerId) => {
       if (translation?.pointerId === pointerId) {
@@ -1251,7 +1357,8 @@ export const createSelectionSessionController = (
         'The composite channel could not be loaded as a selection.'
       );
     },
-    translate: translateSnapshot
+    translate: translateSnapshot,
+    settle: () => translateQueue
   };
 };
 

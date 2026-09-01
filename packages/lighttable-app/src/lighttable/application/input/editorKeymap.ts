@@ -87,7 +87,14 @@ export type EditorKeyboardCommand =
   | { readonly type: 'apply-adjustment'; readonly kind: AdjustmentLayerKind }
   | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
   | { readonly type: 'set-layer-opacity-percent'; readonly digit: number }
-  | { readonly type: 'nudge'; readonly x: number; readonly y: number };
+  | {
+      readonly type: 'nudge';
+      readonly x: number;
+      readonly y: number;
+      readonly target: 'selection-mask' | 'content';
+      readonly duplicate?: boolean;
+      readonly continueTransform?: boolean;
+    };
 
 export interface EditorKeyChord {
   readonly key: string;
@@ -185,23 +192,77 @@ const percentBindings: readonly EditorKeyBinding[] = Array.from({ length: 10 }, 
   }))
 )).flat();
 
-const nudgeBindings: readonly EditorKeyBinding[] = ([
+const nudgeDirections = ([
   ['arrowleft', -1, 0],
   ['arrowright', 1, 0],
   ['arrowup', 0, -1],
   ['arrowdown', 0, 1]
-] as const).flatMap(([key, x, y]) => [false, true].map((large) => ({
-  id: `editor.nudge.${key}.${large ? 'large' : 'small'}`,
-  chord: { key, primary: false, alt: false, shift: large },
-  when: (context: EditorKeyboardContext) => context.transforming || (
-    context.hasSelection && context.activeTool.startsWith('select-')
-  ),
-  resolve: (): EditorKeyboardCommand => ({
-    type: 'nudge',
-    x: x * (large ? 10 : 1),
-    y: y * (large ? 10 : 1)
+] as const);
+
+const nudgeBindings: readonly EditorKeyBinding[] = nudgeDirections.flatMap(([key, x, y]) => (
+  [false, true].flatMap((large): EditorKeyBinding[] => {
+    const distance = large ? 10 : 1;
+    return [
+      {
+        id: `editor.nudge.${key}.${large ? 'large' : 'small'}`,
+        chord: { key, primary: false, alt: false, shift: large },
+        when: (context) => context.transforming
+          || (context.activeTool === 'transform' && context.hasActiveLayer)
+          || (context.hasSelection && context.activeTool.startsWith('select-')),
+        resolve: (context) => ({
+          type: 'nudge',
+          x: x * distance,
+          y: y * distance,
+          target: !context.transforming
+            && context.hasSelection
+            && context.activeTool.startsWith('select-')
+            ? 'selection-mask'
+            : 'content'
+        })
+      },
+      {
+        id: `selection.content-nudge.${key}.${large ? 'large' : 'small'}`,
+        chord: { key, primary: true, alt: false, shift: large },
+        when: (context) => context.hasSelection
+          && context.activeTool.startsWith('select-'),
+        resolve: () => ({
+          type: 'nudge',
+          x: x * distance,
+          y: y * distance,
+          target: 'content',
+          continueTransform: true
+        })
+      },
+      {
+        id: `selection.duplicate-content-nudge.${key}.${large ? 'large' : 'small'}`,
+        chord: { key, primary: true, alt: true, shift: large },
+        when: (context) => context.hasSelection
+          && context.activeTool.startsWith('select-'),
+        resolve: () => ({
+          type: 'nudge',
+          x: x * distance,
+          y: y * distance,
+          target: 'content',
+          duplicate: true,
+          continueTransform: true
+        })
+      },
+      {
+        id: `move.duplicate-nudge.${key}.${large ? 'large' : 'small'}`,
+        chord: { key, primary: false, alt: true, shift: large },
+        when: (context) => context.hasSelection
+          && (context.transforming || context.activeTool === 'transform'),
+        resolve: () => ({
+          type: 'nudge',
+          x: x * distance,
+          y: y * distance,
+          target: 'content',
+          duplicate: true
+        })
+      }
+    ];
   })
-})));
+));
 
 export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   id: 'lighttable-default',

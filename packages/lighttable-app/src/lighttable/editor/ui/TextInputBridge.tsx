@@ -160,6 +160,7 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
       className="lighttable-text-input-bridge"
       aria-label={label}
       aria-multiline="true"
+      tabIndex={-1}
       autoCapitalize="sentences"
       autoComplete="off"
       autoCorrect="on"

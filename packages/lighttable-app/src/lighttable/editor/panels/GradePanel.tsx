@@ -1,12 +1,11 @@
-import { IconButton, MaskIcon, PanelSectionHeader, PanelSection, SegmentedControl } from '@lighttable/ui';
+import { FileField as PanelFileField, IconButton, MaskIcon, PanelSectionHeader, PanelSection,
+  SegmentedControl, SelectField as PanelSelectField, SwitchControl } from '@lighttable/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 
 import React, { useEffect, useRef, useState } from 'react';
 
-import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { SquareIconButton } from '../../../ui/SquareIconButton';
 import { ColorWheel, Select } from '@lighttable/ui';
 import {
   COLOR_GRADING_ZONE_LABELS,
@@ -59,7 +58,6 @@ import {
   GradeHistogramControl,
   type GradeHistogramControlKey
 } from './GradeHistogramControl';
-import { PanelFileField, PanelSelectField } from '../../../ui/PanelControls';
 
 type GradeGroup = Exclude<keyof GroupVisibility, 'globalGrade' | 'globalLensFx'>;
 
@@ -424,7 +422,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
     return (
       <div className="lighttable-point-color">
         <div className="lighttable-point-color__samples">
-          <SquareIconButton
+          <IconButton
             size="compact"
             active={model.pointColorPickerActive}
             disabled={!metadata || adjustments.pointColor.samples.length >= MAX_POINT_COLOR_SAMPLES}
@@ -434,7 +432,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
             icon={<img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />}
           />
           {adjustments.pointColor.samples.map((sample) => (
-            <SquareIconButton
+            <IconButton
               key={sample.id}
               size="compact"
               active={sample.id === selectedPointColorId}
@@ -444,18 +442,18 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
               icon={<span className="lighttable-point-color__swatch" style={{ background: pointColorSampleCss(sample) }} />}
             />
           ))}
-          <SquareIconButton
+          <IconButton
             size="compact"
-            appearance="quiet"
+            variant="quiet"
             disabled={!selected}
             aria-label="Reset sampled color adjustments"
             title="Reset sampled color adjustments"
             onClick={() => selected && commands.resetPointColorSample(selected.id)}
             icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
           />
-          <SquareIconButton
+          <IconButton
             size="compact"
-            appearance="quiet"
+            variant="quiet"
             disabled={!selected}
             aria-label="Remove sampled color"
             title="Remove sampled color"
@@ -552,7 +550,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
             aria-valuenow={selectedColorMixerRange}
             aria-valuetext={selectedRange.label}
             aria-disabled={!metadata || !visible}
-            tabIndex={metadata && visible ? 0 : -1}
+            tabIndex={-1}
             onPointerDown={(event) => {
               if (event.button !== 0) return;
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -763,7 +761,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
             />
             <div className="lighttable-point-color__samples" aria-label="Black and White color range">
               {COLOR_MIXER_RANGES.map((candidate, index) => (
-                <SquareIconButton
+                <IconButton
                   key={candidate.label}
                   size="compact"
                   active={index === selectedBlackWhiteRange}

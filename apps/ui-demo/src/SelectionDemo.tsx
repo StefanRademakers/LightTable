@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Checkbox, SegmentedControl, SwitchControl, Text } from '@lighttable/ui';
+import { AnchorGrid, Checkbox, SegmentedControl, SwitchControl, Text, type AnchorGridPosition } from '@lighttable/ui';
 
 export function SelectionDemo() {
   const [enabled, setEnabled] = useState(true);
   const [checked, setChecked] = useState(true);
   const [alignment, setAlignment] = useState('left');
+  const [anchor, setAnchor] = useState<{ x: AnchorGridPosition; y: AnchorGridPosition }>({ x: 0.5, y: 0.5 });
   const options = [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }];
   return <>
     <header className="demo-intro">
@@ -43,6 +44,12 @@ export function SelectionDemo() {
       <SegmentedControl label="Quiet alignment" variant="quiet" value={alignment} onChange={setAlignment} options={options} />
       <Text as="p" variant="small" tone="muted">For unobtrusive navigation. Same sizing and behavior, without an outer border or blue fill.</Text>
       <pre className="demo-code"><Text as="code">{'<SegmentedControl label="Alignment" options={options} value={alignment} onChange={setAlignment} />'}</Text></pre>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Anchor grid</Text>
+      <Text as="p" tone="muted">Choose one of nine fixed origins for canvas and layout operations.</Text>
+      <AnchorGrid x={anchor.x} y={anchor.y} onChange={(x, y) => setAnchor({ x, y })} />
+      <Text as="p" variant="small" tone="muted">Anchor: {anchor.x}, {anchor.y}</Text>
     </section>
   </>;
 }

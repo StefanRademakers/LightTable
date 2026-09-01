@@ -1,8 +1,5 @@
-import { Button } from '@lighttable/ui';
+import { Button, Dialog } from '@lighttable/ui';
 import React, { type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-
-import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -27,28 +24,19 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
   onConfirm
 }) => {
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(open, onCancel);
-  if (!open) return null;
-
-  return createPortal(
-    <div className="modal-backdrop modal-backdrop--confirm">
-      <div ref={dialogRef} className="modal text-input-dialog" role="dialog" aria-modal="true" aria-label={title}
-        data-suite-control="confirm-dialog"
-        tabIndex={-1} data-editor-native-tab-navigation onKeyDown={onDialogKeyDown} onClick={(event) => event.stopPropagation()}>
-        <div className="modal__header">
-          <h3 className="modal__title">{title}</h3>
-        </div>
-        {description ? <p className="muted">{description}</p> : null}
-        {children}
-        <div className="modal__footer">
-          <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
-          <Button tabIndex={0} intent={danger ? "destructive" : "normal"} onClick={() => void onConfirm()}>
-            {confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
+  return <Dialog
+    open={open}
+    title={title}
+    description={description}
+    onDismiss={onCancel}
+    backdropClassName="modal-backdrop--confirm"
+    data-suite-control="confirm-dialog"
+    footer={<>
+      <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
+      <Button tabIndex={0} intent={danger ? 'destructive' : 'normal'} onClick={() => void onConfirm()}>
+        {confirmLabel}
+      </Button>
+    </>}
+  >{children}</Dialog>;
 };
 

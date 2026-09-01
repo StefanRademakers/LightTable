@@ -96,12 +96,8 @@ export function DocumentTabs({ documents, activeId, onSelect, onDocumentDragStar
   const contextDocument = menu?.id ? documents.find(item => item.id === menu.id) : undefined;
   const previewDocument = preview ? documents.find(item => item.id === preview.id) : undefined;
   const select = (id: string) => { setPreview(null); onSelect(id); };
-  return <div ref={root} className="ui-document-tabs" data-ui-component="document-tabs" data-suite-control="document-tabs">
-    {canOverview ? <IconButton ref={overviewButton} className="ui-document-tabs__overview-button" variant="quiet"
-      aria-label="Document overview" title="Document overview"
-      aria-expanded={overviewOpen} icon={<MaskIcon src={documentGridIconUrl} />} onClick={() => {
-        setPreview(null); setMenu(null); setOverviewOpen(value => !value);
-      }} /> : null}
+  return <div ref={root} className="ui-document-tabs" data-overflow={overflow || undefined}
+    data-ui-component="document-tabs" data-suite-control="document-tabs">
     <div ref={strip} className="ui-document-tabs__strip" role="tablist" aria-label={label}
       onWheel={event => {
         if (event.ctrlKey || event.metaKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
@@ -141,6 +137,11 @@ export function DocumentTabs({ documents, activeId, onSelect, onDocumentDragStar
           onClick={event => { event.stopPropagation(); item.onClose?.(); }}>×</button> : null}
       </div>)}
     </div>
+    {canOverview ? <IconButton ref={overviewButton} className="ui-document-tabs__overview-button" variant="quiet"
+      aria-label="Document overview" title="Document overview"
+      aria-expanded={overviewOpen} icon={<MaskIcon src={documentGridIconUrl} />} onClick={() => {
+        setPreview(null); setMenu(null); setOverviewOpen(value => !value);
+      }} /> : null}
     {overflow ? <IconButton ref={more} className="ui-document-tabs__more-button" variant="quiet"
       aria-label="All open documents" title="All open documents"
       aria-haspopup="menu" aria-expanded={menu !== null && !menu.id}

@@ -1,9 +1,5 @@
-import { Checkbox, Button, TextInput } from '@lighttable/ui';
+import { Checkbox, Button, Dialog, TextInput } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-
-import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface TextInputDialogProps {
   open: boolean;
@@ -42,7 +38,6 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
 }) => {
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(open, onCancel);
 
   useEffect(() => {
     if (!open) return;
@@ -54,63 +49,42 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
     window.setTimeout(() => inputRef.current?.select(), 0);
   }, [open, selectAllOnOpen]);
 
-  if (!open) return null;
-
-  return createPortal(
-    <div className={`modal-backdrop${backdropClassName ? ` ${backdropClassName}` : ''}`}>
-      <div
-        ref={dialogRef}
-        className={`modal text-input-dialog${compact ? ' text-input-dialog--compact' : ''}`}
-        data-suite-control="text-input-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="modal__header">
-          <h3 className="modal__title">{title}</h3>
-        </div>
-        {description ? <p className="muted">{description}</p> : null}
-        <TextInput tabIndex={0}
-          ref={inputRef}
-          className="text-input-dialog__input"
-          autoFocus
-          value={value}
-          placeholder={placeholder}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              onCancel();
-            }
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void onConfirm(value.trim());
-            }
-          }}
-        />
-        {checkboxLabel ? <label className="text-input-dialog__check">
-          <Checkbox
-            tabIndex={0}
-            checked={checkboxChecked}
-            onChange={(event) => onCheckboxChange?.(event.currentTarget.checked)}
-          />
-          <span>{checkboxLabel}</span>
-        </label> : null}
-        <div className="modal__footer">
-          <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
-          <Button tabIndex={0}
-            disabled={!value.trim()}
-            onClick={() => void onConfirm(value.trim())}
-          >
-            {okLabel}
-          </Button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
+  return <Dialog
+    open={open}
+    title={title}
+    description={description}
+    size={compact ? 'compact' : 'regular'}
+    onDismiss={onCancel}
+    backdropClassName={backdropClassName}
+    data-suite-control="text-input-dialog"
+    footer={<>
+      <Button tabIndex={0} onClick={onCancel}>{cancelLabel}</Button>
+      <Button tabIndex={0} disabled={!value.trim()} onClick={() => void onConfirm(value.trim())}>
+        {okLabel}
+      </Button>
+    </>}
+  >
+    <TextInput tabIndex={0}
+      ref={inputRef}
+      autoFocus
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onCancel();
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          void onConfirm(value.trim());
+        }
+      }}
+    />
+    {checkboxLabel ? <label className="text-input-dialog__check">
+      <Checkbox tabIndex={0} checked={checkboxChecked}
+        onChange={(event) => onCheckboxChange?.(event.currentTarget.checked)} />
+      <span>{checkboxLabel}</span>
+    </label> : null}
+  </Dialog>;
 };

@@ -85,6 +85,7 @@ interface RasterMaskManifestEntry {
 
 interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'raster';
+  transformCommitMode?: 'pixels';
   width: number;
   height: number;
   offsetX: number;
@@ -457,6 +458,7 @@ export const buildLayeredDocumentFile = (
     return {
       ...common,
       type: 'raster',
+      transformCommitMode: layer.transformCommitMode,
       width: layer.width,
       height: layer.height,
       offsetX: layer.offsetX,
@@ -1121,6 +1123,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     return {
       ...common,
       type: 'raster',
+      transformCommitMode: entry.transformCommitMode === 'pixels' ? 'pixels' : undefined,
       pixelRevision: 0,
       width: Number(rasterWidth),
       height: Number(rasterHeight),

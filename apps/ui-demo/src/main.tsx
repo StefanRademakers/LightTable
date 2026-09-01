@@ -12,6 +12,7 @@ import { PanelsDemo } from './PanelsDemo';
 import { SelectionDemo } from './SelectionDemo';
 import { FieldsDemo } from './FieldsDemo';
 import { ScopesDemo } from './ScopesDemo';
+import { DialogsDemo } from './DialogsDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -27,7 +28,7 @@ const catalog = [
     { id: 'menus', label: 'Menus & navigation' },
     { id: 'document-tabs', label: 'Document tabs' }
   ] },
-  { label: 'Containers', pages: [{ id: 'panels', label: 'Panel sections' }] },
+  { label: 'Containers', pages: [{ id: 'panels', label: 'Panel sections' }, { id: 'dialogs', label: 'Dialogs' }] },
   { label: 'Visualization', pages: [{ id: 'scopes', label: 'Scopes' }] }
 ] as const;
 const catalogPages = catalog.flatMap(group => [...group.pages]);
@@ -78,7 +79,7 @@ function App() {
       </React.Fragment>)}
     </nav>
     <main className="demo-content">
-      {page === 'document-tabs' ? <DocumentTabsDemo /> : page === 'scopes' ? <ScopesDemo /> : page === 'fields' ? <FieldsDemo /> : page === 'selection' ? <SelectionDemo /> : page === 'panels' ? <PanelsDemo /> : page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
+      {page === 'dialogs' ? <DialogsDemo /> : page === 'document-tabs' ? <DocumentTabsDemo /> : page === 'scopes' ? <ScopesDemo /> : page === 'fields' ? <FieldsDemo /> : page === 'selection' ? <SelectionDemo /> : page === 'panels' ? <PanelsDemo /> : page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>
@@ -156,8 +157,14 @@ function App() {
           <Button disabled onClick={() => setButtonFeedback('Disabled button must never activate.')}>Disabled</Button>
           <Button intent="destructive" onClick={() => setButtonFeedback('Destructive button activated — demo only, nothing deleted.')}>Destructive</Button>
         </div>
+        <Text as="h2" variant="large" weight="bold">Unobtrusive toolbar actions</Text>
+        <div className="demo-button-row">
+          <Button variant="quiet">25%</Button>
+          <Button variant="quiet" aria-pressed="true">50%</Button>
+          <Button variant="quiet">Fit screen</Button>
+        </div>
         <Text as="p" variant="small" tone="muted" role="status">{buttonFeedback}</Text>
-        <pre className="demo-code"><Text as="code">{`<Button onClick={save}>Save</Button>\n<Button disabled>Disabled</Button>\n<Button intent="destructive" onClick={remove}>Delete</Button>`}</Text></pre>
+        <pre className="demo-code"><Text as="code">{`<Button onClick={save}>Save</Button>\n<Button disabled>Disabled</Button>\n<Button intent="destructive" onClick={remove}>Delete</Button>\n<Button variant="quiet">Fit screen</Button>`}</Text></pre>
         <Text as="p" variant="small" tone="muted">No tab stop in app chrome. Dialogs opt into tab navigation. No inner spans or wrapper divs.</Text>
       </section>
       </>}

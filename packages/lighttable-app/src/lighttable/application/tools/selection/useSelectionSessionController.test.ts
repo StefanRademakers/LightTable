@@ -279,7 +279,7 @@ describe('selection session controller', () => {
     const historyBefore = state.history.length;
 
     state.controller.translate(10, -1);
-    await Promise.resolve();
+    await state.controller.settle();
 
     expect(state.renderer.transformSelection).toHaveBeenCalledWith({
       a: 1, b: 0, c: 0, d: 1, tx: 10, ty: -1
@@ -289,6 +289,22 @@ describe('selection session controller', () => {
       transform: { tx: 10, ty: -1 }
     });
     expect(state.history).toHaveLength(historyBefore + 1);
+  });
+
+  it('serializes rapid selection nudges without losing operation state', async () => {
+    const state = setup();
+    state.controller.selectAll();
+    await Promise.resolve();
+
+    state.controller.translate(0, -10);
+    state.controller.translate(0, -10);
+    state.controller.translate(0, -10);
+    await state.controller.settle();
+
+    expect(state.renderer.transformSelection).toHaveBeenCalledTimes(3);
+    expect(state.selection.slice(-3).map(({ transform }) => transform?.ty)).toEqual([
+      -10, -10, -10
+    ]);
   });
 
   it('drags inside a geometric selection as one selection-only history edit', async () => {

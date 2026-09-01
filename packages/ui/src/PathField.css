@@ -1,0 +1,19 @@
+.ui-path-field {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+}
+
+.ui-path-field > .ui-text-input {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.ui-path-field > .ui-button {
+  margin-inline-start: -1px;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}

@@ -39,6 +39,8 @@ export interface SelectionMarqueeOptions {
   width: number;
   height: number;
   featherRadius: number;
+  constrainAspect?: boolean;
+  fromCenter?: boolean;
 }
 
 export interface SelectionGestureRasterOptions {
@@ -59,9 +61,9 @@ export const constrainSelectionMarqueePoint = (
     x: Math.round(candidate.x),
     y: Math.round(candidate.y)
   });
-  if (options.style === 'free') return snap(point);
-  const width = positiveMarqueeValue(options.width);
-  const height = positiveMarqueeValue(options.height);
+  if (options.style === 'free' && !options.constrainAspect) return snap(point);
+  const width = options.constrainAspect ? 1 : positiveMarqueeValue(options.width);
+  const height = options.constrainAspect ? 1 : positiveMarqueeValue(options.height);
   const directionX = point.x < start.x ? -1 : 1;
   const directionY = point.y < start.y ? -1 : 1;
   if (options.style === 'fixed') {
@@ -76,6 +78,21 @@ export const constrainSelectionMarqueePoint = (
   return snap(deltaX >= deltaY * ratio
     ? { x: point.x, y: start.y + directionY * deltaX / ratio }
     : { x: start.x + directionX * deltaY * ratio, y: point.y });
+};
+
+const selectionMarqueePoints = (
+  origin: SelectionPoint,
+  point: SelectionPoint,
+  options: SelectionMarqueeOptions
+): [SelectionPoint, SelectionPoint] => {
+  const end = constrainSelectionMarqueePoint(origin, point, options);
+  if (!options.fromCenter) return [origin, end];
+  const deltaX = end.x - origin.x;
+  const deltaY = end.y - origin.y;
+  return [
+    { x: origin.x - deltaX, y: origin.y - deltaY },
+    { x: origin.x + deltaX, y: origin.y + deltaY }
+  ];
 };
 
 /** Builds a full-width row or full-height column around the pointer position. */
@@ -119,6 +136,8 @@ export class SelectionGestureController {
   private activeMode: SelectionCombineMode = 'replace';
   private activeStrip: { tool: StripSelectionTool; options: SelectionStripOptions } | null = null;
   private activeMarquee: SelectionMarqueeOptions | null = null;
+  private activeMarqueeOrigin: SelectionPoint | null = null;
+  private activeLastPoint: SelectionPoint | null = null;
   private activeRasterOptions: SelectionGestureRasterOptions | null = null;
   private freeSmoother: StrokeSmoother<SelectionPoint & { pressure: number }> | null = null;
 
@@ -160,6 +179,8 @@ export class SelectionGestureController {
       && marqueeOptions
       ? { ...marqueeOptions }
       : null;
+    this.activeMarqueeOrigin = this.activeMarquee ? { ...start } : null;
+    this.activeLastPoint = { ...start };
     this.activeRasterOptions = this.activeMarquee
       ? { featherRadius: this.activeMarquee.featherRadius, antiAlias: false }
       : rasterOptions ? { ...rasterOptions } : null;
@@ -173,12 +194,9 @@ export class SelectionGestureController {
           kind: selectionKindForTool(tool),
           points: tool === 'select-free'
             ? [start]
-            : [
-                start,
-                this.activeMarquee
-                  ? constrainSelectionMarqueePoint(start, start, this.activeMarquee)
-                  : clonePoint(start)
-              ]
+            : this.activeMarquee
+              ? selectionMarqueePoints(start, start, this.activeMarquee)
+              : [start, clonePoint(start)]
         };
     return cloneShape(this.activeDraft);
   }
@@ -188,9 +206,35 @@ export class SelectionGestureController {
   }
 
   /** Retains every freehand sample while cloning the public draft only once. */
-  moveMany(pointerId: number, points: readonly SelectionPoint[]): SelectionShape | null {
+  moveMany(
+    pointerId: number,
+    points: readonly SelectionPoint[],
+    repositionDraft = false,
+    marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean }
+  ): SelectionShape | null {
     if (!this.owns(pointerId) || !this.activeDraft || !points.length) return null;
     const nextPoint = clonePoint(points[points.length - 1]);
+    if (this.activeMarquee && marqueeModifiers) {
+      this.activeMarquee.constrainAspect = marqueeModifiers.constrainAspect;
+      this.activeMarquee.fromCenter = marqueeModifiers.fromCenter;
+    }
+    if (repositionDraft && this.activeDraft.kind !== 'free') {
+      const previous = this.activeLastPoint ?? nextPoint;
+      const dx = nextPoint.x - previous.x;
+      const dy = nextPoint.y - previous.y;
+      this.activeLastPoint = nextPoint;
+      if (!dx && !dy) return cloneShape(this.activeDraft);
+      this.activeDraft = {
+        ...this.activeDraft,
+        points: this.activeDraft.points.map(({ x, y }) => ({ x: x + dx, y: y + dy }))
+      };
+      if (this.activeMarqueeOrigin) this.activeMarqueeOrigin = {
+        x: this.activeMarqueeOrigin.x + dx,
+        y: this.activeMarqueeOrigin.y + dy
+      };
+      return cloneShape(this.activeDraft);
+    }
+    this.activeLastPoint = nextPoint;
     if (this.activeStrip) {
       this.activeDraft = selectionStripShape(
         this.activeStrip.tool,
@@ -218,29 +262,35 @@ export class SelectionGestureController {
         points: [...this.activeDraft.points, ...appended]
       };
     } else {
-      const start = this.activeDraft.points[0];
+      const start = this.activeMarqueeOrigin ?? this.activeDraft.points[0];
       if (this.activeMarquee?.style === 'fixed') {
-        const fixedStart = {
-          x: Math.round(nextPoint.x),
-          y: Math.round(nextPoint.y)
-        };
+        const fixedOrigin = { x: Math.round(nextPoint.x), y: Math.round(nextPoint.y) };
+        const fixedEnd = constrainSelectionMarqueePoint(fixedOrigin, fixedOrigin, this.activeMarquee);
+        const fixedStart = this.activeMarquee.fromCenter
+          ? {
+              x: fixedOrigin.x - (fixedEnd.x - fixedOrigin.x) / 2,
+              y: fixedOrigin.y - (fixedEnd.y - fixedOrigin.y) / 2
+            }
+          : fixedOrigin;
         this.activeDraft = {
           ...this.activeDraft,
           points: [
             fixedStart,
-            constrainSelectionMarqueePoint(fixedStart, fixedStart, this.activeMarquee)
+            this.activeMarquee.fromCenter
+              ? {
+                  x: fixedOrigin.x + (fixedEnd.x - fixedOrigin.x) / 2,
+                  y: fixedOrigin.y + (fixedEnd.y - fixedOrigin.y) / 2
+                }
+              : constrainSelectionMarqueePoint(fixedStart, fixedStart, this.activeMarquee)
           ]
         };
         return cloneShape(this.activeDraft);
       }
       this.activeDraft = {
         ...this.activeDraft,
-        points: [
-          start,
-          this.activeMarquee
-            ? constrainSelectionMarqueePoint(start, nextPoint, this.activeMarquee)
-            : nextPoint
-        ]
+        points: this.activeMarquee
+          ? selectionMarqueePoints(start, nextPoint, this.activeMarquee)
+          : [start, nextPoint]
       };
     }
     return cloneShape(this.activeDraft);
@@ -291,6 +341,8 @@ export class SelectionGestureController {
     this.activeMode = 'replace';
     this.activeStrip = null;
     this.activeMarquee = null;
+    this.activeMarqueeOrigin = null;
+    this.activeLastPoint = null;
     this.activeRasterOptions = null;
     this.freeSmoother = null;
   }

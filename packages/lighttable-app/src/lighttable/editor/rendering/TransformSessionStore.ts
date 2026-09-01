@@ -10,7 +10,8 @@ export interface TransformGpuSession {
   selectionPreview: GPUTexture | null;
   settingsBuffer: GPUBuffer | null;
   usesSelection: boolean;
-  previewMode: 'none' | 'selection' | 'projective';
+  bakeLayer?: boolean;
+  previewMode: 'none' | 'selection' | 'baked-layer' | 'projective';
   duplicateSelection: boolean;
 }
 

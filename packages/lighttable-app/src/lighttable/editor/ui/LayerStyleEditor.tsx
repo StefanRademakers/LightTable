@@ -1,4 +1,5 @@
-import { Checkbox, PanelSection, IconButton, MaskIcon, PanelSectionHeader, Button } from '@lighttable/ui';
+import { Checkbox, PanelSection, IconButton, MaskIcon, PanelSectionHeader, Button,
+  SelectField } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
@@ -24,8 +25,7 @@ import {
   PanelAngleControl as AngleField,
   PanelCheckboxField as ToggleField,
   PanelColorSwatch as ColorSwatch,
-  PanelNumberSlider as NumberSlider,
-  PanelSelectField as SelectField
+  PanelNumberSlider as NumberSlider
 } from '../../../ui/PanelControls';
 
 interface LayerStyleEditorProps {
