@@ -3,6 +3,7 @@ import type { ImageDocument, LayerId } from '../../../editor/document/documentTy
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import type { SemanticFillCommand } from '../../commands/semanticFillCommandContract';
+import { runEditorOperationTransaction } from '../../commands/editorOperationTransaction';
 import {
   executeFillOperation,
   type FillRendererPort
@@ -52,6 +53,35 @@ export interface FillCommandController {
 export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
 ): FillCommandController => {
+  const applyHistoryDirection = (
+    pixelEdit: ReversiblePixelEdit,
+    direction: 'undo' | 'redo',
+    document: ImageDocument,
+    rollbackDocument: ImageDocument
+  ) => {
+    const dependencies = resolveDependencies();
+    const renderer = dependencies.getRenderer();
+    if (!renderer) throw new Error(`Fill ${direction} is no longer available.`);
+    let gpuChanged = false;
+    runEditorOperationTransaction({ operation: `Fill ${direction}` }, (transaction) => {
+      transaction.step('GPU pixel state', () => {
+        gpuChanged = renderer.applyPixelHistory(pixelEdit, direction);
+        if (!gpuChanged) throw new Error(`Fill ${direction} is no longer available.`);
+      }, () => {
+        if (!gpuChanged) return;
+        const compensation = direction === 'undo' ? 'redo' : 'undo';
+        if (!renderer.applyPixelHistory(pixelEdit, compensation)) {
+          throw new Error(`Fill ${direction} GPU compensation failed.`);
+        }
+      });
+      transaction.step(
+        'canonical document state',
+        () => dependencies.applyDocumentSnapshot(document),
+        () => dependencies.applyDocumentSnapshot(rollbackDocument)
+      );
+    });
+  };
+
   const execute = (
     layerId: LayerId | undefined,
     channel: PaintChannel,
@@ -76,29 +106,39 @@ export const createFillCommandController = (
       return null;
     }
 
-    dependencies.applyDocumentSnapshot(result.document);
-    dependencies.pushHistoryEntry({
+    const historyEntry: FillHistoryEntry = {
       label: history?.label
         ?? (result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
       type: history?.type ?? (result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
       byteSize: result.pixelEdit.byteSize,
       layerIds: [result.layerId],
-      undo: () => {
-        const latest = resolveDependencies();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-          throw new Error('Fill undo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(before);
-      },
-      redo: () => {
-        const latest = resolveDependencies();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
-          throw new Error('Fill redo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(result.document);
-      },
+      undo: () => applyHistoryDirection(result.pixelEdit, 'undo', before, result.document),
+      redo: () => applyHistoryDirection(result.pixelEdit, 'redo', result.document, before),
       dispose: result.pixelEdit.destroy
-    });
+    };
+    try {
+      runEditorOperationTransaction({ operation: 'Fill commit' }, (transaction) => {
+        transaction.adopt('GPU pixel state', () => {
+          if (!renderer.applyPixelHistory(result.pixelEdit, 'undo')) {
+            throw new Error('Fill GPU rollback is no longer available.');
+          }
+          result.pixelEdit.destroy();
+        });
+        transaction.step(
+          'canonical document state',
+          () => dependencies.applyDocumentSnapshot(result.document),
+          () => dependencies.applyDocumentSnapshot(before)
+        );
+        // This is deliberately last. DocumentCommandHistory guarantees that
+        // observer and cleanup failures do not escape after a command is owned.
+        dependencies.pushHistoryEntry(historyEntry);
+      });
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'Fill did not complete.'
+      );
+      return null;
+    }
     dependencies.setError(null);
     dependencies.setStatus(status(result.targetLabel));
     return { layerId: result.layerId, channel: result.channel };

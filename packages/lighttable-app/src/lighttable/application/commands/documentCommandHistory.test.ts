@@ -198,4 +198,31 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot()).toMatchObject({ undoDepth: 1, redoDepth: 0 });
     expect(history.getSnapshot().states.map(({ label }) => label)).toEqual(['Open', 'first']);
   });
+
+  it('keeps recorded state authoritative when a projection listener fails', () => {
+    const onInternalError = vi.fn();
+    const history = new DocumentCommandHistory(documentId, { onInternalError });
+    history.subscribe(() => { throw new Error('listener failed'); });
+
+    expect(() => history.record(command('safe'))).not.toThrow();
+    expect(history.getSnapshot()).toMatchObject({ undoDepth: 1, undoLabel: 'safe' });
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'listener failed'
+    }));
+  });
+
+  it('contains resource cleanup failures after history ownership is established', async () => {
+    const onInternalError = vi.fn();
+    const history = new DocumentCommandHistory(documentId, { onInternalError });
+    history.record(command('discarded', {}, {
+      dispose: () => { throw new Error('cleanup failed'); }
+    }));
+    await history.undo();
+
+    expect(() => history.record(command('replacement'))).not.toThrow();
+    expect(history.getSnapshot()).toMatchObject({ undoDepth: 1, undoLabel: 'replacement' });
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'cleanup failed'
+    }));
+  });
 });

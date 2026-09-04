@@ -63,25 +63,37 @@ export const createDocumentHistoryController = (
 
   const pruneResources = () => {
     const dependencies = resolveDependencies();
-    const document = dependencies.getDocument();
-    const keepRasterLayers = new Set<LayerId>(
-      document
-        ? walkRasterLayers(document.layers).map(({ layer }) => layer.id)
-        : []
-    );
-    const keepMasks = new Set<LayerId>(
-      document ? walkLayerTree(document.layers).map(({ node }) => node.id) : []
-    );
-    dependencies.history.getRetainedResourceIds().forEach((id) => {
-      keepRasterLayers.add(id as LayerId);
-      keepMasks.add(id as LayerId);
-    });
-    if (document) {
-      dependencies.getRenderer()?.pruneLayerRuntimes(
-        document.id,
-        keepRasterLayers,
-        keepMasks
+    try {
+      const document = dependencies.getDocument();
+      const keepRasterLayers = new Set<LayerId>(
+        document
+          ? walkRasterLayers(document.layers).map(({ layer }) => layer.id)
+          : []
       );
+      const keepMasks = new Set<LayerId>(
+        document ? walkLayerTree(document.layers).map(({ node }) => node.id) : []
+      );
+      dependencies.history.getRetainedResourceIds().forEach((id) => {
+        keepRasterLayers.add(id as LayerId);
+        keepMasks.add(id as LayerId);
+      });
+      if (document) {
+        dependencies.getRenderer()?.pruneLayerRuntimes(
+          document.id,
+          keepRasterLayers,
+          keepMasks
+        );
+      }
+    } catch (reason) {
+      try {
+        dependencies.setError(
+          reason instanceof Error
+            ? `History resource cleanup failed: ${reason.message}`
+            : 'History resource cleanup failed.'
+        );
+      } catch (reportReason) {
+        console.error('LightTable history resource cleanup reporting failed.', reportReason);
+      }
     }
   };
 

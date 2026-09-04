@@ -49,6 +49,7 @@ export interface DocumentCommandHistorySnapshot {
 export interface DocumentCommandHistoryOptions {
   readonly maxEntries?: number;
   readonly maxBytes?: number;
+  readonly onInternalError?: (reason: unknown) => void;
 }
 
 export type DocumentCommandHistoryListener = (
@@ -71,6 +72,7 @@ export class DocumentCommandHistory {
 
   private readonly maxEntries: number;
   private readonly maxBytes: number;
+  private readonly onInternalError: (reason: unknown) => void;
   private readonly listeners = new Set<DocumentCommandHistoryListener>();
   private undoNodes: HistoryNode[] = [];
   private redoNodes: HistoryNode[] = [];
@@ -89,6 +91,9 @@ export class DocumentCommandHistory {
     this.documentId = documentId;
     this.maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
     this.maxBytes = Math.max(0, options.maxBytes ?? DEFAULT_MAX_BYTES);
+    this.onInternalError = options.onInternalError ?? ((reason) => {
+      console.error('LightTable history observer or cleanup failed.', reason);
+    });
     this.snapshot = this.buildSnapshot();
   }
 
@@ -132,7 +137,7 @@ export class DocumentCommandHistory {
     try {
       await node.command.undo();
       if (generation !== this.generation) {
-        node.command.dispose?.();
+        this.disposeCommand(node.command);
         return false;
       }
       this.redoNodes.push(node);
@@ -140,7 +145,7 @@ export class DocumentCommandHistory {
       return true;
     } catch (reason) {
       if (generation === this.generation) this.undoNodes.push(node);
-      else node.command.dispose?.();
+      else this.disposeCommand(node.command);
       throw reason;
     } finally {
       if (generation === this.generation) {
@@ -161,7 +166,7 @@ export class DocumentCommandHistory {
     try {
       await node.command.redo();
       if (generation !== this.generation) {
-        node.command.dispose?.();
+        this.disposeCommand(node.command);
         return false;
       }
       this.undoNodes.push(node);
@@ -169,7 +174,7 @@ export class DocumentCommandHistory {
       return true;
     } catch (reason) {
       if (generation === this.generation) this.redoNodes.push(node);
-      else node.command.dispose?.();
+      else this.disposeCommand(node.command);
       throw reason;
     } finally {
       if (generation === this.generation) {
@@ -211,7 +216,7 @@ export class DocumentCommandHistory {
     const wasDirty = this.snapshot.dirty;
     this.generation += 1;
     this.disposeNodes([...this.undoNodes, ...this.redoNodes]);
-    this.pendingCommands.forEach((command) => command.dispose?.());
+    this.pendingCommands.forEach((command) => this.disposeCommand(command));
     this.undoNodes = [];
     this.redoNodes = [];
     this.pendingCommands = [];
@@ -265,12 +270,20 @@ export class DocumentCommandHistory {
       const evicted = this.undoNodes.shift();
       if (!evicted) break;
       byteSize -= evicted.command.byteSize ?? 0;
-      evicted.command.dispose?.();
+      this.disposeCommand(evicted.command);
     }
   }
 
   private disposeNodes(nodes: readonly HistoryNode[]): void {
-    for (const node of nodes) node.command.dispose?.();
+    for (const node of nodes) this.disposeCommand(node.command);
+  }
+
+  private disposeCommand(command: ReversibleDocumentCommand): void {
+    try {
+      command.dispose?.();
+    } catch (reason) {
+      this.onInternalError(reason);
+    }
   }
 
   private buildSnapshot(): DocumentCommandHistorySnapshot {
@@ -320,6 +333,12 @@ export class DocumentCommandHistory {
 
   private publish(): void {
     this.snapshot = this.buildSnapshot();
-    for (const listener of [...this.listeners]) listener(this.snapshot);
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(this.snapshot);
+      } catch (reason) {
+        this.onInternalError(reason);
+      }
+    }
   }
 }

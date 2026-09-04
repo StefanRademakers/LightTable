@@ -14,6 +14,8 @@ const engineHarness = (validationError: GPUError | null = null) => {
     device,
     documentRenderer: renderer,
     imageDocument: { id: 'document-1' },
+    renderDirty: { invalidate: vi.fn() },
+    requestRender: vi.fn(),
     selectionQueue: Promise.resolve()
   } as unknown as WebGpuEngine;
   return { device, engine, onDeviceLost, renderer };
