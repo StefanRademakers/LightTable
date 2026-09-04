@@ -75,12 +75,16 @@ const writePreview = async (driver, documentId, target) => {
 };
 
 const openActions = async (page) => {
-  if (!await page.getByRole('complementary', { name: 'Actions' }).count()) {
+  const tab = page.locator('.ui-panel-tab', { hasText: 'Actions' });
+  if (!await tab.count()) {
     await page.getByRole('menuitem', { name: 'View', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
+    await page.getByRole('menuitem', { name: /Actions panel/ }).click();
+    await tab.first().waitFor({ state: 'visible' });
   }
-  return page.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder');
+  await tab.first().click();
+  const panel = page.locator('.lighttable-actions-panel');
+  await panel.waitFor({ state: 'visible' });
+  return panel.locator('.lighttable-action-recorder');
 };
 
 try {
@@ -147,9 +151,10 @@ try {
   assert.equal(uiBaseline.layers.some(({ id }) => sourceIds.has(id)), false,
     'The duplicate retained a source layer identity.');
   await page.getByRole('menuitem', { name: 'Layer', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New', exact: true }).click();
   await page.getByRole('menuitem', { name: 'New Raster Layer', exact: true }).click();
   await page.waitForFunction((id) => window.__lightTableAutomation?.queryDocument(id)?.history.undoDepth === 1,
-    uiDocumentId, { timeout: 30_000 });
+  uiDocumentId, { timeout: 30_000 });
   recorder = await openActions(page);
   await recorder.getByRole('button', { name: 'Stop', exact: true }).click();
   const recording = await driver.queryActionRecording();
@@ -167,10 +172,11 @@ try {
     .first().click();
   await waitForDocument(driver, sourceDocumentId);
   recorder = await openActions(page);
-  const editStep = recorder.locator('.lighttable-action-recorder__steps > li')
-    .filter({ hasText: 'layer.createRaster' });
-  await editStep.locator('summary').click();
-  await editStep.getByRole('button', { name: 'Play from here', exact: true }).click();
+  const editStep = recorder.locator('.lighttable-action-tree__row.is-step[data-command="layer.createRaster"]');
+  await editStep.click();
+  const inspector = recorder.locator('.lighttable-action-inspector');
+  await inspector.locator('summary').click();
+  await inspector.getByRole('button', { name: 'Play from here', exact: true }).click();
   await page.waitForFunction((sourceId) => {
     const automation = window.__lightTableAutomation;
     return automation?.actionPlaybackSnapshot?.().status === 'completed'

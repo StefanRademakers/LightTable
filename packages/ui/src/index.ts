@@ -1,12 +1,15 @@
 export { Text, type TextProps, type TextVariant, type TextWeight, type TextTone } from './Text';
 export { SwitchControl, type SwitchControlProps } from './SwitchControl';
 export { Checkbox, type CheckboxProps } from './Checkbox';
+export { Radio, type RadioProps } from './Radio';
 export { PanelSection, PanelSectionHeader, type PanelSectionProps, type PanelSectionHeaderProps } from './PanelSection';
 export { PanelTab, type PanelTabProps } from './PanelTab';
 export { PanelFooter, type PanelFooterProps } from './PanelFooter';
 export { MaskIcon } from './MaskIcon';
 export { pipetteIconUrl, sectionOpenIconUrl, sectionClosedIconUrl, resetIconUrl, trashIconUrl, searchIconUrl, closeIconUrl, documentGridIconUrl } from './icons';
 export { TextInput, type TextInputProps } from './TextInput';
+export { TextArea, type TextAreaProps } from './TextArea';
+export { AngleControl, type AngleControlProps } from './AngleControl';
 export { SearchField, type SearchFieldProps } from './SearchField';
 export { NumberField, type NumberFieldProps } from './NumberField';
 export { evaluateNumericExpression, resolveNumericExpression, type NumericExpressionKind } from './numericExpression';
@@ -28,6 +31,7 @@ export { GradientEditor, type GradientEditorProps, type GradientColorFieldProps,
 export { gradientStopPosition, gradientMidpointPosition, gradientMidpointValue, removableGradientStops, gradientPreview } from './gradientUtils';
 export { sliderValueAtPosition } from './useSliderInteraction';
 export { Button, type ButtonProps } from './Button';
+export { ButtonBase, type ButtonBaseProps } from './ButtonBase';
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl';
 export { Menu, type MenuProps, type MenuOption } from './Menu';
 export { MenuBar, type MenuBarProps, type MenuBarItem } from './MenuBar';

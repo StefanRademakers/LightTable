@@ -30,7 +30,8 @@ export const createDocumentOpenGenerationGuard =
   };
 
 export interface DocumentOpenLifecycleOptions<
-  Renderer extends DisposableDocumentRenderer
+  Renderer extends DisposableDocumentRenderer,
+  Source = Blob
 > {
   readonly enabled: boolean;
   /**
@@ -42,7 +43,7 @@ export interface DocumentOpenLifecycleOptions<
   readonly rendererLifecycle: DocumentRendererLifecycle;
   readonly createRequest: (
     context: DocumentOpenLifecycleContext
-  ) => DocumentOpenRequest<Renderer> | null;
+  ) => DocumentOpenRequest<Renderer, Source> | null;
   readonly beforeOpen?: () => void;
   readonly afterClose?: () => void;
   /** Generation-local health gate for retaining an existing renderer. */
@@ -56,7 +57,8 @@ export interface DocumentOpenLifecycleOptions<
  * Only the explicit generation identity may replace the active renderer.
  */
 export const useDocumentOpenLifecycle = <
-  Renderer extends DisposableDocumentRenderer
+  Renderer extends DisposableDocumentRenderer,
+  Source = Blob
 >({
   enabled,
   generation,
@@ -66,7 +68,7 @@ export const useDocumentOpenLifecycle = <
   beforeOpen,
   afterClose,
   canReuseRenderer
-}: DocumentOpenLifecycleOptions<Renderer>): void => {
+}: DocumentOpenLifecycleOptions<Renderer, Source>): void => {
   const createRequestRef = useRef(createRequest);
   const beforeOpenRef = useRef(beforeOpen);
   const afterCloseRef = useRef(afterClose);

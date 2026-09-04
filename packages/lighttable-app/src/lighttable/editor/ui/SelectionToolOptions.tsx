@@ -1,4 +1,4 @@
-import { Checkbox, NumberField } from '@lighttable/ui';
+import { Checkbox, NumberField, Select } from '@lighttable/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../ui/AdjustmentSlider';
 import type { EditorSession, ToolId } from '../session/editorSession';
@@ -21,6 +21,7 @@ interface SelectionToolOptionsProps {
   readonly onMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
   readonly onMarqueeWidthChange: (width: number) => void;
   readonly onMarqueeHeightChange: (height: number) => void;
+  readonly onMarqueeRatioChange: (width: number, height: number) => void;
   readonly onRowHeightChange: (height: number) => void;
   readonly onColumnWidthChange: (width: number) => void;
   readonly onSmoothChange: (smooth: number) => void;
@@ -29,6 +30,8 @@ interface SelectionToolOptionsProps {
 const finiteFeather = (value: number) => (
   Math.max(0, Math.min(250, Number.isFinite(value) ? value : 0))
 );
+
+const MARQUEE_ASPECT_PRESETS = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9'] as const;
 
 export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
   activeTool,
@@ -46,6 +49,7 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
   onMarqueeStyleChange,
   onMarqueeWidthChange,
   onMarqueeHeightChange,
+  onMarqueeRatioChange,
   onRowHeightChange,
   onColumnWidthChange,
   onSmoothChange
@@ -76,6 +80,18 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
             onChange={(value) => onMarqueeHeightChange(Math.max(
               minimum, Number.isFinite(value) ? value : 1
             ))} />
+          {marqueeStyle === 'ratio' ? (
+            <Select className="lighttable-tool-options__dropdown-trigger" value="" aria-label="Marquee aspect"
+              onValueChange={(value) => {
+                const [width, height] = value.split(':').map(Number);
+                if (width && height) onMarqueeRatioChange(width, height);
+              }}>
+              <option value="">Aspect</option>
+              {MARQUEE_ASPECT_PRESETS.map((aspect) => (
+                <option key={aspect} value={aspect}>{aspect}</option>
+              ))}
+            </Select>
+          ) : null}
         </> : null}
       </div>
     );

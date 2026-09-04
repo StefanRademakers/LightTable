@@ -12,9 +12,18 @@ const isolationHeaders = {
 // Temporarily default on in every build during the shared-control migration.
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS !== '0';
 const renderTelemetryEnabled = process.env.LIGHTTABLE_RENDER_TELEMETRY === '1';
+const staticBuild = process.env.LIGHTTABLE_STATIC_BUILD === '1';
+const webBase = process.env.LIGHTTABLE_WEB_BASE ?? (staticBuild ? './' : '/');
+const webOutDir = process.env.LIGHTTABLE_WEB_OUT_DIR ?? 'dist';
 export default defineConfig({
+  base: webBase,
+  build: {
+    outDir: webOutDir
+  },
   define: {
-    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(
+      staticBuild ? 'false' : uiDevtoolsEnabled ? 'true' : 'false'
+    ),
     'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false')
   },
   plugins: [react()],

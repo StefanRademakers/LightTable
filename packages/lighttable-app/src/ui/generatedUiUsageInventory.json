@@ -89,7 +89,7 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 120,
+      "productionUsageCount": 121,
       "internalUsageCount": 4,
       "contextCount": 36,
       "overrideCount": 0,
@@ -256,7 +256,7 @@
         },
         {
           "path": "standalone/NewDocumentDialog.tsx",
-          "count": 2,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -406,9 +406,9 @@
     {
       "id": "form-input",
       "metadataDeclared": true,
-      "productionUsageCount": 16,
+      "productionUsageCount": 17,
       "internalUsageCount": 1,
-      "contextCount": 8,
+      "contextCount": 9,
       "overrideCount": 0,
       "locations": [
         {
@@ -428,6 +428,11 @@
         },
         {
           "path": "lighttable/editor/ui/DuplicateImageDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LayerPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -460,11 +465,27 @@
       "overrides": []
     },
     {
+      "id": "text-area",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/panels/actions/ActionStepRationaleEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 35,
+      "productionUsageCount": 36,
       "internalUsageCount": 0,
-      "contextCount": 18,
+      "contextCount": 19,
       "overrideCount": 0,
       "locations": [
         {
@@ -538,6 +559,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/SelectionToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/ToolOptionControls.tsx",
           "count": 1,
           "kind": "product"
@@ -585,7 +611,7 @@
       "id": "numeric-expression",
       "metadataDeclared": true,
       "productionUsageCount": 20,
-      "internalUsageCount": 1,
+      "internalUsageCount": 0,
       "contextCount": 12,
       "overrideCount": 0,
       "locations": [
@@ -648,11 +674,6 @@
           "path": "standalone/NewDocumentDialog.tsx",
           "count": 3,
           "kind": "product"
-        },
-        {
-          "path": "ui/PanelControls.tsx",
-          "count": 1,
-          "kind": "internal"
         }
       ],
       "overrides": []
@@ -660,11 +681,16 @@
     {
       "id": "field-row",
       "metadataDeclared": true,
-      "productionUsageCount": 16,
+      "productionUsageCount": 20,
       "internalUsageCount": 0,
-      "contextCount": 3,
+      "contextCount": 6,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/ui/ArbitraryRotationDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
           "count": 1,
@@ -678,6 +704,16 @@
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
           "count": 14,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/NewGuideDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/PointTextCreationDialog.tsx",
+          "count": 1,
           "kind": "product"
         }
       ],
@@ -770,7 +806,7 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
+          "path": "lighttable/editor/panels/LayerAdjustmentPropertiesPanel.tsx",
           "count": 6,
           "kind": "product"
         },
@@ -843,13 +879,35 @@
       "overrides": []
     },
     {
+      "id": "radio",
+      "metadataDeclared": true,
+      "productionUsageCount": 2,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
       "id": "panel-angle",
       "metadataDeclared": true,
-      "productionUsageCount": 0,
+      "productionUsageCount": 1,
       "internalUsageCount": 0,
-      "contextCount": 0,
+      "contextCount": 1,
       "overrideCount": 0,
-      "locations": [],
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
       "overrides": []
     },
     {
@@ -1003,6 +1061,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/LayerAdjustmentPropertiesPanel.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
           "count": 7,
           "kind": "product"
@@ -1010,11 +1073,6 @@
         {
           "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
           "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
-          "count": 2,
           "kind": "product"
         },
         {
@@ -1270,6 +1328,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/LayerAdjustmentPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
           "count": 1,
           "kind": "product"
@@ -1281,11 +1344,6 @@
         },
         {
           "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1398,9 +1456,9 @@
     {
       "id": "dialog",
       "metadataDeclared": true,
-      "productionUsageCount": 10,
+      "productionUsageCount": 26,
       "internalUsageCount": 2,
-      "contextCount": 7,
+      "contextCount": 23,
       "overrideCount": 0,
       "locations": [
         {
@@ -1414,7 +1472,42 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/pdf/PdfExportPreflightDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/psd/PsdImportReportDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/AboutUpdateDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ArbitraryRotationDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/BackgroundRemovalDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/CommandHelpDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/DuplicateImageDialog.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1429,12 +1522,57 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/FormatSupportDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
           "count": 1,
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/MissingFontRecoveryDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/NewGuideDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/PointTextCreationDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ThirdPartyLicensesDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessRequestDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/LightTableStandaloneApp.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/NewDocumentDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/NewProjectDialog.tsx",
           "count": 1,
           "kind": "product"
         },

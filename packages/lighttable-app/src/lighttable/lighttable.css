@@ -72,8 +72,7 @@
 
 :where(.lighttable :is(button, [role='button'])):focus-visible,
 :where(.lighttable-launcher :is(button, [role='button'])):focus-visible,
-:where(.modal-backdrop :is(button, [role='button'])):focus-visible,
-:where(.lighttable-psd-report__backdrop :is(button, [role='button'])):focus-visible {
+:where(.modal-backdrop :is(button, [role='button'])):focus-visible {
   outline: none;
 }
 
@@ -225,10 +224,9 @@
   white-space: nowrap;
 }
 
-.lighttable-tool-options__identity img {
+.lighttable-tool-options__identity > .ui-mask-icon {
   width: 16px;
   height: 16px;
-  object-fit: contain;
   opacity: 0.9;
 }
 
@@ -1267,14 +1265,6 @@
   cursor: ns-resize;
 }
 
-.lighttable-guide-dialog__row {
-  display: grid;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  margin: 10px 0;
-}
-
 .lighttable-selection {
   position: absolute;
   inset: 0;
@@ -1471,59 +1461,17 @@
   color: var(--text-primary);
 }
 
-.lighttable-psd-report__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10020;
+.lighttable-psd-report__content {
   display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgb(0 0 0 / 62%);
+  min-height: 0;
 }
 
-.lighttable-psd-report {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(180px, 1fr) auto;
-  width: min(920px, calc(100vw - 48px));
-  max-height: min(780px, calc(100vh - 48px));
-  overflow: hidden;
-  color: var(--text-primary);
-  background: var(--lt-surface-panel);
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 18px 60px rgb(0 0 0 / 48%);
-}
-
-.lighttable-psd-report--pdf {
-  grid-template-rows: auto auto auto auto minmax(180px, 1fr);
-}
-
-.lighttable-psd-report--pdf .lighttable-psd-report__metrics {
+.lighttable-psd-report__content--pdf .lighttable-psd-report__metrics {
   align-items: center;
 }
 
-.lighttable-psd-report__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 18px;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.lighttable-psd-report__header h2,
-.lighttable-psd-report__header p,
 .lighttable-psd-report__entry p {
   margin: 0;
-}
-
-.lighttable-psd-report__header h2 {
-  font-size: var(--lt-type-large);
-}
-
-.lighttable-psd-report__header p {
-  margin-top: 4px;
-  color: var(--text-secondary);
-  font-size: var(--lt-type-regular);
 }
 
 .lighttable-psd-report__metrics {
@@ -1674,8 +1622,9 @@
   padding-left: 18px;
 }
 
-.lighttable-format-support {
-  width: min(760px, calc(100vw - 48px));
+.lighttable-format-support__content,
+.lighttable-third-party-licenses__content {
+  min-height: 0;
 }
 
 .lighttable-format-support__table {
@@ -1721,11 +1670,6 @@
 .lighttable-format-support__level--supported { color: var(--lt-success); }
 .lighttable-format-support__level--partial { color: var(--lt-warning); }
 .lighttable-format-support__level--unavailable { color: var(--text-secondary); }
-
-.lighttable-third-party-licenses {
-  grid-template-rows: auto auto minmax(0, 1fr);
-  width: min(780px, calc(100vw - 48px));
-}
 
 .lighttable-third-party-licenses__ownership {
   margin: 0;
@@ -4519,22 +4463,9 @@
   font-size: var(--lt-type-regular);
   text-align: center;
 }
-.lighttable-about {
-  width: min(600px, calc(100vw - 32px));
-  height: auto;
-  min-height: 0;
-  max-height: calc(100vh - 32px);
-  padding: 0;
-  gap: 0;
-  overflow: hidden;
-}
-
-.lighttable-about:focus { outline: none; }
-.lighttable-about__header { padding: 15px 18px; border-bottom: 1px solid var(--lt-border-subtle); }
 .lighttable-about__body {
-  padding: 22px 24px 24px;
   display: grid;
-  gap: 22px;
+  gap: 16px;
 }
 
 .lighttable-about__section { display: grid; gap: 14px; }
@@ -4561,7 +4492,5 @@
 
 .lighttable-about__body dt { color: var(--lt-text-muted); }
 .lighttable-about__body dd { margin: 0; color: var(--lt-text-primary); font-weight: var(--lt-weight-medium); overflow-wrap: anywhere; }
-.lighttable-about__actions { display: flex; gap: var(--lt-space-2); }
 .lighttable-about__update { padding: 10px 12px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
 .lighttable-about__update p { margin: 5px 0 0; color: var(--lt-text-muted); }
-.lighttable-about__footer { justify-content: space-between; padding: 6px; border-top: 1px solid var(--lt-border-subtle); }

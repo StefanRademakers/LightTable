@@ -4,10 +4,22 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import type { EditorDialogController } from '../../editor/ui/useEditorDialogController';
 import { createEditorMenuController } from './createEditorMenuController';
 
+type EditorMenuOptions = ReturnType<ReturnType<typeof createEditorMenuController>['optionsFor']>;
+type EditorMenuOption = EditorMenuOptions[number];
+
 const findOption = (
-  options: ReturnType<ReturnType<typeof createEditorMenuController>['optionsFor']>,
+  options: readonly EditorMenuOption[],
   value: string
-) => options.find((option) => option.value === value);
+): EditorMenuOption | undefined => {
+  for (const option of options) {
+    if (option.value === value) return option;
+    const child: EditorMenuOption | undefined = option.children
+      ? findOption(option.children, value)
+      : undefined;
+    if (child) return child;
+  }
+  return undefined;
+};
 
 describe('createEditorMenuController', () => {
   it('binds active-layer menu operations to the projected document', () => {

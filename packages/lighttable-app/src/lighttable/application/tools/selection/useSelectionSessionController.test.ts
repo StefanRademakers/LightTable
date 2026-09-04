@@ -181,7 +181,6 @@ describe('selection session controller', () => {
       undefined,
       0,
       48,
-      false,
       { style: 'fixed', width: 30, height: 20, featherRadius: 8 }
     )).toBe(true);
     expect(state.controller.finish(17)).toBe(true);
@@ -211,7 +210,6 @@ describe('selection session controller', () => {
       undefined,
       0,
       48,
-      false,
       undefined,
       { featherRadius: 5, antiAlias: true }
     )).toBe(true);
@@ -326,7 +324,7 @@ describe('selection session controller', () => {
     expect(state.history).toHaveLength(historyBefore + 1);
   });
 
-  it('snaps a dragged selection from its retained bounds and supports temporary bypass', async () => {
+  it('snaps a dragged selection from its retained bounds', async () => {
     const feedback = vi.fn();
     const state = setup({
       getSnapContext: () => ({
@@ -350,12 +348,6 @@ describe('selection session controller', () => {
       expect.objectContaining({ axis: 'x' })
     ]), expect.objectContaining({ x: 20 }));
     state.controller.cancel(2);
-
-    state.controller.begin(3, 'select-rectangle', { x: 20, y: 20 }, 'replace');
-    state.controller.move(3, { x: 27, y: 20 }, true);
-    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
-      a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 0
-    });
   });
 
   it('snaps a newly drawn rectangular marquee endpoint to guides', () => {
@@ -466,7 +458,7 @@ describe('selection session controller', () => {
         source: expect.objectContaining({
           kind: 'layer-transparency',
           layerId: document.activeLayerId,
-          pixelRevision: expect.any(Number)
+          contentRevision: expect.any(String)
         })
       })
     ]);

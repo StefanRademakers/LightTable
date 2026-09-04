@@ -1,7 +1,7 @@
 import type { LightTableImageMetadata } from '../types';
 import { decodeNativeImage } from '../image-io/NativeImageDecoder';
 import type { WasmVipsDecoder } from '../image-io/WasmVipsDecoder';
-import type { AdvancedDecodedImage } from '../image-io/types';
+import type { AdvancedDecodedImage, NativeDecodedImage } from '../image-io/types';
 import type { LightTableLoadImageOptions } from '../application/rendering/rendererTypes';
 import { TEXTURE_FORMATS_TIER1 } from './sharedWebGpuDevice';
 
@@ -28,7 +28,7 @@ export class DocumentSourceGpuLoader {
 
   constructor(
     private readonly device: GPUDevice,
-    private readonly precisionSourceResolvePipeline: GPURenderPipeline
+    private readonly precisionSourceResolvePipeline: GPURenderPipeline | (() => GPURenderPipeline)
   ) {}
 
   async load(
@@ -40,6 +40,29 @@ export class DocumentSourceGpuLoader {
     return options.decodeMode === 'preserve-precision'
       ? this.loadAdvanced(blob, name, options.signal, revision)
       : this.loadNative(blob, name, options.signal, revision);
+  }
+
+  /** Uploads a bitmap decoded before the GPU device became available. */
+  loadPreparedNative(
+    decoded: NativeDecodedImage,
+    name: string,
+    signal?: AbortSignal
+  ): LoadedGpuDocumentSource {
+    const revision = ++this.loadRevision;
+    return this.uploadNative(decoded, name, signal, revision);
+  }
+
+  /** Uploads precision pixels decoded by the worker while WebGPU was starting. */
+  loadPreparedAdvanced(
+    decoded: AdvancedDecodedImage,
+    name: string,
+    decodeDurationMs: number,
+    signal?: AbortSignal
+  ): LoadedGpuDocumentSource {
+    const revision = ++this.loadRevision;
+    this.assertCurrent(signal, revision);
+    this.validateAdvancedDescriptor(decoded);
+    return this.createAdvancedSource(decoded, name, decodeDurationMs);
   }
 
   destroy(): void {
@@ -73,6 +96,15 @@ export class DocumentSourceGpuLoader {
   ): Promise<LoadedGpuDocumentSource> {
     this.assertCurrent(signal, revision);
     const decoded = await decodeNativeImage(blob);
+    return this.uploadNative(decoded, name, signal, revision);
+  }
+
+  private uploadNative(
+    decoded: NativeDecodedImage,
+    name: string,
+    signal: AbortSignal | undefined,
+    revision: number
+  ): LoadedGpuDocumentSource {
     const { bitmap, descriptor } = decoded;
     try {
       this.assertCurrent(signal, revision);
@@ -256,6 +288,9 @@ export class DocumentSourceGpuLoader {
       }
     }
 
+    const precisionSourceResolvePipeline = typeof this.precisionSourceResolvePipeline === 'function'
+      ? this.precisionSourceResolvePipeline()
+      : this.precisionSourceResolvePipeline;
     const stagingTexture = this.device.createTexture({
       label: `LightTable ${descriptor.sourceBitDepth}-bit UNORM staging image`,
       size: [descriptor.width, descriptor.height],
@@ -281,7 +316,7 @@ export class DocumentSourceGpuLoader {
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
       });
       const bindGroup = this.device.createBindGroup({
-        layout: this.precisionSourceResolvePipeline.getBindGroupLayout(0),
+        layout: precisionSourceResolvePipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: stagingTexture.createView() }]
       });
       const encoder = this.device.createCommandEncoder({ label: 'LightTable precision source ingest' });
@@ -293,7 +328,7 @@ export class DocumentSourceGpuLoader {
           storeOp: 'store'
         }]
       });
-      pass.setPipeline(this.precisionSourceResolvePipeline);
+      pass.setPipeline(precisionSourceResolvePipeline);
       pass.setBindGroup(0, bindGroup);
       pass.draw(3);
       pass.end();

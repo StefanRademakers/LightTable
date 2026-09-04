@@ -1,9 +1,5 @@
-import { Button, TextInput } from '@lighttable/ui';
+import { Button, Dialog, TextInput } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
   duplicateDocumentDefaultName,
   normalizeDuplicateDocumentName
@@ -28,8 +24,6 @@ export const DuplicateImageDialog = ({
 }: DuplicateImageDialogProps) => {
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
-
   useEffect(() => {
     if (!open) return;
     setName(duplicateDocumentDefaultName(sourceName));
@@ -45,23 +39,15 @@ export const DuplicateImageDialog = ({
   let normalizedName: string | null = null;
   try { normalizedName = normalizeDuplicateDocumentName(name, sourceName); } catch { /* validation below */ }
 
-  return createPortal(
-    <div className="modal-backdrop lighttable-dialog-backdrop">
-      <form
-        ref={dialogRef}
-        className="modal lighttable-new-document-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Duplicate Image"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onSubmit={(event) => {
+  return (
+    <Dialog open={open} as="form" title="Duplicate Image" onDismiss={busy ? () => undefined : onCancel}
+      onSubmit={(event) => {
           event.preventDefault();
           if (!busy && normalizedName) onConfirm(normalizedName);
-        }}
-      >
-        <div className="modal__header"><h3 className="modal__title">Duplicate Image</h3></div>
+        }} footer={<>
+          <Button tabIndex={0} type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button tabIndex={0} type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</Button>
+        </>}>
         <div className="lighttable-new-document-dialog__fields">
           <div className="lighttable-new-document-dialog__wide-field">
             <span>Duplicate</span>
@@ -75,12 +61,6 @@ export const DuplicateImageDialog = ({
           </label>
           {error ? <p className="lighttable-file-drop__error lighttable-new-document-dialog__wide-field" role="alert">{error}</p> : null}
         </div>
-        <div className="modal__footer">
-          <Button tabIndex={0} type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button tabIndex={0} type="submit" disabled={busy || !normalizedName}>{busy ? 'Duplicating...' : 'OK'}</Button>
-        </div>
-      </form>
-    </div>,
-    document.body
+    </Dialog>
   );
 };

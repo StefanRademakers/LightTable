@@ -46,6 +46,8 @@ import {
   type DocumentSourceProbe
 } from './documentSourceProbe';
 import type { DocumentStartupTimeline } from '../telemetry/documentStartupTimeline';
+import type { AdvancedDecodedImage, NativeDecodedImage } from '../../image-io/types';
+import type { PreparedDocumentOpenSource } from './prepareDocumentOpenSource';
 
 export interface DocumentSourceRenderer {
   loadImage(
@@ -53,6 +55,17 @@ export interface DocumentSourceRenderer {
     name: string,
     options?: LightTableLoadImageOptions
   ): Promise<LightTableImageMetadata>;
+  loadPreparedImage?(
+    decoded: NativeDecodedImage,
+    name: string,
+    options?: LightTableLoadImageOptions
+  ): LightTableImageMetadata;
+  loadPreparedAdvancedImage?(
+    decoded: AdvancedDecodedImage,
+    name: string,
+    decodeDurationMs: number,
+    options?: LightTableLoadImageOptions
+  ): LightTableImageMetadata;
   initializeDocumentSurface(metadata: LightTableImageMetadata): void;
   setDocument(document: ImageDocument): void;
   loadLayerAssets(assets: DocumentAssetBlob[]): Promise<void>;
@@ -126,6 +139,7 @@ export interface LoadDocumentSourceRequest {
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
   readonly startupTimeline?: DocumentStartupTimeline | null;
+  readonly preparedOpenSource?: PreparedDocumentOpenSource;
   /** Test seam; production callers use the default import adapters. */
   readonly dependencies?: Partial<DocumentSourceLoaderDependencies>;
 }
@@ -179,7 +193,7 @@ export const loadDocumentSource = async (
   const dependencies = { ...defaultDependencies, ...request.dependencies };
 
   const probeStartedAt = dependencies.now();
-  const sourceProbe = await dependencies.probe(
+  const sourceProbe = request.preparedOpenSource?.probe ?? await dependencies.probe(
     request.blob,
     request.decodeMode
   );
@@ -190,24 +204,25 @@ export const loadDocumentSource = async (
     );
   }
   const layered = sourceProbe.codec === 'lighttable'
-    ? await dependencies.parseLayered(request.blob)
+    ? request.preparedOpenSource?.layered ?? await dependencies.parseLayered(request.blob)
     : null;
   if (sourceProbe.codec === 'lighttable' && !layered) {
     throw new Error('The LightTable document footer or manifest is invalid.');
   }
-  const layeredProbeMs = dependencies.now() - probeStartedAt;
+  const layeredProbeMs = request.preparedOpenSource?.timings.probeMs
+    ?? dependencies.now() - probeStartedAt;
   if (canceled(request)) return null;
 
-  let psdImport: PsdDecodeSuccess | null = null;
-  let pdfPreview: PdfRasterPreview | null = null;
+  let psdImport: PsdDecodeSuccess | null = request.preparedOpenSource?.photoshopDecode ?? null;
+  let pdfPreview: PdfRasterPreview | null = request.preparedOpenSource?.pdfPreview ?? null;
   let svgPlan: SvgImportPlan | null = null;
-  let sourceDecodeMs = 0;
-  if (sourceProbe.codec === 'photoshop') {
+  let sourceDecodeMs = request.preparedOpenSource?.timings.sourceDecodeMs ?? 0;
+  if (sourceProbe.codec === 'photoshop' && !psdImport) {
     const sourceDecodeStartedAt = dependencies.now();
     psdImport = await dependencies.decodePhotoshop(request.blob, request.signal);
     sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
   }
-  if (sourceProbe.codec === 'pdf-raster') {
+  if (sourceProbe.codec === 'pdf-raster' && !pdfPreview) {
     const sourceDecodeStartedAt = dependencies.now();
     pdfPreview = await dependencies.decodePdfPreview(request.blob, request.signal);
     sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
@@ -277,12 +292,18 @@ export const loadDocumentSource = async (
   if (canceled(request)) return null;
 
   const imageBlob = psdImport?.preview ?? pdfPreview?.preview ?? layered?.preview ?? request.blob;
-  const semanticPsd = psdImport
+  const semanticPsd = request.preparedOpenSource?.photoshopImport ?? (psdImport
     ? dependencies.importPhotoshop(psdImport, request.name)
-    : null;
+    : null);
 
   const decodeStartedAt = dependencies.now();
   const placeholderLayeredPreview = layered?.previewKind === 'placeholder';
+  const preparedNativeImage = request.renderer.loadPreparedImage
+    ? request.preparedOpenSource?.consumeNativeImage() ?? null
+    : null;
+  const preparedAdvancedImage = request.renderer.loadPreparedAdvancedImage
+    ? request.preparedOpenSource?.consumeAdvancedImage() ?? null
+    : null;
   const loadedMetadata: LightTableImageMetadata = svgPlan ? {
     name: request.name, width: svgPlan.width, height: svgPlan.height,
     contentType: 'image/svg+xml', decoder: 'native-svg', sourceBitDepth: 32,
@@ -297,13 +318,26 @@ export const loadDocumentSource = async (
     sourceBitDepth: layered.document.colorSettings.bitDepth,
     sourceFormat: 'LightTable',
     sourceInterpretation: 'Native layered recovery document'
-  } : await request.renderer.loadImage(imageBlob, request.name, {
+  } : preparedAdvancedImage
+    ? request.renderer.loadPreparedAdvancedImage!(
+        preparedAdvancedImage,
+        request.name,
+        sourceDecodeMs,
+        { signal: request.signal }
+      )
+    : preparedNativeImage
+    ? request.renderer.loadPreparedImage!(
+        preparedNativeImage,
+        request.name,
+        { signal: request.signal }
+      )
+    : await request.renderer.loadImage(imageBlob, request.name, {
     decodeMode:
       psdImport || layered
         ? 'fast'
         : sourceProbe.decodeMode,
     signal: request.signal
-  });
+      });
   const metadata: LightTableImageMetadata = psdImport
     ? {
         ...loadedMetadata,

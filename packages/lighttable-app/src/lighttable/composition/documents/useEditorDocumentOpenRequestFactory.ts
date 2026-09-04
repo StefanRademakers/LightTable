@@ -34,6 +34,15 @@ import {
 } from './resolveEditorDocumentCanvases';
 import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import {
+  prepareDocumentOpenSource,
+  type PreparedDocumentOpenSource
+} from '../../application/documents/prepareDocumentOpenSource';
+
+export interface EditorResolvedDocumentSource {
+  readonly blob: Blob;
+  readonly prepared: PreparedDocumentOpenSource | null;
+}
 
 export interface EditorDocumentOpenRequestFactoryOptions {
   readonly canvases: EditorDocumentScopeCanvasRefs;
@@ -47,6 +56,8 @@ export interface EditorDocumentOpenRequestFactoryOptions {
     readonly sourceFileKey: string | null;
     readonly loadSource?: DocumentSourceLoader;
     readonly existingDocument?: ImageDocument | null;
+    readonly name: string;
+    readonly decodeMode: import('../../application/documents/documentSourceProbe').DocumentOpenMode;
   };
   readonly getScopeOptions: () => {
     readonly histogramVisible: boolean;
@@ -54,7 +65,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
   };
   readonly hydrate: (
     renderer: DocumentRendererPort,
-    source: Blob,
+    source: EditorResolvedDocumentSource,
     task: DocumentTaskContext,
     isCurrent: () => boolean
   ) => Promise<void>;
@@ -100,7 +111,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   logTimings
 }: EditorDocumentOpenRequestFactoryOptions): ((
   context: DocumentOpenLifecycleContext
-) => DocumentOpenRequest<DocumentRendererPort> | null) => useCallback(({
+) => DocumentOpenRequest<DocumentRendererPort, EditorResolvedDocumentSource> | null) => useCallback(({
   isCurrent
 }: DocumentOpenLifecycleContext) => {
   const resolvedCanvases = resolveEditorDocumentCanvases(canvases);
@@ -124,7 +135,7 @@ export const useEditorDocumentOpenRequestFactory = ({
     logTimings
   });
 
-  return createEditorDocumentOpenRequest({
+  return createEditorDocumentOpenRequest<DocumentRendererPort, EditorResolvedDocumentSource>({
     createRenderer: () => {
       telemetryRef.current.markTimelineStage('gpu-device-requested', { warmReuse: false });
       return createWebGpuDocumentRenderer(
@@ -133,15 +144,28 @@ export const useEditorDocumentOpenRequestFactory = ({
       );
     },
     resolveSource: source.existingDocument
-      ? async () => new Blob()
-      : (signal) => resolveDocumentSource(source, signal),
-    hydrate: (renderer, sourceBlob, task) => {
+      ? async () => ({ blob: new Blob(), prepared: null })
+      : async (signal) => {
+          const blob = await resolveDocumentSource(source, signal);
+          const startupTimeline = telemetryRef.current.activeTimeline();
+          startupTimeline?.mark('bytes-available');
+          const prepared = await prepareDocumentOpenSource({
+            blob,
+            name: source.name,
+            decodeMode: source.decodeMode,
+            signal,
+            startupTimeline
+          });
+          return { blob, prepared };
+        },
+    hydrate: (renderer, resolvedSource, task) => {
       // Attach the trace only when the selected source is ready to hydrate.
       // A reused renderer may still owe a frame for the previous document;
       // counting that submission would produce a fast but false milestone.
       renderer.setStartupTimeline(telemetryRef.current.activeTimeline());
-      return hydrate(renderer, sourceBlob, task, isCurrent);
+      return hydrate(renderer, resolvedSource, task, isCurrent);
     },
+    disposeSource: (resolvedSource) => resolvedSource.prepared?.dispose(),
     rendererSlot: {
       get: () => rendererRef.current,
       set: (renderer) => {

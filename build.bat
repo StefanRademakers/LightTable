@@ -4,9 +4,11 @@ pushd "%~dp0"
 
 set "LIGHTTABLE_BUILD_KIND=release"
 set "LIGHTTABLE_BUILD_OUT=out-release"
+set "LIGHTTABLE_WEB_OUT_DIR=dist-release"
 if /I "%~1"=="debug" (
   set "LIGHTTABLE_BUILD_KIND=debug"
   set "LIGHTTABLE_BUILD_OUT=out-debug"
+  set "LIGHTTABLE_WEB_OUT_DIR=dist-debug"
 )
 
 where node >nul 2>nul
@@ -42,11 +44,11 @@ if /I "%LIGHTTABLE_BUILD_KIND%"=="debug" (
   call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
   if errorlevel 1 goto :failed
 ) else (
-  echo [LightTable] Creating a clean optimized package without runtime diagnostics...
+  echo [LightTable] Creating an optimized package with the temporary UI Style Guide...
   set "LIGHTTABLE_PACKAGE_OUT=out-release"
   call npm run package:desktop
   if errorlevel 1 goto :failed
-  call node scripts\verify-ui-devtools-boundary.mjs --desktop --absent
+  call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
   if errorlevel 1 goto :failed
 )
 
@@ -62,7 +64,7 @@ if not exist "apps\desktop\%LIGHTTABLE_BUILD_OUT%\make\squirrel.windows\x64\*Set
 echo.
 echo [LightTable] Build completed successfully.
 echo [LightTable] Profile: %LIGHTTABLE_BUILD_KIND%
-echo [LightTable] Web: apps\web\dist
+echo [LightTable] Web: apps\web\%LIGHTTABLE_WEB_OUT_DIR%
 echo [LightTable] Desktop package: apps\desktop\%LIGHTTABLE_BUILD_OUT%\LightTable-win32-x64
 for %%I in ("apps\desktop\%LIGHTTABLE_BUILD_OUT%\make\squirrel.windows\x64\*Setup.exe") do (
   echo [LightTable] Windows installer: %%~fI

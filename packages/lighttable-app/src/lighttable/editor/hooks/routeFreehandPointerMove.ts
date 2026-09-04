@@ -20,7 +20,6 @@ interface RouteFreehandPointerMoveOptions {
   selection: SelectionSessionController;
   warp: WarpSessionController;
   paint: PaintSessionController;
-  snapBypass?: boolean;
   repositionSelection?: boolean;
   selectionMarqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean };
   constrainSelectionTranslation?: boolean;
@@ -41,7 +40,6 @@ export const routeFreehandPointerMove = ({
   selection,
   warp,
   paint,
-  snapBypass = false,
   repositionSelection = false,
   selectionMarqueeModifiers,
   constrainSelectionTranslation = false
@@ -54,7 +52,6 @@ export const routeFreehandPointerMove = ({
       return selection.move(
         pointerId,
         currentPoint,
-        snapBypass,
         repositionSelection,
         selectionMarqueeModifiers,
         constrainSelectionTranslation
@@ -64,7 +61,6 @@ export const routeFreehandPointerMove = ({
     return selection.moveMany(
       pointerId,
       points,
-      snapBypass,
       repositionSelection,
       selectionMarqueeModifiers,
       constrainSelectionTranslation

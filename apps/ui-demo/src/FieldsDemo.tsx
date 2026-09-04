@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileField, LinkedFields, NumberField, PathField, SearchField, Select, SelectField, Text, TextInput } from '@lighttable/ui';
+import { AngleControl, FileField, LinkedFields, NumberField, PathField, SearchField, Select, SelectField, Text, TextArea, TextInput } from '@lighttable/ui';
 
 export function FieldsDemo() {
   const [name, setName] = useState('Background copy');
@@ -12,6 +12,8 @@ export function FieldsDemo() {
   const [path, setPath] = useState('D:\\Pictures\\LightTableProject');
   const [width, setWidth] = useState(3000);
   const [height, setHeight] = useState(900);
+  const [angle, setAngle] = useState(120);
+  const [notes, setNotes] = useState('Explain why this action exists.');
   const [dimensionsLinked, setDimensionsLinked] = useState(true);
   const modes = [{ value: 'normal', label: 'Normal' }, { value: 'multiply', label: 'Multiply' },
     { value: 'screen', label: 'Screen' }, { value: 'unavailable', label: 'Unavailable', disabled: true }];
@@ -45,6 +47,18 @@ export function FieldsDemo() {
       </div>
       <Text as="p" variant="small" tone="muted">One native input; refs, selection, autofill and native input events stay available. No extra wrapper.</Text>
       <pre className="demo-code"><Text as="code">{'<TextInput value={name} onChange={event => setName(event.currentTarget.value)} />'}</Text></pre>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Multiline text</Text>
+      <label className="demo-color"><Text>Notes</Text>
+        <TextArea value={notes} onChange={event => setNotes(event.currentTarget.value)} />
+      </label>
+      <Text as="p" tone="muted">One native textarea with shared field typography, colors and interaction states.</Text>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Angle control</Text>
+      <AngleControl label="Light angle" value={angle} onChange={setAngle} />
+      <Text as="p" variant="small" tone="muted">Drag the dial, enter a value or double-click to reset. Value: {angle}°.</Text>
     </section>
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Path field</Text>

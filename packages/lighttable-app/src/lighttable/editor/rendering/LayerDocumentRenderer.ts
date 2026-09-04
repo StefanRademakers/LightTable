@@ -589,6 +589,10 @@ export class LayerDocumentRenderer {
     this.beginPixelEdit(layer.id, channel);
   }
 
+  prepareRasterPaintSurface(layer: RasterLayer) {
+    return this.runtime.transformRasterizer.materializeForPixelEditing(layer);
+  }
+
   preparePaintTool() {
     this.runtime.rasterPaint.prepareBrushResources();
   }
@@ -800,7 +804,11 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.loadColorChannel(source, channel);
   }
 
-  loadRasterLayerTransparencyAsSelection(document: ImageDocument, layer: RasterLayer) {
+  async loadLayerTransparencyAsSelection(
+    document: ImageDocument,
+    layer: RasterLayer | Extract<LayerNode, { type: 'text' | 'vector' }>
+  ) {
+    if (layer.type === 'text') await this.waitForTextSource(layer.id);
     const encoder = this.device.createCommandEncoder({
       label: 'LightTable load layer transparency as selection'
     });
@@ -808,16 +816,19 @@ export class LayerDocumentRenderer {
     // document space so tight rasters, offsets and transforms are honored,
     // while visibility, opacity, masks, effects and local grading do not
     // silently alter the Photoshop-compatible transparency selection.
-    const isolatedLayer: RasterLayer = {
+    const isolatedLayer: typeof layer = {
       ...layer,
       visible: true,
       opacity: 1,
       fillOpacity: 1,
       blendMode: 'normal',
       clipping: false,
-      adjustmentStack: null,
       mask: null,
-      styleStack: { ...layer.styleStack, enabled: false }
+      styleStack: { ...layer.styleStack, enabled: false },
+      ...(layer.type === 'raster' ? {
+        adjustmentStack: null,
+        attachedAdjustments: []
+      } : {})
     };
     const source = this.encodeComposite(encoder, {
       ...document,
@@ -825,8 +836,9 @@ export class LayerDocumentRenderer {
       activeLayerId: layer.id
     });
     this.device.queue.submit([encoder.finish()]);
+    const loaded = this.runtime.selectionRasterizer.loadTransparency(source);
     this.releaseSubmittedResources();
-    return this.runtime.selectionRasterizer.loadTransparency(source);
+    return loaded;
   }
 
   applyMagicWandToTexture(

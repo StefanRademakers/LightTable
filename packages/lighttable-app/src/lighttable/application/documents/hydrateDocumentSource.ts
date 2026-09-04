@@ -42,36 +42,15 @@ export const hydrateDocumentSource = async (
   const adjustments = createDefaultAdjustments();
   renderer.setAdjustments(adjustments);
 
-  if (!loaded.psdImport) {
-    return {
-      adjustments,
-      psdDifferenceMetrics: null,
-      status: null,
-      differenceError: null
-    };
-  }
-
-  const inventory = loaded.psdImport.inventory;
-  try {
-    const metrics = await renderer.measureReferenceDifference();
-    if (isCanceled()) return null;
-    return {
-      adjustments,
-      psdDifferenceMetrics: metrics,
-      status:
-        `PSD reconstruction loaded · ${inventory.layers} layers · `
-        + `${metrics.differingPixelPercentage.toFixed(2)}% differs`,
-      differenceError: null
-    };
-  } catch (differenceError) {
-    if (isCanceled()) return null;
-    return {
-      adjustments,
-      psdDifferenceMetrics: null,
-      status:
-        `PSD reconstruction loaded · ${inventory.layers} layers · `
-        + `${inventory.layerStyles} styled · ${inventory.adjustments} adjustments`,
-      differenceError
-    };
-  }
+  if (isCanceled()) return null;
+  const inventory = loaded.psdImport?.inventory;
+  return {
+    adjustments,
+    psdDifferenceMetrics: null,
+    status: inventory
+      ? `PSD reconstruction loaded · ${inventory.layers} layers · `
+        + `${inventory.layerStyles} styled · ${inventory.adjustments} adjustments`
+      : null,
+    differenceError: null
+  };
 };

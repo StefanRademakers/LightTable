@@ -1,13 +1,11 @@
-import { Button } from '@lighttable/ui';
+import { Button, Dialog } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type {
   PdfExportFontDisposition,
   PdfExportTextLayerDisposition,
   PdfTextExportPlan
 } from '@lighttable/pdf-core';
 
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 type ReportSupport = 'native' | 'approximate' | 'raster-preview' | 'placeholder';
 
@@ -68,7 +66,6 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   request,
   onClose
 }) => {
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(Boolean(open && request), onClose);
   const generationRef = useRef(0);
   const pageExportGenerationRef = useRef(0);
   const nativeExportGenerationRef = useRef(0);
@@ -115,7 +112,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
     setNativeExport({ kind: 'idle' });
     setVectorExport({ kind: 'idle' });
     setMixedExport({ kind: 'idle' });
-  }, [request]);
+  }, [open, request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
   const validateFonts = async () => {
@@ -213,26 +210,11 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     }
   };
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section
-        ref={dialogRef}
-        className="lighttable-psd-report lighttable-psd-report--pdf"
-        role="dialog"
-        aria-modal="true"
-        aria-label="PDF export preflight"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="lighttable-psd-report__header">
-          <div>
-            <h2>PDF export preflight</h2>
-            <p>Export a flattened page, native searchable text or native vectors when the page stack is compatible.</p>
-          </div>
-          <Button tabIndex={0} onClick={onClose}>Close</Button>
-        </header>
+  return (
+    <Dialog open={Boolean(open && request)} size="report" title="PDF export preflight"
+      description="Export a flattened page, native searchable text or native vectors when the page stack is compatible."
+      onDismiss={onClose} footer={<Button tabIndex={0} onClick={onClose}>Close</Button>}>
+      <div className="lighttable-psd-report__content lighttable-psd-report__content--pdf">
         <div className="lighttable-psd-report__metrics">
           <span>
             This export writes exactly one PDF page from the current LightTable canvas.
@@ -355,8 +337,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
             </p>
           ) : null}
         </div>
-      </section>
-    </div>,
-    document.body
+      </div>
+    </Dialog>
   );
 };

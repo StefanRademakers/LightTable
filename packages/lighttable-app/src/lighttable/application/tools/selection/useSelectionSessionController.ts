@@ -38,7 +38,7 @@ import type { Rect } from '../../../editor/document/documentTypes';
 import type { BrushDab, BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
 import { StrokeBuilder } from '../../../editor/tools/brush/strokeBuilder';
 import { StrokeSmoother } from '../../../editor/tools/brush/strokeSmoother';
-import { selectionOperationsBounds } from '../../../editor/tools/transform/selectionTransform';
+import { selectionOperationsEditingBounds } from '../../../editor/tools/transform/selectionTransform';
 import {
   solveSnap,
   translateSnapRect,
@@ -128,14 +128,12 @@ export interface SelectionSessionController {
     stripSize?: number,
     smooth?: number,
     smoothingScale?: number,
-    snapBypass?: boolean,
     marqueeOptions?: SelectionMarqueeOptions,
     rasterOptions?: SelectionGestureRasterOptions
   ): boolean;
   move(
     pointerId: number,
     point: SelectionPoint,
-    snapBypass?: boolean,
     repositionDraft?: boolean,
     marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
     constrainTranslation?: boolean
@@ -143,7 +141,6 @@ export interface SelectionSessionController {
   moveMany(
     pointerId: number,
     points: readonly SelectionPoint[],
-    snapBypass?: boolean,
     repositionDraft?: boolean,
     marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
     constrainTranslation?: boolean
@@ -332,6 +329,7 @@ export const createSelectionSessionController = (
     samples: BrushPoint[];
   } | null = null;
   let marqueeTool: GeometricSelectionToolId | null = null;
+  let marqueeSnapMatches: readonly SnapMatch[] = [];
   let translation: {
     pointerId: number;
     document: ImageDocument;
@@ -344,6 +342,11 @@ export const createSelectionSessionController = (
     rawX: number;
     rawY: number;
     rebuildFromSource: boolean;
+    snapMatches: readonly SnapMatch[];
+    renderedX: number;
+    renderedY: number;
+    renderInFlight: boolean;
+    stopped: boolean;
   } | null = null;
   let translateQueue: Promise<void> = Promise.resolve();
   let queuedTranslationSelection: SelectionOperation[] | null = null;
@@ -407,6 +410,49 @@ export const createSelectionSessionController = (
       if (!isCurrent(document, renderer)) return;
       resolveDependencies().setError(reason instanceof Error ? reason.message : fallbackMessage);
     });
+  };
+
+  const pumpTranslationRender = (current: NonNullable<typeof translation>) => {
+    if (current.stopped || current.renderInFlight) return;
+    const targetX = current.x;
+    const targetY = current.y;
+    const dx = targetX - current.renderedX;
+    const dy = targetY - current.renderedY;
+    if (!dx && !dy) return;
+    const operation = createTranslateSelectionOperation(
+      current.document.width,
+      current.document.height,
+      targetX,
+      targetY
+    );
+    const rebuild = current.rebuildFromSource;
+    current.renderInFlight = true;
+    const apply = rebuild
+      ? current.renderer.replaceSelection([...current.before, operation])
+      : current.renderer.transformSelection({ a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy });
+    void apply
+      .then(async (applied) => {
+        if (!applied && !rebuild && isCurrent(current.document, current.renderer)) {
+          applied = await current.renderer.replaceSelection([...current.before, operation]);
+        }
+        if (!applied || !isCurrent(current.document, current.renderer)) return;
+        current.renderedX = targetX;
+        current.renderedY = targetY;
+      })
+      .catch((reason) => {
+        if (!isCurrent(current.document, current.renderer)) return;
+        resolveDependencies().setError(
+          reason instanceof Error ? reason.message : 'The selection could not be moved.'
+        );
+      })
+      .finally(() => {
+        current.renderInFlight = false;
+        if (
+          !current.stopped
+          && translation === current
+          && (current.renderedX !== current.x || current.renderedY !== current.y)
+        ) pumpTranslationRender(current);
+      });
   };
 
   const replaceSnapshot = async (
@@ -500,6 +546,7 @@ export const createSelectionSessionController = (
     dependencies.publishDraft(null);
     dependencies.publishSnapFeedback?.([], null);
     marqueeTool = null;
+    marqueeSnapMatches = [];
     dependencies.publishSelection(dependencies.getSelection(), null);
     if (!document || !renderer || result.kind === 'none') return true;
     const before = cloneSelectionOperations(dependencies.getSelection());
@@ -610,7 +657,6 @@ export const createSelectionSessionController = (
   const moveMany = (
     pointerId: number,
     points: readonly SelectionPoint[],
-    snapBypass = false,
     repositionDraft = false,
     marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean },
     constrainTranslation = false
@@ -637,9 +683,10 @@ export const createSelectionSessionController = (
             targets: snapContext.targets,
             zoom: snapContext.zoom,
             enabled: snapContext.enabled,
-            bypass: snapBypass
+            retainedMatches: translation.snapMatches
           })
         : { offsetX: 0, offsetY: 0, matches: [] as readonly SnapMatch[] };
+      translation.snapMatches = snap.matches;
       const nextX = rawX + snap.offsetX;
       const nextY = rawY + snap.offsetY;
       const dx = nextX - translation.x;
@@ -657,24 +704,7 @@ export const createSelectionSessionController = (
         || translatedBounds.x + translatedBounds.width > translation.document.width
         || translatedBounds.y + translatedBounds.height > translation.document.height
       ) translation.rebuildFromSource = true;
-      if (dx || dy) {
-        const operation = createTranslateSelectionOperation(
-          translation.document.width,
-          translation.document.height,
-          translation.x,
-          translation.y
-        );
-        observeRendererOperation(
-          translation.document,
-          translation.renderer,
-          translation.rebuildFromSource
-            ? translation.renderer.replaceSelection([...translation.before, operation])
-            : translation.renderer.transformSelection({
-                a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
-              }),
-          'The selection could not be moved.'
-        );
-      }
+      if (dx || dy) pumpTranslationRender(translation);
       const operation = createTranslateSelectionOperation(
         translation.document.width,
         translation.document.height,
@@ -688,7 +718,6 @@ export const createSelectionSessionController = (
       );
       return true;
     }
-    let marqueeMatches: readonly SnapMatch[] = [];
     let gesturePoints = points;
     if (marqueeTool && marqueeTool !== 'select-free' && !repositionDraft) {
       const snapContext = resolveDependencies().getSnapContext?.({
@@ -705,14 +734,14 @@ export const createSelectionSessionController = (
           targets: relevantTargets,
           zoom: snapContext.zoom,
           enabled: snapContext.enabled,
-          bypass: snapBypass
+          retainedMatches: marqueeSnapMatches
         });
-        marqueeMatches = snap.matches;
+        marqueeSnapMatches = snap.matches;
         gesturePoints = [
           ...points.slice(0, -1),
           { ...point, x: point.x + snap.offsetX, y: point.y + snap.offsetY }
         ];
-      }
+      } else marqueeSnapMatches = [];
     }
     const draft = gesture.moveMany(
       pointerId,
@@ -725,7 +754,7 @@ export const createSelectionSessionController = (
     if (marqueeTool && marqueeTool !== 'select-free') {
       const xs = draft.points.map(({ x }) => x);
       const ys = draft.points.map(({ y }) => y);
-      resolveDependencies().publishSnapFeedback?.(marqueeMatches, {
+      resolveDependencies().publishSnapFeedback?.(marqueeSnapMatches, {
         x: Math.min(...xs),
         y: Math.min(...ys),
         width: Math.max(...xs) - Math.min(...xs),
@@ -856,7 +885,6 @@ export const createSelectionSessionController = (
       stripSize,
       smooth,
       smoothingScale,
-      snapBypass = false,
       marqueeOptions,
       rasterOptions
     ) => {
@@ -866,7 +894,7 @@ export const createSelectionSessionController = (
       if (!document || !renderer) return false;
       const before = cloneSelectionOperations(dependencies.getSelection());
       if (mode === 'replace' && before.length && selectionContainsPoint(before, point)) {
-        const sourceBounds = selectionOperationsBounds(before, {
+        const sourceBounds = selectionOperationsEditingBounds(before, {
           x: 0, y: 0, width: document.width, height: document.height
         });
         translation = {
@@ -884,8 +912,14 @@ export const createSelectionSessionController = (
           // document even though the live GPU mask can only retain in-canvas
           // texels. Replay its canonical operation list during the next drag
           // so moving it back restores that off-canvas coverage.
-          rebuildFromSource: before.some((operation) => operation.mode === 'transform')
+          rebuildFromSource: before.some((operation) => operation.mode === 'transform'),
+          snapMatches: [],
+          renderedX: 0,
+          renderedY: 0,
+          renderInFlight: false,
+          stopped: false
         };
+        marqueeSnapMatches = [];
         dependencies.publishSelection(before, pointerId);
         dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
@@ -905,12 +939,12 @@ export const createSelectionSessionController = (
             movingBounds: { x: point.x, y: point.y, width: 0, height: 0 },
             targets: relevantTargets,
             zoom: marqueeSnap.zoom,
-            enabled: marqueeSnap.enabled,
-            bypass: snapBypass
+            enabled: marqueeSnap.enabled
           })
         : { offsetX: 0, offsetY: 0, matches: [] as readonly SnapMatch[] };
       const snappedPoint = { x: point.x + snap.offsetX, y: point.y + snap.offsetY };
       marqueeTool = tool;
+      marqueeSnapMatches = snap.matches;
       const draft = gesture.begin(pointerId, tool, snappedPoint, mode, {
         documentWidth: document.width,
         documentHeight: document.height,
@@ -926,14 +960,12 @@ export const createSelectionSessionController = (
     move: (
       pointerId,
       point,
-      snapBypass,
       repositionDraft,
       marqueeModifiers,
       constrainTranslation
     ) => moveMany(
       pointerId,
       [point],
-      snapBypass,
       repositionDraft,
       marqueeModifiers,
       constrainTranslation
@@ -943,6 +975,7 @@ export const createSelectionSessionController = (
       if (translation?.pointerId === pointerId) {
         const current = translation;
         translation = null;
+        current.stopped = true;
         const after = current.x || current.y
           ? [...current.before, createTranslateSelectionOperation(
               current.document.width,
@@ -953,6 +986,12 @@ export const createSelectionSessionController = (
           : current.before;
         resolveDependencies().publishSelection(after, null);
         resolveDependencies().publishSnapFeedback?.([], null);
+        observeRendererOperation(
+          current.document,
+          current.renderer,
+          current.renderer.replaceSelection(after),
+          'The selection could not be moved.'
+        );
         if (after !== current.before) pushHistory(current.document, current.before, after);
         return true;
       }
@@ -963,6 +1002,7 @@ export const createSelectionSessionController = (
       if (translation?.pointerId === pointerId) {
         const current = translation;
         translation = null;
+        current.stopped = true;
         observeRendererOperation(
           current.document,
           current.renderer,
@@ -975,6 +1015,7 @@ export const createSelectionSessionController = (
       }
       if (!gesture.cancel(pointerId)) return false;
       marqueeTool = null;
+      marqueeSnapMatches = [];
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSnapFeedback?.([], null);
@@ -1172,6 +1213,7 @@ export const createSelectionSessionController = (
       const restoreSelectionAfterMagicWand = pendingMagicWandSnapshot !== null;
       magicWandRequestId += 1;
       pendingMagicWandSnapshot = null;
+      if (translation) translation.stopped = true;
       translation = null;
       if (paintGesture) {
         observeRendererOperation(
@@ -1183,6 +1225,7 @@ export const createSelectionSessionController = (
       }
       paintGesture = null;
       marqueeTool = null;
+      marqueeSnapMatches = [];
       resolveDependencies().publishSnapFeedback?.([], null);
       gesture.reset();
       polygonGesture.reset();
@@ -1333,11 +1376,13 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const layer = document ? findDocumentLayer(document, layerId) : null;
-      if (!document || layer?.type !== 'raster') return;
+      if (!document || !layer || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')) return;
       void commitSnapshot(
         [createLayerTransparencySelectionOperation(
           layer.id,
-          layer.pixelRevision,
+          layer.type === 'raster'
+            ? `raster:${layer.pixelRevision}`
+            : `semantic:${layer.revision}`,
           document.width,
           document.height
         )],

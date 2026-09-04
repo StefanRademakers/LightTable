@@ -48,6 +48,12 @@ const createPorts = (): LayerDocumentAssetPorts => ({
   loadPattern: vi.fn(async () => undefined)
 });
 
+const deferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((accept) => { resolve = accept; });
+  return { promise, resolve };
+};
+
 describe('LayerDocumentAssetService', () => {
   it('exports raster pixels, optional masks and immutable patterns', async () => {
     const ports = createPorts();
@@ -93,6 +99,29 @@ describe('LayerDocumentAssetService', () => {
     expect(ports.decodeTexture).toHaveBeenNthCalledWith(1, layerId, pixels, texture, false);
     expect(ports.decodeTexture).toHaveBeenNthCalledWith(2, layerId, mask, maskTexture, true);
     expect(ports.loadPattern).toHaveBeenCalledWith({ patternId, source: pattern });
+  });
+
+  it('prepares the next persisted texture while the current GPU upload is pending', async () => {
+    const ports = createPorts();
+    const firstUpload = deferred();
+    const prepared = [
+      { width: 1, height: 1, isRaw16: false, isAdobeRgb: false, pixels: null, decoded: null, dispose: vi.fn() },
+      { width: 1, height: 1, isRaw16: false, isAdobeRgb: false, pixels: null, decoded: null, dispose: vi.fn() }
+    ];
+    ports.prepareTexture = vi.fn(async (_layerId, _blob, maskChannel) => prepared[maskChannel ? 1 : 0]!);
+    ports.uploadPreparedTexture = vi.fn(async (_layerId, _prepared, _texture, maskChannel) => {
+      if (!maskChannel) await firstUpload.promise;
+    });
+    const service = new LayerDocumentAssetService(ports);
+    const layerId = 'layer-1' as LayerId;
+    const loading = service.load([{ layerId, pixels, mask }]);
+
+    await vi.waitFor(() => expect(ports.prepareTexture).toHaveBeenCalledTimes(2));
+    expect(ports.uploadPreparedTexture).toHaveBeenCalledTimes(1);
+    firstUpload.resolve();
+    await loading;
+
+    expect(ports.uploadPreparedTexture).toHaveBeenCalledTimes(2);
   });
 
   it('reuses unchanged encoded native assets and invalidates on pixel revision or load', async () => {

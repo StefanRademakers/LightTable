@@ -1,0 +1,50 @@
+.ui-angle-control, .ui-angle-control__number {
+  display: flex;
+  align-items: center;
+}
+.ui-angle-control {
+  width: 100%;
+  gap: 8px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-size-small);
+}
+.ui-angle-control[data-disabled] { opacity: 0.6; }
+.ui-angle-control__dial {
+  position: relative;
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--ui-button-border);
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%, var(--ui-slider-thumb) 0, var(--ui-slider-track) 58%, var(--ui-button-surface) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-button-text) 6%, transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+.ui-angle-control[data-disabled] .ui-angle-control__dial { cursor: default; }
+.ui-angle-control__dial:focus-visible { outline: 1px solid var(--ui-accent); outline-offset: 2px; }
+.ui-angle-control__hand {
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 50%;
+  width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ui-button-text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-surface) 22%, transparent);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+.ui-angle-control__hand::after {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-button-text);
+  content: '';
+}
+.ui-angle-control__number { gap: 3px; }
+.ui-angle-control__number .ui-text-input { width: 58px; }

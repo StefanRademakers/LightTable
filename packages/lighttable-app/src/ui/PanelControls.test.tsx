@@ -24,8 +24,8 @@ describe('shared panel controls', () => {
       <PanelSection label="Advanced" keepMounted><span>Compatibility</span></PanelSection>
     </>);
 
-    expect(markup).toContain('<span>Mode</span>');
-    expect(markup).toContain('<span>3D LUT</span>');
+    expect(markup).toContain('ui-field-row__label">Mode</span>');
+    expect(markup).toContain('ui-field-row__label">3D LUT</span>');
     expect(markup).toContain('Load .cube...');
     expect(markup).toContain('class="ui-button"');
     expect(markup).toContain('aria-label="Enabled"');

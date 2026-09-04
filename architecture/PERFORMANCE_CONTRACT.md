@@ -93,12 +93,20 @@ scope refreshes and interaction frame intervals. Optimize measured ownership,
 not isolated microbenchmarks.
 
 `DocumentStartupTimeline` is the current monotonic document-scoped trace. For
-SVG it can record file selection/bytes, parse and usvg normalization,
+all formats it records file selection/bytes and source probe/decode boundaries.
+For SVG it additionally records parse and usvg normalization,
 canonical construction/publication, adapter/device/Vello readiness, first
 island/GPU/compositor submissions, animation-frame presentation and first
 visible pixel. `FIRST PIXEL VISIBLE` requires queue completion plus a browser
 paint opportunity; a screenshot is useful evidence only when the harness also
 waits for and verifies the final editable canonical island.
+
+Source preparation must be codec-specific. A normal PNG/JPEG/WebP open may
+overlap native decode with renderer startup and must not import PSD/PDF code or
+compile optional PSD diagnostics. Native layered restores may overlap only one
+future CPU decode with the current GPU upload; unbounded parallel decode is a
+memory regression, not a speed optimization. Optional precision, import
+diagnostic, mask, export and Layer Style pipelines are resolved on first use.
 
 Current packaged Windows/discrete-GPU evidence for the 26,492-path
 `VORTEXT.SVG` is five warm first-pixel samples of 428--446 ms. The conservative

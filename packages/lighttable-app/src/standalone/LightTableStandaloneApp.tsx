@@ -61,6 +61,7 @@ import { resolveWorkspaceSurface } from './workspaceSurface';
 import type { GenAiAssetReference } from '@lighttable/genai-core';
 import { duplicateLayeredDocumentArtifact } from '../lighttable/application/documents/duplicateLayeredDocumentArtifact';
 import { AgentAccessRequestDialog } from './AgentAccessRequestDialog';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EditorApplicationSession } from '../lighttable/application/workspace/editorApplicationSession';
 import { DocumentTaskRegistry } from '../lighttable/application/tasks/documentTaskRegistry';
 import {
@@ -79,6 +80,11 @@ const GuidedSampleCoach = lazy(async () => ({
 const PreferencesDialog = lazy(async () => ({
   default: (await import('./PreferencesDialog')).PreferencesDialog
 }));
+
+interface DiscardConfirmationRequest {
+  readonly documentTitle: string;
+  readonly resolve: (confirmed: boolean) => void;
+}
 const ProjectHomeSurface = lazy(async () => ({
   default: (await import('./ProjectHomeSurface')).ProjectHomeSurface
 }));
@@ -94,6 +100,8 @@ interface LightTableStandaloneAppProps {
   host?: LightTableHost;
   /** Optional host contribution; omitted builds contain no UI inspection runtime. */
   onOpenStyleGuide?: () => void;
+  /** Ask the browser to confirm before unloading while a document is dirty. */
+  warnBeforeBrowserUnload?: boolean;
 }
 
 export const recentFilesForLauncher = (
@@ -197,7 +205,8 @@ export const planRecoveryWorkspace = (
  */
 export function LightTableStandaloneApp({
   host: suppliedHost,
-  onOpenStyleGuide
+  onOpenStyleGuide,
+  warnBeforeBrowserUnload = false
 }: LightTableStandaloneAppProps) {
   const host = useMemo(() => suppliedHost ?? createBrowserHost(), [suppliedHost]);
   const {
@@ -242,6 +251,21 @@ export function LightTableStandaloneApp({
   const applicationServicesLeaseRef = useRef(0);
   const commandServiceLeaseRef = useRef(0);
   const pendingDocumentClosesRef = useRef(new Set<DocumentSessionId>());
+  const discardConfirmationQueueRef = useRef<DiscardConfirmationRequest[]>([]);
+  const [discardConfirmation, setDiscardConfirmation] = useState<DiscardConfirmationRequest | null>(null);
+  const confirmDiscardChanges = useCallback((documentTitle: string) => new Promise<boolean>((resolve) => {
+    const request = { documentTitle, resolve };
+    discardConfirmationQueueRef.current.push(request);
+    if (discardConfirmationQueueRef.current.length === 1) setDiscardConfirmation(request);
+  }), []);
+  const settleDiscardConfirmation = useCallback((confirmed: boolean) => {
+    const request = discardConfirmationQueueRef.current.shift();
+    request?.resolve(confirmed);
+    setDiscardConfirmation(discardConfirmationQueueRef.current[0] ?? null);
+  }, []);
+  useEffect(() => () => {
+    for (const request of discardConfirmationQueueRef.current.splice(0)) request.resolve(false);
+  }, []);
   const documentProjectionKey = snapshot.documentOrder.join('\u0000');
   useEffect(() => {
     for (const documentId of snapshot.documentOrder) {
@@ -409,9 +433,13 @@ export function LightTableStandaloneApp({
   }, [commandService, documents]);
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [launcherPage, setLauncherPage] = useState<LauncherPage>('new-document');
+  const [launcherPage, setLauncherPage] = useState<LauncherPage>('recent-files');
   const launcherFileInputRef = useRef<HTMLInputElement>(null);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [newDocumentClipboardSize, setNewDocumentClipboardSize] = useState<{
+    readonly width: number;
+    readonly height: number;
+  } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
@@ -904,7 +932,20 @@ export function LightTableStandaloneApp({
     setGuidedSample({ documentId, step: 'shape' });
   }, [commandService, createDocument, host]);
 
-  const requestNewDocument = useCallback(() => setNewDialogOpen(true), []);
+  const requestNewDocument = useCallback(() => {
+    const readDimensions = host.clipboard?.readDimensions;
+    if (!readDimensions) {
+      setNewDocumentClipboardSize(null);
+      setNewDialogOpen(true);
+      return;
+    }
+    void readDimensions()
+      .catch(() => null)
+      .then((dimensions) => {
+        setNewDocumentClipboardSize(dimensions);
+        setNewDialogOpen(true);
+      });
+  }, [host.clipboard]);
 
   const requestPlaceArtifact = useCallback(async (documentId: DocumentSessionId) => {
     const file = await (host.openFile?.() ?? pickBrowserPlacedImage());
@@ -1009,11 +1050,11 @@ export function LightTableStandaloneApp({
     void requestWorkspaceDocumentClose({
       documentId: id,
       documents,
-      host,
+      host: { recovery: host.recovery, confirmDiscardChanges },
       documentSession: document?.kind === 'image' ? document.session : null,
       close: closeWorkspaceDocument
     }).finally(() => pendingDocumentClosesRef.current.delete(id));
-  }, [closeWorkspaceDocument, documents, host]);
+  }, [closeWorkspaceDocument, confirmDiscardChanges, documents, host.recovery]);
 
   const prepareApplicationClose = useCallback(async (): Promise<boolean> => {
     const discardedDocumentIds: DocumentSessionId[] = [];
@@ -1025,7 +1066,7 @@ export function LightTableStandaloneApp({
       const dirty = document.kind === 'image'
         ? document.session.getSnapshot().dirty
         : document.dirty;
-      if (dirty && !await host.confirmDiscardChanges(document.title)) return false;
+      if (dirty && !await confirmDiscardChanges(document.title)) return false;
       if (dirty) discardedDocumentIds.push(document.id);
     }
     for (const documentId of discardedDocumentIds) {
@@ -1036,7 +1077,7 @@ export function LightTableStandaloneApp({
       }
     }
     return true;
-  }, [documents, host]);
+  }, [confirmDiscardChanges, documents, host]);
 
   const exitApplication = useCallback(async (): Promise<boolean> => {
     if (!host.closeApplication || !await prepareApplicationClose()) return false;
@@ -1046,6 +1087,20 @@ export function LightTableStandaloneApp({
 
   useEffect(() => host.subscribeApplicationCloseRequests?.(prepareApplicationClose),
     [host, prepareApplicationClose]);
+
+  useEffect(() => {
+    if (!warnBeforeBrowserUnload) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const hasUnsavedChanges = documents.some((document) => document.kind === 'image'
+        ? document.session.getSnapshot().dirty
+        : document.dirty);
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [documents, warnBeforeBrowserUnload]);
 
   const browseProjectImport = useCallback(async () => {
     const file = await host.openFile?.();
@@ -1070,12 +1125,29 @@ export function LightTableStandaloneApp({
     lifecycle: activeLifecycle,
     documentKind: activeWorkspaceDocument?.kind
   });
+  const recoverableRecords = useMemo(
+    () => newestRecoveryRecords(recoveryListing),
+    [recoveryListing]
+  );
+  const openRecoveryById = useCallback(async (recoveryId: string) => {
+    const record = recoverableRecords.find((candidate) => candidate.recoveryId === recoveryId);
+    if (record) await openRecovery(record);
+  }, [openRecovery, recoverableRecords]);
 
   const agentAccessRequest = <AgentAccessRequestDialog service={host.agentAccess} />;
+  const discardChangesDialog = <ConfirmDialog open={Boolean(discardConfirmation)}
+    title="Discard unsaved changes?"
+    description={discardConfirmation
+      ? `Changes to “${discardConfirmation.documentTitle}” will be lost.`
+      : undefined}
+    confirmLabel="Discard" danger
+    onCancel={() => settleDiscardConfirmation(false)}
+    onConfirm={() => settleDiscardConfirmation(true)} />;
 
   if (workspaceSurface.kind === 'project-home' && activeProject) {
     return <>
       {agentAccessRequest}
+      {discardChangesDialog}
       {deferredSurface(<ProjectHomeSurface
         project={activeProject}
         service={host.genAi}
@@ -1093,7 +1165,8 @@ export function LightTableStandaloneApp({
         }}
         onRevealProject={() => void host.projects?.reveal(activeProject)}
       />)}
-      <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard} creating={creating}
+      <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard}
+        initialDimensions={newDocumentClipboardSize} creating={creating}
         onCancel={() => setNewDialogOpen(false)} onCreate={(size) => void createDocument(size)} />
       {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
         location={projectLocation} error={projectError}
@@ -1110,7 +1183,6 @@ export function LightTableStandaloneApp({
   }
 
   if (workspaceSurface.kind === 'launcher') {
-    const recoverableRecords = newestRecoveryRecords(recoveryListing);
     const pageTitle: Record<LauncherPage, string> = {
       'new-document': 'New Document',
       'recent-files': 'Recent Files',
@@ -1211,6 +1283,7 @@ export function LightTableStandaloneApp({
           </section>
         </div>
         {agentAccessRequest}
+        {discardChangesDialog}
         {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
           location={projectLocation} error={projectError}
           onChooseLocation={() => void chooseProjectLocation()}
@@ -1228,6 +1301,7 @@ export function LightTableStandaloneApp({
   return (
     <>
       {agentAccessRequest}
+      {discardChangesDialog}
       {fileDrop.active ? (
         <div className="lighttable-file-drop" aria-hidden="true">
           <div className="lighttable-file-drop__message">
@@ -1278,6 +1352,11 @@ export function LightTableStandaloneApp({
           recentFiles={recentFiles}
           onOpenRecent={openRecentDocument}
           onClearRecent={clearRecentFiles}
+          recoveryFiles={recoverableRecords.map((record) => ({
+            id: record.recoveryId,
+            label: record.sourceName || 'Recovered document'
+          }))}
+          onOpenRecoveryFile={openRecoveryById}
           activeProject={activeProject}
           recentProjects={recentProjects}
           onRequestNewProject={requestNewProject}
@@ -1306,6 +1385,7 @@ export function LightTableStandaloneApp({
       <NewDocumentDialog
         open={newDialogOpen}
         clipboard={host.clipboard}
+        initialDimensions={newDocumentClipboardSize}
         creating={creating}
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}

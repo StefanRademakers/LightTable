@@ -32,7 +32,7 @@ interface LayerStyleRendererOptions {
   device: GPUDevice;
   sampler: GPUSampler;
   fullscreenModule: GPUShaderModule;
-  shapePipeline: GPURenderPipeline;
+  shapePipeline: GPURenderPipeline | (() => GPURenderPipeline);
   patternAssets: PatternAssetStore;
   submittedResources: SubmittedResourceRetainer;
   dimensions: () => { width: number; height: number };
@@ -316,10 +316,13 @@ export class LayerStyleRenderer {
     const {
       device,
       sampler,
-      shapePipeline,
+      shapePipeline: selectedShapePipeline,
       submittedResources,
       drawFullscreen
     } = this.options;
+    const shapePipeline = typeof selectedShapePipeline === 'function'
+      ? selectedShapePipeline()
+      : selectedShapePipeline;
     const { width, height } = this.options.dimensions();
     const gradientGeometry = sourceDocumentBounds(inverse, sourceSize);
     const styleTextures = this.textures.ensureWorkTextures();

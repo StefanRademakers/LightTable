@@ -1,12 +1,13 @@
-import { Button, TextInput, NumberField } from '@lighttable/ui';
+import { Button, Dialog, TextInput, NumberField } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
+import type {
+  LightTableClipboardImageDimensions,
+  LightTableImageClipboard
+} from '../platform/LightTableImageClipboard';
 
 
 import { Select } from '@lighttable/ui';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
-import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
 import {
   documentBlendProfileDescription,
@@ -16,6 +17,7 @@ import {
 interface NewDocumentDialogProps {
   readonly open: boolean;
   readonly clipboard?: LightTableImageClipboard;
+  readonly initialDimensions?: LightTableClipboardImageDimensions | null;
   readonly creating: boolean;
   readonly onCancel: () => void;
   readonly onCreate: (options: LightTableCreateDocumentOptions) => void;
@@ -31,6 +33,7 @@ const readClipboardDimensions = async (
   clipboard: LightTableImageClipboard | undefined
 ) => {
   if (!clipboard) return null;
+  if (clipboard.readDimensions) return clipboard.readDimensions();
   const image = await clipboard.readImage();
   if (!image) return null;
   if (image.placement) {
@@ -50,6 +53,7 @@ const readClipboardDimensions = async (
 export function NewDocumentDialog({
   open,
   clipboard,
+  initialDimensions,
   creating,
   onCancel,
   onCreate,
@@ -65,19 +69,21 @@ export function NewDocumentDialog({
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const requestRef = useRef(0);
   const modal = presentation === 'dialog';
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open && modal, onCancel);
 
   useEffect(() => {
     if (!open) return;
     const request = ++requestRef.current;
-    setWidth(DEFAULT_WIDTH);
-    setHeight(DEFAULT_HEIGHT);
+    setWidth(initialDimensions?.width ?? DEFAULT_WIDTH);
+    setHeight(initialDimensions?.height ?? DEFAULT_HEIGHT);
     setName('Untitled');
     setResolutionPpi(72);
     setBitDepth(8);
     setProfile('srgb');
     setBackgroundKind('transparent');
     setBackgroundColor('#ffffff');
+    if (initialDimensions) return () => {
+      requestRef.current += 1;
+    };
     void readClipboardDimensions(clipboard)
       .then((dimensions) => {
         if (request !== requestRef.current || !dimensions) return;
@@ -90,7 +96,7 @@ export function NewDocumentDialog({
     return () => {
       requestRef.current += 1;
     };
-  }, [clipboard, open]);
+  }, [clipboard, initialDimensions, open]);
 
   if (!open) return null;
   const normalizedWidth = Math.round(width);
@@ -105,32 +111,18 @@ export function NewDocumentDialog({
   const optionsValid = valid && name.trim().length > 0 && name.trim().length <= 255
     && Number.isFinite(resolutionPpi) && resolutionPpi >= 1 && resolutionPpi <= 2400;
 
-  const form = (
-      <form
-        ref={dialogRef}
-        className={`${modal ? 'modal ' : ''}lighttable-new-document-dialog${modal ? '' : ' lighttable-new-document-dialog--embedded'}`}
-        role={modal ? 'dialog' : undefined}
-        aria-modal={modal ? 'true' : undefined}
-        aria-label="New document"
-        tabIndex={modal ? -1 : undefined}
-        data-editor-native-tab-navigation={modal ? true : undefined}
-        onKeyDown={modal ? onDialogKeyDown : undefined}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (optionsValid && !creating) {
-            onCreate({
-              name: name.trim(), width: normalizedWidth, height: normalizedHeight,
-              resolutionPpi, bitDepth, profile,
-              background: backgroundKind === 'solid'
-                ? { kind: 'solid', color: backgroundColor }
-                : { kind: 'transparent' }
-            });
-          }
-        }}
-      >
-        {modal ? <div className="modal__header">
-          <h3 className="modal__title">New document</h3>
-        </div> : null}
+  const submit = () => {
+    if (optionsValid && !creating) {
+      onCreate({
+        name: name.trim(), width: normalizedWidth, height: normalizedHeight,
+        resolutionPpi, bitDepth, profile,
+        background: backgroundKind === 'solid'
+          ? { kind: 'solid', color: backgroundColor }
+          : { kind: 'transparent' }
+      });
+    }
+  };
+  const content = (
         <div className="lighttable-new-document-dialog__fields">
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Name</span>
@@ -193,16 +185,29 @@ export function NewDocumentDialog({
             </label>
           ) : null}
         </div>
-        <div className="modal__footer">
-          {modal ? <Button tabIndex={modal ? 0 : -1} onClick={onCancel}>Cancel</Button> : null}
+  );
+  if (modal) return (
+    <Dialog open={open} as="form" size="wide" title="New document"
+      onDismiss={creating ? () => undefined : onCancel}
+      onSubmit={(event) => { event.preventDefault(); submit(); }}
+      footer={<>
+        <Button tabIndex={0} onClick={onCancel} disabled={creating}>Cancel</Button>
+        <Button tabIndex={0} type="submit" disabled={!optionsValid || creating}>
+          {creating ? 'Creating…' : 'Create'}
+        </Button>
+      </>}>
+      {content}
+    </Dialog>
+  );
+  return (
+    <form className="lighttable-new-document-dialog lighttable-new-document-dialog--embedded"
+      aria-label="New document" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+      {content}
+      <div className="modal__footer">
           <Button tabIndex={modal ? 0 : -1} type="submit" disabled={!optionsValid || creating}>
             {creating ? 'Creating…' : 'Create'}
           </Button>
-        </div>
-      </form>
+      </div>
+    </form>
   );
-  return modal ? createPortal(
-    <div className="modal-backdrop lighttable-dialog-backdrop">{form}</div>,
-    document.body
-  ) : form;
 }

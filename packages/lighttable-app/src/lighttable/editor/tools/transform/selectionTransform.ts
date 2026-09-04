@@ -49,9 +49,10 @@ export const transformSelectionOperations = (
       }
     });
 
-export const selectionOperationsBounds = (
+const resolveSelectionOperationsBounds = (
   operations: SelectionOperation[],
-  fallback: Rect
+  fallback: Rect,
+  clipToFallback: boolean
 ): Rect => {
   let points: TransformPoint[] = [];
   operations.forEach((operation) => {
@@ -73,13 +74,32 @@ export const selectionOperationsBounds = (
   if (!points.length) return fallback;
   const xs = points.map(({ x }) => x);
   const ys = points.map(({ y }) => y);
-  const left = Math.max(fallback.x, Math.min(...xs));
-  const top = Math.max(fallback.y, Math.min(...ys));
-  const right = Math.min(fallback.x + fallback.width, Math.max(...xs));
-  const bottom = Math.min(fallback.y + fallback.height, Math.max(...ys));
+  const left = clipToFallback ? Math.max(fallback.x, Math.min(...xs)) : Math.min(...xs);
+  const top = clipToFallback ? Math.max(fallback.y, Math.min(...ys)) : Math.min(...ys);
+  const right = clipToFallback
+    ? Math.min(fallback.x + fallback.width, Math.max(...xs))
+    : Math.max(...xs);
+  const bottom = clipToFallback
+    ? Math.min(fallback.y + fallback.height, Math.max(...ys))
+    : Math.max(...ys);
   if (right <= left || bottom <= top) return fallback;
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
+
+export const selectionOperationsBounds = (
+  operations: SelectionOperation[],
+  fallback: Rect
+): Rect => resolveSelectionOperationsBounds(operations, fallback, true);
+
+/**
+ * Logical editing bounds retain geometry outside the document. The GPU mask
+ * is canvas-sized, but a later move must still be able to bring that coverage
+ * back instead of treating the clipped visible fragment as the new selection.
+ */
+export const selectionOperationsEditingBounds = (
+  operations: SelectionOperation[],
+  fallback: Rect
+): Rect => resolveSelectionOperationsBounds(operations, fallback, false);
 
 /**
  * Complete non-zero support needed by clipboard crops and compositor

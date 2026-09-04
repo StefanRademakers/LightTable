@@ -85,10 +85,10 @@
       "decision": "Split by independently testable PSD semantic family, preserving fail-closed mapping policy."
     },
     "packages/lighttable-app/src/lighttable/editor/hooks/useViewportInteractionController.ts": {
-      "baselineLines": 1224,
+      "baselineLines": 1409,
       "classification": "cohesive-heavy",
-      "responsibilities": ["pointer and wheel interpretation", "pan and zoom state", "interaction settle scheduling"],
-      "lifecycleOwners": ["viewport mount", "active pointer gesture", "animation-frame and settle timer"],
+      "responsibilities": ["pointer and wheel interpretation", "tool and selection gesture routing", "pan and zoom state", "interaction settle scheduling"],
+      "lifecycleOwners": ["viewport mount", "active pointer gesture", "selection content move", "animation-frame and settle timer"],
       "productRisk": "high",
       "decision": "Keep the interaction lifecycle cohesive; extract only independently cancelable gesture owners."
     },

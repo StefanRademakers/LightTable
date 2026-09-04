@@ -363,8 +363,10 @@ export const createBrowserHost = (): LightTableHost => ({
     document.addEventListener('fullscreenchange', publish);
     return () => document.removeEventListener('fullscreenchange', publish);
   },
-  async confirmDiscardChanges(documentTitle) {
-    return window.confirm(`Discard unsaved changes to “${documentTitle}”?`);
+  async confirmDiscardChanges() {
+    // The application shell owns the visible confirmation dialog. A bare host
+    // must fail closed rather than falling back to browser-native UI.
+    return false;
   },
   async save({ file }) {
     const url = URL.createObjectURL(file);

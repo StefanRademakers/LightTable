@@ -1,3 +1,4 @@
+import { filterDefinition, isFilterKind } from '@lighttable/filter-core';
 import { layerIsLocked, type LayerNode } from './documentTypes';
 
 const hasLiveLinearTransform = (layer: Extract<LayerNode, { type: 'raster' }>, epsilon = 1e-6) => (
@@ -22,9 +23,14 @@ export const layerCanBeRasterized = (layer: LayerNode): boolean => {
   if (layerIsLocked(layer, 'pixels')) return false;
 
   if (layer.type === 'adjustment') {
-    // A standalone adjustment has no intrinsic pixels. It needs Merge Down or
-    // attachment to a raster owner so its input is explicit.
-    return false;
+    // Render filters such as Clouds and Fibers generate their own pixels and
+    // can be baked in isolation. Corrections that process the stack below
+    // still need Merge Down so their input remains explicit.
+    return Boolean(
+      layer.adjustmentKind
+      && isFilterKind(layer.adjustmentKind)
+      && filterDefinition(layer.adjustmentKind).alphaBehavior === 'generate'
+    );
   }
 
   if (layer.type !== 'raster') return true;

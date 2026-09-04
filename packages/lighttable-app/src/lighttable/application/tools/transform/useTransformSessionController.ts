@@ -123,9 +123,9 @@ export type FixedTransformTarget = 'selection' | 'mask' | 'layer' | 'layer-group
  * React adapter for the renderer-backed transform transaction.
  *
  * The low-level TransformController owns preview pixels and transform math.
- * This adapter owns document/selection publication and gesture checkpoints.
- * Pointer-up publishes one durable history entry while a continuation frame
- * keeps the user-facing local transform space alive until explicit confirmation.
+ * This adapter owns document/selection publication and the complete interactive
+ * transform transaction. Pointer-up only ends the current pointer gesture; the
+ * original source remains immutable until explicit confirmation or tool exit.
  */
 export const useTransformSessionController = (
   dependencies: TransformSessionDependencies
@@ -137,7 +137,6 @@ export const useTransformSessionController = (
   const [state, setState] = useState<TransformSessionState | null>(null);
   const [frameOverride, setFrameOverrideState] = useState<TransformSessionFrame | null>(null);
   const frameOverrideRef = useRef<TransformSessionFrame | null>(null);
-  const continuationFrameRef = useRef<TransformSessionFrame | null>(null);
   const setFrameOverride = useCallback((frame: TransformSessionFrame | null) => {
     frameOverrideRef.current = frame;
     setFrameOverrideState(frame);
@@ -251,10 +250,9 @@ export const useTransformSessionController = (
     });
   }, []);
 
-  const finish = useCallback((commit: boolean, preserveContinuation = false) => {
+  const finish = useCallback((commit: boolean) => {
     temporaryMoveRef.current = false;
     temporaryMoveOwnerToolRef.current = null;
-    if (!preserveContinuation) continuationFrameRef.current = null;
     setFrameOverride(null);
     const mask = maskRef.current;
     if (mask) {
@@ -344,7 +342,6 @@ export const useTransformSessionController = (
     }
     controllerRef.current = null;
     controllerDocumentIdRef.current = null;
-    continuationFrameRef.current = null;
     setFrameOverride(null);
     setState(null);
   }, [setFrameOverride]);
@@ -408,8 +405,6 @@ export const useTransformSessionController = (
         sourceKind: 'layer',
         previewKind: 'semantic'
       });
-      setFrameOverride(continuationFrameRef.current);
-      continuationFrameRef.current = null;
       current.setError(null);
       return;
     }
@@ -443,8 +438,6 @@ export const useTransformSessionController = (
         sourceKind: 'layer',
         previewKind: 'semantic'
       });
-      setFrameOverride(continuationFrameRef.current);
-      continuationFrameRef.current = null;
       current.setError(null);
       return;
     }
@@ -468,8 +461,6 @@ export const useTransformSessionController = (
     }
     if (result.ok) {
       setState(result.state);
-      setFrameOverride(continuationFrameRef.current);
-      continuationFrameRef.current = null;
       current.setError(null);
       if (result.notice) current.setStatus(result.notice);
       return;
@@ -484,29 +475,27 @@ export const useTransformSessionController = (
   }, [setFrameOverride]);
 
   const checkpoint = useCallback(() => {
-    const controllerState = controllerRef.current?.state;
-    const active = controllerState ?? (state ? {
+    const active = controllerRef.current?.state ?? (state ? {
       ...state,
       matrix: maskRef.current?.matrix ?? groupRef.current?.matrix ?? state.matrix
     } : null);
     if (!active) return;
-    if (!active.projectiveQuad) {
-      const frame = frameOverrideRef.current
-        ?? transformSessionFrame(active, dependenciesRef.current.transformFrameMode ?? 'document');
-      continuationFrameRef.current = {
-        bounds: { ...frame.bounds },
-        matrix: multiplyMatrices(active.matrix, frame.matrix)
-      };
-    } else {
-      continuationFrameRef.current = null;
-    }
-    finish(true, true);
-    // Pointer-up is a durable checkpoint, not an explicit exit from the Move
-    // tool. Re-open against the committed document so the gizmo immediately
-    // follows the new layer bounds. `begin` consumes the continuation frame,
-    // preserving local axes across consecutive move/scale/rotate gestures.
-    void begin(false);
-  }, [begin, finish, state]);
+    // Keep the same renderer transaction and immutable source pixels alive.
+    // React only needs the latest matrix/quad so the next pointer gesture starts
+    // from the current gizmo. History and rasterization happen in `finish`.
+    setState({
+      ...active,
+      matrix: { ...active.matrix },
+      projectiveQuad: active.projectiveQuad
+        ? [
+            { ...active.projectiveQuad[0] },
+            { ...active.projectiveQuad[1] },
+            { ...active.projectiveQuad[2] },
+            { ...active.projectiveQuad[3] }
+          ]
+        : null
+    });
+  }, [state]);
 
   const alignFrameToDocument = useCallback(() => {
     const controllerState = controllerRef.current?.state;

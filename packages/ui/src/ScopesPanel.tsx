@@ -69,11 +69,31 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   onRangeChange
 }) => {
   React.useLayoutEffect(() => {
-    if (
-      hueDistributionCanvasRef.current
-      && paradeCanvasRef.current
-      && vectorscopeCanvasRef.current
-    ) onCanvasesReady?.();
+    const notifyWhenReady = () => {
+      const canvases = [
+        hueDistributionCanvasRef.current,
+        paradeCanvasRef.current,
+        vectorscopeCanvasRef.current
+      ];
+      if (
+        canvases.every((canvas) => Boolean(canvas))
+        && canvases.some((canvas) => {
+          const bounds = canvas!.getBoundingClientRect();
+          return bounds.width > 0 && bounds.height > 0;
+        })
+      ) onCanvasesReady?.();
+    };
+    notifyWhenReady();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(notifyWhenReady);
+    [
+      hueDistributionCanvasRef.current,
+      paradeCanvasRef.current,
+      vectorscopeCanvasRef.current
+    ].forEach((canvas) => {
+      if (canvas) observer.observe(canvas);
+    });
+    return () => observer.disconnect();
   }, [hueDistributionCanvasRef, onCanvasesReady, paradeCanvasRef, vectorscopeCanvasRef]);
 
   return (

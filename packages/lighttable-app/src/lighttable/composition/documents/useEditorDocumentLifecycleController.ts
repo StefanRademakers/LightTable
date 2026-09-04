@@ -27,6 +27,8 @@ import type { TextRenderPresentationSnapshot } from '../../application/rendering
 import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { LightTableImageMetadata } from '../../types';
+import type { EditorResolvedDocumentSource } from './useEditorDocumentOpenRequestFactory';
+import type { PreparedDocumentOpenSource } from '../../application/documents/prepareDocumentOpenSource';
 
 export interface EditorDocumentLifecycleControllerOptions {
   readonly enabled: boolean;
@@ -82,6 +84,7 @@ export interface EditorDocumentSourceLoad {
   readonly creationSettings?: DocumentCreationSettings;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
+  readonly preparedOpenSource?: PreparedDocumentOpenSource;
 }
 
 export interface EditorDocumentLifecycleController {
@@ -145,14 +148,15 @@ export const useEditorDocumentLifecycleController = ({
       creationSettings: request.creationSettings,
       startupTimeline: telemetryRef.current.activeTimeline(),
       signal: request.signal,
-      isCanceled: request.isCanceled
+      isCanceled: request.isCanceled,
+      preparedOpenSource: request.preparedOpenSource
     }),
     [sourceLoadController]
   );
 
   const hydrate = useCallback(async (
     renderer: DocumentRendererPort,
-    sourceBlob: Blob,
+    resolvedSource: EditorResolvedDocumentSource,
     task: { isCurrent(): boolean; signal: AbortSignal },
     isCurrent: () => boolean
   ) => {
@@ -164,14 +168,15 @@ export const useEditorDocumentLifecycleController = ({
       return;
     }
     await loadSource({
-      blob: sourceBlob,
+      blob: resolvedSource.blob,
       name: source.name,
       identity: source.identity,
       decodeMode: source.decodeMode,
       initialAdjustments: source.initialAdjustments,
       creationSettings: source.creationSettings,
       signal: task.signal,
-      isCanceled: () => !isCurrent() || !task.isCurrent()
+      isCanceled: () => !isCurrent() || !task.isCurrent(),
+      preparedOpenSource: resolvedSource.prepared ?? undefined
     });
     if (
       isCurrent()
@@ -193,7 +198,9 @@ export const useEditorDocumentLifecycleController = ({
       projectId: source.projectId,
       sourceFileKey: source.sourceFileKey,
       loadSource: source.loadSource,
-      existingDocument: source.existingDocument
+      existingDocument: source.existingDocument,
+      name: source.name,
+      decodeMode: source.decodeMode
     },
     getScopeOptions,
     hydrate,
@@ -210,7 +217,7 @@ export const useEditorDocumentLifecycleController = ({
     logTimings
   });
 
-  useDocumentOpenLifecycle<DocumentRendererPort>({
+  useDocumentOpenLifecycle<DocumentRendererPort, EditorResolvedDocumentSource>({
     enabled,
     generation,
     tasks,

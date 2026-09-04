@@ -12,6 +12,7 @@ import {
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../../types';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { createFilterStack } from '../../processing/filter';
 import {
   createImageDocument,
   createVectorLayer,
@@ -83,7 +84,7 @@ describe('queryLayerCommandCapabilities', () => {
     expect(queryLayerCommandCapabilities(styled).canRasterizeActiveLayer).toBe(true);
   });
 
-  it('does not offer standalone adjustment rasterization without an explicit pixel input', () => {
+  it('only offers standalone adjustment rasterization for pixel-generating filters', () => {
     const document = createAdjustmentLayer(
       createDocument(),
       createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
@@ -91,6 +92,16 @@ describe('queryLayerCommandCapabilities', () => {
     );
 
     expect(queryLayerCommandCapabilities(document).canRasterizeActiveLayer).toBe(false);
+
+    const clouds = createAdjustmentLayer(
+      createDocument(),
+      createFilterStack('clouds'),
+      'Clouds',
+      undefined,
+      'clouds'
+    );
+
+    expect(queryLayerCommandCapabilities(clouds).canRasterizeActiveLayer).toBe(true);
   });
 
   it('rejects grouping layers from different parents and recognizes groups', () => {

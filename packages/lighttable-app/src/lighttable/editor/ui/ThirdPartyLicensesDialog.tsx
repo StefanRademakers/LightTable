@@ -1,41 +1,22 @@
-import { Button } from '@lighttable/ui';
+import { Button, Dialog } from '@lighttable/ui';
 import React from 'react';
-import { createPortal } from 'react-dom';
 
 import { LIGHTTABLE_PRODUCT_DISCLOSURES } from '../../application/compliance/thirdPartyDisclosures.generated';
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 export const ThirdPartyLicensesDialog: React.FC<{
   readonly open: boolean;
   readonly onClose: () => void;
   readonly includeDesktopRuntime?: boolean;
 }> = ({ open, onClose, includeDesktopRuntime = false }) => {
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
-  if (!open) return null;
   const disclosures = LIGHTTABLE_PRODUCT_DISCLOSURES.filter(({ platform }) =>
     platform === 'all' || includeDesktopRuntime);
   const categories = [...new Set(disclosures.map(({ category }) => category))];
 
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section
-        ref={dialogRef}
-        className="lighttable-psd-report lighttable-third-party-licenses"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Third-party licenses"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="lighttable-psd-report__header">
-          <div>
-            <h2>Third-party licenses</h2>
-            <p>Key libraries, runtimes, fonts and assets included with LightTable.</p>
-          </div>
-          <Button tabIndex={0} onClick={onClose}>Close</Button>
-        </header>
+  return (
+    <Dialog open={open} size="wide" title="Third-party licenses"
+      description="Key libraries, runtimes, fonts and assets included with LightTable."
+      onDismiss={onClose} footer={<Button tabIndex={0} onClick={onClose}>Close</Button>}>
+      <div className="lighttable-third-party-licenses__content">
         <p className="lighttable-third-party-licenses__ownership">
           LightTable is proprietary software. The components listed here remain under their own licenses.
         </p>
@@ -60,8 +41,7 @@ export const ThirdPartyLicensesDialog: React.FC<{
             </section>
           ))}
         </div>
-      </section>
-    </div>,
-    document.body
+      </div>
+    </Dialog>
   );
 };

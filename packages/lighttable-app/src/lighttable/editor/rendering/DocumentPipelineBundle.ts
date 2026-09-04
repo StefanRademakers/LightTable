@@ -44,18 +44,38 @@ export const documentPipelinesFor = (device: GPUDevice): DocumentPipelineBundle 
     },
     primitive: { topology: 'triangle-list' }
   });
+  let adobeRgbDecode: GPURenderPipeline | null = null;
+  let maskDecode: GPURenderPipeline | null = null;
+  let exportLayer: GPURenderPipeline | null = null;
+  let styleShape: GPURenderPipeline | null = null;
   const bundle: DocumentPipelineBundle = {
     decode: create('LightTable layer source decode', LAYER_SOURCE_DECODE_WGSL, 'rgba16float'),
-    adobeRgbDecode: create(
-      'LightTable Adobe RGB layer source decode',
-      LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
-      'rgba16float'
-    ),
-    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, LAYER_MASK_TEXTURE_FORMAT),
-    exportLayer: create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm'),
+    get adobeRgbDecode() {
+      adobeRgbDecode ??= create(
+        'LightTable Adobe RGB layer source decode',
+        LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
+        'rgba16float'
+      );
+      return adobeRgbDecode;
+    },
+    get maskDecode() {
+      maskDecode ??= create(
+        'LightTable mask source decode',
+        LAYER_MASK_DECODE_WGSL,
+        LAYER_MASK_TEXTURE_FORMAT
+      );
+      return maskDecode;
+    },
+    get exportLayer() {
+      exportLayer ??= create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm');
+      return exportLayer;
+    },
     composite: create('LightTable layer compositor', LAYER_COMPOSITE_WGSL, 'rgba16float'),
     adjustmentMix: create('LightTable adjustment layer mix', ADJUSTMENT_LAYER_MIX_WGSL, 'rgba16float'),
-    styleShape: create('LightTable Layer Style shape', LAYER_STYLE_SHAPE_WGSL, 'rgba16float'),
+    get styleShape() {
+      styleShape ??= create('LightTable Layer Style shape', LAYER_STYLE_SHAPE_WGSL, 'rgba16float');
+      return styleShape;
+    },
     fullscreenModule
   };
   cache.set(device, bundle);

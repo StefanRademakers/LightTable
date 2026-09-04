@@ -76,6 +76,56 @@ interface ViewportBounds {
   readonly top: number;
 }
 
+interface MarqueeEdgePanState {
+  readonly pointerId: number;
+  clientX: number;
+  clientY: number;
+  bounds: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  imageRect: Rect;
+  point: BrushPoint;
+  readonly scale: number;
+  readonly repositionDraft: boolean;
+  readonly marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean };
+  readonly constrainTranslation: boolean;
+  lastFrameMs: number;
+}
+
+const MARQUEE_EDGE_PAN_ZONE_PX = 32;
+const MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND = 900;
+
+const edgePanVelocity = (position: number, start: number, size: number): number => {
+  const local = position - start;
+  if (local < MARQUEE_EDGE_PAN_ZONE_PX) {
+    return Math.min(1, (MARQUEE_EDGE_PAN_ZONE_PX - local) / MARQUEE_EDGE_PAN_ZONE_PX)
+      * MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND;
+  }
+  if (local > size - MARQUEE_EDGE_PAN_ZONE_PX) {
+    return -Math.min(
+      1,
+      (local - (size - MARQUEE_EDGE_PAN_ZONE_PX)) / MARQUEE_EDGE_PAN_ZONE_PX
+    ) * MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND;
+  }
+  return 0;
+};
+
+const clampEdgePanDelta = (
+  delta: number,
+  imageStart: number,
+  imageSize: number,
+  viewportSize: number
+): number => {
+  if (delta > 0) return Math.min(delta, Math.max(0, -imageStart));
+  if (delta < 0) {
+    return Math.max(delta, Math.min(0, viewportSize - imageStart - imageSize));
+  }
+  return 0;
+};
+
 interface ViewportInteractionOptions {
   metadata: LightTableImageMetadata | null;
   document: ImageDocument | null;
@@ -266,6 +316,12 @@ export const useViewportInteractionController = ({
     ready: boolean;
     ended: boolean | null;
   } | null>(null);
+  const marqueeEdgePanRef = useRef<MarqueeEdgePanState | null>(null);
+  const marqueeEdgePanFrameRef = useRef<number | null>(null);
+  const interactionImageRectRef = useRef(imageRect);
+  if (!marqueeEdgePanRef.current) interactionImageRectRef.current = imageRect;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastBrushPointRef = useRef<BrushPoint | null>(null);
   const textClickCounterRef = useRef<PointerClickCounter | null>(null);
@@ -301,11 +357,147 @@ export const useViewportInteractionController = ({
     });
   }
 
+  const stopMarqueeEdgePan = (pointerId?: number) => {
+    if (pointerId !== undefined && marqueeEdgePanRef.current?.pointerId !== pointerId) return;
+    if (marqueeEdgePanFrameRef.current !== null) {
+      cancelAnimationFrame(marqueeEdgePanFrameRef.current);
+      marqueeEdgePanFrameRef.current = null;
+    }
+    marqueeEdgePanRef.current = null;
+  };
+
+  const runMarqueeEdgePanFrame = (frameMs: number) => {
+    marqueeEdgePanFrameRef.current = null;
+    const state = marqueeEdgePanRef.current;
+    if (!state) return;
+
+    const elapsedMs = Math.min(Math.max(frameMs - state.lastFrameMs, 0), 32);
+    state.lastFrameMs = frameMs;
+    const velocityX = edgePanVelocity(state.clientX, state.bounds.left, state.bounds.width);
+    const velocityY = edgePanVelocity(state.clientY, state.bounds.top, state.bounds.height);
+    if (velocityX === 0 && velocityY === 0) {
+      marqueeEdgePanRef.current = null;
+      return;
+    }
+    // A callback may still belong to the frame in which it was requested.
+    // Keep that zero-duration frame alive; the next display frame will carry
+    // real elapsed time and start moving the viewport.
+    if (elapsedMs === 0) {
+      marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
+      return;
+    }
+    const elapsedSeconds = elapsedMs / 1_000;
+    const requestedX = velocityX * elapsedSeconds;
+    const requestedY = velocityY * elapsedSeconds;
+    const deltaX = clampEdgePanDelta(
+      requestedX,
+      state.imageRect.x,
+      state.imageRect.width,
+      state.bounds.width
+    );
+    const deltaY = clampEdgePanDelta(
+      requestedY,
+      state.imageRect.y,
+      state.imageRect.height,
+      state.bounds.height
+    );
+
+    if (deltaX === 0 && deltaY === 0) {
+      marqueeEdgePanRef.current = null;
+      return;
+    }
+
+    state.imageRect = {
+      ...state.imageRect,
+      x: state.imageRect.x + deltaX,
+      y: state.imageRect.y + deltaY
+    };
+    interactionImageRectRef.current = state.imageRect;
+    state.point = {
+      ...state.point,
+      x: state.point.x - deltaX / Math.max(state.scale, 1e-6),
+      y: state.point.y - deltaY / Math.max(state.scale, 1e-6)
+    };
+    setViewRef.current((current) => ({
+      ...current,
+      panX: current.panX + deltaX,
+      panY: current.panY + deltaY
+    }));
+    selectionRef.current.move(
+      state.pointerId,
+      state.point,
+      state.repositionDraft,
+      state.marqueeModifiers,
+      state.constrainTranslation
+    );
+    marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
+  };
+
+  const updateMarqueeEdgePan = (
+    event: PointerEvent<HTMLDivElement>,
+    bounds: DOMRect,
+    point: BrushPoint
+  ) => {
+    if (
+      editorSession.activeTool !== 'select-rectangle'
+      && editorSession.activeTool !== 'select-ellipse'
+    ) {
+      stopMarqueeEdgePan(event.pointerId);
+      return;
+    }
+    const velocityX = edgePanVelocity(event.clientX, bounds.left, bounds.width);
+    const velocityY = edgePanVelocity(event.clientY, bounds.top, bounds.height);
+    if (velocityX === 0 && velocityY === 0) {
+      stopMarqueeEdgePan(event.pointerId);
+      return;
+    }
+    const marqueeModifiers = editorSession.selection.length === 0
+      && editorSession.selectionCombineMode === 'replace'
+      ? { constrainAspect: event.shiftKey, fromCenter: event.altKey }
+      : undefined;
+    const current = marqueeEdgePanRef.current;
+    if (current?.pointerId === event.pointerId) {
+      current.clientX = event.clientX;
+      current.clientY = event.clientY;
+      current.bounds = {
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      };
+      current.point = point;
+      return;
+    }
+    marqueeEdgePanRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      bounds: {
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      },
+      imageRect: { ...interactionImageRectRef.current },
+      point,
+      scale: activeScale,
+      repositionDraft: temporaryPan,
+      ...(marqueeModifiers ? { marqueeModifiers } : {}),
+      constrainTranslation: event.shiftKey,
+      lastFrameMs: performance.now()
+    };
+    if (marqueeEdgePanFrameRef.current === null) {
+      setZoomMode('custom');
+      marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
+    }
+  };
+
   useEffect(() => {
     // A workspace tab can replace the document-owned setter without
     // unmounting this hook. Never let queued viewport input cross that boundary.
     panFrameRef.current?.cancel();
     zoomFrameRef.current?.cancel();
+    stopMarqueeEdgePan();
   }, [setView]);
 
   useEffect(() => {
@@ -313,6 +505,7 @@ export const useViewportInteractionController = ({
   }, [document?.id, editorSession.activeTool]);
 
   useEffect(() => () => {
+    stopMarqueeEdgePan();
     panFrameRef.current?.dispose();
     panFrameRef.current = null;
     zoomFrameRef.current?.dispose();
@@ -380,7 +573,7 @@ export const useViewportInteractionController = ({
         { x: sample.clientX, y: sample.clientY },
         { x: bounds.left, y: bounds.top }
       ),
-      imageRect,
+      interactionImageRectRef.current,
       activeScale,
       metadata,
       normalizePointerPressure(sample.pressure, sample.pointerType),
@@ -587,6 +780,15 @@ export const useViewportInteractionController = ({
       // projection paths to perform separate synchronous reads.
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
+      const point = documentPoint(event, bounds);
+      // A temporary picker is a modal canvas interaction. It must win over
+      // the selected editor tool (notably Zoom), otherwise the picker button
+      // appears active while the next canvas click still runs that tool.
+      if (eyedropperActive && !temporaryPan && point && event.button === 0) {
+        if (!editingBlocked) onColorPickRef.current(point);
+        event.preventDefault();
+        return;
+      }
       if (
         effectiveTool === 'zoom'
         && !temporaryPan
@@ -618,13 +820,7 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
-      const point = documentPoint(event, bounds);
       if (editingBlocked && !temporaryPan) {
-        event.preventDefault();
-        return;
-      }
-      if (eyedropperActive && point && event.button === 0) {
-        onColorPickRef.current(point);
         event.preventDefault();
         return;
       }
@@ -898,7 +1094,6 @@ export const useViewportInteractionController = ({
           stripSize,
           activeTool === 'select-free' ? editorSession.selectionSmooth : 0,
           48 / Math.max(activeScale, 0.0001),
-          event.ctrlKey || event.metaKey,
           activeTool === 'select-rectangle' || activeTool === 'select-ellipse'
             ? {
                 style: editorSession.selectionMarqueeStyle,
@@ -1228,14 +1423,13 @@ export const useViewportInteractionController = ({
         return;
       }
       if (point && (intent === 'selection' || intent === 'warp' || intent === 'paint')) {
-        if (routeFreehandPointerMove({
+        const handled = routeFreehandPointerMove({
           intent, activeTool: editorSession.activeTool, pointerId: event.pointerId,
           currentPoint: point, samples: coalescedPointerSamples(event.nativeEvent),
           // PointerEvent coordinates live on the native event prototype and
           // disappear when the event is object-spread. Preserve the native
           // sample so drag interpolation receives its real coordinates.
           project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint,
-          snapBypass: event.ctrlKey || event.metaKey,
           repositionSelection: temporaryPan,
           selectionMarqueeModifiers: (
             editorSession.activeTool === 'select-rectangle'
@@ -1245,10 +1439,13 @@ export const useViewportInteractionController = ({
             ? { constrainAspect: event.shiftKey, fromCenter: event.altKey }
             : undefined,
           constrainSelectionTranslation: event.shiftKey
-        })) event.preventDefault();
+        });
+        if (intent === 'selection') updateMarqueeEdgePan(event, bounds, point);
+        if (handled) event.preventDefault();
       }
     },
     onPointerUp: (event) => {
+      stopMarqueeEdgePan(event.pointerId);
       const contentMove = selectionContentMoveRef.current;
       if (contentMove?.pointerId === event.pointerId) {
         contentMove.ended = true;
@@ -1368,6 +1565,7 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      stopMarqueeEdgePan(event.pointerId);
       const contentMove = selectionContentMoveRef.current;
       if (contentMove?.pointerId === event.pointerId) {
         contentMove.ended = false;

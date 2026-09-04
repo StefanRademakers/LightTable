@@ -51,7 +51,7 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  await page.getByRole('button', { name: 'Open', exact: true }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 90_000 });
   const driver = await attachLightTableAutomation(page, 'missing-font-recovery-smoke');
@@ -62,8 +62,7 @@ try {
   const openRecovery = async () => {
     const report = page.getByRole('dialog', { name: 'Document compatibility report' });
     if (!await report.isVisible().catch(() => false)) {
-      await page.getByRole('menuitem', { name: 'File', exact: true }).click();
-      await page.getByText('Document Compatibility Report...', { exact: true }).click();
+      await page.locator('.lighttable-toolbar__meta--report').click();
     }
     await report.waitFor({ state: 'visible' });
     const missingEntry = report.locator('.lighttable-psd-report__entry')
@@ -79,7 +78,7 @@ try {
     return recovery;
   };
   const chooseBundledFace = async (recovery) => {
-    await recovery.getByRole('button', { name: 'Replacement font' }).click();
+    await recovery.getByRole('combobox', { name: 'Replacement font' }).click();
     const search = page.getByRole('searchbox', { name: 'Search fonts' });
     await search.fill('Source Serif 4');
     const option = page.getByRole('option', { name: /Source Serif 4.*Regular/i }).first();
@@ -116,7 +115,12 @@ try {
     throw new Error(`Font replacement undo/redo failed: ${JSON.stringify({ undone, redone })}`);
   }
 
-  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
+  const debugTab = page.getByRole('tab', { name: 'Debug', exact: true });
+  if (!await debugTab.count()) {
+    await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+    await page.getByRole('menuitem', { name: /Debug panel/ }).click();
+  }
+  await debugTab.click();
   const debugText = await page.getByRole('region', { name: 'LightTable debug log' }).textContent() ?? '';
   const fontRuntime = debugText.match(/(\d+) font faces?\s*·\s*([\d.]+) (KiB|MiB) loaded/i);
   const shaping = debugText.match(/Text work:.*?\((\d+(?:\.\d+)?) ms latest\)/i);

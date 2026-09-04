@@ -669,7 +669,8 @@ describe('LightTable WGSL modules', () => {
     expect(LAYER_FILL_COLOR_WGSL).toContain('settings.maskChannel > 0.5');
     expect(LAYER_INVERT_COLORS_WGSL).toContain('textureLoad(selectionTexture');
     expect(LAYER_INVERT_COLORS_WGSL).toContain('dot(settings.transformRow0.xyz');
-    expect(LAYER_INVERT_COLORS_WGSL).toContain('return mix(source, vec4f(inverted, source.a), selection)');
+    expect(LAYER_INVERT_COLORS_WGSL).toContain('inverted = vec4f(inverseLinear * source.a, source.a)');
+    expect(LAYER_INVERT_COLORS_WGSL).toContain('return mix(source, inverted, selection)');
   });
 
   it('keeps selection combine settings compatible with its 16-byte CPU uniform', () => {

@@ -14,3 +14,14 @@
 .ui-text-input[type='number'] { appearance: textfield; }
 .ui-text-input::-webkit-inner-spin-button,
 .ui-text-input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.ui-text-input[data-variant='bare'] {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+}
+.ui-text-input[data-variant='bare']:focus { outline: 0; }

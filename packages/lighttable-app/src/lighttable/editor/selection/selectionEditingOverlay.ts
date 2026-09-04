@@ -93,13 +93,29 @@ export const buildSelectionEditingOverlay = (
 
 export const directSelectionShape = (
   operations: readonly SelectionOperation[]
-): SelectionShape | null => (
-  operations.length === 1
-  && operations[0]!.mode === 'replace'
-  && !operations[0]!.source
-    ? operations[0]!.shape
-    : null
-);
+): SelectionShape | null => {
+  const source = operations[0];
+  if (!source || source.mode !== 'replace' || source.source) return null;
+  if (operations.length === 1) return source.shape;
+  let tx = 0;
+  let ty = 0;
+  for (const operation of operations.slice(1)) {
+    const matrix = operation.mode === 'transform' ? operation.transform : null;
+    if (
+      !matrix
+      || matrix.a !== 1
+      || matrix.b !== 0
+      || matrix.c !== 0
+      || matrix.d !== 1
+    ) return null;
+    tx += matrix.tx;
+    ty += matrix.ty;
+  }
+  return {
+    ...source.shape,
+    points: source.shape.points.map((point) => ({ x: point.x + tx, y: point.y + ty }))
+  };
+};
 
 export const buildBrushCursorEditingOverlay = (
   center: { x: number; y: number },

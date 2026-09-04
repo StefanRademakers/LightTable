@@ -223,6 +223,9 @@ retained versus unmounted content and long titles at narrow and wide sizes.
 `TextInput` is one native input, 28px high with Regular typography. It retains
 native refs, events, input types and controlled/uncontrolled values. `align`
 selects left/center/right alignment; numeric alignment uses tabular digits.
+`variant="bare"` keeps native editing behavior while removing field chrome for
+inline rename rows. `TextArea` provides the same typography, color states and
+native event contract for multiline input, with vertical resize enabled by default.
 `SearchField` composes that input with the existing search/close artwork and an
 optional `onClear` action for controlled values. Its pill shape and icon spacing
 are package-owned. Both default out of Tab navigation; dialogs opt in with
@@ -236,6 +239,15 @@ or blur. `onPreview` and `onBegin/onCommit/onCancel` retain document transaction
 Escape cancels; Enter followed by blur ends a transaction only once. `onEmpty`
 supports optional settings without converting an empty string to zero. Domain
 adapters such as mixed text formatting still own undo and document commands.
+
+`AngleControl` combines a drag dial and `NumberField`, normalizes values to
+0–359 degrees and publishes pointer previews at the standard 33ms interval.
+The host still owns transactions and document changes. `Radio` is the native
+one-of-many companion to `Checkbox`, with the same 13px compact geometry.
+
+`ButtonBase` is the package-owned, deliberately unstyled semantic primitive for
+domain-specific buttons such as tree rows and canvas handles. It owns button
+defaults and audit metadata only; use the styled `Button` for ordinary actions.
 
 `Select` owns a 28px trigger and 28px listbox rows, disabled options, optgroups,
 keyboard/typeahead, viewport placement and optional search. Supply `options` or

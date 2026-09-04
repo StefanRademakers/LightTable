@@ -169,7 +169,12 @@ try {
     throw new Error('The canvas did not reach two identical presentation frames.');
   };
   const openDebug = async () => {
-    await page.getByRole('tab', { name: 'Debug', exact: true }).click();
+    const tab = page.getByRole('tab', { name: 'Debug', exact: true });
+    if (!await tab.count()) {
+      await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+      await page.getByRole('menuitem', { name: /Debug panel/ }).click();
+    }
+    await tab.click();
     await page.getByRole('region', { name: 'LightTable debug log' }).waitFor({ state: 'visible' });
   };
   const resetTelemetry = async () => {

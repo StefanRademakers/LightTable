@@ -23,13 +23,16 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+const isAvailableControl = (element: HTMLElement) =>
+  !element.closest('[hidden], [aria-hidden="true"], [inert]');
+
 export interface DialogProps extends Omit<HTMLAttributes<HTMLElement>, 'title' | 'onSubmit'> {
   open: boolean;
   title: ReactNode;
   description?: ReactNode;
   footer?: ReactNode;
   children?: ReactNode;
-  size?: 'compact' | 'regular' | 'wide';
+  size?: 'compact' | 'regular' | 'wide' | 'report';
   as?: 'div' | 'form' | 'section';
   onDismiss: () => void;
   onSubmit?: FormEventHandler<HTMLFormElement>;
@@ -82,7 +85,8 @@ export const Dialog = forwardRef<HTMLElement, DialogProps>(function Dialog({
       return;
     }
     if (event.key !== 'Tab') return;
-    const controls = [...(surfaceRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+    const controls = [...(surfaceRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
+      .filter(isAvailableControl);
     if (!controls.length) {
       event.preventDefault();
       surfaceRef.current?.focus();
@@ -99,7 +103,7 @@ export const Dialog = forwardRef<HTMLElement, DialogProps>(function Dialog({
     }
   }, [onKeyDown]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!open) return null;
   const surface = createElement(as, {
     ...props,
     ref: surfaceRef,
@@ -109,7 +113,7 @@ export const Dialog = forwardRef<HTMLElement, DialogProps>(function Dialog({
     'data-suite-control': 'dialog',
     role: 'dialog',
     'aria-modal': true,
-    'aria-label': typeof title === 'string' ? title : props['aria-label'],
+    'aria-label': props['aria-label'] ?? (typeof title === 'string' ? title : undefined),
     tabIndex: -1,
     'data-editor-native-tab-navigation': true,
     ...(as === 'form' ? { onSubmit } : {}),
@@ -120,6 +124,7 @@ export const Dialog = forwardRef<HTMLElement, DialogProps>(function Dialog({
   description ? <Text as="p" className="ui-dialog__description" tone="muted">{description}</Text> : null,
   children,
   footer ? <div className="ui-dialog__footer">{footer}</div> : null);
+  if (typeof document === 'undefined') return surface;
   return createPortal(
     <div className={`ui-dialog-backdrop${backdropClassName ? ` ${backdropClassName}` : ''}`}
       data-ui-component="dialog-backdrop"

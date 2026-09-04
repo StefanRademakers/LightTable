@@ -19,6 +19,7 @@ import type {
   PatternAssetBlob
 } from '../persistence/layeredDocumentFormat';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
+import type { PreparedLayerTexture } from './LayerTextureCodec';
 
 export interface LayerDocumentAssetPorts {
   rasterTexture: (layerId: LayerId) => GPUTexture | null;
@@ -51,6 +52,17 @@ export interface LayerDocumentAssetPorts {
   decodeTexture: (
     layerId: LayerId,
     blob: Blob,
+    texture: GPUTexture,
+    maskChannel: boolean
+  ) => Promise<void>;
+  prepareTexture?: (
+    layerId: LayerId,
+    blob: Blob,
+    maskChannel: boolean
+  ) => Promise<PreparedLayerTexture>;
+  uploadPreparedTexture?: (
+    layerId: LayerId,
+    prepared: PreparedLayerTexture,
     texture: GPUTexture,
     maskChannel: boolean
   ) => Promise<void>;
@@ -252,6 +264,10 @@ export class LayerDocumentAssetService {
   }
 
   async load(assets: readonly DocumentAssetBlob[]) {
+    if (this.ports.prepareTexture && this.ports.uploadPreparedTexture) {
+      await this.loadPipelined(assets);
+      return;
+    }
     for (const asset of assets) {
       if ('sourceId' in asset) continue;
       if ('fingerprintSha256' in asset) continue;
@@ -277,6 +293,78 @@ export class LayerDocumentAssetService {
           throw new Error(`Mask ${asset.layerId} is not available while opening the document.`);
         }
         await this.ports.decodeTexture(asset.layerId, asset.mask, maskTexture, true);
+      }
+    }
+  }
+
+  private async loadPipelined(assets: readonly DocumentAssetBlob[]) {
+    type RestoreOperation = {
+      readonly layerId: LayerId;
+      readonly blob: Blob;
+      readonly texture: GPUTexture;
+      readonly maskChannel: boolean;
+    };
+    const operations: RestoreOperation[] = [];
+    for (const asset of assets) {
+      if ('sourceId' in asset || 'fingerprintSha256' in asset || 'lutId' in asset) continue;
+      if ('patternId' in asset) {
+        await this.ports.loadPattern(asset);
+        continue;
+      }
+      this.ports.invalidateLayer(asset.layerId);
+      this.invalidateCache(asset.layerId);
+      if (asset.pixels.size > 0) {
+        const texture = this.ports.rasterTexture(asset.layerId)
+          ?? this.ports.derivedPreviewTexture(asset.layerId);
+        if (!texture) {
+          throw new Error(`Layer ${asset.layerId} is not available while opening the document.`);
+        }
+        operations.push({ layerId: asset.layerId, blob: asset.pixels, texture, maskChannel: false });
+      }
+      if (asset.mask) {
+        const texture = this.ports.maskTexture(asset.layerId);
+        if (!texture) {
+          throw new Error(`Mask ${asset.layerId} is not available while opening the document.`);
+        }
+        operations.push({ layerId: asset.layerId, blob: asset.mask, texture, maskChannel: true });
+      }
+    }
+    if (!operations.length) return;
+
+    const prepare = this.ports.prepareTexture!;
+    const upload = this.ports.uploadPreparedTexture!;
+    type PrepareOutcome =
+      | { readonly prepared: PreparedLayerTexture; readonly error?: never }
+      | { readonly prepared?: never; readonly error: unknown };
+    const beginPrepare = async (operation: RestoreOperation): Promise<PrepareOutcome> => {
+      try {
+        return {
+          prepared: await prepare(operation.layerId, operation.blob, operation.maskChannel)
+        };
+      } catch (error) {
+        return { error };
+      }
+    };
+    let pending: Promise<PrepareOutcome> | null = beginPrepare(operations[0]!);
+    for (let index = 0; index < operations.length; index += 1) {
+      const operation = operations[index]!;
+      const currentPreparation = pending;
+      if (!currentPreparation) throw new Error('Layer preparation pipeline ended unexpectedly.');
+      const outcome = await currentPreparation;
+      if ('error' in outcome) throw outcome.error;
+      const prepared = outcome.prepared;
+      const next = operations[index + 1];
+      pending = next ? beginPrepare(next) : null;
+      try {
+        await upload(
+          operation.layerId,
+          prepared,
+          operation.texture,
+          operation.maskChannel
+        );
+      } catch (reason) {
+        if (pending) void pending.then((value) => value.prepared?.dispose());
+        throw reason;
       }
     }
   }

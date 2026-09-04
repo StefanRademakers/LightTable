@@ -1,4 +1,5 @@
 export const SNAP_TOLERANCE_SCREEN_PX = 8;
+export const SNAP_RELEASE_TOLERANCE_SCREEN_PX = 12;
 
 export type SnapAxis = 'x' | 'y';
 export type SnapRole = 'min' | 'center' | 'max' | 'line';
@@ -34,6 +35,8 @@ export interface SnapRequest {
   enabled?: boolean;
   bypass?: boolean;
   toleranceScreenPx?: number;
+  retainedMatches?: readonly SnapMatch[];
+  releaseToleranceScreenPx?: number;
 }
 
 export interface SnapResult {
@@ -57,6 +60,33 @@ const axisFeatures = (
     { axis, position: start + length / 2, source, sourceId, role: 'center' },
     { axis, position: start + length, source, sourceId, role: 'max' }
   ];
+};
+
+const retainedAxisMatch = (
+  axis: SnapAxis,
+  movingBounds: SnapRect,
+  targets: readonly SnapFeature[],
+  retainedMatches: readonly SnapMatch[],
+  zoom: number,
+  releaseToleranceScreenPx: number
+): SnapMatch | null => {
+  const retained = retainedMatches.find((match) => match.axis === axis);
+  if (!retained) return null;
+  const moving = axisFeatures(movingBounds, axis, 'selection', 'moving')
+    .find((feature) => feature.role === retained.moving.role);
+  const target = targets.find((feature) => (
+    feature.axis === retained.target.axis
+    && feature.source === retained.target.source
+    && feature.role === retained.target.role
+    && feature.sourceId === retained.target.sourceId
+    && (feature.sourceId !== undefined || feature.position === retained.target.position)
+  ));
+  if (!moving || !target) return null;
+  const deltaDocument = target.position - moving.position;
+  const deltaScreen = deltaDocument * zoom;
+  return Math.abs(deltaScreen) <= releaseToleranceScreenPx
+    ? { axis, moving, target, deltaDocument, deltaScreen }
+    : null;
 };
 
 export const snapFeaturesForRect = (
@@ -117,8 +147,17 @@ export const solveSnap = (request: SnapRequest): SnapResult => {
   }
   const zoom = Math.max(1e-6, Math.abs(request.zoom));
   const tolerance = Math.max(0, request.toleranceScreenPx ?? SNAP_TOLERANCE_SCREEN_PX);
-  const x = chooseAxisMatch('x', request.movingBounds, request.targets, zoom, tolerance);
-  const y = chooseAxisMatch('y', request.movingBounds, request.targets, zoom, tolerance);
+  const releaseTolerance = Math.max(
+    tolerance,
+    request.releaseToleranceScreenPx ?? SNAP_RELEASE_TOLERANCE_SCREEN_PX
+  );
+  const retained = request.retainedMatches ?? [];
+  const x = retainedAxisMatch(
+    'x', request.movingBounds, request.targets, retained, zoom, releaseTolerance
+  ) ?? chooseAxisMatch('x', request.movingBounds, request.targets, zoom, tolerance);
+  const y = retainedAxisMatch(
+    'y', request.movingBounds, request.targets, retained, zoom, releaseTolerance
+  ) ?? chooseAxisMatch('y', request.movingBounds, request.targets, zoom, tolerance);
   return {
     offsetX: x?.deltaDocument ?? 0,
     offsetY: y?.deltaDocument ?? 0,

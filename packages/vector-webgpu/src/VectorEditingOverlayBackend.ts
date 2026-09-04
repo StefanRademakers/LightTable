@@ -162,7 +162,7 @@ export const SELECTION_OUTLINE_THEME: VectorEditingOverlayTheme = {
   dashLengthPx: 5,
   gapLengthPx: 4,
   underlayColor: [0.04, 0.05, 0.06, 0.95],
-  underlayWidthPx: 2
+  underlayWidthPx: 1
 };
 
 export const BRUSH_CURSOR_THEME: VectorEditingOverlayTheme = {

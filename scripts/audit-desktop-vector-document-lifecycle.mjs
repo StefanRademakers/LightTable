@@ -136,7 +136,7 @@ try {
       await cdp.send('Profiler.start');
     }
     closeStartedAt = performance.now();
-    const closeButton = page.locator('.lighttable-document-tab--active .lighttable-document-tab__close');
+    const closeButton = page.locator('.ui-document-tabs__tab:has(.ui-document-tabs__title[aria-selected="true"]) .ui-document-tabs__close');
     if (directClick) await closeButton.evaluate(element => element.click());
     else await closeButton.click();
     closeTimeline.clickReturnMs = performance.now() - closeStartedAt;
@@ -158,8 +158,8 @@ try {
     const launcherOpen = page.getByRole('button', { name: 'Open', exact: true });
     if (await launcherOpen.isVisible().catch(() => false)) await launcherOpen.click();
     else {
-      await page.locator('.shots-app-menu__button').filter({ hasText: /^File$/u }).click();
-      await page.locator('.context-menu:visible').getByRole('menuitem', { name: 'Open', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+      await page.locator('.ui-menu:visible').getByRole('menuitem', { name: 'Open', exact: true }).click();
     }
     const reopened = await activeRenderedDocument();
     const openMs = performance.now() - openStartedAt;

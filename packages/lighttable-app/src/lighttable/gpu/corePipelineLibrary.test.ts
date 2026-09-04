@@ -25,6 +25,13 @@ describe('getCorePipelineBundle', () => {
     const second = getCorePipelineBundle(device, 'bgra8unorm');
 
     expect(second).toBe(first);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(15);
+    expect(device.createComputePipeline).toHaveBeenCalledTimes(1);
+
+    void first.precisionSourceResolve;
+    void first.differenceMetrics;
+    void second.precisionSourceResolve;
+    void second.differenceMetrics;
     expect(device.createRenderPipeline).toHaveBeenCalledTimes(16);
     expect(device.createComputePipeline).toHaveBeenCalledTimes(2);
   });

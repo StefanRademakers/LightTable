@@ -61,9 +61,9 @@ const AdjustmentPropertiesPanel = React.lazy(async () => ({
 const GradientMapPropertiesPanel = React.lazy(async () => ({
   default: (await import('../../editor/panels/GradientMapPropertiesPanel')).GradientMapPropertiesPanel
 }));
-const PhotoshopAdjustmentPropertiesPanel = React.lazy(async () => ({
-  default: (await import('../../editor/panels/PhotoshopAdjustmentPropertiesPanel'))
-    .PhotoshopAdjustmentPropertiesPanel
+const LayerAdjustmentPropertiesPanel = React.lazy(async () => ({
+  default: (await import('../../editor/panels/LayerAdjustmentPropertiesPanel'))
+    .LayerAdjustmentPropertiesPanel
 }));
 const GrainPropertiesPanel = React.lazy(async () => ({
   default: (await import('../../editor/panels/GrainPropertiesPanel')).GrainPropertiesPanel
@@ -160,9 +160,9 @@ export const createEditorWorkspacePanels = ({
         editors={{
           grade: <GradePanel {...grade} />,
           curves: deferPanel(<CurvesPropertiesPanel {...grade} />),
-          exposure: deferPanel(<PhotoshopAdjustmentPropertiesPanel kind="exposure" {...grade} />),
+          exposure: deferPanel(<LayerAdjustmentPropertiesPanel kind="exposure" {...grade} />),
           'color-vibrance': deferPanel(
-            <PhotoshopAdjustmentPropertiesPanel kind="color-vibrance" {...grade} />
+            <LayerAdjustmentPropertiesPanel kind="color-vibrance" {...grade} />
           ),
           'gradient-map': deferPanel(<GradientMapPropertiesPanel {...grade} />),
           'clarity-dehaze': deferPanel(
@@ -181,7 +181,7 @@ export const createEditorWorkspacePanels = ({
             .filter((kind) => kind !== 'exposure' && kind !== 'color-vibrance')
             .map((kind) => [kind, isPhotoshopAdjustmentKind(kind)
               ? deferPanel(
-                  <PhotoshopAdjustmentPropertiesPanel key={kind} kind={kind} {...grade} />
+                  <LayerAdjustmentPropertiesPanel key={kind} kind={kind} {...grade} />
                 )
               : null]))
         }}

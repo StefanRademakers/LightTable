@@ -1,7 +1,7 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { PanelStackDisclosure, PanelStackRow } from './PanelStackPrimitives';
-import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter, TextInput, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { Select } from '@lighttable/ui';
@@ -1150,7 +1150,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     : ''
                 ].filter(Boolean).join(' ')}
                 onClick={(event) => {
-                  if (layer.type === 'raster' && (event.ctrlKey || event.metaKey)) {
+                  if (layerSupportsContentCompositing(layer) && (event.ctrlKey || event.metaKey)) {
                     event.preventDefault();
                     event.stopPropagation();
                     onMaskIsolationChange(null);
@@ -1176,8 +1176,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   onEditText?.(layer.id);
                 }}
                 title={
-                  layer.type === 'raster'
-                    ? 'Edit layer pixels; Ctrl/Cmd-click to load transparency as selection'
+                  layerSupportsContentCompositing(layer)
+                    ? `${layer.type === 'raster' ? 'Edit layer pixels' : 'Layer content'}; Ctrl/Cmd-click to load transparency as selection`
                     : layer.type === 'group'
                       ? 'Group'
                       : layer.type === 'text'
@@ -1282,10 +1282,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 </span>
               </>
             ) : null}
-            <input
+            <TextInput
               id={`lighttable-layer-name-${layer.id}`}
               key={`${layer.id}:${layer.name}`}
               className="lighttable-layer__name"
+              variant="bare"
               defaultValue={layer.name}
               readOnly={renamingLayerId !== layer.id}
               tabIndex={-1}

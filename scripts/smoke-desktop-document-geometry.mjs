@@ -50,7 +50,7 @@ try {
   if (restored?.canvas?.width !== before.canvas.width || restored.canvas.height !== before.canvas.height) {
     throw new Error(`Geometry undo did not restore source dimensions: ${JSON.stringify({ before, restored })}`);
   }
-  const imageMenu = page.locator('.shots-app-menu__button').filter({ hasText: /^Image$/ });
+  const imageMenu = page.getByRole('menuitem', { name: 'Image', exact: true });
   const dismissOpenMenu = async () => {
     const backdrop = page.locator('.context-menu-backdrop');
     if (!await backdrop.waitFor({ state: 'visible', timeout: 1_000 }).then(() => true, () => false)) return;
@@ -155,7 +155,7 @@ try {
   await page.keyboard.press('Control+d');
   const beforeFixed = await driver.queryDocument(documentId);
   const layersBeforeFixed = await driver.queryLayers(documentId);
-  await page.locator('.shots-app-menu__button').filter({ hasText: /^Edit$/ }).click();
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Transform', exact: true }).hover();
   await page.getByRole('menuitem', { name: 'Flip Horizontal', exact: true }).click();
   let fixed = await driver.queryDocument(documentId);

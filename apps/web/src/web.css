@@ -13,6 +13,21 @@ body {
   font-family: var(--lt-font-ui);
 }
 
+/* The standalone launcher has no native desktop title bar to reserve. */
+.lighttable-launcher__window-titlebar {
+  display: none;
+}
+
+.lighttable__window-icon {
+  display: block;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  align-self: center;
+  margin: 0 4px 0 9px;
+  background: var(--lighttable-window-icon) center / contain no-repeat;
+}
+
 button,
 input,
 select {

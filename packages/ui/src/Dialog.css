@@ -33,6 +33,7 @@
 
 .ui-dialog[data-size='compact'] { width: min(280px, calc(100vw - 40px)); }
 .ui-dialog[data-size='wide'] { width: min(720px, calc(100vw - 40px)); }
+.ui-dialog[data-size='report'] { width: min(920px, calc(100vw - 40px)); }
 
 .ui-dialog__footer {
   display: flex;

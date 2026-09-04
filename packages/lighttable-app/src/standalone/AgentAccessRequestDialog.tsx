@@ -1,9 +1,6 @@
-import { Button } from '@lighttable/ui';
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Button, Dialog, Text } from '@lighttable/ui';
+import React, { useEffect, useRef, useState } from 'react';
 import type { LightTableAgentAccessService, LightTableAgentTunnelStatus } from '../platform/LightTableHost';
-
-import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 export const AgentAccessRequestDialog: React.FC<{
   readonly service?: LightTableAgentAccessService;
@@ -11,61 +8,59 @@ export const AgentAccessRequestDialog: React.FC<{
   const [status, setStatus] = useState<LightTableAgentTunnelStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lifecycleRef = useRef(0);
   const request = status?.clients.find((client) => !client.approved) ?? null;
+  const perform = (action: () => Promise<LightTableAgentTunnelStatus>) => {
+    const lifecycle = lifecycleRef.current;
+    setBusy(true);
+    setError(null);
+    void action().then((value) => {
+      if (lifecycleRef.current === lifecycle) setStatus(value);
+    }).catch((reason) => {
+      if (lifecycleRef.current === lifecycle) setError(reason instanceof Error ? reason.message : String(reason));
+    }).finally(() => {
+      if (lifecycleRef.current === lifecycle) setBusy(false);
+    });
+  };
   const close = () => {
     if (!service || !request || busy) return;
-    setBusy(true); setError(null);
-    void service.revokeClient(request.id).then(setStatus)
-      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-      .finally(() => setBusy(false));
+    perform(() => service.revokeClient(request.id));
   };
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(Boolean(request), close);
-
   useEffect(() => {
     if (!service) return;
+    const lifecycle = ++lifecycleRef.current;
     let canceled = false;
-    void service.tunnelStatus().then((value) => { if (!canceled) setStatus(value); }).catch((reason) => {
-      if (!canceled) setError(reason instanceof Error ? reason.message : String(reason));
+    setBusy(false);
+    void service.tunnelStatus().then((value) => { if (!canceled && lifecycleRef.current === lifecycle) setStatus(value); }).catch((reason) => {
+      if (!canceled && lifecycleRef.current === lifecycle) setError(reason instanceof Error ? reason.message : String(reason));
     });
-    const unsubscribe = service.subscribeTunnel((value) => { if (!canceled) setStatus(value); });
-    return () => { canceled = true; unsubscribe(); };
+    const unsubscribe = service.subscribeTunnel((value) => {
+      if (!canceled && lifecycleRef.current === lifecycle) setStatus(value);
+    });
+    return () => { canceled = true; lifecycleRef.current += 1; unsubscribe(); };
   }, [service]);
 
   if (!service || !request) return null;
   const wantsEdit = request.requestedScopes.includes('edit');
   const approve = (persistent: boolean) => {
-    setBusy(true); setError(null);
-    void service.approveClient(request.id, request.requestedScopes, persistent).then(setStatus)
-      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-      .finally(() => setBusy(false));
+    perform(() => service.approveClient(request.id, request.requestedScopes, persistent));
   };
 
-  return createPortal(
-    <div className="modal-backdrop modal-backdrop--confirm">
-      <div ref={dialogRef} className="modal lighttable-agent-request" role="dialog" aria-modal="true"
-        aria-label={`${request.name} requests LightTable access`} tabIndex={-1}
-        data-editor-native-tab-navigation onKeyDown={onDialogKeyDown}
-        onClick={(event) => event.stopPropagation()}>
-        <div className="modal__header"><h3 className="modal__title">Allow {request.name} to {wantsEdit ? 'edit' : 'read'} documents?</h3></div>
-        <p>{request.name} is requesting permission to {wantsEdit
+  return (
+    <Dialog open size="wide" title={`Allow ${request.name} to ${wantsEdit ? 'edit' : 'read'} documents?`}
+      aria-label={`${request.name} requests LightTable access`}
+      onDismiss={close} footer={<>
+        <Button tabIndex={0} disabled={busy} onClick={close}>Deny</Button>
+        {wantsEdit ? <Button tabIndex={0} disabled={busy}
+          onClick={() => perform(() => service.approveClient(request.id, ['read'], false))}>Allow read only</Button> : null}
+        <Button tabIndex={0} disabled={busy} onClick={() => approve(false)}>Allow once</Button>
+        <Button tabIndex={0} disabled={busy} onClick={() => approve(true)}>Always allow</Button>
+      </>}>
+        <Text as="p">{request.name} is requesting permission to {wantsEdit
           ? 'inspect and change open LightTable documents.'
-          : 'inspect open LightTable documents without changing them.'}</p>
-        <p className="muted">Always allow is saved only for this exact agent identity on the currently paired server. You can revoke it later in Preferences.</p>
-        {error ? <p className="lighttable-agent-settings__error" role="alert">{error}</p> : null}
-        <div className="modal__footer">
-          <Button tabIndex={0} disabled={busy} onClick={close}>Deny</Button>
-          {wantsEdit ? <Button tabIndex={0} disabled={busy}
-            onClick={() => {
-              setBusy(true); setError(null);
-              void service.approveClient(request.id, ['read'], false).then(setStatus)
-                .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-                .finally(() => setBusy(false));
-            }}>Allow read only</Button> : null}
-          <Button tabIndex={0} disabled={busy} onClick={() => approve(false)}>Allow once</Button>
-          <Button tabIndex={0} disabled={busy} onClick={() => approve(true)}>Always allow</Button>
-        </div>
-      </div>
-    </div>,
-    document.body
+          : 'inspect open LightTable documents without changing them.'}</Text>
+        <Text as="p" tone="muted">Always allow is saved only for this exact agent identity on the currently paired server. You can revoke it later in Preferences.</Text>
+        {error ? <Text as="p" className="lighttable-agent-settings__error" role="alert">{error}</Text> : null}
+    </Dialog>
   );
 };

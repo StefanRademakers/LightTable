@@ -15,6 +15,7 @@ import type {
   PreparedDocumentPublicationPorts
 } from './publishPreparedDocument';
 import type { DocumentStartupTimeline } from '../telemetry/documentStartupTimeline';
+import type { PreparedDocumentOpenSource } from './prepareDocumentOpenSource';
 
 export type DocumentSourceLoadRenderer =
   DocumentSourceRenderer & DocumentHydrationRenderer;
@@ -30,6 +31,7 @@ export interface DocumentSourceLoadRequest {
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
   readonly startupTimeline?: DocumentStartupTimeline | null;
+  readonly preparedOpenSource?: PreparedDocumentOpenSource;
 }
 
 export interface DocumentSourceLoadControllerPort {
@@ -76,6 +78,7 @@ export const createDocumentSourceLoadController = (
       initialAdjustments: request.initialAdjustments,
       creationSettings: request.creationSettings,
       startupTimeline: request.startupTimeline,
+      preparedOpenSource: request.preparedOpenSource,
       groupVisibility: port.getGroupVisibility(),
       signal: request.signal,
       isCanceled,

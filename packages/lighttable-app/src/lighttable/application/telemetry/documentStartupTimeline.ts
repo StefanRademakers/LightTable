@@ -3,6 +3,10 @@ export const DOCUMENT_FIRST_PIXEL_TARGET_MS = 500;
 export type DocumentStartupTimelineStage =
   | 'file-selected'
   | 'bytes-available'
+  | 'source-probe-begin'
+  | 'source-probe-end'
+  | 'source-decode-begin'
+  | 'source-decode-end'
   | 'svg-parse-begin'
   | 'svg-parse-end'
   | 'usvg-normalization-begin'

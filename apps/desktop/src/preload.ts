@@ -92,6 +92,8 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:clipboard-write-png', bytes),
   readClipboardImage: () =>
     ipcRenderer.invoke('lighttable:clipboard-read-image'),
+  readClipboardImageDimensions: () =>
+    ipcRenderer.invoke('lighttable:clipboard-read-image-dimensions'),
   listSystemFonts: () => ipcRenderer.invoke('lighttable:list-system-fonts'),
   loadSystemFont: (assetId: string) => ipcRenderer.invoke('lighttable:load-system-font', assetId),
   releaseInfo: () => ipcRenderer.invoke('lighttable:release-info'),

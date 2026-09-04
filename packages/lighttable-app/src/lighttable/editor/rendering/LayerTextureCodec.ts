@@ -73,9 +73,19 @@ export const normalizedUint16ToFloat16 = (value: number) => {
 
 export interface LayerTextureCodecPipelines {
   decode: GPURenderPipeline;
-  adobeRgbDecode: GPURenderPipeline;
-  maskDecode: GPURenderPipeline;
-  exportLayer: GPURenderPipeline;
+  adobeRgbDecode: GPURenderPipeline | (() => GPURenderPipeline);
+  maskDecode: GPURenderPipeline | (() => GPURenderPipeline);
+  exportLayer: GPURenderPipeline | (() => GPURenderPipeline);
+}
+
+export interface PreparedLayerTexture {
+  readonly width: number;
+  readonly height: number;
+  readonly isRaw16: boolean;
+  readonly isAdobeRgb: boolean;
+  readonly pixels: Uint8Array<ArrayBuffer> | Uint16Array<ArrayBuffer> | null;
+  readonly decoded: Awaited<ReturnType<typeof decodeNativeImage>> | null;
+  dispose(): void;
 }
 
 /**
@@ -100,14 +110,76 @@ export class LayerTextureCodec {
     height: number,
     isCurrent: () => boolean
   ) {
+    const prepared = await this.prepare(blob, width, height, isCurrent);
+    await this.upload(prepared, destination, maskChannel, isCurrent);
+  }
+
+  async prepare(
+    blob: Blob,
+    width: number,
+    height: number,
+    isCurrent: () => boolean
+  ): Promise<PreparedLayerTexture> {
+    if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
+    const isRaw16 = blob.type === PSD_RAW_RGBA16_MEDIA_TYPE
+      || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
+    const isAdobeRgb = blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
+      || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
     let decoded: Awaited<ReturnType<typeof decodeNativeImage>> | null = null;
+    let pixels: Uint8Array<ArrayBuffer> | Uint16Array<ArrayBuffer> | null = null;
+    try {
+      if (isRaw16) {
+        const source = new Uint16Array(await blob.arrayBuffer());
+        rawRgba16UploadLayout(source.byteLength, width, height);
+        pixels = new Uint16Array(source.length);
+        for (let index = 0; index < source.length; index += 1) {
+          pixels[index] = normalizedUint16ToFloat16(source[index]);
+        }
+      } else if (
+        blob.type === PSD_RAW_RGBA8_MEDIA_TYPE
+        || blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
+      ) {
+        pixels = new Uint8Array(await blob.arrayBuffer());
+        rawRgba8UploadLayout(pixels.byteLength, width, height);
+      } else {
+        decoded = await decodeNativeImage(blob);
+        if (decoded.bitmap.width !== width || decoded.bitmap.height !== height) {
+          throw new Error('A saved layer does not match the LightTable document dimensions.');
+        }
+      }
+      if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
+    } catch (reason) {
+      decoded?.close();
+      throw reason;
+    }
+    let disposed = false;
+    return {
+      width,
+      height,
+      isRaw16,
+      isAdobeRgb,
+      get pixels() { return pixels; },
+      get decoded() { return decoded; },
+      dispose: () => {
+        if (disposed) return;
+        disposed = true;
+        decoded?.close();
+        decoded = null;
+        pixels = null;
+      }
+    };
+  }
+
+  async upload(
+    prepared: PreparedLayerTexture,
+    destination: GPUTexture,
+    maskChannel: boolean,
+    isCurrent: () => boolean
+  ) {
     let encodedTexture: GPUTexture | null = null;
     try {
       if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
-      const isRaw16 = blob.type === PSD_RAW_RGBA16_MEDIA_TYPE
-        || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
-      const isAdobeRgb = blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
-        || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
+      const { width, height, isRaw16, isAdobeRgb } = prepared;
       encodedTexture = this.device.createTexture({
         label: 'LightTable persisted layer source',
         size: [width, height],
@@ -116,25 +188,16 @@ export class LayerTextureCodec {
           GPUTextureUsage.RENDER_ATTACHMENT
       });
       if (isRaw16) {
-        const source = new Uint16Array(await blob.arrayBuffer());
-        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
-        const upload = rawRgba16UploadLayout(source.byteLength, width, height);
-        const pixels = new Uint16Array(source.length);
-        for (let index = 0; index < source.length; index += 1) {
-          pixels[index] = normalizedUint16ToFloat16(source[index]);
-        }
+        const pixels = prepared.pixels as Uint16Array<ArrayBuffer>;
+        const upload = rawRgba16UploadLayout(pixels.byteLength, width, height);
         this.device.queue.writeTexture(
           { texture: encodedTexture },
           pixels,
           upload,
           [width, height]
         );
-      } else if (
-        blob.type === PSD_RAW_RGBA8_MEDIA_TYPE
-        || blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
-      ) {
-        const pixels = new Uint8Array(await blob.arrayBuffer());
-        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
+      } else if (prepared.pixels) {
+        const pixels = prepared.pixels as Uint8Array<ArrayBuffer>;
         const upload = rawRgba8UploadLayout(pixels.byteLength, width, height);
         this.device.queue.writeTexture(
           { texture: encodedTexture },
@@ -143,21 +206,19 @@ export class LayerTextureCodec {
           [width, height]
         );
       } else {
-        decoded = await decodeNativeImage(blob);
-        if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
-        const { bitmap } = decoded;
-        if (bitmap.width !== width || bitmap.height !== height) {
-          throw new Error('A saved layer does not match the LightTable document dimensions.');
-        }
+        const bitmap = prepared.decoded!.bitmap;
         this.device.queue.copyExternalImageToTexture(
           { source: bitmap },
           { texture: encodedTexture },
           [width, height]
         );
       }
-      const pipeline = maskChannel
+      const selectedPipeline = maskChannel
         ? this.pipelines.maskDecode
         : isAdobeRgb ? this.pipelines.adobeRgbDecode : this.pipelines.decode;
+      const pipeline = typeof selectedPipeline === 'function'
+        ? selectedPipeline()
+        : selectedPipeline;
       const bindGroup = this.device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
@@ -179,7 +240,7 @@ export class LayerTextureCodec {
       await this.device.queue.onSubmittedWorkDone();
     } finally {
       encodedTexture?.destroy();
-      decoded?.close();
+      prepared.dispose();
     }
   }
 
@@ -216,6 +277,9 @@ export class LayerTextureCodec {
     sourceIsStraightSrgb = false,
     encoding: Rgba8ImageEncoding = { format: 'png' }
   ) {
+    const exportLayerPipeline = typeof this.pipelines.exportLayer === 'function'
+      ? this.pipelines.exportLayer()
+      : this.pipelines.exportLayer;
     const layout = layerPngReadbackLayout(outputWidth, outputHeight);
     const outputTexture = this.device.createTexture({
       label: 'LightTable persisted layer PNG source',
@@ -254,7 +318,7 @@ export class LayerTextureCodec {
       ])
     );
     const bindGroup = this.device.createBindGroup({
-      layout: this.pipelines.exportLayer.getBindGroupLayout(0),
+      layout: exportLayerPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: source.createView() },
         { binding: 1, resource: this.sampler },
@@ -272,7 +336,7 @@ export class LayerTextureCodec {
       });
       this.drawFullscreen(
         encoder,
-        this.pipelines.exportLayer,
+        exportLayerPipeline,
         bindGroup,
         outputTexture.createView(),
         { r: 0, g: 0, b: 0, a: 0 }

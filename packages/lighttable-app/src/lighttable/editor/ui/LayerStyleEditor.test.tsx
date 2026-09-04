@@ -73,7 +73,7 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('aria-label="Angle"');
     expect(markup).toContain('title="Advanced"');
     expect(markup).toContain('title="Choke"');
-    expect(markup).toContain('<span>Blend mode</span>');
+    expect(markup).toContain('ui-field-row__label">Blend mode</span>');
     expect(markup).not.toContain('<h4>Color</h4>');
     expect(markup).not.toContain('<h4>Position</h4>');
     expect(markup).not.toContain('<h4>Structure</h4>');
@@ -89,13 +89,13 @@ describe('LayerStyleEditor', () => {
     );
 
     expect(markup).toContain('<h4>Stroke</h4>');
-    expect(markup).toContain('<span>Fill</span>');
-    expect(markup).toContain('<span>Position</span>');
+    expect(markup).toContain('ui-field-row__label">Fill</span>');
+    expect(markup).toContain('ui-field-row__label">Position</span>');
     expect(markup).toContain('title="Size"');
     expect(markup).toContain('aria-label="Color"');
     expect(markup).toContain('title="Opacity"');
     expect(markup).toContain('title="Advanced"');
-    expect(markup).toContain('<span>Blend mode</span>');
+    expect(markup).toContain('ui-field-row__label">Blend mode</span>');
     expect(markup).toContain('aria-label="Overprint"');
     expect(markup).not.toContain('<h4>Blend</h4>');
   });
@@ -111,23 +111,23 @@ describe('LayerStyleEditor', () => {
 
       expect(markup).toContain('<h4>Glow</h4>');
       expect(markup).toContain('title="Opacity"');
-      expect(markup).toContain('<span>Fill</span>');
+      expect(markup).toContain('ui-field-row__label">Fill</span>');
       expect(markup).toContain('aria-label="Color"');
       expect(markup).toContain('title="Size"');
       expect(markup).toContain('title="Advanced"');
-      expect(markup).toContain('<span>Blend mode</span>');
-      expect(markup).toContain('<span>Technique</span>');
+      expect(markup).toContain('ui-field-row__label">Blend mode</span>');
+      expect(markup).toContain('ui-field-row__label">Technique</span>');
       expect(markup).toContain('title="Range"');
       expect(markup).toContain('title="Jitter"');
       expect(markup).not.toContain('<h4>Blend</h4>');
       expect(markup).not.toContain('<h4>Structure</h4>');
       expect(markup).not.toContain('<h4>Quality</h4>');
-      expect(markup.indexOf('<span>Fill</span>')).toBeGreaterThan(markup.indexOf('title="Advanced"'));
+      expect(markup.indexOf('ui-field-row__label">Fill</span>')).toBeGreaterThan(markup.indexOf('title="Advanced"'));
       if (kind === 'inner-glow') {
-        expect(markup).toContain('<span>Source</span>');
+        expect(markup).toContain('ui-field-row__label">Source</span>');
         expect(markup).toContain('title="Choke"');
       } else {
-        expect(markup).not.toContain('<span>Source</span>');
+        expect(markup).not.toContain('ui-field-row__label">Source</span>');
         expect(markup).toContain('title="Spread"');
       }
     }

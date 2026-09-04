@@ -157,7 +157,8 @@ reports:
   its own source/document/history snapshot; a background tab may not remain a
   title-only `opening` shell merely because another tab became active.
 - Recent stability fixes preserve raster pixels across renderer rebinding,
-  overlap bitmap decode with GPU startup, preserve Copy Merged color through
+  overlap format-aware CPU preparation with GPU startup (without sending
+  ordinary PNG/JPEG/WebP files through PSD import), preserve Copy Merged color through
   the OS clipboard, invalidate attached adjustments, keep transform gizmos
   alive after gestures/picks, use tight multi-layer bounds, restore
   selection-aware pixel Invert and support topmost alpha-aware Shift-click

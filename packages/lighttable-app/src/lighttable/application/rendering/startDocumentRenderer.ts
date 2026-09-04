@@ -3,19 +3,22 @@ export interface DisposableDocumentRenderer {
 }
 
 export interface StartDocumentRendererRequest<
-  Renderer extends DisposableDocumentRenderer
+  Renderer extends DisposableDocumentRenderer,
+  Source = Blob
 > {
   readonly createRenderer: () => Promise<Renderer>;
-  readonly loadSource: () => Promise<Blob>;
+  readonly loadSource: () => Promise<Source>;
   readonly hydrate: (
     renderer: Renderer,
-    source: Blob,
+    source: Source,
     isCanceled: () => boolean
   ) => Promise<void>;
   readonly isCanceled: () => boolean;
   readonly onRendererReady?: (renderer: Renderer, elapsedMs: number) => void;
   readonly onRendererDiscarded?: (renderer: Renderer) => void;
-  readonly onSourceReady?: (source: Blob, elapsedMs: number) => void;
+  readonly onSourceReady?: (source: Source, elapsedMs: number) => void;
+  /** Releases resources still owned by the prepared source after hydration. */
+  readonly disposeSource?: (source: Source) => void;
   readonly now?: () => number;
 }
 
@@ -31,12 +34,14 @@ const cancellationError = () => {
  * React effect or host cannot leak a late GPU renderer.
  */
 export const startDocumentRenderer = async <
-  Renderer extends DisposableDocumentRenderer
+  Renderer extends DisposableDocumentRenderer,
+  Source = Blob
 >(
-  request: StartDocumentRendererRequest<Renderer>
+  request: StartDocumentRendererRequest<Renderer, Source>
 ): Promise<Renderer> => {
   const now = request.now ?? (() => performance.now());
   const pending = { renderer: null as Renderer | null };
+  const pendingSource = { source: null as Source | null };
   let retained = false;
   const rendererStartedAt = now();
   const rendererPromise = request.createRenderer().then((created) => {
@@ -51,6 +56,7 @@ export const startDocumentRenderer = async <
   });
   const sourceStartedAt = now();
   const sourcePromise = request.loadSource().then((source) => {
+    pendingSource.source = source;
     if (request.isCanceled()) throw cancellationError();
     request.onSourceReady?.(source, now() - sourceStartedAt);
     return source;
@@ -61,10 +67,20 @@ export const startDocumentRenderer = async <
     if (request.isCanceled()) throw cancellationError();
     await request.hydrate(created, source, request.isCanceled);
     if (request.isCanceled()) throw cancellationError();
+    request.disposeSource?.(source);
+    pendingSource.source = null;
     retained = true;
     return created;
   } finally {
     if (!retained) {
+      if (pendingSource.source !== null) {
+        request.disposeSource?.(pendingSource.source);
+        pendingSource.source = null;
+      } else {
+        void sourcePromise.then((lateSource) => {
+          request.disposeSource?.(lateSource);
+        }).catch(() => undefined);
+      }
       if (pending.renderer) {
         request.onRendererDiscarded?.(pending.renderer);
         pending.renderer.destroy();

@@ -92,6 +92,7 @@ export interface LightTableEditorShellProps {
   onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
   onSelectionMarqueeWidthChange: (width: number) => void;
   onSelectionMarqueeHeightChange: (height: number) => void;
+  onSelectionMarqueeRatioChange: (width: number, height: number) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
@@ -209,6 +210,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionMarqueeStyleChange,
   onSelectionMarqueeWidthChange,
   onSelectionMarqueeHeightChange,
+  onSelectionMarqueeRatioChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
@@ -329,6 +331,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionMarqueeStyleChange={onSelectionMarqueeStyleChange}
         onSelectionMarqueeWidthChange={onSelectionMarqueeWidthChange}
         onSelectionMarqueeHeightChange={onSelectionMarqueeHeightChange}
+        onSelectionMarqueeRatioChange={onSelectionMarqueeRatioChange}
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
         onSelectionSmoothChange={onSelectionSmoothChange}

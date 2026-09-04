@@ -46,10 +46,23 @@ GPU vector editor overlays
 configured canvas
 ```
 
-`startDocumentRenderer` starts renderer creation and source loading in
-parallel and owns cancellation cleanup. `webGpuDocumentRenderer` is the host-
-neutral adapter. `WebGpuEngine` currently coordinates the high-level render
-frame and dirty domains; it is an integration facade, not a document model.
+`startDocumentRenderer` starts renderer creation and renderer-independent
+source preparation in parallel and owns cancellation cleanup for both sides.
+Preparation is format aware: PNG/JPEG/WebP use native bitmap decode; PSD/PDF
+and native LightTable documents perform their CPU parse/import work without
+waiting for WebGPU. SVG retains its renderer-coupled transient-preview path.
+Prepared bitmap ownership transfers exactly once into the GPU loader; canceled
+or failed opens close it at the application boundary.
+
+GPU materialization remains the atomic publication boundary. Layered document
+assets use a bounded one-item lookahead: the next layer may decode while the
+current layer upload is awaiting the GPU queue, without decoding an entire
+large document into memory. PSD reconstruction-difference diagnostics start
+only after the first presented frame and may never delay editability.
+
+`webGpuDocumentRenderer` is the host-neutral adapter. `WebGpuEngine` currently
+coordinates the high-level render frame and dirty domains; it is an integration
+facade, not a document model.
 
 `LayerDocumentRenderer` owns the document renderer runtime. It synchronizes
 canonical layer nodes to revisioned GPU realizations and exposes composition,

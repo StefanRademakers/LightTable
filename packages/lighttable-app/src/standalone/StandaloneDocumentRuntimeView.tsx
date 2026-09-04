@@ -60,6 +60,8 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly recentFiles: readonly LightTableRecentFile[];
   readonly onOpenRecent: (id: string) => Promise<void>;
   readonly onClearRecent: () => Promise<void>;
+  readonly recoveryFiles: readonly { readonly id: string; readonly label: string }[];
+  readonly onOpenRecoveryFile: (id: string) => Promise<void>;
   readonly activeProject: LightTableProjectSummary | null;
   readonly recentProjects: readonly LightTableRecentProject[];
   readonly onRequestNewProject: () => void;
@@ -110,6 +112,8 @@ export function StandaloneDocumentRuntimeView({
   recentFiles,
   onOpenRecent,
   onClearRecent,
+  recoveryFiles,
+  onOpenRecoveryFile,
   activeProject,
   recentProjects,
   onRequestNewProject,
@@ -275,6 +279,8 @@ export function StandaloneDocumentRuntimeView({
         recentFiles={recentFiles}
         onOpenRecentWorkspaceDocument={onOpenRecent}
         onClearRecentWorkspaceDocuments={onClearRecent}
+        recoveryFiles={recoveryFiles}
+        onOpenRecoveryFile={onOpenRecoveryFile}
         activeProject={activeProject}
         recentProjects={recentProjects}
         onRequestNewProject={onRequestNewProject}

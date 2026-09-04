@@ -151,6 +151,11 @@ export interface DesktopClipboardImagePayload {
   readonly identity: string;
 }
 
+export interface DesktopClipboardImageDimensions {
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
   toggleDeveloperTools(): Promise<void>;
@@ -206,6 +211,7 @@ export interface LightTableDesktopBridge {
   applyRecoveryLocation(path?: string): Promise<LightTableRecoveryLocation>;
   writeClipboardPng(bytes: Uint8Array): Promise<{ readonly identity: string }>;
   readClipboardImage(): Promise<DesktopClipboardImagePayload | null>;
+  readClipboardImageDimensions(): Promise<DesktopClipboardImageDimensions | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;
   loadSystemFont(assetId: string): Promise<Uint8Array | null>;
   releaseInfo(): Promise<LightTableReleaseInfo>;

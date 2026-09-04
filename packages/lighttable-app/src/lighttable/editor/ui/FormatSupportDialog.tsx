@@ -1,8 +1,5 @@
-import { Button } from '@lighttable/ui';
+import { Button, Dialog } from '@lighttable/ui';
 import React from 'react';
-import { createPortal } from 'react-dom';
-
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
   LIGHTTABLE_FORMAT_CAPABILITIES,
   type FormatSupportLevel
@@ -16,28 +13,11 @@ export const FormatSupportDialog: React.FC<{
   readonly open: boolean;
   readonly onClose: () => void;
 }> = ({ open, onClose }) => {
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
-  if (!open) return null;
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section
-        ref={dialogRef}
-        className="lighttable-psd-report lighttable-format-support"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Format support"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="lighttable-psd-report__header">
-          <div>
-            <h2>Format support</h2>
-            <p>Current product capabilities. Subset never means full source-format parity.</p>
-          </div>
-          <Button tabIndex={0} onClick={onClose}>Close</Button>
-        </header>
+  return (
+    <Dialog open={open} size="wide" title="Format support"
+      description="Current product capabilities. Subset never means full source-format parity."
+      onDismiss={onClose} footer={<Button tabIndex={0} onClick={onClose}>Close</Button>}>
+      <div className="lighttable-format-support__content">
         <div className="lighttable-format-support__table" role="table">
           <div className="lighttable-format-support__row lighttable-format-support__row--header" role="row">
             <span>Format</span><span>Open</span><span>Editable</span><span>Export</span>
@@ -56,8 +36,7 @@ export const FormatSupportDialog: React.FC<{
             </div>
           ))}
         </div>
-      </section>
-    </div>,
-    document.body
+      </div>
+    </Dialog>
   );
 };

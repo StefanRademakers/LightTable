@@ -93,6 +93,8 @@ export const getCorePipelineBundle = (
     }]
   });
 
+  let precisionSourceResolve: GPURenderPipeline | null = null;
+  let differenceMetrics: GPUComputePipeline | null = null;
   const bundle: CorePipelineBundle = {
     vertexModule,
     basic: createRenderPipeline(
@@ -131,20 +133,23 @@ export const getCorePipelineBundle = (
       OUTPUT_TRANSFORM_WGSL,
       'rgba16float'
     ),
-    precisionSourceResolve: device.createRenderPipeline({
-      label: 'LightTable precision source resolve',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [precisionSourceLayout] }),
-      vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
-      fragment: {
-        module: device.createShaderModule({
-          label: 'LightTable precision source resolve fragment shader',
-          code: `${FULLSCREEN_VERTEX_WGSL}\n${PRECISION_SOURCE_RESOLVE_WGSL}`
-        }),
-        entryPoint: 'main',
-        targets: [{ format: 'rgba16float' }]
-      },
-      primitive: { topology: 'triangle-list' }
-    }),
+    get precisionSourceResolve() {
+      precisionSourceResolve ??= device.createRenderPipeline({
+        label: 'LightTable precision source resolve',
+        layout: device.createPipelineLayout({ bindGroupLayouts: [precisionSourceLayout] }),
+        vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
+        fragment: {
+          module: device.createShaderModule({
+            label: 'LightTable precision source resolve fragment shader',
+            code: `${FULLSCREEN_VERTEX_WGSL}\n${PRECISION_SOURCE_RESOLVE_WGSL}`
+          }),
+          entryPoint: 'main',
+          targets: [{ format: 'rgba16float' }]
+        },
+        primitive: { topology: 'triangle-list' }
+      });
+      return precisionSourceResolve;
+    },
     displayResolve: createRenderPipeline(
       'LightTable display resolve',
       DISPLAY_RESOLVE_WGSL,
@@ -185,17 +190,20 @@ export const getCorePipelineBundle = (
       DEPTH_VIEWPORT_BLIT_WGSL,
       canvasFormat
     ),
-    differenceMetrics: device.createComputePipeline({
-      label: 'LightTable reference difference metrics',
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({
-          label: 'LightTable reference difference metrics shader',
-          code: REFERENCE_DIFFERENCE_METRICS_WGSL
-        }),
-        entryPoint: 'main'
-      }
-    }),
+    get differenceMetrics() {
+      differenceMetrics ??= device.createComputePipeline({
+        label: 'LightTable reference difference metrics',
+        layout: 'auto',
+        compute: {
+          module: device.createShaderModule({
+            label: 'LightTable reference difference metrics shader',
+            code: REFERENCE_DIFFERENCE_METRICS_WGSL
+          }),
+          entryPoint: 'main'
+        }
+      });
+      return differenceMetrics;
+    },
     histogram: device.createComputePipeline({
       label: 'LightTable histogram',
       layout: 'auto',

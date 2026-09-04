@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { AnchorGrid, Checkbox, SegmentedControl, SwitchControl, Text, type AnchorGridPosition } from '@lighttable/ui';
+import { AnchorGrid, Checkbox, Radio, SegmentedControl, SwitchControl, Text, type AnchorGridPosition } from '@lighttable/ui';
 
 export function SelectionDemo() {
   const [enabled, setEnabled] = useState(true);
   const [checked, setChecked] = useState(true);
+  const [radio, setRadio] = useState('local');
   const [alignment, setAlignment] = useState('left');
   const [anchor, setAnchor] = useState<{ x: AnchorGridPosition; y: AnchorGridPosition }>({ x: 0.5, y: 0.5 });
   const options = [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }];
@@ -22,6 +23,18 @@ export function SelectionDemo() {
       </div>
       <Text as="p" variant="small" tone="muted" role="status">{enabled ? 'On' : 'Off'} · disabled off · disabled on</Text>
       <pre className="demo-code"><Text as="code">{'<SwitchControl label="Enable effect" checked={enabled} onCheckedChange={setEnabled} />'}</Text></pre>
+    </section>
+    <section className="demo-section">
+      <Text as="h2" variant="large" weight="bold">Radio button</Text>
+      <Text as="p" tone="muted">Choose one option from a group. The native radio keeps app styling and semantics.</Text>
+      <div className="demo-button-row" role="radiogroup" aria-label="Connection mode">
+        <Radio name="connection" label="Local" value="local" checked={radio === 'local'}
+          onCheckedChange={() => setRadio('local')} />
+        <Radio name="connection" label="Online" value="online" checked={radio === 'online'}
+          onCheckedChange={() => setRadio('online')} />
+        <Radio name="connection" label="Unavailable" disabled />
+      </div>
+      <Text as="p" variant="small" tone="muted" role="status">Selected: {radio}</Text>
     </section>
     <section className="demo-section">
       <Text as="h2" variant="large" weight="bold">Checkbox</Text>

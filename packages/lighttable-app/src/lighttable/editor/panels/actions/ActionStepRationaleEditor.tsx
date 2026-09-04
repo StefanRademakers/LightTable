@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, TextArea } from '@lighttable/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 
@@ -17,7 +17,7 @@ export const ActionStepRationaleEditor: React.FC<{
   }, [rationale]);
   return <div className="lighttable-action-step-rationale">
     <label>User-facing rationale
-      <textarea tabIndex={-1} value={value} maxLength={280} disabled={disabled}
+      <TextArea tabIndex={-1} value={value} maxLength={280} disabled={disabled}
         placeholder="Why this visible step exists"
         onChange={(event) => setValue(event.currentTarget.value)} />
     </label>

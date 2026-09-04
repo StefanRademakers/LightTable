@@ -1,8 +1,5 @@
-import { Button, SearchField } from '@lighttable/ui';
+import { Button, Dialog, SearchField } from '@lighttable/ui';
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 export const LIGHTTABLE_COMMAND_HELP = [
   ['New document', 'Ctrl+N', 'File'], ['Open', 'Ctrl+O', 'File'],
@@ -24,23 +21,16 @@ export const CommandHelpDialog: React.FC<{
   readonly onClose: () => void;
 }> = ({ open, onClose }) => {
   const [query, setQuery] = useState('');
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
   const commands = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return LIGHTTABLE_COMMAND_HELP.filter((parts) => !needle
       || parts.some((part) => part.toLocaleLowerCase().includes(needle)));
   }, [query]);
-  if (!open) return null;
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section ref={dialogRef} className="lighttable-psd-report lighttable-command-help"
-        role="dialog" aria-modal="true" aria-label="Commands and shortcuts" tabIndex={-1}
-        data-editor-native-tab-navigation onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}>
-        <header className="lighttable-psd-report__header">
-          <div><h2>Commands and shortcuts</h2><p>Photoshop-compatible shortcuts where they match LightTable actions.</p></div>
-          <Button tabIndex={0} onClick={onClose}>Close</Button>
-        </header>
+  return (
+    <Dialog open={open} size="wide" title="Commands and shortcuts"
+      description="Photoshop-compatible shortcuts where they match LightTable actions."
+      onDismiss={onClose} footer={<Button tabIndex={0} onClick={onClose}>Close</Button>}>
+      <div className="lighttable-command-help__content">
         <SearchField tabIndex={0} autoFocus  value={query} aria-label="Search commands"
           placeholder="Search commands or shortcuts"
           onChange={(event) => setQuery(event.currentTarget.value)} />
@@ -52,7 +42,7 @@ export const CommandHelpDialog: React.FC<{
           ))}
           {commands.length === 0 ? <p className="lighttable-command-help__empty">No matching command.</p> : null}
         </div>
-      </section>
-    </div>, document.body
+      </div>
+    </Dialog>
   );
 };

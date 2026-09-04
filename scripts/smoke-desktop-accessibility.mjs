@@ -61,9 +61,13 @@ try {
     pageErrors: report.pageErrors, label: 'accessibility'
   });
   await window.locator('body').focus();
-  const open = await focusUntil(window, ({ name }) => name === 'Open', 12);
-  report.journey.push({ id: 'launcher-open-focus', active: open });
-  await window.keyboard.press('Enter');
+  await window.keyboard.press('Tab');
+  const launcherFocus = await activeSnapshot(window);
+  if (launcherFocus?.tag !== 'BODY') {
+    throw new Error(`Launcher controls unexpectedly entered the app-wide Tab order: ${JSON.stringify(launcherFocus)}`);
+  }
+  report.journey.push({ id: 'launcher-tab-is-editor-reserved', active: launcherFocus });
+  await window.getByText('Open', { exact: true }).click();
   await window.getByRole('tab', { name: /TextTest\.psd/i }).waitFor({ state: 'visible', timeout: 45_000 });
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ state: 'visible', timeout: 45_000 });
 

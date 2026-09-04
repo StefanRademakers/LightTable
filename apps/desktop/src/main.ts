@@ -2570,6 +2570,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     };
   });
 
+  ipcMain.handle('lighttable:clipboard-read-image-dimensions', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const image = clipboard.readImage();
+    if (image.isEmpty()) return null;
+    const { width, height } = image.getSize();
+    return width > 0 && height > 0 ? { width, height } : null;
+  });
+
   ipcMain.handle('lighttable:list-system-fonts', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     return systemFonts.list();

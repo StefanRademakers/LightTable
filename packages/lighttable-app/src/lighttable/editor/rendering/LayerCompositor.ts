@@ -452,7 +452,8 @@ export class LayerCompositor {
       background: GPUTexture,
       target: GPUTexture,
       clippingTexture: GPUTexture | null = null,
-      inheritedTransform: AffineMatrix = identityAffineMatrix()
+      inheritedTransform: AffineMatrix = identityAffineMatrix(),
+      protectedBackground: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
       const { node } = entry;
       if (excludedLayerIds.has(node.id)) return [background, target];
@@ -472,7 +473,14 @@ export class LayerCompositor {
         }
       }
       if (node.type === 'group') {
-        return renderGroup(entry, background, target, clippingTexture, inheritedTransform);
+        return renderGroup(
+          entry,
+          background,
+          target,
+          clippingTexture,
+          inheritedTransform,
+          protectedBackground
+        );
       }
       if (node.type === 'adjustment') {
         if (!encodeAdjustment) return [background, target];
@@ -1039,7 +1047,8 @@ export class LayerCompositor {
           background,
           target,
           entry.usesClippingBase ? clippingBase : null,
-          inheritedTransform
+          inheritedTransform,
+          protectedBackground
         );
         if (!entry.usesClippingBase) {
           clippingBase = null;
@@ -1071,14 +1080,21 @@ export class LayerCompositor {
       parentBackground: GPUTexture,
       parentTarget: GPUTexture,
       clippingTexture: GPUTexture | null = null,
-      inheritedTransform: AffineMatrix = identityAffineMatrix()
+      inheritedTransform: AffineMatrix = identityAffineMatrix(),
+      protectedBackground: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
       const group = entry.node as GroupLayer;
       const childPlan = entry.children;
       if (!childPlan) return [parentBackground, parentTarget];
       const groupTransform = multiplyMatrices(inheritedTransform, group.transform);
       if (!entry.groupNeedsEnvelope) {
-        return renderNodes(childPlan, parentBackground, parentTarget, groupTransform);
+        return renderNodes(
+          childPlan,
+          parentBackground,
+          parentTarget,
+          groupTransform,
+          protectedBackground
+        );
       }
       const groupA = this.options.createTexture(
         `LightTable isolated group A: ${group.name}`

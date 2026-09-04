@@ -63,6 +63,11 @@ export interface EditorAiProviderState {
   readonly openArt: 'connected' | 'disconnected';
 }
 
+export interface EditorRecoveryMenuItem {
+  readonly id: string;
+  readonly label: string;
+}
+
 export interface EditorMenuCommands {
   newDocument: () => void;
   open: () => void;
@@ -71,6 +76,8 @@ export interface EditorMenuCommands {
   recentFiles: readonly LightTableRecentFile[];
   openRecent: (id: string) => void;
   clearRecent: () => void;
+  recoveryFiles?: readonly EditorRecoveryMenuItem[];
+  openRecovery?: (id: string) => void;
   projectsAvailable: boolean;
   activeProject: LightTableProjectSummary | null;
   recentProjects: readonly LightTableRecentProject[];
@@ -210,21 +217,27 @@ export const createEditorMenuOptions = (
       {
         value: 'open-image',
         label: 'Open',
-        shortcut: labels.primaryShortcut('O'),
-        onClick: commands.open,
-        disabled: state.saving
-      },
-      {
-        value: 'place-image',
-        label: 'Open place...',
-        onClick: commands.place,
-        disabled: !state.hasDocument || state.saving
-      },
-      {
-        value: 'import-svg',
-        label: 'Import SVG as Editable Vectors...',
-        onClick: commands.importSvg,
-        disabled: !state.hasDocument || state.saving
+        disabled: state.saving,
+        children: [
+          {
+            value: 'open-file',
+            label: 'Open File...',
+            shortcut: labels.primaryShortcut('O'),
+            onClick: commands.open
+          },
+          {
+            value: 'place-image',
+            label: 'Open Place...',
+            onClick: commands.place,
+            disabled: !state.hasDocument
+          },
+          {
+            value: 'import-svg',
+            label: 'Import SVG as Editable Vectors...',
+            onClick: commands.importSvg,
+            disabled: !state.hasDocument
+          }
+        ]
       },
       {
         value: 'open-recent',
@@ -244,6 +257,16 @@ export const createEditorMenuOptions = (
           }
         ]
       },
+      ...((commands.recoveryFiles?.length ?? 0) > 0 ? [{
+        value: 'open-recent-recovery',
+        label: 'Open Recent Recovery Files',
+        disabled: state.saving,
+        children: commands.recoveryFiles!.map((file) => ({
+          value: `open-recovery-${file.id}`,
+          label: file.label,
+          onClick: () => commands.openRecovery?.(file.id)
+        }))
+      }] : []),
       {
         value: 'save-corrected',
         label: state.saving ? 'Saving...' : 'Save',

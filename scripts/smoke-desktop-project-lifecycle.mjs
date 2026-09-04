@@ -69,21 +69,21 @@ try {
   await documentDialog.waitFor({ state: 'detached', timeout: 30_000 });
   await window.waitForFunction(() => document.querySelectorAll('[role="tab"]').length >= 2);
   const visibleEditor = () => window.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)');
-  const documentCount = await visibleEditor().locator('.lighttable-document-tab').count();
+  const documentCount = await visibleEditor().locator('.ui-document-tabs__tab').count();
 
   const openFileMenu = async () => {
-    await visibleEditor().locator('.shots-app-menu__button').filter({ hasText: /^File$/ }).click();
-    return window.locator('.context-menu:visible').first();
+    await visibleEditor().getByRole('menuitem', { name: 'File', exact: true }).click();
+    return window.locator('.ui-menu:visible').first();
   };
   await (await openFileMenu()).getByRole('menuitem', { name: 'New Project...' }).click();
   const projectDialog = window.getByRole('dialog', { name: 'Create project' });
-  await projectDialog.getByRole('button', { name: 'Choose...' }).click();
+  await projectDialog.getByRole('button', { name: /^Choose/u }).click();
   await projectDialog.getByRole('button', { name: 'Create' }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
 
   await (await openFileMenu()).getByRole('menuitem', { name: new RegExp(`Close Project \\(${projectName}\\)`) }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor({ state: 'detached' });
-  if (await visibleEditor().locator('.lighttable-document-tab').count() !== documentCount) {
+  if (await visibleEditor().locator('.ui-document-tabs__tab').count() !== documentCount) {
     throw new Error('Closing a project changed the set of open documents.');
   }
 
@@ -92,7 +92,7 @@ try {
   await recent.hover();
   await window.getByRole('menuitem', { name: projectName }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
-  if (await visibleEditor().locator('.lighttable-document-tab').count() !== documentCount) {
+  if (await visibleEditor().locator('.ui-document-tabs__tab').count() !== documentCount) {
     throw new Error('Reopening a project changed the set of open documents.');
   }
   await window.reload({ waitUntil: 'domcontentloaded' });

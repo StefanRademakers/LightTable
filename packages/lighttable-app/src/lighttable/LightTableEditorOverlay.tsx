@@ -594,6 +594,8 @@ export interface LightTableEditorOverlayProps {
   recentFiles?: readonly LightTableRecentFile[];
   onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
   onClearRecentWorkspaceDocuments?: () => Promise<void> | void;
+  recoveryFiles?: readonly { readonly id: string; readonly label: string }[];
+  onOpenRecoveryFile?: (id: string) => Promise<void> | void;
   activeProject?: LightTableProjectSummary | null;
   recentProjects?: readonly LightTableRecentProject[];
   onRequestNewProject?: () => void;
@@ -676,6 +678,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recentFiles = [],
   onOpenRecentWorkspaceDocument,
   onClearRecentWorkspaceDocuments,
+  recoveryFiles = [],
+  onOpenRecoveryFile,
   activeProject = null,
   recentProjects = [],
   onRequestNewProject,
@@ -1048,6 +1052,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     void execution.then((result) => {
       if (result.status === 'rejected') setError(result.message);
+    }).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'The command could not be completed.');
     });
     return execution;
   }, [commandService, workspaceDocumentId]);
@@ -2671,8 +2677,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getSnapContext: (movingBounds) => {
       const document = imageDocumentRef.current;
       const snap = editorSessionRef.current.snap;
+      const excludedLayerIds = new Set<LayerId>(selectedLayerIdsRef.current);
+      if (document?.activeLayerId) excludedLayerIds.add(document.activeLayerId);
       return {
         targets: document ? buildLayerSnapTargets(document, {
+          excludedLayerIds,
           includeCanvas: snap.targets.documentBounds,
           includeLayers: snap.targets.layers,
           includeGuides: snap.targets.guides,
@@ -3168,9 +3177,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyUndoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    // Gesture checkpoints are durable history entries while the transform tool
-    // immediately opens the next preview session. Close that preview before
-    // navigating history so the renderer cannot keep a stale transform source.
+    // An active transform remains one transaction across pointer gestures.
+    // Confirm it before navigating history so the renderer cannot keep a stale
+    // transform source while the document moves to another revision.
     if (transformActiveRef.current()) commitTransformRef.current();
     return documentHistoryController.undo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
@@ -5238,7 +5247,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const mergeSelectionOrActiveDown = useCallback(() => {
     if (transformActiveRef.current()) commitTransformRef.current();
     const selectedLayerIds = selectedLayerIdsRef.current;
-    if (selectedLayerIds.length > 1) return mergeLayersCommand(selectedLayerIds);
+    if (selectedLayerIds.length > 1) {
+      if (import.meta.env.DEV) {
+        setGradeStatus(`Merge requested for ${selectedLayerIds.length} selected layers`);
+      }
+      return mergeLayersCommand(selectedLayerIds);
+    }
     const document = imageDocumentRef.current;
     const activeLayerId = document?.activeLayerId;
     if (!document || !activeLayerId) return mergeActiveLayerDown();
@@ -5690,11 +5704,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection);
       },
       cutPixels,
-      pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
-        file, { ...command.bounds, name: command.name,
-          target: command.target ? { ...command.target,
-            layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
-      ),
+      pastePixels: async (file, command, fastPasteToken) => {
+        const result = await layerDocumentCommands.pastePixelArtifact(
+          file, { ...command.bounds, name: command.name,
+            target: command.target ? { ...command.target,
+              layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
+        );
+        if (result && command.target?.channel !== 'mask') {
+          // Paste creates a new pixel layer. The selection that merely supplied
+          // its placement must not become the transform target for that layer.
+          // Otherwise the gizmo keeps the old marquee bounds instead of framing
+          // the pixels that were just pasted.
+          engineRef.current?.clearSelection();
+          editorSessionRef.current = {
+            ...editorSessionRef.current,
+            pointerId: null,
+            selection: []
+          };
+          setEditorSession((current) => ({
+            ...current,
+            pointerId: null,
+            selection: []
+          }));
+        }
+        return result;
+      },
       copyGrade: captureCurrentGrade,
       pasteGrade: applyGradeCapture,
       placeArtifact: layerDocumentCommands.placeImageArtifact,
@@ -6935,6 +6969,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         void onOpenRecentWorkspaceDocument?.(id);
       },
       clearRecent: () => { void onClearRecentWorkspaceDocuments?.(); },
+      recoveryFiles,
+      openRecovery: (id) => { void onOpenRecoveryFile?.(id); },
       projectsAvailable: Boolean(onRequestNewProject && onRequestOpenProject),
       activeProject,
       recentProjects,
@@ -8157,6 +8193,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onSelectionMarqueeHeightChange={(selectionMarqueeHeight) => {
         setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
       }}
+      onSelectionMarqueeRatioChange={(selectionMarqueeWidth, selectionMarqueeHeight) => {
+        setEditorSession((current) => ({
+          ...current,
+          selectionMarqueeWidth,
+          selectionMarqueeHeight
+        }));
+      }}
       onSelectionRowHeightChange={(selectionRowHeight) => {
         setEditorSession((current) => ({ ...current, selectionRowHeight }));
       }}
@@ -8386,6 +8429,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => {
               setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
+            },
+            onSelectionMarqueeRatioChange: (selectionMarqueeWidth, selectionMarqueeHeight) => {
+              setEditorSession((current) => ({
+                ...current,
+                selectionMarqueeWidth,
+                selectionMarqueeHeight
+              }));
             },
             onSelectionRowHeightChange: (selectionRowHeight) => {
               setEditorSession((current) => ({ ...current, selectionRowHeight }));

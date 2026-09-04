@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createDefaultLayerStyle } from '../styles/layerStyleDefaults';
 import { translationMatrix } from '../geometry/affine';
 import {
   createGroupLayer,
@@ -860,6 +861,78 @@ describe('LayerCompositor', () => {
     expect(copyTextureToTexture).toHaveBeenCalledWith(
       { texture: checkpoint }, { texture: compositeA }, { width: 64, height: 32 }
     );
+  });
+
+  it('keeps a geometry checkpoint immutable through pass-through group children', () => {
+    const document = createImageDocument('Moving styled text', 64, 32, 'source');
+    const moving = createTextLayerNode(createDefaultTextLayerData(), 'Moving');
+    moving.styleStack.effects = [createDefaultLayerStyle('color-overlay')];
+    const sibling = createTextLayerNode(createDefaultTextLayerData(), 'Sibling');
+    const group = createGroupLayer('Text group');
+    group.children = [moving, sibling];
+    document.layers = [document.layers[0]!, group];
+    const compositeA = texture();
+    const compositeB = texture();
+    const checkpointView = {} as GPUTextureView;
+    const checkpoint = {
+      createView: vi.fn(() => checkpointView)
+    } as unknown as GPUTexture;
+    const styled = texture();
+    const source = texture();
+    const drawFullscreen = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: {
+        resolve: vi.fn((layerId: string) => layerId === moving.id
+          ? translationMatrix(13, 17)
+          : null)
+      } as never,
+      layerStyles: {
+        releaseTargets: vi.fn(),
+        releaseCache: vi.fn(),
+        cacheKeyQuality: vi.fn(() => 'interactive'),
+        encode: vi.fn(() => ({
+          texture: styled,
+          bounds: { x: 0, y: 0, width: 64, height: 32 }
+        }))
+      } as never,
+      vectors: { encode: vi.fn(), retainLayerIds: vi.fn() } as never,
+      texts: {
+        isTransparent: vi.fn(() => false),
+        resolvePresentation: vi.fn((layer) => ({
+          layerId: layer.id,
+          texture: source,
+          dimensions: { width: 20, height: 10 },
+          bounds: { x: 0, y: 0, width: 20, height: 10 },
+          colorSpace: 'linear-srgb' as const,
+          alphaMode: 'premultiplied' as const,
+          sourceKey: layer.id,
+          transform: layer.transform
+        }))
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(() => checkpoint),
+      clearTexture: vi.fn(),
+      drawFullscreen
+    });
+
+    compositor.encode({ copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder, document);
+
+    expect(drawFullscreen.mock.calls.every((call) => call[3] !== checkpointView)).toBe(true);
   });
 
   it('treats settled empty text as transparent instead of drawing a placeholder', () => {

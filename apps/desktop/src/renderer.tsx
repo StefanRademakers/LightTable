@@ -251,6 +251,9 @@ const desktopHost: LightTableHost = {
         ? { blob: new Blob([Uint8Array.from(image.bytes).buffer], { type: image.mediaType }),
             identity: image.identity }
         : null;
+    },
+    async readDimensions() {
+      return window.lightTableDesktop.readClipboardImageDimensions();
     }
   }),
   async openFile() {
@@ -387,3 +390,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     ) : null}
   </React.StrictMode>
 );
+
+// Warm the process-wide Vello/WebGPU runtime after the launcher has had a
+// chance to paint. OS/Explorer opens already overlap this work with early file
+// I/O; an ordinary launch should offer the same warm runtime when the user
+// opens the first document later.
+const prepareRenderingRuntimeWhenIdle = () => {
+  void prepareLightTableRenderingRuntime().catch(() => undefined);
+};
+window.requestIdleCallback(prepareRenderingRuntimeWhenIdle, { timeout: 1500 });

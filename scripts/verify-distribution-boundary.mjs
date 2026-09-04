@@ -11,10 +11,13 @@ if (!['--web', '--desktop', '--all'].includes(verificationMode)) {
   throw new Error(`Unknown distribution verification mode: ${verificationMode}`);
 }
 const configuredDesktopOutput = process.env.LIGHTTABLE_PACKAGE_OUT || 'out';
+const configuredWebOutput = process.env.LIGHTTABLE_WEB_OUT_DIR || 'dist';
 const desktopArtifactRoot = path.isAbsolute(configuredDesktopOutput)
   ? configuredDesktopOutput
   : path.join(repositoryRoot, 'apps', 'desktop', configuredDesktopOutput);
-const webArtifactRoot = path.join(repositoryRoot, 'apps', 'web', 'dist');
+const webArtifactRoot = path.isAbsolute(configuredWebOutput)
+  ? configuredWebOutput
+  : path.join(repositoryRoot, 'apps', 'web', configuredWebOutput);
 const artifactRoots = [
   ...(verificationMode !== '--desktop' ? [webArtifactRoot] : []),
   ...(verificationMode !== '--web' ? [desktopArtifactRoot] : [])

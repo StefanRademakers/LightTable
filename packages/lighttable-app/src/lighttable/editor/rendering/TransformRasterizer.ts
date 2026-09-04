@@ -49,6 +49,39 @@ interface TransformRasterizerOptions {
 export class TransformRasterizer {
   constructor(private readonly options: TransformRasterizerOptions) {}
 
+  /**
+   * Materializes a compact/transformed raster into the document-sized pixel
+   * surface expected by destructive paint tools. The returned swap edit owns
+   * the displaced compact texture, so callers can fold this promotion into
+   * the same undo entry as the paint gesture.
+   */
+  materializeForPixelEditing(layer: RasterLayer): ReversiblePixelEdit | null {
+    const runtime = this.options.layerResources.raster(layer.id);
+    if (!runtime) {
+      throw new Error('The active raster layer is not available on the GPU.');
+    }
+    const { width, height } = this.options.dimensions();
+    if (
+      runtime.width === width
+      && runtime.height === height
+      && layer.transform.a === 1
+      && layer.transform.b === 0
+      && layer.transform.c === 0
+      && layer.transform.d === 1
+      && layer.transform.tx === 0
+      && layer.transform.ty === 0
+    ) return null;
+
+    this.begin(layer, false, true);
+    if (!this.update(layer.transform)) {
+      this.cancel();
+      throw new Error('The raster layer could not be prepared for painting.');
+    }
+    const edit = this.commit();
+    if (!edit) throw new Error('The raster layer could not be prepared for painting.');
+    return edit;
+  }
+
   selectionPreviewTexture() {
     const session = this.options.sessions.current;
     return session?.usesSelection ? session.selectionPreview : null;

@@ -33,18 +33,37 @@ describe('startDocumentRenderer', () => {
     expect(renderer.destroy).not.toHaveBeenCalled();
   });
 
-  it('destroys a renderer when hydration fails', async () => {
+  it('releases resources still owned by a prepared source after hydration', async () => {
     const renderer = { destroy: vi.fn<() => void>() };
+    const source = { dispose: vi.fn<() => void>() };
 
     await expect(startDocumentRenderer({
       createRenderer: async () => renderer,
-      loadSource: async () => new Blob(['image']),
+      loadSource: async () => source,
+      hydrate: async () => undefined,
+      disposeSource: (prepared) => prepared.dispose(),
+      isCanceled: () => false
+    })).resolves.toBe(renderer);
+
+    expect(source.dispose).toHaveBeenCalledTimes(1);
+    expect(renderer.destroy).not.toHaveBeenCalled();
+  });
+
+  it('destroys a renderer when hydration fails', async () => {
+    const renderer = { destroy: vi.fn<() => void>() };
+    const source = { dispose: vi.fn<() => void>() };
+
+    await expect(startDocumentRenderer({
+      createRenderer: async () => renderer,
+      loadSource: async () => source,
       hydrate: async () => {
         throw new Error('hydrate failed');
       },
+      disposeSource: (prepared) => prepared.dispose(),
       isCanceled: () => false
     })).rejects.toThrow('hydrate failed');
     expect(renderer.destroy).toHaveBeenCalledTimes(1);
+    expect(source.dispose).toHaveBeenCalledTimes(1);
   });
 
   it('destroys a renderer that resolves after source loading has failed', async () => {

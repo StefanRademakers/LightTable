@@ -323,7 +323,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
-    // Pointer-up ends only this gesture. Enter, repeating the transform-tool
+    // Pointer-up ends only this gesture and synchronizes the gizmo. The renderer
+    // keeps the original source alive until Enter, repeating the transform-tool
     // shortcut, or switching tools confirms the complete transform session.
     if (drag.changed) onCommitGesture();
   };

@@ -56,10 +56,10 @@ describe('LightTable selections', () => {
     expect(createFeatherSelectionOperation(100, 50, -4).amount).toBe(0);
   });
 
-  it('retains layer identity and pixel revision for transparency replay', () => {
-    expect(createLayerTransparencySelectionOperation('layer' as never, 7, 100, 50)).toEqual({
+  it('retains layer identity and content revision for transparency replay', () => {
+    expect(createLayerTransparencySelectionOperation('layer' as never, 'raster:7', 100, 50)).toEqual({
       mode: 'replace',
-      source: { kind: 'layer-transparency', layerId: 'layer', pixelRevision: 7 },
+      source: { kind: 'layer-transparency', layerId: 'layer', contentRevision: 'raster:7' },
       shape: { kind: 'rectangle', points: [{ x: 0, y: 0 }, { x: 100, y: 50 }] }
     });
   });

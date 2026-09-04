@@ -11,13 +11,14 @@ import {
 } from '../tasks/documentTaskRegistry';
 
 export interface DocumentOpenRequest<
-  Renderer extends DisposableDocumentRenderer
+  Renderer extends DisposableDocumentRenderer,
+  Source = Blob
 > {
   readonly createRenderer: () => Promise<Renderer>;
-  readonly loadSource: (signal: AbortSignal) => Promise<Blob>;
+  readonly loadSource: (signal: AbortSignal) => Promise<Source>;
   readonly hydrate: (
     renderer: Renderer,
-    source: Blob,
+    source: Source,
     context: DocumentTaskContext
   ) => Promise<void>;
   readonly onRendererReady?: (
@@ -26,7 +27,8 @@ export interface DocumentOpenRequest<
     generation: number
   ) => void;
   readonly onRendererDiscarded?: (renderer: Renderer) => void;
-  readonly onSourceReady?: (source: Blob, elapsedMs: number) => void;
+  readonly onSourceReady?: (source: Source, elapsedMs: number) => void;
+  readonly disposeSource?: (source: Source) => void;
   readonly onFailed?: (error: Error) => void;
   readonly onSettled?: () => void;
 }
@@ -62,8 +64,8 @@ export class DocumentOpenController<
     return this.renderer;
   }
 
-  async open(
-    request: DocumentOpenRequest<Renderer>,
+  async open<Source = Blob>(
+    request: DocumentOpenRequest<Renderer, Source>,
     options: DocumentOpenOptions = {}
   ): Promise<void> {
     // Reusing the presentation engine is safe only after the previous source
@@ -94,10 +96,16 @@ export class DocumentOpenController<
           request.onRendererReady?.(reusableRenderer, 0, generation);
           const sourceStartedAt = performance.now();
           const source = await request.loadSource(task.signal);
-          if (isCanceled()) task.throwIfCanceled();
-          request.onSourceReady?.(source, performance.now() - sourceStartedAt);
-          await request.hydrate(reusableRenderer, source, task);
-          if (isCanceled()) task.throwIfCanceled();
+          let consumed = false;
+          try {
+            if (isCanceled()) task.throwIfCanceled();
+            request.onSourceReady?.(source, performance.now() - sourceStartedAt);
+            await request.hydrate(reusableRenderer, source, task);
+            if (isCanceled()) task.throwIfCanceled();
+            consumed = true;
+          } finally {
+            if (!consumed) request.disposeSource?.(source);
+          }
           return reusableRenderer;
         }
         const renderer = await startDocumentRenderer({
@@ -110,7 +118,8 @@ export class DocumentOpenController<
             request.onRendererReady?.(created, elapsedMs, generation);
           },
           onRendererDiscarded: request.onRendererDiscarded,
-          onSourceReady: request.onSourceReady
+          onSourceReady: request.onSourceReady,
+          disposeSource: request.disposeSource
         });
         task.throwIfCanceled();
         return renderer;

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import {
+  setRasterLayerDocumentSurface,
   markLayerMaskPixelsChanged,
   markLayerPixelsChanged
 } from '../../../editor/document/documentCommands';
@@ -9,6 +10,7 @@ import type {
   LayerNode,
   Rect
 } from '../../../editor/document/documentTypes';
+import { findRasterLayer } from '../../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type {
   BrushSettings,
@@ -46,6 +48,7 @@ export interface PaintHistoryEntry {
 export interface PaintSessionRendererPort {
   setPaintInteractionActive(active: boolean, layerId?: LayerId): void;
   beginBrushStroke(layer: LayerNode, channel: PaintChannel): void;
+  prepareRasterPaintSurface?(layer: Extract<LayerNode, { type: 'raster' }>): ReversiblePixelEdit | null;
   beginSampledBrushStroke(plan: SampledBrushStrokePlan): void;
   endSampledBrushStroke(): void;
   paintBrushDabs(
@@ -146,6 +149,10 @@ export const createPaintSessionController = (
     byteLength: number;
     overflowed: boolean;
   } | null = null;
+  let preparedSurface: {
+    readonly edit: ReversiblePixelEdit;
+    readonly beforeDocument: ImageDocument;
+  } | null = null;
   const captureSamples = (points: readonly BrushPoint[]) => {
     if (!recordedStroke || recordedStroke.overflowed) return;
     const addedBytes = points.reduce((total, point) => total + JSON.stringify(point).length, 0);
@@ -195,6 +202,12 @@ export const createPaintSessionController = (
     activeBrush = null;
     activeOperator = null;
     recordedStroke = null;
+    if (preparedSurface) {
+      preparedSurface.edit.undo();
+      preparedSurface.edit.destroy();
+      resolveDependencies().applyDocumentSnapshot(preparedSurface.beforeDocument);
+      preparedSurface = null;
+    }
     resolveDependencies().getRenderer()?.endSampledBrushStroke();
   };
 
@@ -209,20 +222,50 @@ export const createPaintSessionController = (
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
       try {
-        renderer.setPaintInteractionActive(true, layer.id);
-        renderer.beginBrushStroke(layer, target.channel);
+        let paintLayer = layer;
+        let paintTarget = target;
+        const document = dependencies.getDocument();
+        if (target.channel === 'pixels' && layer.type === 'raster' && document) {
+          const surfaceEdit = renderer.prepareRasterPaintSurface?.(layer) ?? null;
+          if (surfaceEdit) {
+            const preparedDocument = setRasterLayerDocumentSurface(
+              document,
+              layer.id,
+              document.width,
+              document.height
+            );
+            const preparedLayer = findRasterLayer(preparedDocument, layer.id);
+            if (!preparedLayer) {
+              surfaceEdit.undo();
+              surfaceEdit.destroy();
+              throw new Error('The raster layer could not be prepared for painting.');
+            }
+            preparedSurface = {
+              edit: surfaceEdit,
+              beforeDocument: document
+            };
+            dependencies.applyDocumentSnapshot(preparedDocument);
+            paintLayer = preparedLayer;
+            paintTarget = {
+              ...target,
+              sourceToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+            };
+          }
+        }
+        renderer.setPaintInteractionActive(true, paintLayer.id);
+        renderer.beginBrushStroke(paintLayer, paintTarget.channel);
         if (operator && operator.operator !== 'tone') renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
         recordedStroke = recordSemanticCommit ? {
-          target: { ...target, sourceToDocument: { ...target.sourceToDocument } },
+          target: { ...paintTarget, sourceToDocument: { ...paintTarget.sourceToDocument } },
           brush: cloneBrush(brush),
           ...(operator ? { operator: cloneOperator(operator) } : {}),
           samples: [{ ...point }],
           byteLength: 512 + JSON.stringify(point).length,
           overflowed: false
         } : null;
-        paintScheduler.schedule(gesture.begin(pointerId, target, {
+        paintScheduler.schedule(gesture.begin(pointerId, paintTarget, {
           ...activeBrush,
           maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
         }, point));
@@ -268,28 +311,41 @@ export const createPaintSessionController = (
       activeOperator = null;
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
-      const before = dependencies.getDocument();
-      if (!renderer || !before || !finished.dirtyBounds) {
+      const workingDocument = dependencies.getDocument();
+      const before = preparedSurface?.beforeDocument ?? workingDocument;
+      if (!renderer || !workingDocument || !before || !finished.dirtyBounds) {
         renderer?.cancelPixelEdit();
         renderer?.endSampledBrushStroke();
         renderer?.setPaintInteractionActive(false);
+        if (preparedSurface) {
+          preparedSurface.edit.undo();
+          preparedSurface.edit.destroy();
+          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
+          preparedSurface = null;
+        }
         return true;
       }
-      const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, before);
+      const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, workingDocument);
       if (!dirtyBounds) {
         renderer.cancelPixelEdit();
         renderer.endSampledBrushStroke();
         renderer.setPaintInteractionActive(false);
+        if (preparedSurface) {
+          preparedSurface.edit.undo();
+          preparedSurface.edit.destroy();
+          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
+          preparedSurface = null;
+        }
         return true;
       }
       const after = finished.target.channel === 'mask'
         ? markLayerMaskPixelsChanged(
-            before,
+            workingDocument,
             finished.target.layerId,
             dirtyBounds
           )
         : markLayerPixelsChanged(
-            before,
+            workingDocument,
             finished.target.layerId,
             dirtyBounds
           );
@@ -298,30 +354,47 @@ export const createPaintSessionController = (
       if (!pixelEdit) {
         renderer.cancelPixelEdit();
         renderer.setPaintInteractionActive(false);
+        if (preparedSurface) {
+          preparedSurface.edit.undo();
+          preparedSurface.edit.destroy();
+          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
+          preparedSurface = null;
+        }
         return true;
       }
+      const surfaceEdit = preparedSurface?.edit ?? null;
+      preparedSurface = null;
       renderer.setPaintInteractionActive(false);
       dependencies.applyDocumentSnapshot(after);
       dependencies.pushHistoryEntry({
         label: finished.target.channel === 'mask' ? 'Brush Tool on Layer Mask' : 'Brush Tool',
         type: finished.target.channel === 'mask' ? 'paint.mask.stroke' : 'paint.stroke',
-        byteSize: pixelEdit.byteSize,
+        byteSize: pixelEdit.byteSize + (surfaceEdit?.byteSize ?? 0),
         layerIds: [finished.target.layerId],
         undo: () => {
           const latest = resolveDependencies();
           if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
             throw new Error('Brush undo is no longer available.');
           }
+          if (surfaceEdit && !latest.getRenderer()?.applyPixelHistory(surfaceEdit, 'undo')) {
+            throw new Error('Brush surface undo is no longer available.');
+          }
           latest.applyDocumentSnapshot(before);
         },
         redo: () => {
           const latest = resolveDependencies();
+          if (surfaceEdit && !latest.getRenderer()?.applyPixelHistory(surfaceEdit, 'redo')) {
+            throw new Error('Brush surface redo is no longer available.');
+          }
           if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
             throw new Error('Brush redo is no longer available.');
           }
           latest.applyDocumentSnapshot(after);
         },
-        dispose: pixelEdit.destroy
+        dispose: () => {
+          pixelEdit.destroy();
+          surfaceEdit?.destroy();
+        }
       });
       if (completedRecording && !completedRecording.overflowed) {
         dependencies.onStrokeCommitted?.({
@@ -349,6 +422,12 @@ export const createPaintSessionController = (
       }
       renderer?.setPaintInteractionActive(false);
       renderer?.endSampledBrushStroke();
+      if (preparedSurface) {
+        preparedSurface.edit.undo();
+        preparedSurface.edit.destroy();
+        resolveDependencies().applyDocumentSnapshot(preparedSurface.beforeDocument);
+        preparedSurface = null;
+      }
       return true;
     },
     reset,

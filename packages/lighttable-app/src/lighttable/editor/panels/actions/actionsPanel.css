@@ -171,12 +171,6 @@
 
 .lighttable-action-step-rationale label,
 .lighttable-action-step-rationale p { grid-column: 1 / -1; }
-.lighttable-action-step-rationale textarea {
-  min-height: 48px;
-  resize: vertical;
-  color: var(--lt-text-primary);
-  background: var(--lt-surface-inset);
-}
 .lighttable-action-step-rationale span { color: var(--lt-text-secondary); }
 
 .lighttable-action-variable-row {

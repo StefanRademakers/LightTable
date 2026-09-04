@@ -11,12 +11,19 @@ export interface LightTableClipboardImage {
   readonly placement: LightTableClipboardImagePlacement | null;
 }
 
+export interface LightTableClipboardImageDimensions {
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface LightTableImageClipboard {
   writeImage(
     blob: Blob,
     placement: LightTableClipboardImagePlacement
   ): Promise<void>;
   readImage(): Promise<LightTableClipboardImage | null>;
+  /** Lightweight metadata path. Hosts should not transfer or re-encode image pixels. */
+  readDimensions?(): Promise<LightTableClipboardImageDimensions | null>;
 }
 
 export interface LightTableImageClipboardTransport {
@@ -25,6 +32,7 @@ export interface LightTableImageClipboardTransport {
     readonly blob: Blob;
     readonly identity?: string;
   } | null>;
+  readDimensions?(): Promise<LightTableClipboardImageDimensions | null>;
 }
 
 const fingerprint = async (blob: Blob) => {
@@ -76,7 +84,10 @@ export const createLightTableImageClipboard = (
         blob,
         placement
       };
-    }
+    },
+    ...(transport.readDimensions ? {
+      readDimensions: () => transport.readDimensions!()
+    } : {})
   };
 };
 

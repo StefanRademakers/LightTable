@@ -98,6 +98,7 @@ const renderOptions = (
     onSelectionMarqueeStyleChange: vi.fn(),
     onSelectionMarqueeWidthChange: vi.fn(),
     onSelectionMarqueeHeightChange: vi.fn(),
+    onSelectionMarqueeRatioChange: vi.fn(),
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
     onSelectionSmoothChange: vi.fn(),

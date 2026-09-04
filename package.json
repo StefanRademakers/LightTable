@@ -34,6 +34,7 @@
     "dev:desktop:ui-devtools": "npm run dev:desktop:debug",
     "build": "npm run build:web && npm run package:desktop",
     "build:web": "npm run ensure:wasm && npm run build -w @lighttable/web",
+    "build:web:static": "npm run ensure:wasm && npm run build:static -w @lighttable/web",
     "build:web:ui-devtools": "node scripts/run-with-ui-devtools.mjs npm run build:web",
     "package:desktop:base": "npm run ensure:wasm && npm run package -w @lighttable/desktop",
     "package:desktop": "node scripts/run-with-build-profile.mjs release npm run package:desktop:base && node scripts/verify-render-telemetry-boundary.mjs --absent",

@@ -18,18 +18,20 @@ export interface EditorDocumentRendererSlot<Renderer> {
 }
 
 export interface EditorDocumentOpenRequestOptions<
-  Renderer extends DisposableDocumentRenderer & EditorDocumentRenderer
+  Renderer extends DisposableDocumentRenderer & EditorDocumentRenderer,
+  Source = Blob
 > {
   readonly createRenderer: () => Promise<Renderer>;
-  readonly resolveSource: (signal: AbortSignal) => Promise<Blob>;
+  readonly resolveSource: (signal: AbortSignal) => Promise<Source>;
   readonly hydrate: (
     renderer: Renderer,
-    source: Blob,
+    source: Source,
     task: DocumentTaskContext
   ) => Promise<void>;
   readonly rendererSlot: EditorDocumentRendererSlot<Renderer>;
   readonly lifecycleBridge: DocumentRendererLifecycleBridge<Renderer>;
   readonly configureRenderer?: (renderer: Renderer) => void;
+  readonly disposeSource?: (source: Source) => void;
 }
 
 /**
@@ -39,13 +41,15 @@ export interface EditorDocumentOpenRequestOptions<
  * discarded renderer can never clear a newer generation's active slot.
  */
 export const createEditorDocumentOpenRequest = <
-  Renderer extends DisposableDocumentRenderer & EditorDocumentRenderer
+  Renderer extends DisposableDocumentRenderer & EditorDocumentRenderer,
+  Source = Blob
 >(
-  options: EditorDocumentOpenRequestOptions<Renderer>
-): DocumentOpenRequest<Renderer> => ({
+  options: EditorDocumentOpenRequestOptions<Renderer, Source>
+): DocumentOpenRequest<Renderer, Source> => ({
   createRenderer: options.createRenderer,
   loadSource: options.resolveSource,
   hydrate: options.hydrate,
+  disposeSource: options.disposeSource,
   onRendererReady: (renderer, elapsedMs) => {
     options.configureRenderer?.(renderer);
     options.rendererSlot.set(renderer);

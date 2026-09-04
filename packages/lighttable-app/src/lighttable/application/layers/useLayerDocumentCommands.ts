@@ -644,6 +644,7 @@ export const createLayerDocumentCommands = (
     renderer.commitRasterDestination(destination.id);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setError(null);
+    dependenciesRef.current.setStatus('Layers merged');
     return true;
   };
 
@@ -672,7 +673,6 @@ export const createLayerDocumentCommands = (
       return false;
     }
     const merged = mergeSelectedLayers([bottom.id, top.id]);
-    if (merged) dependenciesRef.current.setStatus('Layers merged');
     return merged;
   };
 

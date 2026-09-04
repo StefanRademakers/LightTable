@@ -1,4 +1,4 @@
-import { Checkbox, PanelSection, Button, TextInput, NumberField } from '@lighttable/ui';
+import { Checkbox, PanelSection, Button, TextInput, NumberField, Radio, SwitchControl } from '@lighttable/ui';
 import React, { useEffect, useState } from 'react';
 import type {
   LightTableAgentAccessService,
@@ -9,8 +9,6 @@ import type {
 } from '../platform/LightTableHost';
 
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { SwitchControl } from '@lighttable/ui';
-
 const unavailable: LightTableAgentAccessStatus = {
   supported: false, enabled: false, state: 'stopped'
 };
@@ -111,12 +109,12 @@ export const AgentAccessSettingsPanel: React.FC<{
         <fieldset className="lighttable-agent-settings__modes" disabled={busy || connectionAllowed}>
           <legend>Connection</legend>
           <label className={mode === 'local' ? 'is-selected' : undefined}>
-            <input type="radio" name="agent-connection-mode" checked={mode === 'local'}
+            <Radio compact name="agent-connection-mode" checked={mode === 'local'}
               onChange={() => setMode('local')} />
             <span><strong>Local test mode</strong><small>Codex and LightTable on this computer</small></span>
           </label>
           <label className={mode === 'online' ? 'is-selected' : undefined}>
-            <input type="radio" name="agent-connection-mode" checked={mode === 'online'}
+            <Radio compact name="agent-connection-mode" checked={mode === 'online'}
               onChange={() => setMode('online')} />
             <span><strong>Online MCP server</strong><small>A trusted server paired with this installation</small></span>
           </label>

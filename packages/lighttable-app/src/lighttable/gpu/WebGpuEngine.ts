@@ -326,6 +326,7 @@ export class WebGpuEngine {
   private pointColorRangePipeline: GPURenderPipeline | null = null;
   private depthBlitPipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
+  private resolveDifferenceMetricsPipeline: (() => GPUComputePipeline) | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private before = false;
   private difference = false;
@@ -521,7 +522,7 @@ export class WebGpuEngine {
     this.outputPipeline = pipelines.output;
     this.sourceLoader = new DocumentSourceGpuLoader(
       this.device,
-      pipelines.precisionSourceResolve
+      () => pipelines.precisionSourceResolve
     );
     const effectCallbacks = {
       requestRender: () => {
@@ -576,7 +577,7 @@ export class WebGpuEngine {
     this.differencePipeline = pipelines.difference;
     this.pointColorRangePipeline = pipelines.pointColorRange;
     this.depthBlitPipeline = pipelines.depthBlit;
-    this.differenceMetricsPipeline = pipelines.differenceMetrics;
+    this.resolveDifferenceMetricsPipeline = () => pipelines.differenceMetrics;
     this.histogramRuntime = new DocumentHistogramRuntime(
       this.device,
       pipelines.histogram,
@@ -592,6 +593,47 @@ export class WebGpuEngine {
       loaded.texture.destroy();
       throw new Error('LightTable was closed while the image was loading.');
     }
+    this.installLoadedSource(loaded);
+    return loaded.metadata;
+  }
+
+  loadPreparedImage(
+    decoded: import('../image-io/types').NativeDecodedImage,
+    name: string,
+    options: LightTableLoadImageOptions = {}
+  ) {
+    if (!this.sourceLoader) throw new Error('LightTable source loading is unavailable.');
+    const loaded = this.sourceLoader.loadPreparedNative(decoded, name, options.signal);
+    if (this.destroyed) {
+      loaded.texture.destroy();
+      throw new Error('LightTable was closed while the image was loading.');
+    }
+    this.installLoadedSource(loaded);
+    return loaded.metadata;
+  }
+
+  loadPreparedAdvancedImage(
+    decoded: import('../image-io/types').AdvancedDecodedImage,
+    name: string,
+    decodeDurationMs: number,
+    options: LightTableLoadImageOptions = {}
+  ) {
+    if (!this.sourceLoader) throw new Error('LightTable source loading is unavailable.');
+    const loaded = this.sourceLoader.loadPreparedAdvanced(
+      decoded,
+      name,
+      decodeDurationMs,
+      options.signal
+    );
+    if (this.destroyed) {
+      loaded.texture.destroy();
+      throw new Error('LightTable was closed while the image was loading.');
+    }
+    this.installLoadedSource(loaded);
+    return loaded.metadata;
+  }
+
+  private installLoadedSource(loaded: import('./documentSourceGpuLoader').LoadedGpuDocumentSource) {
     this.destroyImageResources();
     this.metadata = loaded.metadata;
     this.imageResources.sourceTexture = loaded.texture;
@@ -601,7 +643,6 @@ export class WebGpuEngine {
     this.renderDirty.invalidate('source');
     this.firstFramePending = true;
     this.requestRender();
-    return loaded.metadata;
   }
 
   /**
@@ -869,6 +910,12 @@ export class WebGpuEngine {
     this.documentRenderer?.beginStroke(layer, channel);
   }
 
+  prepareRasterPaintSurface(layer: RasterLayer) {
+    const edit = this.documentRenderer?.prepareRasterPaintSurface(layer) ?? null;
+    if (edit) this.markDocumentDirty();
+    return edit;
+  }
+
   beginSampledBrushStroke(plan: SampledBrushStrokePlan) {
     const document = this.imageDocument;
     const renderer = this.documentRenderer;
@@ -1079,9 +1126,11 @@ export class WebGpuEngine {
   }
 
   setSemanticLayerInteraction(layer: LayerNode, active: boolean) {
-    return layer.type === 'text'
-      ? this.documentRenderer?.setTextLayerInteraction(layer.id, active) ?? false
-      : false;
+    if (layer.type !== 'text' || !this.documentRenderer) return false;
+    const textChanged = this.documentRenderer.setTextLayerInteraction(layer.id, active);
+    const styleChanged = this.documentRenderer.setLayerStyleInteractionActive(active, layer.id);
+    if (styleChanged) this.markDocumentPreviewDirty();
+    return textChanged || styleChanged;
   }
 
   async alignLayersTranslation(
@@ -1454,6 +1503,10 @@ export class WebGpuEngine {
           );
           return false;
         }
+        if (changed) {
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+        }
         return changed;
       } finally {
         if (scopeOpen) await this.device.popErrorScope().catch(() => null);
@@ -1484,11 +1537,17 @@ export class WebGpuEngine {
           const layer = this.imageDocument
             ? findDocumentLayer(this.imageDocument, operation.source.layerId)
             : null;
+          const contentRevision = layer?.type === 'raster'
+            ? `raster:${layer.pixelRevision}`
+            : layer?.type === 'text' || layer?.type === 'vector'
+              ? `semantic:${layer.revision}`
+              : null;
           if (
             !this.imageDocument
-            || layer?.type !== 'raster'
-            || layer.pixelRevision !== operation.source.pixelRevision
-            || !this.documentRenderer?.loadRasterLayerTransparencyAsSelection(
+            || !layer
+            || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')
+            || contentRevision !== operation.source.contentRevision
+            || !await this.documentRenderer?.loadLayerTransparencyAsSelection(
               this.imageDocument,
               layer
             )
@@ -1556,6 +1615,8 @@ export class WebGpuEngine {
           return false;
         }
       }
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
       return true;
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
@@ -2495,6 +2556,7 @@ export class WebGpuEngine {
   }
 
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
+    this.differenceMetricsPipeline ??= this.resolveDifferenceMetricsPipeline?.() ?? null;
     if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
     }

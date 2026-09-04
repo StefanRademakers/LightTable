@@ -108,9 +108,9 @@ export const createLayerDocumentRendererRuntime = (
   });
   const textureCodec = new LayerTextureCodec(device, sampler, {
     decode: pipelines.decode,
-    adobeRgbDecode: pipelines.adobeRgbDecode,
-    maskDecode: pipelines.maskDecode,
-    exportLayer: pipelines.exportLayer
+    adobeRgbDecode: () => pipelines.adobeRgbDecode,
+    maskDecode: () => pipelines.maskDecode,
+    exportLayer: () => pipelines.exportLayer
   });
   const layerResources = new LayerRuntimeStore({
     createRasterTexture: (label, width, height) =>
@@ -125,7 +125,7 @@ export const createLayerDocumentRendererRuntime = (
     device,
     sampler,
     fullscreenModule: pipelines.fullscreenModule,
-    shapePipeline: pipelines.styleShape,
+    shapePipeline: () => pipelines.styleShape,
     patternAssets,
     submittedResources,
     dimensions: resources.dimensions,
@@ -455,6 +455,29 @@ export const createLayerDocumentRendererRuntime = (
         maskChannel,
         width,
         height,
+        () => resources.isCurrent(generation)
+      );
+    },
+    prepareTexture: async (layerId, blob, maskChannel) => {
+      const generation = resources.generation();
+      const { width, height } = maskChannel
+        ? resources.dimensions()
+        : layerResources.raster(layerId)
+          ?? layerResources.derivedPreview(layerId)
+          ?? resources.dimensions();
+      return textureCodec.prepare(
+        blob,
+        width,
+        height,
+        () => resources.isCurrent(generation)
+      );
+    },
+    uploadPreparedTexture: async (_layerId, prepared, texture, maskChannel) => {
+      const generation = resources.generation();
+      await textureCodec.upload(
+        prepared,
+        texture,
+        maskChannel,
         () => resources.isCurrent(generation)
       );
     },

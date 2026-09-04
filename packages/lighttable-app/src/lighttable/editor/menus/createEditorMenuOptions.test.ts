@@ -47,7 +47,7 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
 const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
   get: (target, property: keyof EditorMenuCommands) => {
     if (Object.prototype.hasOwnProperty.call(target, property)) return target[property];
-    if (property === 'recentFiles' || property === 'recentProjects') return target[property] ?? [];
+    if (property === 'recentFiles' || property === 'recentProjects' || property === 'recoveryFiles') return target[property] ?? [];
     if (property === 'activeProject') return target[property] ?? null;
     if (property === 'projectsAvailable') return target[property] ?? false;
     target[property] ??= vi.fn() as never;
@@ -325,9 +325,7 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.map(({ label, shortcut }) => ({ label, shortcut }))).toEqual([
       { label: 'New', shortcut: 'Ctrl+N' },
-      { label: 'Open', shortcut: 'Ctrl+O' },
-      { label: 'Open place...', shortcut: undefined },
-      { label: 'Import SVG as Editable Vectors...', shortcut: undefined },
+      { label: 'Open', shortcut: undefined },
       { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Export PNG', shortcut: 'Ctrl+Shift+S' },
@@ -341,6 +339,12 @@ describe('createEditorMenuOptions', () => {
     expect(options.find(({ value }) => value === 'export')?.children?.slice(0, 6)
       .every((option) => option.disabled)).toBe(true);
     expect(options.find(({ value }) => value === 'export')?.children?.at(-1)?.disabled).not.toBe(true);
+    expect(options.find(({ value }) => value === 'open-image')?.children?.map(({ label, shortcut }) => ({ label, shortcut })))
+      .toEqual([
+        { label: 'Open File...', shortcut: 'Ctrl+O' },
+        { label: 'Open Place...', shortcut: undefined },
+        { label: 'Import SVG as Editable Vectors...', shortcut: undefined }
+      ]);
   });
 
   it('groups secondary export formats in one submenu', () => {
@@ -391,6 +395,21 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.clearRecent).toHaveBeenCalledOnce();
   });
 
+  it('offers recovery files directly below Open Recent when any exist', () => {
+    const menuCommands = commands();
+    menuCommands.recoveryFiles = [{ id: 'recovery-1', label: 'Recovered.psd' }];
+    const options = createEditorMenuOptions('file', state(), labels, menuCommands);
+    const recentIndex = options.findIndex(({ value }) => value === 'open-recent');
+    const recovery = options[recentIndex + 1];
+
+    expect(recovery).toMatchObject({
+      value: 'open-recent-recovery',
+      label: 'Open Recent Recovery Files'
+    });
+    recovery?.children?.[0]?.onClick?.();
+    expect(menuCommands.openRecovery).toHaveBeenCalledWith('recovery-1');
+  });
+
   it('projects optional project management without changing document commands', () => {
     const menuCommands = commands();
     menuCommands.projectsAvailable = true;
@@ -403,7 +422,7 @@ describe('createEditorMenuOptions', () => {
     }];
     const options = createEditorMenuOptions('file', state(), labels, menuCommands);
     expect(options.map(({ value }) => value)).toEqual([
-      'new-document', 'open-image', 'place-image', 'import-svg', 'open-recent',
+      'new-document', 'open-image', 'open-recent',
       'save-corrected', 'export-png', 'export',
       'new-project', 'open-project', 'open-recent-project', 'close-project',
       'exit-application'

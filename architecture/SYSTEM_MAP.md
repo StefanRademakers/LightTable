@@ -5,10 +5,12 @@
 ```text
 apps/web                 Browser host and bootstrap
 apps/desktop             Electron main, preload and renderer host
+apps/ui-demo             Interactive catalog for shared UI primitives and composites
 apps/local-ai-provider   Managed desktop local-inference process
 apps/mcp-server          Remote MCP/OAuth adapter over semantic commands
 packages/command-contract Machine-readable semantic command and exposure profiles
 packages/lighttable-app  Shared application, editor, UI and WebGPU engine
+packages/ui              Themeable shared UI primitives and reusable composites
 packages/genai-core      Provider-neutral GenAI models, workflows, jobs and presentation contracts
 packages/genai-higgsfield Higgsfield adapter, normalization and provider fixtures
 packages/genai-local     Host-neutral local-provider protocol and contracts

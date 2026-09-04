@@ -1,4 +1,4 @@
-import { Checkbox, SegmentedControl, Button } from '@lighttable/ui';
+import { Button, Checkbox, MaskIcon, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { resolveTextToolFont } from '../../application/text/pointTextCreation';
@@ -116,6 +116,7 @@ export interface ToolOptionsProps {
   onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
   onSelectionMarqueeWidthChange: (width: number) => void;
   onSelectionMarqueeHeightChange: (height: number) => void;
+  onSelectionMarqueeRatioChange: (width: number, height: number) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
@@ -254,6 +255,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionMarqueeStyleChange,
   onSelectionMarqueeWidthChange,
   onSelectionMarqueeHeightChange,
+  onSelectionMarqueeRatioChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
@@ -304,7 +306,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}
     >
       <div className="lighttable-tool-options__identity">
-        <img src={lightTableIcon(activeToolDefinition.iconName)} alt="" aria-hidden="true" />
+        <MaskIcon src={lightTableIcon(activeToolDefinition.iconName)} />
         <strong>{activeTool === 'warp'
           ? `Warp - ${warp.mode === 'twirl-cw'
             ? 'Twirl clockwise'
@@ -396,6 +398,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         onMarqueeStyleChange={onSelectionMarqueeStyleChange}
         onMarqueeWidthChange={onSelectionMarqueeWidthChange}
         onMarqueeHeightChange={onSelectionMarqueeHeightChange}
+        onMarqueeRatioChange={onSelectionMarqueeRatioChange}
         onRowHeightChange={onSelectionRowHeightChange}
         onColumnWidthChange={onSelectionColumnWidthChange}
         onSmoothChange={onSelectionSmoothChange}

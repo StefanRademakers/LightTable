@@ -90,7 +90,7 @@ export interface SelectionOperation {
   /** Raster-backed source used when a mask or composite channel becomes a selection. */
   source?:
     | { kind: 'layer-mask'; layerId: LayerId; pixelRevision: number }
-    | { kind: 'layer-transparency'; layerId: LayerId; pixelRevision: number }
+    | { kind: 'layer-transparency'; layerId: LayerId; contentRevision: string }
     | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number }
     | {
         kind: 'magic-wand';
@@ -225,12 +225,12 @@ export const createCompositeChannelSelectionOperation = (
 
 export const createLayerTransparencySelectionOperation = (
   layerId: LayerId,
-  pixelRevision: number,
+  contentRevision: string,
   width: number,
   height: number
 ): SelectionOperation => ({
   mode: 'replace',
-  source: { kind: 'layer-transparency', layerId, pixelRevision },
+  source: { kind: 'layer-transparency', layerId, contentRevision },
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 

@@ -74,7 +74,7 @@ const titleFor = (kind: PhotoshopAdjustmentKind) => ({
   threshold: 'Threshold'
 }[kind]);
 
-export const PhotoshopAdjustmentPropertiesPanel = ({
+export const LayerAdjustmentPropertiesPanel = ({
   kind,
   model,
   commands

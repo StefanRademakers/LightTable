@@ -6,7 +6,10 @@
 @import './PanelFooter.css';
 @import './SwitchControl.css';
 @import './Checkbox.css';
+@import './Radio.css';
 @import './Button.css';
+@import './TextArea.css';
+@import './AngleControl.css';
 @import './SegmentedControl.css';
 @import './Menu.css';
 @import './MenuBar.css';

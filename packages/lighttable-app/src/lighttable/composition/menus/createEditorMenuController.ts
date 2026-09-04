@@ -32,6 +32,8 @@ export interface EditorMenuControllerOptions {
     recentFiles: readonly LightTableRecentFile[];
     openRecent(id: string): void;
     clearRecent(): void;
+    recoveryFiles?: readonly { readonly id: string; readonly label: string }[];
+    openRecovery?(id: string): void;
     projectsAvailable?: boolean;
     activeProject?: LightTableProjectSummary | null;
     recentProjects?: readonly LightTableRecentProject[];
@@ -179,6 +181,8 @@ export const createEditorMenuController = ({
       recentFiles: file.recentFiles,
       openRecent: file.openRecent,
       clearRecent: file.clearRecent,
+      recoveryFiles: file.recoveryFiles,
+      openRecovery: file.openRecovery,
       projectsAvailable: file.projectsAvailable ?? false,
       activeProject: file.activeProject ?? null,
       recentProjects: file.recentProjects ?? [],

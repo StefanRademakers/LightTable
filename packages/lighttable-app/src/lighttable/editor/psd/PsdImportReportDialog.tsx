@@ -1,8 +1,5 @@
-import { Button, PanelSection, SegmentedControl } from '@lighttable/ui';
+import { Button, Dialog, PanelSection, SegmentedControl } from '@lighttable/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 import type {
   DocumentFontAsset,
@@ -123,7 +120,6 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
   onClose
 }) => {
   const dialogOpen = open && Boolean(report || textFontDiagnostics.length);
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(dialogOpen, onClose);
   const [filter, setFilter] = useState<ReportFilter>('all');
   const findings = useMemo(
     () => buildDocumentCapabilityFindings(report, textFontDiagnostics),
@@ -153,26 +149,11 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
     ));
   }, [open, missingFontGroups, sortedReplacementFonts]);
   if (!open || (!report && textFontDiagnostics.length === 0)) return null;
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section
-        ref={dialogRef}
-        className="lighttable-psd-report"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Document compatibility report"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="lighttable-psd-report__header">
-          <div>
-            <h2>Document compatibility report</h2>
-            <p>Imported and current compatibility findings. Preserved source data remains unchanged until an explicit destructive action.</p>
-          </div>
-          <Button tabIndex={0} onClick={onClose}>Close</Button>
-        </header>
+  return (
+    <Dialog open={dialogOpen} size="report" title="Document compatibility report"
+      description="Imported and current compatibility findings. Preserved source data remains unchanged until an explicit destructive action."
+      onDismiss={onClose} footer={<Button tabIndex={0} onClick={onClose}>Close</Button>}>
+      <div className="lighttable-psd-report__content">
         {metrics ? (
           <div className="lighttable-psd-report__metrics">
             <span>{metrics.differingPixelPercentage.toFixed(3)}% differing</span>
@@ -204,7 +185,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
                   <strong>{group.requestedFont}</strong>
                   <small>{group.layerIds.length} {group.layerIds.length === 1 ? 'layer' : 'layers'}</small>
                 </span>
-                <FontAssetPicker ariaLabel={`Replacement for ${group.requestedFont}`}
+                <FontAssetPicker tabIndex={0} ariaLabel={`Replacement for ${group.requestedFont}`}
                   fonts={sortedReplacementFonts}
                   value={fontReplacements[group.sourceIdentity] ?? ''}
                   onChange={(assetId) => setFontReplacements((current) => ({
@@ -270,8 +251,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
             </ul>
           </PanelSection>
         ) : null}
-      </section>
-    </div>,
-    document.body
+      </div>
+    </Dialog>
   );
 };
