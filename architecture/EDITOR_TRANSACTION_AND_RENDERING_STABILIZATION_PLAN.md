@@ -90,6 +90,12 @@ Fill and raster-gradient commands now acquire the same document-owned mutation l
 
 This adds no pixel copy, readback or render pass. The transaction retains document snapshot references and performs ownership and revision checks; GPU storage and history retention remain in the existing pixel-edit implementation.
 
+### Unified Face Warp publication
+
+Interactive Face Warp drags, option changes and accepted detections already project through a document-owned transaction. The semantic `faceWarp.applyOperation` route now uses that same document mutation controller instead of applying a snapshot and appending history as two independent writes. UI, Actions and command transports can therefore no longer bypass an active document lease or publish Face Warp state outside the canonical undo boundary.
+
+This changes only mutation ownership. Face detection, mesh evaluation and rendering are untouched, and no additional frame work, image allocation or GPU pass is introduced.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
@@ -102,7 +108,7 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Fill and raster Gradient | Discrete/gesture document lease plus reversible GPU edit | Migrated |
 | Pen, shape, vector selection and vector Gradient | Shared vector-gesture document lease | Migrated |
 | Warp | Document lease plus reversible GPU edit | Migrated |
-| Face Warp | Separate controller and renderer path | Audit pending |
+| Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
 | Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
 | Point, paragraph, vertical and path text | Move, resize and handle gestures use document leases | Partial: typing, conversion and recovery paths still need audit |
 | Layer mutations, merge, rasterize and flatten | Mixed direct document/history and compound GPU paths | Migration pending |

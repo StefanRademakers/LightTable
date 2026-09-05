@@ -5943,8 +5943,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,
-        applyDocument: applyDocumentSnapshot,
-        recordHistory: pushDocumentHistory
+        changeDocument: documentMutationController.change
       }),
       executeLayerCommand: async (command) => {
         if (command.kind === 'duplicate') {

@@ -9,12 +9,23 @@ import {
   setFaceWarpNodeSettings
 } from '../../../effects/faceWarp/faceWarpTypes';
 import type { SemanticFaceWarpCommand } from '../../commands/semanticFaceWarpCommandContract';
+import type {
+  DocumentMutationController,
+  DocumentMutationDescription
+} from '../../documents/useDocumentMutationController';
 
 export interface SemanticFaceWarpCommandDependencies {
   getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  changeDocument: DocumentMutationController['change'];
 }
+
+const faceWarpMutationDescription = (
+  layerId: LayerId
+): DocumentMutationDescription => ({
+  label: 'Face Warp',
+  type: 'face-warp.operation',
+  layerIds: [layerId]
+});
 
 /** One canonical document mutation used by both UI and automation transports. */
 export const applySemanticFaceWarpCommandToDocument = (
@@ -38,11 +49,17 @@ export const executeSemanticFaceWarpCommand = (
   command: SemanticFaceWarpCommand,
   dependencies: SemanticFaceWarpCommandDependencies
 ): { readonly layerId: string; readonly faceId: string; readonly operation: string } | null => {
-  const before = dependencies.getDocument();
-  if (!before) throw new Error('The target document is unavailable.');
-  const after = applySemanticFaceWarpCommandToDocument(before, command);
-  if (after === before) return null;
-  dependencies.applyDocument(after);
-  dependencies.recordHistory(before, after);
-  return { layerId: command.layerId, faceId: command.operation.faceId, operation: command.operation.kind };
+  if (!dependencies.getDocument()) throw new Error('The target document is unavailable.');
+  const layerId = command.layerId as LayerId;
+  const result = {
+    layerId: command.layerId,
+    faceId: command.operation.faceId,
+    operation: command.operation.kind
+  };
+  const changed = dependencies.changeDocument(
+    (document) => applySemanticFaceWarpCommandToDocument(document, command),
+    true,
+    faceWarpMutationDescription(layerId)
+  );
+  return changed ? result : null;
 };

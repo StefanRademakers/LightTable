@@ -140,7 +140,10 @@ export const createDocumentSessionCommandPorts = (
       command, semanticDependencies
     ),
     executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(
-      command, semanticDependencies
+      command, {
+        getDocument: semanticDependencies.getDocument,
+        changeDocument: mutation.change
+      }
     ),
     executeLayerCommand: (command) => {
       if (command.kind === 'duplicate' || command.kind === 'copy-to-new-layer') {

@@ -14,6 +14,7 @@ import {
   findFaceWarpModuleInstance,
   readFaceWarpNodeSettings
 } from '../../../effects/faceWarp/faceWarpTypes';
+import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 import { executeSemanticFaceWarpCommand } from './semanticFaceWarpCommandExecutor';
 
 const documentWithFaceWarp = () => {
@@ -45,14 +46,24 @@ describe('semantic Face Warp command executor', () => {
   it('applies the same canonical operation and records exactly one history entry', () => {
     const fixture = documentWithFaceWarp();
     let current = fixture.document;
-    const recordHistory = vi.fn();
+    const pushHistoryEntry = vi.fn();
+    const mutations = createDocumentMutationController(() => ({
+      getDocument: () => current,
+      applySnapshot: (document) => { current = document; },
+      previewSnapshot: () => undefined,
+      discardPreview: () => undefined,
+      pushHistoryEntry
+    }));
     const result = executeSemanticFaceWarpCommand({ layerId: fixture.layerId, operation: {
       kind: 'set-semantic', faceId: 'face-1', target: 'both', change: { smile: 0.45 }
-    } }, { getDocument: () => current, applyDocument: (next) => { current = next; }, recordHistory });
+    } }, { getDocument: () => current, changeDocument: mutations.change });
     const layer = current.layers.find(({ id }) => id === fixture.layerId);
     const instance = layer?.type === 'raster' ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
     expect(result).toEqual({ layerId: fixture.layerId, faceId: 'face-1', operation: 'set-semantic' });
     expect(readFaceWarpNodeSettings(instance!).faces[0]!.parameters.smile).toBe(0.45);
-    expect(recordHistory).toHaveBeenCalledOnce();
+    expect(pushHistoryEntry).toHaveBeenCalledOnce();
+    expect(pushHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'Face Warp', type: 'face-warp.operation', layerIds: [fixture.layerId]
+    }));
   });
 });
