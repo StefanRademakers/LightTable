@@ -22,6 +22,7 @@ import {
 } from '../../editor/session/editorSession';
 import { VectorDocumentController } from './VectorDocumentController';
 import { VectorSelectionCommandController } from './VectorSelectionCommandController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const path = (id: string, anchorPrefix: string) => createVectorPath(id, id, [
   createSubpath(`${id}-subpath`, [
@@ -45,16 +46,10 @@ const setup = () => {
   document.layers = [first, second];
   document.activeLayerId = first.id;
   let selection: VectorEditorSelection = createVectorEditorSelection();
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
-  const documents = new VectorDocumentController(() => ({
-    getDocument: () => document,
-    previewDocumentSnapshot: () => undefined,
-    discardDocumentPreview: () => undefined,
-    applyDocumentSnapshot: (next) => { document = next; },
-    pushDocumentHistory: (before, after) => history.push({ before, after })
-  }));
+  const host = createVectorDocumentTestHarness(document);
+  const documents = new VectorDocumentController(() => host.dependencies);
   const controller = new VectorSelectionCommandController(documents, {
-    getDocument: () => document,
+    getDocument: () => host.canonicalDocument,
     getSelection: () => selection,
     setSelection: (next) => { selection = next; }
   }, ids());
@@ -62,8 +57,8 @@ const setup = () => {
     controller,
     first,
     second,
-    history,
-    get document() { return document; },
+    history: host.history,
+    get document() { return host.document; },
     get selection() { return selection; },
     set selection(next) { selection = next; }
   };

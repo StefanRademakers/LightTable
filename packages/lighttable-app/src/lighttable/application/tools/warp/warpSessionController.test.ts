@@ -12,6 +12,7 @@ import {
 } from '../../../effects/warp/warpTypes';
 import { createWarpSessionController } from './warpSessionController';
 import { createWarpPreviewScheduler } from './warpPreviewScheduler';
+import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 
 const brush = {
   diameterPx: 120,
@@ -49,19 +50,32 @@ const harness = () => {
   let projectedDocument = document;
   const history: Array<{ undo(): void; redo(): void }> = [];
   let id = 0;
-  const dependencies = {
-    getDocument: () => document,
-    previewDocumentSnapshot: vi.fn((next: ImageDocument) => {
+  const getDocument = () => document;
+  const previewDocumentSnapshot = vi.fn((next: ImageDocument) => {
       projectedDocument = next;
-    }),
-    discardDocumentPreview: vi.fn(() => {
+    });
+  const discardDocumentPreview = vi.fn(() => {
       projectedDocument = document;
-    }),
-    applyDocumentSnapshot: vi.fn((next) => {
+    });
+  const applyDocumentSnapshot = vi.fn((next: ImageDocument) => {
       document = next;
       projectedDocument = next;
-    }),
-    pushHistoryEntry: vi.fn((entry) => history.push(entry)),
+    });
+  const pushHistoryEntry = vi.fn((entry: { undo(): void; redo(): void }) => history.push(entry));
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument,
+    previewSnapshot: previewDocumentSnapshot,
+    discardPreview: discardDocumentPreview,
+    applySnapshot: applyDocumentSnapshot,
+    pushHistoryEntry
+  }));
+  const dependencies = {
+    getDocument,
+    documentMutations,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
     setError: vi.fn(),
     setInteractionActive: vi.fn(),
     onStrokeCommitted: vi.fn(),

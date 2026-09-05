@@ -4438,10 +4438,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const warpSessionController = useWarpSessionController({
     getDocument: () => imageDocumentRef.current,
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    applyDocumentSnapshot,
-    pushHistoryEntry,
+    documentMutations: documentMutationController,
     setError,
     createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`,
     setInteractionActive: (active) => engineRef.current?.setWarpInteractionActive(active),
@@ -4467,10 +4464,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     gradient: gradientToolSettings,
     shape: editorSession.shape,
     style: editorSession.vectorStyle,
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    applyDocumentSnapshot,
-    pushDocumentHistory,
+    documentMutations: documentMutationController,
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
     },
@@ -4482,14 +4476,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ? engine.updateSemanticLayerTransform(layer, matrix)
         : engine.cancelSemanticLayerTransform(layer);
     },
-    commitLayerTransformPreview: (before, layerId, matrix, _documentOperation) => {
-      const source = findDocumentLayer(before, layerId);
-      if (source?.type !== 'vector') return false;
-      const after = setLayerTransform(before, layerId, matrix);
-      applyDocumentSnapshot(after);
-      pushDocumentHistory(before, after);
-      return true;
-    },
     setElementTransformPreview: (layers, documentOperation) => {
       const engine = engineRef.current;
       if (!engine) return false;
@@ -4497,16 +4483,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return layers.length > 0
         ? engine.setVectorContentPreviews(layers)
         : engine.clearVectorContentPreviews();
-    },
-    commitElementTransformPreview: (before, elements) => {
-      const after = elements.reduce(
-        (document, { layerId, element }) => replaceVectorElement(document, layerId, element),
-        before
-      );
-      if (after === before) return false;
-      applyDocumentSnapshot(after);
-      pushDocumentHistory(before, after);
-      return true;
     },
     requestGradientColorEditor: (endpoint) => {
       setGradientEditorRequest((current) => ({

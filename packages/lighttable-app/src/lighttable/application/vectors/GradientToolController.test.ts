@@ -9,6 +9,17 @@ import {
   gradientPaintFromDrag,
   gradientTransformFromAxis
 } from './GradientToolController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
+
+const createGradientDocumentHost = () => {
+  const host = createVectorDocumentTestHarness(
+    createImageDocument('Gradient', 320, 180, 'asset')
+  );
+  return {
+    host,
+    documents: new VectorDocumentController(() => host.dependencies)
+  };
+};
 
 describe('GradientToolController', () => {
   it('constrains drag direction to 45 degree increments', () => {
@@ -41,15 +52,7 @@ describe('GradientToolController', () => {
   });
 
   it('previews and commits one semantic editable Gradient Fill layer', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    const history: Array<{ before: typeof document; after: typeof document }> = [];
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: () => undefined,
-      discardDocumentPreview: () => undefined,
-      applyDocumentSnapshot: (next) => { document = next; },
-      pushDocumentHistory: (before, after) => history.push({ before, after })
-    }));
+    const { host, documents } = createGradientDocumentHost();
     const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'),
@@ -61,8 +64,8 @@ describe('GradientToolController', () => {
     expect(controller.pointerDown({ x: 20, y: 30 })).toBe(true);
     expect(controller.pointerMove({ x: 220, y: 30 })).toBe(true);
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
-    expect(history).toHaveLength(1);
-    const layer = findDocumentLayer(document, document.activeLayerId);
+    expect(host.history).toHaveLength(1);
+    const layer = findDocumentLayer(host.document, host.document.activeLayerId);
     expect(layer).toMatchObject({
       type: 'vector', role: 'gradient-fill', name: 'Gradient Fill',
       opacity: 0.75, blendMode: 'multiply'
@@ -82,17 +85,8 @@ describe('GradientToolController', () => {
   });
 
   it('keeps the active Gradient Fill selected and edits it instead of adding layers', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    let projectedDocument = document;
-    const history: Array<{ before: typeof document; after: typeof document }> = [];
+    const { host, documents } = createGradientDocumentHost();
     const selected: Array<{ layerId: string; elementId: string }> = [];
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: (next) => { projectedDocument = next; },
-      discardDocumentPreview: () => { projectedDocument = document; },
-      applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
-      pushDocumentHistory: (before, after) => history.push({ before, after })
-    }));
     const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'),
@@ -104,22 +98,22 @@ describe('GradientToolController', () => {
     controller.pointerDown({ x: 20, y: 30 }, 6);
     controller.pointerMove({ x: 220, y: 30 });
     expect(selected).toEqual([{
-      layerId: projectedDocument.activeLayerId,
+      layerId: host.document.activeLayerId,
       elementId: expect.any(String)
     }]);
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
-    const gradientLayerId = document.activeLayerId;
-    const layerCount = document.layers.length;
+    const gradientLayerId = host.document.activeLayerId;
+    const layerCount = host.document.layers.length;
     expect(selected).toEqual([{ layerId: gradientLayerId, elementId: expect.any(String) }]);
 
     controller.pointerDown({ x: 40, y: 50 }, 6);
     controller.pointerMove({ x: 260, y: 50 });
     expect(controller.pointerUp({ x: 280, y: 50 })).toBe(true);
-    expect(document.layers).toHaveLength(layerCount);
-    expect(document.activeLayerId).toBe(gradientLayerId);
-    expect(history).toHaveLength(2);
+    expect(host.document.layers).toHaveLength(layerCount);
+    expect(host.document.activeLayerId).toBe(gradientLayerId);
+    expect(host.history).toHaveLength(2);
 
-    const layer = findDocumentLayer(document, gradientLayerId);
+    const layer = findDocumentLayer(host.document, gradientLayerId);
     if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
     const fillAfterAxisEdit = layer.elements[0]?.style.fill;
     expect(fillAfterAxisEdit && 'kind' in fillAfterAxisEdit
@@ -129,9 +123,9 @@ describe('GradientToolController', () => {
     controller.pointerDown({ x: 280, y: 50 }, 8);
     controller.pointerMove({ x: 300, y: 80 });
     expect(controller.pointerUp({ x: 300, y: 80 })).toBe(true);
-    expect(document.layers).toHaveLength(layerCount);
-    expect(history).toHaveLength(3);
-    const endpointLayer = findDocumentLayer(document, gradientLayerId);
+    expect(host.document.layers).toHaveLength(layerCount);
+    expect(host.history).toHaveLength(3);
+    const endpointLayer = findDocumentLayer(host.document, gradientLayerId);
     if (endpointLayer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
     const fillAfterEndpointEdit = endpointLayer.elements[0]?.style.fill;
     expect(fillAfterEndpointEdit && 'kind' in fillAfterEndpointEdit
@@ -142,15 +136,7 @@ describe('GradientToolController', () => {
   });
 
   it('translates the complete gradient when dragging its line body', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    const history: Array<{ before: typeof document; after: typeof document }> = [];
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: () => undefined,
-      discardDocumentPreview: () => undefined,
-      applyDocumentSnapshot: (next) => { document = next; },
-      pushDocumentHistory: (before, after) => history.push({ before, after })
-    }));
+    const { host, documents } = createGradientDocumentHost();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
       blendMode: 'normal', transparency: true
@@ -163,26 +149,18 @@ describe('GradientToolController', () => {
     controller.pointerMove({ x: 110, y: 50 });
     expect(controller.pointerUp({ x: 110, y: 50 })).toBe(true);
 
-    const layer = findDocumentLayer(document, document.activeLayerId);
+    const layer = findDocumentLayer(host.document, host.document.activeLayerId);
     if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
     const fill = layer.elements[0]?.style.fill;
     expect(fill && 'kind' in fill ? fill.transform : null).toEqual({
       a: 230, b: 0, c: -0, d: 230, tx: 30, ty: 50
     });
-    expect(history).toHaveLength(2);
+    expect(host.history).toHaveLength(2);
   });
 
   it('opens the corresponding color stop without creating history when an endpoint is clicked', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    const history: Array<{ before: typeof document; after: typeof document }> = [];
+    const { host, documents } = createGradientDocumentHost();
     const requested: Array<'start' | 'end'> = [];
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: () => undefined,
-      discardDocumentPreview: () => undefined,
-      applyDocumentSnapshot: (next) => { document = next; },
-      pushDocumentHistory: (before, after) => history.push({ before, after })
-    }));
     const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
@@ -192,49 +170,34 @@ describe('GradientToolController', () => {
     controller.pointerDown({ x: 20, y: 30 }, 8);
     controller.pointerMove({ x: 250, y: 30 });
     controller.pointerUp({ x: 250, y: 30 });
-    expect(history).toHaveLength(1);
+    expect(host.history).toHaveLength(1);
 
     expect(controller.pointerDown({ x: 250, y: 30 }, 8)).toBe(true);
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
     expect(requested).toEqual(['end']);
-    expect(history).toHaveLength(1);
+    expect(host.history).toHaveLength(1);
     expect(onCommitted).toHaveBeenCalledTimes(1);
   });
 
   it('publishes nothing when a Gradient Fill preview is cancelled', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    const history = vi.fn();
+    const { host, documents } = createGradientDocumentHost();
     const onCommitted = vi.fn();
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: () => undefined,
-      discardDocumentPreview: () => undefined,
-      applyDocumentSnapshot: (next) => { document = next; },
-      pushDocumentHistory: history
-    }));
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
       blendMode: 'normal', transparency: true
     }), undefined, undefined, undefined, onCommitted);
 
-    const opening = document;
+    const opening = host.document;
     controller.pointerDown({ x: 20, y: 30 });
     controller.pointerMove({ x: 250, y: 30 });
     expect(controller.cancel()).toBe(true);
-    expect(document).toBe(opening);
-    expect(history).not.toHaveBeenCalled();
+    expect(host.document).toBe(opening);
+    expect(host.history).toHaveLength(0);
     expect(onCommitted).not.toHaveBeenCalled();
   });
 
   it('redraws the selected fill without creating a second layer when dragging away from its gizmo', () => {
-    let document = createImageDocument('Gradient', 320, 180, 'asset');
-    const documents = new VectorDocumentController(() => ({
-      getDocument: () => document,
-      previewDocumentSnapshot: () => undefined,
-      discardDocumentPreview: () => undefined,
-      applyDocumentSnapshot: (next) => { document = next; },
-      pushDocumentHistory: () => undefined
-    }));
+    const { host, documents } = createGradientDocumentHost();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
       blendMode: 'normal', transparency: true
@@ -243,13 +206,13 @@ describe('GradientToolController', () => {
     controller.pointerDown({ x: 20, y: 30 }, 8);
     controller.pointerMove({ x: 250, y: 30 });
     controller.pointerUp({ x: 250, y: 30 });
-    const layerCount = document.layers.length;
+    const layerCount = host.document.layers.length;
     controller.pointerDown({ x: 40, y: 70 }, 8);
     controller.pointerMove({ x: 100, y: 100 });
     expect(controller.pointerUp({ x: 100, y: 100 })).toBe(true);
 
-    expect(document.layers).toHaveLength(layerCount);
-    const layer = findDocumentLayer(document, document.activeLayerId);
+    expect(host.document.layers).toHaveLength(layerCount);
+    const layer = findDocumentLayer(host.document, host.document.activeLayerId);
     if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
     const fill = layer.elements[0]?.style.fill;
     expect(fill && 'kind' in fill ? fill.transform : null).toEqual({

@@ -18,6 +18,7 @@ import {
 } from '@lighttable/vector-rendering';
 import type { ImageDocument, LayerId, VectorLayer } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { replaceVectorElement, setLayerTransform } from '../../editor/document/documentCommands';
 import {
   cloneVectorEditorSelection,
   createVectorEditorSelection,
@@ -49,19 +50,9 @@ export interface VectorElementSelectionDependencies {
     matrix: AffineMatrix | null,
     documentOperation?: AffineMatrix | null
   ): boolean;
-  commitLayerTransformPreview?(
-    before: ImageDocument,
-    layerId: LayerId,
-    matrix: AffineMatrix,
-    documentOperation: AffineMatrix
-  ): boolean;
   setElementTransformPreview?(
     layers: readonly VectorLayer[],
     documentOperation: AffineMatrix | null
-  ): boolean;
-  commitElementTransformPreview?(
-    before: ImageDocument,
-    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
   ): boolean;
 }
 
@@ -87,14 +78,12 @@ interface ActiveElementDrag {
   readonly rotation: VectorElementRotationGesture | null;
   readonly preserveAspect: boolean;
   readonly layerPreview: {
-    readonly before: ImageDocument;
     readonly layer: VectorLayer;
     readonly openingTransform: AffineMatrix;
     matrix: AffineMatrix;
     documentOperation: AffineMatrix;
   } | null;
   readonly elementPreview: {
-    readonly before: ImageDocument;
     readonly sourceLayers: readonly VectorLayer[];
     elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[];
     revision: number;
@@ -270,7 +259,9 @@ export class VectorElementSelectionToolController {
       }
       drag.layerPreview.matrix = matrix;
       drag.layerPreview.documentOperation = documentOperation;
-      return true;
+      return this.documents.stageDocumentMutation(
+        (document) => setLayerTransform(document, drag.layerPreview!.layer.id, matrix)
+      );
     }
     const transformTarget = (mapping: SelectedElementTransform) => {
       if (!drag.scale && !drag.rotation) {
@@ -319,7 +310,10 @@ export class VectorElementSelectionToolController {
         return false;
       }
       drag.elementPreview.elements = elements;
-      return true;
+      return this.documents.stageDocumentMutation((document) => elements.reduce(
+        (next, { layerId, element }) => replaceVectorElement(next, layerId, element),
+        document
+      ));
     }
     return this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
@@ -360,22 +354,18 @@ export class VectorElementSelectionToolController {
     this.pointerMove(documentPoint);
     this.drag = null;
     if (drag.layerPreview) {
-      this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, null, null);
-      if (!drag.moved) return false;
-      return this.dependencies.commitLayerTransformPreview?.(
-        drag.layerPreview.before,
-        drag.layerPreview.layer.id,
-        drag.layerPreview.matrix,
-        drag.layerPreview.documentOperation
-      ) ?? false;
+      if (!drag.moved) {
+        this.documents.cancelDocumentMutation();
+        return false;
+      }
+      return this.documents.commitDocumentMutation();
     }
     if (drag.elementPreview) {
-      this.dependencies.setElementTransformPreview?.([], null);
-      if (!drag.moved) return false;
-      return this.dependencies.commitElementTransformPreview?.(
-        drag.elementPreview.before,
-        drag.elementPreview.elements
-      ) ?? false;
+      if (!drag.moved) {
+        this.documents.cancelDocumentMutation();
+        return false;
+      }
+      return this.documents.commitDocumentMutation();
     }
     if (!drag.moved) {
       this.documents.cancelElementMutation();
@@ -386,15 +376,12 @@ export class VectorElementSelectionToolController {
 
   cancel() {
     const active = this.drag !== null || this.gradientDrag !== null;
-    if (this.drag?.layerPreview) {
-      this.dependencies.setLayerTransformPreview?.(this.drag.layerPreview.layer, null, null);
-    }
-    if (this.drag?.elementPreview) {
-      this.dependencies.setElementTransformPreview?.([], null);
-    }
+    const optimizedPreview = Boolean(this.drag?.layerPreview || this.drag?.elementPreview);
     this.drag = null;
     this.gradientDrag = null;
-    return this.documents.cancelElementMutation() || active;
+    return (optimizedPreview
+      ? this.documents.cancelDocumentMutation()
+      : this.documents.cancelElementMutation()) || active;
   }
 
   clearSelection() {
@@ -448,15 +435,19 @@ export class VectorElementSelectionToolController {
     // preview plane, regardless of how many logical SVG objects the layer
     // contains. Pointer-up remains the sole canonical/history publication and
     // setLayerTransform carries document-space paints and linked masks with it.
-    const layerPreview = selectsCompleteLayer
+    const canPreviewLayer = selectsCompleteLayer
       && selectedLayer?.type === 'vector'
-      && this.dependencies.setLayerTransformPreview
-      && this.dependencies.commitLayerTransformPreview
-      && this.dependencies.setLayerTransformPreview(
+      && this.dependencies.setLayerTransformPreview;
+    const layerPreview = canPreviewLayer
+      && this.documents.beginDocumentMutation(
+        `vector:layer-transform:${selectedLayer.id}`,
+        { label: 'Free Transform', type: 'layer.transform' },
+        () => this.dependencies.setLayerTransformPreview?.(selectedLayer, null, null)
+      )
+      && this.dependencies.setLayerTransformPreview?.(
         selectedLayer, selectedLayer.transform, translationMatrix(0, 0)
       )
       ? {
-          before: document,
           layer: selectedLayer,
           openingTransform: { ...selectedLayer.transform },
           matrix: { ...selectedLayer.transform },
@@ -470,10 +461,13 @@ export class VectorElementSelectionToolController {
     const elementPreview = !layerPreview
       && sourceLayers.length > 0
       && this.dependencies.setElementTransformPreview
-      && this.dependencies.commitElementTransformPreview
-      && this.dependencies.setElementTransformPreview(sourceLayers, translationMatrix(0, 0))
+      && this.documents.beginDocumentMutation(
+        `vector:element-transform:${targets.map(({ elementId }) => elementId).join(',')}`,
+        { label: 'Free Transform', type: 'vector.transform' },
+        () => this.dependencies.setElementTransformPreview?.([], null)
+      )
+      && this.dependencies.setElementTransformPreview?.(sourceLayers, translationMatrix(0, 0))
       ? {
-          before: document,
           sourceLayers,
           elements: targets.map(({ layerId, openingElement }) => ({
             layerId,
@@ -482,6 +476,10 @@ export class VectorElementSelectionToolController {
           revision: 0
         }
       : null;
+    if (canPreviewLayer && !layerPreview) this.documents.cancelDocumentMutation();
+    if (!layerPreview && this.dependencies.setElementTransformPreview && !elementPreview) {
+      this.documents.cancelDocumentMutation();
+    }
     if (!layerPreview && !elementPreview && !this.documents.beginElementMutations(elements)) return true;
     this.drag = {
       documentId: document.id,

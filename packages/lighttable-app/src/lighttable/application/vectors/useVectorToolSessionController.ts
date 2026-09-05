@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { ImageDocument, LayerId, VectorLayer } from '../../editor/document/documentTypes';
+import type { ImageDocument, VectorLayer } from '../../editor/document/documentTypes';
 import type { AffineMatrix } from '@lighttable/vector-core';
-import type { VectorElement } from '@lighttable/vector-core';
 import type {
   EditorSession,
   ToolId,
@@ -16,6 +15,7 @@ import { VectorToolSessionController, type VectorToolSessionOptions
 } from './VectorToolSessionController';
 import type { VectorElementCreationTransaction } from './VectorDocumentController';
 import { vectorStyleFromToolSettings } from './vectorStylePresentation';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
@@ -25,29 +25,16 @@ export interface VectorToolSessionHookOptions {
   readonly gradient: EditorSession['gradient'];
   readonly shape: EditorSession['shape'];
   readonly style: VectorToolStyleSettings;
-  readonly previewDocumentSnapshot: (document: ImageDocument) => void;
-  readonly discardDocumentPreview: () => void;
-  readonly applyDocumentSnapshot: (document: ImageDocument) => void;
-  readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
   readonly setLayerTransformPreview?: (
     layer: VectorLayer,
     matrix: AffineMatrix | null,
     documentOperation?: AffineMatrix | null
   ) => boolean;
-  readonly commitLayerTransformPreview?: (
-    before: ImageDocument,
-    layerId: LayerId,
-    matrix: AffineMatrix,
-    documentOperation: AffineMatrix
-  ) => boolean;
   readonly setElementTransformPreview?: (
     layers: readonly VectorLayer[],
     documentOperation: AffineMatrix | null
-  ) => boolean;
-  readonly commitElementTransformPreview?: (
-    before: ImageDocument,
-    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
   ) => boolean;
   readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
@@ -72,15 +59,10 @@ export const useVectorToolSessionController = ({
   gradient,
   shape,
   style,
-  previewDocumentSnapshot,
-  discardDocumentPreview,
-  applyDocumentSnapshot,
-  pushDocumentHistory,
+  documentMutations,
   publishSelection,
   setLayerTransformPreview,
-  commitLayerTransformPreview,
   setElementTransformPreview,
-  commitElementTransformPreview,
   rasterizeShape,
   requestGradientColorEditor,
   onLiveShapeCommitted,
@@ -96,15 +78,10 @@ export const useVectorToolSessionController = ({
     shape,
     activeTool,
     style,
-    previewDocumentSnapshot,
-    discardDocumentPreview,
-    applyDocumentSnapshot,
-    pushDocumentHistory,
+    documentMutations,
     publishSelection,
     setLayerTransformPreview,
-    commitLayerTransformPreview,
     setElementTransformPreview,
-    commitElementTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -120,15 +97,10 @@ export const useVectorToolSessionController = ({
     shape,
     activeTool,
     style,
-    previewDocumentSnapshot,
-    discardDocumentPreview,
-    applyDocumentSnapshot,
-    pushDocumentHistory,
+    documentMutations,
     publishSelection,
     setLayerTransformPreview,
-    commitLayerTransformPreview,
     setElementTransformPreview,
-    commitElementTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -141,17 +113,10 @@ export const useVectorToolSessionController = ({
   if (!controllerRef.current) {
     controllerRef.current = new VectorToolSessionController({
       getDocument: () => portsRef.current.document,
-      previewDocumentSnapshot: (next) => {
-        portsRef.current.previewDocumentSnapshot(next);
+      documentMutations: {
+        begin: (...args) => portsRef.current.documentMutations.begin(...args),
+        change: (...args) => portsRef.current.documentMutations.change(...args)
       },
-      discardDocumentPreview: () => {
-        portsRef.current.discardDocumentPreview();
-      },
-      applyDocumentSnapshot: (next) => {
-        portsRef.current.document = next;
-        portsRef.current.applyDocumentSnapshot(next);
-      },
-      pushDocumentHistory: (before, after) => portsRef.current.pushDocumentHistory(before, after),
       getSelection: () => portsRef.current.selection,
       setSelection: (next) => {
         portsRef.current.selection = next;
@@ -161,14 +126,8 @@ export const useVectorToolSessionController = ({
         portsRef.current.setLayerTransformPreview?.(
           layer, matrix, documentOperation
         ) ?? false,
-      commitLayerTransformPreview: (before, layerId, matrix, documentOperation) =>
-        portsRef.current.commitLayerTransformPreview?.(
-          before, layerId, matrix, documentOperation
-        ) ?? false,
       setElementTransformPreview: (layers, documentOperation) =>
-        portsRef.current.setElementTransformPreview?.(layers, documentOperation) ?? false,
-      commitElementTransformPreview: (before, elements) =>
-        portsRef.current.commitElementTransformPreview?.(before, elements) ?? false
+        portsRef.current.setElementTransformPreview?.(layers, documentOperation) ?? false
     }, {
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),

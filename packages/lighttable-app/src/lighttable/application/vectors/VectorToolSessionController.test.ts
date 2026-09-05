@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AffineMatrix, VectorElement, VectorIdSource, VectorPath } from '@lighttable/vector-core';
+import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
 import {
   createAnchor,
   createSubpath,
@@ -8,10 +8,7 @@ import {
 } from '@lighttable/vector-core';
 import {
   createImageDocument,
-  createVectorLayer,
-  type ImageDocument,
-  type LayerId,
-  type VectorLayer
+  createVectorLayer
 } from '../../editor/document/documentTypes';
 import { setActiveLayer } from '../../editor/document/documentCommands';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
@@ -22,6 +19,7 @@ import {
 } from '../../editor/session/editorSession';
 import { VectorToolSessionController } from './VectorToolSessionController';
 import type { VectorElementCreationTransaction } from './VectorDocumentController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const ids = (): VectorIdSource => {
   let value = 0;
@@ -39,28 +37,23 @@ const setup = (
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
   onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
   preview?: Pick<ConstructorParameters<typeof VectorToolSessionController>[0],
-    'setLayerTransformPreview' | 'commitLayerTransformPreview'
-    | 'setElementTransformPreview' | 'commitElementTransformPreview'>
+    'setLayerTransformPreview' | 'setElementTransformPreview'>
 ) => {
-  let document = createImageDocument('Vector tools', 200, 100, 'asset');
-  let projectedDocument = document;
+  const host = createVectorDocumentTestHarness(
+    createImageDocument('Vector tools', 200, 100, 'asset')
+  );
   let selection: VectorEditorSelection = createVectorEditorSelection();
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
   const controller = new VectorToolSessionController({
-    getDocument: () => document,
-    previewDocumentSnapshot: (next) => { projectedDocument = next; },
-    discardDocumentPreview: () => { projectedDocument = document; },
-    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
-    pushDocumentHistory: (before, after) => history.push({ before, after }),
+    ...host.dependencies,
     getSelection: () => selection,
     setSelection: (next) => { selection = next; },
     ...preview
   }, { ids: ids(), rasterizeShape, onLiveShapeCommitted, onPathMutationCommitted });
   return {
     controller,
-    history,
-    get document() { return projectedDocument; },
-    set document(next) { document = next; projectedDocument = next; },
+    history: host.history,
+    get document() { return host.document; },
+    set document(next) { host.replaceDocument(next); },
     get selection() { return selection; }
   };
 };
@@ -339,10 +332,8 @@ describe('VectorToolSessionController', () => {
 
   it('keeps a single-object vector drag out of canonical document publication', () => {
     const setLayerTransformPreview = vi.fn(() => true);
-    const commitLayerTransformPreview = vi.fn(() => true);
     const state = setup(undefined, undefined, undefined, {
-      setLayerTransformPreview,
-      commitLayerTransformPreview
+      setLayerTransformPreview
     });
     const shape = createVectorLiveShape('shape', {
       kind: 'ellipse', width: 40, height: 40
@@ -366,15 +357,15 @@ describe('VectorToolSessionController', () => {
 
     expect(state.controller.pointerUp(44, { x: 100, y: 80 })).toBe(true);
     expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null, null);
-    expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
+    expect(state.history).toHaveLength(1);
+    expect(findDocumentLayer(state.document, layer.id)?.transform)
+      .toMatchObject({ tx: 60, ty: 40 });
   });
 
   it('keeps a complete multi-object layer drag on the retained layer preview', () => {
     const setLayerTransformPreview = vi.fn(() => true);
-    const commitLayerTransformPreview = vi.fn(() => true);
     const state = setup(undefined, undefined, undefined, {
-      setLayerTransformPreview,
-      commitLayerTransformPreview
+      setLayerTransformPreview
     });
     const first = createVectorLiveShape('first', {
       kind: 'rectangle', width: 20, height: 20,
@@ -403,20 +394,18 @@ describe('VectorToolSessionController', () => {
       expect.objectContaining({ tx: 20, ty: 15 })
     );
     expect(state.controller.pointerUp(45, { x: 50, y: 45 })).toBe(true);
-    expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
+    expect(state.history).toHaveLength(1);
+    expect(findDocumentLayer(state.document, layer.id)?.transform)
+      .toMatchObject({ tx: 20, ty: 15 });
   });
 
   it('keeps a partial element drag out of canonical document publication', () => {
     const setElementTransformPreview = vi.fn((
-      _layers: readonly VectorLayer[], _operation: AffineMatrix | null
-    ) => true);
-    const commitElementTransformPreview = vi.fn((
-      _before: ImageDocument,
-      _elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
+      _layers: Parameters<NonNullable<ConstructorParameters<typeof VectorToolSessionController>[0]['setElementTransformPreview']>>[0],
+      _documentOperation: Parameters<NonNullable<ConstructorParameters<typeof VectorToolSessionController>[0]['setElementTransformPreview']>>[1]
     ) => true);
     const state = setup(undefined, undefined, undefined, {
-      setElementTransformPreview,
-      commitElementTransformPreview
+      setElementTransformPreview
     });
     const first = createVectorLiveShape('first', {
       kind: 'rectangle', width: 20, height: 20,
@@ -455,10 +444,10 @@ describe('VectorToolSessionController', () => {
 
     expect(state.controller.pointerUp(46, { x: 65, y: 45 })).toBe(true);
     expect(setElementTransformPreview).toHaveBeenLastCalledWith([], null);
-    expect(commitElementTransformPreview).toHaveBeenCalledOnce();
-    expect(commitElementTransformPreview.mock.calls[0]?.[1][0]).toMatchObject({
-      layerId: layer.id,
-      element: { id: first.id, transform: { tx: 55, ty: 35 } }
+    expect(state.history).toHaveLength(1);
+    const committed = findDocumentLayer(state.document, layer.id);
+    expect(committed?.type === 'vector' ? committed.elements[0] : null).toMatchObject({
+      id: first.id, transform: { tx: 55, ty: 35 }
     });
   });
 

@@ -30,13 +30,15 @@ import {
   buildSceneTransformIndex,
   requireSceneTransform
 } from '../../editor/document/sceneTransformGraph';
+import type {
+  DocumentMutationController,
+  DocumentMutationDescription,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 
 export interface VectorDocumentControllerDependencies {
   getDocument(): ImageDocument | null;
-  previewDocumentSnapshot(document: ImageDocument): void;
-  discardDocumentPreview(): void;
-  applyDocumentSnapshot(document: ImageDocument): void;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
 }
 
 export interface VectorPathEdit {
@@ -52,18 +54,14 @@ export interface VectorElementEdit {
 }
 
 interface ActivePathMutation {
-  documentId: ImageDocument['id'];
   layerId: LayerId;
   pathId: string;
-  beforeDocument: ImageDocument;
-  previewDocument: ImageDocument;
+  transaction: DocumentMutationTransaction;
   session: PathMutationSession;
 }
 
 interface ActiveElementMutation {
-  documentId: ImageDocument['id'];
-  beforeDocument: ImageDocument;
-  previewDocument: ImageDocument;
+  transaction: DocumentMutationTransaction;
   elements: Array<{
     layerId: LayerId;
     elementId: string;
@@ -73,11 +71,13 @@ interface ActiveElementMutation {
 }
 
 interface ActiveElementCreation {
-  documentId: ImageDocument['id'];
   layerId: LayerId;
   elementId: string;
-  beforeDocument: ImageDocument;
-  previewDocument: ImageDocument;
+  transaction: DocumentMutationTransaction;
+}
+
+interface ActiveDocumentMutation {
+  transaction: DocumentMutationTransaction;
 }
 
 const sameTransform = (left: AffineMatrix, right: AffineMatrix) => (
@@ -101,6 +101,7 @@ export interface VectorElementCreationTransaction {
   readonly previewDocument: ImageDocument;
   readonly layerId: LayerId;
   readonly elementId: string;
+  commitWith(commit: (before: ImageDocument, after: ImageDocument) => boolean): boolean;
 }
 
 export interface VectorPathCreationPlacement {
@@ -143,15 +144,17 @@ export class VectorDocumentController {
   private activeMutation: ActivePathMutation | null = null;
   private activeElementMutation: ActiveElementMutation | null = null;
   private activeCreation: ActiveElementCreation | null = null;
+  private activeDocumentMutation: ActiveDocumentMutation | null = null;
 
   constructor(
     private readonly resolveDependencies: () => VectorDocumentControllerDependencies
   ) {}
 
   currentDocument() {
-    return this.activeCreation?.previewDocument
-      ?? this.activeMutation?.previewDocument
-      ?? this.activeElementMutation?.previewDocument
+    return this.activeCreation?.transaction.current
+      ?? this.activeMutation?.transaction.current
+      ?? this.activeElementMutation?.transaction.current
+      ?? this.activeDocumentMutation?.transaction.current
       ?? this.resolveDependencies().getDocument();
   }
 
@@ -269,8 +272,12 @@ export class VectorDocumentController {
   ): VectorElementCreationPlacement<TElement> | null {
     this.cancelActiveInteraction();
     const dependencies = this.resolveDependencies();
-    const beforeDocument = dependencies.getDocument();
-    if (!beforeDocument) return null;
+    const transaction = dependencies.documentMutations.begin(
+      `vector:create:${element.id}`,
+      { label: 'New Shape Layer', type: 'vector.create' }
+    );
+    if (!transaction) return null;
+    const beforeDocument = transaction.before;
 
     const activeLayer = beforeDocument.activeLayerId
       ? findDocumentLayer(beforeDocument, beforeDocument.activeLayerId)
@@ -294,7 +301,10 @@ export class VectorDocumentController {
     const layerId = canAppendToActive
       ? activeLayer.id
       : previewDocument.activeLayerId;
-    if (!layerId) return null;
+    if (!layerId) {
+      transaction.cancel();
+      return null;
+    }
 
     // Tool input arrives in document space. Persist the inverse layer mapping
     // on the element so nested/transformed vector layers do not reinterpret
@@ -306,19 +316,24 @@ export class VectorDocumentController {
     ).localToDocument;
     const documentToLayer = invertMatrix(layerToDocument);
     const documentToElement = invertMatrix(element.transform);
-    if (!documentToLayer || !documentToElement) return null;
+    if (!documentToLayer || !documentToElement) {
+      transaction.cancel();
+      return null;
+    }
     const storedElement = cloneVectorElement(element) as TElement;
     storedElement.transform = multiplyMatrices(documentToLayer, element.transform);
     previewDocument = replaceVectorElement(previewDocument, layerId, storedElement);
 
     this.activeCreation = {
-      documentId: beforeDocument.id,
       layerId,
       elementId: element.id,
-      beforeDocument,
-      previewDocument
+      transaction
     };
-    dependencies.previewDocumentSnapshot(previewDocument);
+    if (!transaction.change(() => previewDocument)) {
+      this.activeCreation = null;
+      transaction.cancel();
+      return null;
+    }
     return {
       layerId,
       element: cloneVectorElement(storedElement) as TElement,
@@ -330,14 +345,12 @@ export class VectorDocumentController {
 
   previewElementCreation(element: VectorElement) {
     const active = this.activeCreation;
-    const dependencies = this.resolveDependencies();
-    if (!active || !this.canonicalDocumentMatches(active)
-      || element.id !== active.elementId) {
+    if (!active || !active.transaction.active || element.id !== active.elementId) {
       this.activeCreation = null;
-      dependencies.discardDocumentPreview();
+      active?.transaction.cancel();
       return false;
     }
-    const document = active.previewDocument;
+    const document = active.transaction.current;
     const layer = findDocumentLayer(document, active.layerId);
     if (
       layer?.type !== 'vector'
@@ -345,26 +358,19 @@ export class VectorDocumentController {
         candidate.id === active.elementId && candidate.type === element.type)
     ) {
       this.activeCreation = null;
-      dependencies.discardDocumentPreview();
+      active.transaction.cancel();
       return false;
     }
     const next = replaceVectorElement(document, active.layerId, element);
     if (next === document) return false;
-    active.previewDocument = next;
-    dependencies.previewDocumentSnapshot(next);
-    return true;
+    return active.transaction.change(() => next);
   }
 
   commitElementCreation() {
-    const transaction = this.releaseElementCreation();
-    if (!transaction) return false;
-    const dependencies = this.resolveDependencies();
-    dependencies.applyDocumentSnapshot(transaction.previewDocument);
-    dependencies.pushDocumentHistory(
-      transaction.beforeDocument,
-      transaction.previewDocument
-    );
-    return true;
+    const active = this.activeCreation;
+    if (!active) return false;
+    this.activeCreation = null;
+    return active.transaction.commit();
   }
 
   /** Releases a complete preview so a host can atomically bake it to pixels. */
@@ -372,15 +378,15 @@ export class VectorDocumentController {
     const active = this.activeCreation;
     if (!active) return null;
     this.activeCreation = null;
-    if (!this.canonicalDocumentMatches(active)) {
-      this.resolveDependencies().discardDocumentPreview();
+    if (!active.transaction.active) {
       return null;
     }
     return {
-      beforeDocument: active.beforeDocument,
-      previewDocument: active.previewDocument,
+      beforeDocument: active.transaction.before,
+      previewDocument: active.transaction.current,
       layerId: active.layerId,
-      elementId: active.elementId
+      elementId: active.elementId,
+      commitWith: (commit) => active.transaction.commitWith(commit)
     };
   }
 
@@ -388,13 +394,7 @@ export class VectorDocumentController {
     const active = this.activeCreation;
     if (!active) return false;
     this.activeCreation = null;
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(active)) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
-    dependencies.discardDocumentPreview();
-    return true;
+    return active.transaction.cancel();
   }
 
   beginPathCreation(path: VectorPath, name = 'Shape'): VectorPathCreationPlacement | null {
@@ -421,20 +421,26 @@ export class VectorDocumentController {
 
   beginPathMutation(layerId: LayerId, pathId: string) {
     this.cancelActiveInteraction();
-    const document = this.resolveDependencies().getDocument();
-    const layer = document ? findDocumentLayer(document, layerId) : null;
+    const transaction = this.resolveDependencies().documentMutations.begin(
+      `vector:path:${layerId}:${pathId}`,
+      { label: 'Edit Path', type: 'vector.path.edit' }
+    );
+    if (!transaction) return false;
+    const document = transaction.before;
+    const layer = findDocumentLayer(document, layerId);
     const path = layer?.type === 'vector'
       ? layer.elements.find(
           (element): element is VectorPath => element.type === 'path' && element.id === pathId
         )
       : null;
-    if (!document || !path || !layer || layerIsLocked(layer, 'pixels')) return false;
+    if (!path || !layer || layerIsLocked(layer, 'pixels')) {
+      transaction.cancel();
+      return false;
+    }
     this.activeMutation = {
-      documentId: document.id,
       layerId,
       pathId,
-      beforeDocument: document,
-      previewDocument: document,
+      transaction,
       session: new PathMutationSession(path)
     };
     return true;
@@ -446,25 +452,34 @@ export class VectorDocumentController {
 
   beginElementMutations(addresses: ReadonlyArray<{ layerId: LayerId; elementId: string }>) {
     this.cancelActiveInteraction();
-    const document = this.resolveDependencies().getDocument();
-    if (!document || addresses.length === 0) return false;
+    if (addresses.length === 0) return false;
+    const transaction = this.resolveDependencies().documentMutations.begin(
+      `vector:elements:${addresses.map(({ layerId, elementId }) => `${layerId}/${elementId}`).join(',')}`,
+      { label: 'Edit Shape', type: 'vector.edit' }
+    );
+    if (!transaction) return false;
+    const document = transaction.before;
     const unique = new Set<string>();
     const elements: ActiveElementMutation['elements'] = [];
     for (const address of addresses) {
       const key = `${address.layerId}\0${address.elementId}`;
-      if (unique.has(key)) return false;
+      if (unique.has(key)) {
+        transaction.cancel();
+        return false;
+      }
       unique.add(key);
       const layer = findDocumentLayer(document, address.layerId);
       const element = layer?.type === 'vector'
         ? layer.elements.find(({ id }) => id === address.elementId)
         : null;
-      if (!element || !layer || layerIsLocked(layer, 'pixels')) return false;
+      if (!element || !layer || layerIsLocked(layer, 'pixels')) {
+        transaction.cancel();
+        return false;
+      }
       elements.push({ ...address, openingElement: cloneVectorElement(element) });
     }
     this.activeElementMutation = {
-      documentId: document.id,
-      beforeDocument: document,
-      previewDocument: document,
+      transaction,
       elements,
       changed: false
     };
@@ -481,13 +496,12 @@ export class VectorDocumentController {
     openingElement: VectorElement;
   }) => VectorElement) {
     const active = this.activeElementMutation;
-    const dependencies = this.resolveDependencies();
-    if (!active || !this.canonicalDocumentMatches(active)) {
+    if (!active || !active.transaction.active) {
       this.activeElementMutation = null;
-      dependencies.discardDocumentPreview();
+      active?.transaction.cancel();
       return false;
     }
-    const document = active.previewDocument;
+    const document = active.transaction.current;
     let next = document;
     for (const target of active.elements) {
       const layer = findDocumentLayer(next, target.layerId);
@@ -496,7 +510,7 @@ export class VectorDocumentController {
         : null;
       if (!current) {
         this.activeElementMutation = null;
-        dependencies.discardDocumentPreview();
+        active.transaction.cancel();
         return false;
       }
       const preview = mutate({
@@ -530,86 +544,61 @@ export class VectorDocumentController {
       }
       next = replaceVectorElement(next, target.layerId, revisioned);
     }
-    active.previewDocument = next;
-    dependencies.previewDocumentSnapshot(next);
     active.changed = true;
-    return true;
+    return active.transaction.change(() => next);
   }
 
   commitElementMutation() {
     const active = this.activeElementMutation;
     if (!active) return false;
     this.activeElementMutation = null;
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(active)) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
     if (!active.changed) {
-      dependencies.discardDocumentPreview();
+      active.transaction.cancel();
       return false;
     }
-    dependencies.applyDocumentSnapshot(active.previewDocument);
-    dependencies.pushDocumentHistory(active.beforeDocument, active.previewDocument);
-    return true;
+    return active.transaction.commit();
   }
 
   cancelElementMutation() {
     const active = this.activeElementMutation;
     if (!active) return false;
     this.activeElementMutation = null;
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(active)) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
-    dependencies.discardDocumentPreview();
-    return true;
+    return active.transaction.cancel();
   }
 
   previewPathMutation(mutate: (openingSnapshot: VectorPath) => VectorPath) {
     const active = this.activeMutation;
-    const dependencies = this.resolveDependencies();
-    if (!active || !this.canonicalDocumentMatches(active)) {
+    if (!active || !active.transaction.active) {
       this.activeMutation = null;
-      dependencies.discardDocumentPreview();
+      active?.transaction.cancel();
       return false;
     }
-    const document = active.previewDocument;
+    const document = active.transaction.current;
     const layer = findDocumentLayer(document, active.layerId);
     if (
       layer?.type !== 'vector'
       || !layer.elements.some((element) => element.type === 'path' && element.id === active.pathId)
     ) {
       this.activeMutation = null;
-      dependencies.discardDocumentPreview();
+      active.transaction.cancel();
       return false;
     }
     const preview = active.session.update(mutate);
     const next = replaceVectorPath(document, active.layerId, preview);
     if (next === document) return false;
-    active.previewDocument = next;
-    dependencies.previewDocumentSnapshot(next);
-    return true;
+    return active.transaction.change(() => next);
   }
 
   commitPathMutation() {
     const active = this.activeMutation;
     if (!active) return false;
     this.activeMutation = null;
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(active)) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
     const commit = active.session.commit();
     if (!commit) {
-      dependencies.discardDocumentPreview();
+      active.transaction.cancel();
       return false;
     }
-    dependencies.applyDocumentSnapshot(active.previewDocument);
-    dependencies.pushDocumentHistory(active.beforeDocument, active.previewDocument);
-    return true;
+    return active.transaction.commit();
   }
 
   cancelPathMutation() {
@@ -617,13 +606,46 @@ export class VectorDocumentController {
     if (!active) return false;
     this.activeMutation = null;
     active.session.cancel();
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(active)) {
-      dependencies.discardDocumentPreview();
+    return active.transaction.cancel();
+  }
+
+  beginDocumentMutation(
+    owner: string,
+    description: DocumentMutationDescription,
+    onClose?: () => void
+  ) {
+    this.cancelActiveInteraction();
+    const transaction = this.resolveDependencies().documentMutations.begin(
+      owner,
+      description,
+      onClose
+    );
+    if (!transaction) return false;
+    this.activeDocumentMutation = { transaction };
+    return true;
+  }
+
+  stageDocumentMutation(mutate: (document: ImageDocument) => ImageDocument) {
+    const active = this.activeDocumentMutation;
+    if (!active?.transaction.active) {
+      this.activeDocumentMutation = null;
       return false;
     }
-    dependencies.discardDocumentPreview();
-    return true;
+    return active.transaction.stage(mutate);
+  }
+
+  commitDocumentMutation() {
+    const active = this.activeDocumentMutation;
+    if (!active) return false;
+    this.activeDocumentMutation = null;
+    return active.transaction.commit();
+  }
+
+  cancelDocumentMutation() {
+    const active = this.activeDocumentMutation;
+    if (!active) return false;
+    this.activeDocumentMutation = null;
+    return active.transaction.cancel();
   }
 
   /**
@@ -642,14 +664,13 @@ export class VectorDocumentController {
       ? 'pathId' in interaction ? interaction.pathId : interaction.elementId
       : null;
     if (!interaction || connectedPath.id !== interactionPathId) return false;
-    const dependencies = this.resolveDependencies();
-    if (!this.canonicalDocumentMatches(interaction)) {
+    const transaction = interaction.transaction;
+    if (!transaction.active) {
       this.activeMutation = null;
       this.activeCreation = null;
-      dependencies.discardDocumentPreview();
       return false;
     }
-    const document = interaction.previewDocument;
+    const document = transaction.current;
     const activeLayer = findDocumentLayer(document, interaction.layerId);
     const targetLayer = findDocumentLayer(document, targetLayerId);
     if (
@@ -670,14 +691,18 @@ export class VectorDocumentController {
     }
     if (this.activeMutation && !this.activeMutation.session.commit()) {
       this.activeMutation = null;
-      dependencies.discardDocumentPreview();
+      transaction.cancel();
+      return false;
+    }
+    if (!transaction.change(() => next)) {
+      this.activeMutation = null;
+      this.activeCreation = null;
+      transaction.cancel();
       return false;
     }
     this.activeMutation = null;
     this.activeCreation = null;
-    dependencies.applyDocumentSnapshot(next);
-    dependencies.pushDocumentHistory(interaction.beforeDocument, next);
-    return true;
+    return transaction.commit();
   }
 
   dispose() {
@@ -685,30 +710,16 @@ export class VectorDocumentController {
   }
 
   private applyAtomic(change: (document: ImageDocument) => ImageDocument) {
-    if (this.activeMutation || this.activeElementMutation || this.activeCreation) return false;
-    const dependencies = this.resolveDependencies();
-    const before = dependencies.getDocument();
-    if (!before) return false;
-    const after = change(before);
-    if (after === before) return false;
-    dependencies.applyDocumentSnapshot(after);
-    dependencies.pushDocumentHistory(before, after);
-    return true;
-  }
-
-  private canonicalDocumentMatches(interaction: {
-    documentId: ImageDocument['id'];
-    beforeDocument: ImageDocument;
-  }) {
-    const document = this.resolveDependencies().getDocument();
-    return document?.id === interaction.documentId
-      && document.revision === interaction.beforeDocument.revision;
+    if (this.activeMutation || this.activeElementMutation
+      || this.activeCreation || this.activeDocumentMutation) return false;
+    return this.resolveDependencies().documentMutations.change(change);
   }
 
   private cancelActiveInteraction() {
     if (this.activeCreation) return this.cancelPathCreation();
     if (this.activeMutation) return this.cancelPathMutation();
     if (this.activeElementMutation) return this.cancelElementMutation();
+    if (this.activeDocumentMutation) return this.cancelDocumentMutation();
     return false;
   }
 }

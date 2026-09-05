@@ -15,6 +15,7 @@ import {
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { VectorDocumentController } from './VectorDocumentController';
 import { PenToolController } from './PenToolController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const ids = (): VectorIdSource => {
   let value = 0;
@@ -25,24 +26,16 @@ const setup = (
   style?: VectorStyle,
   onCommitted?: NonNullable<ConstructorParameters<typeof PenToolController>[1]>['onCommitted']
 ) => {
-  let document = createImageDocument('Pen', 200, 100, 'asset');
-  let projectedDocument = document;
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
-  const documentController = new VectorDocumentController(() => ({
-    getDocument: () => document,
-    previewDocumentSnapshot: (next) => { projectedDocument = next; },
-    discardDocumentPreview: () => { projectedDocument = document; },
-    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
-    pushDocumentHistory: (before, after) => history.push({ before, after })
-  }));
+  const host = createVectorDocumentTestHarness(createImageDocument('Pen', 200, 100, 'asset'));
+  const documentController = new VectorDocumentController(() => host.dependencies);
   return {
     controller: new PenToolController(documentController, {
       ids: ids(),
       onCommitted,
       ...(style ? { style: () => style } : {})
     }),
-    history,
-    get document() { return projectedDocument; }
+    history: host.history,
+    get document() { return host.document; }
   };
 };
 

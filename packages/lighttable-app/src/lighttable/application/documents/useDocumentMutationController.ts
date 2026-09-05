@@ -30,15 +30,24 @@ export interface DocumentMutationTransaction {
   readonly before: ImageDocument;
   readonly current: ImageDocument;
   get active(): boolean;
+  /** Updates the owned document state without asking the document renderer to project it. */
+  stage(mutate: (current: ImageDocument) => ImageDocument): boolean;
   change(mutate: (current: ImageDocument) => ImageDocument): boolean;
   commit(description?: DocumentMutationDescription): boolean;
+  /** Completes a compound GPU/document operation without creating generic history. */
+  commitWith(commit: (before: ImageDocument, after: ImageDocument) => boolean): boolean;
   cancel(): boolean;
 }
 
 export interface DocumentMutationController {
   get active(): boolean;
   readonly activeOwner: string | null;
-  begin(owner: string, description?: DocumentMutationDescription): DocumentMutationTransaction | null;
+  begin(
+    owner: string,
+    description?: DocumentMutationDescription,
+    onClose?: (reason: DocumentMutationCloseReason) => void,
+    interruption?: DocumentMutationInterruption
+  ): DocumentMutationTransaction | null;
   commitActive(description?: DocumentMutationDescription): boolean;
   cancelActive(): boolean;
   record(before: ImageDocument, after: ImageDocument, description?: DocumentMutationDescription): boolean;
@@ -49,9 +58,14 @@ export interface DocumentMutationController {
   ): boolean;
 }
 
+export type DocumentMutationCloseReason = 'commit' | 'cancel' | 'stale' | 'superseded' | 'failed';
+export type DocumentMutationInterruption = 'commit' | 'cancel';
+
 export interface DocumentMutationDescription {
   readonly label: string;
   readonly type: string;
+  readonly layerIds?: readonly LayerId[];
+  readonly byteSize?: number;
 }
 
 const inferDocumentMutationDescription = (
@@ -121,6 +135,8 @@ interface ActiveDocumentTransaction {
   readonly owner: string;
   readonly before: ImageDocument;
   readonly description?: DocumentMutationDescription;
+  readonly onClose?: (reason: DocumentMutationCloseReason) => void;
+  readonly interruption: DocumentMutationInterruption;
   latest: ImageDocument;
 }
 
@@ -265,17 +281,25 @@ export const createDocumentMutationController = (
     resolveDependencies().pushHistoryEntry({
       label: resolvedDescription.label,
       type: resolvedDescription.type,
-      layerIds: retained.layerIds,
-      byteSize: retained.byteSize + vectorBytes,
+      layerIds: [...new Set([
+        ...retained.layerIds,
+        ...(description?.layerIds ?? [])
+      ])],
+      byteSize: retained.byteSize + vectorBytes + (description?.byteSize ?? 0),
       undo: () => applyForDocument(documentId, before),
       redo: () => applyForDocument(documentId, after)
     });
     return true;
   };
 
-  const cancelTransaction = (token: symbol): boolean => {
+  const cancelTransaction = (
+    token: symbol,
+    reason: DocumentMutationCloseReason = 'cancel'
+  ): boolean => {
     if (!transaction || transaction.token !== token) return false;
+    const active = transaction;
     transaction = null;
+    active.onClose?.(reason);
     resolveDependencies().discardPreview();
     return true;
   };
@@ -288,11 +312,13 @@ export const createDocumentMutationController = (
     if (!active || active.token !== token) return false;
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
+      active.onClose?.('stale');
       resolveDependencies().discardPreview();
       return false;
     }
     transaction = null;
     if (active.latest === active.before) {
+      active.onClose?.('commit');
       resolveDependencies().discardPreview();
       return false;
     }
@@ -300,6 +326,7 @@ export const createDocumentMutationController = (
     try {
       dependencies.applySnapshot(active.latest);
       record(active.before, active.latest, description ?? active.description);
+      active.onClose?.('commit');
       return true;
     } catch (error) {
       try {
@@ -307,8 +334,67 @@ export const createDocumentMutationController = (
       } finally {
         dependencies.discardPreview();
       }
+      active.onClose?.('failed');
       throw error;
     }
+  };
+
+  const commitTransactionWith = (
+    token: symbol,
+    commit: (before: ImageDocument, after: ImageDocument) => boolean
+  ): boolean => {
+    const active = transaction;
+    if (!active || active.token !== token) return false;
+    if (!canonicalOriginIsCurrent(active)) {
+      transaction = null;
+      active.onClose?.('stale');
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    transaction = null;
+    if (active.latest === active.before) {
+      active.onClose?.('commit');
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    try {
+      const committed = commit(active.before, active.latest);
+      active.onClose?.(committed ? 'commit' : 'failed');
+      if (!committed) resolveDependencies().discardPreview();
+      return committed;
+    } catch (error) {
+      active.onClose?.('failed');
+      resolveDependencies().discardPreview();
+      throw error;
+    }
+  };
+
+  const updateTransaction = (
+    active: ActiveDocumentTransaction,
+    mutate: (current: ImageDocument) => ImageDocument,
+    project: boolean
+  ): boolean => {
+    if (transaction?.token !== active.token) return false;
+    if (!canonicalOriginIsCurrent(active)) {
+      cancelTransaction(active.token);
+      return false;
+    }
+    const current = active.latest;
+    const next = mutate(current);
+    if (next === current) return false;
+    if (next.id !== active.documentId) {
+      throw new Error('A document mutation cannot replace the document identity.');
+    }
+    active.latest = next;
+    if (!project) return true;
+    try {
+      resolveDependencies().previewSnapshot(next);
+    } catch (error) {
+      active.latest = current;
+      cancelTransaction(active.token);
+      throw error;
+    }
+    return true;
   };
 
   return {
@@ -318,13 +404,19 @@ export const createDocumentMutationController = (
     get activeOwner() {
       return transaction?.owner ?? null;
     },
-    begin: (owner, description) => {
+    begin: (owner, description, onClose, interruption = 'commit') => {
       if (!owner.trim()) throw new Error('A document transaction requires an owner.');
       // A newly-started interaction is the document-level boundary between
       // gestures. Finish the previous authored change before granting the new
       // lease. Its old handle becomes stale and cannot preview, commit or
       // discard the new owner's state.
-      if (transaction) commitTransaction(transaction.token);
+      if (transaction) {
+        if (transaction.interruption === 'cancel') {
+          cancelTransaction(transaction.token, 'superseded');
+        } else {
+          commitTransaction(transaction.token);
+        }
+      }
       const document = resolveDependencies().getDocument();
       if (!document) return null;
       const active: ActiveDocumentTransaction = {
@@ -333,6 +425,8 @@ export const createDocumentMutationController = (
         owner,
         before: document,
         description,
+        onClose,
+        interruption,
         latest: document
       };
       transaction = active;
@@ -346,29 +440,10 @@ export const createDocumentMutationController = (
         get active() {
           return transaction?.token === active.token;
         },
-        change: (mutate) => {
-          if (transaction?.token !== active.token) return false;
-          if (!canonicalOriginIsCurrent(active)) {
-            cancelTransaction(active.token);
-            return false;
-          }
-          const current = active.latest;
-          const next = mutate(current);
-          if (next === current) return false;
-          if (next.id !== active.documentId) {
-            throw new Error('A document mutation cannot replace the document identity.');
-          }
-          active.latest = next;
-          try {
-            resolveDependencies().previewSnapshot(next);
-          } catch (error) {
-            active.latest = current;
-            cancelTransaction(active.token);
-            throw error;
-          }
-          return true;
-        },
+        stage: (mutate) => updateTransaction(active, mutate, false),
+        change: (mutate) => updateTransaction(active, mutate, true),
         commit: (description) => commitTransaction(active.token, description),
+        commitWith: (commit) => commitTransactionWith(active.token, commit),
         cancel: () => cancelTransaction(active.token)
       };
     },
@@ -382,7 +457,13 @@ export const createDocumentMutationController = (
       // to deliver blur/pointer-up, preserve its visible result as its own
       // history item before executing the command. Late callbacks are rejected
       // by the transaction token.
-      if (transaction) commitTransaction(transaction.token);
+      if (transaction) {
+        if (transaction.interruption === 'cancel') {
+          cancelTransaction(transaction.token, 'superseded');
+        } else {
+          commitTransaction(transaction.token);
+        }
+      }
       const dependencies = resolveDependencies();
       const current = dependencies.getDocument();
       if (!current) return false;

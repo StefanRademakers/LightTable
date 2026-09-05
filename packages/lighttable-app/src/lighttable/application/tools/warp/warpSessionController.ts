@@ -31,21 +31,14 @@ import {
   createInactiveWarpHoldScheduler,
   type WarpHoldScheduler
 } from './warpHoldScheduler';
-
-export interface WarpHistoryEntry {
-  readonly label?: string;
-  readonly type?: string;
-  readonly layerIds: readonly LayerId[];
-  undo(): void;
-  redo(): void;
-}
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../../documents/useDocumentMutationController';
 
 export interface WarpSessionDependencies {
   getDocument(): ImageDocument | null;
-  previewDocumentSnapshot(document: ImageDocument): void;
-  discardDocumentPreview(): void;
-  applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: WarpHistoryEntry): void;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   setError(message: string | null): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
   setInteractionActive?(active: boolean): void;
@@ -75,8 +68,7 @@ export interface WarpSessionController {
 interface ActiveWarpSession {
   readonly documentId: ImageDocument['id'];
   readonly layerId: RasterLayer['id'];
-  readonly before: ImageDocument;
-  previewDocument: ImageDocument;
+  readonly transaction: DocumentMutationTransaction;
 }
 
 const documentWithoutWarp = (
@@ -138,44 +130,35 @@ export const createWarpSessionController = (
   } | null => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
-    if (!active || !document || document.id !== active.documentId
-      || document.revision !== active.before.revision) return null;
-    const layer = findRasterLayer(active.previewDocument, active.layerId);
-    return layer ? { dependencies, document: active.previewDocument, layer } : null;
+    if (!active?.transaction.active || !document || document.id !== active.documentId) return null;
+    const layer = findRasterLayer(active.transaction.current, active.layerId);
+    return layer ? { dependencies, document: active.transaction.current, layer } : null;
   };
 
   const publishStroke = (stroke: WarpStroke): boolean => {
     const target = currentTarget();
     if (!target) return false;
     const previewDocument = applyWarpStrokeToDocument(
-      active!.before,
+      active!.transaction.before,
       target.layer.id,
       stroke,
       target.dependencies
     );
-    active!.previewDocument = previewDocument;
-    target.dependencies.previewDocumentSnapshot(previewDocument);
-    return true;
+    return active!.transaction.change(() => previewDocument);
   };
 
   const scheduleStroke = (stroke: WarpStroke): boolean => {
     if (!currentTarget()) return false;
     previewScheduler.schedule(() => {
-      if (!publishStroke(stroke)) reset();
+      if (!publishStroke(stroke)) {
+        if (active) active.transaction.cancel();
+        else closeInteraction();
+      }
     });
     return true;
   };
 
-  const restoreBefore = () => {
-    if (!active) return;
-    previewScheduler.cancel();
-    const dependencies = resolveDependencies();
-    if (dependencies.getDocument()?.id === active.documentId) {
-      dependencies.discardDocumentPreview();
-    }
-  };
-
-  const reset = () => {
+  const closeInteraction = () => {
     holdScheduler.stop();
     previewScheduler.cancel();
     gesture.reset();
@@ -186,7 +169,8 @@ export const createWarpSessionController = (
   const moveMany = (pointerId: number, points: readonly WarpGesturePoint[]): boolean => {
     const target = currentTarget();
     if (!target) {
-      reset();
+      if (active) active.transaction.cancel();
+      else closeInteraction();
       return false;
     }
     const sourcePoints = toLayerSourcePoints(target.layer, points);
@@ -220,11 +204,16 @@ export const createWarpSessionController = (
         dependencies.setError('The active layer transform cannot be inverted.');
         return false;
       }
+      const transaction = dependencies.documentMutations.begin(
+        'tool.warp',
+        { label: 'Warp layer', type: 'layer.warp', layerIds: [layer.id] },
+        closeInteraction
+      );
+      if (!transaction) return false;
       active = {
         documentId: document.id,
         layerId: layer.id,
-        before: document,
-        previewDocument: document
+        transaction
       };
       dependencies.setInteractionActive?.(true);
       const stroke = gesture.begin({
@@ -235,14 +224,13 @@ export const createWarpSessionController = (
         point: sourcePoint
       });
       if (!stroke || !publishStroke(stroke)) {
-        restoreBefore();
-        reset();
+        transaction.cancel();
         return false;
       }
       if (request.mode !== 'push') {
         holdScheduler.start((timeMs) => {
           const heldStroke = gesture.tick(request.pointerId, timeMs);
-          if (heldStroke && !scheduleStroke(heldStroke)) reset();
+          if (heldStroke && !scheduleStroke(heldStroke)) transaction.cancel();
         });
       }
       dependencies.setError(null);
@@ -256,40 +244,16 @@ export const createWarpSessionController = (
       const stroke = gesture.finish(pointerId, timeMs);
       if (!session) return false;
       if (!stroke) {
-        restoreBefore();
-        active = null;
+        session.transaction.cancel();
         return true;
       }
       previewScheduler.cancel();
       if (!publishStroke(stroke)) {
-        reset();
+        session.transaction.cancel();
         return false;
       }
       const dependencies = resolveDependencies();
-      const after = active?.previewDocument ?? null;
-      active = null;
-      dependencies.setInteractionActive?.(false);
-      if (!after || after.id !== session.documentId) return false;
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushHistoryEntry({
-        label: 'Warp layer',
-        type: 'layer.warp',
-        layerIds: [session.layerId],
-        undo: () => {
-          const latest = resolveDependencies();
-          if (latest.getDocument()?.id !== session.documentId) {
-            throw new Error('The Warp edit belongs to a different document.');
-          }
-          latest.applyDocumentSnapshot(session.before);
-        },
-        redo: () => {
-          const latest = resolveDependencies();
-          if (latest.getDocument()?.id !== session.documentId) {
-            throw new Error('The Warp edit belongs to a different document.');
-          }
-          latest.applyDocumentSnapshot(after);
-        }
-      });
+      if (!session.transaction.commit()) return false;
       dependencies.onStrokeCommitted?.(session.layerId, structuredClone(stroke));
       return true;
     },
@@ -297,9 +261,7 @@ export const createWarpSessionController = (
       if (!gesture.cancel(pointerId)) return false;
       holdScheduler.stop();
       previewScheduler.cancel();
-      restoreBefore();
-      active = null;
-      resolveDependencies().setInteractionActive?.(false);
+      active?.transaction.cancel();
       return true;
     },
     clearActiveLayer: () => {
@@ -321,32 +283,17 @@ export const createWarpSessionController = (
         dependencies.setError('The active layer has no Warp edit to reset.');
         return false;
       }
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushHistoryEntry({
-        label: 'Reset Warp',
-        type: 'layer.warp.reset',
-        layerIds: [layer.id],
-        undo: () => {
-          const latest = resolveDependencies();
-          if (latest.getDocument()?.id !== before.id) {
-            throw new Error('The Warp edit belongs to a different document.');
-          }
-          latest.applyDocumentSnapshot(before);
-        },
-        redo: () => {
-          const latest = resolveDependencies();
-          if (latest.getDocument()?.id !== before.id) {
-            throw new Error('The Warp edit belongs to a different document.');
-          }
-          latest.applyDocumentSnapshot(after);
-        }
-      });
+      dependencies.documentMutations.change(
+        () => after,
+        true,
+        { label: 'Reset Warp', type: 'layer.warp.reset', layerIds: [layer.id] }
+      );
       dependencies.setError(null);
       return true;
     },
     reset: () => {
-      restoreBefore();
-      reset();
+      if (active) active.transaction.cancel();
+      else closeInteraction();
     }
   };
 };

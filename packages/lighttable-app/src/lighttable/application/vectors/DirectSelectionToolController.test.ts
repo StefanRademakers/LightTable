@@ -21,32 +21,27 @@ import {
 } from '../../editor/session/editorSession';
 import { DirectSelectionToolController } from './DirectSelectionToolController';
 import { VectorDocumentController } from './VectorDocumentController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const setup = () => {
-  let document = createImageDocument('Direct selection', 300, 200, 'asset');
-  let projectedDocument = document;
+  const host = createVectorDocumentTestHarness(
+    createImageDocument('Direct selection', 300, 200, 'asset')
+  );
   let selection: VectorEditorSelection = createVectorEditorSelection();
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
-  const documents = new VectorDocumentController(() => ({
-    getDocument: () => document,
-    previewDocumentSnapshot: (next) => { projectedDocument = next; },
-    discardDocumentPreview: () => { projectedDocument = document; },
-    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
-    pushDocumentHistory: (before, after) => { history.push({ before, after }); }
-  }));
+  const documents = new VectorDocumentController(() => host.dependencies);
   const onCommitted = vi.fn();
   const controller = new DirectSelectionToolController(documents, {
-    getDocument: () => document,
+    getDocument: () => host.document,
     getSelection: () => selection,
     setSelection: vi.fn((next) => { selection = next; })
   }, onCommitted);
   return {
     controller,
     documents,
-    history,
+    history: host.history,
     onCommitted,
-    get document() { return projectedDocument; },
-    set document(next) { document = next; projectedDocument = next; },
+    get document() { return host.document; },
+    set document(next) { host.replaceDocument(next); },
     get selection() { return selection; }
   };
 };

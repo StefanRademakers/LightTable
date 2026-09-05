@@ -17,31 +17,18 @@ import {
   resolveLiveShapeDrag
 } from './LiveShapeToolController';
 import { VectorDocumentController } from './VectorDocumentController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const setup = () => {
-  let document = createImageDocument('Shapes', 200, 100, 'asset');
-  let projectedDocument = document;
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
-  const dependencies = {
-    getDocument: () => document,
-    previewDocumentSnapshot: (next: typeof document) => { projectedDocument = next; },
-    discardDocumentPreview: () => { projectedDocument = document; },
-    applyDocumentSnapshot: vi.fn((next: typeof document) => {
-      document = next;
-      projectedDocument = next;
-    }),
-    pushDocumentHistory: vi.fn((before: typeof document, after: typeof document) => {
-      history.push({ before, after });
-    })
-  };
-  const documents = new VectorDocumentController(() => dependencies);
+  const host = createVectorDocumentTestHarness(createImageDocument('Shapes', 200, 100, 'asset'));
+  const documents = new VectorDocumentController(() => host.dependencies);
   const ids: VectorIdSource = { next: (kind) => `${kind}-1` };
   return {
     documents,
     ids,
-    history,
-    get document() { return projectedDocument; },
-    replaceDocument(next: typeof document) { document = next; projectedDocument = next; }
+    history: host.history,
+    get document() { return host.document; },
+    replaceDocument(next: typeof host.document) { host.replaceDocument(next); }
   };
 };
 

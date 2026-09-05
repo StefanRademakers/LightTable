@@ -65,19 +65,9 @@ export interface VectorToolSessionDependencies extends VectorDocumentControllerD
     matrix: AffineMatrix | null,
     documentOperation?: AffineMatrix | null
   ): boolean;
-  commitLayerTransformPreview?(
-    before: ImageDocument,
-    layerId: LayerId,
-    matrix: AffineMatrix,
-    documentOperation: AffineMatrix
-  ): boolean;
   setElementTransformPreview?(
     layers: readonly VectorLayer[],
     documentOperation: AffineMatrix | null
-  ): boolean;
-  commitElementTransformPreview?(
-    before: ImageDocument,
-    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
   ): boolean;
 }
 
@@ -367,11 +357,10 @@ export class VectorToolSessionController {
     if (capture.mode === 'live-shape') {
       if (options.rasterize || capture.rasterize) {
         const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
-        if (!transaction || !this.rasterizeShape?.(transaction)) {
-          if (transaction) this.dependencies.discardDocumentPreview();
-          return false;
-        }
-        return true;
+        if (!transaction) return false;
+        return transaction.commitWith(
+          () => this.rasterizeShape?.(transaction) ?? false
+        );
       }
       const opening = this.liveShape.snapshot();
       const committed = this.liveShape.pointerUp(documentPoint, options);

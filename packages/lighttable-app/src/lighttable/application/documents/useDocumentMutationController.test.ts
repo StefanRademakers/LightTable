@@ -154,6 +154,43 @@ describe('document mutation controller', () => {
     expect(state.history).toHaveLength(0);
   });
 
+  it('keeps staged document intent owned by the transaction without replacing the renderer preview', () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.renderer-optimized');
+    expect(transaction?.stage((current) => renamed(current, 'Staged'))).toBe(true);
+    expect(transaction?.current.name).toBe('Staged');
+    expect(state.document?.name).toBe('First');
+    expect(state.previewSnapshot).not.toHaveBeenCalled();
+    expect(transaction?.commit()).toBe(true);
+    expect(state.document?.name).toBe('Staged');
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('releases transaction-owned renderer state exactly once', () => {
+    const state = setup();
+    const onClose = vi.fn();
+    const transaction = state.controller.begin('test.cleanup', undefined, onClose);
+    transaction?.change((current) => renamed(current, 'Preview'));
+    expect(transaction?.cancel()).toBe(true);
+    expect(transaction?.cancel()).toBe(false);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('hands a staged compound operation to its specialized committer without generic history', () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.compound');
+    transaction?.stage((current) => renamed(current, 'Compound'));
+    const commit = vi.fn((before: ImageDocument, after: ImageDocument) => {
+      expect(before.name).toBe('First');
+      expect(after.name).toBe('Compound');
+      return true;
+    });
+    expect(transaction?.commitWith(commit)).toBe(true);
+    expect(commit).toHaveBeenCalledOnce();
+    expect(state.applySnapshot).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+  });
+
   it('finishes an active gesture before running an unrelated command', () => {
     const state = setup();
     const transaction = state.controller.begin('test.preview');

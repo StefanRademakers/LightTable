@@ -15,30 +15,18 @@ import {
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { VectorDocumentController } from './VectorDocumentController';
+import { createVectorDocumentTestHarness } from './vectorDocumentTestHarness';
 
 const setup = () => {
-  let document = createImageDocument('Vectors', 100, 50, 'asset');
-  let projectedDocument = document;
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
-  const dependencies = {
-    getDocument: () => document,
-    previewDocumentSnapshot: (next: typeof document) => { projectedDocument = next; },
-    discardDocumentPreview: () => { projectedDocument = document; },
-    applyDocumentSnapshot: vi.fn((next: typeof document) => {
-      document = next;
-      projectedDocument = next;
-    }),
-    pushDocumentHistory: vi.fn((before: typeof document, after: typeof document) => {
-      history.push({ before, after });
-    })
-  };
+  const host = createVectorDocumentTestHarness(
+    createImageDocument('Vectors', 100, 50, 'asset')
+  );
   return {
-    controller: new VectorDocumentController(() => dependencies),
-    dependencies,
-    history,
-    get document() { return projectedDocument; },
-    get canonicalDocument() { return document; },
-    replaceDocument(next: typeof document) { document = next; projectedDocument = next; }
+    controller: new VectorDocumentController(() => host.dependencies),
+    history: host.history,
+    get document() { return host.document; },
+    get canonicalDocument() { return host.canonicalDocument; },
+    replaceDocument(next: typeof host.document) { host.replaceDocument(next); }
   };
 };
 
