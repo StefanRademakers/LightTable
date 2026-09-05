@@ -136,6 +136,8 @@ Actions observe editor commands after that durable boundary. Recorder or subscri
 
 The pointer-rate path is unchanged: it performs no readback, history construction or document-sized allocation. Large transform textures remain session-scoped; the added identity checks and compensation execute only at commit, undo/redo or failure. Per-preview bind groups and command encoders remain a profiling candidate, not an architectural blocker.
 
+Transform translation now also freezes the four source-frame points at pointer-down. Snapping therefore evaluates every pointer event against the same drag baseline even when a preview causes React to publish new overlay geometry during the gesture. Retained axis matches and release hysteresis remain drag-owned. This removes a feedback path in which the moving preview could become its own next source and appear to fight, shrink or spring back. The only added work is copying four points once at gesture start; the pointer-move and GPU paths are unchanged.
+
 ### Serialized history restoration and asynchronous publication
 
 History no longer accepts newly recorded commands while undo or redo is restoring an older state. The previous pending-command queue could append a newer history node after an asynchronous restore had already replaced the canonical document or GPU state, leaving the visible result and history cursor on different branches.
@@ -185,10 +187,10 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Pen, shape, vector selection and vector Gradient | Shared vector-gesture document lease | Migrated |
 | Warp | Document lease plus reversible GPU edit | Migrated |
 | Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
-| Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: commit rejection and specialized gesture rollback are stabilized; cross-owner command/undo integration still needs audit |
+| Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots, serialized work and renderer/document generation ownership | Migrated; manual GPU workflow verification remains |
 | Point, paragraph, vertical and path text | Move, resize, handles, creation, layout, warp, recovery and text-to-shape use document leases; typing groups compensate rejected history | Partial: renderer recovery and complete workflow verification still need audit |
 | Layer mutations, merge, rasterize and flatten | Document lease plus atomic document/GPU publication | Migrated; repeated workflow and renderer-resource verification remains |
-| Adjustments, effects and filters | Shared preview controller for migrated paths; semantic/global Grade commits compensate rejected history | Partial: every effect/filter commit and resource cleanup still needs an inventory |
+| Adjustments, effects and filters | Shared preview controller for migrated paths; Layer Style and Grade interactions use explicit start/end transactions | Partial: remaining filter executors and resource cleanup still need an inventory |
 
 This table is the completion ledger. A family is not considered stable merely because its primary pointer gesture uses the transaction controller; semantic commands, Actions/MCP execution, cancel, document switch, undo/redo and renderer recovery must reach the same boundary as well.
 
@@ -257,9 +259,13 @@ The repair should enforce these rules, not introduce a competing architecture.
 3. A command cannot be advertised merely because a renderer is mounted.
 4. Asynchronous commands remain pending until their durable result is committed.
 
-## Audit findings
+## Original audit findings and current disposition
+
+The findings below are retained as the causal record for this stabilization program. Each section now states its current disposition so resolved defects are not mistaken for unfinished work and reimplemented through another path.
 
 ### History does not provide rollback
+
+Current disposition: mitigated at every migrated document/GPU publisher. `DocumentCommandHistory` remains a serialization and cursor primitive rather than a general rollback engine; compound callers must still own compensation until their history entry is accepted. The remaining work is failure-injection and real-GPU verification, not another history implementation.
 
 `DocumentCommandHistory` serializes undo and redo. When a callback throws, it restores the history node but cannot restore mutations the callback already made.
 
@@ -281,6 +287,8 @@ Required change:
 - rollback failure must quarantine the document and preserve recovery evidence rather than continue silently.
 
 ### Selection has multiple authorities
+
+Current disposition: resolved architecturally. `DocumentEditorState` owns the exact committed mask snapshot and semantic provenance; the renderer is a projection. Selection mutations and history restoration are serialized, exact snapshots are restored atomically, and queued work is bound to its opening renderer/document generation across GPU waits and readbacks. Manual desktop/web GPU workflows remain in the acceptance matrix.
 
 Selection currently spans a canonical operation recipe, selection geometry, renderer state and a GPU mask. History can reconstruct a selection by replaying operations against a document revision. That reconstruction is unsafe after document content changes.
 
@@ -306,6 +314,8 @@ Required change:
 
 ### Transform session lifetime is unstable
 
+Current disposition: resolved in the transaction/session lifecycle. Pointer-up checkpoints the active session; explicit completion, target/tool exit and cancel are the termination boundaries. The immutable source survives repeated gestures and the final pixel/document/history publication is compensating. Manual repeated-transform image-quality verification remains.
+
 The transform rasterizer correctly uses an immutable source texture while one session remains alive. Progressive degradation therefore indicates that the session is being committed, discarded or reconstructed between related gestures.
 
 Relevant implementation:
@@ -322,6 +332,8 @@ Required change:
 - retain the original source until explicit commit, tool exit, target exit or cancel.
 
 ### Transform snapping does not retain its target
+
+Current disposition: resolved in code. Axis matches and release hysteresis are retained for the drag, self/selected targets are excluded, and affine as well as projective translation calculate from pointer-down geometry. The overlay now freezes its source points at pointer-down so a React preview update cannot feed moving geometry back into snapping. Slow edge/corner verification on Windows and macOS remains required.
 
 The snap engine supports retained matches and a release tolerance, but Transform translation does not consistently pass that state back into subsequent evaluations.
 
@@ -347,6 +359,8 @@ Required change:
 
 ### Preview ownership is inconsistent
 
+Current disposition: partially resolved. Transform, selection, paint preparation, text geometry, Face Warp, Auto Align, Layer Style, document geometry and migrated adjustments have explicit preview/commit/cancel ownership. The remaining work is a bounded inventory of filter-extension and linked-mask/group preview paths; no broad preview rewrite is authorized without a failing invariant.
+
 Several controllers use canonical document publication as their live preview mechanism. Examples include filters, warp, linked masks, group transforms and some text/vector gestures.
 
 Impact:
@@ -366,6 +380,8 @@ Required change:
 
 ### Adjustment preview discard is incomplete
 
+Current disposition: resolved. Discard detects an active preview and republishes the canonical renderer document and adjustment projection. Target replacement and interaction termination now choose commit or cancel explicitly in migrated panels.
+
 `discardAdjustmentPreview()` clears its local preview reference but does not republish the canonical document to the renderer.
 
 Relevant implementation:
@@ -380,6 +396,8 @@ Required change:
 
 ### Layer effects use elapsed time as a commit boundary
 
+Current disposition: resolved for the Layer Style editor. Controls propagate interaction start/end/cancel, the document transaction begins on authored interaction, pointer-up flushes the latest throttled preview and commits exactly once, and unmount/target replacement cancels. The timer only coalesces newest-only renderer previews and is not a history boundary.
+
 Layer style editing uses throttling and an inactivity checkpoint. A pause during one drag can therefore divide the gesture into several history entries.
 
 Required change:
@@ -391,6 +409,8 @@ Required change:
 - use an inactivity timeout only as crash/lost-capture recovery, not normal history behavior.
 
 ### Filters blur product maturity and transaction state
+
+Current disposition: open product/architecture work. It is separate from the transaction bugs already migrated. Filter admission, naming and complete executor resource accounting still need an explicit decision and audit.
 
 `ACTIVE_FILTER_PACKS` enables stable P0, preview P1 and experimental P2 together. The renderer constructs extension executors as part of the same filter system.
 
@@ -434,6 +454,8 @@ Still required before declaring the family complete:
 
 ### Paint always consumes a selection texture
 
+Current disposition: resolved at the renderer boundary. Inactive selection restoration clears both selection targets to the white identity value before setting `active = false`; paint therefore cannot retain a hidden clipping mask after deselect or document restore. Manual painting after select/deselect/undo/document-switch remains an acceptance check.
+
 Paint shaders multiply strokes by a selection texture. The intended no-selection texture is white. If selection UI state and the bound texture diverge, painting remains restricted to an invisible old region.
 
 Required change:
@@ -445,6 +467,8 @@ Required change:
 
 ### Async selection commands report success too early
 
+Current disposition: resolved. Selection commands await the applied exact snapshot and history acceptance. Serialized queued work captures its opening renderer/document owner, validates again after GPU waits/readbacks and resolves stale work as canceled without publishing into the newly active document.
+
 The pointer Magic Wand route can start asynchronous GPU work and return success before the mask result is complete. Object selection has a more appropriate awaited lifecycle.
 
 Required change:
@@ -454,6 +478,8 @@ Required change:
 - Actions and MCP must record/reply only after commit.
 
 ### Document open settles before presentation
+
+Current disposition: resolved in the open lifecycle. Reused and newly created renderers both await the current generation's presentation barrier before open settles. First-frame callbacks and waiters are generation-owned, so an older document submission cannot mark a newly bound document ready. Cold-start and device-loss hardware verification remains.
 
 Document open marks the renderer ready after hydration. `onSettled` hides loading independently of `onFirstFrame`.
 
@@ -478,6 +504,8 @@ Required change:
 - start deferred scopes only after presentation without blocking it.
 
 ### Command capability resolution is fail-open
+
+Current disposition: resolved. Command ownership is explicit and exhaustive, capability queries fail closed, and the selected owner must both declare the command and implement its complete port. The registry no longer assembles mixed mounted/canonical proxy owners.
 
 When mounted ports do not implement `supportsCommand`, the registry currently treats every command as supported.
 
@@ -753,7 +781,7 @@ Expected invariant: all admitted routes have the same final state or the same ex
 
 ## Testing strategy
 
-The current targeted unit suites are useful but insufficient. During the audit, the existing suites for history, selection, layer commands, open lifecycle, renderer lifecycle and snapping all passed: 122 tests total. The known failures live between those owners.
+The targeted suites are useful but insufficient on their own. After the latest ownership, selection, history, rendering and resource-lifetime slices, the complete application suite passed 542 files and 3,413 tests. The remaining acceptance risk is concentrated in cross-owner workflows and real WebGPU/platform behavior rather than known unit failures.
 
 Testing should therefore emphasize invariants and controlled failure points rather than simply adding more local coverage.
 

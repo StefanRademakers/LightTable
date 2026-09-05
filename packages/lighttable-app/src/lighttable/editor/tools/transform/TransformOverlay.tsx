@@ -44,6 +44,7 @@ interface TransformOverlayProps {
 interface DragState {
   pointerId: number;
   handle: TransformHandle;
+  sourcePoints: readonly TransformPoint[];
   matrix: AffineMatrix;
   frameMatrix: AffineMatrix;
   start: TransformPoint;
@@ -190,6 +191,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     dragRef.current = {
       pointerId: event.pointerId,
       handle,
+      sourcePoints: geometry.source.map((point) => ({ ...point })),
       matrix: state.matrix,
       frameMatrix: geometry.frameMatrix,
       start,
@@ -240,7 +242,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       scheduleProjective(snapped.value, snapped.matches);
     } else if (drag.handle === 'body') {
       const snapped = snapAffineTranslation(
-        geometry.source,
+        drag.sourcePoints,
         drag.matrix,
         { x: current.x - drag.start.x, y: current.y - drag.start.y },
         drag.snapTargets,
