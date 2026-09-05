@@ -3,8 +3,8 @@ import { findRasterLayer } from '../document/layerTree';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
 import {
   encodeRgba8Png,
-  readR8Texture,
-  selectionMaskToRgba8,
+  halfFloatSelectionMaskToRgba8,
+  readR16FloatTexture,
   type Rgba8ImageEncoding
 } from '../../gpu/gpuReadback';
 import { planDocumentRegionPreview } from '../geometry/documentRegionPreview';
@@ -227,14 +227,14 @@ export class SelectionClipboardService {
       throw new Error('A selection is required for mask export.');
     }
     const { width, height } = this.options.dimensions();
-    const mask = await readR8Texture(
+    const mask = await readR16FloatTexture(
       device,
       textures.mask,
       width,
       height,
       'LightTable selection mask readback'
     );
-    return encodeRgba8Png(selectionMaskToRgba8(mask), width, height);
+    return encodeRgba8Png(halfFloatSelectionMaskToRgba8(mask), width, height);
   }
 
   async pasteExternalImage(

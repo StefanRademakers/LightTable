@@ -49,6 +49,8 @@ import type {
   SampledBrushStrokePlan
 } from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
+import { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
+import { readR16FloatTexture } from '../../gpu/gpuReadback';
 
 const isolatedLayerTree = (
   nodes: readonly LayerNode[],
@@ -1035,6 +1037,52 @@ export class LayerDocumentRenderer {
 
   clearSelection() {
     return this.runtime.selectionRasterizer.clear();
+  }
+
+  async captureSelectionSnapshot() {
+    const { width, height } = this.runtime.resources.dimensions();
+    const textures = this.runtime.selectionTextures;
+    if (!textures.active || !textures.mask) {
+      return SelectionMaskSnapshot.inactive(width, height);
+    }
+    return SelectionMaskSnapshot.fromRaw(
+      width,
+      height,
+      await readR16FloatTexture(
+        this.device,
+        textures.mask,
+        width,
+        height,
+        'LightTable selection snapshot readback'
+      )
+    );
+  }
+
+  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot) {
+    const { width, height } = this.runtime.resources.dimensions();
+    if (snapshot.width !== width || snapshot.height !== height) {
+      throw new RangeError(
+        `Selection snapshot is ${snapshot.width} x ${snapshot.height}, `
+        + `but the active document is ${width} x ${height}.`
+      );
+    }
+    if (!snapshot.active) {
+      this.runtime.selectionRasterizer.clear();
+      return true;
+    }
+    const textures = this.runtime.selectionTextures;
+    textures.ensureTargets();
+    if (!textures.result) throw new Error('The selection restore target is unavailable.');
+    const values = new Uint16Array(snapshot.toRaw());
+    this.device.queue.writeTexture(
+      { texture: textures.result },
+      values,
+      { bytesPerRow: width * Uint16Array.BYTES_PER_ELEMENT, rowsPerImage: height },
+      [width, height]
+    );
+    textures.swapMaskAndResult();
+    textures.active = true;
+    return true;
   }
 
   destroyImageResources() {

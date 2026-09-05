@@ -137,6 +137,7 @@ const cloneLoadedSourceState = (
 const cloneEditorSession = (session: DocumentEditorState): DocumentEditorState => ({
   activeChannel: session.activeChannel,
   selection: [...session.selection],
+  selectionMaskSnapshot: session.selectionMaskSnapshot,
   vectorSelection: {
     elements: session.vectorSelection.elements.map((reference) => ({ ...reference })),
     paths: session.vectorSelection.paths.map((reference) => ({ ...reference })),

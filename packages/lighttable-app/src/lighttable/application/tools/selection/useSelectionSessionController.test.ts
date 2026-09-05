@@ -6,6 +6,7 @@ import {
 import { addLayerMask } from '../../../editor/document/documentCommands';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type { SelectionShape } from '../../../editor/selection/selectionTypes';
+import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import {
   createSelectionSessionController,
   type SelectionHistoryEntry,
@@ -20,24 +21,32 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   let pointerId: number | null = null;
   let draft: SelectionShape | null = null;
   let draftPublications = 0;
+  let selectionMaskSnapshot = SelectionMaskSnapshot.inactive(document.width, document.height);
   const history: SelectionHistoryEntry[] = [];
   const renderer = {
     replaceSelection: vi.fn(async () => true),
     setSelection: vi.fn(async () => true),
-    clearSelection: vi.fn(),
+    clearSelection: vi.fn(async () => true),
+    captureSelectionSnapshot: vi.fn(async () => selectionMaskSnapshot),
+    restoreSelectionSnapshot: vi.fn(async (snapshot: SelectionMaskSnapshot) => {
+      selectionMaskSnapshot = snapshot;
+      return true;
+    }),
     transformSelection: vi.fn(async () => true),
     applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
     applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
     applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true),
-    paintSelectionDabs: vi.fn(() => true)
+    paintSelectionDabs: vi.fn(async () => true)
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
     getRenderer: () => renderer,
     getSelection: () => selection,
-    publishSelection: (next, nextPointerId) => {
+    getSelectionMaskSnapshot: () => selectionMaskSnapshot,
+    publishSelection: (next, nextPointerId, nextMask) => {
       selection = next;
       pointerId = nextPointerId;
+      if (nextMask !== undefined) selectionMaskSnapshot = nextMask;
     },
     publishDraft: (next) => {
       draft = next;
@@ -145,7 +154,7 @@ describe('selection session controller', () => {
     expect(state.pointerId).toBe(7);
     expect(state.controller.move(7, { x: 40, y: 50 })).toBe(true);
     expect(state.controller.finish(7)).toBe(true);
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.renderer.setSelection).toHaveBeenCalledOnce();
     expect(state.selection).toHaveLength(1);
     expect(state.history).toHaveLength(1);
@@ -184,11 +193,11 @@ describe('selection session controller', () => {
       { style: 'fixed', width: 30, height: 20, featherRadius: 8 }
     )).toBe(true);
     expect(state.controller.finish(17)).toBe(true);
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.renderer.setSelection).toHaveBeenCalledWith({
       kind: 'ellipse',
       points: [{ x: 10, y: 10 }, { x: 40, y: 30 }]
-    }, 'add', 8);
+    }, 'add', 8, false);
     expect(state.selection).toEqual([{
       mode: 'add',
       amount: 8,
@@ -219,7 +228,7 @@ describe('selection session controller', () => {
       { x: 0, y: 20 }
     ]);
     expect(state.controller.finish(18)).toBe(true);
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.renderer.setSelection).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'free' }),
       'replace',
@@ -263,17 +272,17 @@ describe('selection session controller', () => {
       points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
     });
     expect(state.controller.finish(8)).toBe(true);
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.renderer.setSelection).toHaveBeenCalledWith({
       kind: 'rectangle',
       points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
-    }, 'replace');
+    }, 'replace', 0, false);
   });
 
   it('moves a selection outline without touching layer pixels', async () => {
     const state = setup();
     state.controller.selectAll();
-    await Promise.resolve();
+    await state.controller.settle();
     const historyBefore = state.history.length;
 
     state.controller.translate(10, -1);
@@ -292,7 +301,7 @@ describe('selection session controller', () => {
   it('serializes rapid selection nudges without losing operation state', async () => {
     const state = setup();
     state.controller.selectAll();
-    await Promise.resolve();
+    await state.controller.settle();
 
     state.controller.translate(0, -10);
     state.controller.translate(0, -10);
@@ -310,12 +319,13 @@ describe('selection session controller', () => {
     state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
     state.controller.move(1, { x: 40, y: 40 });
     state.controller.finish(1);
-    await Promise.resolve();
+    await state.controller.settle();
     const historyBefore = state.history.length;
 
     expect(state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
     expect(state.controller.move(2, { x: 27, y: 24 })).toBe(true);
     expect(state.controller.finish(2)).toBe(true);
+    await state.controller.settle();
 
     expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
       a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 4
@@ -337,7 +347,7 @@ describe('selection session controller', () => {
     state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
     state.controller.move(1, { x: 30, y: 30 });
     state.controller.finish(1);
-    await Promise.resolve();
+    await state.controller.settle();
 
     state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace');
     state.controller.move(2, { x: 27, y: 20 });
@@ -408,7 +418,7 @@ describe('selection session controller', () => {
     state.controller.finish(3);
     state.switchDocument(createImageDocument('Other', 100, 80, 'other'));
     resolveSelection(true);
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.selection).toHaveLength(0);
     expect(state.history).toHaveLength(0);
   });
@@ -416,7 +426,7 @@ describe('selection session controller', () => {
   it('restores command-driven selection through history', async () => {
     const state = setup();
     state.controller.selectAll();
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.selection).toHaveLength(1);
     expect(state.history).toHaveLength(1);
     await state.history[0].undo();
@@ -431,7 +441,7 @@ describe('selection session controller', () => {
     state.switchDocument(masked);
 
     state.controller.selectLayerMask(masked.activeLayerId!);
-    await Promise.resolve();
+    await state.controller.settle();
 
     expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -450,7 +460,7 @@ describe('selection session controller', () => {
     const state = setup();
 
     state.controller.selectLayerTransparency(document.activeLayerId!);
-    await Promise.resolve();
+    await state.controller.settle();
 
     expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -490,7 +500,7 @@ describe('selection session controller', () => {
       5,
       'replace'
     );
-    await Promise.resolve();
+    await state.controller.settle();
     expect(state.renderer.setSelection).toHaveBeenCalledWith(
       {
         kind: 'polygon',
@@ -500,7 +510,9 @@ describe('selection session controller', () => {
           { x: 40, y: 40 }
         ]
       },
-      'replace'
+      'replace',
+      0,
+      false
     );
     expect(state.selection).toHaveLength(1);
     expect(state.history).toHaveLength(1);
@@ -516,7 +528,7 @@ describe('selection session controller', () => {
       'replace',
       { sampleSize: 5, tolerance: 20, antiAlias: true, contiguous: true, sampleAllLayers: false }
     )).toBe(true);
-    await Promise.resolve();
+    await state.controller.settle();
 
     expect(state.renderer.applyMagicWand).toHaveBeenCalledOnce();
     const operation = state.renderer.applyMagicWand.mock.calls[0]![0];
@@ -541,8 +553,7 @@ describe('selection session controller', () => {
 
     await state.history[0]!.undo();
     await state.history[0]!.redo();
-    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(1, []);
-    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(2, [operation]);
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it('awaits direct Magic Wand execution without publishing a second UI observation', async () => {
@@ -588,8 +599,7 @@ describe('selection session controller', () => {
 
     await state.history[0]!.undo();
     await state.history[0]!.redo();
-    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(1, []);
-    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(2, [operation]);
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it('publishes only the newest Magic Wand result while preserving queued add operations', async () => {
@@ -610,10 +620,12 @@ describe('selection session controller', () => {
     state.controller.magicWand({ x: 10, y: 10 }, 'replace', options);
     state.controller.magicWand({ x: 20, y: 20 }, 'add', options);
     resolveFirst(true);
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(state.renderer.applyMagicWand).toHaveBeenCalledTimes(2);
+    });
     expect(state.selection).toEqual([]);
     resolveSecond(true);
-    await Promise.resolve();
+    await state.controller.settle();
 
     expect(state.selection).toHaveLength(2);
     expect(state.selection.map((operation) => operation.source?.kind === 'magic-wand'
@@ -637,10 +649,10 @@ describe('selection session controller', () => {
     });
 
     state.controller.reset();
-    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([]);
     resolveWand(true);
-    await Promise.resolve();
+    await state.controller.settle();
 
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
     expect(state.selection).toEqual([]);
     expect(state.history).toEqual([]);
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   alignGpuBytesPerRow,
+  halfFloatSelectionMaskToRgba8,
   selectionMaskToRgba8,
   stripTextureRowPadding
 } from './gpuReadback';
@@ -37,6 +38,16 @@ describe('GPU readback layout', () => {
     expect([...selectionMaskToRgba8(new Uint8Array([0, 127, 255]))]).toEqual([
       0, 0, 0, 255,
       127, 127, 127, 255,
+      255, 255, 255, 255
+    ]);
+  });
+
+  it('encodes canonical half-float selection coverage without reading it as r8', () => {
+    expect([...halfFloatSelectionMaskToRgba8(
+      new Uint16Array([0x0000, 0x3800, 0x3c00])
+    )]).toEqual([
+      0, 0, 0, 255,
+      128, 128, 128, 255,
       255, 255, 255, 255
     ]);
   });

@@ -45,11 +45,13 @@ import {
   type SnapFeature,
   type SnapMatch
 } from '../snapping/snapEngine';
+import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 
 export interface SelectionHistoryEntry {
   label: string;
   type: string;
   documentMutation: false;
+  byteSize?: number;
   undo(): void | Promise<void>;
   redo(): void | Promise<void>;
 }
@@ -62,7 +64,9 @@ export interface SelectionRendererPort {
     featherRadius?: number,
     antiAlias?: boolean
   ): Promise<boolean>;
-  clearSelection(): void;
+  clearSelection(): Promise<boolean>;
+  captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
+  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
   applySelectSimilar(operation: SelectionOperation): Promise<boolean>;
@@ -72,14 +76,19 @@ export interface SelectionRendererPort {
     hardness: number,
     opacity: number,
     mode: 'add' | 'subtract'
-  ): boolean;
+  ): Promise<boolean>;
 }
 
 export interface SelectionSessionDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): SelectionRendererPort | null;
   getSelection(): SelectionOperation[];
-  publishSelection(operations: SelectionOperation[], pointerId: number | null): void;
+  getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
+  publishSelection(
+    operations: SelectionOperation[],
+    pointerId: number | null,
+    snapshot?: SelectionMaskSnapshot
+  ): void;
   publishDraft(shape: SelectionShape | null): void;
   pushHistoryEntry(entry: SelectionHistoryEntry): void;
   setError(message: string | null): void;
@@ -312,12 +321,19 @@ export const createSelectionSessionController = (
   polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
   let magicWandRequestId = 0;
-  let pendingMagicWandSnapshot: SelectionOperation[] | null = null;
+  let magicWandGeneration = 0;
+  let pendingMagicWandRequests = 0;
+  let pendingMagicWandState: {
+    generation: number;
+    operations: SelectionOperation[];
+    mask: SelectionMaskSnapshot;
+  } | null = null;
   let paintGesture: {
     pointerId: number;
     document: ImageDocument;
     renderer: SelectionRendererPort;
     before: SelectionOperation[];
+    beforeMask: Promise<SelectionMaskSnapshot>;
     mode: 'add' | 'subtract';
     size: number;
     hardness: number;
@@ -327,6 +343,7 @@ export const createSelectionSessionController = (
     smoother: StrokeSmoother;
     dabs: BrushDab[];
     samples: BrushPoint[];
+    renderQueue: Promise<boolean>;
   } | null = null;
   let marqueeTool: GeometricSelectionToolId | null = null;
   let marqueeSnapMatches: readonly SnapMatch[] = [];
@@ -335,6 +352,7 @@ export const createSelectionSessionController = (
     document: ImageDocument;
     renderer: SelectionRendererPort;
     before: SelectionOperation[];
+    beforeMask: Promise<SelectionMaskSnapshot>;
     last: SelectionPoint;
     sourceBounds: Rect;
     x: number;
@@ -349,7 +367,28 @@ export const createSelectionSessionController = (
     stopped: boolean;
   } | null = null;
   let translateQueue: Promise<void> = Promise.resolve();
+  let commitQueue: Promise<void> = Promise.resolve();
+  let commitActive = false;
   let queuedTranslationSelection: SelectionOperation[] | null = null;
+  const queueCommit = <Result,>(operation: () => Promise<Result>): Promise<Result> => {
+    let task: Promise<Result>;
+    if (!commitActive) {
+      commitActive = true;
+      try {
+        task = operation();
+      } catch (reason) {
+        task = Promise.reject(reason);
+      }
+    } else {
+      task = commitQueue.then(operation, operation);
+    }
+    const tail = task.then(() => undefined, () => undefined);
+    commitQueue = tail;
+    void tail.then(() => {
+      if (commitQueue === tail) commitActive = false;
+    });
+    return task;
+  };
   const translateSnapshot = (x: number, y: number) => {
     if (!x && !y) return;
     const dependencies = resolveDependencies();
@@ -362,33 +401,18 @@ export const createSelectionSessionController = (
     const operation = createTranslateSelectionOperation(document.width, document.height, x, y);
     const after = [...before, operation];
     queuedTranslationSelection = after;
-    const execution = translateQueue.then(async () => {
-      let applied = false;
-      try {
-        applied = await renderer.transformSelection(operation.transform!);
-      } catch {
-        // Rebuild the exact queued snapshot below. This keeps a later nudge
-        // from inheriting a CPU recipe that the GPU never received.
-      }
-      if (!isCurrent(document, renderer)) return;
-      if (!applied) {
+    const execution = commitMutation(
+      after,
+      'The selection could not be moved.',
+      async (target) => {
         try {
-          applied = await renderer.replaceSelection(after);
-        } catch (reason) {
-          if (isCurrent(document, renderer)) {
-            resolveDependencies().setError(
-              reason instanceof Error ? reason.message : 'The selection could not be moved.'
-            );
-          }
-          return;
+          if (await target.transformSelection(operation.transform!)) return true;
+        } catch {
+          // Rebuild from the semantic source below if the incremental path is unavailable.
         }
+        return target.replaceSelection(after);
       }
-      if (!applied || !isCurrent(document, renderer)) return;
-      const latest = resolveDependencies();
-      latest.publishSelection(after, null);
-      pushHistory(document, before, after);
-      latest.setError(null);
-    }).finally(() => {
+    ).then(() => undefined).finally(() => {
       if (queuedTranslationSelection === after) queuedTranslationSelection = null;
     });
     translateQueue = execution;
@@ -400,6 +424,32 @@ export const createSelectionSessionController = (
     const latest = resolveDependencies();
     return latest.getDocument()?.id === document.id && latest.getRenderer() === renderer;
   };
+  const documentCommittedMask = (
+    dependencies: SelectionSessionDependencies,
+    document: ImageDocument,
+    operations = dependencies.getSelection()
+  ): SelectionMaskSnapshot | null => {
+    const snapshot = dependencies.getSelectionMaskSnapshot();
+    if (snapshot?.width === document.width && snapshot.height === document.height) {
+      return snapshot;
+    }
+    if (operations.length === 0) {
+      return SelectionMaskSnapshot.inactive(document.width, document.height);
+    }
+    return null;
+  };
+  const resolveCommittedMask = (
+    dependencies: SelectionSessionDependencies,
+    document: ImageDocument,
+    renderer: SelectionRendererPort,
+    operations = dependencies.getSelection()
+  ): Promise<SelectionMaskSnapshot> => Promise.resolve(
+    documentCommittedMask(dependencies, document, operations)
+      // Legacy documents can contain semantic selection operations without an
+      // exact document snapshot. Capture once; normal editing never takes this
+      // fallback because committed selection state belongs to the document.
+      ?? renderer.captureSelectionSnapshot()
+  );
   const observeRendererOperation = (
     document: ImageDocument,
     renderer: SelectionRendererPort,
@@ -457,6 +507,7 @@ export const createSelectionSessionController = (
 
   const replaceSnapshot = async (
     operations: SelectionOperation[],
+    mask: SelectionMaskSnapshot,
     expectedDocumentId?: ImageDocument['id']
   ): Promise<void> => {
     const dependencies = resolveDependencies();
@@ -466,16 +517,18 @@ export const createSelectionSessionController = (
       throw new Error('The selection belongs to a different document.');
     }
     const snapshot = cloneSelectionOperations(operations);
-    if (!await renderer.replaceSelection(snapshot) || !isCurrent(document, renderer)) {
+    if (!await renderer.restoreSelectionSnapshot(mask) || !isCurrent(document, renderer)) {
       throw new Error('The LightTable selection could not be restored.');
     }
-    resolveDependencies().publishSelection(snapshot, null);
+    resolveDependencies().publishSelection(snapshot, null, mask);
   };
 
   const pushHistory = (
     document: ImageDocument,
     before: SelectionOperation[],
-    after: SelectionOperation[]
+    beforeMask: SelectionMaskSnapshot,
+    after: SelectionOperation[],
+    afterMask: SelectionMaskSnapshot
   ) => {
     const previous = cloneSelectionOperations(before);
     const next = cloneSelectionOperations(after);
@@ -500,40 +553,65 @@ export const createSelectionSessionController = (
           ? 'selection.paint'
         : `selection.${mode ?? 'deselect'}`,
       documentMutation: false,
-      undo: () => replaceSnapshot(previous, document.id),
-      redo: () => replaceSnapshot(next, document.id)
+      byteSize: beforeMask.byteSize + afterMask.byteSize,
+      undo: () => replaceSnapshot(previous, beforeMask, document.id),
+      redo: () => replaceSnapshot(next, afterMask, document.id)
     });
   };
 
-  const commitSnapshot = async (
+  const commitMutation = (
     after: SelectionOperation[],
-    failureMessage: string
-  ): Promise<boolean> => {
+    failureMessage: string,
+    mutate: (renderer: SelectionRendererPort) => Promise<boolean>,
+    onCommitted?: (dependencies: SelectionSessionDependencies) => void
+  ): Promise<boolean> => queueCommit(async () => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
     if (!document || !renderer) return false;
     const before = cloneSelectionOperations(dependencies.getSelection());
     const snapshot = cloneSelectionOperations(after);
-    gesture.reset();
-    dependencies.publishDraft(null);
-    dependencies.publishSelection(before, null);
+    const beforeMask = documentCommittedMask(dependencies, document, before)
+      ?? await renderer.captureSelectionSnapshot();
+    if (!isCurrent(document, renderer)) return false;
     try {
-      const applied = await renderer.replaceSelection(snapshot);
-      if (!applied || !isCurrent(document, renderer)) return false;
+      const applied = await mutate(renderer);
+      if (!applied || !isCurrent(document, renderer)) {
+        if (isCurrent(document, renderer)) await renderer.restoreSelectionSnapshot(beforeMask);
+        return false;
+      }
+      const afterMask = await renderer.captureSelectionSnapshot();
+      if (!isCurrent(document, renderer)) return false;
       const latest = resolveDependencies();
-      latest.publishSelection(snapshot, null);
-      pushHistory(document, before, snapshot);
+      latest.publishSelection(snapshot, null, afterMask);
+      pushHistory(document, before, beforeMask, snapshot, afterMask);
+      onCommitted?.(latest);
       latest.setError(null);
       return true;
     } catch (reason) {
       if (isCurrent(document, renderer)) {
+        await renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
         resolveDependencies().setError(
           reason instanceof Error ? reason.message : failureMessage
         );
       }
       return false;
     }
+  });
+
+  const commitSnapshot = (
+    after: SelectionOperation[],
+    failureMessage: string
+  ): Promise<boolean> => {
+    const dependencies = resolveDependencies();
+    gesture.reset();
+    dependencies.publishDraft(null);
+    dependencies.publishSelection(dependencies.getSelection(), null);
+    return commitMutation(
+      after,
+      failureMessage,
+      (renderer) => renderer.replaceSelection(after)
+    );
   };
 
   const applyGestureResult = (
@@ -551,9 +629,11 @@ export const createSelectionSessionController = (
     if (!document || !renderer || result.kind === 'none') return true;
     const before = cloneSelectionOperations(dependencies.getSelection());
     if (result.kind === 'clear') {
-      renderer.clearSelection();
-      dependencies.publishSelection([], null);
-      if (before.length) pushHistory(document, before, []);
+      void commitMutation(
+        [],
+        'The selection could not be cleared.',
+        (target) => target.clearSelection()
+      );
       return true;
     }
     const operation: SelectionOperation = {
@@ -565,24 +645,16 @@ export const createSelectionSessionController = (
     const after = result.mode === 'replace'
       ? [operation]
       : [...before, operation];
-    const applySelection = result.antiAlias
-      ? renderer.setSelection(
-          result.shape,
-          result.mode,
-          result.featherRadius,
-          true
-        )
-      : result.featherRadius > 0
-        ? renderer.setSelection(result.shape, result.mode, result.featherRadius)
-        : renderer.setSelection(result.shape, result.mode);
-    void applySelection
-      .then((applied) => {
-        if (!applied || !isCurrent(document, renderer)) return;
-        const latest = resolveDependencies();
-        latest.publishSelection(after, null);
-        pushHistory(document, before, after);
-        latest.setError(null);
-        latest.onShapeCommitted?.({
+    void commitMutation(
+      after,
+      'The selection could not be applied.',
+      (target) => target.setSelection(
+        result.shape,
+        result.mode,
+        result.featherRadius,
+        result.antiAlias
+      ),
+      (latest) => latest.onShapeCommitted?.({
           mode: result.mode,
           shape: {
             ...result.shape,
@@ -590,16 +662,8 @@ export const createSelectionSessionController = (
           },
           featherRadius: result.featherRadius,
           antiAlias: result.antiAlias
-        });
-      })
-      .catch((reason) => {
-        if (!isCurrent(document, renderer)) return;
-        resolveDependencies().setError(
-          reason instanceof Error
-            ? reason.message
-            : 'The selection could not be applied.'
-        );
-      });
+        })
+    );
     return true;
   };
 
@@ -609,12 +673,14 @@ export const createSelectionSessionController = (
     current.samples.push(...points.map((point) => ({ ...point })));
     const dabs = points.flatMap((point) => current.builder.add(current.smoother.add(point)));
     if (!dabs.length) return true;
-    if (!current.renderer.paintSelectionDabs(
+    const request = current.renderer.paintSelectionDabs(
       dabs,
       current.hardness,
       current.opacity,
       current.mode
-    )) return false;
+    );
+    current.renderQueue = Promise.all([current.renderQueue, request])
+      .then(([previous, applied]) => previous && applied, () => false);
     current.dabs.push(...dabs.map((dab) => ({ ...dab })));
     return true;
   };
@@ -637,21 +703,11 @@ export const createSelectionSessionController = (
       ...(antiAlias ? { antiAlias: true } : {})
     };
     const after = mode === 'replace' ? [operation] : [...before, operation];
-    try {
-      const applied = await renderer.setSelection(shape, mode, featherRadius, antiAlias);
-      if (!applied || !isCurrent(document, renderer)) return false;
-      const latest = resolveDependencies();
-      latest.publishSelection(after, null);
-      pushHistory(document, before, after);
-      latest.setError(null);
-      return true;
-    } catch (reason) {
-      if (!isCurrent(document, renderer)) return false;
-      resolveDependencies().setError(
-        reason instanceof Error ? reason.message : 'The selection could not be applied.'
-      );
-      return false;
-    }
+    return commitMutation(
+      after,
+      'The selection could not be applied.',
+      (target) => target.setSelection(shape, mode, featherRadius, antiAlias)
+    );
   };
 
   const moveMany = (
@@ -775,9 +831,6 @@ export const createSelectionSessionController = (
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
     if (!document || !renderer || !findDocumentLayer(document, layerId)) return false;
-    const before = cloneSelectionOperations(
-      pendingMagicWandSnapshot ?? dependencies.getSelection()
-    );
     const operation = createMagicWandSelectionOperation(
       layerId,
       document.revision,
@@ -787,45 +840,69 @@ export const createSelectionSessionController = (
       options,
       mode
     );
-    const after = mode === 'replace' ? [operation] : [...before, operation];
     const requestId = ++magicWandRequestId;
-    pendingMagicWandSnapshot = cloneSelectionOperations(after);
+    const generation = magicWandGeneration;
+    pendingMagicWandRequests += 1;
     try {
-      const applied = await renderer.applyMagicWand(operation);
-      if (!applied || !isCurrent(document, renderer)) {
-        if (requestId === magicWandRequestId && isCurrent(document, renderer)) {
-          pendingMagicWandSnapshot = null;
-          resolveDependencies().setError('The Magic Wand selection could not be applied.');
+      return await queueCommit(async () => {
+        if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
+        const latest = resolveDependencies();
+        const pending = pendingMagicWandState?.generation === generation
+          ? pendingMagicWandState
+          : null;
+        const before = cloneSelectionOperations(pending?.operations ?? latest.getSelection());
+        const beforeMask = pending?.mask
+          ?? documentCommittedMask(latest, document, before)
+          ?? await renderer.captureSelectionSnapshot();
+        if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
+        const after = mode === 'replace' ? [operation] : [...before, operation];
+        try {
+          const applied = await renderer.applyMagicWand(operation);
+          if (!applied || !isCurrent(document, renderer)) {
+            if (isCurrent(document, renderer)) await renderer.restoreSelectionSnapshot(beforeMask);
+            return false;
+          }
+          if (generation !== magicWandGeneration) return false;
+          const afterMask = await renderer.captureSelectionSnapshot();
+          if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
+          pushHistory(document, before, beforeMask, after, afterMask);
+          if (requestId === magicWandRequestId) {
+            pendingMagicWandState = null;
+            latest.publishSelection(after, null, afterMask);
+          } else {
+            pendingMagicWandState = {
+              generation,
+              operations: cloneSelectionOperations(after),
+              mask: afterMask
+            };
+          }
+          if (recordObserved) {
+            const source = operation.source?.kind === 'magic-wand' ? operation.source : null;
+            if (source) latest.onMagicWandCommitted?.({
+              kind: 'magic-wand',
+              layerId: source.layerId,
+              point: { x: source.point.x, y: source.point.y },
+              mode,
+              options: { ...source.options }
+            });
+          }
+          latest.setError(null);
+          return true;
+        } catch (reason) {
+          if (isCurrent(document, renderer)) {
+            await renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
+            );
+          }
+          return false;
         }
-        return false;
+      });
+    } finally {
+      pendingMagicWandRequests = Math.max(0, pendingMagicWandRequests - 1);
+      if (pendingMagicWandRequests === 0 && generation !== magicWandGeneration) {
+        pendingMagicWandState = null;
       }
-      if (requestId !== magicWandRequestId) {
-        if (pendingMagicWandSnapshot) pushHistory(document, before, after);
-        return true;
-      }
-      pushHistory(document, before, after);
-      const latest = resolveDependencies();
-      pendingMagicWandSnapshot = null;
-      latest.publishSelection(after, null);
-      latest.setError(null);
-      if (recordObserved) {
-        const source = operation.source?.kind === 'magic-wand' ? operation.source : null;
-        if (source) latest.onMagicWandCommitted?.({
-          kind: 'magic-wand',
-          layerId: source.layerId,
-          point: { x: source.point.x, y: source.point.y },
-          mode,
-          options: { ...source.options }
-        });
-      }
-      return true;
-    } catch (reason) {
-      if (requestId !== magicWandRequestId || !isCurrent(document, renderer)) return false;
-      pendingMagicWandSnapshot = null;
-      resolveDependencies().setError(
-        reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
-      );
-      return false;
     }
   };
 
@@ -848,21 +925,11 @@ export const createSelectionSessionController = (
       options
     );
     const after = [...before, operation];
-    try {
-      const applied = await renderer.applySelectSimilar(operation);
-      if (!applied || !isCurrent(document, renderer)) return false;
-      const latest = resolveDependencies();
-      latest.publishSelection(after, null);
-      pushHistory(document, before, after);
-      latest.setError(null);
-      return true;
-    } catch (reason) {
-      if (!isCurrent(document, renderer)) return false;
-      resolveDependencies().setError(
-        reason instanceof Error ? reason.message : 'Similar colors could not be selected.'
-      );
-      return false;
-    }
+    return commitMutation(
+      after,
+      'Similar colors could not be selected.',
+      (target) => target.applySelectSimilar(operation)
+    );
   };
 
   return {
@@ -902,6 +969,7 @@ export const createSelectionSessionController = (
           document,
           renderer,
           before,
+          beforeMask: resolveCommittedMask(dependencies, document, renderer, before),
           last: point,
           sourceBounds,
           x: 0,
@@ -984,15 +1052,39 @@ export const createSelectionSessionController = (
               current.y
             )]
           : current.before;
-        resolveDependencies().publishSelection(after, null);
         resolveDependencies().publishSnapFeedback?.([], null);
-        observeRendererOperation(
-          current.document,
-          current.renderer,
-          current.renderer.replaceSelection(after),
-          'The selection could not be moved.'
-        );
-        if (after !== current.before) pushHistory(current.document, current.before, after);
+        void queueCommit(async () => {
+          const beforeMask = await current.beforeMask;
+          if (!isCurrent(current.document, current.renderer)) return;
+          if (after === current.before) {
+            if (!await current.renderer.restoreSelectionSnapshot(beforeMask)) {
+              throw new Error('The selection could not be restored.');
+            }
+            resolveDependencies().publishSelection(current.before, null, beforeMask);
+            return;
+          }
+          try {
+            if (!await current.renderer.replaceSelection(after)
+              || !isCurrent(current.document, current.renderer)) {
+              if (isCurrent(current.document, current.renderer)) {
+                await current.renderer.restoreSelectionSnapshot(beforeMask);
+              }
+              return;
+            }
+            const afterMask = await current.renderer.captureSelectionSnapshot();
+            if (!isCurrent(current.document, current.renderer)) return;
+            const latest = resolveDependencies();
+            latest.publishSelection(after, null, afterMask);
+            pushHistory(current.document, current.before, beforeMask, after, afterMask);
+            latest.setError(null);
+          } catch (reason) {
+            if (!isCurrent(current.document, current.renderer)) return;
+            await current.renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The selection could not be moved.'
+            );
+          }
+        });
         return true;
       }
       const result = gesture.finish(pointerId);
@@ -1003,14 +1095,23 @@ export const createSelectionSessionController = (
         const current = translation;
         translation = null;
         current.stopped = true;
-        observeRendererOperation(
-          current.document,
-          current.renderer,
-          current.renderer.replaceSelection(current.before),
-          'The selection could not be restored.'
-        );
-        resolveDependencies().publishSelection(current.before, null);
         resolveDependencies().publishSnapFeedback?.([], null);
+        void queueCommit(async () => {
+          const beforeMask = await current.beforeMask;
+          if (!isCurrent(current.document, current.renderer)) return;
+          if (!await current.renderer.restoreSelectionSnapshot(beforeMask)) {
+            throw new Error('The selection could not be restored.');
+          }
+          if (isCurrent(current.document, current.renderer)) {
+            resolveDependencies().publishSelection(current.before, null, beforeMask);
+          }
+        }).catch((reason) => {
+          if (isCurrent(current.document, current.renderer)) {
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The selection could not be restored.'
+            );
+          }
+        });
         return true;
       }
       if (!gesture.cancel(pointerId)) return false;
@@ -1077,21 +1178,11 @@ export const createSelectionSessionController = (
         mode
       );
       const after = mode === 'replace' ? [operation] : [...before, operation];
-      try {
-        const applied = await renderer.applyRasterSelection(operation);
-        if (!applied || !isCurrent(document, renderer)) return false;
-        const latest = resolveDependencies();
-        latest.publishSelection(after, null);
-        pushHistory(document, before, after);
-        latest.setError(null);
-        return true;
-      } catch (reason) {
-        if (!isCurrent(document, renderer)) return false;
-        resolveDependencies().setError(
-          reason instanceof Error ? reason.message : 'The object selection could not be applied.'
-        );
-        return false;
-      }
+      return commitMutation(
+        after,
+        'The object selection could not be applied.',
+        (target) => target.applyRasterSelection(operation)
+      );
     },
     beginPaint: (pointerId, point, mode, options) => {
       const dependencies = resolveDependencies();
@@ -1110,11 +1201,19 @@ export const createSelectionSessionController = (
       );
       const before = cloneSelectionOperations(dependencies.getSelection());
       const first = builder.begin(smoother.begin(point));
+      const beforeMask = resolveCommittedMask(dependencies, document, renderer, before);
+      const firstRender = renderer.paintSelectionDabs(
+        first,
+        Math.max(0, Math.min(1, options.hardness)),
+        Math.max(0.01, Math.min(1, options.opacity)),
+        mode
+      );
       paintGesture = {
         pointerId,
         document,
         renderer,
         before,
+        beforeMask,
         mode,
         size,
         hardness: Math.max(0, Math.min(1, options.hardness)),
@@ -1123,17 +1222,9 @@ export const createSelectionSessionController = (
         builder,
         smoother,
         dabs: first.map((dab) => ({ ...dab })),
-        samples: [{ ...point }]
+        samples: [{ ...point }],
+        renderQueue: firstRender
       };
-      if (!renderer.paintSelectionDabs(
-        first,
-        paintGesture.hardness,
-        paintGesture.opacity,
-        mode
-      )) {
-        paintGesture = null;
-        return false;
-      }
       dependencies.publishSelection(before, pointerId);
       return true;
     },
@@ -1145,16 +1236,17 @@ export const createSelectionSessionController = (
       if (!current || current.pointerId !== pointerId) return false;
       const tail = current.smoother.finish().flatMap((point) => current.builder.add(point));
       if (tail.length) {
-        current.renderer.paintSelectionDabs(
+        const request = current.renderer.paintSelectionDabs(
           tail,
           current.hardness,
           current.opacity,
           current.mode
         );
+        current.renderQueue = Promise.all([current.renderQueue, request])
+          .then(([previous, applied]) => previous && applied, () => false);
         current.dabs.push(...tail.map((dab) => ({ ...dab })));
       }
       paintGesture = null;
-      if (!isCurrent(current.document, current.renderer)) return false;
       const operation: SelectionOperation = {
         mode: current.mode,
         source: {
@@ -1166,33 +1258,56 @@ export const createSelectionSessionController = (
         shape: createFullCanvasSelection(current.document.width, current.document.height)[0].shape
       };
       const after = [...current.before, operation];
-      const latest = resolveDependencies();
-      latest.publishSelection(after, null);
-      pushHistory(current.document, current.before, after);
-      latest.onPaintCommitted?.({
-        kind: 'selection-paint',
-        mode: current.mode,
-        dabs: current.dabs.map((dab) => ({ ...dab })),
-        samples: current.samples.map((sample) => ({ ...sample })),
-        size: current.size,
-        hardness: current.hardness,
-        opacity: current.opacity,
-        smooth: current.smooth
+      void queueCommit(async () => {
+        const beforeMask = await current.beforeMask;
+        const applied = await current.renderQueue;
+        if (!applied || !isCurrent(current.document, current.renderer)) {
+          if (isCurrent(current.document, current.renderer)) {
+            await current.renderer.restoreSelectionSnapshot(beforeMask);
+            resolveDependencies().setError('The selection brush stroke could not be applied.');
+          }
+          return;
+        }
+        const afterMask = await current.renderer.captureSelectionSnapshot();
+        if (!isCurrent(current.document, current.renderer)) return;
+        const latest = resolveDependencies();
+        latest.publishSelection(after, null, afterMask);
+        pushHistory(current.document, current.before, beforeMask, after, afterMask);
+        latest.onPaintCommitted?.({
+          kind: 'selection-paint',
+          mode: current.mode,
+          dabs: current.dabs.map((dab) => ({ ...dab })),
+          samples: current.samples.map((sample) => ({ ...sample })),
+          size: current.size,
+          hardness: current.hardness,
+          opacity: current.opacity,
+          smooth: current.smooth
+        });
+        latest.setError(null);
       });
-      latest.setError(null);
       return true;
     },
     cancelPaint: (pointerId) => {
       const current = paintGesture;
       if (!current || current.pointerId !== pointerId) return false;
       paintGesture = null;
-      observeRendererOperation(
-        current.document,
-        current.renderer,
-        current.renderer.replaceSelection(current.before),
-        'The selection could not be restored.'
-      );
-      resolveDependencies().publishSelection(current.before, null);
+      void queueCommit(async () => {
+        const beforeMask = await current.beforeMask;
+        await current.renderQueue;
+        if (!isCurrent(current.document, current.renderer)) return;
+        if (!await current.renderer.restoreSelectionSnapshot(beforeMask)) {
+          throw new Error('The selection could not be restored.');
+        }
+        if (isCurrent(current.document, current.renderer)) {
+          resolveDependencies().publishSelection(current.before, null, beforeMask);
+        }
+      }).catch((reason) => {
+        if (isCurrent(current.document, current.renderer)) {
+          resolveDependencies().setError(
+            reason instanceof Error ? reason.message : 'The selection could not be restored.'
+          );
+        }
+      });
       return true;
     },
     ownsPaint: (pointerId) => paintGesture?.pointerId === pointerId,
@@ -1210,19 +1325,14 @@ export const createSelectionSessionController = (
       return true;
     },
     reset: () => {
-      const restoreSelectionAfterMagicWand = pendingMagicWandSnapshot !== null;
-      magicWandRequestId += 1;
-      pendingMagicWandSnapshot = null;
-      if (translation) translation.stopped = true;
+      const restoreSelectionAfterMagicWand = pendingMagicWandRequests > 0
+        || pendingMagicWandState !== null;
+      const interruptedTranslation = translation;
+      const interruptedPaint = paintGesture;
+      magicWandGeneration += 1;
+      pendingMagicWandState = null;
+      if (interruptedTranslation) interruptedTranslation.stopped = true;
       translation = null;
-      if (paintGesture) {
-        observeRendererOperation(
-          paintGesture.document,
-          paintGesture.renderer,
-          paintGesture.renderer.replaceSelection(paintGesture.before),
-          'The selection could not be restored.'
-        );
-      }
       paintGesture = null;
       marqueeTool = null;
       marqueeSnapMatches = [];
@@ -1232,12 +1342,36 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);
+      if (interruptedTranslation || interruptedPaint) {
+        const interrupted = interruptedTranslation ?? interruptedPaint!;
+        void queueCommit(async () => {
+          const beforeMask = await interrupted.beforeMask;
+          if (interruptedPaint) await interruptedPaint.renderQueue;
+          if (!isCurrent(interrupted.document, interrupted.renderer)) return;
+          if (!await interrupted.renderer.restoreSelectionSnapshot(beforeMask)) {
+            throw new Error('The selection could not be restored.');
+          }
+          if (isCurrent(interrupted.document, interrupted.renderer)) {
+            resolveDependencies().publishSelection(interrupted.before, null, beforeMask);
+          }
+        }).catch((reason) => {
+          if (isCurrent(interrupted.document, interrupted.renderer)) {
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The selection could not be restored.'
+            );
+          }
+        });
+      }
       if (restoreSelectionAfterMagicWand) {
         const document = dependencies.getDocument();
         const renderer = dependencies.getRenderer();
-        const snapshot = cloneSelectionOperations(dependencies.getSelection());
+        const operations = cloneSelectionOperations(dependencies.getSelection());
+        const mask = dependencies.getSelectionMaskSnapshot();
         if (document && renderer) {
-          void renderer.replaceSelection(snapshot).catch((reason) => {
+          const restore = mask
+            ? renderer.restoreSelectionSnapshot(mask)
+            : renderer.replaceSelection(operations);
+          void restore.catch((reason) => {
             if (!isCurrent(document, renderer)) return;
             resolveDependencies().setError(
               reason instanceof Error ? reason.message : 'The selection could not be restored.'
@@ -1403,7 +1537,15 @@ export const createSelectionSessionController = (
       );
     },
     translate: translateSnapshot,
-    settle: () => translateQueue
+    settle: async () => {
+      while (true) {
+        const translationTail = translateQueue;
+        const commitTail = commitQueue;
+        await translationTail;
+        await commitTail;
+        if (translationTail === translateQueue && commitTail === commitQueue) return;
+      }
+    }
   };
 };
 

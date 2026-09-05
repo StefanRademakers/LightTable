@@ -23,6 +23,7 @@ import { createDefaultGradientPaint, type GradientPaintInstance } from '@lightta
 import type { BrushPresetId } from '../tools/brush/brushPresets';
 import type { SampledBrushSettings } from '../tools/paint/sampledBrushTypes';
 import { createDefaultSnapSettings, type SnapSettings } from '../../application/tools/snapping/snapSettings';
+import type { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 
 export type ToolId =
   | 'view'
@@ -257,6 +258,7 @@ export interface EditorSession {
   pointerId: number | null;
   activeChannel: PaintChannel;
   selection: SelectionOperation[];
+  selectionMaskSnapshot: SelectionMaskSnapshot | null;
   vectorSelection: VectorEditorSelection;
   selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
@@ -288,13 +290,13 @@ export interface EditorSession {
 /** Stable application/editor UI state shared by every document tab. */
 export type EditorApplicationState = Omit<
   EditorSession,
-  'activeChannel' | 'selection' | 'vectorSelection'
+  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'vectorSelection'
 >;
 
 /** Lightweight interaction state that follows one document. */
 export type DocumentEditorState = Pick<
   EditorSession,
-  'activeChannel' | 'selection' | 'vectorSelection'
+  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'vectorSelection'
 >;
 
 export const createEditorSession = (): EditorSession => ({
@@ -302,6 +304,7 @@ export const createEditorSession = (): EditorSession => ({
   pointerId: null,
   activeChannel: 'pixels',
   selection: [],
+  selectionMaskSnapshot: null,
   vectorSelection: createVectorEditorSelection(),
   selectionCombineMode: 'replace',
   selectionPixelSnap: true,
@@ -403,6 +406,7 @@ export const editorApplicationStateFrom = (
   session: EditorSession
 ): EditorApplicationState => {
   const { activeChannel: _activeChannel, selection: _selection,
+    selectionMaskSnapshot: _selectionMaskSnapshot,
     vectorSelection: _vectorSelection, ...application } = session;
   return application;
 };
@@ -412,6 +416,7 @@ export const documentEditorStateFrom = (
 ): DocumentEditorState => ({
   activeChannel: session.activeChannel,
   selection: [...session.selection],
+  selectionMaskSnapshot: session.selectionMaskSnapshot,
   vectorSelection: cloneVectorEditorSelection(session.vectorSelection)
 });
 
@@ -428,5 +433,6 @@ export const mergeEditorSession = (
   ...application,
   ...document,
   selection: [...document.selection],
+  selectionMaskSnapshot: document.selectionMaskSnapshot,
   vectorSelection: cloneVectorEditorSelection(document.vectorSelection)
 });

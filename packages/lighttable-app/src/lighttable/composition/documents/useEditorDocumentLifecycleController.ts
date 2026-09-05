@@ -63,6 +63,8 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly publishTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
   readonly publishCompositeRendered?: () => void;
   readonly publishInitialThumbnail?: (renderer: DocumentRendererPort) => Promise<void>;
+  /** Restores document-owned interaction state after this source owns the renderer. */
+  readonly restoreSelectionState?: (renderer: DocumentRendererPort) => Promise<void>;
   readonly publishError: (message: string) => void;
   readonly publishOpenFailure?: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
@@ -116,6 +118,7 @@ export const useEditorDocumentLifecycleController = ({
   publishTextRenderPresentation,
   publishCompositeRendered,
   publishInitialThumbnail,
+  restoreSelectionState,
   publishError,
   publishOpenFailure,
   publishScopeError,
@@ -165,6 +168,7 @@ export const useEditorDocumentLifecycleController = ({
         source.existingDocument,
         source.existingMetadata ?? undefined
       );
+      await restoreSelectionState?.(renderer);
       return;
     }
     await loadSource({
@@ -178,6 +182,9 @@ export const useEditorDocumentLifecycleController = ({
       isCanceled: () => !isCurrent() || !task.isCurrent(),
       preparedOpenSource: resolvedSource.prepared ?? undefined
     });
+    if (isCurrent() && task.isCurrent()) {
+      await restoreSelectionState?.(renderer);
+    }
     if (
       isCurrent()
       && task.isCurrent()
@@ -185,7 +192,7 @@ export const useEditorDocumentLifecycleController = ({
     ) {
       void publishInitialThumbnail?.(renderer);
     }
-  }, [loadSource, publishInitialThumbnail, rendererLifecycle, source]);
+  }, [loadSource, publishInitialThumbnail, rendererLifecycle, restoreSelectionState, source]);
 
   const createRequest = useEditorDocumentOpenRequestFactory({
     canvases,

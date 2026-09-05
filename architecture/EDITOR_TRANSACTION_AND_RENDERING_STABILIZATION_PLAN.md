@@ -1,6 +1,6 @@
 # Editor Transaction and Rendering Stabilization Plan
 
-Status: proposed stabilization program  
+Status: active stabilization program
 Scope: feature-freeze work for the LightTable image editor  
 Audience: maintainers working on tools, selection, layers, history, commands and WebGPU  
 
@@ -52,6 +52,27 @@ input
 ```
 
 No operation may report success before the atomic commit has completed.
+
+## Implemented stabilization slices
+
+### Atomic fill and history transitions
+
+The initial transaction slice now protects fill commits and history movement. A failed GPU edit, document publication or history transition restores the complete pre-operation state before the command completes.
+
+### Document-owned exact selection state
+
+Selection no longer treats the mounted tool or renderer as the durable owner. The ownership boundary is now:
+
+- `DocumentEditorState` owns the committed selection operations and an immutable, document-sized `r16float` mask snapshot;
+- the active selection tool owns only an unfinished pointer, paint, polygon or translation gesture;
+- the renderer owns the disposable GPU projection and restores it from document state after bind, load and tab return;
+- selection history stores exact before/after masks, while semantic operations remain provenance for Actions, MCP and legacy reconstruction.
+
+Selection mutations are serialized per controller. Each successful mutation captures its exact result, registers history and then publishes document state. Failure restores the exact baseline. Magic Wand requests have generation-based cancellation and preserve separate history entries even when clicks arrive faster than GPU completion.
+
+The canonical mask is read and restored as raw IEEE-754 half-float words. Clipboard mask export now also reads the actual `r16float` texture instead of interpreting its bytes as an `r8unorm` channel.
+
+Verification for this slice currently covers exact snapshot encoding, half-float readback, selection clipboard conversion, semantic selection commands, rapid asynchronous Magic Wand operations, cancel/rollback, selection movement and exact undo/redo. The broader product acceptance matrix still requires manual GPU runs on Windows and macOS.
 
 ## Existing architectural contracts
 
@@ -707,4 +728,3 @@ The editor stabilization phase is complete only when:
 - unresolved user-choice issues are documented separately rather than hidden by fallback behavior.
 
 Only after this point should the feature freeze be reconsidered.
-

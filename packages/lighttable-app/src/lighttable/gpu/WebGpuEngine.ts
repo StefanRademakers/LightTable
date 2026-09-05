@@ -46,6 +46,7 @@ import type {
   RasterSelectionMask,
   SelectionShape
 } from '../editor/selection/selectionTypes';
+import type { SelectionMaskSnapshot } from '../editor/selection/SelectionMaskSnapshot';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
 import type {
   ColorLookupAssetBlob,
@@ -1520,10 +1521,52 @@ export class WebGpuEngine {
     return this.replaceSelection([]);
   }
 
+  captureSelectionSnapshot() {
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(async () => {
+      if (
+        this.destroyed
+        || !renderer
+        || this.documentRenderer !== renderer
+        || (this.imageDocument?.id ?? null) !== documentId
+      ) {
+        throw new Error('The active document changed before its selection could be captured.');
+      }
+      return renderer.captureSelectionSnapshot();
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot) {
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(() => {
+      if (
+        this.destroyed
+        || !renderer
+        || this.documentRenderer !== renderer
+        || (this.imageDocument?.id ?? null) !== documentId
+      ) return false;
+      renderer.restoreSelectionSnapshot(snapshot);
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
+      return true;
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   replaceSelection(operations: SelectionOperation[]) {
     const task = this.selectionQueue.then(async () => {
-      this.documentRenderer?.clearSelection();
-      for (const operation of operations) {
+      const renderer = this.documentRenderer;
+      const documentId = this.imageDocument?.id ?? null;
+      if (this.destroyed || !renderer) return false;
+      const before = await renderer.captureSelectionSnapshot();
+      const replay = async () => {
+        renderer.clearSelection();
+        for (const operation of operations) {
         if (operation.source?.kind === 'layer-mask') {
           const layer = this.imageDocument
             ? findDocumentLayer(this.imageDocument, operation.source.layerId)
@@ -1614,10 +1657,30 @@ export class WebGpuEngine {
           : this.setSelectionNow(operation.shape, operation.mode))) {
           return false;
         }
+        }
+        return true;
+      };
+      try {
+        const succeeded = await replay();
+        if (
+          !succeeded
+          || this.documentRenderer !== renderer
+          || (this.imageDocument?.id ?? null) !== documentId
+        ) {
+          if (this.documentRenderer === renderer) renderer.restoreSelectionSnapshot(before);
+          return false;
+        }
+        this.renderDirty.invalidate('viewport');
+        this.requestRender();
+        return true;
+      } catch (reason) {
+        if (this.documentRenderer === renderer) {
+          renderer.restoreSelectionSnapshot(before);
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+        }
+        throw reason;
       }
-      this.renderDirty.invalidate('viewport');
-      this.requestRender();
-      return true;
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
@@ -1629,17 +1692,24 @@ export class WebGpuEngine {
     opacity: number,
     mode: 'add' | 'subtract'
   ) {
-    const changed = this.documentRenderer?.paintSelectionDabs(
-      dabs,
-      hardness,
-      opacity,
-      mode
-    ) ?? false;
-    if (changed) {
-      this.renderDirty.invalidate('viewport');
-      this.requestRender();
-    }
-    return changed;
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(() => {
+      if (
+        this.destroyed
+        || !renderer
+        || this.documentRenderer !== renderer
+        || (this.imageDocument?.id ?? null) !== documentId
+      ) return false;
+      const changed = renderer.paintSelectionDabs(dabs, hardness, opacity, mode);
+      if (changed) {
+        this.renderDirty.invalidate('viewport');
+        this.requestRender();
+      }
+      return changed;
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {

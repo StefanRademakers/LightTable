@@ -1,4 +1,5 @@
 import type { Rgba8ImageEncoding } from '../editor/rendering/renderContract';
+import { halfFloatToNormalizedU16 } from '../image-io/halfFloatPixels';
 export type { Rgba8ImageEncoding } from '../editor/rendering/renderContract';
 
 export const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
@@ -138,6 +139,45 @@ export const readRgba16FloatTexture = async (
   }
 };
 
+/** Reads raw IEEE-754 half-float words from one canonical r16float channel. */
+export const readR16FloatTexture = async (
+  device: GPUDevice,
+  texture: GPUTexture,
+  width: number,
+  height: number,
+  label = 'LightTable R16F texture readback'
+) => {
+  const bytesPerPixel = 2;
+  const tightBytesPerRow = width * bytesPerPixel;
+  const bytesPerRow = alignGpuBytesPerRow(tightBytesPerRow);
+  const readBuffer = device.createBuffer({
+    label,
+    size: bytesPerRow * height,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+  });
+  try {
+    const encoder = device.createCommandEncoder({ label });
+    encoder.copyTextureToBuffer(
+      { texture },
+      { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
+      [width, height]
+    );
+    device.queue.submit([encoder.finish()]);
+    const mapped = new Uint8Array(await mapGpuBufferCopy(readBuffer));
+    const tight = new Uint8Array(tightBytesPerRow * height);
+    for (let row = 0; row < height; row += 1) {
+      tight.set(
+        mapped.subarray(row * bytesPerRow, row * bytesPerRow + tightBytesPerRow),
+        row * tightBytesPerRow
+      );
+    }
+    return new Uint16Array(tight.buffer);
+  } finally {
+    if (readBuffer.mapState === 'mapped') readBuffer.unmap();
+    readBuffer.destroy();
+  }
+};
+
 export const readR8Texture = async (
   device: GPUDevice,
   texture: GPUTexture,
@@ -180,6 +220,16 @@ export const selectionMaskToRgba8 = (mask: Uint8Array | Uint8ClampedArray) => {
     pixels[target + 3] = 255;
   }
   return pixels;
+};
+
+/** Converts the canonical r16float selection channel to an opaque grayscale image. */
+export const halfFloatSelectionMaskToRgba8 = (mask: Uint16Array) => {
+  const normalized = halfFloatToNormalizedU16(mask);
+  const values = new Uint8Array(normalized.length);
+  for (let index = 0; index < normalized.length; index += 1) {
+    values[index] = Math.round(normalized[index]! / 257);
+  }
+  return selectionMaskToRgba8(values);
 };
 
 export const readRgba8TexturePixel = async (

@@ -80,6 +80,7 @@ export const useDocumentEditorSession = (
       const next = resolveUpdate(current, update);
       const documentInteractionChanged = next.activeChannel !== current.activeChannel
         || next.selection !== current.selection
+        || next.selectionMaskSnapshot !== current.selectionMaskSnapshot
         || next.vectorSelection !== current.vectorSelection;
       if (documentInteractionChanged) {
         documentSession?.updateEditor(() => documentEditorStateFrom(next));

@@ -278,6 +278,7 @@ import type { GenAiGenerationJob } from '@lighttable/genai-core';
 import {
   createEditorSession,
   createGradientToolSettings,
+  documentEditorStateFrom,
   type EditorSession,
   type ToolId
 } from './editor/session/editorSession';
@@ -2667,9 +2668,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getSelection: () => editorSessionRef.current.selection,
-    publishSelection: (selection, pointerId) => {
-      editorSessionRef.current = { ...editorSessionRef.current, pointerId, selection };
-      setEditorSession((current) => ({ ...current, pointerId, selection }));
+    getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
+    publishSelection: (selection, pointerId, selectionMaskSnapshot) => {
+      const nextMask = selectionMaskSnapshot === undefined
+        ? editorSessionRef.current.selectionMaskSnapshot
+        : selectionMaskSnapshot;
+      editorSessionRef.current = {
+        ...editorSessionRef.current,
+        pointerId,
+        selection,
+        selectionMaskSnapshot: nextMask
+      };
+      setEditorSession((current) => ({
+        ...current,
+        pointerId,
+        selection,
+        selectionMaskSnapshot: selectionMaskSnapshot === undefined
+          ? current.selectionMaskSnapshot
+          : selectionMaskSnapshot
+      }));
     },
     publishDraft: setSelectionDraft,
     pushHistoryEntry,
@@ -3511,6 +3528,43 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current = null;
   }, []);
 
+  const restoreDocumentSelectionState = useCallback(async (
+    renderer: DocumentRendererPort
+  ) => {
+    const documentEditor = documentSession?.getSnapshot().editor
+      ?? documentEditorStateFrom(editorSessionRef.current);
+    const exactMask = documentEditor.selectionMaskSnapshot;
+    if (exactMask) {
+      if (!await renderer.restoreSelectionSnapshot(exactMask)) {
+        throw new Error('The document selection could not be restored.');
+      }
+      return;
+    }
+
+    if (documentEditor.selection.length === 0) {
+      if (!await renderer.clearSelection()) {
+        throw new Error('The previous document selection could not be cleared.');
+      }
+      return;
+    }
+
+    if (!await renderer.replaceSelection([...documentEditor.selection])) {
+      throw new Error('The document selection could not be rebuilt.');
+    }
+    const capturedMask = await renderer.captureSelectionSnapshot();
+    if (documentSession) {
+      documentSession.updateEditor((current) => ({
+        ...current,
+        selectionMaskSnapshot: capturedMask
+      }));
+    } else {
+      setEditorSession((current) => ({
+        ...current,
+        selectionMaskSnapshot: capturedMask
+      }));
+    }
+  }, [documentSession, setEditorSession]);
+
   const documentLifecycleController = useEditorDocumentLifecycleController({
     enabled: open && workspaceDocumentKind === 'image',
     generation: documentOpenGeneration,
@@ -3547,6 +3601,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishTextRenderPresentation,
     publishCompositeRendered,
     publishInitialThumbnail: publishDocumentThumbnail,
+    restoreSelectionState: restoreDocumentSelectionState,
     publishError: setError,
     publishOpenFailure: onDocumentOpenFailed,
     publishScopeError: setScopeError,
