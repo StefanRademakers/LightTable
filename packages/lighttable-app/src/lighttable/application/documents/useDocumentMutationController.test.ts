@@ -64,6 +64,21 @@ describe('document mutation controller', () => {
     expect(state.history[0].byteSize).toBe(0);
   });
 
+  it('rolls a published document back when history rejects the mutation', () => {
+    const state = setup();
+    const rejectedHistory = createDocumentMutationController(() => ({
+      getDocument: () => state.document,
+      applySnapshot: state.applySnapshot,
+      previewSnapshot: state.previewSnapshot,
+      discardPreview: state.discardPreview,
+      pushHistoryEntry: () => { throw new Error('History rejected the mutation.'); }
+    }));
+
+    expect(() => rejectedHistory.change((current) => renamed(current, 'Untracked')))
+      .toThrow('History rejected the mutation.');
+    expect(state.document?.name).toBe('First');
+  });
+
   it('accounts only raster resources detached by structural mutations', () => {
     const state = setup();
     state.controller.change((current) => createRasterLayer(current));

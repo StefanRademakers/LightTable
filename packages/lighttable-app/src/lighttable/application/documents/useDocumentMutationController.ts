@@ -287,17 +287,26 @@ export const createDocumentMutationController = (
     const retained = rasterResourceRetention(before, after);
     const vectorBytes = vectorSnapshotRetentionBytes(before, after);
     const resolvedDescription = description ?? inferDocumentMutationDescription(before, after);
-    resolveDependencies().pushHistoryEntry({
-      label: resolvedDescription.label,
-      type: resolvedDescription.type,
-      layerIds: [...new Set([
-        ...retained.layerIds,
-        ...(description?.layerIds ?? [])
-      ])],
-      byteSize: retained.byteSize + vectorBytes + (description?.byteSize ?? 0),
-      undo: () => applyForDocument(documentId, before),
-      redo: () => applyForDocument(documentId, after)
-    });
+    const dependencies = resolveDependencies();
+    try {
+      dependencies.pushHistoryEntry({
+        label: resolvedDescription.label,
+        type: resolvedDescription.type,
+        layerIds: [...new Set([
+          ...retained.layerIds,
+          ...(description?.layerIds ?? [])
+        ])],
+        byteSize: retained.byteSize + vectorBytes + (description?.byteSize ?? 0),
+        undo: () => applyForDocument(documentId, before),
+        redo: () => applyForDocument(documentId, after)
+      });
+    } catch (error) {
+      // Semantic executors publish their immutable document first and then ask
+      // this controller to retain the reversible command. A rejected history
+      // entry must not leave that publication behind as an untracked edit.
+      if (dependencies.getDocument() === after) dependencies.applySnapshot(before);
+      throw error;
+    }
     return true;
   };
 

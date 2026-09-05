@@ -104,6 +104,12 @@ Atomic command batches keep their existing single outer history entry: semantic 
 
 This slice changes transaction ownership only. It adds no GPU readback, texture copy, render pass or pixel allocation; cancellation republishes the opening canonical document through the existing projection path and no new retained GPU resource is introduced.
 
+### Rollback when history rejects a published mutation
+
+The document mutation controller now treats history registration as part of the same atomic publication boundary. Semantic executors that publish an immutable `after` document and then ask the controller to retain its reversible transition no longer leave that document active when history rejects the entry. If the published snapshot is still current, the controller restores the exact `before` snapshot and propagates the failure.
+
+This closes a central half-commit path behind apparently successful edits followed by incomplete undo. The normal success path only adds exception handling around the existing history call; it performs no extra render, GPU allocation, texture copy or readback.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
