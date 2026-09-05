@@ -3,6 +3,7 @@ import type {
   ImageDocument,
   LayerId,
   LayerNode,
+  RasterLayer,
   Rect
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
@@ -57,6 +58,9 @@ import {
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 import { isFilterKind, createFilterStack } from '../../processing/filter';
+import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
+import { commitAppliedPixelMutation } from '../commands/pixelMutationTransaction';
+import type { VectorElementCreationTransaction } from '../vectors/VectorDocumentController';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -164,6 +168,7 @@ export interface LayerDocumentCommands {
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
+  rasterizeVectorCreation(transaction: VectorElementCreationTransaction): boolean;
   mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
@@ -253,6 +258,88 @@ export const createLayerDocumentCommands = (
       }
     }
     return true;
+  };
+
+  const applyDocumentTransition = (
+    operation: string,
+    before: ImageDocument,
+    after: ImageDocument
+  ) => runEditorOperationTransaction({ operation }, (transaction) => {
+    transaction.step(
+      'publish document snapshot',
+      () => dependenciesRef.current.applyDocumentSnapshot(after),
+      () => dependenciesRef.current.applyDocumentSnapshot(before)
+    );
+  });
+
+  const commitReservedRasterMutation = ({
+    operation,
+    current,
+    next,
+    destination,
+    render,
+    historyEntry,
+    processing,
+    rollbackDocument = current,
+    errorMessage
+  }: {
+    readonly operation: string;
+    readonly current: ImageDocument;
+    readonly next: ImageDocument;
+    readonly destination: RasterLayer;
+    readonly render: () => boolean;
+    readonly historyEntry: LayerCommandHistoryEntry;
+    readonly processing?: {
+      readonly publish: () => void;
+      readonly restore: () => void;
+    };
+    /**
+     * Snapshot restored when publication fails. This differs from `current`
+     * for tool previews: the preview is the render source, but the durable
+     * operation started from the document that existed before the gesture.
+     */
+    readonly rollbackDocument?: ImageDocument;
+    readonly errorMessage: string;
+  }): boolean => {
+    const dependencies = dependenciesRef.current;
+    const renderer = dependencies.getRenderer();
+    if (!renderer) return false;
+    try {
+      runEditorOperationTransaction({ operation }, (transaction) => {
+        transaction.adopt(
+          'release reserved raster destination',
+          () => { renderer.releaseRasterDestination(destination.id); }
+        );
+        if (!renderer.prepareRasterDestination(destination)) {
+          throw new Error('The raster destination could not be allocated on the GPU.');
+        }
+        if (!render()) throw new Error(errorMessage);
+        if (processing) {
+          transaction.step(
+            'publish document processing state',
+            processing.publish,
+            processing.restore
+          );
+        }
+        transaction.step(
+          'publish document snapshot',
+          () => dependencies.applyDocumentSnapshot(next),
+          () => dependencies.applyDocumentSnapshot(rollbackDocument)
+        );
+        dependencies.pushHistoryEntry(historyEntry);
+
+        // Recording is the ownership hand-off: from here the document and its
+        // history retain both source and destination runtimes. The concrete
+        // renderer implementation only clears a reservation and cannot fail.
+        renderer.commitRasterDestination(destination.id);
+      });
+      return true;
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : errorMessage
+      );
+      return false;
+    }
   };
 
   const addMaskToLayer = (layerId: LayerId, useSelection: boolean, present = false) => {
@@ -619,32 +706,91 @@ export const createLayerDocumentCommands = (
 
     const next = mergeDocumentLayers(current, plan.layerIds);
     const destination = findRasterLayer(next, next.activeLayerId);
-    if (next === current || !destination || !renderer.prepareRasterDestination(destination)) {
+    if (next === current || !destination) {
       dependenciesRef.current.setError('The full-canvas merge destination could not be allocated.');
       return false;
     }
-    if (!renderer.mergeLayers(current, plan.layerIds, destination.id)) {
-      renderer.releaseRasterDestination(destination.id);
-      dependenciesRef.current.setError('The selected layers could not be merged on the GPU.');
-      return false;
-    }
-    dependenciesRef.current.applyDocumentSnapshot(next);
-    dependenciesRef.current.pushHistoryEntry({
-      label: 'Merge Layers',
-      type: 'layer.merge',
-      byteSize: current.width * current.height * 8,
-      layerIds: [...plan.layerIds, destination.id],
-      undo: () => {
-        dependenciesRef.current.applyDocumentSnapshot(current);
+    if (!commitReservedRasterMutation({
+      operation: 'Merge Layers',
+      current,
+      next,
+      destination,
+      render: () => renderer.mergeLayers(current, plan.layerIds, destination.id),
+      historyEntry: {
+        label: 'Merge Layers',
+        type: 'layer.merge',
+        byteSize: current.width * current.height * 8,
+        layerIds: [...plan.layerIds, destination.id],
+        undo: () => applyDocumentTransition('Undo Merge Layers', next, current),
+        redo: () => applyDocumentTransition('Redo Merge Layers', current, next)
       },
-      redo: () => {
-        dependenciesRef.current.applyDocumentSnapshot(next);
-      }
-    });
-    renderer.commitRasterDestination(destination.id);
+      errorMessage: 'The selected layers could not be merged on the GPU.'
+    })) return false;
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setError(null);
     dependenciesRef.current.setStatus('Layers merged');
+    return true;
+  };
+
+  const rasterizeVectorCreation = (transaction: VectorElementCreationTransaction) => {
+    const dependencies = dependenciesRef.current;
+    const renderer = dependencies.getRenderer();
+    const liveDocument = dependencies.getDocument();
+    if (!renderer
+      || !liveDocument
+      || liveDocument.id !== transaction.previewDocument.id
+      || liveDocument.revision !== transaction.previewDocument.revision) {
+      dependencies.setError('The shape preview is no longer the active document state.');
+      return false;
+    }
+    const siblings = siblingLayers(transaction.previewDocument, transaction.layerId);
+    const shapeIndex = siblings.findIndex(({ id }) => id === transaction.layerId);
+    const destinationSource = shapeIndex > 0 ? siblings[shapeIndex - 1] : null;
+    if (destinationSource?.type !== 'raster') {
+      dependencies.setError(
+        'Pixels mode requires an editable raster layer directly below the new shape.'
+      );
+      return false;
+    }
+    const layerIds = [destinationSource.id, transaction.layerId];
+    const next = mergeDocumentLayers(transaction.previewDocument, layerIds);
+    const destination = findRasterLayer(next, next.activeLayerId);
+    if (next === transaction.previewDocument || !destination) {
+      dependencies.setError('The GPU raster target for this shape could not be allocated.');
+      return false;
+    }
+    if (!commitReservedRasterMutation({
+      operation: 'Apply Shape to Pixels',
+      current: transaction.previewDocument,
+      rollbackDocument: transaction.beforeDocument,
+      next,
+      destination,
+      render: () => renderer.mergeLayers(
+        transaction.previewDocument,
+        layerIds,
+        destination.id
+      ),
+      historyEntry: {
+        label: 'Apply Shape to Pixels',
+        type: 'vector.shape.rasterize',
+        byteSize: transaction.beforeDocument.width * transaction.beforeDocument.height * 8,
+        layerIds: [...layerIds, destination.id],
+        undo: () => applyDocumentTransition(
+          'Undo Apply Shape to Pixels',
+          next,
+          transaction.beforeDocument
+        ),
+        redo: () => applyDocumentTransition(
+          'Redo Apply Shape to Pixels',
+          transaction.beforeDocument,
+          next
+        )
+      },
+      errorMessage: 'The shape could not be baked into the active raster layer.'
+    })) return false;
+    dependencies.setActiveChannel('pixels');
+    dependencies.setError(null);
+    dependencies.setStatus('Shape applied to pixels');
     return true;
   };
 
@@ -708,50 +854,66 @@ export const createLayerDocumentCommands = (
       ? flattenGroup(current, request.groupId)
       : flattenImage(current);
     const destination = findRasterLayer(next, next.activeLayerId);
-    if (next === current || !destination || !renderer.prepareRasterDestination(destination)) {
+    if (next === current || !destination) {
       dependenciesRef.current.setError('The full-canvas flatten destination could not be allocated.');
       return false;
     }
-    const rendered = request.kind === 'group'
-      ? renderer.flattenGroup(current, request.groupId, destination.id)
-      : renderer.flattenImage(current, destination.id);
-    if (!rendered) {
-      renderer.releaseRasterDestination(destination.id);
-      dependenciesRef.current.setError('The layer stack could not be flattened on the GPU.');
-      return false;
-    }
-
-    if (resetsDocumentFinalState) {
-      dependencies.publishDocumentAdjustments?.(neutralAdjustments);
-      dependencies.publishPanelAdjustments?.(neutralAdjustments);
-      dependencies.publishGlobalGradeStrength?.(100);
-    }
-    dependencies.applyDocumentSnapshot(next);
-    dependencies.pushHistoryEntry({
-      label: request.kind === 'group' ? 'Flatten Group' : 'Flatten Image',
-      type: request.kind === 'group' ? 'layer.flatten-group' : 'document.flatten',
-      byteSize: current.width * current.height * 8,
-      layerIds: [...plan.layerIds, destination.id],
-      undo: () => {
-        const latest = dependenciesRef.current;
-        if (previousDocumentAdjustments && previousPanelAdjustments) {
-          latest.publishDocumentAdjustments?.(previousDocumentAdjustments);
-          latest.publishPanelAdjustments?.(previousPanelAdjustments);
-          latest.publishGlobalGradeStrength?.(previousGlobalGradeStrength);
-        }
-        latest.applyDocumentSnapshot(current);
-      },
-      redo: () => {
-        const latest = dependenciesRef.current;
+    const publishNeutralProcessing = () => {
+      const latest = dependenciesRef.current;
+      latest.publishDocumentAdjustments?.(neutralAdjustments);
+      latest.publishPanelAdjustments?.(neutralAdjustments);
+      latest.publishGlobalGradeStrength?.(100);
+    };
+    const restorePreviousProcessing = () => {
+      if (!previousDocumentAdjustments || !previousPanelAdjustments) return;
+      const latest = dependenciesRef.current;
+      latest.publishDocumentAdjustments?.(previousDocumentAdjustments);
+      latest.publishPanelAdjustments?.(previousPanelAdjustments);
+      latest.publishGlobalGradeStrength?.(previousGlobalGradeStrength);
+    };
+    const applyFlattenState = (flattened: boolean) => runEditorOperationTransaction(
+      { operation: flattened ? 'Redo Flatten Image' : 'Undo Flatten Image' },
+      (transaction) => {
         if (resetsDocumentFinalState) {
-          latest.publishDocumentAdjustments?.(neutralAdjustments);
-          latest.publishPanelAdjustments?.(neutralAdjustments);
-          latest.publishGlobalGradeStrength?.(100);
+          transaction.step(
+            'publish document processing state',
+            flattened ? publishNeutralProcessing : restorePreviousProcessing,
+            flattened ? restorePreviousProcessing : publishNeutralProcessing
+          );
         }
-        latest.applyDocumentSnapshot(next);
+        transaction.step(
+          'publish document snapshot',
+          () => dependenciesRef.current.applyDocumentSnapshot(flattened ? next : current),
+          () => dependenciesRef.current.applyDocumentSnapshot(flattened ? current : next)
+        );
       }
-    });
-    renderer.commitRasterDestination(destination.id);
+    );
+    if (!commitReservedRasterMutation({
+      operation: request.kind === 'group' ? 'Flatten Group' : 'Flatten Image',
+      current,
+      next,
+      destination,
+      render: () => request.kind === 'group'
+        ? renderer.flattenGroup(current, request.groupId, destination.id)
+        : renderer.flattenImage(current, destination.id),
+      processing: resetsDocumentFinalState ? {
+        publish: publishNeutralProcessing,
+        restore: restorePreviousProcessing
+      } : undefined,
+      historyEntry: {
+        label: request.kind === 'group' ? 'Flatten Group' : 'Flatten Image',
+        type: request.kind === 'group' ? 'layer.flatten-group' : 'document.flatten',
+        byteSize: current.width * current.height * 8,
+        layerIds: [...plan.layerIds, destination.id],
+        undo: () => request.kind === 'group'
+          ? applyDocumentTransition('Undo Flatten Group', next, current)
+          : applyFlattenState(false),
+        redo: () => request.kind === 'group'
+          ? applyDocumentTransition('Redo Flatten Group', current, next)
+          : applyFlattenState(true)
+      },
+      errorMessage: 'The layer stack could not be flattened on the GPU.'
+    })) return false;
     dependencies.setActiveChannel('pixels');
     dependencies.setError(null);
     dependencies.setStatus(
@@ -818,28 +980,58 @@ export const createLayerDocumentCommands = (
         return false;
       }
       const completedEdit = pixelEdit;
-      dependencies.applyDocumentSnapshot(next);
-      dependencies.pushHistoryEntry({
-        label: 'Rasterize Type',
-        type: 'layer.rasterize-type',
-        byteSize: completedEdit.byteSize,
-        layerIds: [source.id],
-        undo: () => {
-          dependencies.applyDocumentSnapshot(current);
-          if (!dependencies.getRenderer()?.applyPixelHistory(completedEdit, 'undo')) {
-            throw new Error('Rasterize Type undo is no longer available.');
-          }
-        },
-        redo: () => {
-          if (!dependencies.getRenderer()?.applyPixelHistory(completedEdit, 'redo')) {
-            throw new Error('Rasterize Type redo is no longer available.');
-          }
-          dependencies.applyDocumentSnapshot(next);
-        },
-        dispose: completedEdit.destroy
-      });
-      renderer.commitRasterDestination(destination.id);
       pixelEdit = null;
+      const applyTextRasterState = (rasterized: boolean) => runEditorOperationTransaction({
+        operation: rasterized ? 'Redo Rasterize Type' : 'Undo Rasterize Type'
+      }, (transaction) => {
+        transaction.step(
+          'apply raster pixel history',
+          () => {
+            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(
+              completedEdit,
+              rasterized ? 'redo' : 'undo'
+            )) {
+              throw new Error(
+                `Rasterize Type ${rasterized ? 'redo' : 'undo'} is no longer available.`
+              );
+            }
+          },
+          () => {
+            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(
+              completedEdit,
+              rasterized ? 'undo' : 'redo'
+            )) {
+              throw new Error('Rasterize Type pixel rollback is no longer available.');
+            }
+          }
+        );
+        transaction.step(
+          'publish document snapshot',
+          () => dependenciesRef.current.applyDocumentSnapshot(rasterized ? next : current),
+          () => dependenciesRef.current.applyDocumentSnapshot(rasterized ? current : next)
+        );
+      });
+      runEditorOperationTransaction({ operation: 'Rasterize Type' }, (transaction) => {
+        transaction.adopt('restore raster pixels', () => {
+          completedEdit.undo();
+          completedEdit.destroy();
+        });
+        transaction.step(
+          'publish document snapshot',
+          () => dependencies.applyDocumentSnapshot(next),
+          () => dependencies.applyDocumentSnapshot(current)
+        );
+        dependencies.pushHistoryEntry({
+          label: 'Rasterize Type',
+          type: 'layer.rasterize-type',
+          byteSize: completedEdit.byteSize,
+          layerIds: [source.id],
+          undo: () => applyTextRasterState(false),
+          redo: () => applyTextRasterState(true),
+          dispose: completedEdit.destroy
+        });
+        renderer.commitRasterDestination(destination.id);
+      });
       dependencies.setActiveChannel('pixels');
       dependencies.setError(null);
       dependencies.setStatus('Text layer rasterized');
@@ -876,26 +1068,22 @@ export const createLayerDocumentCommands = (
       dependencies.setError('The layer is locked or cannot be rasterized.');
       return false;
     }
-    if (!renderer.prepareRasterDestination(destination)) {
-      dependencies.setError('The raster destination could not be allocated on the GPU.');
-      return false;
-    }
-    if (!renderer.rasterizeLayer(current, source.id, destination.id)) {
-      renderer.releaseRasterDestination(destination.id);
-      dependencies.setError('The layer could not be rasterized on the GPU.');
-      return false;
-    }
-
-    dependencies.applyDocumentSnapshot(next);
-    dependencies.pushHistoryEntry({
-      label: 'Rasterize Layer',
-      type: 'layer.rasterize',
-      byteSize: current.width * current.height * 8,
-      layerIds: [source.id, destination.id],
-      undo: () => dependenciesRef.current.applyDocumentSnapshot(current),
-      redo: () => dependenciesRef.current.applyDocumentSnapshot(next)
-    });
-    renderer.commitRasterDestination(destination.id);
+    if (!commitReservedRasterMutation({
+      operation: 'Rasterize Layer',
+      current,
+      next,
+      destination,
+      render: () => renderer.rasterizeLayer(current, source.id, destination.id),
+      historyEntry: {
+        label: 'Rasterize Layer',
+        type: 'layer.rasterize',
+        byteSize: current.width * current.height * 8,
+        layerIds: [source.id, destination.id],
+        undo: () => applyDocumentTransition('Undo Rasterize Layer', next, current),
+        redo: () => applyDocumentTransition('Redo Rasterize Layer', current, next)
+      },
+      errorMessage: 'The layer could not be rasterized on the GPU.'
+    })) return false;
     dependencies.setActiveChannel('pixels');
     dependencies.setError(null);
     dependencies.setStatus(`${source.name} rasterized`);
@@ -980,25 +1168,14 @@ export const createLayerDocumentCommands = (
       const next = channel === 'mask'
         ? markLayerMaskPixelsChanged(current, layerId, fullDocumentBounds(current))
         : markLayerPixelsChanged(current, layerId, fullDocumentBounds(current));
-      dependenciesRef.current.applyDocumentSnapshot(next);
-      dependenciesRef.current.pushHistoryEntry({
+      commitAppliedPixelMutation(() => dependenciesRef.current, {
+        operation: channel === 'mask' ? 'Invert Layer Mask' : 'Invert',
         label: channel === 'mask' ? 'Invert Layer Mask' : 'Invert',
         type: channel === 'mask' ? 'layer.mask.invert' : 'layer.invert',
-        byteSize: pixelEdit.byteSize,
         layerIds: [layerId],
-        undo: () => {
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Invert colors undo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(current);
-        },
-        redo: () => {
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Invert colors redo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(next);
-        },
-        dispose: pixelEdit.destroy
+        before: current,
+        after: next,
+        edits: [pixelEdit]
       });
       dependenciesRef.current.setError(null);
       dependenciesRef.current.setStatus(
@@ -1129,25 +1306,14 @@ export const createLayerDocumentCommands = (
         const pixelEdit = renderer.finishPixelEdit();
         if (!pixelEdit) throw new Error('Mask paste could not create a recoverable undo step.');
         const after = markLayerMaskPixelsChanged(before, targetId, placement);
-        dependencies.applyDocumentSnapshot(after);
-        dependencies.pushHistoryEntry({
+        commitAppliedPixelMutation(() => dependenciesRef.current, {
+          operation: 'Paste Into Layer Mask',
           label: 'Paste Into Layer Mask',
           type: 'layer.mask.paste',
-          byteSize: pixelEdit.byteSize,
           layerIds: [targetId],
-          undo: () => {
-            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-              throw new Error('Mask paste undo is no longer available.');
-            }
-            dependenciesRef.current.applyDocumentSnapshot(before);
-          },
-          redo: () => {
-            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-              throw new Error('Mask paste redo is no longer available.');
-            }
-            dependenciesRef.current.applyDocumentSnapshot(after);
-          },
-          dispose: pixelEdit.destroy
+          before,
+          after,
+          edits: [pixelEdit]
         });
         dependencies.setActiveChannel('mask');
         dependencies.setSelectionClipboardAvailable(true);
@@ -1374,6 +1540,7 @@ export const createLayerDocumentCommands = (
     createAdjustmentLayerOfKind: createProcessingLayer,
     createAttachedAdjustment,
     mergeSelectedLayers,
+    rasterizeVectorCreation,
     mergeLayersWhenReady,
     mergeActiveLayerDown,
     flatten,

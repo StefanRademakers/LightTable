@@ -76,15 +76,40 @@ describe('PixelEditHistoryService', () => {
     expect(test.submit).toHaveBeenCalledTimes(3);
   });
 
-  it('releases a pending snapshot when an edit is cancelled', () => {
+  it('restores and releases a pending snapshot when an edit is cancelled', () => {
     const test = harness();
     test.service.begin(id, 'pixels');
     test.service.captureAll(id, 'pixels');
     const snapshot = test.sessions.current!.tiles[0]!.texture;
 
     expect(test.service.cancel()).toBe(true);
+    expect(test.copyTextureToTexture).toHaveBeenLastCalledWith(
+      { texture: snapshot },
+      { texture: test.target, origin: { x: 0, y: 0 } },
+      [20, 10]
+    );
+    expect(test.submit).toHaveBeenCalledTimes(2);
+    expect(test.invalidateLayer).toHaveBeenLastCalledWith(id);
     expect(snapshot.destroy).toHaveBeenCalledOnce();
     expect(test.sessions.current).toBeNull();
+  });
+
+  it('rolls back an unfinished edit before opening the next edit', () => {
+    const test = harness();
+    test.service.begin(id, 'pixels');
+    test.service.captureAll(id, 'pixels');
+    const firstSnapshot = test.sessions.current!.tiles[0]!.texture;
+
+    test.service.begin(id, 'mask');
+
+    expect(test.copyTextureToTexture).toHaveBeenNthCalledWith(
+      2,
+      { texture: firstSnapshot },
+      { texture: test.target, origin: { x: 0, y: 0 } },
+      [20, 10]
+    );
+    expect(firstSnapshot.destroy).toHaveBeenCalledOnce();
+    expect(test.sessions.current).toMatchObject({ layerId: id, channel: 'mask' });
   });
 
   it('does not allocate a snapshot for an unavailable target', () => {

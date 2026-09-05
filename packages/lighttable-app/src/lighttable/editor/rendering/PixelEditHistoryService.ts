@@ -30,6 +30,9 @@ export class PixelEditHistoryService {
   constructor(private readonly options: PixelEditHistoryServiceOptions) {}
 
   begin(layerId: LayerId, channel: PaintChannel) {
+    // A new gesture may supersede an unfinished one, but it may never discard
+    // that gesture's rollback data while leaving its pixels applied.
+    this.cancel();
     const runtime = this.options.layerResources.raster(layerId);
     if (channel === 'pixels' && !runtime) {
       throw new Error('The active raster layer is not available on the GPU.');
@@ -154,5 +157,38 @@ export class PixelEditHistoryService {
     };
   }
 
-  cancel() { return this.options.sessions.cancel(); }
+  /**
+   * Aborts an in-flight edit and restores every captured tile.
+   *
+   * A cancel is a transaction rollback, not merely resource cleanup. Keeping
+   * the mutated target while discarding its before-snapshot lets the document
+   * revision and GPU texture permanently diverge after any failed tool or
+   * command. Tiles that were never captured were never authorized to change.
+   */
+  cancel() {
+    const snapshot = this.options.sessions.complete();
+    if (!snapshot) return false;
+    const runtime = this.options.layerResources.raster(snapshot.layerId);
+    const target = snapshot.channel === 'mask'
+      ? this.options.maskTextureFor(snapshot.layerId)
+      : runtime?.texture;
+    if (!target) {
+      snapshot.tiles.forEach(({ texture }) => texture.destroy());
+      return false;
+    }
+    if (snapshot.tiles.length > 0) {
+      const encoder = this.options.device.createCommandEncoder({
+        label: 'LightTable rollback cancelled pixel edit'
+      });
+      snapshot.tiles.forEach((tile) => encoder.copyTextureToTexture(
+        { texture: tile.texture },
+        { texture: target, origin: { x: tile.x, y: tile.y } },
+        [tile.width, tile.height]
+      ));
+      this.options.device.queue.submit([encoder.finish()]);
+      this.options.invalidateLayer(snapshot.layerId);
+    }
+    snapshot.tiles.forEach(({ texture }) => texture.destroy());
+    return true;
+  }
 }

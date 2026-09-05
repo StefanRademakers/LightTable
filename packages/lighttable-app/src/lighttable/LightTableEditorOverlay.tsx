@@ -407,7 +407,6 @@ import {
   removeLayerMask,
   setLayerMaskEnabled,
   setLayerMaskLinked,
-  mergeLayers as mergeDocumentLayers,
   setRasterLayerAdjustmentStack,
   setLayerTransform,
   replaceVectorElement,
@@ -5323,46 +5322,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelTask: cancelBackgroundRemovalTask
   });
   rasterizeShapeRef.current = (transaction) => {
-    const renderer = engineRef.current;
-    const siblings = siblingLayers(transaction.previewDocument, transaction.layerId);
-    const shapeIndex = siblings.findIndex(({ id }) => id === transaction.layerId);
-    const destinationSource = shapeIndex > 0 ? siblings[shapeIndex - 1] : null;
-    if (!renderer || destinationSource?.type !== 'raster') {
-      setError('Pixels mode requires an editable raster layer directly below the new shape.');
-      return false;
-    }
-    const layerIds = [destinationSource.id, transaction.layerId];
-    const next = mergeDocumentLayers(transaction.previewDocument, layerIds);
-    const destination = next.activeLayerId ? findRasterLayer(next, next.activeLayerId) : null;
-    if (next === transaction.previewDocument
-      || !destination
-      || !renderer.prepareRasterDestination(destination)) {
-      setError('The GPU raster target for this shape could not be allocated.');
-      return false;
-    }
-    if (!renderer.mergeLayers(
-      transaction.previewDocument,
-      layerIds,
-      destination.id
-    )) {
-      renderer.releaseRasterDestination(destination.id);
-      setError('The shape could not be baked into the active raster layer.');
-      return false;
-    }
-    applyDocumentSnapshot(next);
-    pushHistoryEntry({
-      label: 'Apply Shape to Pixels',
-      type: 'vector.shape.rasterize',
-      byteSize: transaction.beforeDocument.width * transaction.beforeDocument.height * 8,
-      layerIds: [...layerIds, destination.id],
-      undo: () => applyDocumentSnapshot(transaction.beforeDocument),
-      redo: () => applyDocumentSnapshot(next)
-    });
-    renderer.commitRasterDestination(destination.id);
-    setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
-    setError(null);
-    setGradeStatus('Shape applied to pixels');
-    return true;
+    return layerDocumentCommands.rasterizeVectorCreation(transaction);
   };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;

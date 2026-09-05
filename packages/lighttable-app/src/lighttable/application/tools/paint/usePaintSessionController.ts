@@ -34,6 +34,7 @@ import {
   type PaintDabScheduler,
   type PaintFramePort
 } from './paintDabScheduler';
+import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
 
 export interface PaintHistoryEntry {
   label: string;
@@ -365,37 +366,22 @@ export const createPaintSessionController = (
       const surfaceEdit = preparedSurface?.edit ?? null;
       preparedSurface = null;
       renderer.setPaintInteractionActive(false);
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushHistoryEntry({
+      try {
+        commitAppliedPixelMutation(() => resolveDependencies(), {
+        operation: 'Brush Tool',
         label: finished.target.channel === 'mask' ? 'Brush Tool on Layer Mask' : 'Brush Tool',
         type: finished.target.channel === 'mask' ? 'paint.mask.stroke' : 'paint.stroke',
-        byteSize: pixelEdit.byteSize + (surfaceEdit?.byteSize ?? 0),
         layerIds: [finished.target.layerId],
-        undo: () => {
-          const latest = resolveDependencies();
-          if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Brush undo is no longer available.');
-          }
-          if (surfaceEdit && !latest.getRenderer()?.applyPixelHistory(surfaceEdit, 'undo')) {
-            throw new Error('Brush surface undo is no longer available.');
-          }
-          latest.applyDocumentSnapshot(before);
-        },
-        redo: () => {
-          const latest = resolveDependencies();
-          if (surfaceEdit && !latest.getRenderer()?.applyPixelHistory(surfaceEdit, 'redo')) {
-            throw new Error('Brush surface redo is no longer available.');
-          }
-          if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Brush redo is no longer available.');
-          }
-          latest.applyDocumentSnapshot(after);
-        },
-        dispose: () => {
-          pixelEdit.destroy();
-          surfaceEdit?.destroy();
-        }
-      });
+        before,
+        after,
+        edits: surfaceEdit ? [surfaceEdit, pixelEdit] : [pixelEdit]
+        });
+      } catch (reason) {
+        dependencies.setError(
+          reason instanceof Error ? reason.message : 'The brush stroke did not complete.'
+        );
+        return true;
+      }
       if (completedRecording && !completedRecording.overflowed) {
         dependencies.onStrokeCommitted?.({
           target: completedRecording.target,

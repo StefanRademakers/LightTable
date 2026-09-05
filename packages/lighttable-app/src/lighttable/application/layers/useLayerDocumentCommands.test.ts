@@ -530,6 +530,24 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]).toMatchObject({ id: destination.id, type: 'raster' });
   });
 
+  it('releases an unpublished raster and restores the semantic layer when history rejects rasterize', () => {
+    const document = createImageDocument('Vector rollback', 32, 24, 'asset');
+    const vector = createVectorLayer([], 'Shape');
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+    const state = setup(document);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.rasterizeLayer(vector.id)).toBe(false);
+
+    expect(state.document()).toBe(document);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
+  });
+
   it('waits for a newly published text source before an automated rasterization', async () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
@@ -959,6 +977,21 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.id).toBe(mergedId);
   });
 
+  it('restores every source layer and releases the destination when merge history rejects', () => {
+    const document = createRasterLayer(createImageDocument('Merge rollback', 32, 24, 'asset'), 'Top');
+    const state = setup(document);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.mergeSelectedLayers(document.layers.map(({ id }) => id))).toBe(false);
+
+    expect(state.document()).toBe(document);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
+  });
+
   it('merges the active raster layer down and reports the completed command', () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
@@ -1003,6 +1036,27 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.id).toBe(destination?.id);
     expect(state.documentAdjustments()).toEqual(createDefaultAdjustments());
     expect(state.globalGradeStrength()).toBe(100);
+  });
+
+  it('restores layers and document processing when flatten history rejects', () => {
+    const document = createRasterLayer(createImageDocument('Flatten rollback', 32, 24, 'asset'), 'Top');
+    const state = setup(document);
+    state.documentAdjustments().exposureEV = 1.25;
+    state.panelAdjustments().exposureEV = 0.75;
+    state.dependencies.publishGlobalGradeStrength(42);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.flatten({ kind: 'image' })).toBe(false);
+
+    expect(state.document()).toBe(document);
+    expect(state.documentAdjustments().exposureEV).toBe(1.25);
+    expect(state.panelAdjustments().exposureEV).toBe(0.75);
+    expect(state.globalGradeStrength()).toBe(42);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
   it('bakes an active vector shape into the raster layer below with pixel history', () => {

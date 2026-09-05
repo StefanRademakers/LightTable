@@ -11,6 +11,7 @@ import {
   type GradientRendererPort
 } from './gradientOperation';
 import type { SemanticRasterGradientCommand } from '../../commands/semanticRasterGradientCommandContract';
+import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
 
 interface GradientHistoryEntry {
   label: string;
@@ -57,28 +58,22 @@ export class RasterGradientCommandController {
       dependencies.setError(result.message);
       return null;
     }
-    dependencies.applyDocumentSnapshot(result.document);
-    dependencies.pushHistoryEntry({
+    try {
+      commitAppliedPixelMutation(() => this.resolve(), {
+      operation: 'Gradient Tool',
       label: result.channel === 'mask' ? 'Gradient on Layer Mask' : 'Gradient Tool',
       type: result.channel === 'mask' ? 'raster.mask.gradient' : 'raster.gradient',
-      byteSize: result.pixelEdit.byteSize,
       layerIds: [result.layerId],
-      undo: () => {
-        const latest = this.resolve();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-          throw new Error('Pixel-gradient undo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(before);
-      },
-      redo: () => {
-        const latest = this.resolve();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
-          throw new Error('Pixel-gradient redo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(result.document);
-      },
-      dispose: result.pixelEdit.destroy
-    });
+      before,
+      after: result.document,
+      edits: [result.pixelEdit]
+      });
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'The pixel gradient did not complete.'
+      );
+      return null;
+    }
     dependencies.setError(null);
     dependencies.setStatus(`${result.targetLabel} filled with a pixel gradient`);
     return { layerId: result.layerId, channel: result.channel };
