@@ -200,6 +200,7 @@ import {
   createDocumentGeometryPlan,
   projectDocumentGeometry,
   projectSelectionGeometry,
+  projectSelectionTransform,
   type DocumentGeometryRequest
 } from './application/documentGeometry/documentGeometryModel';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
@@ -422,9 +423,11 @@ import { BrushPercentInput } from './application/input/brushPercentInput';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   type CompositeColorChannel,
+  type SelectionOperation,
   type SelectionShape
 } from './editor/selection/selectionTypes';
 import { selectionEditingOverlayIsVisible } from './editor/selection/selectionEditingOverlay';
+import type { SelectionMaskSnapshot } from './editor/selection/SelectionMaskSnapshot';
 import {
   DEFAULT_SCOPE_SETTINGS,
   DEFAULT_SCOPE_VISIBILITY,
@@ -904,6 +907,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const paintGestureRef = useRef(new PaintGestureController());
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
+  const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
   const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const transformPickRevisionRef = useRef(0);
@@ -1431,7 +1435,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   } | null>(null);
   const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
   const textPaintPreviewFrameRef = useRef<number | null>(null);
-  const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
+  const selectLayerRef = useRef<(layerId: LayerId) => void | Promise<void>>(() => undefined);
   const paragraphTextCreation = useSyncExternalStore(
     paragraphTextController.subscribe,
     paragraphTextController.getSnapshot,
@@ -1807,11 +1811,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
-  const finishOpenHistoryTransactions = useCallback(() => {
+  const finishOpenHistoryTransactions = useCallback(async () => {
     // Undo/redo must first retire the renderer's active transform preview.
     // Otherwise GPU history restores the backing pixels while the stale preview
     // remains composited on top, making committed transforms appear not to undo.
-    commitTransformRef.current();
+    await commitTransformPendingRef.current();
     commitPointTextRef.current();
     commitParagraphTextRef.current();
     finishTextEditingRef.current();
@@ -1843,6 +1847,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetAdjustmentTransactionRef.current();
     documentProjectionController.applyDocumentSnapshot(document);
   }, [documentProjectionController]);
+
+  const publishDocumentSelection = useCallback((
+    document: ImageDocument,
+    selection: readonly SelectionOperation[],
+    selectionMaskSnapshot: SelectionMaskSnapshot
+  ) => {
+    const publish = () => {
+      applyDocumentSnapshot(document);
+      editorSessionRef.current = {
+        ...editorSessionRef.current,
+        pointerId: null,
+        selection: [...selection],
+        selectionMaskSnapshot
+      };
+      setEditorSession((current) => ({
+        ...current,
+        pointerId: null,
+        selection: [...selection],
+        selectionMaskSnapshot
+      }));
+    };
+    if (documentSession) documentSession.runPublication(publish);
+    else publish();
+  }, [applyDocumentSnapshot, documentSession, setEditorSession]);
 
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
@@ -2344,14 +2372,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return true;
   };
 
-  const applyImageSizeSnapshot = (snapshot: ImageDocument) => {
-    engineRef.current?.resizeDocumentSurface(snapshot);
-    applyDocumentSnapshot(snapshot);
-  };
-  const commitImageSize = (request: ImageSizeRequest, reportError = true) => {
-    finishOpenHistoryTransactions();
+  const commitImageSize = async (request: ImageSizeRequest, reportError = true) => {
+    await finishOpenHistoryTransactions();
     const before = imageDocumentRef.current;
     if (!before) return;
+    const renderer = engineRef.current;
+    if (!renderer) {
+      const reason = new Error('The document renderer is unavailable.');
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return;
+    }
+    const beforeSelection = editorSessionRef.current.selection;
+    let beforeSelectionMask = editorSessionRef.current.selectionMaskSnapshot;
     let gpuResize: ReturnType<DocumentRendererPort['resizeImagePixels']> | null = null;
     try {
       const plan = createResizePlan(before, request);
@@ -2360,18 +2393,40 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         editorDialogs.closeImageSize();
         return;
       }
-      gpuResize = engineRef.current?.resizeImagePixels(
+      beforeSelectionMask ??= await renderer.captureSelectionSnapshot();
+      const exactBeforeSelectionMask = beforeSelectionMask;
+      if (!await renderer.restoreSelectionSnapshot(exactBeforeSelectionMask)) {
+        throw new Error('The exact selection state could not be prepared for Image Size.');
+      }
+      const afterSelection = plan.targetWidth === plan.sourceWidth
+        && plan.targetHeight === plan.sourceHeight
+        ? beforeSelection
+        : projectSelectionTransform(beforeSelection, {
+            a: plan.scaleX, b: 0, c: 0, d: plan.scaleY, tx: 0, ty: 0
+          });
+      gpuResize = renderer.resizeImagePixels(
         before,
         plan,
         request.preserveDetailsNoiseReduction
-      ) ?? null;
-      applyImageSizeSnapshot(after);
+      );
+      renderer.resizeDocumentSurface(after);
+      const afterSelectionMask = await renderer.captureSelectionSnapshot();
+      publishDocumentSelection(after, afterSelection, afterSelectionMask);
       pushHistoryEntry({
         type: 'document.image-size',
         label: 'Image Size',
         documentMutation: true,
-        undo: () => { gpuResize?.apply('before'); applyImageSizeSnapshot(before); },
-        redo: () => { gpuResize?.apply('after'); applyImageSizeSnapshot(after); },
+        byteSize: exactBeforeSelectionMask.byteSize + afterSelectionMask.byteSize,
+        undo: () => {
+          gpuResize?.apply('before');
+          renderer.resizeDocumentSurface(before);
+          publishDocumentSelection(before, beforeSelection, exactBeforeSelectionMask);
+        },
+        redo: () => {
+          gpuResize?.apply('after');
+          renderer.resizeDocumentSurface(after);
+          publishDocumentSelection(after, afterSelection, afterSelectionMask);
+        },
         dispose: () => gpuResize?.dispose()
       });
       editorDialogs.closeImageSize();
@@ -2380,16 +2435,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     } catch (reason) {
       if (gpuResize) {
         gpuResize.apply('before');
-        applyImageSizeSnapshot(before);
+        renderer.resizeDocumentSurface(before);
+        if (beforeSelectionMask) publishDocumentSelection(before, beforeSelection, beforeSelectionMask);
       }
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
     }
   };
-  const commitDocumentGeometry = (request: DocumentGeometryRequest, reportError = true) => {
-    finishOpenHistoryTransactions();
+  const commitDocumentGeometry = async (request: DocumentGeometryRequest, reportError = true) => {
+    await finishOpenHistoryTransactions();
     const before = imageDocumentRef.current;
     if (!before) return;
+    const renderer = engineRef.current;
+    if (!renderer) {
+      const reason = new Error('The document renderer is unavailable.');
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return;
+    }
+    const beforeSelection = editorSessionRef.current.selection;
+    let beforeSelectionMask = editorSessionRef.current.selectionMaskSnapshot;
     let gpuGeometry: ReturnType<DocumentRendererPort['applyDocumentGeometryPixels']> | null = null;
     try {
       const plan = createDocumentGeometryPlan(before, request);
@@ -2400,24 +2465,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         editorDialogs.closeCanvasSize();
         return;
       }
-      const beforeSelection = editorSessionRef.current.selection;
+      beforeSelectionMask ??= await renderer.captureSelectionSnapshot();
+      const exactBeforeSelectionMask = beforeSelectionMask;
+      if (!await renderer.restoreSelectionSnapshot(exactBeforeSelectionMask)) {
+        throw new Error('The exact selection state could not be prepared for document geometry.');
+      }
       const after = projectDocumentGeometry(before, plan);
       const afterSelection = projectSelectionGeometry(beforeSelection, plan);
-      gpuGeometry = engineRef.current?.applyDocumentGeometryPixels(before, plan) ?? null;
-      const apply = (document: ImageDocument, selection: typeof beforeSelection) => {
-        engineRef.current?.resizeDocumentSurface(document);
-        applyDocumentSnapshot(document);
-        setEditorSession((current) => ({ ...current, selection }));
-      };
-      apply(after, afterSelection);
+      gpuGeometry = renderer.applyDocumentGeometryPixels(before, plan);
+      renderer.resizeDocumentSurface(after);
+      const afterSelectionMask = await renderer.captureSelectionSnapshot();
+      publishDocumentSelection(after, afterSelection, afterSelectionMask);
       pushHistoryEntry({
         type: `document.${request.operation}`,
         label: request.operation === 'canvas-size' ? 'Canvas Size'
           : request.operation === 'crop' ? 'Crop'
             : request.operation === 'flip' ? 'Flip Canvas' : 'Image Rotation',
         documentMutation: true,
-        undo: () => { gpuGeometry?.apply('before'); apply(before, beforeSelection); },
-        redo: () => { gpuGeometry?.apply('after'); apply(after, afterSelection); },
+        byteSize: exactBeforeSelectionMask.byteSize + afterSelectionMask.byteSize,
+        undo: () => {
+          gpuGeometry?.apply('before');
+          renderer.resizeDocumentSurface(before);
+          publishDocumentSelection(before, beforeSelection, exactBeforeSelectionMask);
+        },
+        redo: () => {
+          gpuGeometry?.apply('after');
+          renderer.resizeDocumentSurface(after);
+          publishDocumentSelection(after, afterSelection, afterSelectionMask);
+        },
         dispose: () => gpuGeometry?.dispose()
       });
       editorDialogs.closeCanvasSize();
@@ -2426,23 +2501,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     } catch (reason) {
       if (gpuGeometry) {
         gpuGeometry.apply('before');
-        engineRef.current?.resizeDocumentSurface(before);
-        applyDocumentSnapshot(before);
+        renderer.resizeDocumentSurface(before);
+        if (beforeSelectionMask) publishDocumentSelection(before, beforeSelection, beforeSelectionMask);
       }
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
     }
   };
   const runImageSizeCommand = (request: ImageSizeRequest) => {
-    if (!executeRegisteredCommand('document.resizeImage', request)) commitImageSize(request);
+    if (!executeRegisteredCommand('document.resizeImage', request)) void commitImageSize(request);
   };
   const runDocumentGeometryCommand = (request: DocumentGeometryRequest) => {
-    if (!executeRegisteredCommand('document.applyGeometry', request)) commitDocumentGeometry(request);
+    if (!executeRegisteredCommand('document.applyGeometry', request)) void commitDocumentGeometry(request);
   };
-  const beginCrop = () => {
+  const beginCrop = async () => {
+    await finishOpenHistoryTransactions();
     const document = imageDocumentRef.current;
     if (!document) return;
-    finishOpenHistoryTransactions();
     const selection = editorSessionRef.current.selection;
     if (selection.length) {
       const renderer = engineRef.current;
@@ -3197,14 +3272,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // An active transform remains one transaction across pointer gestures.
     // Confirm it before navigating history so the renderer cannot keep a stale
     // transform source while the document moves to another revision.
-    if (transformActiveRef.current()) commitTransformRef.current();
     return documentHistoryController.undo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
   const applyRedoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    if (transformActiveRef.current()) commitTransformRef.current();
     return documentHistoryController.redo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
@@ -4597,10 +4670,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     closeRecovery: editorDialogs.closeMissingFontRecovery,
     requestRecovery: editorDialogs.requestMissingFontRecovery,
     beginEditing: (layerId, offset, affinity) => {
-      layerPanelController.select(layerId);
-      activatePersistentTool('text-point');
-      textEditingController.begin(layerId, offset, affinity ?? 'downstream');
-      showProperties({ kind: 'layer', layerId });
+      void layerPanelController.select(layerId).then(() => {
+        activatePersistentTool('text-point');
+        textEditingController.begin(layerId, offset, affinity ?? 'downstream');
+        showProperties({ kind: 'layer', layerId });
+      });
     },
     setStatus: setGradeStatus,
     setError
@@ -4915,13 +4989,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       picker: renderer,
       isCurrent: () => revision === transformPickRevisionRef.current,
       getCurrentDocument: () => imageDocumentRef.current
-    }).then((pick) => {
+    }).then(async (pick) => {
       if (!pick) return;
+      // The hit was resolved against the current transform preview. Retire
+      // that preview before deriving the next layer selection so both the
+      // document and the picker agree about which revision is active.
+      await commitTransformPendingRef.current();
       const currentDocument = imageDocumentRef.current;
       if (!currentDocument) return;
-      // Selection changes are transform-session boundaries: preserve the
-      // current edit, then launch a cage for the newly resolved selection.
-      if (transformActiveRef.current()) commitTransformRef.current();
       const next = resolveTransformCanvasLayerSelection(
         selectedLayerIdsRef.current,
         currentDocument.activeLayerId,
@@ -4930,7 +5005,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
       selectedLayerIdsRef.current = [...next.selectedLayerIds];
       setSelectedLayerIds([...next.selectedLayerIds]);
-      selectLayerRef.current(next.activeLayerId);
+      await selectLayerRef.current(next.activeLayerId);
       setTransformActivationRevision((current) => current + 1);
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');
@@ -5299,8 +5374,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     return true;
   }, [executeRegisteredCommand, mergeSelectedLayers]);
-  const mergeSelectionOrActiveDown = useCallback(() => {
-    if (transformActiveRef.current()) commitTransformRef.current();
+  const mergeSelectionOrActiveDown = useCallback(async () => {
+    await settlePixelInteractionRef.current();
     const selectedLayerIds = selectedLayerIdsRef.current;
     if (selectedLayerIds.length > 1) {
       if (import.meta.env.DEV) {
@@ -5610,7 +5685,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       endAdjustmentTransaction();
       endDocumentTransaction();
     },
-    prepareActiveLayerChange: (layerId) => {
+    prepareActiveLayerChange: async (layerId) => {
+      // Finish the active document transaction before changing its target.
+      // The transform tool owns only a disposable preview; committing after
+      // setActiveLayer() would make that preview race a newer document revision.
+      if (transformActiveRef.current()) await commitTransformPendingRef.current();
       if (textEditingController.getSnapshot().layerId !== layerId) {
         textEditingController.finish();
       }
@@ -6048,12 +6127,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : null;
       },
       executeLayerMerge: async (command) => {
+        await settlePixelInteractionRef.current();
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
         if (!await layerDocumentCommands.mergeLayersWhenReady([...command.layerIds])) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId ? { layerIds: command.layerIds, outputLayerId } : null;
       },
       executeFlattenGroup: async (command) => {
+        await settlePixelInteractionRef.current();
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
         if (!await layerDocumentCommands.flattenWhenReady({
           kind: 'group', groupId: command.groupId
@@ -6062,6 +6143,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return outputLayerId ? { groupId: command.groupId, outputLayerId } : null;
       },
       executeFlattenImage: async () => {
+        await settlePixelInteractionRef.current();
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
         if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
@@ -6457,21 +6539,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selectedLayerIds,
     activationRevision: transformActivationRevision,
     selection: editorSession.selection,
+    getSelection: () => editorSessionRef.current.selection,
+    getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     applyDocumentSnapshot,
-    applyDocumentAndSelection: (document, selection) => {
-      applyDocumentSnapshot(document);
-      editorSessionRef.current = {
-        ...editorSessionRef.current,
-        pointerId: null,
-        selection
-      };
-      setEditorSession((current) => ({
-        ...current,
-        pointerId: null,
-        selection
-      }));
+    applyDocumentAndSelection: async (document, selection, selectionMaskSnapshot) => {
+      const renderer = engineRef.current;
+      if (!renderer || !await renderer.restoreSelectionSnapshot(selectionMaskSnapshot)) {
+        throw new Error('The exact selection state could not be restored.');
+      }
+      publishDocumentSelection(document, selection, selectionMaskSnapshot);
     },
     pushDocumentHistory,
     pushHistoryEntry,
@@ -6606,6 +6684,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (matches.length === 0) engineRef.current?.setSmartGuideEditingFrame(null);
   }, []);
   commitTransformRef.current = transformSession.commit;
+  commitTransformPendingRef.current = transformSession.commitPending;
   settlePixelInteractionRef.current = async () => {
     await selectionSessionController.settle();
     await transformSession.commitPending();
@@ -8334,18 +8413,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             differenceMetrics: psdDifferenceMetrics,
             textFontDiagnostics: fontDiagnostics,
             replacementFonts: selectableTextFonts,
-            onSelectCompatibilityLayer: (layerId) => { layerPanelController.select(layerId); editorDialogs.closePsdReport(); },
+            onSelectCompatibilityLayer: (layerId) => {
+              void layerPanelController.select(layerId).then(editorDialogs.closePsdReport);
+            },
             onResolveTextFont: (layerId) => {
               const layer = imageDocumentRef.current
                 ? findDocumentLayer(imageDocumentRef.current, layerId)
                 : null;
-              layerPanelController.select(layerId);
-              editorDialogs.closePsdReport();
               if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
-              pointTextController.cancel();
-              activatePersistentTool('text-point');
-              requestExistingFlowTextEditing(layerId);
-              showProperties({ kind: 'layer', layerId });
+              void layerPanelController.select(layerId).then(() => {
+                editorDialogs.closePsdReport();
+                pointTextController.cancel();
+                activatePersistentTool('text-point');
+                requestExistingFlowTextEditing(layerId);
+                showProperties({ kind: 'layer', layerId });
+              });
             },
             onPreviewTextFont: missingFontReplacementActions.preview,
             onCancelTextFontPreview: missingFontReplacementActions.cancelPreview,

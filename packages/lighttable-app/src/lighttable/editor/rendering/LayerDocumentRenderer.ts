@@ -75,10 +75,11 @@ const isolatedLayerTree = (
 export const projectLayerMaskPresentation = (
   document: ImageDocument | null,
   layer: LayerNode | null,
-  texture: GPUTexture | null
+  texture: GPUTexture | null,
+  transform: AffineMatrix | null = null
 ) => {
   if (!texture || !document || !layer?.mask) return null;
-  const inverseTransform = invertMatrix(layer.mask.transform);
+  const inverseTransform = invertMatrix(transform ?? layer.mask.transform);
   if (!inverseTransform) return null;
   return {
     texture,
@@ -242,7 +243,10 @@ export class LayerDocumentRenderer {
   maskPresentation(layerId: LayerId) {
     const texture = this.maskTextureFor(layerId);
     const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
-    return projectLayerMaskPresentation(this.document, layer, texture);
+    const preview = layer?.mask
+      ? this.runtime.maskGeometryPreviews.resolve(layer.id, layer.mask.revision)
+      : null;
+    return projectLayerMaskPresentation(this.document, layer, texture, preview);
   }
 
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {
@@ -293,6 +297,14 @@ export class LayerDocumentRenderer {
     return this.runtime.geometryPreviews.set(layer.id, layer.geometryRevision, matrix);
   }
 
+  setMaskGeometryPreview(
+    layer: Pick<LayerNode, 'id' | 'mask'>,
+    matrix: AffineMatrix | null
+  ) {
+    if (!layer.mask) return false;
+    return this.runtime.maskGeometryPreviews.set(layer.id, layer.mask.revision, matrix);
+  }
+
   setVectorContentPreviews(layers: readonly VectorLayer[]) {
     return this.runtime.vectorContentPreviews.replace(layers);
   }
@@ -302,7 +314,9 @@ export class LayerDocumentRenderer {
   }
 
   clearGeometryPreviews() {
-    return this.runtime.geometryPreviews.clear();
+    const layersChanged = this.runtime.geometryPreviews.clear();
+    const masksChanged = this.runtime.maskGeometryPreviews.clear();
+    return layersChanged || masksChanged;
   }
 
   setLayerStyleInteractionActive(active: boolean, layerId?: LayerId) {

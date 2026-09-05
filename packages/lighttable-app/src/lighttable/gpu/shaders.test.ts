@@ -452,9 +452,11 @@ describe('LightTable WGSL modules', () => {
   it('mixes an adjustment result through its opacity, semantic mask and clipping base', () => {
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('@group(0) @binding(4) var maskTexture');
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('@group(0) @binding(5) var clippingTexture');
-    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('let mask = select(\n    1.0,');
-    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('settings.opacity * mask * clipping');
-    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('settings.blendMode');
+    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('dot(settings.maskInverseRow0.xyz');
+    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('dot(settings.maskInverseRow1.xyz');
+    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('evaluatedMask(maskUv) * select(0.0, 1.0, maskInside)');
+    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('settings.header.x * mask * clipping');
+    expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('i32(settings.header.w + 0.5)');
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain(
       'let outputEncoded = mix(sourceEncoded, blendedEncoded, amount)'
     );

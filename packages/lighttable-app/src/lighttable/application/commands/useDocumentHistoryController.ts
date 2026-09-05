@@ -33,18 +33,19 @@ export interface DocumentHistoryDependencies {
   readonly history: DocumentCommandHistory;
   getDocument(): ImageDocument | null;
   getRenderer(): HistoryRuntimePruner | null;
-  finishOpenTransactions(): void;
+  finishOpenTransactions(): void | Promise<void>;
   setError(message: string): void;
 }
 
 export interface DocumentHistoryController {
   record(entry: EditorHistoryEntry): void;
+  /** Reset history for a document lifecycle boundary after tools were cancelled. */
   clear(): void;
   undo(): Promise<boolean>;
   redo(): Promise<boolean>;
   navigateTo(position: number): Promise<boolean>;
   deleteFrom(position: number): Promise<boolean>;
-  purge(): void;
+  purge(): Promise<void>;
   pruneResources(): void;
 }
 
@@ -102,8 +103,8 @@ export const createDocumentHistoryController = (
     position?: number
   ): Promise<boolean> => {
     const dependencies = resolveDependencies();
-    dependencies.finishOpenTransactions();
     try {
+      await dependencies.finishOpenTransactions();
       const changed = operation === 'navigate'
         ? await dependencies.history.goToPosition(position!)
         : operation === 'delete'
@@ -141,7 +142,6 @@ export const createDocumentHistoryController = (
     },
     clear: () => {
       const dependencies = resolveDependencies();
-      dependencies.finishOpenTransactions();
       dependencies.history.clear();
       pruneResources();
     },
@@ -149,9 +149,9 @@ export const createDocumentHistoryController = (
     redo: () => runHistoryOperation('redo'),
     navigateTo: (position) => runHistoryOperation('navigate', position),
     deleteFrom: (position) => runHistoryOperation('delete', position),
-    purge: () => {
+    purge: async () => {
       const dependencies = resolveDependencies();
-      dependencies.finishOpenTransactions();
+      await dependencies.finishOpenTransactions();
       dependencies.history.clear({ preserveDirtyState: true });
       pruneResources();
     },

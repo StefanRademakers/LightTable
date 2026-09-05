@@ -1126,6 +1126,24 @@ export class WebGpuEngine {
     return changed;
   }
 
+  updateLayerMaskGeometryPreview(layer: LayerNode, matrix: AffineMatrix) {
+    const renderer = this.documentRenderer;
+    if (!renderer?.setMaskGeometryPreview(layer, matrix)) return false;
+    renderer.setLayerStyleInteractionActive(true, layer.id);
+    this.markDocumentPreviewDirty();
+    return true;
+  }
+
+  clearLayerMaskGeometryPreview(layer: LayerNode) {
+    const renderer = this.documentRenderer;
+    if (!renderer) return false;
+    const previewChanged = renderer.setMaskGeometryPreview(layer, null);
+    const styleChanged = renderer.setLayerStyleInteractionActive(false, layer.id);
+    if (!previewChanged && !styleChanged) return false;
+    this.markDocumentPreviewDirty();
+    return true;
+  }
+
   setSemanticLayerInteraction(layer: LayerNode, active: boolean) {
     if (layer.type !== 'text' || !this.documentRenderer) return false;
     const textChanged = this.documentRenderer.setTextLayerInteraction(layer.id, active);

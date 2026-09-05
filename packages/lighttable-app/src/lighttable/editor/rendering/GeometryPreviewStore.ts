@@ -37,4 +37,8 @@ export class GeometryPreviewStore {
     this.previews.clear();
     return changed;
   }
+
+  hasPreviews() {
+    return this.previews.size > 0;
+  }
 }

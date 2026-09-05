@@ -1497,13 +1497,11 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 
 export const ADJUSTMENT_LAYER_MIX_WGSL = /* wgsl */ `
 struct AdjustmentMixSettings {
-  opacity: f32,
-  maskEnabled: f32,
-  clippingEnabled: f32,
-  blendMode: f32,
-  maskDensity: f32,
-  maskFeather: f32,
-  maskPadding: vec2f,
+  header: vec4f,
+  maskParameters: vec4f,
+  canvasProfile: vec4f,
+  maskInverseRow0: vec4f,
+  maskInverseRow1: vec4f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -1517,9 +1515,9 @@ ${LAYER_BLEND_FUNCTIONS_WGSL}
 
 fn evaluatedMask(uv: vec2f) -> f32 {
   var value = textureSample(maskTexture, sourceSampler, uv).r;
-  if (settings.maskFeather > 0.01) {
+  if (settings.maskParameters.y > 0.01) {
     let texel = vec2f(1.0) / vec2f(textureDimensions(maskTexture));
-    let radius = settings.maskFeather * texel;
+    let radius = settings.maskParameters.y * texel;
     var sum = 0.0;
     let weights = array<f32, 5>(1.0, 4.0, 6.0, 4.0, 1.0);
     for (var y = 0; y < 5; y += 1) {
@@ -1531,37 +1529,45 @@ fn evaluatedMask(uv: vec2f) -> f32 {
     }
     value = sum / 256.0;
   }
-  return mix(1.0, clamp(value, 0.0, 1.0), clamp(settings.maskDensity, 0.0, 1.0));
+  return mix(1.0, clamp(value, 0.0, 1.0), clamp(settings.maskParameters.x, 0.0, 1.0));
 }
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let source = textureSample(sourceTexture, sourceSampler, input.uv);
   let adjusted = textureSample(adjustedTexture, sourceSampler, input.uv);
+  let destinationPixel = input.uv * settings.canvasProfile.xy;
+  let maskPixel = vec2f(
+    dot(settings.maskInverseRow0.xyz, vec3f(destinationPixel, 1.0)),
+    dot(settings.maskInverseRow1.xyz, vec3f(destinationPixel, 1.0))
+  );
+  let maskInside = all(maskPixel >= vec2f(0.0))
+    && all(maskPixel < settings.canvasProfile.xy);
+  let maskUv = clamp(maskPixel / settings.canvasProfile.xy, vec2f(0.0), vec2f(1.0));
   let mask = select(
     1.0,
-    evaluatedMask(input.uv),
-    settings.maskEnabled > 0.5
+    evaluatedMask(maskUv) * select(0.0, 1.0, maskInside),
+    settings.header.y > 0.5
   );
   let clipping = select(
     1.0,
     clamp(textureSample(clippingTexture, sourceSampler, input.uv).a, 0.0, 1.0),
-    settings.clippingEnabled > 0.5
+    settings.header.z > 0.5
   );
-  let amount = clamp(settings.opacity * mask * clipping, 0.0, 1.0);
+  let amount = clamp(settings.header.x * mask * clipping, 0.0, 1.0);
   let sourceStraight = source.rgb / max(source.a, 1e-6);
   let adjustedStraight = adjusted.rgb / max(adjusted.a, 1e-6);
-  let sourceEncoded = linearStraightToBlend(sourceStraight, settings.maskPadding.x, settings.maskPadding.y);
-  let adjustedEncoded = linearStraightToBlend(adjustedStraight, settings.maskPadding.x, settings.maskPadding.y);
+  let sourceEncoded = linearStraightToBlend(sourceStraight, settings.canvasProfile.z, settings.canvasProfile.w);
+  let adjustedEncoded = linearStraightToBlend(adjustedStraight, settings.canvasProfile.z, settings.canvasProfile.w);
   let blendedEncoded = blendColorEncoded(
     sourceEncoded,
     adjustedEncoded,
-    i32(settings.blendMode + 0.5),
-    settings.maskPadding.y
+    i32(settings.header.w + 0.5),
+    settings.canvasProfile.w
   );
   let outputAlpha = mix(source.a, adjusted.a, amount);
   let outputEncoded = mix(sourceEncoded, blendedEncoded, amount);
-  return vec4f(blendStraightToLinear(outputEncoded, settings.maskPadding.x) * outputAlpha, outputAlpha);
+  return vec4f(blendStraightToLinear(outputEncoded, settings.canvasProfile.z) * outputAlpha, outputAlpha);
 }
 `;
 

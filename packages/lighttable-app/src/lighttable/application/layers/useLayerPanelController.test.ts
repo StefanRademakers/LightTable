@@ -100,7 +100,7 @@ describe('createLayerPanelController', () => {
     expect(state.dependencies.finishTextEditing).toHaveBeenCalledTimes(5);
   });
 
-  it('selects an adjustment layer and projects its grade without document effects', () => {
+  it('selects an adjustment layer and projects its grade without document effects', async () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const grade = createDefaultAdjustments();
     grade.exposureEV = 1.5;
@@ -117,7 +117,7 @@ describe('createLayerPanelController', () => {
     const documentEffects = harness.dependencies.getDocumentAdjustments().effects;
     documentEffects.lensDistortion.enabled = true;
 
-    harness.controller.select(adjustmentLayerId);
+    await harness.controller.select(adjustmentLayerId);
 
     expect(harness.document().activeLayerId).toBe(adjustmentLayerId);
     expect(harness.panelAdjustments().exposureEV).toBe(1.5);
@@ -161,7 +161,7 @@ describe('createLayerPanelController', () => {
     expect(harness.dependencies.setPaintTarget).not.toHaveBeenCalled();
   });
 
-  it('prepares provisional vector work before changing the active layer', () => {
+  it('prepares provisional vector work before changing the active layer', async () => {
     let document = createImageDocument('test', 100, 100, 'asset');
     document = createRasterLayer(document, 'First');
     const firstLayerId = document.activeLayerId!;
@@ -171,13 +171,32 @@ describe('createLayerPanelController', () => {
     const harness = setup(document);
     harness.dependencies.prepareActiveLayerChange = vi.fn();
 
-    harness.controller.select(secondLayerId);
+    await harness.controller.select(secondLayerId);
 
     expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(secondLayerId);
     expect(harness.document().activeLayerId).toBe(secondLayerId);
   });
 
-  it('selects a raster layer and projects its attached local grade', () => {
+  it('does not replace the active layer until asynchronous preparation completes', async () => {
+    let document = createImageDocument('test', 100, 100, 'asset');
+    const firstLayerId = document.activeLayerId!;
+    document = createRasterLayer(document, 'Second');
+    const secondLayerId = document.activeLayerId!;
+    document = { ...document, activeLayerId: firstLayerId };
+    const harness = setup(document);
+    let release!: () => void;
+    harness.dependencies.prepareActiveLayerChange = () => new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const selecting = harness.controller.select(secondLayerId);
+    expect(harness.document().activeLayerId).toBe(firstLayerId);
+    release();
+    await selecting;
+    expect(harness.document().activeLayerId).toBe(secondLayerId);
+  });
+
+  it('selects a raster layer and projects its attached local grade', async () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const local = createDefaultAdjustments();
     local.contrast = 42;
@@ -190,14 +209,14 @@ describe('createLayerPanelController', () => {
     const harness = setup(document);
     harness.dependencies.getDocumentAdjustments().effects.grain.enabled = true;
 
-    harness.controller.select(document.activeLayerId!);
+    await harness.controller.select(document.activeLayerId!);
 
     expect(harness.panelAdjustments().contrast).toBe(42);
     expect(harness.panelAdjustments().effects.grain.enabled).toBe(false);
     expect(harness.panelAdjustments().effects.halation.enabled).toBe(true);
   });
 
-  it('bypasses and restores a raster layer local grade without losing its settings', () => {
+  it('bypasses and restores a raster layer local grade without losing its settings', async () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const local = createDefaultAdjustments();
     local.contrast = 42;
@@ -219,7 +238,7 @@ describe('createLayerPanelController', () => {
       && adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'lens-fx')
     ).toBe(true);
 
-    harness.controller.select(layerId);
+    await harness.controller.select(layerId);
     expect(harness.panelAdjustments().contrast).toBe(42);
 
     harness.controller.setLocalGradeEnabled(layerId, true);

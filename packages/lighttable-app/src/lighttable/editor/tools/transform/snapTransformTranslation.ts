@@ -43,7 +43,7 @@ export const snapAffineTranslation = (
   targets: readonly SnapFeature[],
   zoom: number,
   enabled: boolean,
-  bypass: boolean
+  retainedMatches: readonly SnapMatch[] = []
 ): SnappedTransformTranslation<AffineMatrix> => {
   const proposed = multiplyMatrices(translationMatrix(delta.x, delta.y), startMatrix);
   const snap = solveSnap({
@@ -51,7 +51,7 @@ export const snapAffineTranslation = (
     targets,
     zoom,
     enabled,
-    bypass
+    retainedMatches
   });
   const resolved = multiplyMatrices(translationMatrix(snap.offsetX, snap.offsetY), proposed);
   return {
@@ -70,7 +70,7 @@ export const snapProjectiveTranslation = (
   targets: readonly SnapFeature[],
   zoom: number,
   enabled: boolean,
-  bypass: boolean
+  retainedMatches: readonly SnapMatch[] = []
 ): SnappedTransformTranslation<TransformQuad> => {
   const proposed = source.map((point) => ({
     x: point.x + delta.x,
@@ -81,7 +81,7 @@ export const snapProjectiveTranslation = (
     targets,
     zoom,
     enabled,
-    bypass
+    retainedMatches
   });
   return {
     value: proposed.map((point) => ({

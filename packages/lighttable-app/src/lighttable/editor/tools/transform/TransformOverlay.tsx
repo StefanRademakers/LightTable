@@ -54,6 +54,7 @@ interface DragState {
   projectiveQuad: TransformQuad | null;
   projectiveCorner: number | null;
   snapTargets: readonly SnapFeature[];
+  snapMatches: readonly SnapMatch[];
   changed: boolean;
 }
 
@@ -204,6 +205,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       ],
       projectiveCorner,
       snapTargets: getSnapTargets(),
+      snapMatches: [],
       changed: false
     };
     onSnapMatches?.([]);
@@ -231,8 +233,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         drag.snapTargets,
         scale,
         snapEnabled,
-        event.ctrlKey || event.metaKey
+        drag.snapMatches
       );
+      drag.snapMatches = snapped.matches;
       drag.changed = true;
       scheduleProjective(snapped.value, snapped.matches);
     } else if (drag.handle === 'body') {
@@ -243,8 +246,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         drag.snapTargets,
         scale,
         snapEnabled,
-        event.ctrlKey || event.metaKey
+        drag.snapMatches
       );
+      drag.snapMatches = snapped.matches;
       drag.changed = true;
       scheduleAffine(snapped.value, snapped.matches);
     } else if (drag.handle === 'rotate' && !state.projectiveQuad) {

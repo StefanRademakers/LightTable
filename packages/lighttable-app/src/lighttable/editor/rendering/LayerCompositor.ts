@@ -68,6 +68,7 @@ interface LayerCompositorOptions {
   transformSessions: TransformSessionStore;
   pixelEditSessions: PixelEditSessionStore;
   geometryPreviews: GeometryPreviewStore;
+  maskGeometryPreviews?: GeometryPreviewStore;
   vectorContentPreviews?: VectorContentPreviewStore;
   layerStyles: LayerStyleRenderer;
   vectors: VectorLayerRenderer;
@@ -221,11 +222,19 @@ export class LayerCompositor {
       transformSessions,
       pixelEditSessions,
       geometryPreviews,
+      maskGeometryPreviews,
       vectorContentPreviews,
       layerStyles,
       vectors
     } = this.options;
     const { width, height } = this.options.dimensions();
+    const withMaskGeometryPreview = <Layer extends LayerNode>(layer: Layer): Layer => {
+      if (!layer.mask) return layer;
+      const preview = maskGeometryPreviews?.resolve(layer.id, layer.mask.revision) ?? null;
+      return preview
+        ? { ...layer, mask: { ...layer.mask, transform: preview } }
+        : layer;
+    };
     this.blendProfile = documentBlendProfileGpuValue(document.colorSettings.blendProfile);
     this.blendQuantization = documentBlendQuantization(document.colorSettings.bitDepth);
     layerStyles.setBlendProfile?.(this.blendProfile, this.blendQuantization);
@@ -241,6 +250,7 @@ export class LayerCompositor {
       for (const { layer } of island.members) {
         if (
           geometryPreviews.resolve(layer.id, layer.geometryRevision)
+          || (layer.mask && maskGeometryPreviews?.resolve(layer.id, layer.mask.revision))
           || vectorContentPreviews?.resolve(layer)
         ) {
           transientVectorBarriers.add(layer.id);
@@ -268,6 +278,7 @@ export class LayerCompositor {
         vectors.canRenderIsland(island)
         && island.members.every(
         ({ layer }) => !geometryPreviews.resolve(layer.id, layer.geometryRevision)
+          && !(layer.mask && maskGeometryPreviews?.resolve(layer.id, layer.mask.revision))
           && !vectorContentPreviews?.resolve(layer)
         )
       ))
@@ -455,7 +466,9 @@ export class LayerCompositor {
       inheritedTransform: AffineMatrix = identityAffineMatrix(),
       protectedBackground: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
-      const { node } = entry;
+      const canonicalNode = entry.node;
+      const node = withMaskGeometryPreview(canonicalNode);
+      const presentationEntry = node === canonicalNode ? entry : { ...entry, node };
       if (excludedLayerIds.has(node.id)) return [background, target];
       if (!node.visible || node.opacity <= 0) return [background, target];
       if (islandRenderingActive && node.type === 'group') {
@@ -474,7 +487,7 @@ export class LayerCompositor {
       }
       if (node.type === 'group') {
         return renderGroup(
-          entry,
+          presentationEntry,
           background,
           target,
           clippingTexture,
@@ -490,9 +503,11 @@ export class LayerCompositor {
         // adjustment mix itself is an exact zero-work bypass as well.
         if (adjusted === background) return [background, target];
         const maskTexture = this.options.maskTextureFor(node.id);
+        const maskInverse = invertMatrix(node.mask?.transform ?? identityAffineMatrix())
+          ?? identityAffineMatrix();
         const settingsBuffer = this.options.device.createBuffer({
           label: `LightTable adjustment mix settings: ${node.name}`,
-          size: 32,
+          size: 80,
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
         this.options.device.queue.writeBuffer(
@@ -505,8 +520,20 @@ export class LayerCompositor {
             blendModeGpuValue(node.blendMode),
             node.mask?.density ?? 1,
             node.mask?.feather ?? 0,
+            0,
+            0,
+            width,
+            height,
             this.blendProfile,
-            this.blendQuantization
+            this.blendQuantization,
+            maskInverse.a,
+            maskInverse.c,
+            maskInverse.tx,
+            0,
+            maskInverse.b,
+            maskInverse.d,
+            maskInverse.ty,
+            0
           ])
         );
         this.options.submittedResources.retainBuffer(settingsBuffer);
@@ -546,7 +573,9 @@ export class LayerCompositor {
       }
 
       if (node.type === 'vector') {
-        const presentationNode = vectorContentPreviews?.resolve(node) ?? node;
+        const presentationNode = withMaskGeometryPreview(
+          vectorContentPreviews?.resolve(node) ?? node
+        );
         if (islandRenderingActive) {
           const island = retainedIslandByLayerId.get(node.id);
           if (island) {
@@ -1162,7 +1191,9 @@ export class LayerCompositor {
       return [parentTarget, parentBackground];
     };
 
+    const maskPreviewActive = maskGeometryPreviews?.hasPreviews() ?? false;
     const geometryCheckpoint = this.topmostSuffixCacheEnabled
+      && !maskPreviewActive
       && excludedLayerIds.size === 0
       ? splitTransientGeometryCheckpoint(
           document.layers,
@@ -1171,6 +1202,7 @@ export class LayerCompositor {
       : null;
     const suffix = !geometryCheckpoint
       && this.topmostSuffixCacheEnabled
+      && !maskPreviewActive
       && encodeAdjustment
       && excludedLayerIds.size === 0
       ? splitTopmostProcessingSuffix(document.layers)
@@ -1178,6 +1210,7 @@ export class LayerCompositor {
     const activeCheckpoint = !geometryCheckpoint
       && !suffix
       && this.topmostSuffixCacheEnabled
+      && !maskPreviewActive
       && encodeAdjustment
       && excludedLayerIds.size === 0
       ? splitActiveProcessingCheckpoint(document.layers, document.activeLayerId)

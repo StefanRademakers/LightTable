@@ -95,12 +95,12 @@ export interface LayerPanelControllerDependencies {
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   finishStyleEditing?(): void;
   finishProcessingEditing?(): void;
-  prepareActiveLayerChange?(layerId: LayerId): void;
+  prepareActiveLayerChange?(layerId: LayerId): void | Promise<void>;
   finishTextEditing?(): void;
 }
 
 export interface LayerPanelController {
-  select(layerId: LayerId): void;
+  select(layerId: LayerId): Promise<void>;
   changeChannel(channel: PaintChannel): void;
   setVisibility(layerIds: LayerId[], visible: boolean): void;
   toggleSoloVisibility(layerId: LayerId): void;
@@ -192,24 +192,33 @@ export const createLayerPanelController = (
     ));
   };
 
-  const select = (layerId: LayerId) => {
+  const select = async (layerId: LayerId) => {
     const dependencies = resolveDependencies();
     const current = dependencies.getDocument();
     const layer = current ? findDocumentLayer(current, layerId) : null;
     if (!current || !layer) return;
 
-    dependencies.prepareActiveLayerChange?.(layerId);
+    await dependencies.prepareActiveLayerChange?.(layerId);
+
+    // The preparation step may asynchronously commit a renderer-owned
+    // transform and publish a newer document revision. Resolve the target
+    // again so selection never overwrites that commit with a stale snapshot.
+    const preparedDocument = resolveDependencies().getDocument();
+    const preparedLayer = preparedDocument
+      ? findDocumentLayer(preparedDocument, layerId)
+      : null;
+    if (!preparedDocument || !preparedLayer) return;
 
     dependencies.mutateDocument(
       (document) => setActiveLayer(document, layerId),
       false
     );
     const panelAdjustments = (
-      layer.type === 'adjustment'
-      || (layer.type === 'raster' && layer.adjustmentStack)
+      preparedLayer.type === 'adjustment'
+      || (preparedLayer.type === 'raster' && preparedLayer.adjustmentStack)
     )
       // Bypassed Grade and Lens Fx modules still expose their authored values.
-      ? materializeBasicAdjustments(layer.adjustmentStack!, undefined, undefined, true)
+      ? materializeBasicAdjustments(preparedLayer.adjustmentStack!, undefined, undefined, true)
       : createDefaultAdjustments();
     dependencies.publishPanelAdjustments(cloneAdjustments(panelAdjustments));
   };

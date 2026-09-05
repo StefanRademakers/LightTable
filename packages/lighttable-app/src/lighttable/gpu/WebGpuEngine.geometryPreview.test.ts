@@ -44,6 +44,36 @@ describe('WebGpuEngine geometry preview batches', () => {
     expect(markDocumentPreviewDirty).toHaveBeenCalledOnce();
   });
 
+  it('keeps mask previews renderer-only and always ends their style interaction', () => {
+    const setMaskGeometryPreview = vi.fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    const setLayerStyleInteractionActive = vi.fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true);
+    const markDocumentPreviewDirty = vi.fn();
+    const engine = {
+      documentRenderer: { setMaskGeometryPreview, setLayerStyleInteractionActive },
+      markDocumentPreviewDirty
+    };
+    const target = layer('masked');
+    const matrix = { ...identityMatrix(), tx: 12 };
+
+    expect(WebGpuEngine.prototype.updateLayerMaskGeometryPreview.call(
+      engine, target, matrix
+    )).toBe(true);
+    expect(WebGpuEngine.prototype.clearLayerMaskGeometryPreview.call(engine, target)).toBe(true);
+    expect(setMaskGeometryPreview.mock.calls).toEqual([
+      [target, matrix],
+      [target, null]
+    ]);
+    expect(setLayerStyleInteractionActive.mock.calls).toEqual([
+      [true, target.id],
+      [false, target.id]
+    ]);
+    expect(markDocumentPreviewDirty).toHaveBeenCalledTimes(2);
+  });
+
   it('invalidates the document compositor for renderer-only vector content', () => {
     const setVectorContentPreviews = vi.fn(() => true);
     const clearVectorContentPreviews = vi.fn(() => true);

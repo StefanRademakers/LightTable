@@ -15,8 +15,7 @@ describe('transform body snapping', () => {
       { x: 92, y: 31 },
       [snapLineFeature('x', 100, 'guide', 'v1')],
       1,
-      true,
-      false
+      true
     );
     expect(result.value.tx).toBe(90);
     expect(result.value.ty).toBe(31);
@@ -30,8 +29,7 @@ describe('transform body snapping', () => {
       { x: 12.37, y: -4.62 },
       [],
       1,
-      true,
-      false
+      true
     );
     expect(result.value.tx).toBe(12);
     expect(result.value.ty).toBe(-5);
@@ -44,32 +42,30 @@ describe('transform body snapping', () => {
       { x: 12.37, y: -4.62 },
       [],
       1,
-      true,
-      false
+      true
     );
     expect(result.value.tx).toBeCloseTo(12.37);
     expect(result.value.ty).toBeCloseTo(-4.62);
   });
 
-  it('lets Control bypass the same projective snap target', () => {
+  it('retains a projective snap target until the release threshold is crossed', () => {
     const snapped = snapProjectiveTranslation(
       square,
       { x: 92, y: 0 },
-      [snapLineFeature('x', 100, 'guide')],
+      [snapLineFeature('x', 100, 'guide', 'v1')],
       1,
-      true,
-      false
-    );
-    const bypassed = snapProjectiveTranslation(
-      square,
-      { x: 92, y: 0 },
-      [snapLineFeature('x', 100, 'guide')],
-      1,
-      true,
       true
     );
+    const retained = snapProjectiveTranslation(
+      square,
+      { x: 89, y: 0 },
+      [snapLineFeature('x', 100, 'guide', 'v1')],
+      1,
+      true,
+      snapped.matches
+    );
     expect(snapped.value[0].x).toBe(90);
-    expect(bypassed.value[0].x).toBe(92);
-    expect(bypassed.matches).toEqual([]);
+    expect(retained.value[0].x).toBe(90);
+    expect(retained.matches).toHaveLength(1);
   });
 });

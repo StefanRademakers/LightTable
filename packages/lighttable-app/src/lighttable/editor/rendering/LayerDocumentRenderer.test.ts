@@ -66,6 +66,34 @@ describe('layer mask presentation', () => {
     expect(projectLayerMaskPresentation(document, document.layers[0], {} as GPUTexture))
       .toBeNull();
   });
+
+  it('projects a transient mask transform without mutating document state', () => {
+    const document = createImageDocument('test', 64, 64, 'source');
+    const layer = document.layers[0];
+    layer.mask = {
+      id: 'mask',
+      enabled: true,
+      linked: false,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      density: 1,
+      feather: 0,
+      revision: 0,
+      pixelRevision: 0,
+      dirtyBounds: null
+    };
+
+    const presentation = projectLayerMaskPresentation(
+      document,
+      layer,
+      {} as GPUTexture,
+      { a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 9 }
+    );
+
+    expect(presentation?.inverseTransform).toMatchObject({ a: 1, d: 1, tx: -7, ty: -9 });
+    expect(presentation?.inverseTransform.b).toBeCloseTo(0);
+    expect(presentation?.inverseTransform.c).toBeCloseTo(0);
+    expect(layer.mask.transform).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
+  });
 });
 
 describe('text editing geometry preview', () => {

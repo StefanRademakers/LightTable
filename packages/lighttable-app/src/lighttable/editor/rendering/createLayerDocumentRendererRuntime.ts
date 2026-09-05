@@ -69,6 +69,7 @@ export interface LayerDocumentRendererRuntime {
   importedLayerInitializer: ImportedLayerInitializer;
   resources: DocumentResourceState;
   geometryPreviews: GeometryPreviewStore;
+  maskGeometryPreviews: GeometryPreviewStore;
   vectorContentPreviews: VectorContentPreviewStore;
   imageResources: DocumentImageResourceLifecycle;
   textureMemory: DocumentTextureMemoryEstimator;
@@ -211,6 +212,7 @@ export const createLayerDocumentRendererRuntime = (
   const transformSessions = new TransformSessionStore();
   const pixelEditSessions = new PixelEditSessionStore();
   const geometryPreviews = new GeometryPreviewStore();
+  const maskGeometryPreviews = new GeometryPreviewStore();
   const vectorContentPreviews = new VectorContentPreviewStore();
   const selectionTextures = new SelectionTextureStore({
     createSelectionTexture: (label) => textures.createSelection(label),
@@ -230,6 +232,7 @@ export const createLayerDocumentRendererRuntime = (
     transformSessions,
     pixelEditSessions,
     geometryPreviews,
+    maskGeometryPreviews,
     vectorContentPreviews,
     layerStyles: layerStyleRenderer,
     vectors: vectorLayerRenderer,
@@ -501,6 +504,7 @@ export const createLayerDocumentRendererRuntime = (
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
+      () => maskGeometryPreviews.clear(),
       () => vectorContentPreviews.clear(),
       () => transformRasterizer.cancel(),
       () => pixelEditSessions.destroy(),
@@ -567,6 +571,7 @@ export const createLayerDocumentRendererRuntime = (
     importedLayerInitializer,
     resources,
     geometryPreviews,
+    maskGeometryPreviews,
     vectorContentPreviews,
     imageResources,
     textureMemory,
@@ -585,6 +590,7 @@ export const createLayerDocumentRendererRuntime = (
       renderResources.invalidateAllStyles();
       renderResources.releaseStyleTargets();
       geometryPreviews.clear();
+      maskGeometryPreviews.clear();
       vectorContentPreviews.clear();
     }
   };

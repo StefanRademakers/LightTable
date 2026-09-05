@@ -275,6 +275,17 @@ describe('LayerCompositor', () => {
       id: 'grade-stack', revision: 1,
       modules: [{ id: 'light', type: 'lt.light', enabled: true, revision: 1, settings: {} }]
     }, 'Grade');
+    grade.mask = {
+      id: 'grade-mask',
+      enabled: true,
+      linked: false,
+      transform: translationMatrix(7, 9),
+      density: 1,
+      feather: 0,
+      revision: 1,
+      pixelRevision: 1,
+      dirtyBounds: null
+    };
     document.layers.push(curves, grade);
     const compositeA = texture();
     const compositeB = texture();
@@ -288,9 +299,11 @@ describe('LayerCompositor', () => {
     const encodeAdjustment = vi.fn((_encoder, _source, layer) =>
       layer.name === 'Curves' ? curvesTexture : gradeTexture
     );
+    const writeBuffer = vi.fn();
+    const gradeMaskTexture = texture();
     const compositor = new LayerCompositor({
       device: {
-        queue: { writeBuffer: vi.fn() },
+        queue: { writeBuffer },
         createBuffer: vi.fn(() => ({})),
         createBindGroup: vi.fn(() => ({}))
       } as unknown as GPUDevice,
@@ -307,7 +320,7 @@ describe('LayerCompositor', () => {
       vectors: { encode: vi.fn(), retainLayerIds: vi.fn() } as never,
       dimensions: () => ({ width: 64, height: 32 }),
       syncDocument: vi.fn(),
-      maskTextureFor: vi.fn(() => null),
+      maskTextureFor: vi.fn((layerId) => layerId === grade.id ? gradeMaskTexture : null),
       createTexture: vi.fn(() => cachedBaseTexture),
       clearTexture: vi.fn(),
       drawFullscreen: vi.fn()
@@ -320,6 +333,19 @@ describe('LayerCompositor', () => {
     expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Curves', 'Grade']);
     expect(encodeAdjustment.mock.calls[0]?.[1]).toBe(cachedBaseTexture);
     expect(encodeAdjustment.mock.calls[1]?.[1]).toBe(compositeA);
+    const gradeMixSettings = writeBuffer.mock.calls
+      .map((call) => call[2])
+      .find((value): value is Float32Array => value instanceof Float32Array
+        && value.length === 20
+        && value[1] === 1);
+    expect(gradeMixSettings).toBeDefined();
+    expect([...gradeMixSettings!.slice(8, 12)]).toEqual([64, 32, 0, 32_768]);
+    expect(gradeMixSettings![12]).toBe(1);
+    expect(gradeMixSettings![13]).toBeCloseTo(0);
+    expect(gradeMixSettings![14]).toBe(-7);
+    expect(gradeMixSettings![16]).toBeCloseTo(0);
+    expect(gradeMixSettings![17]).toBe(1);
+    expect(gradeMixSettings![18]).toBe(-9);
     expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 0 });
 
     encodeAdjustment.mockClear();

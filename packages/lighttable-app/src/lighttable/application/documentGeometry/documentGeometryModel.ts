@@ -256,16 +256,25 @@ export const projectDocumentGeometry = (
   };
 };
 
-/** Projects replayable selection semantics through the same authoritative document matrix. */
-export const projectSelectionGeometry = (
+/** Projects replayable selection semantics through one authoritative document matrix. */
+export const projectSelectionTransform = (
   selection: readonly SelectionOperation[],
-  plan: DocumentGeometryPlan
+  matrix: AffineMatrix
 ): SelectionOperation[] => selection.map((operation) => ({
   ...operation,
   source: operation.source ? structuredClone(operation.source) : undefined,
   shape: { ...operation.shape, points: operation.shape.points.map((point) => ({ ...point })) },
   transform: multiplyMatrices(
-    plan.oldDocumentToNewDocument,
+    matrix,
     operation.transform ?? { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
   )
 }));
+
+/** Projects selection semantics through the same matrix as document geometry. */
+export const projectSelectionGeometry = (
+  selection: readonly SelectionOperation[],
+  plan: DocumentGeometryPlan
+): SelectionOperation[] => projectSelectionTransform(
+  selection,
+  plan.oldDocumentToNewDocument
+);

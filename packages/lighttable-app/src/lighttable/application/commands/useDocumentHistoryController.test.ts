@@ -110,7 +110,7 @@ describe('document history controller', () => {
     expect(maskIds.has(textId)).toBe(true);
   });
 
-  it('finishes open transactions before undo and clear', async () => {
+  it('finishes open transactions before undo and user-requested history purge', async () => {
     const state = setup();
     state.controller.record({
       undo: () => undefined,
@@ -118,7 +118,7 @@ describe('document history controller', () => {
     });
     await state.controller.undo();
     const clear = vi.spyOn(state.history, 'clear');
-    state.controller.clear();
+    await state.controller.purge();
     expect(state.finishOpenTransactions).toHaveBeenCalledTimes(2);
     expect(state.finishOpenTransactions.mock.invocationCallOrder[1]).toBeLessThan(
       clear.mock.invocationCallOrder[0]!
