@@ -80,6 +80,10 @@ Text-layer movement, paragraph-frame resizing and path-text handle editing now k
 
 This removes intermediate text geometry from document subscribers, autosave and history, and prevents a stale gesture from overwriting a document that changed while the pointer was active.
 
+### Transactional raster paint preparation
+
+Painting a compact or transformed raster requires a document-sized GPU surface, but that materialization is now staged outside canonical document state. The renderer receives the prepared geometry as a projection while the document session retains the opening snapshot and revision. A successful stroke adopts the surface swap and pixel edit into one history entry and publishes one final document snapshot. Cancel, initialization failure, empty strokes and stale-document completion restore both GPU edits and discard the projected geometry without publishing a compensating document revision.
+
 ## Existing architectural contracts
 
 The intended system is already documented in:

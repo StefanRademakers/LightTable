@@ -20,8 +20,20 @@ const createPixelEdit = (): ReversiblePixelEdit => ({
   destroy: vi.fn()
 });
 
-const createFixture = (frame?: PaintFramePort) => {
+const createFixture = (frame?: PaintFramePort, compact = false) => {
   let document = createImageDocument('Paint', 100, 80, 'asset');
+  if (compact) {
+    const source = document.layers[0] as RasterLayer;
+    document = {
+      ...document,
+      layers: [{
+        ...source,
+        width: 30,
+        height: 20,
+        transform: { ...source.transform, tx: 12, ty: 9 }
+      }]
+    };
+  }
   const layer = document.layers[0] as RasterLayer;
   const pixelEdit = createPixelEdit();
   const renderer: PaintSessionRendererPort = {
@@ -38,6 +50,8 @@ const createFixture = (frame?: PaintFramePort) => {
   const dependencies: PaintSessionDependencies = {
     getDocument: () => document,
     getRenderer: () => renderer,
+    previewDocumentSnapshot: vi.fn(),
+    discardDocumentPreview: vi.fn(),
     applyDocumentSnapshot: vi.fn((next) => {
       document = next;
     }),
@@ -320,6 +334,71 @@ describe('PaintSessionController', () => {
       fixture.pixelEdit,
       'redo'
     );
+  });
+
+  it('keeps raster-surface preparation out of canonical state until the stroke commits', () => {
+    const fixture = createFixture(undefined, true);
+    const surfaceEdit = createPixelEdit();
+    fixture.renderer.prepareRasterPaintSurface = vi.fn(() => surfaceEdit);
+    const before = fixture.getDocument();
+
+    expect(fixture.controller.begin({
+      pointerId: 24,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: fixture.layer.transform
+      },
+      brush: createEditorSession().brush,
+      point: { x: 20, y: 20, pressure: 1 }
+    })).toBe(true);
+
+    expect(fixture.getDocument()).toBe(before);
+    expect(fixture.dependencies.previewDocumentSnapshot).toHaveBeenCalledOnce();
+    expect(fixture.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
+
+    expect(fixture.controller.finish(24)).toBe(true);
+    expect(fixture.history).toHaveLength(1);
+    const committedLayer = fixture.getDocument().layers[0] as RasterLayer;
+    expect(committedLayer).toMatchObject({
+      width: 100,
+      height: 80,
+      offsetX: 0,
+      offsetY: 0,
+      transform: identityMatrix()
+    });
+    expect(surfaceEdit.undo).not.toHaveBeenCalled();
+    expect(surfaceEdit.destroy).not.toHaveBeenCalled();
+  });
+
+  it('rolls raster-surface preparation back without publishing canonical state on cancel', () => {
+    const fixture = createFixture(undefined, true);
+    const surfaceEdit = createPixelEdit();
+    fixture.renderer.prepareRasterPaintSurface = vi.fn(() => surfaceEdit);
+    const before = fixture.getDocument();
+
+    expect(fixture.controller.begin({
+      pointerId: 25,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: fixture.layer.transform
+      },
+      brush: createEditorSession().brush,
+      point: { x: 20, y: 20, pressure: 1 }
+    })).toBe(true);
+    expect(fixture.controller.cancel(25)).toBe(true);
+
+    expect(fixture.getDocument()).toBe(before);
+    expect(fixture.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
+    expect(fixture.dependencies.discardDocumentPreview).toHaveBeenCalledOnce();
+    expect(surfaceEdit.undo).toHaveBeenCalledOnce();
+    expect(surfaceEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(0);
   });
 
   it('rolls a cancelled gesture back without publishing document history', () => {

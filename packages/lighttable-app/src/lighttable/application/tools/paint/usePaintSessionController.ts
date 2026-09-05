@@ -74,6 +74,8 @@ export interface PaintSessionRendererPort {
 export interface PaintSessionDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): PaintSessionRendererPort | null;
+  previewDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: PaintHistoryEntry): void;
   setError(message: string | null): void;
@@ -150,9 +152,12 @@ export const createPaintSessionController = (
     byteLength: number;
     overflowed: boolean;
   } | null = null;
+  let activeDocument: {
+    readonly before: ImageDocument;
+    working: ImageDocument;
+  } | null = null;
   let preparedSurface: {
     readonly edit: ReversiblePixelEdit;
-    readonly beforeDocument: ImageDocument;
   } | null = null;
   const captureSamples = (points: readonly BrushPoint[]) => {
     if (!recordedStroke || recordedStroke.overflowed) return;
@@ -194,22 +199,29 @@ export const createPaintSessionController = (
     ? createPaintDabScheduler(frame, paint)
     : createImmediatePaintDabScheduler(paint);
 
+  const rollbackPreparedSurface = () => {
+    if (!preparedSurface) return;
+    preparedSurface.edit.undo();
+    preparedSurface.edit.destroy();
+    preparedSurface = null;
+    resolveDependencies().discardDocumentPreview();
+  };
+
   const reset = () => {
+    const dependencies = resolveDependencies();
+    const renderer = dependencies.getRenderer();
     if (gesture.active) {
-      resolveDependencies().getRenderer()?.setPaintInteractionActive(false);
+      renderer?.cancelPixelEdit();
+      renderer?.setPaintInteractionActive(false);
     }
     gesture.reset();
     paintScheduler.cancel();
     activeBrush = null;
     activeOperator = null;
     recordedStroke = null;
-    if (preparedSurface) {
-      preparedSurface.edit.undo();
-      preparedSurface.edit.destroy();
-      resolveDependencies().applyDocumentSnapshot(preparedSurface.beforeDocument);
-      preparedSurface = null;
-    }
-    resolveDependencies().getRenderer()?.endSampledBrushStroke();
+    rollbackPreparedSurface();
+    activeDocument = null;
+    renderer?.endSampledBrushStroke();
   };
 
   return {
@@ -226,6 +238,8 @@ export const createPaintSessionController = (
         let paintLayer = layer;
         let paintTarget = target;
         const document = dependencies.getDocument();
+        if (!document) throw new Error('The paint document is not available.');
+        activeDocument = { before: document, working: document };
         if (target.channel === 'pixels' && layer.type === 'raster' && document) {
           const surfaceEdit = renderer.prepareRasterPaintSurface?.(layer) ?? null;
           if (surfaceEdit) {
@@ -242,10 +256,10 @@ export const createPaintSessionController = (
               throw new Error('The raster layer could not be prepared for painting.');
             }
             preparedSurface = {
-              edit: surfaceEdit,
-              beforeDocument: document
+              edit: surfaceEdit
             };
-            dependencies.applyDocumentSnapshot(preparedDocument);
+            activeDocument.working = preparedDocument;
+            dependencies.previewDocumentSnapshot(preparedDocument);
             paintLayer = preparedLayer;
             paintTarget = {
               ...target,
@@ -312,18 +326,19 @@ export const createPaintSessionController = (
       activeOperator = null;
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
-      const workingDocument = dependencies.getDocument();
-      const before = preparedSurface?.beforeDocument ?? workingDocument;
-      if (!renderer || !workingDocument || !before || !finished.dirtyBounds) {
+      const canonicalDocument = dependencies.getDocument();
+      const transaction = activeDocument;
+      const workingDocument = transaction?.working ?? null;
+      const before = transaction?.before ?? null;
+      if (!renderer || !canonicalDocument || !workingDocument || !before
+        || canonicalDocument.id !== before.id
+        || canonicalDocument.revision !== before.revision
+        || !finished.dirtyBounds) {
         renderer?.cancelPixelEdit();
         renderer?.endSampledBrushStroke();
         renderer?.setPaintInteractionActive(false);
-        if (preparedSurface) {
-          preparedSurface.edit.undo();
-          preparedSurface.edit.destroy();
-          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
-          preparedSurface = null;
-        }
+        rollbackPreparedSurface();
+        activeDocument = null;
         return true;
       }
       const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, workingDocument);
@@ -331,12 +346,8 @@ export const createPaintSessionController = (
         renderer.cancelPixelEdit();
         renderer.endSampledBrushStroke();
         renderer.setPaintInteractionActive(false);
-        if (preparedSurface) {
-          preparedSurface.edit.undo();
-          preparedSurface.edit.destroy();
-          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
-          preparedSurface = null;
-        }
+        rollbackPreparedSurface();
+        activeDocument = null;
         return true;
       }
       const after = finished.target.channel === 'mask'
@@ -355,16 +366,13 @@ export const createPaintSessionController = (
       if (!pixelEdit) {
         renderer.cancelPixelEdit();
         renderer.setPaintInteractionActive(false);
-        if (preparedSurface) {
-          preparedSurface.edit.undo();
-          preparedSurface.edit.destroy();
-          dependencies.applyDocumentSnapshot(preparedSurface.beforeDocument);
-          preparedSurface = null;
-        }
+        rollbackPreparedSurface();
+        activeDocument = null;
         return true;
       }
       const surfaceEdit = preparedSurface?.edit ?? null;
       preparedSurface = null;
+      activeDocument = null;
       renderer.setPaintInteractionActive(false);
       try {
         commitAppliedPixelMutation(() => resolveDependencies(), {
@@ -408,12 +416,8 @@ export const createPaintSessionController = (
       }
       renderer?.setPaintInteractionActive(false);
       renderer?.endSampledBrushStroke();
-      if (preparedSurface) {
-        preparedSurface.edit.undo();
-        preparedSurface.edit.destroy();
-        resolveDependencies().applyDocumentSnapshot(preparedSurface.beforeDocument);
-        preparedSurface = null;
-      }
+      rollbackPreparedSurface();
+      activeDocument = null;
       return true;
     },
     reset,
