@@ -6242,10 +6242,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
-          fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
-          getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
-          publish: applyDocumentSnapshot, record: (before, after, label) => pushHistoryEntry({
-            type: 'automation.batch', label, undo: () => applyDocumentSnapshot(before), redo: () => applyDocumentSnapshot(after) })
+          fontRegistry: textFontRegistry, documentMutations: documentMutationController,
+          getTextSettings: () => editorSessionRef.current.text,
+          getForegroundColor: () => editorSessionRef.current.brush.color
         }, signal, report);
         if (!await waitForExactCommandRender(engineRef.current, signal)) {
           console.warn('[LightTable render] Batch committed while an exact render source is still pending.');

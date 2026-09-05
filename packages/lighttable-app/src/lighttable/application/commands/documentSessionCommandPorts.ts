@@ -194,15 +194,9 @@ export const createDocumentSessionCommandPorts = (
     executeSelectionCommand: () => requiresPresentation('Selection editing'),
     executeAtomicBatch: (batch, signal, report) => executeAtomicCommandBatch(batch, {
       fontRegistry: session.fonts,
-      getDocument: semanticDependencies.getDocument,
+      documentMutations: mutation,
       getTextSettings: () => applicationSession.getSnapshot().text,
-      getForegroundColor: () => applicationSession.getSnapshot().brush.color,
-      publish: applyDocument,
-      record: (before, after, label) => history.record({
-        type: 'automation.batch', label,
-        undo: () => applyDocument(before),
-        redo: () => applyDocument(after)
-      })
+      getForegroundColor: () => applicationSession.getSnapshot().brush.color
     }, signal, report),
     exportNativeArtifact: () => requiresPresentation('Native export'),
     exportPngArtifact: () => requiresPresentation('PNG export'),

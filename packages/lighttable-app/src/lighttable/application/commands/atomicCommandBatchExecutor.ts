@@ -19,14 +19,13 @@ import { executeSemanticTextCommand } from '../text/semanticTextCommandExecutor'
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCommandExecutor';
 import type { AtomicCommandBatch, AtomicBatchOperation } from './atomicCommandBatchContract';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 
 export interface AtomicCommandBatchDependencies {
   readonly fontRegistry: DocumentFontRegistry;
-  getDocument(): ImageDocument | null;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin'>;
   getTextSettings(): TextToolSettings;
   getForegroundColor(): string;
-  publish(document: ImageDocument): void;
-  record(before: ImageDocument, after: ImageDocument, label: string): void;
 }
 
 const record = (value: unknown): value is Record<string, unknown> => (
@@ -60,13 +59,16 @@ export const executeAtomicCommandBatch = async (
   signal: AbortSignal,
   report: (completed: number, operationId: string) => void
 ): Promise<{ readonly results: readonly { readonly operationId: string; readonly value: unknown }[] }> => {
-  const before = dependencies.getDocument();
-  if (!before) throw new Error('The batch document is unavailable.');
+  const transaction = dependencies.documentMutations.begin(
+    'automation.batch', { label: batch.name, type: 'automation.batch' }, undefined, 'cancel'
+  );
+  if (!transaction) throw new Error('The batch document is unavailable or busy.');
+  const before = transaction.before;
   let current = before;
   const results = new Map<string, unknown>();
   const local = { getDocument: () => current, applyDocument: (document: ImageDocument) => { current = document; },
     recordHistory: () => undefined };
-  for (const [index, operation] of batch.operations.entries()) {
+  try { for (const [index, operation] of batch.operations.entries()) {
     if (signal.aborted) throw new DOMException('The batch was canceled.', 'AbortError');
     const parameters = resolveReferences(operation.parameters, results);
     const sharedSchema = LIGHTTABLE_COMMAND_SCHEMAS[operation.command]?.input;
@@ -175,10 +177,14 @@ export const executeAtomicCommandBatch = async (
     if (!result) throw new Error(`${operation.operationId}: the command did not change the document.`);
     results.set(operation.operationId, result);
     report(index + 1, operation.operationId);
+    }
+    if (signal.aborted) throw new DOMException('The batch was canceled.', 'AbortError');
+    if (current === before) throw new Error('The batch did not change the document.');
+    transaction.stage(() => current);
+    if (!transaction.commit()) throw new Error('The batch document changed before it could be committed.');
+    return { results: [...results].map(([operationId, value]) => ({ operationId, value })) };
+  } catch (error) {
+    transaction.cancel();
+    throw error;
   }
-  if (signal.aborted) throw new DOMException('The batch was canceled.', 'AbortError');
-  if (current === before) throw new Error('The batch did not change the document.');
-  dependencies.publish(current);
-  dependencies.record(before, current, batch.name);
-  return { results: [...results].map(([operationId, value]) => ({ operationId, value })) };
 };

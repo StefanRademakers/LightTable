@@ -4,6 +4,7 @@ import { createDefaultFlowTextSource, createDefaultTextLayerData } from '@lightt
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { createRasterLayer, createTextLayer } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { executeAtomicCommandBatch } from './atomicCommandBatchExecutor';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 
@@ -15,8 +16,15 @@ const fixture = () => {
   const layerId = document.activeLayerId!;
   const publish = vi.fn((next) => { document = next; });
   const record = vi.fn();
-  const dependencies = { fontRegistry: {} as never, getDocument: () => document,
-    getTextSettings: () => ({}) as never, getForegroundColor: () => '#000000', publish, record };
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: publish,
+    previewSnapshot: () => undefined,
+    discardPreview: () => undefined,
+    pushHistoryEntry: record
+  }));
+  const dependencies = { fontRegistry: {} as never, documentMutations,
+    getTextSettings: () => ({}) as never, getForegroundColor: () => '#000000' };
   return { get document() { return document; }, layerId, publish, record, dependencies };
 };
 const batch = (operations: AtomicCommandBatch['operations']): AtomicCommandBatch => ({
@@ -33,7 +41,7 @@ describe('executeAtomicCommandBatch', () => {
     ]), state.dependencies, new AbortController().signal, progress);
     expect(state.publish).toHaveBeenCalledOnce();
     expect(state.record).toHaveBeenCalledOnce();
-    expect(state.record.mock.calls[0][2]).toBe('Agent: build card');
+    expect(state.record.mock.calls[0][0]).toMatchObject({ label: 'Agent: build card' });
     expect(findDocumentLayer(state.document, state.layerId)).toMatchObject({ name: 'Hero', fillOpacity: 0.5 });
     expect(progress).toHaveBeenCalledTimes(2);
     expect(result.results).toEqual([
@@ -73,7 +81,7 @@ describe('executeAtomicCommandBatch', () => {
     const textDocument = createTextLayer(state.document, {
       ...createDefaultTextLayerData(), source: createDefaultFlowTextSource('Before')
     }, 'Copy');
-    state.dependencies.publish(textDocument);
+    state.publish(textDocument);
     state.publish.mockClear();
     state.record.mockClear();
     const textLayerId = textDocument.activeLayerId!;
