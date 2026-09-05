@@ -2,6 +2,7 @@ import type { TextLayerData } from '@lighttable/text-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
+import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
 import { graphemeStops } from './flowTextEditing';
 
 export type TextEditGroupKind =
@@ -159,13 +160,22 @@ export const createTextEditTransactionController = (
           afterLayer.text.source.text
         )
         : null;
-      dependencies.pushHistory({
-        layerIds: [completed.layerId],
-        resourceIds: [],
-        group: completed.group,
-        semanticReplacement,
-        undo: () => applyForDocument(completed.documentId, completed.before),
-        redo: () => applyForDocument(completed.documentId, after)
+      runEditorOperationTransaction({ operation: 'Commit text edit' }, (transaction) => {
+        // The edited document is already live because typing is rendered at
+        // input cadence. Until history accepts ownership, retain compensation
+        // for that publication so a rejected command cannot strand the edit.
+        transaction.adopt(
+          'published text document',
+          () => applyForDocument(completed.documentId, completed.before)
+        );
+        dependencies.pushHistory({
+          layerIds: [completed.layerId],
+          resourceIds: [],
+          group: completed.group,
+          semanticReplacement,
+          undo: () => applyForDocument(completed.documentId, completed.before),
+          redo: () => applyForDocument(completed.documentId, after)
+        });
       });
       return true;
     },

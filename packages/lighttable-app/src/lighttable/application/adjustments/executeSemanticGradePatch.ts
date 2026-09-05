@@ -2,6 +2,7 @@ import type { ImageDocument, LayerId } from '../../editor/document/documentTypes
 import { cloneAdjustments, type BasicAdjustments } from '../../types';
 import { resolveBasicAdjustmentTarget } from './basicAdjustmentTarget';
 import type { BasicAdjustmentTarget } from '../commands/semanticBasicAdjustmentCommandContract';
+import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
 
 export interface SemanticGradePatchHistoryEntry {
   readonly type: string;
@@ -43,13 +44,19 @@ export const executeSemanticGradePatch = <TValues extends object>({
   mutate(after, values);
   if (JSON.stringify(before) === JSON.stringify(after)) return { target, values, changed: false };
   const apply = (snapshot: BasicAdjustments) => publish(snapshot, resolved.targetLayerId);
-  apply(after);
-  pushHistoryEntry({
-    type: historyType,
-    label: historyLabel,
-    documentMutation: true,
-    undo: () => apply(before),
-    redo: () => apply(after)
+  runEditorOperationTransaction({ operation: historyLabel }, (transaction) => {
+    transaction.step(
+      'publish adjustment snapshot',
+      () => apply(after),
+      () => apply(before)
+    );
+    pushHistoryEntry({
+      type: historyType,
+      label: historyLabel,
+      documentMutation: true,
+      undo: () => apply(before),
+      redo: () => apply(after)
+    });
   });
   return { target, values, changed: true };
 };

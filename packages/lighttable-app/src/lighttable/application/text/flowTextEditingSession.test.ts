@@ -6,7 +6,10 @@ import { findDocumentLayer } from '../../editor/document/layerTree';
 import { FlowTextEditingSessionController } from './flowTextEditingSession';
 import type { TextEditHistoryEntry } from './textEditTransactionController';
 
-const setup = (initial = 'Text') => {
+const setup = (
+  initial = 'Text',
+  publishHistory?: (entry: TextEditHistoryEntry) => void
+) => {
   const data = createDefaultTextLayerData();
   data.source.kind === 'flow' && Object.assign(data, {
     source: { ...data.source, text: initial,
@@ -22,7 +25,10 @@ const setup = (initial = 'Text') => {
   const controller = new FlowTextEditingSessionController(() => ({
     getDocument: () => document,
     applyDocument: (next) => { document = next; },
-    pushHistory: (entry) => history.push(entry)
+    pushHistory: (entry) => {
+      publishHistory?.(entry);
+      history.push(entry);
+    }
   }));
   const text = () => {
     const layer = findDocumentLayer(document, document.activeLayerId!);
@@ -90,6 +96,26 @@ describe('flow text editing session', () => {
     expect(state.history[0].semanticReplacement).toEqual({
       layerId: id, start: 0, end: 0, text
     });
+  });
+
+  it('restores the document and permits a new group when history rejects a commit', () => {
+    let reject = true;
+    const state = setup('', () => {
+      if (reject) throw new Error('History rejected the edit.');
+    });
+    const id = state.document.activeLayerId!;
+    state.controller.begin(id);
+    state.controller.insert('A');
+
+    expect(() => state.controller.checkpoint()).toThrow('History rejected the edit.');
+    expect(state.text()).toBe('');
+    expect(state.history).toHaveLength(0);
+
+    reject = false;
+    expect(state.controller.insert('B')).toBe(true);
+    expect(state.controller.checkpoint()).toBe(true);
+    expect(state.text()).toBe('B');
+    expect(state.history).toHaveLength(1);
   });
 
   it('replaces intermediate IME updates inside one composition history group', () => {

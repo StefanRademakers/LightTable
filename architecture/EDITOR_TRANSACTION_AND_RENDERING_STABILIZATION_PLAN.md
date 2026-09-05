@@ -110,6 +110,8 @@ The document mutation controller now treats history registration as part of the 
 
 This closes a central half-commit path behind apparently successful edits followed by incomplete undo. The normal success path only adds exception handling around the existing history call; it performs no extra render, GPU allocation, texture copy or readback.
 
+Text input and the remaining loose Grade commands now follow the same rule. A text group keeps input-rate rendering, but its already-live document is compensated if history rejects the completed group and the session always closes that group before accepting more input. Semantic Grade patches, global Grade strength and the global Grade/Lens FX resets restore their opening state if history publication fails. These checks run only at the explicit commit boundary; slider and typing preview cadence is unchanged.
+
 ### Atomic document-surface geometry
 
 Image Size, Canvas Size, Crop, Flip Canvas and image rotation now retain one document mutation lease while they coordinate the immutable document, renderer surface, raster and mask textures, exact selection snapshot and history entry. Runtime resources are prepared first and published through one compensating exchange boundary; a stale resource, failed surface resize or rejected history entry restores every already-changed owner before the command fails.
@@ -140,9 +142,9 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Warp | Document lease plus reversible GPU edit | Migrated |
 | Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
 | Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
-| Point, paragraph, vertical and path text | Move, resize, handles, creation, layout, warp, recovery and text-to-shape use document leases | Partial: typing internals and renderer recovery still need audit |
+| Point, paragraph, vertical and path text | Move, resize, handles, creation, layout, warp, recovery and text-to-shape use document leases; typing groups compensate rejected history | Partial: renderer recovery and complete workflow verification still need audit |
 | Layer mutations, merge, rasterize and flatten | Document lease plus atomic document/GPU publication | Migrated; repeated workflow and renderer-resource verification remains |
-| Adjustments, effects and filters | Shared preview controller for the migrated adjustment paths | Partial: every effect/filter commit and resource cleanup still needs an inventory |
+| Adjustments, effects and filters | Shared preview controller for migrated paths; semantic/global Grade commits compensate rejected history | Partial: every effect/filter commit and resource cleanup still needs an inventory |
 
 This table is the completion ledger. A family is not considered stable merely because its primary pointer gesture uses the transaction controller; semantic commands, Actions/MCP execution, cancel, document switch, undo/redo and renderer recovery must reach the same boundary as well.
 

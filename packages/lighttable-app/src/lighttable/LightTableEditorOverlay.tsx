@@ -52,6 +52,7 @@ import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdj
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
 import { executeSemanticGradePatch } from './application/adjustments/executeSemanticGradePatch';
+import { runEditorOperationTransaction } from './application/commands/editorOperationTransaction';
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
 import { changedDetailAdjustmentValues } from './application/commands/semanticDetailAdjustmentCommandContract';
 import {
@@ -4401,11 +4402,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     globalGradeStrengthGestureRef.current = null;
     const after = globalGradeStrengthRef.current;
     if (before === null || before === after) return;
-    pushHistoryEntry({
-      type: 'adjustment.global-grade-strength',
-      label: 'Global Grade Strength',
-      undo: () => publishGlobalGradeStrength(before),
-      redo: () => publishGlobalGradeStrength(after)
+    runEditorOperationTransaction({ operation: 'Global Grade Strength' }, (transaction) => {
+      // The slider preview is already live. History acceptance transfers
+      // ownership; before that, failure must restore the gesture origin.
+      transaction.adopt(
+        'published global grade strength',
+        () => publishGlobalGradeStrength(before)
+      );
+      pushHistoryEntry({
+        type: 'adjustment.global-grade-strength',
+        label: 'Global Grade Strength',
+        undo: () => publishGlobalGradeStrength(before),
+        redo: () => publishGlobalGradeStrength(after)
+      });
     });
   }, [publishGlobalGradeStrength, pushHistoryEntry]);
   const resetGlobalGrade = React.useCallback(() => {
@@ -4420,14 +4429,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       applyAdjustmentSnapshot(cloneAdjustments(adjustments), null, 'grade');
       publishGlobalGradeStrength(strength);
     };
-    apply(afterAdjustments, 100);
     if (JSON.stringify(beforeAdjustments) === JSON.stringify(afterAdjustments)
       && beforeStrength === 100) return;
-    pushHistoryEntry({
-      type: 'adjustment.global-grade-reset',
-      label: 'Reset Global Grade',
-      undo: () => apply(beforeAdjustments, beforeStrength),
-      redo: () => apply(afterAdjustments, 100)
+    runEditorOperationTransaction({ operation: 'Reset Global Grade' }, (transaction) => {
+      transaction.step(
+        'publish global grade reset',
+        () => apply(afterAdjustments, 100),
+        () => apply(beforeAdjustments, beforeStrength)
+      );
+      pushHistoryEntry({
+        type: 'adjustment.global-grade-reset',
+        label: 'Reset Global Grade',
+        undo: () => apply(beforeAdjustments, beforeStrength),
+        redo: () => apply(afterAdjustments, 100)
+      });
     });
   }, [
     applyAdjustmentSnapshot,
@@ -4452,12 +4467,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setFocusPickerActive(false);
       setLensBlurViewportModeState('result');
     };
-    apply(afterAdjustments);
-    pushHistoryEntry({
-      type: 'adjustment.global-lens-fx-reset',
-      label: 'Reset Global Lens FX',
-      undo: () => apply(beforeAdjustments),
-      redo: () => apply(afterAdjustments)
+    runEditorOperationTransaction({ operation: 'Reset Global Lens FX' }, (transaction) => {
+      transaction.step(
+        'publish global Lens FX reset',
+        () => apply(afterAdjustments),
+        () => apply(beforeAdjustments)
+      );
+      pushHistoryEntry({
+        type: 'adjustment.global-lens-fx-reset',
+        label: 'Reset Global Lens FX',
+        undo: () => apply(beforeAdjustments),
+        redo: () => apply(afterAdjustments)
+      });
     });
   }, [applyAdjustmentSnapshot, endAdjustmentTransaction, pushHistoryEntry]);
 

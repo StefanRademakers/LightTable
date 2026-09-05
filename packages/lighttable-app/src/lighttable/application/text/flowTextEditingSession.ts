@@ -522,12 +522,16 @@ export class FlowTextEditingSessionController {
 
   private commitOpenGroup() {
     if (!this.openGroup) return false;
-    const changed = this.transaction.commit();
-    this.openGroup = null;
-    this.compositionText = '';
-    this.deleteSignature = '';
-    this.formattingInsertionBefore = null;
-    return changed;
+    try {
+      return this.transaction.commit();
+    } finally {
+      // A rejected history command closes the underlying transaction too.
+      // Never leave the session claiming that a now-absent group is active.
+      this.openGroup = null;
+      this.compositionText = '';
+      this.deleteSignature = '';
+      this.formattingInsertionBefore = null;
+    }
   }
 
   private publish(snapshot: FlowTextEditingSnapshot, notifyShell = true) {
