@@ -20,12 +20,21 @@ const renamed = (document: ImageDocument, name: string): ImageDocument => ({
 const setup = () => {
   let document: ImageDocument | null = createImageDocument('First', 32, 24, 'first');
   const history: DocumentMutationHistoryEntry[] = [];
+  let preview: ImageDocument | null = null;
   const applySnapshot = vi.fn((next: ImageDocument) => {
     document = next;
+  });
+  const previewSnapshot = vi.fn((next: ImageDocument) => {
+    preview = next;
+  });
+  const discardPreview = vi.fn(() => {
+    preview = null;
   });
   const dependencies: DocumentMutationDependencies = {
     getDocument: () => document,
     applySnapshot,
+    previewSnapshot,
+    discardPreview,
     pushHistoryEntry: (entry) => history.push(entry)
   };
   const controller = createDocumentMutationController(() => dependencies);
@@ -33,7 +42,10 @@ const setup = () => {
     controller,
     history,
     applySnapshot,
+    previewSnapshot,
+    discardPreview,
     get document() { return document; },
+    get preview() { return preview; },
     setDocument: (next: ImageDocument | null) => { document = next; }
   };
 };
@@ -106,12 +118,17 @@ describe('document mutation controller', () => {
 
   it('coalesces repeated previews into one transaction', () => {
     const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => renamed(current, 'One'));
-    state.controller.change((current) => renamed(current, 'Two'));
-    state.controller.change((current) => renamed(current, 'Three'));
+    const transaction = state.controller.begin('test.rename');
+    transaction?.change((current) => renamed(current, 'One'));
+    transaction?.change((current) => renamed(current, 'Two'));
+    transaction?.change((current) => renamed(current, 'Three'));
+    expect(state.document?.name).toBe('First');
+    expect(state.preview?.name).toBe('Three');
+    expect(state.applySnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
-    expect(state.controller.end()).toBe(true);
+    expect(transaction?.commit()).toBe(true);
+    expect(state.document?.name).toBe('Three');
+    expect(state.applySnapshot).toHaveBeenCalledOnce();
     expect(state.history).toHaveLength(1);
     state.history[0].undo();
     expect(state.document?.name).toBe('First');
@@ -119,10 +136,46 @@ describe('document mutation controller', () => {
 
   it('rejects completion after the active document changes', () => {
     const state = setup();
-    state.controller.begin();
+    const transaction = state.controller.begin('test.rename');
     state.setDocument(createImageDocument('Second', 32, 24, 'second'));
-    expect(state.controller.end()).toBe(false);
+    expect(transaction?.commit()).toBe(false);
+    expect(state.discardPreview).toHaveBeenCalledOnce();
     expect(state.history).toHaveLength(0);
+  });
+
+  it('cancels a staged preview without publishing document state', () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.rename');
+    transaction?.change((current) => renamed(current, 'Preview'));
+    expect(transaction?.cancel()).toBe(true);
+    expect(state.document?.name).toBe('First');
+    expect(state.preview).toBeNull();
+    expect(state.applySnapshot).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('finishes an active gesture before running an unrelated command', () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.preview');
+    transaction?.change((current) => renamed(current, 'Preview'));
+    expect(state.controller.change((current) => renamed(current, 'Unrelated'))).toBe(true);
+    expect(state.document?.name).toBe('Unrelated');
+    expect(state.preview?.name).toBe('Preview');
+    expect(state.history).toHaveLength(2);
+    expect(transaction?.active).toBe(false);
+  });
+
+  it('prevents a stale owner from discarding a newer preview', () => {
+    const state = setup();
+    const first = state.controller.begin('first');
+    first?.change((current) => renamed(current, 'First preview'));
+    const second = state.controller.begin('second');
+    second?.change((current) => renamed(current, 'Second preview'));
+
+    expect(first?.cancel()).toBe(false);
+    expect(first?.commit()).toBe(false);
+    expect(state.preview?.name).toBe('Second preview');
+    expect(state.controller.activeOwner).toBe('second');
   });
 
   it('refuses undo against a different active document', () => {

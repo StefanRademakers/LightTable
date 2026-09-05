@@ -65,12 +65,14 @@ interface LayerPanelProps {
   onVisibilityInteractionStart: () => void;
   onVisibilityPreview: (layerIds: LayerId[], visible: boolean) => void;
   onVisibilityInteractionEnd: () => void;
+  onVisibilityInteractionCancel: () => void;
   onRename: (layerId: LayerId, name: string) => void;
   onOpacity: (layerId: LayerId, opacity: number) => void;
   onVectorAntiAlias: (layerId: LayerId, antiAlias: boolean) => void;
   onFillOpacity: (layerId: LayerId, opacity: number) => void;
   onOpacityInteractionStart: () => void;
   onOpacityInteractionEnd: () => void;
+  onOpacityInteractionCancel: () => void;
   onBlendMode: (layerId: LayerId, blendMode: BlendMode) => void;
   onClipping: (layerId: LayerId, clipping: boolean) => void;
   onReorder: (
@@ -254,12 +256,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onVisibilityInteractionStart,
   onVisibilityPreview,
   onVisibilityInteractionEnd,
+  onVisibilityInteractionCancel,
   onRename,
   onOpacity,
   onVectorAntiAlias,
   onFillOpacity,
   onOpacityInteractionStart,
   onOpacityInteractionEnd,
+  onOpacityInteractionCancel,
   onBlendMode,
   onClipping,
   onReorder,
@@ -333,8 +337,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     visible: boolean;
     layerIds: Set<LayerId>;
   } | null>(null);
-  const visibilityInteractionEndRef = React.useRef(onVisibilityInteractionEnd);
-  visibilityInteractionEndRef.current = onVisibilityInteractionEnd;
+  const visibilityInteractionCancelRef = React.useRef(onVisibilityInteractionCancel);
+  visibilityInteractionCancelRef.current = onVisibilityInteractionCancel;
   const suppressVisibilityClickRef = React.useRef(false);
   const layerNamePointerFocusRef = React.useRef(false);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -422,6 +426,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     event.preventDefault();
     event.stopPropagation();
   };
+  const cancelVisibilityGesture = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const gesture = visibilityGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    visibilityGestureRef.current = null;
+    onVisibilityInteractionCancel();
+    suppressVisibilityClickRef.current = true;
+    window.setTimeout(() => {
+      suppressVisibilityClickRef.current = false;
+    }, 0);
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const layerCapabilities = queryLayerCommandCapabilities(document, selectedIds);
   const {
     activeLayer,
@@ -449,7 +468,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   React.useEffect(() => () => {
     if (!visibilityGestureRef.current) return;
     visibilityGestureRef.current = null;
-    visibilityInteractionEndRef.current();
+    visibilityInteractionCancelRef.current();
   }, []);
 
   React.useEffect(() => {
@@ -842,6 +861,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 onChange={(value) => onOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
                 onInteractionEnd={onOpacityInteractionEnd}
+                onInteractionCancel={onOpacityInteractionCancel}
               />
               <AdjustmentSlider
                 label="Fill"
@@ -856,6 +876,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 onChange={(value) => onFillOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
                 onInteractionEnd={onOpacityInteractionEnd}
+                onInteractionCancel={onOpacityInteractionCancel}
               />
           </div>
         </>
@@ -1066,7 +1087,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 visitVisibilityGestureLayer(event.clientX, event.clientY);
               }}
               onPointerUp={finishVisibilityGesture}
-              onPointerCancel={finishVisibilityGesture}
+              onPointerCancel={cancelVisibilityGesture}
               onDragStart={(event) => {
                 event.preventDefault();
                 event.stopPropagation();

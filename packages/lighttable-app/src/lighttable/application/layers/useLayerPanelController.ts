@@ -75,6 +75,7 @@ export interface LayerPanelControllerDependencies {
   setPaintTarget(channel: PaintChannel, brushColor?: string): void;
   beginDocumentTransaction(): boolean;
   endDocumentTransaction(): boolean;
+  cancelDocumentTransaction(): boolean;
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
@@ -109,12 +110,14 @@ export interface LayerPanelController {
   beginVisibilityInteraction(): void;
   previewVisibility(layerIds: LayerId[], visible: boolean): void;
   endVisibilityInteraction(): void;
+  cancelVisibilityInteraction(): void;
   rename(layerId: LayerId, name: string): void;
   setOpacity(layerId: LayerId, opacity: number): void;
   setVectorAntiAlias(layerId: LayerId, antiAlias: boolean): void;
   setFillOpacity(layerId: LayerId, opacity: number): void;
   beginOpacityInteraction(): void;
   endOpacityInteraction(): void;
+  cancelOpacityInteraction(): void;
   setBlendMode(layerId: LayerId, blendMode: BlendMode): void;
   setClipping(layerId: LayerId, clipping: boolean): void;
   reorder(
@@ -179,6 +182,7 @@ export const createLayerPanelController = (
 ): LayerPanelController => {
   let soloVisibility: LayerVisibilitySnapshot | null = null;
   let visibilityInteractionActive = false;
+  let opacityInteractionActive = false;
   const mutate = (
     change: (current: ImageDocument) => ImageDocument,
     recordHistory = true
@@ -283,6 +287,11 @@ export const createLayerPanelController = (
       visibilityInteractionActive = false;
       resolveDependencies().endDocumentTransaction();
     },
+    cancelVisibilityInteraction: () => {
+      if (!visibilityInteractionActive) return;
+      visibilityInteractionActive = false;
+      resolveDependencies().cancelDocumentTransaction();
+    },
     rename: (layerId, name) =>
       mutate((current) => renameLayer(current, layerId, name)),
     setOpacity: (layerId, opacity) =>
@@ -291,8 +300,19 @@ export const createLayerPanelController = (
       mutate((current) => setVectorLayerAntiAlias(current, layerId, antiAlias)),
     setFillOpacity: (layerId, opacity) =>
       mutate((current) => setLayerFillOpacity(current, layerId, opacity)),
-    beginOpacityInteraction: () => resolveDependencies().beginDocumentTransaction(),
-    endOpacityInteraction: () => resolveDependencies().endDocumentTransaction(),
+    beginOpacityInteraction: () => {
+      opacityInteractionActive = resolveDependencies().beginDocumentTransaction();
+    },
+    endOpacityInteraction: () => {
+      if (!opacityInteractionActive) return;
+      opacityInteractionActive = false;
+      resolveDependencies().endDocumentTransaction();
+    },
+    cancelOpacityInteraction: () => {
+      if (!opacityInteractionActive) return;
+      opacityInteractionActive = false;
+      resolveDependencies().cancelDocumentTransaction();
+    },
     setBlendMode: (layerId, blendMode) =>
       mutate((current) => setLayerBlendMode(current, layerId, blendMode)),
     setClipping: (layerId, clipping) =>

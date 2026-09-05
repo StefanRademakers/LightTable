@@ -27,7 +27,8 @@ const props = (): FaceWarpToolOptionsProps => ({
   onSelectFace: vi.fn(), onMeshVisibleChange: vi.fn(), onBrushChange: vi.fn(),
   onSemanticTargetChange: vi.fn(), onProtectedFeatureChange: vi.fn(),
   onProtectionChange: vi.fn(), onParametersChange: vi.fn(),
-  onInteractionStart: vi.fn(), onInteractionEnd: vi.fn(), onReset: vi.fn()
+  onInteractionStart: vi.fn(), onInteractionEnd: vi.fn(),
+  onInteractionCancel: vi.fn(), onReset: vi.fn()
 });
 
 describe('FaceWarpToolOptions mesh review', () => {

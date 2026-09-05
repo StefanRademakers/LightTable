@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createImageDocument, createTextLayerNode } from '../../editor/document/documentTypes';
 import { setFlowTextLayout } from '../../editor/document/textLayerCommands';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { ParagraphFrameResizeController } from './ParagraphFrameResizeController';
 
 const identity = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
@@ -19,15 +20,19 @@ const harness = () => {
   const previewDocumentSnapshot = vi.fn((next) => { preview = next; });
   const discardDocumentPreview = vi.fn(() => { preview = document; });
   const applyDocumentSnapshot = vi.fn((next) => { document = next; preview = next; });
-  const recordHistory = vi.fn();
+  const pushHistoryEntry = vi.fn();
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    previewSnapshot: previewDocumentSnapshot,
+    discardPreview: discardDocumentPreview,
+    applySnapshot: applyDocumentSnapshot,
+    pushHistoryEntry
+  }));
   const controller = new ParagraphFrameResizeController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
     getLocalToDocument: () => identity,
-    previewDocumentSnapshot,
-    discardDocumentPreview,
-    applyDocumentSnapshot,
-    recordHistory
+    documentMutations
   }));
   return {
     controller,
@@ -37,7 +42,7 @@ const harness = () => {
     previewDocumentSnapshot,
     discardDocumentPreview,
     applyDocumentSnapshot,
-    recordHistory
+    recordHistory: pushHistoryEntry
   };
 };
 

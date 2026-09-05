@@ -7,26 +7,25 @@ import {
   resizeParagraphFrame,
   type ParagraphFrameHandleKind
 } from './paragraphFrameResize';
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 
 export interface ParagraphFrameResizeDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
   getLocalToDocument(layerId: LayerId): AffineMatrix | null;
-  previewDocumentSnapshot(document: ImageDocument): void;
-  discardDocumentPreview(): void;
-  applyDocumentSnapshot(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
 }
 
 interface ActiveResize {
   readonly pointerId: number;
-  readonly documentId: ImageDocument['id'];
   readonly layerId: LayerId;
-  readonly before: ImageDocument;
+  readonly transaction: DocumentMutationTransaction;
   readonly localToDocument: AffineMatrix;
   readonly openingFrame: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly handle: ParagraphFrameHandleKind;
-  latest: ImageDocument;
 }
 
 /** Owns one live paragraph-frame resize and its single undo boundary. */
@@ -52,15 +51,18 @@ export class ParagraphFrameResizeController {
       source.layout.frame, localToDocument, documentPoint, radius
     );
     if (!hit) return false;
+    const transaction = dependencies.documentMutations.begin(
+      `text-frame:${layerId}`,
+      { label: 'Resize Text Frame', type: 'text.frame.resize' }
+    );
+    if (!transaction) return false;
     this.active = {
       pointerId,
-      documentId: document.id,
       layerId,
-      before: document,
+      transaction,
       localToDocument: { ...localToDocument },
       openingFrame: { ...source.layout.frame },
-      handle: hit.kind,
-      latest: document
+      handle: hit.kind
     };
     return true;
   }
@@ -72,11 +74,8 @@ export class ParagraphFrameResizeController {
   move(pointerId: number, documentPoint: Vec2) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    const dependencies = this.dependencies();
-    const current = dependencies.getDocument();
-    if (current?.id !== active.documentId
-      || current.revision !== active.before.revision) {
-      dependencies.discardDocumentPreview();
+    if (!active.transaction.active) {
+      active.transaction.cancel();
       this.active = null;
       return false;
     }
@@ -87,18 +86,20 @@ export class ParagraphFrameResizeController {
       active.localToDocument
     );
     if (!frame) return false;
-    const openingLayer = findDocumentLayer(active.before, active.layerId);
+    const openingLayer = findDocumentLayer(active.transaction.before, active.layerId);
     const openingSource = openingLayer?.type === 'text' && openingLayer.text.source.kind === 'flow'
       ? openingLayer.text.source
       : null;
     if (openingSource?.layout.mode !== 'paragraph') return false;
-    const next = setFlowTextLayout(active.before, active.layerId, {
-      ...openingSource.layout,
-      frame
-    });
-    active.latest = next;
-    dependencies.previewDocumentSnapshot(next);
-    return true;
+    const openingLayout = openingSource.layout;
+    return active.transaction.change(() => setFlowTextLayout(
+      active.transaction.before,
+      active.layerId,
+      {
+        ...openingLayout,
+        frame
+      }
+    ));
   }
 
   finish(pointerId: number, documentPoint: Vec2) {
@@ -106,24 +107,14 @@ export class ParagraphFrameResizeController {
     this.move(pointerId, documentPoint);
     const active = this.active;
     this.active = null;
-    if (!active || active.latest === active.before) return false;
-    const dependencies = this.dependencies();
-    const current = dependencies.getDocument();
-    if (current?.id !== active.documentId
-      || current.revision !== active.before.revision) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
-    dependencies.applyDocumentSnapshot(active.latest);
-    dependencies.recordHistory(active.before, active.latest);
-    return true;
+    return active ? active.transaction.commit() : false;
   }
 
   cancel(pointerId?: number) {
     const active = this.active;
     if (!active || (pointerId !== undefined && active.pointerId !== pointerId)) return false;
     this.active = null;
-    this.dependencies().discardDocumentPreview();
+    active.transaction.cancel();
     return true;
   }
 }

@@ -34,7 +34,10 @@ import {
 } from './application/clipboard/pastePlacement';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
-import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
+import {
+  useDocumentMutationController,
+  type DocumentMutationTransaction
+} from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
@@ -896,6 +899,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
+  const layerDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
+  const faceWarpDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>(
     [...(documentSession?.getSnapshot().loadedSource.preservedSources ?? [])]
   );
@@ -1441,7 +1446,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         readonly range: { readonly start: number; readonly end: number } | null;
         style: TextStylePatch; paragraph: ParagraphStylePatch; recordable: boolean }
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId;
-        readonly before: ImageDocument; style: TextStylePatch;
+        readonly transaction: DocumentMutationTransaction; style: TextStylePatch;
         paragraph: ParagraphStylePatch; recordable: boolean }
     | null
   >(null);
@@ -1892,20 +1897,82 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
     applySnapshot: applyDocumentSnapshot,
+    previewSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardPreview: documentProjectionController.discardDocumentPreview,
     pushHistoryEntry
   });
-  resetDocumentTransactionRef.current = documentMutationController.reset;
+  resetDocumentTransactionRef.current = () => {
+    layerDocumentTransactionRef.current = null;
+    faceWarpDocumentTransactionRef.current = null;
+    if (textPropertyGestureRef.current?.kind === 'document') {
+      textPropertyGestureRef.current = null;
+    }
+    documentMutationController.cancelActive();
+  };
+  const commitActiveDocumentTransaction = () => {
+    layerDocumentTransactionRef.current = null;
+    faceWarpDocumentTransactionRef.current = null;
+    if (textPropertyGestureRef.current?.kind === 'document') {
+      textPropertyGestureRef.current = null;
+    }
+    return documentMutationController.commitActive();
+  };
   const pushDocumentHistory = documentMutationController.record;
-  const beginDocumentTransaction = documentMutationController.begin;
-  const endDocumentTransaction = documentMutationController.end;
+  const beginLayerDocumentTransaction = () => {
+    if (layerDocumentTransactionRef.current?.active) return false;
+    const transaction = documentMutationController.begin('layer-panel');
+    layerDocumentTransactionRef.current = transaction;
+    return transaction !== null;
+  };
+  const changeLayerDocument = (
+    change: (document: ImageDocument) => ImageDocument,
+    recordHistory = true
+  ) => {
+    const transaction = layerDocumentTransactionRef.current;
+    return transaction?.active
+      ? transaction.change(change)
+      : documentMutationController.change(change, recordHistory);
+  };
+  const commitLayerDocumentTransaction = () => {
+    const transaction = layerDocumentTransactionRef.current;
+    layerDocumentTransactionRef.current = null;
+    return transaction?.commit() ?? false;
+  };
+  const cancelLayerDocumentTransaction = () => {
+    const transaction = layerDocumentTransactionRef.current;
+    layerDocumentTransactionRef.current = null;
+    return transaction?.cancel() ?? false;
+  };
+  const beginFaceWarpDocumentTransaction = () => {
+    if (faceWarpDocumentTransactionRef.current?.active) return false;
+    const transaction = documentMutationController.begin('face-warp');
+    faceWarpDocumentTransactionRef.current = transaction;
+    return transaction !== null;
+  };
+  const changeFaceWarpDocument = (
+    change: (document: ImageDocument) => ImageDocument,
+    recordHistory = true
+  ) => {
+    const transaction = faceWarpDocumentTransactionRef.current;
+    return transaction?.active
+      ? transaction.change(change)
+      : documentMutationController.change(change, recordHistory);
+  };
+  const commitFaceWarpDocumentTransaction = () => {
+    const transaction = faceWarpDocumentTransactionRef.current;
+    faceWarpDocumentTransactionRef.current = null;
+    return transaction?.commit() ?? false;
+  };
+  const cancelFaceWarpDocumentTransaction = () => {
+    const transaction = faceWarpDocumentTransactionRef.current;
+    faceWarpDocumentTransactionRef.current = null;
+    return transaction?.cancel() ?? false;
+  };
   const p0FilterController = useP0FilterController({
     document: imageDocument,
     target: propertiesTarget,
     getDocument: () => imageDocumentRef.current,
-    applyDocument: applyDocumentSnapshot,
-    previewDocument: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    recordHistory: pushDocumentHistory
+    documentMutations: documentMutationController
   });
   const activeFilterCenter = (() => {
     const model = p0FilterController.model;
@@ -1956,7 +2023,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return instance ? readFaceWarpNodeSettings(instance).faces[0]?.id ?? null : null;
       })();
     if (!faceId) return;
-    documentMutationController.change((document) => {
+    changeFaceWarpDocument((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
@@ -1965,7 +2032,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         operation: { kind: 'set-semantic', faceId, target: faceWarpSemanticTarget, change }
       });
     });
-  }, [documentMutationController, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);
+  }, [changeFaceWarpDocument, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);
 
   const updateFaceWarpProtection = useCallback((
     feature: FaceWarpProtectedFeature,
@@ -1973,7 +2040,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const faceId = faceWarpSelectedFaceId ?? effectiveFaceWarpFaceId;
     if (!faceId) return;
-    documentMutationController.change((document) => {
+    changeFaceWarpDocument((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
@@ -1982,7 +2049,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         operation: { kind: 'set-protection', faceId, feature, locked }
       });
     });
-  }, [documentMutationController, effectiveFaceWarpFaceId, faceWarpSelectedFaceId]);
+  }, [changeFaceWarpDocument, effectiveFaceWarpFaceId, faceWarpSelectedFaceId]);
 
   const detectFacesForActiveLayer = useCallback(async () => {
     const document = imageDocumentRef.current;
@@ -2115,7 +2182,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setError('The layer changed while the face mesh was being reviewed. Detect faces again.');
       return;
     }
-    documentMutationController.change((document) => {
+    changeFaceWarpDocument((document) => {
       const layer = findRasterLayer(document, pending.source.layerId);
       if (!layer || layerIsLocked(layer)) return document;
       let stack = layer.adjustmentStack
@@ -2132,7 +2199,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     setPendingFaceWarpDetection(null);
     setGradeStatus(`${pending.settings.faces.length} face${pending.settings.faces.length === 1 ? '' : 's'} accepted.`);
-  }, [documentMutationController, imageDocumentRef, pendingFaceWarpDetection]);
+  }, [changeFaceWarpDocument, imageDocumentRef, pendingFaceWarpDetection]);
 
   useEffect(() => {
     if (pendingFaceWarpDetection
@@ -2155,7 +2222,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetSelectedFaceWarp = useCallback(() => {
     const faceId = effectiveFaceWarpFaceId;
     if (!faceId) return;
-    documentMutationController.change((document) => {
+    changeFaceWarpDocument((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
@@ -2169,7 +2236,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return setRasterLayerAdjustmentStack(document, layer.id,
         setFaceWarpNodeSettings(layer.adjustmentStack, { ...current, faces }));
     });
-  }, [documentMutationController, effectiveFaceWarpFaceId]);
+  }, [changeFaceWarpDocument, effectiveFaceWarpFaceId]);
 
   const changeFaceWarpMeshVisible = useCallback((visible: boolean) => {
     setFaceWarpMeshVisible(visible);
@@ -2218,7 +2285,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       faceWarpRefinementRef.current = null;
       // A new gesture supersedes refinement, but the already visible preview
       // remains one complete, undoable authored gesture.
-      endDocumentTransaction();
+      commitFaceWarpDocumentTransaction();
     }
     const document = imageDocumentRef.current;
     const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
@@ -2237,7 +2304,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         hit: findDeformedFaceHit(face, settings.topology.triangleIndices, sourcePoint)
       }))
       .find((candidate) => candidate.hit !== null);
-    if (!hit?.hit || !beginDocumentTransaction()) return false;
+    if (!hit?.hit || !beginFaceWarpDocumentTransaction()) return false;
     faceWarpGestureRef.current = {
       pointerId,
       faceId: hit.face.id,
@@ -2260,7 +2327,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
     engineRef.current?.setFaceWarpInteractionMode(mode);
-    return documentMutationController.change((document) => {
+    return changeFaceWarpDocument((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       const inverse = layer ? invertMatrix(layer.transform) : null;
@@ -2311,7 +2378,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (gesture.mode === 'sculpt' && gesture.latestRadius > 0) {
       if (!document || !layerId) {
         faceWarpGestureRef.current = null;
-        endDocumentTransaction();
+        commitFaceWarpDocumentTransaction();
         return true;
       }
       const refinement = {
@@ -2323,12 +2390,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       };
       faceWarpGestureRef.current = null;
       const finishRefinement = () => {
-        if (!documentMutationController.active) return;
+        if (!faceWarpDocumentTransactionRef.current?.active) return;
         if (imageDocumentRef.current?.id !== refinement.documentId) {
-          documentMutationController.reset();
+          cancelFaceWarpDocumentTransaction();
           return;
         }
-        documentMutationController.change((currentDocument) => {
+        changeFaceWarpDocument((currentDocument) => {
           const layer = findRasterLayer(currentDocument, refinement.layerId);
           const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
           if (!layer?.adjustmentStack || !instance) return currentDocument;
@@ -2349,8 +2416,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             layer.id,
             setFaceWarpNodeSettings(layer.adjustmentStack, { ...settings, faces })
           );
-        }, false);
-        endDocumentTransaction();
+        });
+        commitFaceWarpDocumentTransaction();
       };
       const frame = window.requestAnimationFrame(() => {
         const pending = faceWarpRefinementRef.current;
@@ -2367,7 +2434,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return true;
     }
     faceWarpGestureRef.current = null;
-    endDocumentTransaction();
+    commitFaceWarpDocumentTransaction();
     return true;
   };
 
@@ -2375,19 +2442,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
     engineRef.current?.setFaceWarpInteractionMode(null);
-    documentMutationController.change((document) => {
-      const layer = findRasterLayer(document, document.activeLayerId);
-      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
-      if (!layer?.adjustmentStack || !instance) return document;
-      const settings = readFaceWarpNodeSettings(instance);
-      const faces = settings.faces.map((face) => face.id === gesture.faceId
-        ? { ...face, displacements: gesture.originalDisplacements }
-        : face);
-      return setRasterLayerAdjustmentStack(document, layer.id,
-        setFaceWarpNodeSettings(layer.adjustmentStack, { ...settings, faces }));
-    }, false);
     faceWarpGestureRef.current = null;
-    documentMutationController.reset();
+    cancelFaceWarpDocumentTransaction();
     return true;
   };
 
@@ -2686,10 +2742,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const snapshot = textEditingController.getSnapshot();
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    applyDocumentSnapshot,
-    recordHistory: pushDocumentHistory
+    documentMutations: documentMutationController
   }));
   const textLayerMoveGestureController = textLayerMoveGestureControllerRef.current;
   const paragraphFrameResizeControllerRef = useRef<ParagraphFrameResizeController | null>(null);
@@ -2700,10 +2753,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
     getLocalToDocument: (layerId) => engineRef.current?.textEditingLayout(layerId)?.localToDocument ?? null,
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    applyDocumentSnapshot,
-    recordHistory: pushDocumentHistory
+    documentMutations: documentMutationController
   }));
   const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
   const pathTextHandleControllerRef = useRef<PathTextHandleController | null>(null);
@@ -2721,10 +2771,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         localToDocument: editingLayout.localToDocument
       } : null;
     },
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    applyDocumentSnapshot,
-    recordHistory: pushDocumentHistory
+    documentMutations: documentMutationController
   }));
   const pathTextHandleController = pathTextHandleControllerRef.current;
   const textEditing = useSyncExternalStore(
@@ -3311,18 +3358,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const applyUndoEditor = useCallback(async () => {
     endAdjustmentTransaction();
-    endDocumentTransaction();
+    commitActiveDocumentTransaction();
     // An active transform remains one transaction across pointer gestures.
     // Confirm it before navigating history so the renderer cannot keep a stale
     // transform source while the document moves to another revision.
     return documentHistoryController.undo();
-  }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
+  }, [documentHistoryController, endAdjustmentTransaction, commitActiveDocumentTransaction]);
 
   const applyRedoEditor = useCallback(async () => {
     endAdjustmentTransaction();
-    endDocumentTransaction();
+    commitActiveDocumentTransaction();
     return documentHistoryController.redo();
-  }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
+  }, [documentHistoryController, endAdjustmentTransaction, commitActiveDocumentTransaction]);
 
   const undoEditor = useCallback(() => {
     if (!executeRegisteredCommand('history.undo', {})) void applyUndoEditor();
@@ -5320,7 +5367,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     recordHistory = true
   ) => {
     textEditingController.finish();
-    documentMutationController.change(change, recordHistory);
+    changeLayerDocument(change, recordHistory);
   };
 
   const layerDocumentCommands = useLayerDocumentCommands({
@@ -5588,10 +5635,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeDocument: imageDocument,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    applyDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
-    pushDocumentHistory,
+    documentMutations: documentMutationController,
     onCheckpoint: (before, after, layerId) => {
       const previous = findDocumentLayer(before, layerId);
       const current = findDocumentLayer(after, layerId);
@@ -5663,8 +5707,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : current.brush
       }));
     },
-    beginDocumentTransaction,
-    endDocumentTransaction,
+    beginDocumentTransaction: beginLayerDocumentTransaction,
+    endDocumentTransaction: commitLayerDocumentTransaction,
+    cancelDocumentTransaction: cancelLayerDocumentTransaction,
     createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
     createCurvesAdjustmentLayer: layerDocumentCommands.createCurvesAdjustmentLayer,
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
@@ -5695,7 +5740,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     finishStyleEditing: layerStyleEditor.commit,
     finishProcessingEditing: () => {
       endAdjustmentTransaction();
-      endDocumentTransaction();
+      commitLayerDocumentTransaction();
     },
     prepareActiveLayerChange: async (layerId) => {
       // Finish the active document transaction before changing its target.
@@ -7792,9 +7837,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       };
       return true;
     }
-    if (!beginDocumentTransaction()) return false;
+    const transaction = documentMutationController.begin('text-properties');
+    if (!transaction) return false;
     textPropertyGestureRef.current = {
-      kind: 'document', documentId: document.id, layerId, before: document,
+      kind: 'document', documentId: document.id, layerId, transaction,
       style: {}, paragraph: {}, recordable: true
     };
     return true;
@@ -7819,7 +7865,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     if (imageDocumentRef.current?.id !== gesture.documentId) return;
     const layerId = gesture.layerId;
-    documentMutationController.change((document) => {
+    gesture.transaction.change((document) => {
       const layer = findDocumentLayer(document, layerId);
       if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
       return applyTextLayerDataMutation(document, layerId, {
@@ -7857,7 +7903,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!gesture) return;
     const changed = gesture.kind === 'text'
       ? textEditingController.endFormatting()
-      : endDocumentTransaction();
+      : gesture.transaction.commit();
     textPropertyGestureRef.current = null;
     if (!changed || !gesture.recordable) return;
     const style = semanticStylePatchFromCanonical(gesture.style);
@@ -7882,9 +7928,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!gesture) return;
     if (gesture.kind === 'text') {
       textEditingController.cancelFormatting();
-    } else if (imageDocumentRef.current?.id === gesture.documentId) {
-      applyDocumentSnapshot(gesture.before);
-      resetDocumentTransactionRef.current();
+    } else {
+      gesture.transaction.cancel();
     }
     textPropertyGestureRef.current = null;
   };
@@ -8100,8 +8145,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onProtectedFeatureChange: setFaceWarpProtectedFeature,
     onProtectionChange: updateFaceWarpProtection,
     onParametersChange: updateFaceWarpParameters,
-    onInteractionStart: beginDocumentTransaction,
-    onInteractionEnd: endDocumentTransaction,
+    onInteractionStart: beginFaceWarpDocumentTransaction,
+    onInteractionEnd: commitFaceWarpDocumentTransaction,
+    onInteractionCancel: cancelFaceWarpDocumentTransaction,
     onReset: resetSelectedFaceWarp
   };
   useEffect(() => {

@@ -16,6 +16,10 @@ import {
 } from '../../editor/document/documentCommands';
 import { filterModule, filterSettings, setFilterSettings } from '../../processing/filter';
 import type { PropertiesInspectorTarget } from '../properties/propertiesInspectorTarget';
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 
 export interface P0FilterPresentation {
   readonly kind: FilterKind;
@@ -38,10 +42,7 @@ interface Dependencies {
   readonly document: ImageDocument | null;
   readonly target: PropertiesInspectorTarget;
   readonly getDocument: () => ImageDocument | null;
-  readonly applyDocument: (document: ImageDocument) => void;
-  readonly previewDocument: (document: ImageDocument) => void;
-  readonly discardDocumentPreview: () => void;
-  readonly recordHistory: (before: ImageDocument, after: ImageDocument) => void;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
 }
 
 type FilterTarget =
@@ -121,9 +122,8 @@ const setEnabled = (
   : setRasterLayerAttachedAdjustmentEnabled(document, target.layerId, target.adjustmentId, enabled);
 
 interface ActiveFilterTransaction {
-  readonly before: ImageDocument;
   readonly target: FilterTarget;
-  latest: ImageDocument | null;
+  readonly transaction: DocumentMutationTransaction;
 }
 
 /** One controller for every global and attached P0 filter Properties view. */
@@ -131,24 +131,15 @@ export const useP0FilterController = ({
   document,
   target,
   getDocument,
-  applyDocument,
-  previewDocument,
-  discardDocumentPreview,
-  recordHistory
+  documentMutations
 }: Dependencies): { readonly model: P0FilterPresentation | null; readonly commands: P0FilterCommands } => {
   const dependenciesRef = useRef({
     getDocument,
-    applyDocument,
-    previewDocument,
-    discardDocumentPreview,
-    recordHistory
+    documentMutations
   });
   dependenciesRef.current = {
     getDocument,
-    applyDocument,
-    previewDocument,
-    discardDocumentPreview,
-    recordHistory
+    documentMutations
   };
   const targetRef = useRef(target);
   targetRef.current = target;
@@ -156,31 +147,16 @@ export const useP0FilterController = ({
   const resolved = resolveTarget(document, target);
 
   const cancelAdjustment = useCallback(() => {
-    if (!transaction.current) return;
+    const active = transaction.current;
     transaction.current = null;
-    dependenciesRef.current.discardDocumentPreview();
+    active?.transaction.cancel();
   }, []);
 
   const endAdjustment = useCallback(() => {
     const completed = transaction.current;
     if (!completed) return;
     transaction.current = null;
-    const dependencies = dependenciesRef.current;
-    const current = dependencies.getDocument();
-    const canonicalIsBaseline = current?.id === completed.before.id
-      && current.revision === completed.before.revision;
-    const after = completed.latest;
-    if (!canonicalIsBaseline || !after || after === completed.before) {
-      dependencies.discardDocumentPreview();
-      return;
-    }
-    try {
-      dependencies.applyDocument(after);
-      dependencies.recordHistory(completed.before, after);
-    } catch (error) {
-      dependencies.applyDocument(completed.before);
-      throw error;
-    }
+    completed.transaction.commit({ label: 'Edit Filter', type: 'filter.edit' });
   }, []);
 
   const resolvedTargetKey = resolved ? targetKey(resolved.target) : null;
@@ -193,48 +169,41 @@ export const useP0FilterController = ({
     const currentTarget = resolveTarget(current, targetRef.current)?.target ?? null;
     if (!current || !currentTarget) return null;
     const active = transaction.current;
-    if (active && (active.before.id !== current.id
-      || active.before.revision !== current.revision
+    if (active && (active.transaction.documentId !== current.id
+      || !active.transaction.active
       || targetKey(active.target) !== targetKey(currentTarget))) {
       cancelAdjustment();
     }
-    transaction.current ??= { before: current, target: currentTarget, latest: null };
+    if (!transaction.current) {
+      const documentTransaction = dependenciesRef.current.documentMutations.begin(
+        `filter:${targetKey(currentTarget)}`,
+        { label: 'Edit Filter', type: 'filter.edit' }
+      );
+      if (!documentTransaction) return null;
+      transaction.current = { target: currentTarget, transaction: documentTransaction };
+    }
     return transaction.current;
   }, [cancelAdjustment]);
 
   const updateSetting = useCallback((key: string, value: unknown) => {
     const active = ensureTransaction();
     if (!active) return;
-    const baselineTarget = resolveTarget(active.before, targetRef.current);
+    const baselineTarget = resolveTarget(active.transaction.current, targetRef.current);
     if (!baselineTarget || targetKey(baselineTarget.target) !== targetKey(active.target)) {
       cancelAdjustment();
       return;
     }
     const patch = settingPatch(baselineTarget.settings, key, value);
-    const next = setSettings(active.before, active.target, patch);
-    active.latest = next === active.before ? null : next;
-    if (active.latest) {
-      dependenciesRef.current.previewDocument(active.latest);
-    } else {
-      dependenciesRef.current.discardDocumentPreview();
-    }
+    active.transaction.change((current) => setSettings(current, active.target, patch));
   }, [cancelAdjustment, ensureTransaction]);
 
   const commit = useCallback((mutate: (source: ImageDocument, target: FilterTarget) => ImageDocument) => {
     cancelAdjustment();
     const dependencies = dependenciesRef.current;
-    const current = dependencies.getDocument();
-    const currentTarget = resolveTarget(current, targetRef.current)?.target ?? null;
-    if (!current || !currentTarget) return;
-    const next = mutate(current, currentTarget);
-    if (next === current) return;
-    try {
-      dependencies.applyDocument(next);
-      dependencies.recordHistory(current, next);
-    } catch (error) {
-      dependencies.applyDocument(current);
-      throw error;
-    }
+    dependencies.documentMutations.change((current) => {
+      const currentTarget = resolveTarget(current, targetRef.current)?.target ?? null;
+      return currentTarget ? mutate(current, currentTarget) : current;
+    });
   }, [cancelAdjustment]);
 
   const model = resolved ? {

@@ -10,6 +10,10 @@ import {
   type PathTextHandleKind
 } from '../../text/rendering/pathTextHandles';
 import type { RigidPathGlyphProjection } from '../../text/rendering/rigidPathGlyphProjection';
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 
 export interface PathTextHandleRealization {
   readonly table: PathArcLengthTable;
@@ -21,21 +25,16 @@ export interface PathTextHandleDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
   getRealization(layerId: LayerId): PathTextHandleRealization | null;
-  previewDocumentSnapshot(document: ImageDocument): void;
-  discardDocumentPreview(): void;
-  applyDocumentSnapshot(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
 }
 
 interface ActiveHandle {
   readonly pointerId: number;
-  readonly documentId: ImageDocument['id'];
   readonly layerId: LayerId;
-  readonly before: ImageDocument;
+  readonly transaction: DocumentMutationTransaction;
   readonly openingLayout: PathTextLayout;
   readonly realization: PathTextHandleRealization;
   readonly kind: PathTextHandleKind;
-  latest: ImageDocument;
 }
 
 const inversePoint = (matrix: AffineMatrix, point: Vec2): Vec2 | null => {
@@ -82,9 +81,14 @@ export class PathTextHandleController {
       radius
     );
     if (!kind) return false;
+    const transaction = dependencies.documentMutations.begin(
+      `path-text:${layerId}`,
+      { label: 'Edit Path Text', type: 'text.path.edit' }
+    );
+    if (!transaction) return false;
     this.active = {
-      pointerId, documentId: document.id, layerId, before: document,
-      openingLayout: structuredClone(layout), realization, kind, latest: document
+      pointerId, layerId, transaction,
+      openingLayout: structuredClone(layout), realization, kind
     };
     return true;
   }
@@ -96,11 +100,8 @@ export class PathTextHandleController {
   move(pointerId: number, documentPoint: Vec2) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    const dependencies = this.dependencies();
-    const current = dependencies.getDocument();
-    if (current?.id !== active.documentId
-      || current.revision !== active.before.revision) {
-      dependencies.discardDocumentPreview();
+    if (!active.transaction.active) {
+      active.transaction.cancel();
       this.active = null;
       return false;
     }
@@ -118,45 +119,38 @@ export class PathTextHandleController {
     const layout: PathTextLayout = active.kind === 'start'
       ? { ...active.openingLayout, startOffset: offset }
       : { ...active.openingLayout, endOffset: offset };
-    const next = setFlowTextLayout(active.before, active.layerId, layout);
-    active.latest = next;
-    dependencies.previewDocumentSnapshot(next);
-    return true;
+    return active.transaction.change(() => setFlowTextLayout(
+      active.transaction.before,
+      active.layerId,
+      layout
+    ));
   }
 
   finish(pointerId: number, documentPoint: Vec2) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
     if (active.kind === 'direction') {
-      const next = setFlowTextLayout(active.before, active.layerId, {
-        ...active.openingLayout,
-        direction: (active.openingLayout.direction ?? 'forward') === 'forward'
-          ? 'reverse' : 'forward'
-      });
-      active.latest = next;
-      this.dependencies().previewDocumentSnapshot(next);
+      active.transaction.change(() => setFlowTextLayout(
+        active.transaction.before,
+        active.layerId,
+        {
+          ...active.openingLayout,
+          direction: (active.openingLayout.direction ?? 'forward') === 'forward'
+            ? 'reverse' : 'forward'
+        }
+      ));
     } else {
       this.move(pointerId, documentPoint);
     }
     this.active = null;
-    if (active.latest === active.before) return false;
-    const dependencies = this.dependencies();
-    const current = dependencies.getDocument();
-    if (current?.id !== active.documentId
-      || current.revision !== active.before.revision) {
-      dependencies.discardDocumentPreview();
-      return false;
-    }
-    dependencies.applyDocumentSnapshot(active.latest);
-    dependencies.recordHistory(active.before, active.latest);
-    return true;
+    return active.transaction.commit();
   }
 
   cancel(pointerId?: number) {
     const active = this.active;
     if (!active || (pointerId !== undefined && active.pointerId !== pointerId)) return false;
     this.active = null;
-    this.dependencies().discardDocumentPreview();
+    active.transaction.cancel();
     return true;
   }
 }

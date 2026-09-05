@@ -19,18 +19,33 @@ export interface DocumentMutationHistoryEntry {
 export interface DocumentMutationDependencies {
   getDocument(): ImageDocument | null;
   applySnapshot(document: ImageDocument): void;
+  previewSnapshot(document: ImageDocument): void;
+  discardPreview(): void;
   pushHistoryEntry(entry: DocumentMutationHistoryEntry): void;
+}
+
+export interface DocumentMutationTransaction {
+  readonly documentId: ImageDocument['id'];
+  readonly owner: string;
+  readonly before: ImageDocument;
+  readonly current: ImageDocument;
+  get active(): boolean;
+  change(mutate: (current: ImageDocument) => ImageDocument): boolean;
+  commit(description?: DocumentMutationDescription): boolean;
+  cancel(): boolean;
 }
 
 export interface DocumentMutationController {
   get active(): boolean;
-  begin(): boolean;
-  end(): boolean;
-  reset(): void;
+  readonly activeOwner: string | null;
+  begin(owner: string, description?: DocumentMutationDescription): DocumentMutationTransaction | null;
+  commitActive(description?: DocumentMutationDescription): boolean;
+  cancelActive(): boolean;
   record(before: ImageDocument, after: ImageDocument, description?: DocumentMutationDescription): boolean;
   change(
     mutate: (current: ImageDocument) => ImageDocument,
-    recordHistory?: boolean
+    recordHistory?: boolean,
+    description?: DocumentMutationDescription
   ): boolean;
 }
 
@@ -101,8 +116,12 @@ const inferDocumentMutationDescription = (
 };
 
 interface ActiveDocumentTransaction {
+  readonly token: symbol;
   readonly documentId: ImageDocument['id'];
+  readonly owner: string;
   readonly before: ImageDocument;
+  readonly description?: DocumentMutationDescription;
+  latest: ImageDocument;
 }
 
 interface RasterResourceRetention {
@@ -204,8 +223,9 @@ const vectorSnapshotRetentionBytes = (before: ImageDocument, after: ImageDocumen
 /**
  * Owns canonical document mutations and their reversible transaction boundary.
  *
- * A transaction locks to one document identity. Repeated previews can publish
- * immutable document trees, but completion creates one history command.
+ * A transaction locks to one canonical document snapshot. Pointer-rate changes
+ * remain staged and are projected only to the renderer. Completion publishes
+ * the final immutable tree once and creates one history command.
  * Undo/redo refuses to mutate a different active document instead of silently
  * leaking edits across workspace sessions.
  */
@@ -213,6 +233,13 @@ export const createDocumentMutationController = (
   resolveDependencies: () => DocumentMutationDependencies
 ): DocumentMutationController => {
   let transaction: ActiveDocumentTransaction | null = null;
+
+  const canonicalOriginIsCurrent = (active: ActiveDocumentTransaction): boolean => {
+    const current = resolveDependencies().getDocument();
+    return current === active.before
+      && current.id === active.documentId
+      && current.revision === active.before.revision;
+  };
 
   const applyForDocument = (
     documentId: ImageDocument['id'],
@@ -246,47 +273,126 @@ export const createDocumentMutationController = (
     return true;
   };
 
+  const cancelTransaction = (token: symbol): boolean => {
+    if (!transaction || transaction.token !== token) return false;
+    transaction = null;
+    resolveDependencies().discardPreview();
+    return true;
+  };
+
+  const commitTransaction = (
+    token: symbol,
+    description?: DocumentMutationDescription
+  ): boolean => {
+    const active = transaction;
+    if (!active || active.token !== token) return false;
+    if (!canonicalOriginIsCurrent(active)) {
+      transaction = null;
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    transaction = null;
+    if (active.latest === active.before) {
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    const dependencies = resolveDependencies();
+    try {
+      dependencies.applySnapshot(active.latest);
+      record(active.before, active.latest, description ?? active.description);
+      return true;
+    } catch (error) {
+      try {
+        dependencies.applySnapshot(active.before);
+      } finally {
+        dependencies.discardPreview();
+      }
+      throw error;
+    }
+  };
+
   return {
     get active() {
       return transaction !== null;
     },
-    begin: () => {
-      if (transaction) return false;
+    get activeOwner() {
+      return transaction?.owner ?? null;
+    },
+    begin: (owner, description) => {
+      if (!owner.trim()) throw new Error('A document transaction requires an owner.');
+      // A newly-started interaction is the document-level boundary between
+      // gestures. Finish the previous authored change before granting the new
+      // lease. Its old handle becomes stale and cannot preview, commit or
+      // discard the new owner's state.
+      if (transaction) commitTransaction(transaction.token);
       const document = resolveDependencies().getDocument();
-      if (!document) return false;
-      transaction = {
+      if (!document) return null;
+      const active: ActiveDocumentTransaction = {
+        token: Symbol('document-transaction'),
         documentId: document.id,
-        before: document
+        owner,
+        before: document,
+        description,
+        latest: document
       };
-      return true;
+      transaction = active;
+      return {
+        documentId: active.documentId,
+        owner: active.owner,
+        before: active.before,
+        get current() {
+          return active.latest;
+        },
+        get active() {
+          return transaction?.token === active.token;
+        },
+        change: (mutate) => {
+          if (transaction?.token !== active.token) return false;
+          if (!canonicalOriginIsCurrent(active)) {
+            cancelTransaction(active.token);
+            return false;
+          }
+          const current = active.latest;
+          const next = mutate(current);
+          if (next === current) return false;
+          if (next.id !== active.documentId) {
+            throw new Error('A document mutation cannot replace the document identity.');
+          }
+          active.latest = next;
+          try {
+            resolveDependencies().previewSnapshot(next);
+          } catch (error) {
+            active.latest = current;
+            cancelTransaction(active.token);
+            throw error;
+          }
+          return true;
+        },
+        commit: (description) => commitTransaction(active.token, description),
+        cancel: () => cancelTransaction(active.token)
+      };
     },
-    end: () => {
-      if (!transaction) return false;
-      const completed = transaction;
-      transaction = null;
-      const after = resolveDependencies().getDocument();
-      if (!after || after.id !== completed.documentId) return false;
-      return record(completed.before, after);
-    },
-    reset: () => {
-      transaction = null;
-    },
+    commitActive: (description) => transaction
+      ? commitTransaction(transaction.token, description)
+      : false,
+    cancelActive: () => transaction ? cancelTransaction(transaction.token) : false,
     record,
-    change: (mutate, recordHistory = true) => {
+    change: (mutate, recordHistory = true, description) => {
+      // Discrete commands form a new document operation. If a control failed
+      // to deliver blur/pointer-up, preserve its visible result as its own
+      // history item before executing the command. Late callbacks are rejected
+      // by the transaction token.
+      if (transaction) commitTransaction(transaction.token);
       const dependencies = resolveDependencies();
       const current = dependencies.getDocument();
       if (!current) return false;
-      if (transaction && transaction.documentId !== current.id) {
-        transaction = null;
-        return false;
-      }
       const next = mutate(current);
       if (next === current) return false;
       if (next.id !== current.id) {
         throw new Error('A document mutation cannot replace the document identity.');
       }
       dependencies.applySnapshot(next);
-      if (recordHistory && !transaction) record(current, next);
+      if (recordHistory) record(current, next, description);
       return true;
     }
   };

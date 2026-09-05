@@ -89,7 +89,7 @@ const renderOptions = (
       onBrushChange: vi.fn(), onSemanticTargetChange: vi.fn(),
       onProtectedFeatureChange: vi.fn(), onProtectionChange: vi.fn(),
       onParametersChange: vi.fn(), onInteractionStart: vi.fn(),
-      onInteractionEnd: vi.fn(), onReset: vi.fn()
+      onInteractionEnd: vi.fn(), onInteractionCancel: vi.fn(), onReset: vi.fn()
     },
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),

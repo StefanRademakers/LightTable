@@ -210,6 +210,8 @@ describe('createPointTextDocument', () => {
     const history = createDocumentMutationController(() => ({
       getDocument: () => current,
       applySnapshot: (document) => { current = document; },
+      previewSnapshot: () => undefined,
+      discardPreview: () => undefined,
       pushHistoryEntry: (entry) => entries.push(entry)
     }));
     current = after;

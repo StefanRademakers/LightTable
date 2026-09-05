@@ -35,6 +35,7 @@ export interface FaceWarpToolOptionsProps {
   readonly onParametersChange: (change: Partial<FaceWarpParameters>) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
+  readonly onInteractionCancel: () => void;
   readonly onReset: () => void;
   readonly adjustmentLayout?: AdjustmentSliderProps['layout'];
 }
@@ -45,8 +46,10 @@ const SemanticSlider: React.FC<{
   onChange: (value: number) => void;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
+  onInteractionCancel: () => void;
   layout?: AdjustmentSliderProps['layout'];
-}> = ({ label, value, onChange, onInteractionStart, onInteractionEnd, layout }) => <AdjustmentSlider
+}> = ({ label, value, onChange, onInteractionStart, onInteractionEnd,
+  onInteractionCancel, layout }) => <AdjustmentSlider
   layout={layout}
   label={label}
   value={value * 100}
@@ -58,6 +61,7 @@ const SemanticSlider: React.FC<{
   onChange={(current) => onChange(current / 100)}
   onInteractionStart={onInteractionStart}
   onInteractionEnd={onInteractionEnd}
+  onInteractionCancel={onInteractionCancel}
 />;
 
 export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
@@ -83,6 +87,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   onParametersChange,
   onInteractionStart,
   onInteractionEnd,
+  onInteractionCancel,
   onReset
 }) => {
   const [mode, setMode] = useState<'sculpt' | 'adjust'>('sculpt');
@@ -171,17 +176,21 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       {semanticFeature === 'face' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+        onInteractionCancel={onInteractionCancel} /> : null}
       {semanticFeature === 'eyes' ? <SemanticSlider layout={adjustmentLayout} label="Amount" value={featureValue('eyeSize')}
         onChange={(eyeSize) => onParametersChange({ eyeSize })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+        onInteractionCancel={onInteractionCancel} /> : null}
       {semanticFeature === 'nose' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.noseWidth}
         onChange={(noseWidth) => onParametersChange({ noseWidth })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+        onInteractionCancel={onInteractionCancel} /> : null}
       {semanticFeature === 'smile' ? <SemanticSlider layout={adjustmentLayout} label="Amount" value={featureValue('smile')}
         onChange={(smile) => onParametersChange({ smile })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+        onInteractionCancel={onInteractionCancel} /> : null}
     </> : null}
     {selected && !reviewPending ? <Button onClick={onReset}>Reset face</Button> : null}
   </>;

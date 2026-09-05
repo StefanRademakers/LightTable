@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, createTextLayerNode } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { setFlowTextLayout } from '../../editor/document/textLayerCommands';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import type { RigidPathGlyphProjection } from '../../text/rendering/rigidPathGlyphProjection';
 import { PathTextHandleController } from './PathTextHandleController';
 
@@ -30,15 +31,19 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
   const previewDocumentSnapshot = vi.fn((next) => { preview = next; });
   const discardDocumentPreview = vi.fn(() => { preview = document; });
   const applyDocumentSnapshot = vi.fn((next) => { document = next; preview = next; });
-  const recordHistory = vi.fn();
+  const pushHistoryEntry = vi.fn();
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    previewSnapshot: previewDocumentSnapshot,
+    discardPreview: discardDocumentPreview,
+    applySnapshot: applyDocumentSnapshot,
+    pushHistoryEntry
+  }));
   const controller = new PathTextHandleController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
     getRealization: () => ({ table, projection, localToDocument: identity }),
-    previewDocumentSnapshot,
-    discardDocumentPreview,
-    applyDocumentSnapshot,
-    recordHistory
+    documentMutations
   }));
   const layout = () => {
     const current = findDocumentLayer(document, layer.id);
@@ -51,7 +56,7 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
     previewDocumentSnapshot,
     discardDocumentPreview,
     applyDocumentSnapshot,
-    recordHistory,
+    recordHistory: pushHistoryEntry,
     getDocument: () => document,
     getPreview: () => preview,
     layout

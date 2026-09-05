@@ -85,6 +85,8 @@ export const createDocumentSessionCommandPorts = (
   const mutation = createDocumentMutationController(() => ({
     getDocument: () => session.getSnapshot().document,
     applySnapshot: applyDocument,
+    previewSnapshot: () => requiresPresentation('Document transaction previews'),
+    discardPreview: () => undefined,
     pushHistoryEntry: history.record
   }));
   const semanticDependencies = {
