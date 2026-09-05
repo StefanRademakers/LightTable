@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import { Histogram } from '../../Histogram';
 import type { BasicAdjustments, RgbHistogram } from '../../types';
@@ -53,6 +53,7 @@ interface GradeHistogramControlProps {
   readonly onChange: (key: GradeHistogramControlKey, value: number) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
+  readonly onInteractionCancel: () => void;
 }
 
 interface HistogramGesture {
@@ -69,9 +70,12 @@ export const GradeHistogramControl = ({
   disabled,
   onChange,
   onInteractionStart,
-  onInteractionEnd
+  onInteractionEnd,
+  onInteractionCancel
 }: GradeHistogramControlProps) => {
   const gestureRef = useRef<HistogramGesture | null>(null);
+  const cancelInteractionRef = useRef(onInteractionCancel);
+  cancelInteractionRef.current = onInteractionCancel;
 
   const finishGesture = (element: HTMLElement, pointerId: number) => {
     if (gestureRef.current?.pointerId !== pointerId) return;
@@ -79,6 +83,17 @@ export const GradeHistogramControl = ({
     if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
     onInteractionEnd();
   };
+
+  const cancelGesture = (element: HTMLElement, pointerId: number) => {
+    if (gestureRef.current?.pointerId !== pointerId) return;
+    gestureRef.current = null;
+    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    onInteractionCancel();
+  };
+
+  useEffect(() => () => {
+    if (gestureRef.current) cancelInteractionRef.current();
+  }, []);
 
   return (
     <div className={`lighttable-grade-histogram${disabled ? ' lighttable-grade-histogram--disabled' : ''}`}>
@@ -134,7 +149,7 @@ export const GradeHistogramControl = ({
               );
             }}
             onPointerUp={(event) => finishGesture(event.currentTarget, event.pointerId)}
-            onPointerCancel={(event) => finishGesture(event.currentTarget, event.pointerId)}
+            onPointerCancel={(event) => cancelGesture(event.currentTarget, event.pointerId)}
             onKeyDown={(event) => {
               if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
               event.preventDefault();

@@ -56,7 +56,8 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
                 resetValue={Number(valueAtPath(defaults, control.key))} disabled={!model.enabled}
                 onChange={(value) => commands.updateSetting(control.key, value)}
                 onReset={commands.reset} onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment} />
+                onInteractionEnd={commands.endAdjustment}
+                onInteractionCancel={commands.cancelAdjustment} />
             ) : control.type === 'select' ? (
               <PanelSelectField key={control.key} label={control.label}
                 value={String(valueAtPath(settings, control.key))} options={control.options}

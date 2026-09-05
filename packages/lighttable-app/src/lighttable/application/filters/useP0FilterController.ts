@@ -28,6 +28,7 @@ export interface P0FilterPresentation {
 export interface P0FilterCommands {
   readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
+  readonly cancelAdjustment: () => void;
   readonly updateSetting: (key: string, value: unknown) => void;
   readonly reset: () => void;
   readonly toggleEnabled: () => void;
@@ -38,6 +39,8 @@ interface Dependencies {
   readonly target: PropertiesInspectorTarget;
   readonly getDocument: () => ImageDocument | null;
   readonly applyDocument: (document: ImageDocument) => void;
+  readonly previewDocument: (document: ImageDocument) => void;
+  readonly discardDocumentPreview: () => void;
   readonly recordHistory: (before: ImageDocument, after: ImageDocument) => void;
 }
 
@@ -117,57 +120,122 @@ const setEnabled = (
   ? setP0FilterLayerEnabled(document, target.layerId, target.kind, enabled)
   : setRasterLayerAttachedAdjustmentEnabled(document, target.layerId, target.adjustmentId, enabled);
 
+interface ActiveFilterTransaction {
+  readonly before: ImageDocument;
+  readonly target: FilterTarget;
+  latest: ImageDocument | null;
+}
+
 /** One controller for every global and attached P0 filter Properties view. */
 export const useP0FilterController = ({
-  document, target, getDocument, applyDocument, recordHistory
+  document,
+  target,
+  getDocument,
+  applyDocument,
+  previewDocument,
+  discardDocumentPreview,
+  recordHistory
 }: Dependencies): { readonly model: P0FilterPresentation | null; readonly commands: P0FilterCommands } => {
-  const transaction = useRef<{ readonly before: ImageDocument; readonly target: FilterTarget;
-    lastApplied: ImageDocument } | null>(null);
+  const dependenciesRef = useRef({
+    getDocument,
+    applyDocument,
+    previewDocument,
+    discardDocumentPreview,
+    recordHistory
+  });
+  dependenciesRef.current = {
+    getDocument,
+    applyDocument,
+    previewDocument,
+    discardDocumentPreview,
+    recordHistory
+  };
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  const transaction = useRef<ActiveFilterTransaction | null>(null);
   const resolved = resolveTarget(document, target);
 
-  const finish = useCallback(() => {
-    const completed = transaction.current;
+  const cancelAdjustment = useCallback(() => {
+    if (!transaction.current) return;
     transaction.current = null;
-    if (completed && completed.before !== completed.lastApplied) {
-      recordHistory(completed.before, completed.lastApplied);
+    dependenciesRef.current.discardDocumentPreview();
+  }, []);
+
+  const endAdjustment = useCallback(() => {
+    const completed = transaction.current;
+    if (!completed) return;
+    transaction.current = null;
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const canonicalIsBaseline = current?.id === completed.before.id
+      && current.revision === completed.before.revision;
+    const after = completed.latest;
+    if (!canonicalIsBaseline || !after || after === completed.before) {
+      dependencies.discardDocumentPreview();
+      return;
     }
-  }, [recordHistory]);
+    try {
+      dependencies.applyDocument(after);
+      dependencies.recordHistory(completed.before, after);
+    } catch (error) {
+      dependencies.applyDocument(completed.before);
+      throw error;
+    }
+  }, []);
 
   const resolvedTargetKey = resolved ? targetKey(resolved.target) : null;
   useEffect(() => () => {
-    finish();
-  }, [finish, resolvedTargetKey]);
+    cancelAdjustment();
+  }, [cancelAdjustment, document?.id, document?.revision, resolvedTargetKey]);
 
   const ensureTransaction = useCallback(() => {
-    const current = getDocument();
-    if (!current || !resolved) return null;
-    if (transaction.current && targetKey(transaction.current.target) !== targetKey(resolved.target)) {
-      finish();
+    const current = dependenciesRef.current.getDocument();
+    const currentTarget = resolveTarget(current, targetRef.current)?.target ?? null;
+    if (!current || !currentTarget) return null;
+    const active = transaction.current;
+    if (active && (active.before.id !== current.id
+      || active.before.revision !== current.revision
+      || targetKey(active.target) !== targetKey(currentTarget))) {
+      cancelAdjustment();
     }
-    transaction.current ??= { before: current, target: resolved.target, lastApplied: current };
-    return current;
-  }, [finish, getDocument, resolved]);
+    transaction.current ??= { before: current, target: currentTarget, latest: null };
+    return transaction.current;
+  }, [cancelAdjustment]);
 
   const updateSetting = useCallback((key: string, value: unknown) => {
-    const current = ensureTransaction();
-    if (!current || !resolved || !transaction.current) return;
-    const patch = settingPatch(resolved.settings, key, value);
-    const next = setSettings(current, resolved.target, patch);
-    if (next !== current) {
-      transaction.current.lastApplied = next;
-      applyDocument(next);
+    const active = ensureTransaction();
+    if (!active) return;
+    const baselineTarget = resolveTarget(active.before, targetRef.current);
+    if (!baselineTarget || targetKey(baselineTarget.target) !== targetKey(active.target)) {
+      cancelAdjustment();
+      return;
     }
-  }, [applyDocument, ensureTransaction, resolved]);
+    const patch = settingPatch(baselineTarget.settings, key, value);
+    const next = setSettings(active.before, active.target, patch);
+    active.latest = next === active.before ? null : next;
+    if (active.latest) {
+      dependenciesRef.current.previewDocument(active.latest);
+    } else {
+      dependenciesRef.current.discardDocumentPreview();
+    }
+  }, [cancelAdjustment, ensureTransaction]);
 
   const commit = useCallback((mutate: (source: ImageDocument, target: FilterTarget) => ImageDocument) => {
-    const current = getDocument();
-    if (!current || !resolved) return;
-    finish();
-    const next = mutate(current, resolved.target);
+    cancelAdjustment();
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const currentTarget = resolveTarget(current, targetRef.current)?.target ?? null;
+    if (!current || !currentTarget) return;
+    const next = mutate(current, currentTarget);
     if (next === current) return;
-    applyDocument(next);
-    recordHistory(current, next);
-  }, [applyDocument, finish, getDocument, recordHistory, resolved]);
+    try {
+      dependencies.applyDocument(next);
+      dependencies.recordHistory(current, next);
+    } catch (error) {
+      dependencies.applyDocument(current);
+      throw error;
+    }
+  }, [cancelAdjustment]);
 
   const model = resolved ? {
     kind: resolved.target.kind,
@@ -182,12 +250,17 @@ export const useP0FilterController = ({
 
   return { model, commands: {
     beginAdjustment: () => { ensureTransaction(); },
-    endAdjustment: finish,
+    endAdjustment,
+    cancelAdjustment,
     updateSetting,
     reset: () => commit((source, filterTarget) => setSettings(
       source, filterTarget, defaultFilterSettings(filterTarget.kind)
     )),
-    toggleEnabled: () => commit((source, filterTarget) =>
-      setEnabled(source, filterTarget, !resolved?.enabled))
+    toggleEnabled: () => commit((source, filterTarget) => {
+      const enabled = resolveTarget(source, targetRef.current)?.enabled;
+      return typeof enabled === 'boolean'
+        ? setEnabled(source, filterTarget, !enabled)
+        : source;
+    })
   } };
 };

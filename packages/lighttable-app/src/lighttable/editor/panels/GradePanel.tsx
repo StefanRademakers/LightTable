@@ -82,6 +82,7 @@ export interface GradePanelCommands {
   readonly resetGroup: (group: GradeGroup) => void;
   readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
+  readonly cancelAdjustment: () => void;
   readonly updateAdjustment: (key: NumericAdjustmentKey, value: number) => void;
   readonly resetAdjustment: (key: NumericAdjustmentKey) => void;
   readonly updateDetail: (key: keyof DetailAdjustments, value: number) => void;
@@ -255,6 +256,16 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     setHistogramPreview({});
   };
 
+  const cancelHistogramInteraction = () => {
+    if (histogramPreviewFrameRef.current !== null) {
+      cancelAnimationFrame(histogramPreviewFrameRef.current);
+      histogramPreviewFrameRef.current = null;
+    }
+    pendingHistogramPreviewRef.current = null;
+    commands.cancelAdjustment();
+    setHistogramPreview({});
+  };
+
   const setGroupExpanded = (group: GradeGroup, next: boolean) => {
     setExpanded((current) => ({ ...current, [group]: next }));
   };
@@ -279,6 +290,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               onChange={publishHistogramSliderPreview}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={finishHistogramInteraction}
+              onInteractionCancel={cancelHistogramInteraction}
             />
           ) : null}
           {sliders.map((slider) => (
@@ -300,6 +312,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               onReset={() => commands.resetAdjustment(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
         </EffectPanel>
@@ -333,6 +346,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
           onReset={() => commands.resetDetailControl(key)}
           onInteractionStart={commands.beginAdjustment}
           onInteractionEnd={commands.endAdjustment}
+          onInteractionCancel={commands.cancelAdjustment}
         />
       );
     };
@@ -488,6 +502,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
             onReset={() => update(control.key, control.reset)}
             onInteractionStart={commands.beginAdjustment}
             onInteractionEnd={commands.endAdjustment}
+            onInteractionCancel={commands.cancelAdjustment}
           />
         ))}
       </div>
@@ -632,6 +647,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
               onReset={() => commands.resetColorMixer(channel, selectedColorMixerRange)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
           </> : renderPointColor()}
@@ -658,6 +674,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
           onReset={() => commands.resetColorGradingZone(zone)}
           onInteractionStart={commands.beginAdjustment}
           onInteractionEnd={commands.endAdjustment}
+          onInteractionCancel={commands.cancelAdjustment}
         />
         <AdjustmentSlider
           density={compact ? 'compact' : 'default'}
@@ -673,6 +690,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
           onReset={() => commands.resetColorGradingLuminance(zone)}
           onInteractionStart={commands.beginAdjustment}
           onInteractionEnd={commands.endAdjustment}
+          onInteractionCancel={commands.cancelAdjustment}
         />
       </div>
     );
@@ -719,6 +737,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
                 onReset={() => commands.resetColorGradingControl('blending')}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionEnd={commands.endAdjustment}
+                onInteractionCancel={commands.cancelAdjustment}
               />
               <AdjustmentSlider
                 label="Balance"
@@ -732,6 +751,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
                 onReset={() => commands.resetColorGradingControl('balance')}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionEnd={commands.endAdjustment}
+                onInteractionCancel={commands.cancelAdjustment}
               />
             </div>
           </EffectPanel>
@@ -787,6 +807,7 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
               onReset={() => commands.resetBlackWhiteMix(selectedBlackWhiteRange)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           </EffectPanel>
     );
@@ -828,6 +849,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               onReset={() => commands.updateGradeLookStrength(100)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
             <PanelFileField
               label="3D LUT"
@@ -862,6 +884,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               onReset={commands.resetCurve}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           </EffectPanel>
     );

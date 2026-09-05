@@ -31,6 +31,7 @@ export const CurvesPropertiesPanel = ({ model, commands }: GradePanelProps) => {
               onReset={commands.resetCurve}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           </div>
         </section>

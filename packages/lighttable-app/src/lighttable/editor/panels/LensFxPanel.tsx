@@ -70,6 +70,7 @@ export interface LensFxPanelModel {
 export interface LensFxPanelCommands {
   readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
+  readonly cancelAdjustment: () => void;
   readonly grain: {
     setEnabled: () => void;
     update: (key: GrainNumericKey, value: number) => void;
@@ -185,6 +186,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onReset={() => commands.lensDistortion.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
         </EffectPanel>
@@ -215,6 +217,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onReset={() => commands.chromaticAberration.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
         </EffectPanel>
@@ -327,6 +330,10 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                 commands.endAdjustment();
                 setLensBlurPreview(null);
               }}
+              onInteractionCancel={() => {
+                commands.cancelAdjustment();
+                setLensBlurPreview(null);
+              }}
             />
           ))}
         </EffectPanel>
@@ -357,6 +364,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onReset={() => commands.halation.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
         </EffectPanel>
@@ -387,6 +395,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onReset={() => commands.vignette.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
         </EffectPanel>
@@ -417,6 +426,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               onReset={() => commands.grain.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           ))}
           <PanelSection label="Advanced" variant="disclosure" expanded={grainAdvancedExpanded}
@@ -438,6 +448,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                     onReset={() => commands.grain.resetControl(slider.key)}
                     onInteractionStart={commands.beginAdjustment}
                     onInteractionEnd={commands.endAdjustment}
+                    onInteractionCancel={commands.cancelAdjustment}
                   />
                 ))}
           </PanelSection>

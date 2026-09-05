@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { P0FilterPropertiesPanel } from './P0FilterPropertiesPanel';
 
 const commands = {
-  beginAdjustment: vi.fn(), endAdjustment: vi.fn(), updateSetting: vi.fn(),
+  beginAdjustment: vi.fn(), endAdjustment: vi.fn(), cancelAdjustment: vi.fn(), updateSetting: vi.fn(),
   reset: vi.fn(), toggleEnabled: vi.fn()
 };
 

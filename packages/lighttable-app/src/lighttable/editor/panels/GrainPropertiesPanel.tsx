@@ -27,7 +27,8 @@ export const GrainPropertiesPanel = ({ model, commands }: LensFxPanelProps) => {
               onChange={(value) => commands.grain.update(slider.key, value)}
               onReset={() => commands.grain.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment} />
+              onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment} />
           ))}
         </div></section>
       </div>

@@ -183,6 +183,7 @@ export const LayerAdjustmentPropertiesPanel = ({
       }}
       onInteractionStart={commands.beginAdjustment}
       onInteractionEnd={commands.endAdjustment}
+      onInteractionCancel={commands.cancelAdjustment}
     />
   ));
   const balanceValues = settings.colorBalanceTone === 'shadows'
@@ -238,6 +239,7 @@ export const LayerAdjustmentPropertiesPanel = ({
                 }}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionEnd={commands.endAdjustment}
+                onInteractionCancel={commands.cancelAdjustment}
               />
             ))}
             {kind === 'brightness-contrast' ? (
@@ -271,14 +273,14 @@ export const LayerAdjustmentPropertiesPanel = ({
                 onChange={(blackWhiteTintColor) => update({ ...settings, blackWhiteTintColor })}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionCommit={commands.endAdjustment}
-                onInteractionCancel={commands.endAdjustment} /> : null}
+                onInteractionCancel={commands.cancelAdjustment} /> : null}
             </> : null}
             {kind === 'photo-filter' ? <>
               <PanelColorSwatch label="Color" value={settings.photoFilterColor}
                 onChange={(photoFilterColor) => update({ ...settings, photoFilterColor })}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionCommit={commands.endAdjustment}
-                onInteractionCancel={commands.endAdjustment} />
+                onInteractionCancel={commands.cancelAdjustment} />
               <PanelCheckboxField label="Preserve Luminosity" checked={settings.preserveLuminosity}
                 onChange={(preserveLuminosity) => commit({ ...settings, preserveLuminosity })} />
             </> : null}

@@ -63,6 +63,7 @@ export const AdjustmentPropertiesPanel = ({
                 onReset={() => commands.resetAdjustment(slider.key)}
                 onInteractionStart={commands.beginAdjustment}
                 onInteractionEnd={commands.endAdjustment}
+                onInteractionCancel={commands.cancelAdjustment}
               />
             ))}
           </div>

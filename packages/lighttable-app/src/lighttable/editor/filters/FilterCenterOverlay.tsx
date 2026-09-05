@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Rect } from "../document/documentTypes";
 
 export interface FilterCenterPoint {
@@ -18,6 +18,7 @@ interface FilterCenterOverlayProps {
   readonly onChange: (center: FilterCenterPoint) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
+  readonly onInteractionCancel: () => void;
 }
 
 interface DragState {
@@ -42,12 +43,19 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
   onChange,
   onInteractionStart,
   onInteractionEnd,
+  onInteractionCancel,
 }) => {
   const dragRef = useRef<DragState | null>(null);
+  const [dragCenter, setDragCenter] = useState<FilterCenterPoint | null>(null);
+  const presentedCenter = dragCenter ?? center;
   const screenX =
-    imageRect.x + ((documentWidth * clamp(center.x, 0, 100)) / 100) * scale;
+    imageRect.x + ((documentWidth * clamp(presentedCenter.x, 0, 100)) / 100) * scale;
   const screenY =
-    imageRect.y + ((documentHeight * clamp(center.y, 0, 100)) / 100) * scale;
+    imageRect.y + ((documentHeight * clamp(presentedCenter.y, 0, 100)) / 100) * scale;
+
+  useEffect(() => {
+    if (!dragRef.current) setDragCenter(null);
+  }, [center.x, center.y]);
 
   const begin: React.PointerEventHandler<SVGCircleElement> = (event) => {
     if (!interactive || event.button !== 0) return;
@@ -56,6 +64,7 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
       capture: event.currentTarget,
       changed: false,
     };
+    setDragCenter(center);
     event.currentTarget.setPointerCapture(event.pointerId);
     onInteractionStart();
     event.preventDefault();
@@ -70,11 +79,13 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
       (event.clientX - bounds.left - imageRect.x) / Math.max(scale, 1e-6);
     const documentY =
       (event.clientY - bounds.top - imageRect.y) / Math.max(scale, 1e-6);
-    drag.changed = true;
-    onChange({
+    const next = {
       x: clamp((documentX / Math.max(documentWidth, 1)) * 100, 0, 100),
       y: clamp((documentY / Math.max(documentHeight, 1)) * 100, 0, 100),
-    });
+    };
+    drag.changed = true;
+    setDragCenter(next);
+    onChange(next);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -82,14 +93,35 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
   const end: React.PointerEventHandler<SVGSVGElement> = (event) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
     if (drag.capture.hasPointerCapture(event.pointerId)) {
       drag.capture.releasePointerCapture(event.pointerId);
     }
-    dragRef.current = null;
+    setDragCenter(null);
     onInteractionEnd();
     event.preventDefault();
     event.stopPropagation();
   };
+
+  const cancel: React.PointerEventHandler<SVGSVGElement> = (event) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (drag.capture.hasPointerCapture(event.pointerId)) {
+      drag.capture.releasePointerCapture(event.pointerId);
+    }
+    setDragCenter(null);
+    onInteractionCancel();
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  useEffect(() => {
+    if (interactive || !dragRef.current) return;
+    dragRef.current = null;
+    setDragCenter(null);
+    onInteractionCancel();
+  }, [interactive, onInteractionCancel]);
 
   return (
     <svg
@@ -99,7 +131,7 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
       preserveAspectRatio="none"
       onPointerMove={move}
       onPointerUp={end}
-      onPointerCancel={end}
+      onPointerCancel={cancel}
       aria-label="Filter center controls"
     >
       <line

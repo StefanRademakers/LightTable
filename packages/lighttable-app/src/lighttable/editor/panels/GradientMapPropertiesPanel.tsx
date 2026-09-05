@@ -46,7 +46,8 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
           <div className="lighttable-group__controls">
             <GradientAssetEditor value={editorValue} onChange={updateGradient}
               onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment} />
+              onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment} />
             <div className="lighttable-gradient-map__options">
               <SwitchControl checked={gradientMap.reverse} onCheckedChange={(reverse) => commitGradientMap({ ...gradientMap, reverse })} label="Reverse Gradient Map" />
               <span>Reverse</span>

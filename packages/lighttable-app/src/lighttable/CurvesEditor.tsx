@@ -34,6 +34,7 @@ interface CurvesEditorProps {
   onReset: (channel: CurveChannel) => void;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
+  onInteractionCancel: () => void;
 }
 
 const toSvgPoint = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -67,9 +68,12 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onChange,
   onReset,
   onInteractionStart,
-  onInteractionEnd
+  onInteractionEnd,
+  onInteractionCancel
 }) => {
   const dragIndexRef = useRef<number | null>(null);
+  const cancelInteractionRef = useRef(onInteractionCancel);
+  cancelInteractionRef.current = onInteractionCancel;
   const previewPointsRef = useRef<ToneCurve | null>(null);
   const [previewPoints, setPreviewPoints] = React.useState<ToneCurve | null>(null);
   const points = previewPoints ?? curves[channel];
@@ -134,6 +138,19 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     setPreviewPoints(null);
   };
 
+  const cancelDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (dragIndexRef.current === null) return;
+    dragIndexRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    onInteractionCancel();
+    previewPointsRef.current = null;
+    setPreviewPoints(null);
+  };
+
+  React.useEffect(() => () => {
+    if (dragIndexRef.current !== null) cancelInteractionRef.current();
+  }, []);
+
   const removePoint = (event: React.MouseEvent<SVGCircleElement>, index: number) => {
     if (disabled || index === 0 || index === points.length - 1) return;
     event.preventDefault();
@@ -164,7 +181,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
         aria-label={`${channel} custom curve`}
         onPointerMove={movePoint}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={cancelDrag}
       >
         <rect className="lighttable-curves-editor__hit" x={PADDING} y={PADDING} width={WIDTH - PADDING * 2} height={HEIGHT - PADDING * 2} onPointerDown={addPoint} />
         {[0.25, 0.5, 0.75].map((position) => (

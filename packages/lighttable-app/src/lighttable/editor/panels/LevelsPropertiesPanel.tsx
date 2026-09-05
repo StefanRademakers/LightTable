@@ -34,15 +34,17 @@ export interface LevelsTrackProps {
   readonly onChange: (index: number, value: number) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
+  readonly onInteractionCancel: () => void;
 }
 
 export const LevelsTrack = ({
   label, values, ariaLabels, formatters, showValues = true, background, disabled,
-  onChange, onInteractionStart, onInteractionEnd
+  onChange, onInteractionStart, onInteractionEnd, onInteractionCancel
 }: LevelsTrackProps) => <RangeSlider label={label} values={values} labels={ariaLabels}
   min={0} max={255} step={values.length === 3 ? [1, 0.1, 1] : 1}
   disabled={disabled} trackBackground={background}
   onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+  onInteractionCancel={onInteractionCancel}
   onChange={(next, index) => onChange(index, next[index]!)}
   getBounds={(index, current) => {
     // Gamma follows the endpoints; it must never constrain their travel.
@@ -145,6 +147,7 @@ export const LevelsPropertiesPanel = ({
               onChange={updateInputHandle}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
             <div className="lighttable-levels__input-values">
               <NumberField align="center" aria-label="Black input value"
@@ -167,6 +170,7 @@ export const LevelsPropertiesPanel = ({
               onChange={updateOutput}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
+              onInteractionCancel={commands.cancelAdjustment}
             />
           </div>
         </section>

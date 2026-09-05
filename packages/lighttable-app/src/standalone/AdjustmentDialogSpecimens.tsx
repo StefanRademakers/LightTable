@@ -137,7 +137,8 @@ export const CurvesAdjustmentDialog = () => {
         ...current,
         [nextChannel]: [{ x: 0, y: 0 }, { x: 1, y: 1 }]
       }))}
-      onInteractionStart={() => undefined} onInteractionEnd={() => undefined} />
+      onInteractionStart={() => undefined} onInteractionEnd={() => undefined}
+      onInteractionCancel={() => undefined} />
   </AdjustmentBody>;
 };
 

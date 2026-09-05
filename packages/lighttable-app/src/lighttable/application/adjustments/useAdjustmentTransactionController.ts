@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { DocumentId, LayerId } from '../../editor/document/documentTypes';
 import {
   cloneAdjustments,
@@ -33,6 +33,7 @@ export interface AdjustmentTransactionDependencies {
     targetLayerId: LayerId | null,
     domain: AdjustmentPresentationDomain
   ): void;
+  restoreStagedSnapshot(adjustments: BasicAdjustments): void;
   discardPreview(): void;
   pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
   onCommitted?(commit: {
@@ -47,6 +48,7 @@ export interface AdjustmentTransactionController {
   get active(): boolean;
   begin(): void;
   end(): void;
+  cancel(): void;
   reset(): void;
   change(
     mutate: (current: BasicAdjustments) => BasicAdjustments,
@@ -58,6 +60,7 @@ interface ActiveAdjustmentTransaction {
   documentId: DocumentId | null;
   targetLayerId: LayerId | null;
   before: BasicAdjustments;
+  latest: BasicAdjustments;
   domain: AdjustmentPresentationDomain;
 }
 
@@ -83,37 +86,43 @@ export const createAdjustmentTransactionController = (
     renderer?.setLensBlurInteractionActive(active);
   };
 
-  const applyForDocument = (
-    documentId: DocumentId | null,
-    adjustments: BasicAdjustments,
-    targetLayerId: LayerId | null
-  ) => {
-    const dependencies = resolveDependencies();
-    if (dependencies.getDocumentId() !== documentId) {
-      throw new Error('The grade belongs to a different document.');
-    }
-    dependencies.commitSnapshot(cloneAdjustments(adjustments), targetLayerId, 'all');
-  };
-
   const pushHistory = (
     documentId: DocumentId | null,
     before: BasicAdjustments,
     after: BasicAdjustments,
-    targetLayerId: LayerId | null
+    targetLayerId: LayerId | null,
+    domain: AdjustmentPresentationDomain
   ) => {
     const previous = cloneAdjustments(before);
     const next = cloneAdjustments(after);
     resolveDependencies().pushHistoryEntry({
       label: targetLayerId ? 'Edit Adjustment Layer' : 'Edit Adjustments',
       type: targetLayerId ? 'adjustment.layer.edit' : 'adjustment.document.edit',
-      undo: () => applyForDocument(documentId, previous, targetLayerId),
-      redo: () => applyForDocument(documentId, next, targetLayerId)
+      undo: () => {
+        const dependencies = resolveDependencies();
+        if (dependencies.getDocumentId() !== documentId) {
+          throw new Error('The grade belongs to a different document.');
+        }
+        dependencies.commitSnapshot(cloneAdjustments(previous), targetLayerId, domain);
+      },
+      redo: () => {
+        const dependencies = resolveDependencies();
+        if (dependencies.getDocumentId() !== documentId) {
+          throw new Error('The grade belongs to a different document.');
+        }
+        dependencies.commitSnapshot(cloneAdjustments(next), targetLayerId, domain);
+      }
     });
   };
 
-  const reset = () => {
+  const cancel = () => {
+    const completed = transaction;
     transaction = null;
-    resolveDependencies().discardPreview();
+    const dependencies = resolveDependencies();
+    if (completed && dependencies.getDocumentId() === completed.documentId) {
+      dependencies.restoreStagedSnapshot(cloneAdjustments(completed.before));
+    }
+    dependencies.discardPreview();
     setInteractiveQuality(false);
   };
 
@@ -126,16 +135,33 @@ export const createAdjustmentTransactionController = (
     transaction = null;
     setInteractiveQuality(false);
     const dependencies = resolveDependencies();
-    if (dependencies.getDocumentId() !== completed.documentId) return;
-    const after = cloneAdjustments(dependencies.getAdjustments());
+    if (dependencies.getDocumentId() !== completed.documentId
+      || dependencies.getActiveTargetLayerId() !== completed.targetLayerId) {
+      if (dependencies.getDocumentId() === completed.documentId) {
+        dependencies.restoreStagedSnapshot(cloneAdjustments(completed.before));
+      }
+      dependencies.discardPreview();
+      return;
+    }
+    const after = cloneAdjustments(completed.latest);
     if (!adjustmentsEqual(completed.before, after)) {
       dependencies.commitSnapshot(after, completed.targetLayerId, completed.domain);
-      pushHistory(
-        completed.documentId,
-        completed.before,
-        after,
-        completed.targetLayerId
-      );
+      try {
+        pushHistory(
+          completed.documentId,
+          completed.before,
+          after,
+          completed.targetLayerId,
+          completed.domain
+        );
+      } catch (error) {
+        dependencies.commitSnapshot(
+          cloneAdjustments(completed.before),
+          completed.targetLayerId,
+          completed.domain
+        );
+        throw error;
+      }
       dependencies.onCommitted?.({
         before: cloneAdjustments(completed.before),
         after: cloneAdjustments(after),
@@ -160,27 +186,30 @@ export const createAdjustmentTransactionController = (
           && transaction.targetLayerId === targetLayerId) return;
         // Pointer capture can be lost when a contextual panel is replaced.
         // A later interaction must never inherit that transaction's owner.
-        reset();
+        cancel();
       }
+      const before = cloneAdjustments(dependencies.getAdjustments());
       transaction = {
         documentId,
         targetLayerId,
-        before: cloneAdjustments(dependencies.getAdjustments()),
+        before,
+        latest: cloneAdjustments(before),
         domain: 'grade'
       };
       setInteractiveQuality(true);
     },
     end,
-    reset,
+    cancel,
+    reset: cancel,
     change: (mutate, domain = 'grade') => {
       const dependencies = resolveDependencies();
       if (transaction && dependencies.getDocumentId() !== transaction.documentId) {
-        reset();
+        cancel();
         return false;
       }
       if (transaction
         && dependencies.getActiveTargetLayerId() !== transaction.targetLayerId) {
-        reset();
+        cancel();
         return false;
       }
       // Adjustment snapshots are immutable at this boundary. Keep the current
@@ -188,7 +217,7 @@ export const createAdjustmentTransactionController = (
       // pointer gesture the final comparison in end() is sufficient; serializing
       // the complete adjustment tree for every pointer event made sliders do
       // avoidable main-thread work, especially on lower-power Macs.
-      const before = dependencies.getAdjustments();
+      const before = transaction?.latest ?? dependencies.getAdjustments();
       const next = mutate(cloneAdjustments(before));
       if (!transaction && adjustmentsEqual(before, next)) return false;
       const documentId = dependencies.getDocumentId();
@@ -196,12 +225,18 @@ export const createAdjustmentTransactionController = (
         ?? dependencies.getActiveTargetLayerId();
       if (transaction) {
         transaction.domain = domain;
+        transaction.latest = cloneAdjustments(next);
         dependencies.previewSnapshot(next, targetLayerId, domain);
       } else {
         dependencies.commitSnapshot(next, targetLayerId, domain);
       }
       if (!transaction) {
-        pushHistory(documentId, before, next, targetLayerId);
+        try {
+          pushHistory(documentId, before, next, targetLayerId, domain);
+        } catch (error) {
+          dependencies.commitSnapshot(cloneAdjustments(before), targetLayerId, domain);
+          throw error;
+        }
       }
       return true;
     }
@@ -213,8 +248,10 @@ export const useAdjustmentTransactionController = (
 ): AdjustmentTransactionController => {
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
-  return useMemo(
+  const controller = useMemo(
     () => createAdjustmentTransactionController(() => dependenciesRef.current),
     []
   );
+  useEffect(() => () => controller.cancel(), [controller]);
+  return controller;
 };

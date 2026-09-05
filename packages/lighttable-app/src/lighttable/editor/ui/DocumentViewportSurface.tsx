@@ -81,6 +81,7 @@ export interface DocumentViewportSurfaceProps {
   onFilterCenterChange?: (center: FilterCenterPoint) => void;
   onFilterCenterInteractionStart?: () => void;
   onFilterCenterInteractionEnd?: () => void;
+  onFilterCenterInteractionCancel?: () => void;
 }
 
 /**
@@ -146,6 +147,7 @@ export const DocumentViewportSurface: React.FC<
   onFilterCenterChange,
   onFilterCenterInteractionStart,
   onFilterCenterInteractionEnd,
+  onFilterCenterInteractionCancel,
 }) => {
   const effectiveTool = temporaryPanActive
     ? "view"
@@ -223,7 +225,8 @@ export const DocumentViewportSurface: React.FC<
       documentHeight > 0 &&
       onFilterCenterChange &&
       onFilterCenterInteractionStart &&
-      onFilterCenterInteractionEnd ? (
+      onFilterCenterInteractionEnd &&
+      onFilterCenterInteractionCancel ? (
         <FilterCenterOverlay
           center={filterCenter}
           imageRect={imageRect}
@@ -236,6 +239,7 @@ export const DocumentViewportSurface: React.FC<
           onChange={onFilterCenterChange}
           onInteractionStart={onFilterCenterInteractionStart}
           onInteractionEnd={onFilterCenterInteractionEnd}
+          onInteractionCancel={onFilterCenterInteractionCancel}
         />
       ) : null}
       {transformState ? (

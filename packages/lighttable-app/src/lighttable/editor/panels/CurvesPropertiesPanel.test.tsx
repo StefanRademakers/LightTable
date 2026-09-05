@@ -25,7 +25,7 @@ describe('CurvesPropertiesPanel', () => {
       commands={{
         resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
         updateDetail: noop, resetDetailControl: noop, resetDetail: noop,
-        beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
+        beginAdjustment: noop, endAdjustment: noop, cancelAdjustment: noop, updateAdjustment: noop,
         resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
         setBlackWhiteMixEnabled: noop, updateBlackWhiteMix: noop, resetBlackWhiteMix: noop,
         setGradeLookAsset: noop, updateGradeLookStrength: noop, resetGradeLook: noop,

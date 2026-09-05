@@ -38,6 +38,9 @@ const setup = () => {
   });
   const onCommitted = vi.fn();
   const discardPreview = vi.fn();
+  const restoreStagedSnapshot = vi.fn((next: BasicAdjustments) => {
+    adjustments = next;
+  });
   const dependencies: AdjustmentTransactionDependencies = {
     getDocumentId: () => documentId,
     getAdjustments: () => adjustments,
@@ -45,6 +48,7 @@ const setup = () => {
     getRenderer: () => renderer,
     previewSnapshot,
     commitSnapshot,
+    restoreStagedSnapshot,
     discardPreview,
     pushHistoryEntry: (entry) => history.push(entry),
     onCommitted
@@ -56,6 +60,7 @@ const setup = () => {
     previewSnapshot,
     commitSnapshot,
     onCommitted,
+    restoreStagedSnapshot,
     discardPreview,
     history,
     get adjustments() { return adjustments; },
@@ -127,6 +132,21 @@ describe('adjustment transaction controller', () => {
     expect(state.history).toHaveLength(0);
     expect(state.onCommitted).not.toHaveBeenCalled();
     expect(state.discardPreview).toHaveBeenCalledOnce();
+  });
+
+  it('cancels a preview without changing document state or history', () => {
+    const state = setup();
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
+
+    state.controller.cancel();
+
+    expect(state.adjustments.exposureEV).toBe(0);
+    expect(state.restoreStagedSnapshot).toHaveBeenCalledOnce();
+    expect(state.discardPreview).toHaveBeenCalledOnce();
+    expect(state.commitSnapshot).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.active).toBe(false);
   });
 
   it('rejects a pending interaction after a document switch', () => {

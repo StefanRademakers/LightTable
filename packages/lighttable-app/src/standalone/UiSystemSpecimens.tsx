@@ -65,7 +65,7 @@ export const UiSliderSpecimens = () => {
       onChange={(index, next) => setLevels((current) => current.map((item, itemIndex) => (
         itemIndex === index ? next : item
       )))}
-      onInteractionStart={noop} onInteractionEnd={noop} />
+      onInteractionStart={noop} onInteractionEnd={noop} onInteractionCancel={noop} />
   </div>;
 };
 

@@ -1903,6 +1903,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     target: propertiesTarget,
     getDocument: () => imageDocumentRef.current,
     applyDocument: applyDocumentSnapshot,
+    previewDocument: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
     recordHistory: pushDocumentHistory
   });
   const activeFilterCenter = (() => {
@@ -2948,6 +2950,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     previewSnapshot: previewAdjustmentSnapshot,
     commitSnapshot: applyAdjustmentSnapshot,
+    restoreStagedSnapshot: (snapshot) => {
+      adjustmentsRef.current = cloneAdjustments(snapshot);
+    },
     discardPreview: documentProjectionController.discardAdjustmentPreview,
     pushHistoryEntry,
     onCommitted: ({ before, after, targetLayerId, domain }) => {
@@ -2978,12 +2983,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
   resetAdjustmentTransactionRef.current = () => {
-    adjustmentTransactionController.reset();
-    documentProjectionController.discardAdjustmentPreview();
+    adjustmentTransactionController.cancel();
   };
 
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;
+  const cancelAdjustmentTransaction = adjustmentTransactionController.cancel;
   const changeAdjustments = adjustmentTransactionController.change;
   const loadCubeAsset = async (file: File, purpose: 'photoshop-color-lookup' | 'grade-look') => {
     if (!/\.cube$/i.test(file.name)) throw new Error('Choose a 3D .cube LUT file.');
@@ -8151,6 +8156,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         },
         onFilterCenterInteractionStart: p0FilterController.commands.beginAdjustment,
         onFilterCenterInteractionEnd: p0FilterController.commands.endAdjustment,
+        onFilterCenterInteractionCancel: p0FilterController.commands.cancelAdjustment,
         onWheel: viewportInteraction.onWheel,
         onPointerDown: viewportInteraction.onPointerDown,
         onPointerMove: viewportInteraction.onPointerMove,
@@ -8801,6 +8807,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 commands: {
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,
+                  cancelAdjustment: cancelAdjustmentTransaction,
                   grain: {
                     setEnabled: toggleGrain,
                     update: updateGrainAdjustment,
@@ -8865,6 +8872,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetGroup,
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,
+                  cancelAdjustment: cancelAdjustmentTransaction,
                   updateAdjustment,
                   resetAdjustment,
                   updateDetail,
