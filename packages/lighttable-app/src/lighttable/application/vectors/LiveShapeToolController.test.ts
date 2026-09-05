@@ -20,10 +20,16 @@ import { VectorDocumentController } from './VectorDocumentController';
 
 const setup = () => {
   let document = createImageDocument('Shapes', 200, 100, 'asset');
+  let projectedDocument = document;
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const dependencies = {
     getDocument: () => document,
-    applyDocumentSnapshot: vi.fn((next: typeof document) => { document = next; }),
+    previewDocumentSnapshot: (next: typeof document) => { projectedDocument = next; },
+    discardDocumentPreview: () => { projectedDocument = document; },
+    applyDocumentSnapshot: vi.fn((next: typeof document) => {
+      document = next;
+      projectedDocument = next;
+    }),
     pushDocumentHistory: vi.fn((before: typeof document, after: typeof document) => {
       history.push({ before, after });
     })
@@ -34,8 +40,8 @@ const setup = () => {
     documents,
     ids,
     history,
-    get document() { return document; },
-    replaceDocument(next: typeof document) { document = next; }
+    get document() { return projectedDocument; },
+    replaceDocument(next: typeof document) { document = next; projectedDocument = next; }
   };
 };
 

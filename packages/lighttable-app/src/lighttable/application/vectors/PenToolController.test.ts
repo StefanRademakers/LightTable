@@ -26,10 +26,13 @@ const setup = (
   onCommitted?: NonNullable<ConstructorParameters<typeof PenToolController>[1]>['onCommitted']
 ) => {
   let document = createImageDocument('Pen', 200, 100, 'asset');
+  let projectedDocument = document;
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const documentController = new VectorDocumentController(() => ({
     getDocument: () => document,
-    applyDocumentSnapshot: (next) => { document = next; },
+    previewDocumentSnapshot: (next) => { projectedDocument = next; },
+    discardDocumentPreview: () => { projectedDocument = document; },
+    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
     pushDocumentHistory: (before, after) => history.push({ before, after })
   }));
   return {
@@ -39,7 +42,7 @@ const setup = (
       ...(style ? { style: () => style } : {})
     }),
     history,
-    get document() { return document; }
+    get document() { return projectedDocument; }
   };
 };
 

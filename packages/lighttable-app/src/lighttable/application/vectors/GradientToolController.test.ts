@@ -45,6 +45,8 @@ describe('GradientToolController', () => {
     const history: Array<{ before: typeof document; after: typeof document }> = [];
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
+      previewDocumentSnapshot: () => undefined,
+      discardDocumentPreview: () => undefined,
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
@@ -81,11 +83,14 @@ describe('GradientToolController', () => {
 
   it('keeps the active Gradient Fill selected and edits it instead of adding layers', () => {
     let document = createImageDocument('Gradient', 320, 180, 'asset');
+    let projectedDocument = document;
     const history: Array<{ before: typeof document; after: typeof document }> = [];
     const selected: Array<{ layerId: string; elementId: string }> = [];
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
-      applyDocumentSnapshot: (next) => { document = next; },
+      previewDocumentSnapshot: (next) => { projectedDocument = next; },
+      discardDocumentPreview: () => { projectedDocument = document; },
+      applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
     const onCommitted = vi.fn();
@@ -98,7 +103,10 @@ describe('GradientToolController', () => {
 
     controller.pointerDown({ x: 20, y: 30 }, 6);
     controller.pointerMove({ x: 220, y: 30 });
-    expect(selected).toEqual([{ layerId: document.activeLayerId, elementId: expect.any(String) }]);
+    expect(selected).toEqual([{
+      layerId: projectedDocument.activeLayerId,
+      elementId: expect.any(String)
+    }]);
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
     const gradientLayerId = document.activeLayerId;
     const layerCount = document.layers.length;
@@ -138,6 +146,8 @@ describe('GradientToolController', () => {
     const history: Array<{ before: typeof document; after: typeof document }> = [];
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
+      previewDocumentSnapshot: () => undefined,
+      discardDocumentPreview: () => undefined,
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
@@ -168,6 +178,8 @@ describe('GradientToolController', () => {
     const requested: Array<'start' | 'end'> = [];
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
+      previewDocumentSnapshot: () => undefined,
+      discardDocumentPreview: () => undefined,
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
@@ -195,6 +207,8 @@ describe('GradientToolController', () => {
     const onCommitted = vi.fn();
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
+      previewDocumentSnapshot: () => undefined,
+      discardDocumentPreview: () => undefined,
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: history
     }));
@@ -216,6 +230,8 @@ describe('GradientToolController', () => {
     let document = createImageDocument('Gradient', 320, 180, 'asset');
     const documents = new VectorDocumentController(() => ({
       getDocument: () => document,
+      previewDocumentSnapshot: () => undefined,
+      discardDocumentPreview: () => undefined,
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: () => undefined
     }));

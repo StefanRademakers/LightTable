@@ -24,11 +24,14 @@ import { VectorDocumentController } from './VectorDocumentController';
 
 const setup = () => {
   let document = createImageDocument('Direct selection', 300, 200, 'asset');
+  let projectedDocument = document;
   let selection: VectorEditorSelection = createVectorEditorSelection();
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const documents = new VectorDocumentController(() => ({
     getDocument: () => document,
-    applyDocumentSnapshot: (next) => { document = next; },
+    previewDocumentSnapshot: (next) => { projectedDocument = next; },
+    discardDocumentPreview: () => { projectedDocument = document; },
+    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
     pushDocumentHistory: (before, after) => { history.push({ before, after }); }
   }));
   const onCommitted = vi.fn();
@@ -42,8 +45,8 @@ const setup = () => {
     documents,
     history,
     onCommitted,
-    get document() { return document; },
-    set document(next) { document = next; },
+    get document() { return projectedDocument; },
+    set document(next) { document = next; projectedDocument = next; },
     get selection() { return selection; }
   };
 };

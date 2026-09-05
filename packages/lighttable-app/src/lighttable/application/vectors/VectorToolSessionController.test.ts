@@ -43,11 +43,14 @@ const setup = (
     | 'setElementTransformPreview' | 'commitElementTransformPreview'>
 ) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
+  let projectedDocument = document;
   let selection: VectorEditorSelection = createVectorEditorSelection();
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const controller = new VectorToolSessionController({
     getDocument: () => document,
-    applyDocumentSnapshot: (next) => { document = next; },
+    previewDocumentSnapshot: (next) => { projectedDocument = next; },
+    discardDocumentPreview: () => { projectedDocument = document; },
+    applyDocumentSnapshot: (next) => { document = next; projectedDocument = next; },
     pushDocumentHistory: (before, after) => history.push({ before, after }),
     getSelection: () => selection,
     setSelection: (next) => { selection = next; },
@@ -56,8 +59,8 @@ const setup = (
   return {
     controller,
     history,
-    get document() { return document; },
-    set document(next) { document = next; },
+    get document() { return projectedDocument; },
+    set document(next) { document = next; projectedDocument = next; },
     get selection() { return selection; }
   };
 };

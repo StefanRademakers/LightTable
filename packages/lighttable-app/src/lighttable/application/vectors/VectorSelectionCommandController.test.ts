@@ -48,6 +48,8 @@ const setup = () => {
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const documents = new VectorDocumentController(() => ({
     getDocument: () => document,
+    previewDocumentSnapshot: () => undefined,
+    discardDocumentPreview: () => undefined,
     applyDocumentSnapshot: (next) => { document = next; },
     pushDocumentHistory: (before, after) => history.push({ before, after })
   }));

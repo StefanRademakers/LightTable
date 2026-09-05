@@ -18,10 +18,16 @@ import { VectorDocumentController } from './VectorDocumentController';
 
 const setup = () => {
   let document = createImageDocument('Vectors', 100, 50, 'asset');
+  let projectedDocument = document;
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const dependencies = {
     getDocument: () => document,
-    applyDocumentSnapshot: vi.fn((next: typeof document) => { document = next; }),
+    previewDocumentSnapshot: (next: typeof document) => { projectedDocument = next; },
+    discardDocumentPreview: () => { projectedDocument = document; },
+    applyDocumentSnapshot: vi.fn((next: typeof document) => {
+      document = next;
+      projectedDocument = next;
+    }),
     pushDocumentHistory: vi.fn((before: typeof document, after: typeof document) => {
       history.push({ before, after });
     })
@@ -30,8 +36,9 @@ const setup = () => {
     controller: new VectorDocumentController(() => dependencies),
     dependencies,
     history,
-    get document() { return document; },
-    replaceDocument(next: typeof document) { document = next; }
+    get document() { return projectedDocument; },
+    get canonicalDocument() { return document; },
+    replaceDocument(next: typeof document) { document = next; projectedDocument = next; }
   };
 };
 
@@ -48,6 +55,7 @@ describe('VectorDocumentController', () => {
     state.controller.createLayer([createVectorPath('path')]);
     state.history.length = 0;
     const layerId = state.document.activeLayerId!;
+    const openingCanonical = state.canonicalDocument;
 
     expect(state.controller.beginPathMutation(layerId, 'path')).toBe(true);
     expect(state.controller.previewPathMutation((path) => translateVectorPath(path, { x: 2, y: 0 })))
@@ -55,6 +63,8 @@ describe('VectorDocumentController', () => {
     expect(state.controller.previewPathMutation((path) => translateVectorPath(path, { x: 7, y: 3 })))
       .toBe(true);
     expect(state.history).toHaveLength(0);
+    expect(state.canonicalDocument).toBe(openingCanonical);
+    expect(state.document).not.toBe(openingCanonical);
     expect(state.controller.commitPathMutation()).toBe(true);
     expect(state.history).toHaveLength(1);
 

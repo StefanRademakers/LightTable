@@ -25,6 +25,8 @@ export interface VectorToolSessionHookOptions {
   readonly gradient: EditorSession['gradient'];
   readonly shape: EditorSession['shape'];
   readonly style: VectorToolStyleSettings;
+  readonly previewDocumentSnapshot: (document: ImageDocument) => void;
+  readonly discardDocumentPreview: () => void;
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
@@ -70,6 +72,8 @@ export const useVectorToolSessionController = ({
   gradient,
   shape,
   style,
+  previewDocumentSnapshot,
+  discardDocumentPreview,
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection,
@@ -92,6 +96,8 @@ export const useVectorToolSessionController = ({
     shape,
     activeTool,
     style,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -114,6 +120,8 @@ export const useVectorToolSessionController = ({
     shape,
     activeTool,
     style,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -133,6 +141,12 @@ export const useVectorToolSessionController = ({
   if (!controllerRef.current) {
     controllerRef.current = new VectorToolSessionController({
       getDocument: () => portsRef.current.document,
+      previewDocumentSnapshot: (next) => {
+        portsRef.current.previewDocumentSnapshot(next);
+      },
+      discardDocumentPreview: () => {
+        portsRef.current.discardDocumentPreview();
+      },
       applyDocumentSnapshot: (next) => {
         portsRef.current.document = next;
         portsRef.current.applyDocumentSnapshot(next);

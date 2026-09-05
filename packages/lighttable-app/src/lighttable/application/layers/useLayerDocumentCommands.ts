@@ -904,8 +904,8 @@ export const createLayerDocumentCommands = (
     const liveDocument = dependencies.getDocument();
     if (!renderer
       || !liveDocument
-      || liveDocument.id !== transaction.previewDocument.id
-      || liveDocument.revision !== transaction.previewDocument.revision) {
+      || liveDocument.id !== transaction.beforeDocument.id
+      || liveDocument.revision !== transaction.beforeDocument.revision) {
       dependencies.setError('The shape preview is no longer the active document state.');
       return false;
     }

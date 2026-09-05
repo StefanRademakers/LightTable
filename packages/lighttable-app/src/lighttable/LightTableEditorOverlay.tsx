@@ -4392,6 +4392,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     gradient: gradientToolSettings,
     shape: editorSession.shape,
     style: editorSession.vectorStyle,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {

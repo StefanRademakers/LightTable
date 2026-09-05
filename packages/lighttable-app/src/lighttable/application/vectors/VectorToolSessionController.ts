@@ -368,7 +368,7 @@ export class VectorToolSessionController {
       if (options.rasterize || capture.rasterize) {
         const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
         if (!transaction || !this.rasterizeShape?.(transaction)) {
-          if (transaction) this.dependencies.applyDocumentSnapshot(transaction.beforeDocument);
+          if (transaction) this.dependencies.discardDocumentPreview();
           return false;
         }
         return true;
