@@ -1339,25 +1339,38 @@ export class WebGpuEngine {
     return changed;
   }
 
+  private selectionOwnerIsCurrent(
+    renderer: LayerDocumentRenderer,
+    documentId: string | null
+  ) {
+    return documentId !== null
+      && !this.destroyed
+      && this.documentRenderer === renderer
+      && this.imageDocument?.id === documentId;
+  }
+
   private async setSelectionNow(
+    renderer: LayerDocumentRenderer,
+    documentId: string,
     shape: SelectionShape,
     mode: SelectionMode,
     featherRadius = 0,
     antiAlias = false
   ) {
+    if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
     this.device.pushErrorScope('validation');
-    const changed = this.documentRenderer?.setSelection(
+    const changed = renderer.setSelection(
       shape,
       mode,
       featherRadius,
       antiAlias
-    ) ?? false;
+    );
     const validationError = await this.device.popErrorScope();
     if (validationError) {
       this.callbacks.onDeviceLost?.(`LightTable selection validation failed: ${validationError.message}`);
       return false;
     }
-    return changed;
+    return this.selectionOwnerIsCurrent(renderer, documentId) && changed;
   }
 
   setSelection(
@@ -1366,12 +1379,11 @@ export class WebGpuEngine {
     featherRadius = 0,
     antiAlias = false
   ) {
-    const task = this.selectionQueue.then(() => this.setSelectionNow(
-      shape,
-      mode,
-      featherRadius,
-      antiAlias
-    ));
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(() => renderer && documentId
+      ? this.setSelectionNow(renderer, documentId, shape, mode, featherRadius, antiAlias)
+      : false);
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
@@ -1388,19 +1400,27 @@ export class WebGpuEngine {
     );
   }
 
-  private async applyMagicWandNow(operation: SelectionOperation) {
+  private async applyMagicWandNow(
+    document: ImageDocument,
+    renderer: LayerDocumentRenderer,
+    operation: SelectionOperation
+  ) {
     const source = operation.source;
-    if (source?.kind !== 'magic-wand' || !this.imageDocument || !this.documentRenderer) {
+    if (
+      source?.kind !== 'magic-wand'
+      || !this.selectionOwnerIsCurrent(renderer, document.id)
+    ) {
       return false;
     }
     if (
-      source.documentRevision !== this.imageDocument.revision
-      || !findDocumentLayer(this.imageDocument, source.layerId)
+      source.documentRevision !== document.revision
+      || !findDocumentLayer(document, source.layerId)
     ) return false;
     // Tool activation normally finishes this work while the pointer travels
     // to the canvas. Awaiting the same isolated promise closes the fast-click
     // race without compiling a second pipeline set or touching document state.
-    await this.documentRenderer.prepareMagicWandTool();
+    await renderer.prepareMagicWandTool();
+    if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
     const traceTarget = (
       globalThis as typeof globalThis & {
         __LIGHTTABLE_MAGIC_WAND_TRACE__?: Array<{
@@ -1415,19 +1435,21 @@ export class WebGpuEngine {
       }
     ).__LIGHTTABLE_MAGIC_WAND_TRACE__;
     const traceStartedAt = traceTarget ? performance.now() : 0;
-    this.device.pushErrorScope('validation');
     let changed = false;
     if (source.options.sampleAllLayers) {
       this.settleInteractiveRenderQuality();
       this.renderScheduler.flush();
       await this.device.queue.onSubmittedWorkDone();
+      if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
       const composite = this.imageResources.finalTexture;
-      changed = Boolean(composite) && this.documentRenderer.applyMagicWandToTexture(
+      this.device.pushErrorScope('validation');
+      changed = Boolean(composite) && renderer.applyMagicWandToTexture(
         composite!, source.point, source.options, operation.mode as SelectionCombineMode
       );
     } else {
-      changed = this.documentRenderer.applyMagicWandToActiveLayer(
-        this.imageDocument,
+      this.device.pushErrorScope('validation');
+      changed = renderer.applyMagicWandToActiveLayer(
+        document,
         source.layerId,
         source.point,
         source.options,
@@ -1445,22 +1467,27 @@ export class WebGpuEngine {
       traceTarget.push({
         encodeMs: encodedAt - traceStartedAt,
         gpuCompleteMs: performance.now() - traceStartedAt,
-        width: this.imageDocument.width,
-        height: this.imageDocument.height,
+        width: document.width,
+        height: document.height,
         contiguous: source.options.contiguous,
         sampleAllLayers: source.options.sampleAllLayers,
         mode: operation.mode as SelectionCombineMode
       });
     }
-    return changed;
+    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
   }
 
-  private async applyRasterSelectionNow(operation: SelectionOperation) {
+  private async applyRasterSelectionNow(
+    document: ImageDocument,
+    renderer: LayerDocumentRenderer,
+    operation: SelectionOperation
+  ) {
     const source = operation.source;
-    if (source?.kind !== 'raster-mask' || !this.imageDocument || !this.documentRenderer
-      || source.documentRevision !== this.imageDocument.revision) return false;
+    if (source?.kind !== 'raster-mask'
+      || !this.selectionOwnerIsCurrent(renderer, document.id)
+      || source.documentRevision !== document.revision) return false;
     this.device.pushErrorScope('validation');
-    const changed = this.documentRenderer.applyRasterSelectionMask(
+    const changed = renderer.applyRasterSelectionMask(
       source.mask,
       operation.mode as SelectionCombineMode
     );
@@ -1469,28 +1496,35 @@ export class WebGpuEngine {
       this.callbacks.onDeviceLost?.(`LightTable raster selection validation failed: ${validationError.message}`);
       return false;
     }
-    return changed;
+    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
   }
 
-  private async applySelectSimilarNow(operation: SelectionOperation) {
+  private async applySelectSimilarNow(
+    document: ImageDocument,
+    renderer: LayerDocumentRenderer,
+    operation: SelectionOperation
+  ) {
     const source = operation.source;
-    if (source?.kind !== 'similar' || !this.imageDocument || !this.documentRenderer
-      || source.documentRevision !== this.imageDocument.revision
-      || !findDocumentLayer(this.imageDocument, source.layerId)) return false;
-    this.device.pushErrorScope('validation');
+    if (source?.kind !== 'similar'
+      || !this.selectionOwnerIsCurrent(renderer, document.id)
+      || source.documentRevision !== document.revision
+      || !findDocumentLayer(document, source.layerId)) return false;
     let changed = false;
     if (source.options.sampleAllLayers) {
       this.settleInteractiveRenderQuality();
       this.renderScheduler.flush();
       await this.device.queue.onSubmittedWorkDone();
+      if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
+      this.device.pushErrorScope('validation');
       changed = Boolean(this.imageResources.finalTexture)
-        && this.documentRenderer.applySelectSimilarToTexture(
+        && renderer.applySelectSimilarToTexture(
           this.imageResources.finalTexture!,
           source.options
         );
     } else {
-      changed = this.documentRenderer.applySelectSimilarToActiveLayer(
-        this.imageDocument,
+      this.device.pushErrorScope('validation');
+      changed = renderer.applySelectSimilarToActiveLayer(
+        document,
         source.layerId,
         source.options
       );
@@ -1500,23 +1534,35 @@ export class WebGpuEngine {
       this.callbacks.onDeviceLost?.(`LightTable Select Similar validation failed: ${validationError.message}`);
       return false;
     }
-    return changed;
+    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
   }
 
   applyMagicWand(operation: SelectionOperation) {
-    const task = this.selectionQueue.then(() => this.applyMagicWandNow(operation));
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    const task = this.selectionQueue.then(() => renderer && document
+      ? this.applyMagicWandNow(document, renderer, operation)
+      : false);
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
 
   applyRasterSelection(operation: SelectionOperation) {
-    const task = this.selectionQueue.then(() => this.applyRasterSelectionNow(operation));
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    const task = this.selectionQueue.then(() => renderer && document
+      ? this.applyRasterSelectionNow(document, renderer, operation)
+      : false);
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
 
   applySelectSimilar(operation: SelectionOperation) {
-    const task = this.selectionQueue.then(() => this.applySelectSimilarNow(operation));
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    const task = this.selectionQueue.then(() => renderer && document
+      ? this.applySelectSimilarNow(document, renderer, operation)
+      : false);
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
@@ -1546,6 +1592,7 @@ export class WebGpuEngine {
           );
           return false;
         }
+        if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
         if (changed) {
           this.renderDirty.invalidate('viewport');
           this.requestRender();
@@ -1575,7 +1622,11 @@ export class WebGpuEngine {
       ) {
         throw new Error('The active document changed before its selection could be captured.');
       }
-      return renderer.captureSelectionSnapshot();
+      const snapshot = await renderer.captureSelectionSnapshot();
+      if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
+        throw new Error('The active document changed while its selection was being captured.');
+      }
+      return snapshot;
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
@@ -1601,104 +1652,109 @@ export class WebGpuEngine {
   }
 
   replaceSelection(operations: SelectionOperation[]) {
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    const documentId = document?.id ?? null;
     const task = this.selectionQueue.then(async () => {
-      const renderer = this.documentRenderer;
-      const documentId = this.imageDocument?.id ?? null;
-      if (this.destroyed || !renderer) return false;
+      if (
+        this.destroyed
+        || !renderer
+        || !document
+        || this.documentRenderer !== renderer
+        || this.imageDocument?.id !== documentId
+      ) return false;
       const before = await renderer.captureSelectionSnapshot();
+      if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
       const replay = async () => {
         renderer.clearSelection();
         for (const operation of operations) {
-        if (operation.source?.kind === 'layer-mask') {
-          const layer = this.imageDocument
-            ? findDocumentLayer(this.imageDocument, operation.source.layerId)
-            : null;
-          if (
-            !layer?.mask
-            || layer.mask.pixelRevision !== operation.source.pixelRevision
-            || !this.documentRenderer?.loadLayerMaskAsSelection(layer.id)
-          ) return false;
-        } else if (operation.source?.kind === 'layer-transparency') {
-          const layer = this.imageDocument
-            ? findDocumentLayer(this.imageDocument, operation.source.layerId)
-            : null;
-          const contentRevision = layer?.type === 'raster'
-            ? `raster:${layer.pixelRevision}`
-            : layer?.type === 'text' || layer?.type === 'vector'
-              ? `semantic:${layer.revision}`
-              : null;
-          if (
-            !this.imageDocument
-            || !layer
-            || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')
-            || contentRevision !== operation.source.contentRevision
-            || !await this.documentRenderer?.loadLayerTransparencyAsSelection(
-              this.imageDocument,
-              layer
-            )
-          ) return false;
-        } else if (operation.source?.kind === 'composite-channel') {
-          if (
-            !this.imageDocument
-            || this.imageDocument.revision !== operation.source.documentRevision
-            || !this.imageResources.finalTexture
-            || !this.documentRenderer
-          ) return false;
-          // The final reconstructed texture is the canonical source for a
-          // Channels-panel selection. Flush pending correction work before
-          // reading it so the selection never observes a stale grade frame.
-          this.settleInteractiveRenderQuality();
-          this.renderScheduler.flush();
-          await this.device.queue.onSubmittedWorkDone();
-          if (!this.documentRenderer.loadCompositeChannelAsSelection(
-            this.imageResources.finalTexture,
-            operation.source.channel
-          )) return false;
-        } else if (operation.source?.kind === 'magic-wand') {
-          if (!await this.applyMagicWandNow(operation)) return false;
-        } else if (operation.source?.kind === 'similar') {
-          if (!await this.applySelectSimilarNow(operation)) return false;
-        } else if (operation.source?.kind === 'raster-mask') {
-          if (!await this.applyRasterSelectionNow(operation)) return false;
-        } else if (operation.source?.kind === 'selection-paint') {
-          if (!this.documentRenderer?.paintSelectionDabs(
-            operation.source.dabs,
-            operation.source.hardness,
-            operation.source.opacity,
-            operation.mode === 'subtract' ? 'subtract' : 'add'
-          )) return false;
-        } else if (operation.mode === 'feather') {
-          if (!this.documentRenderer?.featherSelection(
-            operation.amount ?? 0,
-            operation.applyAtCanvasBounds === true
-          )) return false;
-        } else if (operation.mode === 'border') {
-          if (!this.documentRenderer?.borderSelection(operation.amount ?? 0)) return false;
-        } else if (operation.mode === 'smooth') {
-          if (!this.documentRenderer?.smoothSelection(
-            operation.amount ?? 0,
-            operation.applyAtCanvasBounds === true
-          )) return false;
-        } else if (operation.mode === 'expand' || operation.mode === 'contract') {
-          if (!this.documentRenderer?.modifySelectionMorphology(
-            operation.mode,
-            operation.amount ?? 0,
-            operation.applyAtCanvasBounds === true
-          )) return false;
-        } else if (operation.mode === 'transform') {
-          if (!operation.transform || !this.documentRenderer?.transformSelection(operation.transform)) {
-            return false;
-          }
-        } else if (!await ((operation.amount ?? 0) > 0 || operation.antiAlias
-          ? this.setSelectionNow(
-              operation.shape,
+          if (operation.source?.kind === 'layer-mask') {
+            const layer = findDocumentLayer(document, operation.source.layerId);
+            if (
+              !layer?.mask
+              || layer.mask.pixelRevision !== operation.source.pixelRevision
+              || !renderer.loadLayerMaskAsSelection(layer.id)
+            ) return false;
+          } else if (operation.source?.kind === 'layer-transparency') {
+            const layer = findDocumentLayer(document, operation.source.layerId);
+            const contentRevision = layer?.type === 'raster'
+              ? `raster:${layer.pixelRevision}`
+              : layer?.type === 'text' || layer?.type === 'vector'
+                ? `semantic:${layer.revision}`
+                : null;
+            if (
+              !layer
+              || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')
+              || contentRevision !== operation.source.contentRevision
+              || !await renderer.loadLayerTransparencyAsSelection(document, layer)
+              || !this.selectionOwnerIsCurrent(renderer, documentId)
+            ) return false;
+          } else if (operation.source?.kind === 'composite-channel') {
+            if (
+              document.revision !== operation.source.documentRevision
+              || !this.imageResources.finalTexture
+            ) return false;
+            // The final reconstructed texture is the canonical source for a
+            // Channels-panel selection. Flush pending correction work before
+            // reading it so the selection never observes a stale grade frame.
+            this.settleInteractiveRenderQuality();
+            this.renderScheduler.flush();
+            await this.device.queue.onSubmittedWorkDone();
+            if (
+              !this.selectionOwnerIsCurrent(renderer, documentId)
+              || !this.imageResources.finalTexture
+              || !renderer.loadCompositeChannelAsSelection(
+                this.imageResources.finalTexture,
+                operation.source.channel
+              )
+            ) return false;
+          } else if (operation.source?.kind === 'magic-wand') {
+            if (!await this.applyMagicWandNow(document, renderer, operation)) return false;
+          } else if (operation.source?.kind === 'similar') {
+            if (!await this.applySelectSimilarNow(document, renderer, operation)) return false;
+          } else if (operation.source?.kind === 'raster-mask') {
+            if (!await this.applyRasterSelectionNow(document, renderer, operation)) return false;
+          } else if (operation.source?.kind === 'selection-paint') {
+            if (!renderer.paintSelectionDabs(
+              operation.source.dabs,
+              operation.source.hardness,
+              operation.source.opacity,
+              operation.mode === 'subtract' ? 'subtract' : 'add'
+            )) return false;
+          } else if (operation.mode === 'feather') {
+            if (!renderer.featherSelection(
+              operation.amount ?? 0,
+              operation.applyAtCanvasBounds === true
+            )) return false;
+          } else if (operation.mode === 'border') {
+            if (!renderer.borderSelection(operation.amount ?? 0)) return false;
+          } else if (operation.mode === 'smooth') {
+            if (!renderer.smoothSelection(
+              operation.amount ?? 0,
+              operation.applyAtCanvasBounds === true
+            )) return false;
+          } else if (operation.mode === 'expand' || operation.mode === 'contract') {
+            if (!renderer.modifySelectionMorphology(
               operation.mode,
               operation.amount ?? 0,
-              operation.antiAlias ?? false
-            )
-          : this.setSelectionNow(operation.shape, operation.mode))) {
-          return false;
-        }
+              operation.applyAtCanvasBounds === true
+            )) return false;
+          } else if (operation.mode === 'transform') {
+            if (!operation.transform || !renderer.transformSelection(operation.transform)) {
+              return false;
+            }
+          } else if (!await ((operation.amount ?? 0) > 0 || operation.antiAlias
+            ? this.setSelectionNow(
+                renderer,
+                documentId,
+                operation.shape,
+                operation.mode,
+                operation.amount ?? 0,
+                operation.antiAlias ?? false
+              )
+            : this.setSelectionNow(renderer, documentId, operation.shape, operation.mode))) {
+            return false;
+          }
         }
         return true;
       };
@@ -1709,14 +1765,16 @@ export class WebGpuEngine {
           || this.documentRenderer !== renderer
           || (this.imageDocument?.id ?? null) !== documentId
         ) {
-          if (this.documentRenderer === renderer) renderer.restoreSelectionSnapshot(before);
+          if (this.selectionOwnerIsCurrent(renderer, documentId)) {
+            renderer.restoreSelectionSnapshot(before);
+          }
           return false;
         }
         this.renderDirty.invalidate('viewport');
         this.requestRender();
         return true;
       } catch (reason) {
-        if (this.documentRenderer === renderer) {
+        if (this.selectionOwnerIsCurrent(renderer, documentId)) {
           renderer.restoreSelectionSnapshot(before);
           this.renderDirty.invalidate('viewport');
           this.requestRender();
