@@ -77,7 +77,7 @@ export interface LayerCommandHistoryEntry {
 }
 
 export interface LayerCommandRendererPort {
-  duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): void;
+  duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): boolean;
   beginLayerPixelEdit(layerId: LayerId, channel?: PaintChannel): void;
   captureAllPixelEdit(layerId: LayerId, channel?: PaintChannel): number;
   mergeLayers(
@@ -272,6 +272,20 @@ export const createLayerDocumentCommands = (
     );
   });
 
+  const commitDocumentTransition = (
+    operation: string,
+    before: ImageDocument,
+    after: ImageDocument,
+    description: { readonly label: string; readonly type: string }
+  ) => runEditorOperationTransaction({ operation }, (transaction) => {
+    transaction.step(
+      'publish document snapshot',
+      () => dependenciesRef.current.applyDocumentSnapshot(after),
+      () => dependenciesRef.current.applyDocumentSnapshot(before)
+    );
+    dependenciesRef.current.pushDocumentHistory(before, after, description);
+  });
+
   const commitReservedRasterMutation = ({
     operation,
     current,
@@ -342,6 +356,57 @@ export const createLayerDocumentCommands = (
     }
   };
 
+  const commitLoadedRasterLayer = async ({
+    operation,
+    current,
+    next,
+    destination,
+    assets,
+    description,
+    errorMessage
+  }: {
+    readonly operation: string;
+    readonly current: ImageDocument;
+    readonly next: ImageDocument;
+    readonly destination: RasterLayer;
+    readonly assets: DocumentAssetBlob[];
+    readonly description: { readonly label: string; readonly type: string };
+    readonly errorMessage: string;
+  }): Promise<boolean> => {
+    const dependencies = dependenciesRef.current;
+    const renderer = dependencies.getRenderer();
+    if (!renderer) return false;
+    let ownsReservation = false;
+    const releaseReservation = () => {
+      if (!ownsReservation) return;
+      renderer.releaseRasterDestination(destination.id);
+      ownsReservation = false;
+    };
+    try {
+      if (!renderer.prepareRasterDestination(destination)) {
+        throw new Error('The raster destination could not be allocated on the GPU.');
+      }
+      ownsReservation = true;
+      await renderer.loadLayerAssets(assets);
+      runEditorOperationTransaction({ operation }, (transaction) => {
+        transaction.adopt('release reserved raster destination', releaseReservation);
+        transaction.step(
+          'publish document snapshot',
+          () => dependencies.applyDocumentSnapshot(next),
+          () => dependencies.applyDocumentSnapshot(current)
+        );
+        dependencies.pushDocumentHistory(current, next, description);
+        renderer.commitRasterDestination(destination.id);
+        ownsReservation = false;
+      });
+      return true;
+    } catch (reason) {
+      releaseReservation();
+      dependencies.setError(reason instanceof Error ? reason.message : errorMessage);
+      return false;
+    }
+  };
+
   const addMaskToLayer = (layerId: LayerId, useSelection: boolean, present = false) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
@@ -353,10 +418,16 @@ export const createLayerDocumentCommands = (
     const withMask = addLayerMask(current, layerId);
     if (withMask === current) return false;
 
-    dependencies.applyDocumentSnapshot(withMask);
     if (!useSelection) {
-      dependencies.pushDocumentHistory(current, withMask,
-        { label: 'Add Layer Mask', type: 'layer.mask.add' });
+      try {
+        commitDocumentTransition('Add Layer Mask', current, withMask,
+          { label: 'Add Layer Mask', type: 'layer.mask.add' });
+      } catch (reason) {
+        if (present) dependencies.setError(
+          reason instanceof Error ? reason.message : 'The layer mask could not be added.'
+        );
+        return false;
+      }
       if (present) {
         dependencies.setActiveChannel('mask');
         dependencies.setError(null);
@@ -373,6 +444,9 @@ export const createLayerDocumentCommands = (
     }
 
     try {
+      // Publishing the mask node allocates its document-owned GPU target. It
+      // remains an internal transaction state until history accepts the edit.
+      dependencies.applyDocumentSnapshot(withMask);
       renderer.beginLayerPixelEdit(layerId, 'mask');
       if (!renderer.bakeSelectionIntoLayerMask(layerId)) {
         throw new Error('The current selection could not be copied into the layer mask.');
@@ -386,26 +460,14 @@ export const createLayerDocumentCommands = (
         layerId,
         fullDocumentBounds(current)
       );
-      dependencies.applyDocumentSnapshot(next);
-      dependencies.pushHistoryEntry({
-        label: 'Add Layer Mask',
-        type: 'layer.mask.add',
-        byteSize: pixelEdit.byteSize,
+      commitAppliedPixelMutation(() => dependenciesRef.current, {
+        operation: 'Add Layer Mask',
+        label: 'Add Layer Mask', type: 'layer.mask.add',
         layerIds: [layerId],
-        undo: () => {
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Add layer mask undo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(current);
-        },
-        redo: () => {
-          dependenciesRef.current.applyDocumentSnapshot(withMask);
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Add layer mask redo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(next);
-        },
-        dispose: pixelEdit.destroy
+        before: current,
+        redoBase: withMask,
+        after: next,
+        edits: [pixelEdit]
       });
       if (present) {
         dependencies.setActiveChannel('mask');
@@ -433,22 +495,46 @@ export const createLayerDocumentCommands = (
   };
 
   const duplicateLayer = (sourceId: LayerId): LayerId | null => {
-    const current = dependenciesRef.current.getDocument();
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
     if (!current) return null;
     const source = findDocumentLayer(current, sourceId);
     const next = duplicateDocumentLayer(current, sourceId);
     if (next === current || !next.activeLayerId) return null;
+    const destinationId = next.activeLayerId;
 
-    dependenciesRef.current.applyDocumentSnapshot(next);
-    if (source?.type === 'raster') {
-      dependenciesRef.current
-        .getRenderer()
-        ?.duplicateLayerPixels(sourceId, next.activeLayerId);
+    try {
+      if (source?.type === 'raster') {
+        const destination = findRasterLayer(next, destinationId);
+        const renderer = dependencies.getRenderer();
+        if (!destination || !renderer || !commitReservedRasterMutation({
+          operation: 'Duplicate Layer',
+          current,
+          next,
+          destination,
+          render: () => renderer.duplicateLayerPixels(sourceId, destinationId),
+          historyEntry: {
+            label: 'Duplicate Layer',
+            type: 'layer.duplicate',
+            layerIds: [sourceId, destinationId],
+            undo: () => applyDocumentTransition('Undo Duplicate Layer', next, current),
+            redo: () => applyDocumentTransition('Redo Duplicate Layer', current, next)
+          },
+          errorMessage: 'The layer pixels could not be duplicated.'
+        })) return null;
+      } else {
+        commitDocumentTransition('Duplicate Layer', current, next,
+          { label: 'Duplicate Layer', type: 'layer.duplicate' });
+      }
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'The layer could not be duplicated.'
+      );
+      return null;
     }
-    dependenciesRef.current.pushDocumentHistory(current, next,
-      { label: 'Duplicate Layer', type: 'layer.duplicate' });
-    dependenciesRef.current.setActiveChannel('pixels');
-    return next.activeLayerId;
+    dependencies.setActiveChannel('pixels');
+    dependencies.setError(null);
+    return destinationId;
   };
 
   const duplicateActiveLayer = () => {
@@ -487,9 +573,18 @@ export const createLayerDocumentCommands = (
     if (!target?.mask) prepared = addLayerMask(prepared, targetId);
     if (!findDocumentLayer(prepared, targetId)?.mask) return false;
 
+    let reservedDestination: RasterLayer | null = null;
     try {
+      if (mode === 'new-layer') {
+        reservedDestination = findRasterLayer(prepared, targetId);
+        if (!reservedDestination || !renderer.prepareRasterDestination(reservedDestination)) {
+          throw new Error('The background-removal layer could not be allocated on the GPU.');
+        }
+      }
       dependencies.applyDocumentSnapshot(prepared);
-      if (mode === 'new-layer') renderer.duplicateLayerPixels(sourceId, targetId);
+      if (mode === 'new-layer' && !renderer.duplicateLayerPixels(sourceId, targetId)) {
+        throw new Error('The source layer pixels could not be duplicated.');
+      }
       renderer.beginLayerPixelEdit(targetId, 'mask');
       if (!renderer.applyGeneratedLayerMask(
         targetId,
@@ -501,27 +596,16 @@ export const createLayerDocumentCommands = (
       const pixelEdit = renderer.finishPixelEdit();
       if (!pixelEdit) throw new Error('Background removal could not create a recoverable undo step.');
       const after = markLayerMaskPixelsChanged(prepared, targetId, fullDocumentBounds(before));
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushHistoryEntry({
-        label: 'Remove Background',
-        type: 'layer.background-removal',
-        byteSize: pixelEdit.byteSize,
-        layerIds: [targetId],
-        undo: () => {
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Background removal undo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(before);
-        },
-        redo: () => {
-          dependenciesRef.current.applyDocumentSnapshot(prepared);
-          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Background removal redo is no longer available.');
-          }
-          dependenciesRef.current.applyDocumentSnapshot(after);
-        },
-        dispose: pixelEdit.destroy
+      commitAppliedPixelMutation(() => dependenciesRef.current, {
+        operation: 'Remove Background',
+        label: 'Remove Background', type: 'layer.background-removal',
+        layerIds: [sourceId, targetId],
+        before,
+        redoBase: prepared,
+        after,
+        edits: [pixelEdit]
       });
+      if (reservedDestination) renderer.commitRasterDestination(reservedDestination.id);
       dependencies.setActiveChannel('mask');
       dependencies.setError(null);
       dependencies.setStatus(
@@ -533,6 +617,7 @@ export const createLayerDocumentCommands = (
     } catch (reason) {
       renderer.cancelPixelEdit();
       dependencies.applyDocumentSnapshot(before);
+      if (reservedDestination) renderer.releaseRasterDestination(reservedDestination.id);
       dependencies.setError(
         reason instanceof Error ? reason.message : 'The generated background mask could not be applied.'
       );
@@ -580,10 +665,17 @@ export const createLayerDocumentCommands = (
         aboveLayerId ?? current.activeLayerId ?? undefined,
         kind
       );
-      dependencies.applyDocumentSnapshot(next);
-      dependencies.pushDocumentHistory(current, next,
-        { label: `New ${definition.name} Layer`, type: 'layer.adjustment.create' });
+      try {
+        commitDocumentTransition(`New ${definition.name} Layer`, current, next,
+          { label: `New ${definition.name} Layer`, type: 'layer.adjustment.create' });
+      } catch (reason) {
+        dependencies.setError(
+          reason instanceof Error ? reason.message : `The ${definition.name} layer could not be created.`
+        );
+        return false;
+      }
       dependencies.setActiveChannel('pixels');
+      dependencies.setError(null);
       return true;
     }
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
@@ -613,7 +705,10 @@ export const createLayerDocumentCommands = (
       createAdjustmentStackFromBasicAdjustments(source),
       'adjustment-layer'
     ), kind);
+    const beforeDocumentGrade = cloneAdjustments(previousDocumentGrade);
+    const beforePanelGrade = cloneAdjustments(currentPanelGrade);
     const clearedDocumentGrade = createDefaultAdjustments();
+    const adjustmentPanelGrade = cloneAdjustments(source);
     const next = createAdjustmentLayer(
       current,
       stack,
@@ -622,26 +717,73 @@ export const createLayerDocumentCommands = (
       kind
     );
 
-    dependencies.publishDocumentAdjustments(clearedDocumentGrade);
-    dependencies.applyDocumentSnapshot(next);
-    dependencies.publishPanelAdjustments(source);
-    dependencies.pushHistoryEntry({
-      label: `New ${definition.name} Layer`,
-      type: 'layer.adjustment.create',
-      undo: () => {
-        const latest = dependenciesRef.current;
-        latest.publishDocumentAdjustments?.(previousDocumentGrade);
-        latest.applyDocumentSnapshot(current);
-        latest.publishPanelAdjustments?.(currentPanelGrade);
-      },
-      redo: () => {
-        const latest = dependenciesRef.current;
-        latest.publishDocumentAdjustments?.(clearedDocumentGrade);
-        latest.applyDocumentSnapshot(next);
-        latest.publishPanelAdjustments?.(source);
-      }
+    const applyProcessingState = (
+      operation: string,
+      documentGrade: BasicAdjustments,
+      document: ImageDocument,
+      panelGrade: BasicAdjustments,
+      rollbackDocumentGrade: BasicAdjustments,
+      rollbackDocument: ImageDocument,
+      rollbackPanelGrade: BasicAdjustments
+    ) => runEditorOperationTransaction({ operation }, (transaction) => {
+      const latest = dependenciesRef.current;
+      transaction.step(
+        'publish document processing state',
+        () => latest.publishDocumentAdjustments?.(documentGrade),
+        () => latest.publishDocumentAdjustments?.(rollbackDocumentGrade)
+      );
+      transaction.step(
+        'publish document snapshot',
+        () => latest.applyDocumentSnapshot(document),
+        () => latest.applyDocumentSnapshot(rollbackDocument)
+      );
+      transaction.step(
+        'publish panel processing state',
+        () => latest.publishPanelAdjustments?.(panelGrade),
+        () => latest.publishPanelAdjustments?.(rollbackPanelGrade)
+      );
     });
+    try {
+      runEditorOperationTransaction({ operation: `New ${definition.name} Layer` }, (transaction) => {
+        transaction.step(
+          'publish document processing state',
+          () => dependencies.publishDocumentAdjustments!(clearedDocumentGrade),
+          () => dependencies.publishDocumentAdjustments!(beforeDocumentGrade)
+        );
+        transaction.step(
+          'publish document snapshot',
+          () => dependencies.applyDocumentSnapshot(next),
+          () => dependencies.applyDocumentSnapshot(current)
+        );
+        transaction.step(
+          'publish panel processing state',
+          () => dependencies.publishPanelAdjustments!(adjustmentPanelGrade),
+          () => dependencies.publishPanelAdjustments!(beforePanelGrade)
+        );
+        dependencies.pushHistoryEntry({
+          label: `New ${definition.name} Layer`,
+          type: 'layer.adjustment.create',
+          layerIds: next.activeLayerId ? [next.activeLayerId] : [],
+          undo: () => applyProcessingState(
+            `Undo New ${definition.name} Layer`,
+            beforeDocumentGrade, current, beforePanelGrade,
+            clearedDocumentGrade, next, adjustmentPanelGrade
+          ),
+          redo: () => applyProcessingState(
+            `Redo New ${definition.name} Layer`,
+            clearedDocumentGrade, next, adjustmentPanelGrade,
+            beforeDocumentGrade, current, beforePanelGrade
+          )
+        });
+      });
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : `The ${definition.name} layer could not be created.`
+      );
+      return false;
+    }
     dependencies.setActiveChannel('pixels');
+    dependencies.setError(null);
     return true;
   };
 
@@ -682,10 +824,34 @@ export const createLayerDocumentCommands = (
       adjustmentStack
     });
     if (next === current) return null;
-    dependencies.applyDocumentSnapshot(next);
-    dependencies.publishPanelAdjustments?.(source);
-    dependencies.pushDocumentHistory(current, next,
-      { label: `Add ${definition.name}`, type: 'layer.adjustment.attach' });
+    const previousPanelAdjustments = dependencies.getPanelAdjustments?.();
+    try {
+      runEditorOperationTransaction({ operation: `Add ${definition.name}` }, (transaction) => {
+        transaction.step(
+          'publish document snapshot',
+          () => dependencies.applyDocumentSnapshot(next),
+          () => dependencies.applyDocumentSnapshot(current)
+        );
+        if (dependencies.publishPanelAdjustments) {
+          transaction.step(
+            'publish panel processing state',
+            () => dependencies.publishPanelAdjustments!(source),
+            () => {
+              if (previousPanelAdjustments) {
+                dependencies.publishPanelAdjustments!(previousPanelAdjustments);
+              }
+            }
+          );
+        }
+        dependencies.pushDocumentHistory(current, next,
+          { label: `Add ${definition.name}`, type: 'layer.adjustment.attach' });
+      });
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : `The ${definition.name} adjustment could not be attached.`
+      );
+      return null;
+    }
     dependencies.setActiveChannel('pixels');
     dependencies.setStatus(`Attached ${definition.name} to ${layer.name}`);
     dependencies.setError(null);
@@ -1344,23 +1510,21 @@ export const createLayerDocumentCommands = (
       });
       const pastedLayerId = after === before ? null : after.activeLayerId;
       const pastedLayer = pastedLayerId ? findRasterLayer(after, pastedLayerId) : null;
-      if (!pastedLayerId || !pastedLayer || !renderer.prepareRasterDestination(pastedLayer)) {
+      if (!pastedLayerId || !pastedLayer) {
         dependencies.setError('The clipboard image dimensions could not be prepared.');
         return null;
       }
-      try {
-        await renderer.loadLayerAssets([{ layerId: pastedLayerId, pixels: file, mask: null }]);
-        renderer.commitRasterDestination(pastedLayerId);
-      } catch (reason) {
-        renderer.releaseRasterDestination(pastedLayerId);
-        dependencies.setError(
-          reason instanceof Error ? reason.message : 'The copied pixels could not be pasted into a new layer.'
-        );
+      if (!await commitLoadedRasterLayer({
+        operation: 'Paste',
+        current: before,
+        next: after,
+        destination: pastedLayer,
+        assets: [{ layerId: pastedLayerId, pixels: file, mask: null }],
+        description: { label: 'Paste', type: 'layer.paste' },
+        errorMessage: 'The copied pixels could not be pasted into a new layer.'
+      })) {
         return null;
       }
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushDocumentHistory(before, after,
-        { label: 'Paste', type: 'layer.paste' });
       dependencies.setActiveChannel('pixels');
       dependencies.setSelectionClipboardAvailable(true);
       dependencies.setStatus('Pasted system clipboard image into a new layer');
@@ -1376,17 +1540,23 @@ export const createLayerDocumentCommands = (
     const dirtyBounds = {
       x: placement.x, y: placement.y, width: placement.width, height: placement.height
     };
-    dependencies.applyDocumentSnapshot(after);
-    const pasted = renderer.pasteSelectionClipboard(pastedLayerId);
-    if (!pasted) {
-      dependencies.applyDocumentSnapshot(before);
-      dependencies.setError('The copied pixels could not be pasted into a new layer.');
-      return null;
-    }
     after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
-    dependencies.applyDocumentSnapshot(after);
-    dependencies.pushDocumentHistory(before, after,
-      { label: 'Paste', type: 'layer.paste' });
+    const destination = findRasterLayer(after, pastedLayerId);
+    if (!destination || !commitReservedRasterMutation({
+      operation: 'Paste',
+      current: before,
+      next: after,
+      destination,
+      render: () => renderer.pasteSelectionClipboard(pastedLayerId),
+      historyEntry: {
+        label: 'Paste',
+        type: 'layer.paste',
+        layerIds: [pastedLayerId],
+        undo: () => applyDocumentTransition('Undo Paste', after, before),
+        redo: () => applyDocumentTransition('Redo Paste', before, after)
+      },
+      errorMessage: 'The copied pixels could not be pasted into a new layer.'
+    })) return null;
     dependencies.setActiveChannel('pixels');
     dependencies.setSelectionClipboardAvailable(true);
     dependencies.setStatus('Pasted selection into a new layer');
@@ -1441,7 +1611,6 @@ export const createLayerDocumentCommands = (
     const renderer = dependencies.getRenderer();
     if (!before || !renderer) return null;
     let bitmap: ImageBitmap | null = null;
-    let preparedLayerId: LayerId | null = null;
     try {
       bitmap = await createImageBitmap(file);
       const width = bitmap.width;
@@ -1461,20 +1630,20 @@ export const createLayerDocumentCommands = (
       const layerId = after.activeLayerId;
       if (!layerId) return null;
       const layer = findRasterLayer(after, layerId);
-      if (!layer || !renderer.prepareRasterDestination(layer)) return null;
-      preparedLayerId = layerId;
-      await renderer.loadLayerAssets([{ layerId, pixels: file, mask: null }]);
-      renderer.commitRasterDestination(layerId);
-      preparedLayerId = null;
-      dependencies.applyDocumentSnapshot(after);
-      dependencies.pushDocumentHistory(before, after,
-        { label: 'Place Embedded', type: 'layer.place' });
+      if (!layer || !await commitLoadedRasterLayer({
+        operation: 'Place Embedded',
+        current: before,
+        next: after,
+        destination: layer,
+        assets: [{ layerId, pixels: file, mask: null }],
+        description: { label: 'Place Embedded', type: 'layer.place' },
+        errorMessage: 'The image could not be placed.'
+      })) return null;
       dependencies.setActiveChannel('pixels');
       dependencies.setStatus(`Placed ${name}`);
       dependencies.setError(null);
       return { layerId, width, height };
     } catch (reason) {
-      if (preparedLayerId) renderer.releaseRasterDestination(preparedLayerId);
       dependencies.setError(reason instanceof Error ? reason.message : 'The image could not be placed.');
       return null;
     } finally {
@@ -1507,20 +1676,23 @@ export const createLayerDocumentCommands = (
       [...selection],
       fullDocumentBounds(before)
     );
-    // As with regular paste, allocate the destination before the GPU copy and
-    // publish its pixel revision only after the texture contains the pixels.
-    dependenciesRef.current.applyDocumentSnapshot(after);
-    if (!renderer.pasteSelectionClipboard(copiedLayerId)) {
-      dependenciesRef.current.applyDocumentSnapshot(before);
-      dependenciesRef.current.setError(
-        'The selected pixels could not be placed on a new layer.'
-      );
-      return null;
-    }
     after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
-    dependenciesRef.current.applyDocumentSnapshot(after);
-    dependenciesRef.current.pushDocumentHistory(before, after,
-      { label: 'Layer Via Copy', type: 'layer.via-copy' });
+    const destination = findRasterLayer(after, copiedLayerId);
+    if (!destination || !commitReservedRasterMutation({
+      operation: 'Layer Via Copy',
+      current: before,
+      next: after,
+      destination,
+      render: () => renderer.pasteSelectionClipboard(copiedLayerId),
+      historyEntry: {
+        label: 'Layer Via Copy',
+        type: 'layer.via-copy',
+        layerIds: [sourceId, copiedLayerId],
+        undo: () => applyDocumentTransition('Undo Layer Via Copy', after, before),
+        redo: () => applyDocumentTransition('Redo Layer Via Copy', before, after)
+      },
+      errorMessage: 'The selected pixels could not be placed on a new layer.'
+    })) return null;
     dependenciesRef.current.setSelectionClipboardAvailable(true);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setStatus('Selection copied to a new layer');

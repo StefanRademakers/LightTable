@@ -1877,8 +1877,9 @@ export class WebGpuEngine {
   }
 
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId) {
-    this.documentRenderer?.duplicateLayer(sourceId, destinationId);
-    this.markDocumentDirty();
+    const changed = this.documentRenderer?.duplicateLayer(sourceId, destinationId) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
   }
 
   mergeLayerDown(document: ImageDocument, topId: LayerId, bottomId: LayerId) {

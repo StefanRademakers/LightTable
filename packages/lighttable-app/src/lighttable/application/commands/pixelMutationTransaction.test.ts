@@ -81,6 +81,28 @@ describe('pixelMutationTransaction', () => {
     expect(surface.destroy).toHaveBeenCalledOnce();
   });
 
+  it('restores a required document-owned GPU target before pixel redo', () => {
+    const fixture = createFixture();
+    const redoBase = { ...fixture.before, name: 'Prepared' };
+    const pixels = createEdit(40);
+    commitAppliedPixelMutation(() => fixture.dependencies, {
+      operation: 'Add mask', label: 'Add Layer Mask', type: 'layer.mask.add',
+      layerIds: [fixture.before.layers[0]!.id],
+      before: fixture.before, redoBase, after: fixture.after, edits: [pixels]
+    });
+
+    fixture.history[0]?.undo();
+    fixture.calls.length = 0;
+    fixture.history[0]?.redo();
+
+    expect(fixture.calls).toEqual([
+      'document:Prepared',
+      'redo:40',
+      'document:After'
+    ]);
+    expect(fixture.getDocument()).toBe(fixture.after);
+  });
+
   it('compensates earlier edits when an undo edit fails', () => {
     const fixture = createFixture();
     const surface = createEdit(20);

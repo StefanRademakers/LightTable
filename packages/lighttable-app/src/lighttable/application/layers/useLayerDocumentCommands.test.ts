@@ -36,7 +36,7 @@ const pixelEdit = (): ReversiblePixelEdit => ({
 });
 
 const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRendererPort => ({
-  duplicateLayerPixels: vi.fn(),
+  duplicateLayerPixels: vi.fn(() => true),
   beginLayerPixelEdit: vi.fn(),
   captureAllPixelEdit: vi.fn(() => 1),
   mergeLayers: vi.fn(() => true),
@@ -203,6 +203,20 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
   });
 
+  it('rolls the mask pixels and document node back when history rejects the command', () => {
+    const initial = createImageDocument('Mask history failure', 32, 24, 'asset');
+    const state = setup(initial);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.addActiveLayerMask(true)).toBe(false);
+
+    expect(state.document()).toBe(initial);
+    expect(state.renderer.applyPixelHistory).toHaveBeenCalledWith(expect.anything(), 'undo');
+    expect(state.historyEntries).toHaveLength(0);
+  });
+
   it('applies a generated background matte as one editable mask transaction', () => {
     const state = setup(createImageDocument('Remove background', 32, 24, 'asset'));
     const layerId = state.document().activeLayerId!;
@@ -323,7 +337,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
     expect(state.document().layers).toHaveLength(2);
     expect(state.document().layers.at(-1)).toMatchObject({ width: 32, height: 24 });
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
   });
 
   it('falls back to the bounded image artifact when a fast token is stale', async () => {
@@ -442,8 +456,20 @@ describe('useLayerDocumentCommands', () => {
       sourceId,
       state.document().activeLayerId
     );
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('pixels');
+  });
+
+  it('keeps the source document intact when raster duplication fails', () => {
+    const initial = createImageDocument('Duplicate failure', 32, 24, 'asset');
+    const state = setup(initial);
+    vi.mocked(state.renderer.duplicateLayerPixels).mockReturnValue(false);
+
+    expect(state.commands.duplicateActiveLayer()).toBe(false);
+
+    expect(state.document()).toBe(initial);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(0);
   });
 
   it('duplicates canonical text without requesting nonexistent raster pixels', () => {
@@ -1214,13 +1240,29 @@ describe('useLayerDocumentCommands', () => {
       state.document().activeLayerId
     );
     expect(state.document().layers).toHaveLength(2);
-    const snapshots = vi.mocked(state.dependencies.applyDocumentSnapshot).mock.calls;
-    const preparedLayer = snapshots[0]?.[0].layers.at(-1);
-    const committedLayer = snapshots[1]?.[0].layers.at(-1);
-    expect(preparedLayer?.type === 'raster' ? preparedLayer.pixelRevision : null).toBe(0);
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
+      expect.objectContaining({ id: state.document().activeLayerId })
+    );
+    const committedLayer = state.document().layers.at(-1);
     expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
     expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledWith(true);
+  });
+
+  it('removes a Layer Via Copy destination when history rejects the command', () => {
+    const initial = createImageDocument('Layer Via Copy failure', 32, 24, 'asset');
+    const state = setup(initial);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.layerViaCopy(
+      initial.activeLayerId!, createFullCanvasSelection(16, 12)
+    )).toBeNull();
+
+    expect(state.document()).toBe(initial);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(0);
   });
 
   it('copies the complete explicit raster layer when no selection exists', () => {
@@ -1232,6 +1274,6 @@ describe('useLayerDocumentCommands', () => {
     expect(copiedId).toBe(state.document().activeLayerId);
     expect(copiedId).not.toBe(sourceId);
     expect(state.renderer.duplicateLayerPixels).toHaveBeenCalledWith(sourceId, copiedId);
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
   });
 });

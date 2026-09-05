@@ -26,6 +26,11 @@ export interface CommitAppliedPixelMutation {
   readonly type: string;
   readonly layerIds: readonly LayerId[];
   readonly before: ImageDocument;
+  /**
+   * Optional document state that must exist before GPU redo can address its
+   * target (for example a newly-created layer mask).
+   */
+  readonly redoBase?: ImageDocument;
   readonly after: ImageDocument;
   /** Edits in their forward application order. */
   readonly edits: readonly ReversiblePixelEdit[];
@@ -49,6 +54,13 @@ const applyHistoryState = (
   runEditorOperationTransaction(
     { operation: `${mutation.operation} ${direction}` },
     (transaction) => {
+      if (direction === 'redo' && mutation.redoBase) {
+        transaction.step(
+          'prepare canonical document state',
+          () => dependencies.applyDocumentSnapshot(mutation.redoBase!),
+          () => dependencies.applyDocumentSnapshot(mutation.before)
+        );
+      }
       for (const [index, edit] of edits.entries()) {
         let changed = false;
         transaction.step(`GPU pixel state ${index + 1}`, () => {
@@ -66,7 +78,11 @@ const applyHistoryState = (
       transaction.step(
         'canonical document state',
         () => dependencies.applyDocumentSnapshot(targetDocument),
-        () => dependencies.applyDocumentSnapshot(rollbackDocument)
+        () => dependencies.applyDocumentSnapshot(
+          direction === 'redo' && mutation.redoBase
+            ? mutation.redoBase
+            : rollbackDocument
+        )
       );
     }
   );
