@@ -6575,6 +6575,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    documentMutations: documentMutationController,
     applyDocumentSnapshot,
     applyDocumentAndSelection: async (document, selection, selectionMaskSnapshot) => {
       const renderer = engineRef.current;
@@ -6583,7 +6584,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
       publishDocumentSelection(document, selection, selectionMaskSnapshot);
     },
-    pushDocumentHistory,
     pushHistoryEntry,
     setError,
     setStatus: setGradeStatus,

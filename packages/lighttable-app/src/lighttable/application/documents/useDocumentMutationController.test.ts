@@ -191,6 +191,28 @@ describe('document mutation controller', () => {
     expect(state.history).toHaveLength(0);
   });
 
+  it('retains the document lease while an asynchronous compound commit is publishing', async () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.async-compound');
+    if (!transaction) throw new Error('Expected a document transaction.');
+    transaction.stage((current) => renamed(current, 'Compound'));
+    let finishCommit: (committed: boolean) => void = () => {
+      throw new Error('The async committer did not start.');
+    };
+    const publishing = transaction.commitWithAsync(() => new Promise<boolean>((resolve) => {
+      finishCommit = resolve;
+    }));
+
+    expect(state.controller.activeOwner).toBe('test.async-compound');
+    expect(state.controller.begin('second')).toBeNull();
+    expect(state.controller.change((current) => renamed(current, 'Raced'))).toBe(false);
+    expect(transaction.cancel()).toBe(false);
+
+    finishCommit(true);
+    await expect(publishing).resolves.toBe(true);
+    expect(state.controller.active).toBe(false);
+  });
+
   it('finishes an active gesture before running an unrelated command', () => {
     const state = setup();
     const transaction = state.controller.begin('test.preview');

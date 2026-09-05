@@ -4,7 +4,8 @@ import {
   type ImageDocument,
   type LayerId,
   type LayerNode,
-  type RasterLayer
+  type RasterLayer,
+  type Rect
 } from '../../../editor/document/documentTypes';
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
@@ -47,6 +48,11 @@ import {
   type TransformSessionFrame
 } from '../../../editor/tools/transform/transformSessionFrame';
 import { resolveTransformTargetLayerIds } from './transformTargetSelection';
+import type {
+  DocumentMutationController,
+  DocumentMutationDescription,
+  DocumentMutationTransaction
+} from '../../documents/useDocumentMutationController';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -84,13 +90,13 @@ export interface TransformSessionDependencies {
   getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
   getDocument(): ImageDocument | null;
   getRenderer(): TransformEditorRendererPort | null;
+  documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyDocumentAndSelection(
     document: ImageDocument,
     selection: SelectionOperation[],
     selectionMaskSnapshot: SelectionMaskSnapshot
   ): Promise<void>;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   pushHistoryEntry(entry: TransformHistoryEntry): void;
   setError(message: string | null): void;
   setStatus(message: string): void;
@@ -194,6 +200,60 @@ export const useTransformSessionController = (
     matrix: AffineMatrix;
     bounds: { x: number; y: number; width: number; height: number };
   } | null>(null);
+  const documentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
+
+  const discardOwnedTransformPreview = useCallback(() => {
+    temporaryMoveRef.current = false;
+    temporaryMoveOwnerToolRef.current = null;
+    const mask = maskRef.current;
+    if (mask) {
+      const sourceLayer = findDocumentLayer(mask.before, mask.layerId);
+      if (sourceLayer) {
+        if (mask.linked) {
+          dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.([sourceLayer]);
+        }
+        dependenciesRef.current.getRenderer()?.clearLayerMaskGeometryPreview?.(sourceLayer);
+      }
+    }
+    maskRef.current = null;
+    const group = groupRef.current;
+    if (group) {
+      const sourceLayers = group.layerIds.flatMap((layerId) => {
+        const layer = findDocumentLayer(group.before, layerId);
+        return layer ? [layer] : [];
+      });
+      dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.(sourceLayers);
+    }
+    groupRef.current = null;
+    const controller = controllerRef.current;
+    controller?.invalidatePendingLaunch();
+    if (controller?.state) controller.finish(null, [], false);
+    controllerDocumentIdRef.current = null;
+    controllerDocumentRevisionRef.current = null;
+    controllerSelectionMaskBeforeRef.current = null;
+    controllerSelectionMaskIdentityRef.current = null;
+    controllerSelectionIdentityRef.current = null;
+    setFrameOverride(null);
+    setState(null);
+  }, [setFrameOverride]);
+
+  const beginDocumentTransaction = useCallback((
+    description: DocumentMutationDescription
+  ): DocumentMutationTransaction | null => {
+    let owned: DocumentMutationTransaction | null = null;
+    owned = dependenciesRef.current.documentMutations.begin(
+      'transform',
+      description,
+      (reason) => {
+        if (documentTransactionRef.current !== owned) return;
+        documentTransactionRef.current = null;
+        if (reason !== 'commit') discardOwnedTransformPreview();
+      },
+      'cancel'
+    );
+    if (owned) documentTransactionRef.current = owned;
+    return owned;
+  }, [discardOwnedTransformPreview]);
 
   const isActive = useCallback(
     () => Boolean(controllerRef.current?.state || groupRef.current || maskRef.current),
@@ -202,52 +262,97 @@ export const useTransformSessionController = (
 
   const applyFinishedTransform = useCallback(async (
     result: ReturnType<TransformController['finish']>,
-    beforeSelectionMask: SelectionMaskSnapshot | null
+    beforeSelectionMask: SelectionMaskSnapshot | null,
+    transaction: DocumentMutationTransaction | null
   ) => {
-    if (result.kind === 'cancelled' || result.kind === 'unchanged') return;
+    if (result.kind === 'cancelled' || result.kind === 'unchanged') {
+      transaction?.cancel();
+      return;
+    }
     const current = dependenciesRef.current;
     if (result.kind === 'error') {
+      transaction?.cancel();
       current.setError(result.message);
+      return;
+    }
+    if (!transaction) {
+      if (result.kind !== 'layer') {
+        current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo');
+        result.pixelEdit.destroy();
+      }
+      current.setError('The transform no longer owns the active document transaction.');
       return;
     }
     if (result.kind === 'layer') {
       if (result.afterDocument !== result.beforeDocument) {
-        current.applyDocumentSnapshot(result.afterDocument);
-        current.pushDocumentHistory(result.beforeDocument, result.afterDocument);
-        const layer = findDocumentLayer(result.afterDocument, result.layerId);
-        if (layer) current.onLayerTransformCommitted?.(layer.id, { ...layer.transform });
+        if (!transaction.stage(() => result.afterDocument)) return;
+        if (transaction.commit()) {
+          const layer = findDocumentLayer(result.afterDocument, result.layerId);
+          if (layer) current.onLayerTransformCommitted?.(layer.id, { ...layer.transform });
+        }
+      } else {
+        transaction.cancel();
       }
       return;
     }
 
     if (result.kind === 'raster-layer') {
-      current.applyDocumentSnapshot(result.afterDocument);
-      current.pushHistoryEntry({
-        label: 'Free Transform',
-        type: 'transform.layer',
-        byteSize: result.pixelEdit.byteSize,
-        layerIds: [result.layerId],
-        undo: () => {
-          const latest = dependenciesRef.current;
-          if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-            throw new Error('Transform undo is no longer available.');
+      let editOwned = true;
+      let pixelsApplied = true;
+      const rollback = () => {
+        if (!editOwned) return;
+        if (pixelsApplied) current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo');
+        result.pixelEdit.destroy();
+        editOwned = false;
+      };
+      if (!transaction.stage(() => result.afterDocument)) {
+        rollback();
+        return;
+      }
+      try {
+        const committed = transaction.commitWith((beforeDocument, afterDocument) => {
+          try {
+            current.applyDocumentSnapshot(afterDocument);
+            current.pushHistoryEntry({
+              label: 'Free Transform',
+              type: 'transform.layer',
+              byteSize: result.pixelEdit.byteSize,
+              layerIds: [result.layerId],
+              undo: () => {
+                const latest = dependenciesRef.current;
+                if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
+                  throw new Error('Transform undo is no longer available.');
+                }
+                latest.applyDocumentSnapshot(beforeDocument);
+              },
+              redo: () => {
+                const latest = dependenciesRef.current;
+                if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
+                  throw new Error('Transform redo is no longer available.');
+                }
+                latest.applyDocumentSnapshot(afterDocument);
+              },
+              dispose: result.pixelEdit.destroy
+            });
+            editOwned = false;
+            return true;
+          } catch (reason) {
+            if (current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
+              pixelsApplied = false;
+            }
+            current.applyDocumentSnapshot(beforeDocument);
+            throw reason;
           }
-          latest.applyDocumentSnapshot(result.beforeDocument);
-        },
-        redo: () => {
-          const latest = dependenciesRef.current;
-          if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
-            throw new Error('Transform redo is no longer available.');
-          }
-          latest.applyDocumentSnapshot(result.afterDocument);
-        },
-        dispose: result.pixelEdit.destroy
-      });
+        });
+        if (!committed) rollback();
+      } catch (reason) {
+        rollback();
+        throw reason;
+      }
       return;
     }
 
     const {
-      beforeDocument,
       afterDocument,
       beforeSelection,
       afterSelection,
@@ -258,102 +363,130 @@ export const useTransformSessionController = (
     if (!renderer || !beforeSelectionMask) {
       renderer?.applyPixelHistory(pixelEdit, 'undo');
       pixelEdit.destroy();
+      transaction.cancel();
       current.setError('The exact selection state was unavailable; the transform was rolled back.');
       return;
     }
-    let afterSelectionMask: SelectionMaskSnapshot;
-    try {
-      afterSelectionMask = await renderer.captureSelectionSnapshot();
-    } catch (reason) {
-      renderer.applyPixelHistory(pixelEdit, 'undo');
+    let editOwned = true;
+    let pixelsApplied = true;
+    const rollback = () => {
+      if (!editOwned) return;
+      if (pixelsApplied) renderer.applyPixelHistory(pixelEdit, 'undo');
       pixelEdit.destroy();
-      dependenciesRef.current.setError(
-        reason instanceof Error
-          ? `The transformed selection could not be captured: ${reason.message}`
-          : 'The transformed selection could not be captured; the transform was rolled back.'
-      );
-      return;
-    }
-    const latest = dependenciesRef.current;
-    const latestDocument = latest.getDocument();
-    if (
-      latest.getRenderer() !== renderer
-      || latestDocument?.id !== beforeDocument.id
-      || latestDocument.revision !== beforeDocument.revision
-      || latest.getSelection() !== controllerSelectionIdentityRef.current
-      || latest.getSelectionMaskSnapshot() !== controllerSelectionMaskIdentityRef.current
-    ) {
-      renderer.applyPixelHistory(pixelEdit, 'undo');
-      pixelEdit.destroy();
-      latest.setError('The document changed while the transform was finishing; the transform was rolled back.');
+      editOwned = false;
+    };
+    if (!transaction.stage(() => afterDocument)) {
+      rollback();
       return;
     }
     try {
-      await latest.applyDocumentAndSelection(afterDocument, afterSelection, afterSelectionMask);
+      const committed = await transaction.commitWithAsync(async (
+        ownedBeforeDocument,
+        ownedAfterDocument
+      ) => {
+        let afterSelectionMask: SelectionMaskSnapshot;
+        try {
+          afterSelectionMask = await renderer.captureSelectionSnapshot();
+        } catch (reason) {
+          current.setError(
+            reason instanceof Error
+              ? `The transformed selection could not be captured: ${reason.message}`
+              : 'The transformed selection could not be captured; the transform was rolled back.'
+          );
+          rollback();
+          return false;
+        }
+        const latest = dependenciesRef.current;
+        const latestDocument = latest.getDocument();
+        if (
+          latest.getRenderer() !== renderer
+          || latestDocument !== ownedBeforeDocument
+          || latest.getSelection() !== controllerSelectionIdentityRef.current
+          || latest.getSelectionMaskSnapshot() !== controllerSelectionMaskIdentityRef.current
+        ) {
+          rollback();
+          latest.setError(
+            'The document changed while the transform was finishing; the transform was rolled back.'
+          );
+          return false;
+        }
+        try {
+          await latest.applyDocumentAndSelection(
+            ownedAfterDocument,
+            afterSelection,
+            afterSelectionMask
+          );
+          latest.pushHistoryEntry({
+            label: 'Free Transform',
+            type: 'transform.selection',
+            byteSize: pixelEdit.byteSize + beforeSelectionMask.byteSize + afterSelectionMask.byteSize,
+            layerIds: [layerId],
+            undo: async () => {
+              const undoDependencies = dependenciesRef.current;
+              if (!undoDependencies.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
+                throw new Error('Transform undo is no longer available.');
+              }
+              try {
+                await undoDependencies.applyDocumentAndSelection(
+                  ownedBeforeDocument,
+                  beforeSelection,
+                  beforeSelectionMask
+                );
+              } catch (reason) {
+                undoDependencies.getRenderer()?.applyPixelHistory(pixelEdit, 'redo');
+                await undoDependencies.applyDocumentAndSelection(
+                  ownedAfterDocument,
+                  afterSelection,
+                  afterSelectionMask
+                );
+                throw reason;
+              }
+            },
+            redo: async () => {
+              const redoDependencies = dependenciesRef.current;
+              if (!redoDependencies.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
+                throw new Error('Transform redo is no longer available.');
+              }
+              try {
+                await redoDependencies.applyDocumentAndSelection(
+                  ownedAfterDocument,
+                  afterSelection,
+                  afterSelectionMask
+                );
+              } catch (reason) {
+                redoDependencies.getRenderer()?.applyPixelHistory(pixelEdit, 'undo');
+                await redoDependencies.applyDocumentAndSelection(
+                  ownedBeforeDocument,
+                  beforeSelection,
+                  beforeSelectionMask
+                );
+                throw reason;
+              }
+            },
+            dispose: pixelEdit.destroy
+          });
+          editOwned = false;
+          return true;
+        } catch (reason) {
+          if (renderer.applyPixelHistory(pixelEdit, 'undo')) pixelsApplied = false;
+          try {
+            await latest.applyDocumentAndSelection(
+              ownedBeforeDocument,
+              beforeSelection,
+              beforeSelectionMask
+            );
+          } catch {
+            // Preserve the publication error. No history command owns the edit.
+          }
+          rollback();
+          throw reason;
+        }
+      });
+      if (!committed) rollback();
     } catch (reason) {
-      renderer.applyPixelHistory(pixelEdit, 'undo');
-      try {
-        await latest.applyDocumentAndSelection(
-          beforeDocument,
-          beforeSelection,
-          beforeSelectionMask
-        );
-      } catch {
-        // Preserve the original publication failure. The history command was
-        // never recorded, and the renderer already received the pixel rollback.
-      }
-      pixelEdit.destroy();
+      rollback();
       throw reason;
     }
-    latest.pushHistoryEntry({
-      label: current.activeChannel === 'mask' ? 'Transform Layer Mask' : 'Free Transform',
-      type: current.activeChannel === 'mask' ? 'transform.mask' : 'transform.layer',
-      byteSize: pixelEdit.byteSize + beforeSelectionMask.byteSize + afterSelectionMask.byteSize,
-      layerIds: [layerId],
-      undo: async () => {
-        const latest = dependenciesRef.current;
-        if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-          throw new Error('Transform undo is no longer available.');
-        }
-        try {
-          await latest.applyDocumentAndSelection(
-            beforeDocument,
-            beforeSelection,
-            beforeSelectionMask
-          );
-        } catch (reason) {
-          latest.getRenderer()?.applyPixelHistory(pixelEdit, 'redo');
-          await latest.applyDocumentAndSelection(
-            afterDocument,
-            afterSelection,
-            afterSelectionMask
-          );
-          throw reason;
-        }
-      },
-      redo: async () => {
-        const latest = dependenciesRef.current;
-        if (!latest.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-          throw new Error('Transform redo is no longer available.');
-        }
-        try {
-          await latest.applyDocumentAndSelection(
-            afterDocument,
-            afterSelection,
-            afterSelectionMask
-          );
-        } catch (reason) {
-          latest.getRenderer()?.applyPixelHistory(pixelEdit, 'undo');
-          await latest.applyDocumentAndSelection(
-            beforeDocument,
-            beforeSelection,
-            beforeSelectionMask
-          );
-          throw reason;
-        }
-      },
-      dispose: pixelEdit.destroy
-    });
   }, []);
 
   const finish = useCallback((commit: boolean): Promise<void> => {
@@ -362,6 +495,7 @@ export const useTransformSessionController = (
     setFrameOverride(null);
     const mask = maskRef.current;
     if (mask) {
+      const transaction = documentTransactionRef.current;
       maskRef.current = null;
       const current = dependenciesRef.current;
       const activeDocument = current.getDocument();
@@ -373,9 +507,11 @@ export const useTransformSessionController = (
       const unchanged = matrixApproximatelyEqual(mask.matrix, identityMatrix());
       setState(null);
       if (!activeDocument || activeDocument.id !== mask.before.id || !commit || unchanged) {
+        transaction?.cancel();
         return finishPromiseRef.current;
       }
       if (activeDocument.revision !== mask.before.revision) {
+        transaction?.cancel();
         current.setError('The document changed during the mask transform; the preview was discarded.');
         return finishPromiseRef.current;
       }
@@ -389,14 +525,19 @@ export const useTransformSessionController = (
             mask.before,
             mask.layerId,
             multiplyMatrices(mask.matrix, mask.maskTransform)
-          );
-      if (after === mask.before) return finishPromiseRef.current;
-      current.applyDocumentSnapshot(after);
-      current.pushDocumentHistory(mask.before, after);
+      );
+      if (after === mask.before) {
+        transaction?.cancel();
+        return finishPromiseRef.current;
+      }
+      if (!transaction?.stage(() => after) || !transaction.commit()) {
+        current.setError('The layer mask transform could not be committed.');
+      }
       return finishPromiseRef.current;
     }
     const group = groupRef.current;
     if (group) {
+      const transaction = documentTransactionRef.current;
       groupRef.current = null;
       const current = dependenciesRef.current;
       const renderer = current.getRenderer();
@@ -409,9 +550,11 @@ export const useTransformSessionController = (
       const unchanged = matrixApproximatelyEqual(group.matrix, identityMatrix());
       setState(null);
       if (!activeDocument || activeDocument.id !== group.before.id || !commit || unchanged) {
+        transaction?.cancel();
         return finishPromiseRef.current;
       }
       if (activeDocument.revision !== group.before.revision) {
+        transaction?.cancel();
         current.setError('The document changed during the group transform; the preview was discarded.');
         return finishPromiseRef.current;
       }
@@ -420,13 +563,15 @@ export const useTransformSessionController = (
         group.layerIds,
         group.matrix
       );
-      current.applyDocumentSnapshot(after);
-      current.pushDocumentHistory(group.before, after);
+      if (!transaction?.stage(() => after) || !transaction.commit()) {
+        current.setError('The layer group transform could not be committed.');
+      }
       return finishPromiseRef.current;
     }
     const controller = controllerRef.current;
     if (!controller?.state) return finishPromiseRef.current;
     const current = dependenciesRef.current;
+    const transaction = documentTransactionRef.current;
     const document = current.getDocument();
     const belongsToActiveDocument = Boolean(
       document
@@ -452,10 +597,11 @@ export const useTransformSessionController = (
     }
     if (commit && !belongsToActiveDocument) {
       controllerSelectionMaskIdentityRef.current = null;
+      transaction?.cancel();
       current.setError('The document or selection changed during the transform; the preview was discarded.');
       return finishPromiseRef.current;
     }
-    const pending = applyFinishedTransform(result, beforeSelectionMask)
+    const pending = applyFinishedTransform(result, beforeSelectionMask, transaction)
       .catch((reason) => {
         dependenciesRef.current.setError(
           reason instanceof Error ? reason.message : 'The transform could not be finished.'
@@ -470,42 +616,13 @@ export const useTransformSessionController = (
   }, [applyFinishedTransform, setFrameOverride]);
 
   const reset = useCallback(() => {
-    temporaryMoveRef.current = false;
-    temporaryMoveOwnerToolRef.current = null;
-    const mask = maskRef.current;
-    if (mask) {
-      const sourceLayer = findDocumentLayer(mask.before, mask.layerId);
-      if (sourceLayer) {
-        if (mask.linked) {
-          dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.([sourceLayer]);
-        }
-        dependenciesRef.current.getRenderer()?.clearLayerMaskGeometryPreview?.(sourceLayer);
-      }
+    const transaction = documentTransactionRef.current;
+    if (transaction) {
+      if (transaction.cancel() || transaction.active) return;
+      documentTransactionRef.current = null;
     }
-    maskRef.current = null;
-    const group = groupRef.current;
-    if (group) {
-      const sourceLayers = group.layerIds.flatMap((layerId) => {
-        const layer = findDocumentLayer(group.before, layerId);
-        return layer ? [layer] : [];
-      });
-      dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.(sourceLayers);
-    }
-    groupRef.current = null;
-    const controller = controllerRef.current;
-    controller?.invalidatePendingLaunch();
-    if (controller?.state) {
-      controller.finish(dependenciesRef.current.getDocument(), [], false);
-    }
-    controllerRef.current = null;
-    controllerDocumentIdRef.current = null;
-    controllerDocumentRevisionRef.current = null;
-    controllerSelectionMaskBeforeRef.current = null;
-    controllerSelectionMaskIdentityRef.current = null;
-    controllerSelectionIdentityRef.current = null;
-    setFrameOverride(null);
-    setState(null);
-  }, [setFrameOverride]);
+    discardOwnedTransformPreview();
+  }, [discardOwnedTransformPreview]);
 
   const begin = useCallback(async (reportEmptyLayer = true, allowInactiveTool = false) => {
     await finishPromiseRef.current;
@@ -526,7 +643,7 @@ export const useTransformSessionController = (
       const latest = dependenciesRef.current;
       const latestDocument = latest.getDocument();
       return (allowInactiveTool || latest.activeTool === 'transform')
-        && latestDocument?.id === document.id
+        && latestDocument === document
         && latestDocument.activeLayerId === document.activeLayerId
         && latest.activeChannel === current.activeChannel
         && resolveTransformTargetLayerIds(
@@ -541,9 +658,31 @@ export const useTransformSessionController = (
         setState(null);
         return;
       }
-      const measured = await renderer.measureLayerMaskContent(activeLayer);
-      if (!launchIsCurrent()) return;
+      const transaction = beginDocumentTransaction({
+        label: 'Transform Layer Mask',
+        type: 'transform.mask',
+        layerIds: [activeLayer.id]
+      });
+      if (!transaction) {
+        current.setError('The document is still completing another edit.');
+        return;
+      }
+      let measured: SelectionCoverageBounds | null;
+      try {
+        measured = await renderer.measureLayerMaskContent(activeLayer);
+      } catch (reason) {
+        transaction.cancel();
+        current.setError(reason instanceof Error
+          ? reason.message
+          : 'The layer mask could not be measured.');
+        return;
+      }
+      if (!launchIsCurrent() || !transaction.active) {
+        transaction.cancel();
+        return;
+      }
       if (!measured) {
+        transaction.cancel();
         current.setError('The active layer mask has no measurable content.');
         return;
       }
@@ -576,9 +715,31 @@ export const useTransformSessionController = (
         return candidate && !layerIsLocked(candidate, 'position');
       });
     if (groupIds.length > 1) {
-      const bounds = await measureTransformGroupBounds(document, groupIds, renderer);
-      if (!launchIsCurrent()) return;
+      const transaction = beginDocumentTransaction({
+        label: 'Free Transform',
+        type: 'transform.layer-group',
+        layerIds: groupIds
+      });
+      if (!transaction) {
+        current.setError('The document is still completing another edit.');
+        return;
+      }
+      let bounds: Rect | null;
+      try {
+        bounds = await measureTransformGroupBounds(document, groupIds, renderer);
+      } catch (reason) {
+        transaction.cancel();
+        current.setError(reason instanceof Error
+          ? reason.message
+          : 'The selected layers could not be measured.');
+        return;
+      }
+      if (!launchIsCurrent() || !transaction.active) {
+        transaction.cancel();
+        return;
+      }
       if (!bounds) {
+        transaction.cancel();
         current.setError('The selected layers have no measurable content yet.');
         return;
       }
@@ -609,6 +770,15 @@ export const useTransformSessionController = (
       setState(null);
       return;
     }
+    const transaction = beginDocumentTransaction({
+      label: 'Free Transform',
+      type: 'transform.layer',
+      layerIds: [layer.id]
+    });
+    if (!transaction) {
+      current.setError('The document is still completing another edit.');
+      return;
+    }
     const controller = controllerRef.current ?? new TransformController(renderer);
     controllerRef.current = controller;
     controllerDocumentIdRef.current = document.id;
@@ -621,6 +791,7 @@ export const useTransformSessionController = (
       try {
         selectionMaskBefore = await renderer.captureSelectionSnapshot();
       } catch (reason) {
+        transaction.cancel();
         controllerDocumentIdRef.current = null;
         controllerDocumentRevisionRef.current = null;
         controllerSelectionIdentityRef.current = null;
@@ -633,6 +804,7 @@ export const useTransformSessionController = (
         return;
       }
       if (!launchIsCurrent()
+        || !transaction.active
         || dependenciesRef.current.getSelection() !== selection
         || dependenciesRef.current.getSelectionMaskSnapshot()
           !== controllerSelectionMaskIdentityRef.current) {
@@ -640,12 +812,14 @@ export const useTransformSessionController = (
         controllerDocumentRevisionRef.current = null;
         controllerSelectionIdentityRef.current = null;
         controllerSelectionMaskIdentityRef.current = null;
+        transaction.cancel();
         return;
       }
     }
     const result = await controller.begin(document, selection);
-    if (!launchIsCurrent()) {
+    if (!launchIsCurrent() || !transaction.active) {
       if (result.ok) controller.finish(null, [], false);
+      transaction.cancel();
       if (controllerRef.current === controller) {
         controllerDocumentIdRef.current = null;
         controllerDocumentRevisionRef.current = null;
@@ -670,6 +844,7 @@ export const useTransformSessionController = (
     controllerSelectionIdentityRef.current = null;
     controllerDocumentIdRef.current = null;
     controllerDocumentRevisionRef.current = null;
+    transaction.cancel();
     if (result.code === 'stale' || result.code === 'already-active') return;
     if (result.code === 'empty-layer' && !reportEmptyLayer) {
       current.setError(null);
@@ -677,7 +852,7 @@ export const useTransformSessionController = (
       return;
     }
     if (result.message) current.setError(result.message);
-  }, [setFrameOverride]);
+  }, [beginDocumentTransaction, setFrameOverride]);
 
   const checkpoint = useCallback(() => {
     const active = controllerRef.current?.state ?? (state ? {
@@ -835,25 +1010,29 @@ export const useTransformSessionController = (
   const repeat = useCallback((duplicate = false) => {
     const delta = lastLayerTransformRef.current;
     const current = dependenciesRef.current;
-    const before = current.getDocument();
-    if (!delta || !before?.activeLayerId) {
+    if (!delta || !current.getDocument()?.activeLayerId) {
       current.setError('There is no previous layer transform to repeat.');
       return;
     }
-    const withTarget = duplicate ? duplicateLayer(before, before.activeLayerId) : before;
-    const target = findDocumentLayer(withTarget, withTarget.activeLayerId);
-    if (!target) {
-      current.setError('The active layer can no longer be transformed.');
-      return;
-    }
-    const after = setLayerTransform(
-      withTarget,
-      target.id,
-      multiplyMatrices(delta, target.transform)
+    const changed = current.documentMutations.change(
+      (before) => {
+        if (!before.activeLayerId) return before;
+        const withTarget = duplicate ? duplicateLayer(before, before.activeLayerId) : before;
+        const target = findDocumentLayer(withTarget, withTarget.activeLayerId);
+        if (!target) return before;
+        return setLayerTransform(
+          withTarget,
+          target.id,
+          multiplyMatrices(delta, target.transform)
+        );
+      },
+      true,
+      {
+        label: duplicate ? 'Duplicate and Transform Again' : 'Transform Again',
+        type: duplicate ? 'transform.repeat-duplicate' : 'transform.repeat'
+      }
     );
-    current.applyDocumentSnapshot(after);
-    current.pushDocumentHistory(before, after);
-    current.setError(null);
+    current.setError(changed ? null : 'The active layer can no longer be transformed.');
   }, []);
 
   const applyNudge = useCallback((
@@ -933,6 +1112,14 @@ export const useTransformSessionController = (
   }, [begin, isActive]);
 
   useEffect(() => {
+    const documentTransaction = documentTransactionRef.current;
+    if (
+      documentTransaction?.active
+      && documentTransaction.documentId !== dependencies.activeDocument?.id
+    ) {
+      documentTransaction.cancel();
+      return;
+    }
     const controller = controllerRef.current;
     const activeGroup = groupRef.current;
     const activeMask = maskRef.current;
@@ -1027,6 +1214,9 @@ export const useTransformSessionController = (
   ]);
 
   useEffect(() => () => {
+    const documentTransaction = documentTransactionRef.current;
+    documentTransactionRef.current = null;
+    documentTransaction?.cancel();
     const controller = controllerRef.current;
     controller?.invalidatePendingLaunch();
     if (controller?.state) controller.finish(null, [], false);

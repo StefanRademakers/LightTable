@@ -36,6 +36,14 @@ export interface DocumentMutationTransaction {
   commit(description?: DocumentMutationDescription): boolean;
   /** Completes a compound GPU/document operation without creating generic history. */
   commitWith(commit: (before: ImageDocument, after: ImageDocument) => boolean): boolean;
+  /**
+   * Completes an asynchronous compound operation while retaining the document lease.
+   * New document mutations are rejected until the compound publisher has either
+   * committed every owned state surface or rolled all of them back.
+   */
+  commitWithAsync(
+    commit: (before: ImageDocument, after: ImageDocument) => Promise<boolean>
+  ): Promise<boolean>;
   cancel(): boolean;
 }
 
@@ -137,6 +145,7 @@ interface ActiveDocumentTransaction {
   readonly description?: DocumentMutationDescription;
   readonly onClose?: (reason: DocumentMutationCloseReason) => void;
   readonly interruption: DocumentMutationInterruption;
+  phase: 'previewing' | 'committing';
   latest: ImageDocument;
 }
 
@@ -296,7 +305,9 @@ export const createDocumentMutationController = (
     token: symbol,
     reason: DocumentMutationCloseReason = 'cancel'
   ): boolean => {
-    if (!transaction || transaction.token !== token) return false;
+    if (!transaction || transaction.token !== token || transaction.phase === 'committing') {
+      return false;
+    }
     const active = transaction;
     transaction = null;
     active.onClose?.(reason);
@@ -309,7 +320,7 @@ export const createDocumentMutationController = (
     description?: DocumentMutationDescription
   ): boolean => {
     const active = transaction;
-    if (!active || active.token !== token) return false;
+    if (!active || active.token !== token || active.phase === 'committing') return false;
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
       active.onClose?.('stale');
@@ -344,7 +355,7 @@ export const createDocumentMutationController = (
     commit: (before: ImageDocument, after: ImageDocument) => boolean
   ): boolean => {
     const active = transaction;
-    if (!active || active.token !== token) return false;
+    if (!active || active.token !== token || active.phase === 'committing') return false;
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
       active.onClose?.('stale');
@@ -369,12 +380,48 @@ export const createDocumentMutationController = (
     }
   };
 
+  const commitTransactionWithAsync = async (
+    token: symbol,
+    commit: (before: ImageDocument, after: ImageDocument) => Promise<boolean>
+  ): Promise<boolean> => {
+    const active = transaction;
+    if (!active || active.token !== token || active.phase === 'committing') return false;
+    if (!canonicalOriginIsCurrent(active)) {
+      transaction = null;
+      active.onClose?.('stale');
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    if (active.latest === active.before) {
+      transaction = null;
+      active.onClose?.('commit');
+      resolveDependencies().discardPreview();
+      return false;
+    }
+    // Keep the lease visible while the specialized publisher coordinates GPU,
+    // document and auxiliary state. A second command cannot supersede a
+    // half-published compound edit.
+    active.phase = 'committing';
+    try {
+      const committed = await commit(active.before, active.latest);
+      if (transaction?.token === token) transaction = null;
+      active.onClose?.(committed ? 'commit' : 'failed');
+      if (!committed) resolveDependencies().discardPreview();
+      return committed;
+    } catch (error) {
+      if (transaction?.token === token) transaction = null;
+      active.onClose?.('failed');
+      resolveDependencies().discardPreview();
+      throw error;
+    }
+  };
+
   const updateTransaction = (
     active: ActiveDocumentTransaction,
     mutate: (current: ImageDocument) => ImageDocument,
     project: boolean
   ): boolean => {
-    if (transaction?.token !== active.token) return false;
+    if (transaction?.token !== active.token || active.phase === 'committing') return false;
     if (!canonicalOriginIsCurrent(active)) {
       cancelTransaction(active.token);
       return false;
@@ -411,6 +458,7 @@ export const createDocumentMutationController = (
       // lease. Its old handle becomes stale and cannot preview, commit or
       // discard the new owner's state.
       if (transaction) {
+        if (transaction.phase === 'committing') return null;
         if (transaction.interruption === 'cancel') {
           cancelTransaction(transaction.token, 'superseded');
         } else {
@@ -427,6 +475,7 @@ export const createDocumentMutationController = (
         description,
         onClose,
         interruption,
+        phase: 'previewing',
         latest: document
       };
       transaction = active;
@@ -444,6 +493,7 @@ export const createDocumentMutationController = (
         change: (mutate) => updateTransaction(active, mutate, true),
         commit: (description) => commitTransaction(active.token, description),
         commitWith: (commit) => commitTransactionWith(active.token, commit),
+        commitWithAsync: (commit) => commitTransactionWithAsync(active.token, commit),
         cancel: () => cancelTransaction(active.token)
       };
     },
@@ -458,6 +508,7 @@ export const createDocumentMutationController = (
       // history item before executing the command. Late callbacks are rejected
       // by the transaction token.
       if (transaction) {
+        if (transaction.phase === 'committing') return false;
         if (transaction.interruption === 'cancel') {
           cancelTransaction(transaction.token, 'superseded');
         } else {
