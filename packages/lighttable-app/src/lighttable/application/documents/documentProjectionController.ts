@@ -27,6 +27,7 @@ export interface DocumentProjectionPort {
 }
 
 export interface DocumentProjectionController {
+  previewDocumentSnapshot(document: ImageDocument): void;
   previewAdjustmentSnapshot(
     snapshot: BasicAdjustments,
     targetLayerId?: LayerId | null,
@@ -40,6 +41,7 @@ export interface DocumentProjectionController {
   ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
+  discardDocumentPreview(): void;
   discardAdjustmentPreview(): void;
 }
 
@@ -114,6 +116,13 @@ export const createDocumentProjectionController = (
   };
 
   return {
+    previewDocumentSnapshot: (document) => {
+      const canonicalDocument = port.getDocument();
+      if (!canonicalDocument || document.id !== canonicalDocument.id) return;
+      previewDocument = document;
+      port.publishRendererDocument(document);
+      publishRendererAdjustments();
+    },
     previewAdjustmentSnapshot: (snapshot, targetLayerId = null, domain = 'all') => {
       projectAdjustments(snapshot, targetLayerId, false, domain);
     },
@@ -134,6 +143,16 @@ export const createDocumentProjectionController = (
     applyGroupVisibilitySnapshot: (visibility) => {
       port.publishGroupVisibility(visibility);
       publishRendererAdjustments();
+    },
+    discardDocumentPreview: () => {
+      const canonicalDocument = port.getDocument();
+      const hadDocumentPreview = previewDocument !== null
+        && previewDocument.id === canonicalDocument?.id;
+      previewDocument = null;
+      if (hadDocumentPreview && canonicalDocument) {
+        port.publishRendererDocument(canonicalDocument);
+        publishRendererAdjustments();
+      }
     },
     discardAdjustmentPreview: () => {
       const canonicalDocument = port.getDocument();

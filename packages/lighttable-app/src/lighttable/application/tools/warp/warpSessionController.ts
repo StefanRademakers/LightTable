@@ -42,6 +42,8 @@ export interface WarpHistoryEntry {
 
 export interface WarpSessionDependencies {
   getDocument(): ImageDocument | null;
+  previewDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: WarpHistoryEntry): void;
   setError(message: string | null): void;
@@ -74,6 +76,7 @@ interface ActiveWarpSession {
   readonly documentId: ImageDocument['id'];
   readonly layerId: RasterLayer['id'];
   readonly before: ImageDocument;
+  previewDocument: ImageDocument;
 }
 
 const documentWithoutWarp = (
@@ -135,20 +138,23 @@ export const createWarpSessionController = (
   } | null => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
-    if (!active || !document || document.id !== active.documentId) return null;
-    const layer = findRasterLayer(document, active.layerId);
-    return layer ? { dependencies, document, layer } : null;
+    if (!active || !document || document.id !== active.documentId
+      || document.revision !== active.before.revision) return null;
+    const layer = findRasterLayer(active.previewDocument, active.layerId);
+    return layer ? { dependencies, document: active.previewDocument, layer } : null;
   };
 
   const publishStroke = (stroke: WarpStroke): boolean => {
     const target = currentTarget();
     if (!target) return false;
-    target.dependencies.applyDocumentSnapshot(applyWarpStrokeToDocument(
-      target.document,
+    const previewDocument = applyWarpStrokeToDocument(
+      active!.before,
       target.layer.id,
       stroke,
       target.dependencies
-    ));
+    );
+    active!.previewDocument = previewDocument;
+    target.dependencies.previewDocumentSnapshot(previewDocument);
     return true;
   };
 
@@ -165,7 +171,7 @@ export const createWarpSessionController = (
     previewScheduler.cancel();
     const dependencies = resolveDependencies();
     if (dependencies.getDocument()?.id === active.documentId) {
-      dependencies.applyDocumentSnapshot(active.before);
+      dependencies.discardDocumentPreview();
     }
   };
 
@@ -217,7 +223,8 @@ export const createWarpSessionController = (
       active = {
         documentId: document.id,
         layerId: layer.id,
-        before: document
+        before: document,
+        previewDocument: document
       };
       dependencies.setInteractionActive?.(true);
       const stroke = gesture.begin({
@@ -259,10 +266,11 @@ export const createWarpSessionController = (
         return false;
       }
       const dependencies = resolveDependencies();
-      const after = dependencies.getDocument();
+      const after = active?.previewDocument ?? null;
       active = null;
       dependencies.setInteractionActive?.(false);
       if (!after || after.id !== session.documentId) return false;
+      dependencies.applyDocumentSnapshot(after);
       dependencies.pushHistoryEntry({
         label: 'Warp layer',
         type: 'layer.warp',

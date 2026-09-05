@@ -46,12 +46,20 @@ const harness = () => {
     ...base,
     layers: [layer]
   };
+  let projectedDocument = document;
   const history: Array<{ undo(): void; redo(): void }> = [];
   let id = 0;
   const dependencies = {
     getDocument: () => document,
+    previewDocumentSnapshot: vi.fn((next: ImageDocument) => {
+      projectedDocument = next;
+    }),
+    discardDocumentPreview: vi.fn(() => {
+      projectedDocument = document;
+    }),
     applyDocumentSnapshot: vi.fn((next) => {
       document = next;
+      projectedDocument = next;
     }),
     pushHistoryEntry: vi.fn((entry) => history.push(entry)),
     setError: vi.fn(),
@@ -66,8 +74,12 @@ const harness = () => {
     get document() {
       return document;
     },
+    get projectedDocument() {
+      return projectedDocument;
+    },
     set document(next) {
       document = next;
+      projectedDocument = next;
     }
   };
 };
@@ -90,7 +102,10 @@ describe('Warp session controller', () => {
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
     expect(state.dependencies.setInteractionActive.mock.calls).toEqual([[true], [false]]);
 
-    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const layer = findRasterLayer(
+      state.projectedDocument,
+      state.projectedDocument.activeLayerId
+    )!;
     expect(state.dependencies.onStrokeCommitted).toHaveBeenCalledTimes(1);
     expect(state.dependencies.onStrokeCommitted).toHaveBeenCalledWith(
       layer.id,
@@ -157,7 +172,11 @@ describe('Warp session controller', () => {
       point(140, 100, 22)
     ])).toBe(true);
     expect(schedule).toHaveBeenCalledOnce();
-    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    expect(state.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
+    const layer = findRasterLayer(
+      state.projectedDocument,
+      state.projectedDocument.activeLayerId
+    )!;
     const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
     const stroke = settings.strokes[0]!;
     expect(stroke.samples).toHaveLength(4);
@@ -227,14 +246,14 @@ describe('Warp session controller', () => {
       settings: brush,
       point: point(80, 40, 10)
     })).toBe(true);
-    const publicationsAfterBegin = state.dependencies.applyDocumentSnapshot.mock.calls.length;
+    const publicationsAfterBegin = state.dependencies.previewDocumentSnapshot.mock.calls.length;
 
     expect(controller.move(8, point(60, 60, 20))).toBe(true);
     expect(controller.move(8, point(40, 80, 30))).toBe(true);
-    expect(state.dependencies.applyDocumentSnapshot).toHaveBeenCalledTimes(publicationsAfterBegin);
+    expect(state.dependencies.previewDocumentSnapshot).toHaveBeenCalledTimes(publicationsAfterBegin);
 
     (frameCallback as (() => void) | null)?.();
-    expect(state.dependencies.applyDocumentSnapshot)
+    expect(state.dependencies.previewDocumentSnapshot)
       .toHaveBeenCalledTimes(publicationsAfterBegin + 1);
 
     expect(controller.move(8, point(20, 100, 40))).toBe(true);

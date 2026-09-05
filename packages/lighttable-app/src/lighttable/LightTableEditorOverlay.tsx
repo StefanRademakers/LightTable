@@ -4363,6 +4363,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const warpSessionController = useWarpSessionController({
     getDocument: () => imageDocumentRef.current,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
     applyDocumentSnapshot,
     pushHistoryEntry,
     setError,
