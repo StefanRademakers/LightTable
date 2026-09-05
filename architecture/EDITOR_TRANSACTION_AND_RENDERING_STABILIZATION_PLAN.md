@@ -111,7 +111,7 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
 | Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
 | Point, paragraph, vertical and path text | Move, resize and handle gestures use document leases | Partial: typing, conversion and recovery paths still need audit |
-| Layer mutations, merge, rasterize and flatten | Mixed direct document/history and compound GPU paths | Migration pending |
+| Layer mutations, merge, rasterize and flatten | Document lease plus atomic document/GPU publication | Migrated; repeated workflow and renderer-resource verification remains |
 | Adjustments, effects and filters | Shared preview controller for the migrated adjustment paths | Partial: every effect/filter commit and resource cleanup still needs an inventory |
 
 This table is the completion ledger. A family is not considered stable merely because its primary pointer gesture uses the transaction controller; semantic commands, Actions/MCP execution, cancel, document switch, undo/redo and renderer recovery must reach the same boundary as well.
@@ -332,23 +332,29 @@ Required change:
 - include executor-specific buffers and transient targets in memory estimates;
 - cancel, rather than finish, a transient slider operation during unrelated unmount or target replacement.
 
-### Merge, rasterize and flatten are not transactional
+### Transactional layer mutation publication
 
-The structural planning is generally correct: sources are validated, a destination runtime is reserved, compositing bakes effects/masks/transforms and the result document is produced. The publication sequence is not protected by one rollback owner.
+The layer command controller now acquires the document mutation lease before it plans or publishes destructive work. Duplicate, mask creation and background removal, adjustment creation, merge, flatten, rasterize, invert, Paste, Place and Layer Via Copy all bind to the opening document identity and revision. Async asset loading and mask upload retain the lease until their compound publisher completes.
 
 Relevant implementation:
 
 - `packages/lighttable-app/src/lighttable/application/layers/useLayerDocumentCommands.ts`
 - raster document operations under `packages/lighttable-app/src/lighttable/application/layers/`
 
-Required change:
+Implemented boundary:
 
-- reserve destination resources inside the operation transaction;
-- publish the new document only after compositing succeeds;
-- retain source and destination resources until the history entry is durably registered;
-- on rollback restore both document and runtime-resource ownership;
-- verify merge with masks, clipping, transforms, adjustments and layer effects;
-- make text rasterization use the same transaction ordering as generic rasterization.
+- destination resources remain reserved until document and history publication succeeds;
+- the new document is published only after GPU compositing succeeds;
+- pixel snapshots transfer to history only after rollback ownership is registered;
+- failed staging or publication restores unfinished pixel edits and releases reservations;
+- text rasterization uses the same document lease as generic rasterization;
+- merge-down resolves its adjacent layers from the leased snapshot rather than a pre-transaction UI read.
+
+Still required before declaring the family complete:
+
+- repeat merge with masks, clipping, transforms, adjustments and layer effects through undo/redo;
+- inject failures at reservation, render, document publication and history registration;
+- verify renderer resource counts after history eviction and document close.
 
 ### Paint always consumes a selection texture
 

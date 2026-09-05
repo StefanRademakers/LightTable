@@ -25,8 +25,10 @@ import {
 import {
   createLayerDocumentCommands,
   type LayerCommandHistoryEntry,
-  type LayerCommandRendererPort
+  type LayerCommandRendererPort,
+  type LayerDocumentCommandDependencies
 } from './useLayerDocumentCommands';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 
 const pixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 64,
@@ -66,6 +68,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
 
 const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
+  let previewDocument: ImageDocument | null = null;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
   const imageClipboard = {
@@ -84,11 +87,15 @@ const setup = (initialDocument: ImageDocument) => {
   let documentAdjustments = createDefaultAdjustments();
   let panelAdjustments = createDefaultAdjustments();
   let globalGradeStrength = 100;
-  const dependencies = {
+  let documentMutations!: LayerDocumentCommandDependencies['documentMutations'];
+  const dependencies: LayerDocumentCommandDependencies = {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => 'test-document',
+    get documentMutations() {
+      return documentMutations;
+    },
     applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
       document = next;
     }),
@@ -111,6 +118,17 @@ const setup = (initialDocument: ImageDocument) => {
       globalGradeStrength = next;
     })
   };
+  documentMutations = createDocumentMutationController(() => ({
+    getDocument: dependencies.getDocument,
+    applySnapshot: dependencies.applyDocumentSnapshot,
+    previewSnapshot: (next) => {
+      previewDocument = next;
+    },
+    discardPreview: () => {
+      previewDocument = null;
+    },
+    pushHistoryEntry: dependencies.pushHistoryEntry
+  }));
   const commands = createLayerDocumentCommands(() => dependencies);
   return {
     commands,
@@ -119,6 +137,7 @@ const setup = (initialDocument: ImageDocument) => {
     imageClipboard,
     historyEntries,
     document: () => document,
+    previewDocument: () => previewDocument,
     documentAdjustments: () => documentAdjustments,
     panelAdjustments: () => panelAdjustments,
     globalGradeStrength: () => globalGradeStrength
@@ -167,7 +186,7 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.document().layers[0]?.mask).not.toBeNull();
     expect(state.renderer.bakeSelectionIntoLayerMask).not.toHaveBeenCalled();
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
     expect(state.document().activeLayerId).toBe(layerId);
   });
@@ -483,7 +502,7 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.document().layers.at(-1)?.type).toBe('text');
     expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
   });
 
   it('duplicates canonical vector shapes without requesting raster preview pixels', () => {
@@ -498,7 +517,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.commands.duplicateActiveLayer()).toBe(true);
     expect(state.document().layers.at(-1)?.type).toBe('vector');
     expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
   });
 
   it('rasterizes fixture text as one recoverable GPU and document transaction', () => {
@@ -773,7 +792,7 @@ describe('useLayerDocumentCommands', () => {
     ]);
     expect(state.dependencies.publishDocumentAdjustments).not.toHaveBeenCalled();
     expect(state.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(1);
     const rasterId = state.document().layers[0]!.id;
     const adjustmentId = state.commands.createAttachedAdjustment(
       rasterId, 'gaussian-blur', { radius: 8 }
@@ -1037,7 +1056,7 @@ describe('useLayerDocumentCommands', () => {
     state.documentAdjustments().effects.grain.enabled = true;
     state.documentAdjustments().effects.grain.amount = 35;
     state.panelAdjustments().exposureEV = 1.25;
-    state.dependencies.publishGlobalGradeStrength(42);
+    state.dependencies.publishGlobalGradeStrength!(42);
 
     expect(state.commands.flatten({ kind: 'image' })).toBe(true);
 
@@ -1069,7 +1088,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(document);
     state.documentAdjustments().exposureEV = 1.25;
     state.panelAdjustments().exposureEV = 0.75;
-    state.dependencies.publishGlobalGradeStrength(42);
+    state.dependencies.publishGlobalGradeStrength!(42);
     vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
       throw new Error('History unavailable.');
     });

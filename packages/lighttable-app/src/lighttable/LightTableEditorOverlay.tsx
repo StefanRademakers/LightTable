@@ -5354,6 +5354,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => workspaceDocumentId,
     getActiveChannel: () => editorSessionRef.current.activeChannel,
+    documentMutations: documentMutationController,
     applyDocumentSnapshot,
     pushDocumentHistory,
     pushHistoryEntry,
