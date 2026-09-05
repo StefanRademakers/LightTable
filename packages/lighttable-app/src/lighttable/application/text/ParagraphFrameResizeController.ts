@@ -12,7 +12,9 @@ export interface ParagraphFrameResizeDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
   getLocalToDocument(layerId: LayerId): AffineMatrix | null;
-  applyDocument(document: ImageDocument): void;
+  previewDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
+  applyDocumentSnapshot(document: ImageDocument): void;
   recordHistory(before: ImageDocument, after: ImageDocument): void;
 }
 
@@ -71,7 +73,10 @@ export class ParagraphFrameResizeController {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
     const dependencies = this.dependencies();
-    if (dependencies.getDocument()?.id !== active.documentId) {
+    const current = dependencies.getDocument();
+    if (current?.id !== active.documentId
+      || current.revision !== active.before.revision) {
+      dependencies.discardDocumentPreview();
       this.active = null;
       return false;
     }
@@ -92,7 +97,7 @@ export class ParagraphFrameResizeController {
       frame
     });
     active.latest = next;
-    dependencies.applyDocument(next);
+    dependencies.previewDocumentSnapshot(next);
     return true;
   }
 
@@ -102,7 +107,15 @@ export class ParagraphFrameResizeController {
     const active = this.active;
     this.active = null;
     if (!active || active.latest === active.before) return false;
-    this.dependencies().recordHistory(active.before, active.latest);
+    const dependencies = this.dependencies();
+    const current = dependencies.getDocument();
+    if (current?.id !== active.documentId
+      || current.revision !== active.before.revision) {
+      dependencies.discardDocumentPreview();
+      return false;
+    }
+    dependencies.applyDocumentSnapshot(active.latest);
+    dependencies.recordHistory(active.before, active.latest);
     return true;
   }
 
@@ -110,10 +123,7 @@ export class ParagraphFrameResizeController {
     const active = this.active;
     if (!active || (pointerId !== undefined && active.pointerId !== pointerId)) return false;
     this.active = null;
-    const dependencies = this.dependencies();
-    if (dependencies.getDocument()?.id === active.documentId && active.latest !== active.before) {
-      dependencies.applyDocument(active.before);
-    }
+    this.dependencies().discardDocumentPreview();
     return true;
   }
 }

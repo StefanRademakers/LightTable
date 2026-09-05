@@ -26,13 +26,18 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
     glyphRuns: [], linearOrigin: 0, contentAdvance: 20,
     range: { start: 10, end: 90, origin: 10, available: 80, overflow: 0, direction }
   };
-  const applyDocument = vi.fn((next) => { document = next; });
+  let preview = document;
+  const previewDocumentSnapshot = vi.fn((next) => { preview = next; });
+  const discardDocumentPreview = vi.fn(() => { preview = document; });
+  const applyDocumentSnapshot = vi.fn((next) => { document = next; preview = next; });
   const recordHistory = vi.fn();
   const controller = new PathTextHandleController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
     getRealization: () => ({ table, projection, localToDocument: identity }),
-    applyDocument,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    applyDocumentSnapshot,
     recordHistory
   }));
   const layout = () => {
@@ -41,7 +46,16 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
       || current.text.source.layout.mode !== 'path') throw new Error('Expected path text.');
     return current.text.source.layout;
   };
-  return { controller, applyDocument, recordHistory, getDocument: () => document, layout };
+  return {
+    controller,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    applyDocumentSnapshot,
+    recordHistory,
+    getDocument: () => document,
+    getPreview: () => preview,
+    layout
+  };
 };
 
 describe('PathTextHandleController', () => {
@@ -51,7 +65,8 @@ describe('PathTextHandleController', () => {
     expect(state.controller.move(7, { x: 30, y: 4 })).toBe(true);
     expect(state.controller.finish(7, { x: 40, y: 0 })).toBe(true);
     expect(state.layout().startOffset).toBe(40);
-    expect(state.applyDocument).toHaveBeenCalledTimes(2);
+    expect(state.previewDocumentSnapshot).toHaveBeenCalledTimes(2);
+    expect(state.applyDocumentSnapshot).toHaveBeenCalledOnce();
     expect(state.recordHistory).toHaveBeenCalledOnce();
   });
 
@@ -75,8 +90,12 @@ describe('PathTextHandleController', () => {
     const before = state.getDocument();
     state.controller.begin(5, { x: 90, y: 0 }, 5);
     state.controller.move(5, { x: 75, y: 0 });
+    expect(state.getDocument()).toBe(before);
+    expect(state.getPreview()).not.toBe(before);
     expect(state.controller.cancel(5)).toBe(true);
     expect(state.getDocument()).toBe(before);
+    expect(state.getPreview()).toBe(before);
+    expect(state.discardDocumentPreview).toHaveBeenCalledOnce();
     expect(state.recordHistory).not.toHaveBeenCalled();
   });
 });

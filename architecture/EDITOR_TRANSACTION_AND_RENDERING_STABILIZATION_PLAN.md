@@ -74,6 +74,12 @@ The canonical mask is read and restored as raw IEEE-754 half-float words. Clipbo
 
 Verification for this slice currently covers exact snapshot encoding, half-float readback, selection clipboard conversion, semantic selection commands, rapid asynchronous Magic Wand operations, cancel/rollback, selection movement and exact undo/redo. The broader product acceptance matrix still requires manual GPU runs on Windows and macOS.
 
+### Document-owned text gesture commits
+
+Text-layer movement, paragraph-frame resizing and path-text handle editing now keep their pointer-rate state outside the canonical document. Every move projects an immutable preview from the opening document snapshot directly to the renderer. Pointer-up validates that the canonical document still has the opening identity and revision, publishes one final document snapshot and records one history transition. Cancel, document replacement and unmount discard only the renderer preview.
+
+This removes intermediate text geometry from document subscribers, autosave and history, and prevents a stale gesture from overwriting a document that changed while the pointer was active.
+
 ## Existing architectural contracts
 
 The intended system is already documented in:

@@ -2684,7 +2684,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const snapshot = textEditingController.getSnapshot();
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
-    applyDocument: applyDocumentSnapshot,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
+    applyDocumentSnapshot,
     recordHistory: pushDocumentHistory
   }));
   const textLayerMoveGestureController = textLayerMoveGestureControllerRef.current;
@@ -2696,7 +2698,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
     getLocalToDocument: (layerId) => engineRef.current?.textEditingLayout(layerId)?.localToDocument ?? null,
-    applyDocument: applyDocumentSnapshot,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
+    applyDocumentSnapshot,
     recordHistory: pushDocumentHistory
   }));
   const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
@@ -2715,7 +2719,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         localToDocument: editingLayout.localToDocument
       } : null;
     },
-    applyDocument: applyDocumentSnapshot,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
+    applyDocumentSnapshot,
     recordHistory: pushDocumentHistory
   }));
   const pathTextHandleController = pathTextHandleControllerRef.current;
@@ -2739,12 +2745,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [textSelectionGestureController, workspaceDocumentId]);
 
   useEffect(() => () => {
+    textLayerMoveGestureController.cancel();
+  }, [textLayerMoveGestureController]);
+
+  useEffect(() => () => {
     paragraphFrameResizeController.cancel();
   }, [paragraphFrameResizeController]);
 
   useEffect(() => () => {
     pathTextHandleController.cancel();
   }, [pathTextHandleController]);
+
+  useEffect(() => {
+    textLayerMoveGestureController.cancel();
+    paragraphFrameResizeController.cancel();
+    pathTextHandleController.cancel();
+  }, [
+    paragraphFrameResizeController,
+    pathTextHandleController,
+    textLayerMoveGestureController,
+    workspaceDocumentId
+  ]);
 
   useEffect(() => {
     if (textEditing.status !== 'editing' || imageDocument?.activeLayerId === textEditing.layerId) return;

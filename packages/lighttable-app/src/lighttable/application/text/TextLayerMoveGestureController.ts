@@ -8,7 +8,9 @@ interface Point { readonly x: number; readonly y: number }
 export interface TextLayerMoveGestureDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
-  applyDocument(document: ImageDocument): void;
+  previewDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
+  applyDocumentSnapshot(document: ImageDocument): void;
   recordHistory(before: ImageDocument, after: ImageDocument): void;
 }
 
@@ -18,6 +20,7 @@ interface ActiveMove {
   readonly layerId: LayerId;
   readonly start: Point;
   readonly before: ImageDocument;
+  latest: ImageDocument;
 }
 
 /** Ctrl-drag move gesture used while the native Type input bridge stays active. */
@@ -35,7 +38,14 @@ export class TextLayerMoveGestureController {
     const layerId = dependencies.getEditingLayerId();
     const layer = document && layerId ? findDocumentLayer(document, layerId) : null;
     if (!document || !layerId || layer?.type !== 'text' || layerIsLocked(layer, 'position')) return false;
-    this.active = { pointerId, documentId: document.id, layerId, start: { ...start }, before: document };
+    this.active = {
+      pointerId,
+      documentId: document.id,
+      layerId,
+      start: { ...start },
+      before: document,
+      latest: document
+    };
     return true;
   }
 
@@ -45,41 +55,46 @@ export class TextLayerMoveGestureController {
     const dependencies = this.dependencies();
     const document = dependencies.getDocument();
     const source = findDocumentLayer(active.before, active.layerId);
-    if (!document || document.id !== active.documentId || source?.type !== 'text') {
+    if (!document || document.id !== active.documentId
+      || document.revision !== active.before.revision || source?.type !== 'text') {
+      dependencies.discardDocumentPreview();
       this.active = null;
       return false;
     }
     const dx = point.x - active.start.x;
     const dy = point.y - active.start.y;
-    dependencies.applyDocument(setLayerTransform(document, active.layerId, {
+    active.latest = setLayerTransform(active.before, active.layerId, {
       ...source.transform,
       tx: source.transform.tx + dx,
       ty: source.transform.ty + dy
-    }));
+    });
+    dependencies.previewDocumentSnapshot(active.latest);
     return true;
   }
 
   finish(pointerId: number, point: Point) {
     if (!this.owns(pointerId)) return false;
-    this.move(pointerId, point);
     const active = this.active!;
+    this.move(pointerId, point);
+    if (this.active !== active) return false;
     const dependencies = this.dependencies();
-    const after = dependencies.getDocument();
     this.active = null;
-    if (after && after.id === active.documentId
-      && (point.x !== active.start.x || point.y !== active.start.y)) {
-      dependencies.recordHistory(active.before, after);
+    const current = dependencies.getDocument();
+    if (!current || current.id !== active.documentId
+      || current.revision !== active.before.revision || active.latest === active.before) {
+      dependencies.discardDocumentPreview();
+      return true;
     }
+    dependencies.applyDocumentSnapshot(active.latest);
+    dependencies.recordHistory(active.before, active.latest);
     return true;
   }
 
-  cancel(pointerId: number) {
-    if (!this.owns(pointerId)) return false;
+  cancel(pointerId?: number) {
+    if (!this.active || (pointerId !== undefined && !this.owns(pointerId))) return false;
     const active = this.active!;
     this.active = null;
-    if (this.dependencies().getDocument()?.id === active.documentId) {
-      this.dependencies().applyDocument(active.before);
-    }
+    this.dependencies().discardDocumentPreview();
     return true;
   }
 }

@@ -15,16 +15,30 @@ const harness = () => {
     mode: 'paragraph', frame: { x: 10, y: 20, width: 100, height: 60 },
     overflow: 'indicator', writingMode: 'horizontal-tb'
   });
-  const applyDocument = vi.fn((next) => { document = next; });
+  let preview = document;
+  const previewDocumentSnapshot = vi.fn((next) => { preview = next; });
+  const discardDocumentPreview = vi.fn(() => { preview = document; });
+  const applyDocumentSnapshot = vi.fn((next) => { document = next; preview = next; });
   const recordHistory = vi.fn();
   const controller = new ParagraphFrameResizeController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
     getLocalToDocument: () => identity,
-    applyDocument,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    applyDocumentSnapshot,
     recordHistory
   }));
-  return { controller, layer, getDocument: () => document, applyDocument, recordHistory };
+  return {
+    controller,
+    layer,
+    getDocument: () => document,
+    getPreview: () => preview,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    applyDocumentSnapshot,
+    recordHistory
+  };
 };
 
 describe('ParagraphFrameResizeController', () => {
@@ -34,7 +48,8 @@ describe('ParagraphFrameResizeController', () => {
     expect(state.controller.move(7, { x: 140, y: 100 })).toBe(true);
     expect(state.controller.finish(7, { x: 160, y: 120 })).toBe(true);
 
-    expect(state.applyDocument).toHaveBeenCalledTimes(2);
+    expect(state.previewDocumentSnapshot).toHaveBeenCalledTimes(2);
+    expect(state.applyDocumentSnapshot).toHaveBeenCalledOnce();
     expect(state.recordHistory).toHaveBeenCalledOnce();
     const layer = state.getDocument().layers[0]!;
     expect(layer.type === 'text' && layer.text.source.kind === 'flow'
@@ -48,8 +63,12 @@ describe('ParagraphFrameResizeController', () => {
     state.controller.begin(4, { x: 10, y: 50 }, 6);
     state.controller.move(4, { x: 30, y: 50 });
 
+    expect(state.getDocument()).toBe(before);
+    expect(state.getPreview()).not.toBe(before);
     expect(state.controller.cancel(4)).toBe(true);
     expect(state.getDocument()).toBe(before);
+    expect(state.getPreview()).toBe(before);
+    expect(state.discardDocumentPreview).toHaveBeenCalledOnce();
     expect(state.recordHistory).not.toHaveBeenCalled();
   });
 

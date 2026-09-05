@@ -21,7 +21,9 @@ export interface PathTextHandleDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
   getRealization(layerId: LayerId): PathTextHandleRealization | null;
-  applyDocument(document: ImageDocument): void;
+  previewDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
+  applyDocumentSnapshot(document: ImageDocument): void;
   recordHistory(before: ImageDocument, after: ImageDocument): void;
 }
 
@@ -95,7 +97,10 @@ export class PathTextHandleController {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
     const dependencies = this.dependencies();
-    if (dependencies.getDocument()?.id !== active.documentId) {
+    const current = dependencies.getDocument();
+    if (current?.id !== active.documentId
+      || current.revision !== active.before.revision) {
+      dependencies.discardDocumentPreview();
       this.active = null;
       return false;
     }
@@ -115,7 +120,7 @@ export class PathTextHandleController {
       : { ...active.openingLayout, endOffset: offset };
     const next = setFlowTextLayout(active.before, active.layerId, layout);
     active.latest = next;
-    dependencies.applyDocument(next);
+    dependencies.previewDocumentSnapshot(next);
     return true;
   }
 
@@ -129,13 +134,21 @@ export class PathTextHandleController {
           ? 'reverse' : 'forward'
       });
       active.latest = next;
-      this.dependencies().applyDocument(next);
+      this.dependencies().previewDocumentSnapshot(next);
     } else {
       this.move(pointerId, documentPoint);
     }
     this.active = null;
     if (active.latest === active.before) return false;
-    this.dependencies().recordHistory(active.before, active.latest);
+    const dependencies = this.dependencies();
+    const current = dependencies.getDocument();
+    if (current?.id !== active.documentId
+      || current.revision !== active.before.revision) {
+      dependencies.discardDocumentPreview();
+      return false;
+    }
+    dependencies.applyDocumentSnapshot(active.latest);
+    dependencies.recordHistory(active.before, active.latest);
     return true;
   }
 
@@ -143,10 +156,7 @@ export class PathTextHandleController {
     const active = this.active;
     if (!active || (pointerId !== undefined && active.pointerId !== pointerId)) return false;
     this.active = null;
-    const dependencies = this.dependencies();
-    if (dependencies.getDocument()?.id === active.documentId && active.latest !== active.before) {
-      dependencies.applyDocument(active.before);
-    }
+    this.dependencies().discardDocumentPreview();
     return true;
   }
 }
