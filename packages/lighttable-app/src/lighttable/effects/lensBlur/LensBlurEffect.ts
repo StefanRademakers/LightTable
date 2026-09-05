@@ -80,6 +80,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
       });
     this.pipelines = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: async () => {
         const [depthRefine, downsample, gather, composite] = await Promise.all([
           createPipeline('LightTable Lens Blur depth refinement', LENS_BLUR_DEPTH_REFINE_WGSL, [{ format: 'r16float' }]),

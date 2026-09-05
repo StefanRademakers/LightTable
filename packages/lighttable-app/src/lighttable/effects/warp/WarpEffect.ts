@@ -55,6 +55,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     this.settings = structuredClone(settings);
     this.fieldPipeline = new OptionalGpuFeature({
       id: 'warp-field',
+      sharedCompilation: { owner: this.device, key: 'warp-field' },
       compile: () => this.device.createComputePipelineAsync({
         label: 'LightTable Warp displacement field',
         layout: 'auto',
@@ -71,6 +72,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     });
     this.renderPipeline = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: () => this.device.createRenderPipelineAsync({
         label: 'LightTable Warp render',
         layout: 'auto',
@@ -90,6 +92,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     });
     this.debugPipeline = new OptionalGpuFeature({
       id: 'warp-displacement-debug',
+      sharedCompilation: { owner: vertexModule, key: 'warp-displacement-debug' },
       compile: () => this.device.createRenderPipelineAsync({
         label: 'LightTable Warp displacement debug',
         layout: 'auto',

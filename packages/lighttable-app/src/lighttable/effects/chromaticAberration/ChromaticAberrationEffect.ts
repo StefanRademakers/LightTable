@@ -32,6 +32,7 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
     this.settings = cloneChromaticAberrationSettings(settings);
     this.pipeline = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: () => this.device.createRenderPipelineAsync({
         label: 'LightTable Chromatic Aberration',
         layout: 'auto',

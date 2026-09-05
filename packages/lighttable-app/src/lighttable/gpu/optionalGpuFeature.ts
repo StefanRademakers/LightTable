@@ -3,9 +3,41 @@ export type OptionalGpuFeatureStatus = 'idle' | 'compiling' | 'ready' | 'failed'
 export interface OptionalGpuFeatureOptions<Resource> {
   readonly id: string;
   readonly compile: () => Promise<Resource>;
+  /**
+   * Immutable GPU resources such as pipelines can be shared by every effect
+   * instance using the same device/module owner. Failed compilations are not
+   * retained, so an explicit retry still performs real work.
+   */
+  readonly sharedCompilation?: {
+    readonly owner: object;
+    readonly key: string;
+  };
   readonly onReady?: () => void;
   readonly onError?: (message: string) => void;
 }
+
+const sharedCompilations = new WeakMap<object, Map<string, Promise<unknown>>>();
+
+const compileShared = <Resource>(
+  owner: object,
+  key: string,
+  compile: () => Promise<Resource>
+): Promise<Resource> => {
+  let resources = sharedCompilations.get(owner);
+  if (!resources) {
+    resources = new Map();
+    sharedCompilations.set(owner, resources);
+  }
+  const existing = resources.get(key) as Promise<Resource> | undefined;
+  if (existing) return existing;
+
+  const pending = compile().catch((error: unknown) => {
+    if (resources?.get(key) === pending) resources.delete(key);
+    throw error;
+  });
+  resources.set(key, pending);
+  return pending;
+};
 
 /**
  * Publishes optional GPU resources atomically.
@@ -43,7 +75,14 @@ export class OptionalGpuFeature<Resource> {
 
     const generation = ++this.generation;
     this.statusValue = 'compiling';
-    this.pending = this.options.compile().then((resource) => {
+    const compilation = this.options.sharedCompilation
+      ? compileShared(
+        this.options.sharedCompilation.owner,
+        this.options.sharedCompilation.key,
+        this.options.compile
+      )
+      : this.options.compile();
+    this.pending = compilation.then((resource) => {
       if (this.statusValue === 'disposed' || generation !== this.generation) return null;
       this.resourceValue = resource;
       this.failureValue = null;

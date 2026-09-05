@@ -25,6 +25,7 @@ export class VignetteEffect implements LightTableGpuEffect<VignetteSettings> {
     this.settings = cloneVignetteSettings(settings);
     this.pipeline = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: () => device.createRenderPipelineAsync({
         label: 'LightTable Post-crop Vignette', layout: 'auto',
         vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },

@@ -32,6 +32,7 @@ export class LensDistortionEffect implements LightTableGpuEffect<LensDistortionS
     this.settings = cloneLensDistortionSettings(settings);
     this.pipeline = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: () => this.device.createRenderPipelineAsync({
         label: 'LightTable Lens Distortion',
         layout: 'auto',

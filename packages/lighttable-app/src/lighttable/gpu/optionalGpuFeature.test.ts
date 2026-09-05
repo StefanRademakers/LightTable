@@ -23,11 +23,15 @@ describe('OptionalGpuFeature', () => {
   });
 
   it('contains a compilation failure and retries only when explicitly requested', async () => {
+    const owner = {};
     const compile = vi.fn()
       .mockRejectedValueOnce(new Error('invalid WGSL'))
       .mockResolvedValueOnce({ pipeline: 'fixed' });
     const onError = vi.fn();
-    const feature = new OptionalGpuFeature({ id: 'grain', compile, onError });
+    const feature = new OptionalGpuFeature({
+      id: 'grain', compile, onError,
+      sharedCompilation: { owner, key: 'grain' }
+    });
 
     await expect(feature.ensure()).resolves.toBeNull();
     expect(feature.status).toBe('failed');
@@ -38,6 +42,28 @@ describe('OptionalGpuFeature', () => {
 
     await expect(feature.retry()).resolves.toEqual({ pipeline: 'fixed' });
     expect(feature.status).toBe('ready');
+  });
+
+  it('shares one immutable compilation across feature instances', async () => {
+    const owner = {};
+    const resource = { pipeline: 'shared' };
+    const compileFirst = vi.fn(async () => resource);
+    const compileSecond = vi.fn(async () => ({ pipeline: 'duplicate' }));
+    const first = new OptionalGpuFeature({
+      id: 'grain', compile: compileFirst,
+      sharedCompilation: { owner, key: 'grain' }
+    });
+    const second = new OptionalGpuFeature({
+      id: 'grain', compile: compileSecond,
+      sharedCompilation: { owner, key: 'grain' }
+    });
+
+    await expect(Promise.all([first.ensure(), second.ensure()])).resolves.toEqual([
+      resource,
+      resource
+    ]);
+    expect(compileFirst).toHaveBeenCalledOnce();
+    expect(compileSecond).not.toHaveBeenCalled();
   });
 
   it('does not publish late resources after disposal', async () => {

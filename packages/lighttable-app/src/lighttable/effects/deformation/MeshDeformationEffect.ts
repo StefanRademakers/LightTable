@@ -147,6 +147,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   ) {
     this.basePipeline = new OptionalGpuFeature({
       id: 'mesh-deformation-base',
+      sharedCompilation: { owner: vertexModule, key: 'mesh-deformation-base' },
       compile: () => device.createRenderPipelineAsync({
         label: 'LightTable mesh deformation base', layout: 'auto',
         vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
@@ -161,6 +162,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     });
     this.meshPipeline = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: device, key: this.id },
       compile: () => device.createRenderPipelineAsync({
         label: 'LightTable indexed mesh deformation', layout: 'auto',
         vertex: {

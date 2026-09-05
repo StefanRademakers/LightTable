@@ -155,6 +155,23 @@ Presentation waiters, first-frame completion and histogram publication are now o
 
 This guard preserves the resident renderer and document texture caches used for fast tab switching. It adds only scalar generation checks and small waiter bookkeeping at asynchronous submission/completion boundaries: no additional render pass, GPU readback, texture allocation, per-pixel work or pointer-rate work.
 
+### Document-scoped GPU ownership and shared optional pipelines
+
+The renderer resource audit now makes the lifetime split explicit:
+
+- canonical layer pixels, masks, patterns and LUTs are keyed by document and remain resident across tab switches;
+- active-document composites, selection projections, previews, transform sessions and effect render targets are disposable projections and are released on document rebind;
+- document close releases the canonical layer, pattern and LUT repositories;
+- history pruning releases retained layer and LUT resources that are no longer reachable;
+- temporary GPU readback buffers are unmapped and destroyed in `finally` paths;
+- renderer timers, animation frames and deferred callbacks are cancelled by their owning service.
+
+Optional effect pipelines remain lazy, but identical immutable pipeline bundles are now compiled once per GPU device or shared shader module instead of once per layer/effect instance. Instance-specific textures, uniform buffers and mutable effect state remain isolated. A failed shared compilation is evicted so the existing explicit retry path performs a real recompilation.
+
+This improves repeated-effect startup without changing render output or state ownership. It introduces no cache lookup in pointer handling and no additional render pass, texture, readback or retained document allocation. The shared cache is weakly owned by its GPU device/module and therefore cannot keep a replaced device alive.
+
+The current pattern registry is document-lifetime immutable after import/load. If editable pattern deletion or replacement is introduced later, it must add history-aware per-asset pruning equivalent to LUT resources; speculative pruning is intentionally not added to the current hot path.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.

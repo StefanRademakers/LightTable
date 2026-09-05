@@ -58,6 +58,7 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     });
     this.pipelines = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: async () => {
         const [generate, blur, composite] = await Promise.all([
           createPipeline('LightTable Grain generation', GRAIN_GENERATE_WGSL),

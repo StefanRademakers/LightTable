@@ -52,6 +52,7 @@ export class HalationEffect implements LightTableGpuEffect<HalationSettings> {
     });
     this.pipelines = new OptionalGpuFeature({
       id: this.id,
+      sharedCompilation: { owner: vertexModule, key: this.id },
       compile: async () => {
         const [extract, blur, composite] = await Promise.all([
           createPipeline('LightTable Halation highlight extraction', HALATION_EXTRACT_WGSL),
