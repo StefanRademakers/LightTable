@@ -4407,8 +4407,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const paintSessionController = usePaintSessionController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
-    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
+    documentMutations: documentMutationController,
     applyDocumentSnapshot,
     pushHistoryEntry,
     setError,

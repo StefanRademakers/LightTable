@@ -12,6 +12,7 @@ import {
   type PaintSessionRendererPort
 } from './usePaintSessionController';
 import type { PaintFramePort } from './paintDabScheduler';
+import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 
 const createPixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 64,
@@ -47,15 +48,26 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     applyPixelHistory: vi.fn(() => true)
   };
   const history: Array<Parameters<PaintSessionDependencies['pushHistoryEntry']>[0]> = [];
+  const previewDocumentSnapshot = vi.fn((_next: typeof document) => undefined);
+  const discardDocumentPreview = vi.fn();
+  const applyDocumentSnapshot = vi.fn((next: typeof document) => {
+    document = next;
+  });
+  const pushHistoryEntry = (entry: Parameters<PaintSessionDependencies['pushHistoryEntry']>[0]) =>
+    history.push(entry);
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    previewSnapshot: previewDocumentSnapshot,
+    discardPreview: discardDocumentPreview,
+    applySnapshot: applyDocumentSnapshot,
+    pushHistoryEntry
+  }));
   const dependencies: PaintSessionDependencies = {
     getDocument: () => document,
     getRenderer: () => renderer,
-    previewDocumentSnapshot: vi.fn(),
-    discardDocumentPreview: vi.fn(),
-    applyDocumentSnapshot: vi.fn((next) => {
-      document = next;
-    }),
-    pushHistoryEntry: (entry) => history.push(entry),
+    documentMutations,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
     setError: vi.fn()
   };
   return {
@@ -64,6 +76,9 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     history,
     layer,
     pixelEdit,
+    previewDocumentSnapshot,
+    discardDocumentPreview,
+    documentMutations,
     renderer,
     getDocument: () => document
   };
@@ -356,7 +371,7 @@ describe('PaintSessionController', () => {
     })).toBe(true);
 
     expect(fixture.getDocument()).toBe(before);
-    expect(fixture.dependencies.previewDocumentSnapshot).toHaveBeenCalledOnce();
+    expect(fixture.previewDocumentSnapshot).toHaveBeenCalledOnce();
     expect(fixture.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
 
     expect(fixture.controller.finish(24)).toBe(true);
@@ -395,7 +410,7 @@ describe('PaintSessionController', () => {
 
     expect(fixture.getDocument()).toBe(before);
     expect(fixture.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
-    expect(fixture.dependencies.discardDocumentPreview).toHaveBeenCalledOnce();
+    expect(fixture.discardDocumentPreview).toHaveBeenCalledOnce();
     expect(surfaceEdit.undo).toHaveBeenCalledOnce();
     expect(surfaceEdit.destroy).toHaveBeenCalledOnce();
     expect(fixture.history).toHaveLength(0);
@@ -425,6 +440,44 @@ describe('PaintSessionController', () => {
     expect(fixture.renderer.setPaintInteractionActive)
       .toHaveBeenNthCalledWith(1, true, fixture.layer.id);
     expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
+  });
+
+  it('rolls an unfinished stroke back when another document operation supersedes it', () => {
+    const fixture = createFixture();
+    const before = fixture.getDocument();
+
+    expect(fixture.controller.begin({
+      pointerId: 26,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush: createEditorSession().brush,
+      point: { x: 12, y: 12, pressure: 1 }
+    })).toBe(true);
+
+    const changed = fixture.documentMutations.change((current) => ({
+      ...current,
+      name: 'Superseding command',
+      revision: current.revision + 1
+    }), true, {
+      label: 'Rename Document',
+      type: 'document.rename'
+    });
+
+    expect(changed).toBe(true);
+    expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(fixture.pixelEdit, 'undo');
+    expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.discardDocumentPreview).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(1);
+    expect(fixture.history[0]?.label).toBe('Rename Document');
+    expect(fixture.getDocument()).toMatchObject({
+      name: 'Superseding command',
+      revision: before.revision + 1
+    });
   });
 
   it('keeps a captured outside-canvas stroke but clips its document dirty bounds', () => {
