@@ -68,7 +68,7 @@ Selection no longer treats the mounted tool or renderer as the durable owner. Th
 - the renderer owns the disposable GPU projection and restores it from document state after bind, load and tab return;
 - selection history stores exact before/after masks, while semantic operations remain provenance for Actions, MCP and legacy reconstruction.
 
-Selection mutations are serialized per controller. Each successful mutation captures its exact result, registers history and then publishes document state. Failure restores the exact baseline. Magic Wand requests have generation-based cancellation and preserve separate history entries even when clicks arrive faster than GPU completion.
+Selection mutations are serialized per controller. Each successful mutation captures its exact result, registers history and then publishes document state. Failure restores both the exact GPU mask and the matching canonical operations. Magic Wand, selection-outline drag and Selection Brush now use this same acceptance order; rapid Magic Wand clicks publish every accepted serialized result instead of keeping a hidden intermediate state. Action recording is notified only after acceptance and cannot roll back an already-recorded history entry.
 
 The canonical mask is read and restored as raw IEEE-754 half-float words. Clipboard mask export now also reads the actual `r16float` texture instead of interpreting its bytes as an `r8unorm` channel.
 
@@ -141,7 +141,7 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Pen, shape, vector selection and vector Gradient | Shared vector-gesture document lease | Migrated |
 | Warp | Document lease plus reversible GPU edit | Migrated |
 | Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
-| Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
+| Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: commit rejection and specialized gesture rollback are stabilized; cross-owner command/undo integration still needs audit |
 | Point, paragraph, vertical and path text | Move, resize, handles, creation, layout, warp, recovery and text-to-shape use document leases; typing groups compensate rejected history | Partial: renderer recovery and complete workflow verification still need audit |
 | Layer mutations, merge, rasterize and flatten | Document lease plus atomic document/GPU publication | Migrated; repeated workflow and renderer-resource verification remains |
 | Adjustments, effects and filters | Shared preview controller for migrated paths; semantic/global Grade commits compensate rejected history | Partial: every effect/filter commit and resource cleanup still needs an inventory |

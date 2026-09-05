@@ -90,6 +90,20 @@ describe('selection session controller', () => {
     expect(state.selection).toEqual([]);
   });
 
+  it('restores the effective mask without publishing a rejected selection commit', async () => {
+    const pushHistoryEntry = vi.fn(() => {
+      throw new Error('History rejected the selection.');
+    });
+    const state = setup({ pushHistoryEntry });
+
+    await expect(state.controller.applyState('all')).resolves.toBe(false);
+
+    expect(pushHistoryEntry).toHaveBeenCalledOnce();
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(state.selection).toEqual([]);
+    expect(state.pointerId).toBeNull();
+  });
+
   it('returns the asynchronous feather commit and records selection-only history', async () => {
     const state = setup();
     await state.controller.applyState('all');
@@ -332,6 +346,51 @@ describe('selection session controller', () => {
     });
     expect(state.selection.at(-1)?.transform).toMatchObject({ tx: 7, ty: 4 });
     expect(state.history).toHaveLength(historyBefore + 1);
+  });
+
+  it('restores the selection outline when a drag commit is rejected', async () => {
+    let commitCount = 0;
+    const state = setup({
+      pushHistoryEntry: () => {
+        commitCount += 1;
+        if (commitCount === 2) throw new Error('History rejected the selection drag.');
+      }
+    });
+    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
+    state.controller.move(1, { x: 40, y: 40 });
+    state.controller.finish(1);
+    await state.controller.settle();
+
+    state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace');
+    state.controller.move(2, { x: 27, y: 24 });
+    state.controller.finish(2);
+    await state.controller.settle();
+
+    expect(state.selection).toHaveLength(1);
+    expect(state.selection[0]?.transform).toBeUndefined();
+    expect(state.pointerId).toBeNull();
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
+  });
+
+  it('restores the baseline when a selection brush commit is rejected', async () => {
+    const state = setup({
+      pushHistoryEntry: () => {
+        throw new Error('History rejected the selection brush stroke.');
+      }
+    });
+
+    expect(state.controller.beginPaint(4, { x: 12, y: 14, pressure: 1 }, 'add', {
+      size: 24,
+      hardness: 0.5,
+      opacity: 1,
+      smooth: 0
+    })).toBe(true);
+    expect(state.controller.finishPaint(4)).toBe(true);
+    await state.controller.settle();
+
+    expect(state.selection).toEqual([]);
+    expect(state.pointerId).toBeNull();
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
   });
 
   it('snaps a dragged selection from its retained bounds', async () => {
@@ -602,7 +661,7 @@ describe('selection session controller', () => {
     expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
   });
 
-  it('publishes only the newest Magic Wand result while preserving queued add operations', async () => {
+  it('publishes each accepted Magic Wand result while preserving queued add operations', async () => {
     const state = setup();
     let resolveFirst!: (applied: boolean) => void;
     let resolveSecond!: (applied: boolean) => void;
@@ -623,7 +682,10 @@ describe('selection session controller', () => {
     await vi.waitFor(() => {
       expect(state.renderer.applyMagicWand).toHaveBeenCalledTimes(2);
     });
-    expect(state.selection).toEqual([]);
+    expect(state.selection).toHaveLength(1);
+    expect(state.selection[0]?.source?.kind === 'magic-wand'
+      ? state.selection[0].source.point
+      : null).toEqual({ x: 10, y: 10 });
     resolveSecond(true);
     await state.controller.settle();
 

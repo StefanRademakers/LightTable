@@ -320,14 +320,8 @@ export const createSelectionSessionController = (
   gesture = new SelectionGestureController(),
   polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
-  let magicWandRequestId = 0;
   let magicWandGeneration = 0;
   let pendingMagicWandRequests = 0;
-  let pendingMagicWandState: {
-    generation: number;
-    operations: SelectionOperation[];
-    mask: SelectionMaskSnapshot;
-  } | null = null;
   let paintGesture: {
     pointerId: number;
     document: ImageDocument;
@@ -559,6 +553,21 @@ export const createSelectionSessionController = (
     });
   };
 
+  const notifyObservedCommit = (
+    dependencies: SelectionSessionDependencies,
+    observe: (() => void) | undefined
+  ) => {
+    try {
+      observe?.();
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error
+          ? `The selection was applied, but action recording failed: ${reason.message}`
+          : 'The selection was applied, but action recording failed.'
+      );
+    }
+  };
+
   const commitMutation = (
     after: SelectionOperation[],
     failureMessage: string,
@@ -583,10 +592,10 @@ export const createSelectionSessionController = (
       const afterMask = await renderer.captureSelectionSnapshot();
       if (!isCurrent(document, renderer)) return false;
       const latest = resolveDependencies();
-      latest.publishSelection(snapshot, null, afterMask);
       pushHistory(document, before, beforeMask, snapshot, afterMask);
-      onCommitted?.(latest);
+      latest.publishSelection(snapshot, null, afterMask);
       latest.setError(null);
+      notifyObservedCommit(latest, onCommitted ? () => onCommitted(latest) : undefined);
       return true;
     } catch (reason) {
       if (isCurrent(document, renderer)) {
@@ -840,19 +849,14 @@ export const createSelectionSessionController = (
       options,
       mode
     );
-    const requestId = ++magicWandRequestId;
     const generation = magicWandGeneration;
     pendingMagicWandRequests += 1;
     try {
       return await queueCommit(async () => {
         if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
         const latest = resolveDependencies();
-        const pending = pendingMagicWandState?.generation === generation
-          ? pendingMagicWandState
-          : null;
-        const before = cloneSelectionOperations(pending?.operations ?? latest.getSelection());
-        const beforeMask = pending?.mask
-          ?? documentCommittedMask(latest, document, before)
+        const before = cloneSelectionOperations(latest.getSelection());
+        const beforeMask = documentCommittedMask(latest, document, before)
           ?? await renderer.captureSelectionSnapshot();
         if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
         const after = mode === 'replace' ? [operation] : [...before, operation];
@@ -866,27 +870,18 @@ export const createSelectionSessionController = (
           const afterMask = await renderer.captureSelectionSnapshot();
           if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
           pushHistory(document, before, beforeMask, after, afterMask);
-          if (requestId === magicWandRequestId) {
-            pendingMagicWandState = null;
-            latest.publishSelection(after, null, afterMask);
-          } else {
-            pendingMagicWandState = {
-              generation,
-              operations: cloneSelectionOperations(after),
-              mask: afterMask
-            };
-          }
+          latest.publishSelection(after, null, afterMask);
+          latest.setError(null);
           if (recordObserved) {
             const source = operation.source?.kind === 'magic-wand' ? operation.source : null;
-            if (source) latest.onMagicWandCommitted?.({
+            if (source) notifyObservedCommit(latest, () => latest.onMagicWandCommitted?.({
               kind: 'magic-wand',
               layerId: source.layerId,
               point: { x: source.point.x, y: source.point.y },
               mode,
               options: { ...source.options }
-            });
+            }));
           }
-          latest.setError(null);
           return true;
         } catch (reason) {
           if (isCurrent(document, renderer)) {
@@ -900,9 +895,6 @@ export const createSelectionSessionController = (
       });
     } finally {
       pendingMagicWandRequests = Math.max(0, pendingMagicWandRequests - 1);
-      if (pendingMagicWandRequests === 0 && generation !== magicWandGeneration) {
-        pendingMagicWandState = null;
-      }
     }
   };
 
@@ -1074,12 +1066,13 @@ export const createSelectionSessionController = (
             const afterMask = await current.renderer.captureSelectionSnapshot();
             if (!isCurrent(current.document, current.renderer)) return;
             const latest = resolveDependencies();
-            latest.publishSelection(after, null, afterMask);
             pushHistory(current.document, current.before, beforeMask, after, afterMask);
+            latest.publishSelection(after, null, afterMask);
             latest.setError(null);
           } catch (reason) {
             if (!isCurrent(current.document, current.renderer)) return;
             await current.renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
+            resolveDependencies().publishSelection(current.before, null, beforeMask);
             resolveDependencies().setError(
               reason instanceof Error ? reason.message : 'The selection could not be moved.'
             );
@@ -1259,31 +1252,45 @@ export const createSelectionSessionController = (
       };
       const after = [...current.before, operation];
       void queueCommit(async () => {
-        const beforeMask = await current.beforeMask;
-        const applied = await current.renderQueue;
-        if (!applied || !isCurrent(current.document, current.renderer)) {
-          if (isCurrent(current.document, current.renderer)) {
-            await current.renderer.restoreSelectionSnapshot(beforeMask);
-            resolveDependencies().setError('The selection brush stroke could not be applied.');
+        let beforeMask: SelectionMaskSnapshot | null = null;
+        try {
+          beforeMask = await current.beforeMask;
+          const applied = await current.renderQueue;
+          if (!applied || !isCurrent(current.document, current.renderer)) {
+            if (isCurrent(current.document, current.renderer)) {
+              await current.renderer.restoreSelectionSnapshot(beforeMask);
+              resolveDependencies().publishSelection(current.before, null, beforeMask);
+              resolveDependencies().setError('The selection brush stroke could not be applied.');
+            }
+            return;
           }
-          return;
+          const afterMask = await current.renderer.captureSelectionSnapshot();
+          if (!isCurrent(current.document, current.renderer)) return;
+          const latest = resolveDependencies();
+          pushHistory(current.document, current.before, beforeMask, after, afterMask);
+          latest.publishSelection(after, null, afterMask);
+          latest.setError(null);
+          notifyObservedCommit(latest, () => latest.onPaintCommitted?.({
+            kind: 'selection-paint',
+            mode: current.mode,
+            dabs: current.dabs.map((dab) => ({ ...dab })),
+            samples: current.samples.map((sample) => ({ ...sample })),
+            size: current.size,
+            hardness: current.hardness,
+            opacity: current.opacity,
+            smooth: current.smooth
+          }));
+        } catch (reason) {
+          if (beforeMask && isCurrent(current.document, current.renderer)) {
+            await current.renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
+            resolveDependencies().publishSelection(current.before, null, beforeMask);
+            resolveDependencies().setError(
+              reason instanceof Error
+                ? reason.message
+                : 'The selection brush stroke could not be applied.'
+            );
+          }
         }
-        const afterMask = await current.renderer.captureSelectionSnapshot();
-        if (!isCurrent(current.document, current.renderer)) return;
-        const latest = resolveDependencies();
-        latest.publishSelection(after, null, afterMask);
-        pushHistory(current.document, current.before, beforeMask, after, afterMask);
-        latest.onPaintCommitted?.({
-          kind: 'selection-paint',
-          mode: current.mode,
-          dabs: current.dabs.map((dab) => ({ ...dab })),
-          samples: current.samples.map((sample) => ({ ...sample })),
-          size: current.size,
-          hardness: current.hardness,
-          opacity: current.opacity,
-          smooth: current.smooth
-        });
-        latest.setError(null);
       });
       return true;
     },
@@ -1325,12 +1332,10 @@ export const createSelectionSessionController = (
       return true;
     },
     reset: () => {
-      const restoreSelectionAfterMagicWand = pendingMagicWandRequests > 0
-        || pendingMagicWandState !== null;
+      const restoreSelectionAfterMagicWand = pendingMagicWandRequests > 0;
       const interruptedTranslation = translation;
       const interruptedPaint = paintGesture;
       magicWandGeneration += 1;
-      pendingMagicWandState = null;
       if (interruptedTranslation) interruptedTranslation.stopped = true;
       translation = null;
       paintGesture = null;
