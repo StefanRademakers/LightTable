@@ -21,6 +21,13 @@ export class DocumentColorLookupResourceRepository {
     return created;
   }
 
+  get(
+    key: DocumentColorLookupResourceKey,
+    assetId: DocumentAssetId
+  ): ColorLookupGpuAsset | null {
+    return this.sets.get(key)?.get(assetId) ?? null;
+  }
+
   release(key: DocumentColorLookupResourceKey): boolean {
     const set = this.sets.get(key);
     if (!set) return false;

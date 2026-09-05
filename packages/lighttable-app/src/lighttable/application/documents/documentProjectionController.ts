@@ -2,7 +2,10 @@ import {
   applyGroupVisibility,
   type GroupVisibility
 } from '../adjustments/groupVisibility';
-import { projectAdjustmentSnapshot } from '../adjustments/projectAdjustmentSnapshot';
+import {
+  projectAdjustmentSnapshot,
+  type AdjustmentProjection
+} from '../adjustments/projectAdjustmentSnapshot';
 import type {
   ImageDocument,
   LayerId
@@ -39,6 +42,10 @@ export interface DocumentProjectionController {
     domain?: AdjustmentPresentationDomain,
     publishPresentation?: boolean
   ): void;
+  applyProjectedAdjustmentSnapshot(
+    projection: AdjustmentProjection,
+    domain?: AdjustmentPresentationDomain
+  ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
   discardDocumentPreview(): void;
@@ -64,6 +71,22 @@ export const createDocumentProjectionController = (
       port.getGroupVisibility()
     ));
   };
+  const publishCanonicalProjection = (
+    projection: AdjustmentProjection,
+    domain: AdjustmentPresentationDomain,
+    publishPresentation = true
+  ) => {
+    previewDocument = null;
+    if (publishPresentation) {
+      port.publishEditorAdjustments(projection.editorAdjustments, domain);
+    }
+    port.publishDocumentAdjustments(projection.documentAdjustments);
+    if (projection.document !== port.getDocument()) {
+      port.publishDocument(projection.document);
+    }
+    if (projection.document) port.publishRendererDocument(projection.document);
+    publishRendererAdjustments();
+  };
 
   const projectAdjustments = (
     snapshot: BasicAdjustments,
@@ -84,10 +107,8 @@ export const createDocumentProjectionController = (
       documentAdjustments: port.getDocumentAdjustments()
     });
     if (publishCanonicalDocument) {
-      previewDocument = null;
-      if (publishPresentation) {
-        port.publishEditorAdjustments(projection.editorAdjustments, domain);
-      }
+      publishCanonicalProjection(projection, domain, publishPresentation);
+      return;
     } else {
       // Pointer-rate previews only advance the authoritative ref used by the
       // next mutation. The active slider owns its thumb/value locally; waking
@@ -96,16 +117,10 @@ export const createDocumentProjectionController = (
       port.stageEditorAdjustments(projection.editorAdjustments);
       previewDocument = projection.document;
     }
-    if (publishCanonicalDocument) {
-      port.publishDocumentAdjustments(projection.documentAdjustments);
-      if (projection.document !== currentDocument) {
-        port.publishDocument(projection.document);
-      }
-    }
     if (projection.document) {
       port.publishRendererDocument(projection.document);
     }
-    if (!publishCanonicalDocument && projection.scope === 'document') {
+    if (projection.scope === 'document') {
       port.publishRendererAdjustments(applyGroupVisibility(
         projection.documentAdjustments,
         port.getGroupVisibility()
@@ -133,6 +148,9 @@ export const createDocumentProjectionController = (
       publishPresentation = true
     ) => {
       projectAdjustments(snapshot, targetLayerId, true, domain, publishPresentation);
+    },
+    applyProjectedAdjustmentSnapshot: (projection, domain = 'all') => {
+      publishCanonicalProjection(projection, domain);
     },
     applyDocumentSnapshot: (document) => {
       previewDocument = null;

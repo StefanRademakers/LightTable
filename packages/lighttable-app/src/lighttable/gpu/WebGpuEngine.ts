@@ -1822,12 +1822,27 @@ export class WebGpuEngine {
     });
   }
 
-  getColorLookupAssetSource(assetId: DocumentAssetId): Blob | null {
-    return this.colorLookupAssets.getSource(assetId);
+  getColorLookupAssetSource(
+    documentResourceKey: string,
+    assetId: DocumentAssetId
+  ): Blob | null {
+    return this.colorLookupAssets.getSource(assetId, documentResourceKey);
   }
 
-  removeColorLookupAsset(assetId: DocumentAssetId): boolean {
-    const removed = this.colorLookupAssets.remove(assetId);
+  async loadColorLookupAsset(
+    documentResourceKey: string,
+    asset: ColorLookupAssetBlob
+  ): Promise<void> {
+    await this.colorLookupAssets.load(asset, documentResourceKey);
+    this.adjustmentLayerResources.invalidateColorLookupAsset(asset.lutId);
+    this.markDocumentDirty();
+  }
+
+  removeColorLookupAsset(
+    documentResourceKey: string,
+    assetId: DocumentAssetId
+  ): boolean {
+    const removed = this.colorLookupAssets.remove(assetId, documentResourceKey);
     if (removed) this.adjustmentLayerResources.invalidateColorLookupAsset(assetId);
     return removed;
   }
@@ -1881,9 +1896,11 @@ export class WebGpuEngine {
 
   async loadLayerAssets(assets: DocumentAssetBlob[]) {
     if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
+    const documentResourceKey = this.imageDocument?.id;
+    if (!documentResourceKey) throw new Error('Load a document before loading its assets.');
     for (const asset of assets) {
       if (!('lutId' in asset)) continue;
-      await this.colorLookupAssets.load(asset);
+      await this.colorLookupAssets.load(asset, documentResourceKey);
       this.adjustmentLayerResources.invalidateColorLookupAsset(asset.lutId);
     }
     await this.documentRenderer.loadDocumentAssets(

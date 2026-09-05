@@ -48,15 +48,28 @@ export class ColorLookupAssetStore {
     return id ? this.assets.get(id as DocumentAssetId) ?? null : null;
   }
 
-  getSource(id: DocumentAssetId): Blob | null {
-    return this.assets.get(id)?.source ?? null;
+  getSource(
+    id: DocumentAssetId,
+    resourceKey: DocumentColorLookupResourceKey = this.resourceKey
+  ): Blob | null {
+    return this.repository.get(resourceKey, id)?.source ?? null;
   }
 
-  remove(id: DocumentAssetId): boolean {
-    return this.repository.remove(this.resourceKey, id);
+  remove(
+    id: DocumentAssetId,
+    resourceKey: DocumentColorLookupResourceKey = this.resourceKey
+  ): boolean {
+    return this.repository.remove(resourceKey, id);
   }
 
-  async load(asset: ColorLookupAssetBlob): Promise<ColorLookupGpuAsset> {
+  async load(
+    asset: ColorLookupAssetBlob,
+    resourceKey: DocumentColorLookupResourceKey = this.resourceKey
+  ): Promise<ColorLookupGpuAsset> {
+    // Capture the target set before parsing. A document switch may rebind the
+    // store while source.text() is pending; that must not move this asset into
+    // the newly active document.
+    const assets = this.repository.acquire(resourceKey);
     const parsed = parseCubeLut(await asset.source.text());
     const texture = this.device.createTexture({
       label: `LightTable Color Lookup: ${asset.lutId}`,
@@ -82,8 +95,8 @@ export class ColorLookupAssetStore {
         domainMin: parsed.domainMin,
         domainMax: parsed.domainMax
       };
-      const previous = this.assets.get(asset.lutId);
-      this.assets.set(asset.lutId, runtime);
+      const previous = assets.get(asset.lutId);
+      assets.set(asset.lutId, runtime);
       previous?.texture.destroy();
       return runtime;
     } catch (error) {

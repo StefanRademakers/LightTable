@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DocumentAssetId } from '../editor/document/documentTypes';
 import { ColorLookupAssetStore } from './ColorLookupAssetStore';
+import { DocumentColorLookupResourceRepository } from './DocumentColorLookupResourceRepository';
 
 beforeAll(() => {
   vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2 });
@@ -48,5 +49,30 @@ describe('ColorLookupAssetStore', () => {
     store.clear();
     expect(texture.destroy).toHaveBeenCalledOnce();
     expect(store.get(lutId)).toBeNull();
+  });
+
+  it('keeps an asynchronous load bound to its original document', async () => {
+    const texture = { destroy: vi.fn() };
+    const device = {
+      createTexture: vi.fn(() => texture),
+      queue: { writeTexture: vi.fn() }
+    } as unknown as GPUDevice;
+    const repository = new DocumentColorLookupResourceRepository();
+    const store = new ColorLookupAssetStore(device, repository, 'document-a');
+    const lutId = 'lut-delayed' as DocumentAssetId;
+    const source = new Blob([cube], { type: 'application/x-cube' });
+    let finishReading!: (value: string) => void;
+    vi.spyOn(source, 'text').mockReturnValue(new Promise((resolve) => {
+      finishReading = resolve;
+    }));
+
+    const loading = store.load({ lutId, source });
+    store.bind('document-b');
+    finishReading(cube);
+    await loading;
+
+    expect(store.get(lutId)).toBeNull();
+    expect(store.getSource(lutId, 'document-a')).toBe(source);
+    expect(store.getSource(lutId, 'document-b')).toBeNull();
   });
 });
