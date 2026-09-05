@@ -128,6 +128,14 @@ The same ownership declaration governs capability projection and direct dispatch
 
 This changes CPU-side ownership resolution only. It removes per-resolution proxy construction and adds no renderer work, GPU allocation, texture copy, readback or render pass.
 
+### Stable transform source and post-commit observation
+
+Transform now keeps one immutable GPU source for the lifetime of a toolsession. Pointer-up is a checkpoint while the same target remains active; move, scale and rotate previews continue to render from the opening source and only explicit completion performs the single document/pixel/history commit. Raster-layer commits now use the shared compensating pixel transaction, so failed publication and failed undo/redo cannot leave the GPU pixels and canonical document on opposite sides of the transform.
+
+Actions observe editor commands after that durable boundary. Recorder or subscriber failure is isolated from the accepted editor operation and is traced as an observation failure instead of making a successful edit appear rejected.
+
+The pointer-rate path is unchanged: it performs no readback, history construction or document-sized allocation. Large transform textures remain session-scoped; the added identity checks and compensation execute only at commit, undo/redo or failure. Per-preview bind groups and command encoders remain a profiling candidate, not an architectural blocker.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
@@ -135,7 +143,7 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Family | Current document boundary | Status |
 | --- | --- | --- |
 | View and Zoom | Presentation only; must never create document history | Explicitly excluded |
-| Transform | Document lease plus compound document/GPU/selection commit | Migrated; broader workflow verification remains |
+| Transform | One immutable session source plus compound document/GPU/selection commit | Migrated; manual GPU workflow verification remains |
 | Raster paint, erase, heal, clone, dodge, burn and sponge | Shared paint-session document lease and reversible GPU edit | Migrated |
 | Fill and raster Gradient | Discrete/gesture document lease plus reversible GPU edit | Migrated |
 | Pen, shape, vector selection and vector Gradient | Shared vector-gesture document lease | Migrated |

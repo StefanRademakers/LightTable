@@ -53,6 +53,7 @@ import type {
   DocumentMutationDescription,
   DocumentMutationTransaction
 } from '../../documents/useDocumentMutationController';
+import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -298,10 +299,9 @@ export const useTransformSessionController = (
 
     if (result.kind === 'raster-layer') {
       let editOwned = true;
-      let pixelsApplied = true;
       const rollback = () => {
         if (!editOwned) return;
-        if (pixelsApplied) current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo');
+        current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo');
         result.pixelEdit.destroy();
         editOwned = false;
       };
@@ -311,38 +311,20 @@ export const useTransformSessionController = (
       }
       try {
         const committed = transaction.commitWith((beforeDocument, afterDocument) => {
-          try {
-            current.applyDocumentSnapshot(afterDocument);
-            current.pushHistoryEntry({
-              label: 'Free Transform',
-              type: 'transform.layer',
-              byteSize: result.pixelEdit.byteSize,
-              layerIds: [result.layerId],
-              undo: () => {
-                const latest = dependenciesRef.current;
-                if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-                  throw new Error('Transform undo is no longer available.');
-                }
-                latest.applyDocumentSnapshot(beforeDocument);
-              },
-              redo: () => {
-                const latest = dependenciesRef.current;
-                if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
-                  throw new Error('Transform redo is no longer available.');
-                }
-                latest.applyDocumentSnapshot(afterDocument);
-              },
-              dispose: result.pixelEdit.destroy
-            });
-            editOwned = false;
-            return true;
-          } catch (reason) {
-            if (current.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-              pixelsApplied = false;
-            }
-            current.applyDocumentSnapshot(beforeDocument);
-            throw reason;
-          }
+          // The helper owns the already-applied edit from this point onward.
+          // It compensates GPU/document publication together if history
+          // registration, undo or redo fails.
+          editOwned = false;
+          commitAppliedPixelMutation(() => dependenciesRef.current, {
+            operation: 'Free Transform',
+            label: 'Free Transform',
+            type: 'transform.layer',
+            layerIds: [result.layerId],
+            before: beforeDocument,
+            after: afterDocument,
+            edits: [result.pixelEdit]
+          });
+          return true;
         });
         if (!committed) rollback();
       } catch (reason) {

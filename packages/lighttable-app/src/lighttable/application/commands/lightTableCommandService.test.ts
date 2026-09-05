@@ -638,6 +638,36 @@ describe('LightTableCommandService action recording', () => {
     state.workspace.dispose();
   });
 
+  it('does not let an Action subscriber reject an already-committed UI edit', () => {
+    const state = setup();
+    state.service.startActionRecording('Observed UI commit');
+    const unsubscribe = state.service.subscribeActionRecording(() => {
+      throw new Error('broken observer');
+    });
+
+    expect(() => state.service.recordObservedCommand(
+      'selection.applyShape',
+      state.session.id,
+      {
+        mode: 'replace',
+        shape: { kind: 'rectangle', points: [{ x: 2, y: 3 }, { x: 20, y: 30 }] },
+        featherRadius: 0,
+        antiAlias: false
+      },
+      {
+        mode: 'replace',
+        shape: { kind: 'rectangle', points: [{ x: 2, y: 3 }, { x: 20, y: 30 }] },
+        featherRadius: 0,
+        antiAlias: false
+      }
+    )).not.toThrow();
+    expect(state.service.actionRecordingSnapshot().steps).toHaveLength(1);
+
+    unsubscribe();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('refuses an invalid observed UI text commit before revision or recording publication', () => {
     const state = setup();
     state.service.startActionRecording('Invalid observed text');

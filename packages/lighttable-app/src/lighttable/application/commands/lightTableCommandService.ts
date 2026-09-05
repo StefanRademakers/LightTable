@@ -649,12 +649,19 @@ export class LightTableCommandService {
       parameters
     });
     if ('rejection' in parsed) return traceObservedCommand(command, false, 'request-rejected');
-    this.actions.record(parsed.value, {
-      requestId: parsed.value.requestId,
-      status: 'completed',
-      value,
-      revisions: this.revisions(this.document(documentId) ?? undefined)
-    }, startedAt, recording.id, 'ui');
+    try {
+      this.actions.record(parsed.value, {
+        requestId: parsed.value.requestId,
+        status: 'completed',
+        value,
+        revisions: this.revisions(this.document(documentId) ?? undefined)
+      }, startedAt, recording.id, 'ui');
+    } catch {
+      // Actions observe an editor commit after its durable document/history
+      // boundary. Recorder or subscriber failure must never turn that already
+      // accepted edit into a reported editor failure.
+      return traceObservedCommand(command, false, 'recorder-failed');
+    }
     return traceObservedCommand(command, true, 'recorded');
   }
   actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actions.playbackSnapshot();
