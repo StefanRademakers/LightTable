@@ -3248,11 +3248,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const assetId = settings.gradeLook.assetId;
     let gradeLookAsset: LightTableGradeClipboardCapture['gradeLookAsset'];
     if (assetId && document && renderer) {
-      const assets = await renderer.exportLayerAssets(document);
-      const source = assets.find((asset) => 'lutId' in asset && asset.lutId === assetId);
+      const source = renderer.getColorLookupAssetSource(assetId as DocumentAssetId);
       const metadata = document.assets.colorLookups.find((asset) => asset.id === assetId);
-      if (source && 'lutId' in source && metadata) {
-        gradeLookAsset = { assetId, name: metadata.name, source: source.source };
+      if (source && metadata) {
+        gradeLookAsset = { assetId, name: metadata.name, source };
       }
     }
     const capture = {

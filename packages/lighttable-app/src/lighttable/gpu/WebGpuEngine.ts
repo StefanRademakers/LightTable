@@ -15,6 +15,7 @@ import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
   type AdjustmentLayer,
+  type DocumentAssetId,
   type ImageDocument,
   type LayerId,
   type LayerNode,
@@ -987,12 +988,17 @@ export class WebGpuEngine {
   pruneLayerRuntimes(
     documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
-    keepMaskLayerIds: ReadonlySet<LayerId>
+    keepMaskLayerIds: ReadonlySet<LayerId>,
+    keepColorLookupAssetIds: ReadonlySet<DocumentAssetId>
   ) {
     this.documentRenderer?.pruneDetachedRuntimes(
       documentResourceKey,
       keepRasterLayerIds,
       keepMaskLayerIds
+    );
+    this.documentColorLookupResources.prune(
+      documentResourceKey,
+      keepColorLookupAssetIds
     );
   }
 
@@ -1814,6 +1820,16 @@ export class WebGpuEngine {
       if (!source) throw new Error(`Color Lookup ${asset.name} is not available for saving.`);
       return { lutId: asset.id, source };
     });
+  }
+
+  getColorLookupAssetSource(assetId: DocumentAssetId): Blob | null {
+    return this.colorLookupAssets.getSource(assetId);
+  }
+
+  removeColorLookupAsset(assetId: DocumentAssetId): boolean {
+    const removed = this.colorLookupAssets.remove(assetId);
+    if (removed) this.adjustmentLayerResources.invalidateColorLookupAsset(assetId);
+    return removed;
   }
 
   async exportLayerAssets(document: ImageDocument) {

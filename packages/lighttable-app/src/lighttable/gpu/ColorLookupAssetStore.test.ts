@@ -41,6 +41,10 @@ describe('ColorLookupAssetStore', () => {
     expect(store.getSource(lutId)).toBe(source);
     expect(store.estimatedTextureBytes()).toBe(128);
 
+    expect(store.remove(lutId)).toBe(true);
+    expect(texture.destroy).toHaveBeenCalledOnce();
+    expect(store.get(lutId)).toBeNull();
+
     store.clear();
     expect(texture.destroy).toHaveBeenCalledOnce();
     expect(store.get(lutId)).toBeNull();

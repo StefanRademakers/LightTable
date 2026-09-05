@@ -52,6 +52,10 @@ export class ColorLookupAssetStore {
     return this.assets.get(id)?.source ?? null;
   }
 
+  remove(id: DocumentAssetId): boolean {
+    return this.repository.remove(this.resourceKey, id);
+  }
+
   async load(asset: ColorLookupAssetBlob): Promise<ColorLookupGpuAsset> {
     const parsed = parseCubeLut(await asset.source.text());
     const texture = this.device.createTexture({

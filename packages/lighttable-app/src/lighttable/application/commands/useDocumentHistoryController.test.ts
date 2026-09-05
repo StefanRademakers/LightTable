@@ -3,6 +3,7 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createTextLayer } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
+  type DocumentAssetId,
   type ImageDocument,
   type LayerId
 } from '../../editor/document/documentTypes';
@@ -20,7 +21,8 @@ const setup = () => {
   const pruneLayerRuntimes = vi.fn<(
     documentResourceKey: string,
     rasterIds: ReadonlySet<LayerId>,
-    maskIds: ReadonlySet<LayerId>
+    maskIds: ReadonlySet<LayerId>,
+    colorLookupIds: ReadonlySet<DocumentAssetId>
   ) => void>();
   const finishOpenTransactions = vi.fn();
   const setError = vi.fn();
@@ -87,6 +89,35 @@ describe('document history controller', () => {
     const [, rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(rasterIds.has(textId)).toBe(false);
     expect(maskIds.has(textId)).toBe(true);
+  });
+
+  it('retains document and history-owned color lookup resources', () => {
+    const state = setup();
+    const active = 'active-lut' as DocumentAssetId;
+    const retained = 'undo-lut' as DocumentAssetId;
+    state.setDocument({
+      ...state.getDocument()!,
+      assets: {
+        ...state.getDocument()!.assets,
+        colorLookups: [{
+          id: active,
+          name: 'Active LUT',
+          size: 2,
+          domainMin: [0, 0, 0],
+          domainMax: [1, 1, 1],
+          byteLength: 1,
+          revision: 0
+        }]
+      }
+    });
+    state.controller.record({
+      resourceIds: [retained],
+      undo: () => undefined,
+      redo: () => undefined
+    });
+
+    const [, , , colorLookupIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    expect(colorLookupIds).toEqual(new Set([active, retained]));
   });
 
   it('does not retain a raster runtime for a text-only semantic history entry', () => {

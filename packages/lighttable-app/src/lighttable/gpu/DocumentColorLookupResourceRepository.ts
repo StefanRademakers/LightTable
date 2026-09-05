@@ -29,6 +29,28 @@ export class DocumentColorLookupResourceRepository {
     this.sets.delete(key);
     return true;
   }
+
+  remove(key: DocumentColorLookupResourceKey, assetId: DocumentAssetId): boolean {
+    const set = this.sets.get(key);
+    const asset = set?.get(assetId);
+    if (!set || !asset) return false;
+    asset.texture.destroy();
+    set.delete(assetId);
+    return true;
+  }
+
+  prune(
+    key: DocumentColorLookupResourceKey,
+    keepAssetIds: ReadonlySet<DocumentAssetId>
+  ): void {
+    const set = this.sets.get(key);
+    if (!set) return;
+    for (const [assetId, asset] of set) {
+      if (keepAssetIds.has(assetId)) continue;
+      asset.texture.destroy();
+      set.delete(assetId);
+    }
+  }
 }
 
 const repositoriesByDevice = new WeakMap<GPUDevice, DocumentColorLookupResourceRepository>();

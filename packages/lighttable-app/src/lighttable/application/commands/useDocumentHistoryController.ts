@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type {
+  DocumentAssetId,
   ImageDocument,
   LayerId
 } from '../../editor/document/documentTypes';
@@ -13,7 +14,7 @@ export interface EditorHistoryEntry {
   readonly byteSize?: number;
   readonly layerIds?: readonly LayerId[];
   /** Raster runtime IDs retained for GPU undo/redo; independent of affected layers. */
-  readonly resourceIds?: readonly LayerId[];
+  readonly resourceIds?: readonly string[];
   readonly documentMutation?: boolean;
   undo(): void | Promise<void>;
   redo(): void | Promise<void>;
@@ -24,7 +25,8 @@ export interface HistoryRuntimePruner {
   pruneLayerRuntimes(
     documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
-    keepMaskLayerIds: ReadonlySet<LayerId>
+    keepMaskLayerIds: ReadonlySet<LayerId>,
+    keepColorLookupAssetIds: ReadonlySet<DocumentAssetId>
   ): void;
 }
 
@@ -74,15 +76,20 @@ export const createDocumentHistoryController = (
       const keepMasks = new Set<LayerId>(
         document ? walkLayerTree(document.layers).map(({ node }) => node.id) : []
       );
+      const keepColorLookups = new Set<DocumentAssetId>(
+        document?.assets.colorLookups.map(({ id }) => id) ?? []
+      );
       dependencies.history.getRetainedResourceIds().forEach((id) => {
         keepRasterLayers.add(id as LayerId);
         keepMasks.add(id as LayerId);
+        keepColorLookups.add(id as DocumentAssetId);
       });
       if (document) {
         dependencies.getRenderer()?.pruneLayerRuntimes(
           document.id,
           keepRasterLayers,
-          keepMasks
+          keepMasks,
+          keepColorLookups
         );
       }
     } catch (reason) {
