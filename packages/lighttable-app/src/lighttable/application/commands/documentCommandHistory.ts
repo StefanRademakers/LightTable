@@ -76,7 +76,7 @@ export class DocumentCommandHistory {
   private readonly listeners = new Set<DocumentCommandHistoryListener>();
   private undoNodes: HistoryNode[] = [];
   private redoNodes: HistoryNode[] = [];
-  private pendingCommands: ReversibleDocumentCommand[] = [];
+  private activeNode: HistoryNode | null = null;
   private busy = false;
   private generation = 0;
   private nextStateId = 1;
@@ -107,9 +107,7 @@ export class DocumentCommandHistory {
   record(command: ReversibleDocumentCommand): void {
     this.assertTarget(command);
     if (this.busy) {
-      this.pendingCommands.push(command);
-      this.publish();
-      return;
+      throw new Error('A command cannot be recorded while undo or redo is running.');
     }
     this.append(command);
     this.publish();
@@ -132,6 +130,7 @@ export class DocumentCommandHistory {
     const node = this.undoNodes.pop();
     if (!node) return false;
     const generation = this.generation;
+    this.activeNode = node;
     this.busy = true;
     this.publish();
     try {
@@ -148,11 +147,9 @@ export class DocumentCommandHistory {
       else this.disposeCommand(node.command);
       throw reason;
     } finally {
-      if (generation === this.generation) {
-        this.busy = false;
-        this.flushPendingCommands();
-        this.publish();
-      }
+      this.activeNode = null;
+      this.busy = false;
+      this.publish();
     }
   }
 
@@ -161,6 +158,7 @@ export class DocumentCommandHistory {
     const node = this.redoNodes.pop();
     if (!node) return false;
     const generation = this.generation;
+    this.activeNode = node;
     this.busy = true;
     this.publish();
     try {
@@ -177,11 +175,9 @@ export class DocumentCommandHistory {
       else this.disposeCommand(node.command);
       throw reason;
     } finally {
-      if (generation === this.generation) {
-        this.busy = false;
-        this.flushPendingCommands();
-        this.publish();
-      }
+      this.activeNode = null;
+      this.busy = false;
+      this.publish();
     }
   }
 
@@ -214,13 +210,12 @@ export class DocumentCommandHistory {
 
   clear(options: { preserveDirtyState?: boolean } = {}): void {
     const wasDirty = this.snapshot.dirty;
+    const operationInFlight = this.busy;
     this.generation += 1;
     this.disposeNodes([...this.undoNodes, ...this.redoNodes]);
-    this.pendingCommands.forEach((command) => this.disposeCommand(command));
     this.undoNodes = [];
     this.redoNodes = [];
-    this.pendingCommands = [];
-    this.busy = false;
+    this.busy = operationInFlight;
     this.currentStateId = options.preserveDirtyState && wasDirty
       ? this.nextStateId++
       : 0;
@@ -235,19 +230,14 @@ export class DocumentCommandHistory {
 
   getRetainedResourceIds(): ReadonlySet<string> {
     const ids = new Set<string>();
-    for (const node of [...this.undoNodes, ...this.redoNodes]) {
+    for (const node of [
+      ...this.undoNodes,
+      ...this.redoNodes,
+      ...(this.activeNode ? [this.activeNode] : [])
+    ]) {
       node.command.resourceIds?.forEach((id) => ids.add(id));
     }
-    this.pendingCommands.forEach((command) => {
-      command.resourceIds?.forEach((id) => ids.add(id));
-    });
     return ids;
-  }
-
-  private flushPendingCommands(): void {
-    const pending = this.pendingCommands;
-    this.pendingCommands = [];
-    pending.forEach((command) => this.append(command));
   }
 
   private assertTarget(command: ReversibleDocumentCommand): void {
@@ -292,10 +282,7 @@ export class DocumentCommandHistory {
     const estimatedBytes = [...this.undoNodes, ...this.redoNodes].reduce(
       (total, node) => total + (node.command.byteSize ?? 0),
       0
-    ) + this.pendingCommands.reduce(
-      (total, command) => total + (command.byteSize ?? 0),
-      0
-    );
+    ) + (this.activeNode?.command.byteSize ?? 0);
     return {
       documentId: this.documentId,
       canUndo: this.undoNodes.length > 0 && !this.busy,

@@ -156,6 +156,23 @@ describe('document history controller', () => {
     );
   });
 
+  it('does not restore history until an asynchronous document publication settles', async () => {
+    const state = setup();
+    let finishPublication: () => void = () => undefined;
+    state.finishOpenTransactions.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishPublication = resolve;
+    }));
+    const undo = vi.fn();
+    state.controller.record({ undo, redo: () => undefined });
+
+    const restoring = state.controller.undo();
+    await Promise.resolve();
+    expect(undo).not.toHaveBeenCalled();
+    finishPublication();
+    await restoring;
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
   it('publishes undo errors without rejecting the editor event loop', async () => {
     const state = setup();
     state.controller.record({

@@ -19,6 +19,7 @@ const renamed = (document: ImageDocument, name: string): ImageDocument => ({
 
 const setup = () => {
   let document: ImageDocument | null = createImageDocument('First', 32, 24, 'first');
+  let mutationBlocked = false;
   const history: DocumentMutationHistoryEntry[] = [];
   let preview: ImageDocument | null = null;
   const applySnapshot = vi.fn((next: ImageDocument) => {
@@ -35,7 +36,8 @@ const setup = () => {
     applySnapshot,
     previewSnapshot,
     discardPreview,
-    pushHistoryEntry: (entry) => history.push(entry)
+    pushHistoryEntry: (entry) => history.push(entry),
+    isMutationBlocked: () => mutationBlocked
   };
   const controller = createDocumentMutationController(() => dependencies);
   return {
@@ -46,7 +48,8 @@ const setup = () => {
     discardPreview,
     get document() { return document; },
     get preview() { return preview; },
-    setDocument: (next: ImageDocument | null) => { document = next; }
+    setDocument: (next: ImageDocument | null) => { document = next; },
+    setMutationBlocked: (blocked: boolean) => { mutationBlocked = blocked; }
   };
 };
 
@@ -226,6 +229,40 @@ describe('document mutation controller', () => {
     finishCommit(true);
     await expect(publishing).resolves.toBe(true);
     expect(state.controller.active).toBe(false);
+  });
+
+  it('waits for an asynchronous compound publication before becoming idle', async () => {
+    const state = setup();
+    const transaction = state.controller.begin('test.async-settlement');
+    if (!transaction) throw new Error('Expected a document transaction.');
+    transaction.stage((current) => renamed(current, 'Compound'));
+    let finishCommit: (committed: boolean) => void = () => undefined;
+    const publishing = transaction.commitWithAsync(() => new Promise<boolean>((resolve) => {
+      finishCommit = resolve;
+    }));
+    let idle = false;
+    const settling = state.controller.waitForIdle().then(() => { idle = true; });
+
+    await Promise.resolve();
+    expect(idle).toBe(false);
+    finishCommit(true);
+    await publishing;
+    await settling;
+    expect(idle).toBe(true);
+  });
+
+  it('refuses document mutations while history is restoring a state', () => {
+    const state = setup();
+    const transaction = state.controller.begin('pending');
+    transaction?.change((current) => renamed(current, 'Preview'));
+    state.setMutationBlocked(true);
+
+    expect(state.controller.begin('blocked')).toBeNull();
+    expect(transaction?.commit()).toBe(false);
+    expect(state.controller.change((current) => renamed(current, 'Blocked'))).toBe(false);
+    expect(state.document?.name).toBe('First');
+    expect(state.preview).toBeNull();
+    expect(state.history).toHaveLength(0);
   });
 
   it('finishes an active gesture before running an unrelated command', () => {

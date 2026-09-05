@@ -902,7 +902,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession?.getSnapshot().processing.adjustments ?? createDefaultAdjustments()
   );
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
-  const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
+  const resetDocumentTransactionRef = useRef<() => Promise<void>>(async () => undefined);
   const layerDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
   const faceWarpDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>(
@@ -1853,7 +1853,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       faceWarpRefinementRef.current = null;
       pendingFaceWarpRefinement.finish();
     }
-    resetDocumentTransactionRef.current();
+    await resetDocumentTransactionRef.current();
   }, []);
 
   const documentHistoryController = useDocumentHistoryController({
@@ -1904,9 +1904,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applySnapshot: applyDocumentSnapshot,
     previewSnapshot: documentProjectionController.previewDocumentSnapshot,
     discardPreview: documentProjectionController.discardDocumentPreview,
-    pushHistoryEntry
+    pushHistoryEntry,
+    isMutationBlocked: () => commandHistory.getSnapshot().busy
   });
-  resetDocumentTransactionRef.current = () => {
+  resetDocumentTransactionRef.current = async () => {
+    await documentMutationController.waitForIdle();
     layerDocumentTransactionRef.current = null;
     faceWarpDocumentTransactionRef.current = null;
     if (textPropertyGestureRef.current?.kind === 'document') {

@@ -87,7 +87,8 @@ export const createDocumentSessionCommandPorts = (
     applySnapshot: applyDocument,
     previewSnapshot: () => requiresPresentation('Document transaction previews'),
     discardPreview: () => undefined,
-    pushHistoryEntry: history.record
+    pushHistoryEntry: history.record,
+    isMutationBlocked: () => session.history.getSnapshot().busy
   }));
   const semanticDependencies = {
     getDocument: () => session.getSnapshot().document,

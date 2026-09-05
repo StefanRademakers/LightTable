@@ -22,6 +22,7 @@ export interface DocumentMutationDependencies {
   previewSnapshot(document: ImageDocument): void;
   discardPreview(): void;
   pushHistoryEntry(entry: DocumentMutationHistoryEntry): void;
+  isMutationBlocked?(): boolean;
 }
 
 export interface DocumentMutationTransaction {
@@ -50,6 +51,8 @@ export interface DocumentMutationTransaction {
 export interface DocumentMutationController {
   get active(): boolean;
   readonly activeOwner: string | null;
+  /** Waits for an already-running asynchronous compound publication to finish. */
+  waitForIdle(): Promise<void>;
   begin(
     owner: string,
     description?: DocumentMutationDescription,
@@ -146,6 +149,7 @@ interface ActiveDocumentTransaction {
   readonly onClose?: (reason: DocumentMutationCloseReason) => void;
   readonly interruption: DocumentMutationInterruption;
   phase: 'previewing' | 'committing';
+  settlement: Promise<void> | null;
   latest: ImageDocument;
 }
 
@@ -259,6 +263,10 @@ export const createDocumentMutationController = (
 ): DocumentMutationController => {
   let transaction: ActiveDocumentTransaction | null = null;
 
+  const mutationIsBlocked = (): boolean => (
+    resolveDependencies().isMutationBlocked?.() ?? false
+  );
+
   const canonicalOriginIsCurrent = (active: ActiveDocumentTransaction): boolean => {
     const current = resolveDependencies().getDocument();
     return current === active.before
@@ -280,6 +288,9 @@ export const createDocumentMutationController = (
   const record = (before: ImageDocument, after: ImageDocument,
     description?: DocumentMutationDescription): boolean => {
     if (before === after) return false;
+    if (mutationIsBlocked()) {
+      throw new Error('A document mutation cannot be recorded while undo or redo is running.');
+    }
     if (before.id !== after.id) {
       throw new Error('A document mutation cannot replace the document identity.');
     }
@@ -330,6 +341,10 @@ export const createDocumentMutationController = (
   ): boolean => {
     const active = transaction;
     if (!active || active.token !== token || active.phase === 'committing') return false;
+    if (mutationIsBlocked()) {
+      cancelTransaction(active.token);
+      return false;
+    }
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
       active.onClose?.('stale');
@@ -365,6 +380,10 @@ export const createDocumentMutationController = (
   ): boolean => {
     const active = transaction;
     if (!active || active.token !== token || active.phase === 'committing') return false;
+    if (mutationIsBlocked()) {
+      cancelTransaction(active.token);
+      return false;
+    }
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
       active.onClose?.('stale');
@@ -395,6 +414,10 @@ export const createDocumentMutationController = (
   ): Promise<boolean> => {
     const active = transaction;
     if (!active || active.token !== token || active.phase === 'committing') return false;
+    if (mutationIsBlocked()) {
+      cancelTransaction(active.token);
+      return false;
+    }
     if (!canonicalOriginIsCurrent(active)) {
       transaction = null;
       active.onClose?.('stale');
@@ -411,6 +434,10 @@ export const createDocumentMutationController = (
     // document and auxiliary state. A second command cannot supersede a
     // half-published compound edit.
     active.phase = 'committing';
+    let resolveSettlement: () => void = () => undefined;
+    active.settlement = new Promise<void>((resolve) => {
+      resolveSettlement = resolve;
+    });
     try {
       const committed = await commit(active.before, active.latest);
       if (transaction?.token === token) transaction = null;
@@ -422,6 +449,8 @@ export const createDocumentMutationController = (
       active.onClose?.('failed');
       resolveDependencies().discardPreview();
       throw error;
+    } finally {
+      resolveSettlement();
     }
   };
 
@@ -431,6 +460,10 @@ export const createDocumentMutationController = (
     project: boolean
   ): boolean => {
     if (transaction?.token !== active.token || active.phase === 'committing') return false;
+    if (mutationIsBlocked()) {
+      cancelTransaction(active.token);
+      return false;
+    }
     if (!canonicalOriginIsCurrent(active)) {
       cancelTransaction(active.token);
       return false;
@@ -460,8 +493,15 @@ export const createDocumentMutationController = (
     get activeOwner() {
       return transaction?.owner ?? null;
     },
+    waitForIdle: async () => {
+      const settlement = transaction?.phase === 'committing'
+        ? transaction.settlement
+        : null;
+      if (settlement) await settlement;
+    },
     begin: (owner, description, onClose, interruption = 'commit') => {
       if (!owner.trim()) throw new Error('A document transaction requires an owner.');
+      if (mutationIsBlocked()) return null;
       // A newly-started interaction is the document-level boundary between
       // gestures. Finish the previous authored change before granting the new
       // lease. Its old handle becomes stale and cannot preview, commit or
@@ -485,6 +525,7 @@ export const createDocumentMutationController = (
         onClose,
         interruption,
         phase: 'previewing',
+        settlement: null,
         latest: document
       };
       transaction = active;
@@ -512,6 +553,7 @@ export const createDocumentMutationController = (
     cancelActive: () => transaction ? cancelTransaction(transaction.token) : false,
     record,
     change: (mutate, recordHistory = true, description) => {
+      if (mutationIsBlocked()) return false;
       // Discrete commands form a new document operation. If a control failed
       // to deliver blur/pointer-up, preserve its visible result as its own
       // history item before executing the command. Late callbacks are rejected

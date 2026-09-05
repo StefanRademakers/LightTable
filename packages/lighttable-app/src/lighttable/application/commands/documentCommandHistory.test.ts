@@ -7,7 +7,12 @@ const documentId = 'document-a' as DocumentSessionId;
 const command = (
   id: string,
   actions: { undo?: () => void | Promise<void>; redo?: () => void | Promise<void> } = {},
-  options: { affectsDocument?: boolean; byteSize?: number; dispose?: () => void } = {}
+  options: {
+    affectsDocument?: boolean;
+    byteSize?: number;
+    dispose?: () => void;
+    resourceIds?: readonly string[];
+  } = {}
 ) => ({
   id,
   type: 'test',
@@ -15,6 +20,7 @@ const command = (
   documentId,
   affectsDocument: options.affectsDocument,
   byteSize: options.byteSize,
+  resourceIds: options.resourceIds,
   undo: actions.undo ?? (() => undefined),
   redo: actions.redo ?? (() => undefined),
   dispose: options.dispose
@@ -99,50 +105,56 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot().busy).toBe(false);
   });
 
-  it('queues edits recorded during async undo as the new history branch', async () => {
+  it('rejects edits recorded during async undo', async () => {
     let resolveUndo: (() => void) | undefined;
-    const disposeUndone = vi.fn();
-    const history = new DocumentCommandHistory(documentId);
-    history.record(command('async', {
-      undo: () => new Promise<void>((resolve) => { resolveUndo = resolve; })
-    }, { dispose: disposeUndone }));
-
-    const undo = history.undo();
-    history.record({
-      ...command('replacement'),
-      byteSize: 32,
-      resourceIds: ['replacement-runtime']
-    });
-
-    expect(history.getSnapshot()).toMatchObject({ busy: true, estimatedBytes: 32 });
-    expect(history.getRetainedResourceIds().has('replacement-runtime')).toBe(true);
-    resolveUndo?.();
-    await undo;
-
-    expect(disposeUndone).toHaveBeenCalledOnce();
-    expect(history.getSnapshot()).toMatchObject({
-      busy: false,
-      undoDepth: 1,
-      redoDepth: 0,
-      canUndo: true,
-      canRedo: false
-    });
-  });
-
-  it('disposes queued commands when history is cleared during an operation', async () => {
-    let resolveUndo: (() => void) | undefined;
-    const disposePending = vi.fn();
     const history = new DocumentCommandHistory(documentId);
     history.record(command('async', {
       undo: () => new Promise<void>((resolve) => { resolveUndo = resolve; })
     }));
-    const undo = history.undo();
-    history.record(command('pending', {}, { dispose: disposePending }));
 
-    history.clear();
-    expect(disposePending).toHaveBeenCalledOnce();
+    const undo = history.undo();
+    expect(() => history.record({
+      ...command('replacement'),
+      byteSize: 32,
+      resourceIds: ['replacement-runtime']
+    })).toThrow(/cannot be recorded while undo or redo is running/i);
+
+    expect(history.getSnapshot()).toMatchObject({ busy: true, estimatedBytes: 0 });
+    expect(history.getRetainedResourceIds().has('replacement-runtime')).toBe(false);
     resolveUndo?.();
     await undo;
+
+    expect(history.getSnapshot()).toMatchObject({
+      busy: false,
+      undoDepth: 0,
+      redoDepth: 1,
+      canUndo: false,
+      canRedo: true
+    });
+  });
+
+  it('retains an active command until a cleared operation has settled', async () => {
+    let resolveUndo: (() => void) | undefined;
+    const disposeActive = vi.fn();
+    const history = new DocumentCommandHistory(documentId);
+    history.record(command('async', {
+      undo: () => new Promise<void>((resolve) => { resolveUndo = resolve; })
+    }, {
+      dispose: disposeActive,
+      resourceIds: ['active-runtime']
+    }));
+    const undo = history.undo();
+
+    history.clear();
+    expect(history.getSnapshot().busy).toBe(true);
+    expect(history.getRetainedResourceIds().has('active-runtime')).toBe(true);
+    expect(() => history.record(command('raced'))).toThrow(
+      /cannot be recorded while undo or redo is running/i
+    );
+    resolveUndo?.();
+    await undo;
+    expect(disposeActive).toHaveBeenCalledOnce();
+    expect(history.getRetainedResourceIds().has('active-runtime')).toBe(false);
     expect(history.getSnapshot()).toMatchObject({ undoDepth: 0, redoDepth: 0, busy: false });
   });
 

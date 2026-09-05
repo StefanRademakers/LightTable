@@ -136,6 +136,14 @@ Actions observe editor commands after that durable boundary. Recorder or subscri
 
 The pointer-rate path is unchanged: it performs no readback, history construction or document-sized allocation. Large transform textures remain session-scoped; the added identity checks and compensation execute only at commit, undo/redo or failure. Per-preview bind groups and command encoders remain a profiling candidate, not an architectural blocker.
 
+### Serialized history restoration and asynchronous publication
+
+History no longer accepts newly recorded commands while undo or redo is restoring an older state. The previous pending-command queue could append a newer history node after an asynchronous restore had already replaced the canonical document or GPU state, leaving the visible result and history cursor on different branches.
+
+The document mutation controller now exposes one settlement boundary for asynchronous compound publishers. Undo and redo wait for an already-running LUT import, raster load, document-surface exchange or transform publication to finish or roll back before restoring history. Once history restoration is active, both mounted-editor and inactive-session document mutations are rejected at the shared controller boundary; history registration remains the final guard for specialized GPU transactions.
+
+This synchronization is commit-rate only. It adds no pointer event work, texture allocation, GPU pass, readback or document snapshot copy. A single short-lived promise exists only while an asynchronous compound publication is active.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
