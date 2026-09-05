@@ -428,6 +428,33 @@ Required change:
 - include executor-specific buffers and transient targets in memory estimates;
 - cancel, rather than finish, a transient slider operation during unrelated unmount or target replacement.
 
+Resource and hot-path audit:
+
+- P0, P1 and P2 currently share one lazily allocated pool capped at three document-sized
+  `rgba16float` targets. The pool is configured on surface-size changes and is not reallocated
+  by slider previews. Its worst retained texture cost is therefore bounded at
+  `width * height * 8 * 3` bytes: 96 MiB at 2048 x 2048 and about 190 MiB at 3840 x 2160.
+- Every filter core retains only small uniform buffers keyed by the semantic processing owner.
+  `syncDocument` walks groups, standalone adjustments, raster stacks and attached adjustments,
+  using the same attached-owner id as the processing graph, and releases keys that no longer
+  exist. Every P1/P2 executor forwards both inactive-key release and destruction to all of its
+  cores. Renderer reset and device destruction release the cores and the shared target pool.
+- Pipeline caches are device-keyed. Specialized optional pipelines use the shared, failure-
+  evicting compilation cache, so simultaneous first use does not compile the same pipeline more
+  than once. Pipelines are not recreated by parameter changes.
+- The reported filter memory estimate counts the shared image-sized pool exactly once. It does
+  not include per-owner uniform buffers; those are tens of bytes per active filter and are a
+  telemetry completeness issue, not a material image-memory cost.
+- The unified filter controller publishes previews only to the renderer projection. A canonical
+  document revision still cancels an in-flight interaction, so the revision dependency is an
+  external-change guard rather than a self-cancelling slider path.
+
+No resource-lifetime rewrite is justified by this audit. The remaining filter risks are product
+admission and output-contract verification: preview/experimental packs are still enabled in every
+build, and `alphaBehavior`/`coordinateSpace` are catalog metadata rather than one centrally
+enforced executor boundary. Those require representative visual and M1 performance acceptance,
+not speculative hot-path changes.
+
 ### Transactional layer mutation publication
 
 The layer command controller now acquires the document mutation lease before it plans or publishes destructive work. Duplicate, mask creation and background removal, adjustment creation, merge, flatten, rasterize, invert, Paste, Place and Layer Via Copy all bind to the opening document identity and revision. Async asset loading and mask upload retain the lease until their compound publisher completes.
