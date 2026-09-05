@@ -446,6 +446,8 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
+const DEVICE_LOSS_RECOVERY_LIMIT = 2;
+const DEVICE_LOSS_STABILITY_WINDOW_MS = 30_000;
 const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
   status: 'idle', id: null, name: 'Untitled Action', startedAt: null, stoppedAt: null,
   steps: [], variables: [], byteLength: 0, limitReached: false
@@ -1144,16 +1146,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [setImageDocument, workspaceDocumentKind]);
   useEffect(() => {
     if (rendererSnapshot.status === 'ready') {
-      consecutiveDeviceLossRecoveriesRef.current = 0;
-      return undefined;
+      // A renderer that merely submitted one frame is not proof that the new
+      // device is stable. Keep the consecutive-loss budget across short
+      // recover/fail loops and only forgive it after a sustained ready period.
+      const timer = window.setTimeout(() => {
+        consecutiveDeviceLossRecoveriesRef.current = 0;
+      }, DEVICE_LOSS_STABILITY_WINDOW_MS);
+      return () => window.clearTimeout(timer);
     }
     if (rendererSnapshot.status !== 'failed'
       || !/^WebGPU device lost:/u.test(rendererSnapshot.error ?? '')
-      || recoveredFailureGenerationRef.current === rendererSnapshot.generation
-      || consecutiveDeviceLossRecoveriesRef.current >= 2) return undefined;
+      || recoveredFailureGenerationRef.current === rendererSnapshot.generation) return undefined;
     recoveredFailureGenerationRef.current = rendererSnapshot.generation;
-    if (imageDocument) {
-      const recovery = resolveDocumentGpuRecoveryPolicy(imageDocument);
+    // Recovery is a document lifecycle decision. React and tool projections
+    // may trail an in-flight commit, so consult the canonical session first.
+    const recoveryDocument = documentSession?.getSnapshot().document
+      ?? imageDocumentRef.current;
+    if (recoveryDocument) {
+      const recovery = resolveDocumentGpuRecoveryPolicy(recoveryDocument);
       if (recovery.mode === 'checkpoint-required') {
         setError(
           `${rendererSnapshot.error} Automatic renderer recovery was stopped to protect `
@@ -1163,12 +1173,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return undefined;
       }
     }
+    if (consecutiveDeviceLossRecoveriesRef.current >= DEVICE_LOSS_RECOVERY_LIMIT) {
+      setError(
+        `${rendererSnapshot.error} Automatic renderer recovery was stopped after `
+        + `${DEVICE_LOSS_RECOVERY_LIMIT} consecutive device-loss recoveries. `
+        + 'Reopen the saved source or restore its recovery checkpoint.'
+      );
+      return undefined;
+    }
     consecutiveDeviceLossRecoveriesRef.current += 1;
     replaceRendererOnNextOpenRef.current = true;
     const timer = window.setTimeout(() => setRendererRecoverySequence(value => value + 1), 50);
     return () => window.clearTimeout(timer);
   }, [
-    imageDocument,
+    documentSession,
     rendererSnapshot.error,
     rendererSnapshot.generation,
     rendererSnapshot.status
