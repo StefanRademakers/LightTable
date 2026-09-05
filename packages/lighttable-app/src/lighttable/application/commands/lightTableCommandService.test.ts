@@ -31,6 +31,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
   session.setDocument(createRasterLayer(createImageDocument('Fixture', 80, 60, 'source-1')));
   session.setReady();
   const ports: LightTableCommandPorts = {
+    supportsCommand: vi.fn(() => true),
     resizeImage: vi.fn(),
     applyDocumentGeometry: vi.fn(),
     assignDocumentProfile: vi.fn(async (_documentId, command) => ({
@@ -990,6 +991,26 @@ describe('LightTableCommandService queries', () => {
       available: false,
       reason: 'There is nothing to undo.'
     });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('rejects execution when the current document owner does not declare the command', async () => {
+    const executeRasterInvert = vi.fn();
+    const state = setup({
+      supportsCommand: (_documentId, command) => command !== 'raster.invert',
+      executeRasterInvert
+    });
+
+    await expect(state.service.execute(request('raster.invert', state.session.id, {
+      layerId: state.session.getSnapshot().document!.activeLayerId,
+      channel: 'pixels'
+    }))).resolves.toMatchObject({
+      status: 'rejected',
+      code: 'command-unavailable',
+      message: 'The command is unavailable through the current document owner.'
+    });
+    expect(executeRasterInvert).not.toHaveBeenCalled();
     state.service.dispose();
     state.workspace.dispose();
   });

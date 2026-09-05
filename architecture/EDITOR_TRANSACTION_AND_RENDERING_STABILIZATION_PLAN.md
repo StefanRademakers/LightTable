@@ -110,6 +110,14 @@ The document mutation controller now treats history registration as part of the 
 
 This closes a central half-commit path behind apparently successful edits followed by incomplete undo. The normal success path only adds exception handling around the existing history call; it performs no extra render, GPU allocation, texture copy or readback.
 
+### Explicit single-owner command routing
+
+Command availability and execution now fail closed. Workspace-owned commands are separated from mounted-document commands in an explicit, exhaustive ownership map. While a presentation owner is mounted it is selected as the complete owner; the registry no longer constructs property-level proxy hybrids with canonical fallbacks. After detach, the document-lifetime canonical owner can be selected as one complete alternative.
+
+The same ownership declaration governs capability projection and direct dispatch. UI, Actions and MCP therefore cannot advertise or execute a command that the selected document owner did not explicitly declare. A newly added public command remains unavailable until its ownership is deliberately assigned.
+
+This changes CPU-side ownership resolution only. It removes per-resolution proxy construction and adds no renderer work, GPU allocation, texture copy, readback or render pass.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.

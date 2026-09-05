@@ -155,6 +155,7 @@ const createHarness = () => {
     return { target: command.target, values: command.values, changed };
   };
   const ports: LightTableCommandPorts = {
+    supportsCommand: () => true,
     setZoom: vi.fn(), createRasterLayer: vi.fn(), placeArtifact: vi.fn(), renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(), setLayerFillOpacity: vi.fn(), setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(), executeTextCommand: vi.fn(),

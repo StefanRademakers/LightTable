@@ -12,6 +12,7 @@ import type {
   LightTableGradeClipboardCapture,
   LightTablePreviewEncoding
 } from './application/commands/lightTableCommandContract';
+import { isMountedDocumentCommand } from './application/commands/lightTableCommandOwnership';
 import { commandDocumentTarget } from './application/commands/commandRequestScope';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import {
@@ -5851,6 +5852,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (documentSession
       && imageDocument?.id !== documentSession.getSnapshot().document?.id) return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
+      supportsCommand: isMountedDocumentCommand,
       resizeImage: (request) => commitImageSize(request, false),
       applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
       assignDocumentProfile: ({ profile }) => {

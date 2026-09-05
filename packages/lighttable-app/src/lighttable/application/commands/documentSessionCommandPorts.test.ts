@@ -8,8 +8,23 @@ import { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 import { LightTableCommandService } from './lightTableCommandService';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
 import { canReadInactiveFlatRaster } from './inactiveFlatRasterArtifacts';
+import { LIGHTTABLE_COMMAND_IDS } from '@lighttable/command-contract';
+import {
+  MOUNTED_DOCUMENT_COMMANDS,
+  SERVICE_OWNED_COMMANDS
+} from './lightTableCommandOwnership';
 
 describe('document-lifetime command ownership', () => {
+  it('assigns every public command to exactly one explicit execution owner', () => {
+    const assigned = new Set([...SERVICE_OWNED_COMMANDS, ...MOUNTED_DOCUMENT_COMMANDS]);
+    const overlap = [...SERVICE_OWNED_COMMANDS].filter((command) => (
+      MOUNTED_DOCUMENT_COMMANDS.has(command)
+    ));
+
+    expect(overlap).toEqual([]);
+    expect([...assigned].sort()).toEqual([...LIGHTTABLE_COMMAND_IDS].sort());
+  });
+
   it('admits a clean flat raster source for inactive visual reads only', () => {
     const workspace = new WorkspaceSession({ createId: () => 'document-flat' as never });
     const opened = workspace.open({
@@ -110,5 +125,44 @@ describe('document-lifetime command ownership', () => {
     detach();
     registry.createRasterLayer(documentId);
     expect(canonicalCreate).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed when the selected owner has no explicit command capabilities', () => {
+    const documentId = 'document-a' as never;
+    const canonical = { createRasterLayer: vi.fn() } as unknown as DocumentLightTableCommandPorts;
+    const registry = new LightTableCommandPortRegistry(() => canonical);
+
+    expect(registry.supportsCommand(documentId, 'layer.createRaster')).toBe(false);
+  });
+
+  it('does not advertise a declared command when its required port is absent', () => {
+    const documentId = 'document-a' as never;
+    const incomplete = {
+      supportsCommand: () => true
+    } as unknown as DocumentLightTableCommandPorts;
+    const registry = new LightTableCommandPortRegistry(() => incomplete);
+
+    expect(registry.supportsCommand(documentId, 'raster.invert')).toBe(false);
+  });
+
+  it('never mixes a mounted owner with canonical fallback methods', () => {
+    const documentId = 'document-a' as never;
+    const canonicalImport = vi.fn();
+    const canonical = {
+      supportsCommand: () => true,
+      executeSvgImport: canonicalImport
+    } as unknown as DocumentLightTableCommandPorts;
+    const mounted = {
+      supportsCommand: () => false,
+      createRasterLayer: vi.fn()
+    } as unknown as DocumentLightTableCommandPorts;
+    const registry = new LightTableCommandPortRegistry(() => canonical);
+    registry.register(documentId, mounted);
+
+    expect(() => registry.executeSvgImport(documentId, {
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      placement: 'document'
+    })).toThrow('SVG import is unavailable in the target document.');
+    expect(canonicalImport).not.toHaveBeenCalled();
   });
 });

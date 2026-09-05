@@ -6,6 +6,7 @@ import type {
   LightTableCommandId,
   LightTableCommandPorts
 } from './lightTableCommandContract';
+import { isServiceOwnedCommand } from './lightTableCommandOwnership';
 
 export const projectCommandCapabilities = (
   snapshot: DocumentSessionSnapshot,
@@ -20,7 +21,8 @@ export const projectCommandCapabilities = (
   const layerCapabilities = queryLayerCommandCapabilities(snapshot.document);
   const availability = (command: LightTableCommandId, available: boolean,
     reason: string): CommandCapabilitySummary => {
-    const ownerSupportsCommand = ports.supportsCommand?.(snapshot.id, command) ?? true;
+    const ownerSupportsCommand = isServiceOwnedCommand(command)
+      || (ports.supportsCommand?.(snapshot.id, command) ?? false);
     const commandAvailable = available && ownerSupportsCommand;
     return { command, available: ready && commandAvailable,
       reason: !ready ? 'The document is not ready.' : commandAvailable ? null

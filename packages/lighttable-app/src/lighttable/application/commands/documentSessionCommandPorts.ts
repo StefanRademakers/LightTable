@@ -33,6 +33,7 @@ import {
   exportInactiveFlatRasterLayerPreview,
   exportInactiveFlatRasterPreview
 } from './inactiveFlatRasterArtifacts';
+import type { LightTableCommandId } from './lightTableCommandContract';
 
 const requiresPresentation = (operation: string): never => {
   throw new Error(`${operation} requires the active document presentation renderer.`);
@@ -46,8 +47,7 @@ const CANONICAL_PORTS = new Set<string>([
   'executeLayerCommand', 'executeAtomicBatch', 'exportSvgArtifact'
 ]);
 
-const CANONICAL_COMMANDS = new Set<string>([
-  'document.create', 'document.duplicate', 'file.openArtifact',
+const CANONICAL_COMMANDS = new Set<LightTableCommandId>([
   'view.setZoom', 'layer.createRaster', 'layer.delete', 'layer.move',
   'layer.setBlendMode', 'layer.setClipping', 'layer.setTransform', 'layer.setLock',
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity',

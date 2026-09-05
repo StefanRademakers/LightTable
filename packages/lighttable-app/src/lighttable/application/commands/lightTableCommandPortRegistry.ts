@@ -28,6 +28,7 @@ import type {
   LightTableGestureSample,
   LightTableCommandId
 } from './lightTableCommandContract';
+import { mountedDocumentCommandPort } from './lightTableCommandOwnership';
 
 /** Resolves transport-neutral commands to the mounted owner of one document. */
 export class LightTableCommandPortRegistry implements LightTableCommandPorts {
@@ -50,18 +51,16 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.documents.has(documentId) || Boolean(this.resolveCanonical?.(documentId));
   }
   supportsPort(documentId: DocumentSessionId, port: string): boolean {
-    const supports = (owner: DocumentLightTableCommandPorts | null | undefined): boolean => {
-      if (!owner) return false;
-      if (owner.supportsPort) return owner.supportsPort(port);
-      return typeof Reflect.get(owner, port, owner) === 'function';
-    };
-    return supports(this.documents.get(documentId))
-      || supports(this.resolveCanonical?.(documentId));
+    const owner = this.owner(documentId);
+    if (!owner) return false;
+    if (owner.supportsPort) return owner.supportsPort(port);
+    return typeof Reflect.get(owner, port, owner) === 'function';
   }
   supportsCommand(documentId: DocumentSessionId, command: LightTableCommandId): boolean {
-    const mounted = this.documents.get(documentId);
-    if (mounted) return mounted.supportsCommand?.(command) ?? true;
-    return this.resolveCanonical?.(documentId)?.supportsCommand?.(command) ?? false;
+    const owner = this.owner(documentId);
+    if (!owner?.supportsCommand?.(command)) return false;
+    const port = mountedDocumentCommandPort(command);
+    return port !== null && typeof Reflect.get(owner, port, owner) === 'function';
   }
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
@@ -328,17 +327,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
 
   private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
-    const mounted = this.documents.get(documentId);
-    const canonical = this.resolveCanonical?.(documentId) ?? null;
-    const ports = mounted && canonical
-      ? new Proxy(canonical, {
-          get: (target, property, receiver) => (
-            Reflect.get(mounted, property, mounted)
-            ?? Reflect.get(target, property, receiver)
-          )
-        })
-      : mounted ?? canonical;
+    const ports = this.owner(documentId);
     if (!ports) throw new Error('The target document command controller is not mounted.');
     return ports;
+  }
+
+  private owner(documentId: DocumentSessionId): DocumentLightTableCommandPorts | null {
+    return this.documents.get(documentId) ?? this.resolveCanonical?.(documentId) ?? null;
   }
 }

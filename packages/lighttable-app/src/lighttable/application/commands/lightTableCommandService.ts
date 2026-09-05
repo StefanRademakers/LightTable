@@ -1168,6 +1168,11 @@ export class LightTableCommandService {
         revisions: this.revisions(snapshot) };
     }
 
+    if (!(this.ports.supportsCommand?.(documentRequest.documentId, value.command) ?? false)) {
+      return this.reject(value.requestId, 'command-unavailable',
+        'The command is unavailable through the current document owner.', snapshot);
+    }
+
     if (value.command === 'command.batch') {
       const batch = parseAtomicCommandBatch(value.parameters);
       if (!batch) return this.reject(value.requestId, 'invalid-parameters',
