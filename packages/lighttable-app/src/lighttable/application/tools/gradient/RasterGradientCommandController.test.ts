@@ -4,7 +4,11 @@ import { createEditorSession, type PaintChannel } from '../../../editor/session/
 import type { LayerId } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
-import { RasterGradientCommandController } from './RasterGradientCommandController';
+import {
+  RasterGradientCommandController,
+  type RasterGradientDependencies
+} from './RasterGradientCommandController';
+import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 
 const edit: ReversiblePixelEdit = {
   byteSize: 80,
@@ -12,6 +16,19 @@ const edit: ReversiblePixelEdit = {
   redo: vi.fn(() => true),
   destroy: vi.fn()
 };
+
+const withDocumentMutations = <T extends Omit<RasterGradientDependencies, 'documentMutations'>>(
+  dependencies: T
+) => ({
+  ...dependencies,
+  documentMutations: createDocumentMutationController(() => ({
+    getDocument: dependencies.getDocument,
+    applySnapshot: dependencies.applyDocumentSnapshot,
+    previewSnapshot: () => undefined,
+    discardPreview: () => undefined,
+    pushHistoryEntry: dependencies.pushHistoryEntry
+  }))
+});
 
 describe('RasterGradientCommandController', () => {
   it('commits one constrained gesture and publishes reversible history', () => {
@@ -35,7 +52,7 @@ describe('RasterGradientCommandController', () => {
       cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
@@ -45,7 +62,7 @@ describe('RasterGradientCommandController', () => {
       setStatus: vi.fn(),
       setError: vi.fn(),
       onGradientCommitted: vi.fn()
-    };
+    });
     const controller = new RasterGradientCommandController(() => dependencies);
 
     expect(controller.begin(7, { x: 4, y: 5 })).toBe(true);
@@ -73,10 +90,10 @@ describe('RasterGradientCommandController', () => {
     const renderer = { beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
       fillLayerGradient: vi.fn(() => true), finishPixelEdit: vi.fn(() => edit),
       cancelPixelEdit: vi.fn(), applyPixelHistory: vi.fn(() => true) };
-    const dependencies = { getDocument: () => document, getRenderer: () => renderer,
+    const dependencies = withDocumentMutations({ getDocument: () => document, getRenderer: () => renderer,
       getChannel: () => 'mask' as const, getSettings: () => createEditorSession().gradient,
       applyDocumentSnapshot: (next: ImageDocument) => { document = next; },
-      pushHistoryEntry: vi.fn(), setStatus: vi.fn(), setError: vi.fn(), onGradientCommitted };
+      pushHistoryEntry: vi.fn(), setStatus: vi.fn(), setError: vi.fn(), onGradientCommitted });
     const controller = new RasterGradientCommandController(() => dependencies);
     const layerId = document.activeLayerId!;
     const paint = { ...createEditorSession().gradient.paint,
@@ -91,7 +108,7 @@ describe('RasterGradientCommandController', () => {
 
   it('treats a click without a drag as a no-op', () => {
     const document = createImageDocument('Gradient', 64, 48, 'fixture');
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => ({}) as never,
       getChannel: () => 'pixels' as const,
@@ -100,7 +117,7 @@ describe('RasterGradientCommandController', () => {
       pushHistoryEntry: vi.fn(),
       setStatus: vi.fn(),
       setError: vi.fn()
-    };
+    });
     const controller = new RasterGradientCommandController(() => dependencies);
     expect(controller.begin(2, { x: 10, y: 10 })).toBe(true);
     expect(controller.finish(2, { x: 10, y: 10 }, false)).toBe(false);

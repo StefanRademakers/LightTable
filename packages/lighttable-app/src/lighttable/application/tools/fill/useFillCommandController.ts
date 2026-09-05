@@ -4,6 +4,7 @@ import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixe
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import type { SemanticFillCommand } from '../../commands/semanticFillCommandContract';
 import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
+import type { DocumentMutationController } from '../../documents/useDocumentMutationController';
 import {
   executeFillOperation,
   type FillRendererPort
@@ -27,6 +28,7 @@ export interface FillCommandDependencies {
       direction: 'undo' | 'redo'
     ): boolean;
   }) | null;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
   getChannel(): PaintChannel;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: FillHistoryEntry): void;
@@ -62,9 +64,20 @@ export const createFillCommandController = (
     history?: { readonly label: string; readonly type: string }
   ) => {
     const dependencies = resolveDependencies();
-    const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    if (!before || !renderer) return null;
+    if (!renderer) return null;
+    const transaction = dependencies.documentMutations.begin(
+      'tool.fill',
+      {
+        label: history?.label ?? (channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
+        type: history?.type ?? (channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
+        ...(layerId ? { layerIds: [layerId] } : {})
+      },
+      undefined,
+      'cancel'
+    );
+    if (!transaction) return null;
+    const before = transaction.before;
     const result = executeFillOperation(
       before,
       renderer,
@@ -73,22 +86,38 @@ export const createFillCommandController = (
       { ...options, layerId }
     );
     if (!result.ok) {
+      transaction.cancel();
       dependencies.setError(result.message);
       return null;
     }
 
+    let historyOwnsPixelEdit = false;
     try {
-      commitAppliedPixelMutation(() => resolveDependencies(), {
-        operation: 'Fill',
-        label: history?.label
-          ?? (result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
-        type: history?.type ?? (result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
-        layerIds: [result.layerId],
-        before,
-        after: result.document,
-        edits: [result.pixelEdit]
+      const staged = transaction.stage(() => result.document);
+      const committed = staged && transaction.commitWith((ownedBefore, ownedAfter) => {
+        historyOwnsPixelEdit = true;
+        commitAppliedPixelMutation(() => resolveDependencies(), {
+          operation: 'Fill',
+          label: history?.label
+            ?? (result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
+          type: history?.type ?? (result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
+          layerIds: [result.layerId],
+          before: ownedBefore,
+          after: ownedAfter,
+          edits: [result.pixelEdit]
+        });
+        return true;
       });
+      if (!committed) {
+        if (!historyOwnsPixelEdit) {
+          renderer.applyPixelHistory(result.pixelEdit, 'undo');
+          result.pixelEdit.destroy();
+        }
+        dependencies.setError('Fill was canceled because the document changed.');
+        return null;
+      }
     } catch (reason) {
+      transaction.cancel();
       dependencies.setError(
         reason instanceof Error ? reason.message : 'Fill did not complete.'
       );

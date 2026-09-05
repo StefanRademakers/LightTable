@@ -84,6 +84,32 @@ This removes intermediate text geometry from document subscribers, autosave and 
 
 Painting a compact or transformed raster requires a document-sized GPU surface, but that materialization is now staged outside canonical document state. The renderer receives the prepared geometry as a projection while the document session retains the opening snapshot and revision. A successful stroke adopts the surface swap and pixel edit into one history entry and publishes one final document snapshot. Cancel, initialization failure, empty strokes and stale-document completion restore both GPU edits and discard the projected geometry without publishing a compensating document revision.
 
+### Document-leased fill and raster gradient
+
+Fill and raster-gradient commands now acquire the same document-owned mutation lease used by the stabilized gesture controllers. The lease fixes the document identity and revision before the renderer is changed. The resulting GPU edit and immutable document snapshot are then transferred together to the existing reversible pixel-history entry. A rejected, stale or superseded operation rolls the GPU edit back and destroys it instead of leaving pixels outside canonical history.
+
+This adds no pixel copy, readback or render pass. The transaction retains document snapshot references and performs ownership and revision checks; GPU storage and history retention remain in the existing pixel-edit implementation.
+
+### Tool-family ownership status
+
+The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
+
+| Family | Current document boundary | Status |
+| --- | --- | --- |
+| View and Zoom | Presentation only; must never create document history | Explicitly excluded |
+| Transform | Document lease plus compound document/GPU/selection commit | Migrated; broader workflow verification remains |
+| Raster paint, erase, heal, clone, dodge, burn and sponge | Shared paint-session document lease and reversible GPU edit | Migrated |
+| Fill and raster Gradient | Discrete/gesture document lease plus reversible GPU edit | Migrated |
+| Pen, shape, vector selection and vector Gradient | Shared vector-gesture document lease | Migrated |
+| Warp | Document lease plus reversible GPU edit | Migrated |
+| Face Warp | Separate controller and renderer path | Audit pending |
+| Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
+| Point, paragraph, vertical and path text | Move, resize and handle gestures use document leases | Partial: typing, conversion and recovery paths still need audit |
+| Layer mutations, merge, rasterize and flatten | Mixed direct document/history and compound GPU paths | Migration pending |
+| Adjustments, effects and filters | Shared preview controller for the migrated adjustment paths | Partial: every effect/filter commit and resource cleanup still needs an inventory |
+
+This table is the completion ledger. A family is not considered stable merely because its primary pointer gesture uses the transaction controller; semantic commands, Actions/MCP execution, cancel, document switch, undo/redo and renderer recovery must reach the same boundary as well.
+
 ## Existing architectural contracts
 
 The intended system is already documented in:

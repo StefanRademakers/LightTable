@@ -4256,6 +4256,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const fillCommandController = useFillCommandController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    documentMutations: documentMutationController,
     getChannel: () => editorSession.activeChannel,
     applyDocumentSnapshot,
     pushHistoryEntry,
@@ -4278,6 +4279,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const rasterGradientPortsRef = useRef<RasterGradientDependencies>({
     getDocument: () => null,
     getRenderer: () => null,
+    documentMutations: documentMutationController,
     getChannel: () => 'pixels',
     getSettings: createGradientToolSettings,
     applyDocumentSnapshot: () => undefined,
@@ -4288,6 +4290,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   rasterGradientPortsRef.current = {
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    documentMutations: documentMutationController,
     getChannel: () => editorSession.activeChannel,
     getSettings: () => gradientToolSettings,
     applyDocumentSnapshot,

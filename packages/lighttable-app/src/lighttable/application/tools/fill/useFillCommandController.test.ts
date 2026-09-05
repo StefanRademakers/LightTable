@@ -2,13 +2,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, type ImageDocument } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { FillHistoryEntry } from './useFillCommandController';
-import { createFillCommandController } from './useFillCommandController';
+import {
+  createFillCommandController,
+  type FillCommandDependencies
+} from './useFillCommandController';
+import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 
 const pixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 48,
   undo: vi.fn(() => true),
   redo: vi.fn(() => true),
   destroy: vi.fn()
+});
+
+const withDocumentMutations = <T extends Omit<FillCommandDependencies, 'documentMutations'>>(
+  dependencies: T
+) => ({
+  ...dependencies,
+  documentMutations: createDocumentMutationController(() => ({
+    getDocument: dependencies.getDocument,
+    applySnapshot: dependencies.applyDocumentSnapshot,
+    previewSnapshot: () => undefined,
+    discardPreview: () => undefined,
+    pushHistoryEntry: dependencies.pushHistoryEntry
+  }))
 });
 
 describe('createFillCommandController', () => {
@@ -24,7 +41,7 @@ describe('createFillCommandController', () => {
       cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
@@ -35,7 +52,7 @@ describe('createFillCommandController', () => {
       setStatus: vi.fn(),
       setError: vi.fn(),
       onFillCommitted: vi.fn()
-    };
+    });
     const controller = createFillCommandController(() => dependencies);
 
     expect(controller.fill('#ff0000')).toBe(true);
@@ -65,11 +82,12 @@ describe('createFillCommandController', () => {
       finishPixelEdit: vi.fn(() => pixelEdit()), cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true) };
     const onFillCommitted = vi.fn();
-    const controller = createFillCommandController(() => ({
-      getDocument: () => document, getRenderer: () => renderer, getChannel: () => 'mask',
+    const dependencies = withDocumentMutations({
+      getDocument: () => document, getRenderer: () => renderer, getChannel: () => 'mask' as const,
       applyDocumentSnapshot: (next) => { document = next; }, pushHistoryEntry: vi.fn(),
       setStatus: vi.fn(), setError: vi.fn(), onFillCommitted
-    }));
+    });
+    const controller = createFillCommandController(() => dependencies);
     const layerId = document.activeLayerId!;
     expect(controller.apply({ layerId, channel: 'pixels', color: '#ffffff', opacity: 0.5 }))
       .toEqual({ layerId, channel: 'pixels' });
@@ -87,7 +105,7 @@ describe('createFillCommandController', () => {
       cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
@@ -95,7 +113,7 @@ describe('createFillCommandController', () => {
       pushHistoryEntry: vi.fn((entry: FillHistoryEntry) => history.push(entry)),
       setStatus: vi.fn(),
       setError: vi.fn()
-    };
+    });
 
     expect(createFillCommandController(() => dependencies).clearSelection()).toBe(true);
     expect(renderer.fillLayerColor).toHaveBeenCalledWith(
@@ -111,7 +129,7 @@ describe('createFillCommandController', () => {
 
   it('does not publish history when the renderer rejects the fill', () => {
     const document = createImageDocument('Fill', 16, 12, 'asset');
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => ({
         beginBrushStroke: vi.fn(),
@@ -125,7 +143,7 @@ describe('createFillCommandController', () => {
       pushHistoryEntry: vi.fn(),
       setStatus: vi.fn(),
       setError: vi.fn()
-    };
+    });
 
     expect(createFillCommandController(() => dependencies).fill('#ffffff')).toBe(false);
     expect(dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
@@ -145,7 +163,7 @@ describe('createFillCommandController', () => {
       finishPixelEdit: vi.fn(() => edit), cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document, getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
@@ -154,7 +172,7 @@ describe('createFillCommandController', () => {
         if (publications === 1) throw new Error('publication failed');
       }),
       pushHistoryEntry: vi.fn(), setStatus: vi.fn(), setError: vi.fn()
-    };
+    });
 
     expect(createFillCommandController(() => dependencies).fill('#ffffff')).toBe(false);
     expect(document).toBe(before);
@@ -173,13 +191,13 @@ describe('createFillCommandController', () => {
       finishPixelEdit: vi.fn(() => edit), cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document, getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => { document = next; }),
       pushHistoryEntry: vi.fn(() => { throw new Error('history failed'); }),
       setStatus: vi.fn(), setError: vi.fn()
-    };
+    });
 
     expect(createFillCommandController(() => dependencies).fill('#ffffff')).toBe(false);
     expect(document).toBe(before);
@@ -198,7 +216,7 @@ describe('createFillCommandController', () => {
       finishPixelEdit: vi.fn(() => edit), cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document, getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
@@ -210,7 +228,7 @@ describe('createFillCommandController', () => {
       }),
       pushHistoryEntry: (entry: FillHistoryEntry) => history.push(entry),
       setStatus: vi.fn(), setError: vi.fn()
-    };
+    });
     const controller = createFillCommandController(() => dependencies);
     expect(controller.fill('#ffffff')).toBe(true);
     const after = document;
@@ -235,7 +253,7 @@ describe('createFillCommandController', () => {
       finishPixelEdit: vi.fn(() => edit), cancelPixelEdit: vi.fn(),
       applyPixelHistory: vi.fn(() => true)
     };
-    const dependencies = {
+    const dependencies = withDocumentMutations({
       getDocument: () => document, getRenderer: () => renderer,
       getChannel: () => 'pixels' as const,
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
@@ -247,7 +265,7 @@ describe('createFillCommandController', () => {
       }),
       pushHistoryEntry: (entry: FillHistoryEntry) => history.push(entry),
       setStatus: vi.fn(), setError: vi.fn()
-    };
+    });
     const controller = createFillCommandController(() => dependencies);
     expect(controller.fill('#ffffff')).toBe(true);
     history[0]!.undo();
