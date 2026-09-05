@@ -25,7 +25,9 @@ export interface LayerStyleEditorDependencies {
   activeDocument: ImageDocument | null;
   getDocument(): ImageDocument | null;
   getRenderer(): LayerStyleInteractionPort | null;
+  previewDocumentSnapshot(document: ImageDocument): void;
   applyDocumentSnapshot(document: ImageDocument): void;
+  discardDocumentPreview(): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   onCheckpoint?(before: ImageDocument, after: ImageDocument, layerId: LayerId): void;
 }
@@ -33,17 +35,27 @@ export interface LayerStyleEditorDependencies {
 export interface LayerStyleEditorController {
   request: LayerStyleEditorRequest | null;
   open(layerId: LayerId, effectId?: LayerStyleId): void;
+  beginInteraction(): void;
   preview(stack: LayerStyleStack): void;
+  commitInteraction(): void;
+  cancelInteraction(): void;
   cancel(): void;
   commit(): void;
 }
 
+interface LayerStyleInteraction {
+  before: ImageDocument;
+  latest: ImageDocument | null;
+  layerId: LayerId;
+}
+
 /**
- * Owns contextual Layer Style editing transactions.
+ * Owns the transient gesture around editing a document-owned Layer Style stack.
  *
- * Rapid previews are grouped into short undo checkpoints. This lets the
- * docked inspector stay open without retaining one unbounded transaction or
- * leaving the renderer in interaction quality between edits.
+ * Pointer-rate previews are projected to the renderer only. The canonical
+ * document and its history advance once, synchronously, when the interaction
+ * commits. Replacing the target, switching documents or unmounting cancels the
+ * preview rather than turning component lifecycle into an authoring action.
  */
 export const useLayerStyleEditorController = (
   dependencies: LayerStyleEditorDependencies
@@ -51,7 +63,7 @@ export const useLayerStyleEditorController = (
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
   const requestRef = useRef<LayerStyleEditorRequest | null>(null);
-  const checkpointTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interactionRef = useRef<LayerStyleInteraction | null>(null);
   const [request, setRequestState] = useState<LayerStyleEditorRequest | null>(null);
 
   const setRequest = useCallback((next: LayerStyleEditorRequest | null) => {
@@ -63,33 +75,71 @@ export const useLayerStyleEditorController = (
     dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(false);
   }, []);
 
-  const clearCheckpointTimer = useCallback(() => {
-    if (checkpointTimerRef.current === null) return;
-    clearTimeout(checkpointTimerRef.current);
-    checkpointTimerRef.current = null;
+  const discardInteraction = useCallback(() => {
+    const interaction = interactionRef.current;
+    interactionRef.current = null;
+    if (!interaction) return;
+    dependenciesRef.current.discardDocumentPreview();
+    endRendererInteraction();
+  }, [endRendererInteraction]);
+
+  const beginInteraction = useCallback(() => {
+    if (interactionRef.current) return;
+    const currentRequest = requestRef.current;
+    const current = dependenciesRef.current.getDocument();
+    if (!currentRequest || !current || current.id !== currentRequest.before.id) return;
+    const layer = findDocumentLayer(current, currentRequest.layerId);
+    if (!layer || !layerSupportsLayerStyles(layer)) return;
+    interactionRef.current = {
+      before: current,
+      latest: null,
+      layerId: currentRequest.layerId
+    };
+    dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(
+      true,
+      currentRequest.layerId
+    );
   }, []);
 
-  const checkpoint = useCallback((close: boolean) => {
-    clearCheckpointTimer();
-    const currentRequest = requestRef.current;
-    if (!currentRequest) return;
-    const after = dependenciesRef.current.getDocument();
-    if (after?.id === currentRequest.before.id && after !== currentRequest.before) {
-      dependenciesRef.current.pushDocumentHistory(currentRequest.before, after);
-      dependenciesRef.current.onCheckpoint?.(currentRequest.before, after, currentRequest.layerId);
+  const commitInteraction = useCallback(() => {
+    const interaction = interactionRef.current;
+    if (!interaction) return;
+    interactionRef.current = null;
+
+    const current = dependenciesRef.current.getDocument();
+    const canonicalIsBaseline = current?.id === interaction.before.id
+      && current.revision === interaction.before.revision;
+    const after = interaction.latest;
+    if (!canonicalIsBaseline || !after || after === interaction.before) {
+      dependenciesRef.current.discardDocumentPreview();
+      endRendererInteraction();
+      return;
     }
+
+    try {
+      dependenciesRef.current.applyDocumentSnapshot(after);
+      dependenciesRef.current.pushDocumentHistory(interaction.before, after);
+    } catch (error) {
+      dependenciesRef.current.applyDocumentSnapshot(interaction.before);
+      endRendererInteraction();
+      throw error;
+    }
+
     endRendererInteraction();
-    if (close || after?.id !== currentRequest.before.id) {
-      setRequest(null);
-    } else if (after !== currentRequest.before) {
+    const currentRequest = requestRef.current;
+    if (currentRequest?.layerId === interaction.layerId) {
       setRequest({ ...currentRequest, before: after });
     }
-  }, [clearCheckpointTimer, endRendererInteraction, setRequest]);
+    dependenciesRef.current.onCheckpoint?.(
+      interaction.before,
+      after,
+      interaction.layerId
+    );
+  }, [endRendererInteraction, setRequest]);
 
-  const scheduleCheckpoint = useCallback(() => {
-    clearCheckpointTimer();
-    checkpointTimerRef.current = setTimeout(() => checkpoint(false), 220);
-  }, [checkpoint, clearCheckpointTimer]);
+  const cancelInteraction = useCallback(() => {
+    discardInteraction();
+  }, [discardInteraction]);
 
   const open = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
     const current = dependenciesRef.current.getDocument();
@@ -100,38 +150,39 @@ export const useLayerStyleEditorController = (
       setRequest({ ...activeRequest, effectId });
       return;
     }
-    if (activeRequest) checkpoint(true);
+    discardInteraction();
     setRequest({ layerId, effectId, before: current });
-  }, [checkpoint, setRequest]);
+  }, [discardInteraction, setRequest]);
 
   const preview = useCallback((stack: LayerStyleStack) => {
-    const currentRequest = requestRef.current;
+    if (!interactionRef.current) beginInteraction();
+    const interaction = interactionRef.current;
+    if (!interaction) return;
     const current = dependenciesRef.current.getDocument();
-    if (!current || !currentRequest || current.id !== currentRequest.before.id) return;
-    const next = setLayerStyleStack(current, currentRequest.layerId, stack);
-    if (next !== current) {
-      dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(
-        true,
-        currentRequest.layerId
-      );
-      dependenciesRef.current.applyDocumentSnapshot(next);
-      scheduleCheckpoint();
+    if (!current
+      || current.id !== interaction.before.id
+      || current.revision !== interaction.before.revision) {
+      discardInteraction();
+      return;
     }
-  }, [scheduleCheckpoint]);
+    const next = setLayerStyleStack(interaction.before, interaction.layerId, stack);
+    interaction.latest = next === interaction.before ? null : next;
+    if (interaction.latest) {
+      dependenciesRef.current.previewDocumentSnapshot(interaction.latest);
+    } else {
+      dependenciesRef.current.discardDocumentPreview();
+    }
+  }, [beginInteraction, discardInteraction]);
 
   const cancel = useCallback(() => {
-    clearCheckpointTimer();
-    const currentRequest = requestRef.current;
-    if (!currentRequest) return;
-    const current = dependenciesRef.current.getDocument();
-    if (current?.id === currentRequest.before.id) {
-      dependenciesRef.current.applyDocumentSnapshot(currentRequest.before);
-    }
-    endRendererInteraction();
+    discardInteraction();
     setRequest(null);
-  }, [clearCheckpointTimer, endRendererInteraction, setRequest]);
+  }, [discardInteraction, setRequest]);
 
-  const commit = useCallback(() => checkpoint(true), [checkpoint]);
+  const commit = useCallback(() => {
+    commitInteraction();
+    setRequest(null);
+  }, [commitInteraction, setRequest]);
 
   useEffect(() => {
     const currentRequest = requestRef.current;
@@ -141,22 +192,22 @@ export const useLayerStyleEditorController = (
       ? findDocumentLayer(dependencies.activeDocument, currentRequest.layerId)
       : null;
     if (layer && layerSupportsLayerStyles(layer)) return;
-    // A document switch, undo or replacement can remove the edited layer.
-    clearCheckpointTimer();
-    endRendererInteraction();
+    discardInteraction();
     setRequest(null);
-  }, [clearCheckpointTimer, dependencies.activeDocument, endRendererInteraction, setRequest]);
+  }, [dependencies.activeDocument, discardInteraction, setRequest]);
 
   useEffect(() => () => {
-    clearCheckpointTimer();
-    const currentRequest = requestRef.current;
-    const after = dependenciesRef.current.getDocument();
-    if (currentRequest && after?.id === currentRequest.before.id && after !== currentRequest.before) {
-      dependenciesRef.current.pushDocumentHistory(currentRequest.before, after);
-      dependenciesRef.current.onCheckpoint?.(currentRequest.before, after, currentRequest.layerId);
-    }
-    if (currentRequest) endRendererInteraction();
-  }, [clearCheckpointTimer, endRendererInteraction]);
+    discardInteraction();
+  }, [discardInteraction]);
 
-  return { request, open, preview, cancel, commit };
+  return {
+    request,
+    open,
+    beginInteraction,
+    preview,
+    commitInteraction,
+    cancelInteraction,
+    cancel,
+    commit
+  };
 };

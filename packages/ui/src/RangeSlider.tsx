@@ -19,14 +19,16 @@ export interface RangeSliderProps {
   onChange: (values: readonly number[], index: number) => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
 }
 export function RangeSlider({ label, values, labels, min, max, step = 1, disabled = false,
   tabIndex = -1, trackBackground, publishIntervalMs = 'animation-frame', getBounds, resolveValues, renderValues,
-  onChange, onInteractionStart, onInteractionEnd }: RangeSliderProps) {
+  onChange, onInteractionStart, onInteractionEnd, onInteractionCancel }: RangeSliderProps) {
   const pointer = useRef<number | null>(null);
   const indexRef = useRef(0);
   const interaction = useSliderInteraction(values, {
-    onChange: next => onChange(next, indexRef.current), onInteractionStart, onInteractionEnd, publishIntervalMs
+    onChange: next => onChange(next, indexRef.current), onInteractionStart, onInteractionEnd,
+    onInteractionCancel, publishIntervalMs
   });
   const increment = (index: number) => typeof step === 'number' ? step : step[index] ?? 1;
   const bounds = (index: number) => getBounds?.(index, interaction.latest.current) ?? {
@@ -46,7 +48,8 @@ export function RangeSlider({ label, values, labels, min, max, step = 1, disable
     update(index, sliderValueAtPosition(x, rect.left + thumb / 2, Math.max(0, rect.width - thumb), min, max, increment(index)));
   };
   const end = () => { pointer.current = null; interaction.end(); };
-  React.useEffect(() => { if (disabled) end(); }, [disabled]);
+  const cancel = () => { pointer.current = null; interaction.cancel(); };
+  React.useEffect(() => { if (disabled) cancel(); }, [disabled]);
   return <div className="ui-slider ui-range-slider" data-ui-component="range-slider" data-suite-control="range-slider" data-disabled={disabled || undefined}>
     <span className="ui-slider__label">{label}</span>
     <div className="ui-slider__track" style={{ '--ui-slider-position': '0%',
@@ -66,7 +69,8 @@ export function RangeSlider({ label, values, labels, min, max, step = 1, disable
           }}
           onPointerMove={event => { if (pointer.current === event.pointerId) move(event.currentTarget, event.clientX, index); }}
           onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX, index); end(); } }}
-          onPointerCancel={end} onLostPointerCapture={end}
+          onPointerCancel={cancel}
+          onLostPointerCapture={() => { if (pointer.current !== null) cancel(); }}
           onKeyDown={event => {
             const delta = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[event.key];
             if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;

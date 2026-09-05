@@ -15,6 +15,7 @@ export interface ColorWheelProps {
   onReset?: () => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
 }
 const clamp = (value: number) => Math.min(100, Math.max(0, value));
 const normalizeHue = (value: number) => ((value % 360) + 360) % 360;
@@ -22,14 +23,16 @@ const normalizeHue = (value: number) => ((value % 360) + 360) % 360;
 /** Hue/saturation picker; document transactions and luminance remain host-owned. */
 export function ColorWheel({ label, hue, saturation, luminance, disabled = false, compact = false,
   tabIndex = -1, resetModifierActive = false, publishIntervalMs = 0, onChange, onReset,
-  onInteractionStart, onInteractionEnd }: ColorWheelProps) {
+  onInteractionStart, onInteractionEnd, onInteractionCancel }: ColorWheelProps) {
   const value = useMemo(() => ({ hue, saturation }), [hue, saturation]);
   const interaction = useSliderInteraction(value, {
-    onChange: next => onChange(next.hue, next.saturation), onInteractionStart, onInteractionEnd, publishIntervalMs
+    onChange: next => onChange(next.hue, next.saturation), onInteractionStart, onInteractionEnd,
+    onInteractionCancel, publishIntervalMs
   });
   const pointer = useRef<number | null>(null);
   const finish = () => { pointer.current = null; interaction.end(); };
-  React.useEffect(() => { if (disabled) finish(); }, [disabled]);
+  const cancel = () => { pointer.current = null; interaction.cancel(); };
+  React.useEffect(() => { if (disabled) cancel(); }, [disabled]);
   const shown = interaction.display;
   const radius = clamp(shown.saturation) / 100;
   const angle = normalizeHue(shown.hue) * Math.PI / 180;
@@ -67,7 +70,8 @@ export function ColorWheel({ label, hue, saturation, luminance, disabled = false
       }}
       onPointerMove={event => { if (pointer.current === event.pointerId) move(event.currentTarget, event.clientX, event.clientY); }}
       onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX, event.clientY); finish(); } }}
-      onPointerCancel={finish} onLostPointerCapture={finish}
+      onPointerCancel={cancel}
+      onLostPointerCapture={() => { if (pointer.current !== null) cancel(); }}
       onDoubleClick={event => { if (!disabled && onReset) { event.preventDefault(); onReset(); } }}
       onKeyDown={event => {
         if (disabled || !['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Home'].includes(event.key)) return;

@@ -70,11 +70,19 @@ export const PanelNumberSlider: React.FC<{
   suffix?: string;
   resetValue?: number;
   onChange: (value: number) => void;
-}> = ({ label, value, min, max, step = 1, suffix = '', resetValue = 0, onChange }) => (
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
+}> = ({
+  label, value, min, max, step = 1, suffix = '', resetValue = 0, onChange,
+  onInteractionStart, onInteractionEnd, onInteractionCancel
+}) => (
   <AdjustmentSlider label={label} value={value} min={min} max={max} step={step}
     resetValue={resetValue}
     format={(current) => `${step < 1 ? current.toFixed(2) : Math.round(current)}${suffix}`}
-    onChange={onChange} onReset={() => onChange(resetValue)} />
+    onChange={onChange} onReset={() => onChange(resetValue)}
+    onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
+    onInteractionCancel={onInteractionCancel} />
 );
 
 export { AngleControl as PanelAngleControl } from '@lighttable/ui';

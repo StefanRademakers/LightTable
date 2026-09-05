@@ -1,9 +1,9 @@
-import { AngleControl as AngleField, Checkbox, PanelSection, IconButton, MaskIcon,
-  PanelSectionHeader, Button, SelectField } from '@lighttable/ui';
+import { AngleControl as BaseAngleField, Checkbox, PanelSection, IconButton, MaskIcon,
+  PanelSectionHeader, Button, SelectField as BaseSelectField,
+  SwitchControl as BaseSwitchControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
-import { SwitchControl } from '@lighttable/ui';
 import { Select } from '@lighttable/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
@@ -19,12 +19,12 @@ import type {
   LayerStyleKind,
   LayerStyleStack
 } from '../styles/layerStyleTypes';
-import { LayerStyleContourEditor } from './LayerStyleContourEditor';
-import { LayerStyleGradientEditor } from './LayerStyleGradientEditor';
+import { LayerStyleContourEditor as BaseLayerStyleContourEditor } from './LayerStyleContourEditor';
+import { LayerStyleGradientEditor as BaseLayerStyleGradientEditor } from './LayerStyleGradientEditor';
 import {
-  PanelCheckboxField as ToggleField,
-  PanelColorSwatch as ColorSwatch,
-  PanelNumberSlider as NumberSlider
+  PanelCheckboxField as BaseToggleField,
+  PanelColorSwatch as BaseColorSwatch,
+  PanelNumberSlider as BaseNumberSlider
 } from '../../../ui/PanelControls';
 
 interface LayerStyleEditorProps {
@@ -34,9 +34,151 @@ interface LayerStyleEditorProps {
   initialEffectId?: LayerStyleId;
   previewIntervalMs?: number;
   onPreview: (stack: LayerStyleStack) => void;
+  onInteractionStart?: () => void;
+  onInteractionCommit?: () => void;
+  onInteractionCancel?: () => void;
   onCancel?: () => void;
   onCommit?: () => void;
 }
+
+interface LayerStyleInteractionCallbacks {
+  start(): void;
+  finish(): void;
+  cancel(): void;
+}
+
+const LayerStyleInteractionContext = React.createContext<LayerStyleInteractionCallbacks | null>(null);
+
+const useLayerStyleInteraction = () => React.useContext(LayerStyleInteractionContext);
+
+const NumberSlider: React.FC<React.ComponentProps<typeof BaseNumberSlider>> = (props) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseNumberSlider {...props}
+    onInteractionStart={() => {
+      props.onInteractionStart?.();
+      interaction?.start();
+    }}
+    onInteractionEnd={() => {
+      props.onInteractionEnd?.();
+      interaction?.finish();
+    }}
+    onInteractionCancel={() => {
+      props.onInteractionCancel?.();
+      interaction?.cancel();
+    }} />;
+};
+
+const ToggleField: React.FC<React.ComponentProps<typeof BaseToggleField>> = ({ onChange, ...props }) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseToggleField {...props} onChange={(checked) => {
+    interaction?.start();
+    onChange(checked);
+    interaction?.finish();
+  }} />;
+};
+
+const SelectField: React.FC<React.ComponentProps<typeof BaseSelectField>> = ({ onChange, ...props }) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseSelectField {...props} onChange={(value) => {
+    interaction?.start();
+    onChange(value);
+    interaction?.finish();
+  }} />;
+};
+
+const SwitchControl: React.FC<React.ComponentProps<typeof BaseSwitchControl>> = ({
+  onCheckedChange,
+  ...props
+}) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseSwitchControl {...props} onCheckedChange={(checked) => {
+    interaction?.start();
+    onCheckedChange(checked);
+    interaction?.finish();
+  }} />;
+};
+
+const ColorSwatch = <T extends React.ComponentProps<typeof BaseColorSwatch>['value']>(
+  props: React.ComponentProps<typeof BaseColorSwatch<T>>
+) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseColorSwatch {...props}
+    onInteractionStart={() => {
+      props.onInteractionStart?.();
+      interaction?.start();
+    }}
+    onInteractionCommit={() => {
+      props.onInteractionCommit?.();
+      interaction?.finish();
+    }}
+    onInteractionCancel={() => {
+      props.onInteractionCancel?.();
+      interaction?.cancel();
+    }} />;
+};
+
+const AngleField: React.FC<React.ComponentProps<typeof BaseAngleField>> = (props) => {
+  const interaction = useLayerStyleInteraction();
+  const continuousRef = React.useRef(false);
+  return <BaseAngleField {...props}
+    onChange={(value) => {
+      if (continuousRef.current) {
+        props.onChange(value);
+        return;
+      }
+      interaction?.start();
+      props.onChange(value);
+      interaction?.finish();
+    }}
+    onInteractionStart={() => {
+      continuousRef.current = true;
+      props.onInteractionStart?.();
+      interaction?.start();
+    }}
+    onInteractionEnd={() => {
+      continuousRef.current = false;
+      props.onInteractionEnd?.();
+      interaction?.finish();
+    }} />;
+};
+
+const LayerStyleGradientEditor: React.FC<React.ComponentProps<typeof BaseLayerStyleGradientEditor>> = (
+  props
+) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseLayerStyleGradientEditor {...props}
+    onInteractionStart={() => {
+      props.onInteractionStart?.();
+      interaction?.start();
+    }}
+    onInteractionEnd={() => {
+      props.onInteractionEnd?.();
+      interaction?.finish();
+    }}
+    onInteractionCancel={() => {
+      props.onInteractionCancel?.();
+      interaction?.cancel();
+    }} />;
+};
+
+const LayerStyleContourEditor: React.FC<React.ComponentProps<typeof BaseLayerStyleContourEditor>> = (
+  props
+) => {
+  const interaction = useLayerStyleInteraction();
+  return <BaseLayerStyleContourEditor {...props}
+    onInteractionStart={() => {
+      props.onInteractionStart?.();
+      interaction?.start();
+    }}
+    onInteractionEnd={() => {
+      props.onInteractionEnd?.();
+      interaction?.finish();
+    }}
+    onInteractionCancel={() => {
+      props.onInteractionCancel?.();
+      interaction?.cancel();
+    }} />;
+};
 
 const STYLE_KINDS = Object.keys(layerStyleKindLabels) as LayerStyleKind[];
 
@@ -522,6 +664,9 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   initialEffectId,
   previewIntervalMs = LAYER_STYLE_PREVIEW_INTERVAL_MS,
   onPreview,
+  onInteractionStart,
+  onInteractionCommit,
+  onInteractionCancel,
   onCancel,
   onCommit
 }) => {
@@ -532,6 +677,18 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   const previewTimerRef = React.useRef<number | null>(null);
   const onPreviewRef = React.useRef(onPreview);
   onPreviewRef.current = onPreview;
+  const interactionCallbacksRef = React.useRef({
+    onInteractionStart,
+    onInteractionCommit,
+    onInteractionCancel
+  });
+  interactionCallbacksRef.current = {
+    onInteractionStart,
+    onInteractionCommit,
+    onInteractionCancel
+  };
+  const interactionActiveRef = React.useRef(false);
+  const interactionBeforeRef = React.useRef<LayerStyleStack | null>(null);
   const [selectedId, setSelectedId] = React.useState<LayerStyleId | null>(
     initialEffectId ?? initialStack.effects.at(-1)?.id ?? null
   );
@@ -581,6 +738,11 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     if (initialStack.revision === publishedRevisionRef.current) return;
     cancelScheduledPreview();
     latestPreviewRef.current = null;
+    if (interactionActiveRef.current) {
+      interactionActiveRef.current = false;
+      interactionBeforeRef.current = null;
+      interactionCallbacksRef.current.onInteractionCancel?.();
+    }
     publishedRevisionRef.current = initialStack.revision;
     const next = cloneLayerStyleStack(initialStack);
     draftRef.current = next;
@@ -592,9 +754,56 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     ));
   }, [cancelScheduledPreview, initialStack]);
 
-  React.useEffect(() => () => {
+  const startInteraction = React.useCallback(() => {
+    if (interactionActiveRef.current) return;
+    interactionActiveRef.current = true;
+    interactionBeforeRef.current = draftRef.current;
+    interactionCallbacksRef.current.onInteractionStart?.();
+  }, []);
+
+  const finishInteraction = React.useCallback(() => {
+    if (!interactionActiveRef.current) return;
     publishLatestPreview();
+    interactionActiveRef.current = false;
+    interactionBeforeRef.current = null;
+    interactionCallbacksRef.current.onInteractionCommit?.();
   }, [publishLatestPreview]);
+
+  const cancelInteraction = React.useCallback((restoreDraft = true) => {
+    cancelScheduledPreview();
+    latestPreviewRef.current = null;
+    if (!interactionActiveRef.current) return;
+    interactionActiveRef.current = false;
+    const before = interactionBeforeRef.current;
+    interactionBeforeRef.current = null;
+    if (restoreDraft && before) {
+      draftRef.current = before;
+      publishedRevisionRef.current = before.revision;
+      setDraft(before);
+    }
+    interactionCallbacksRef.current.onInteractionCancel?.();
+  }, [cancelScheduledPreview]);
+
+  const interactionCallbacks = React.useMemo<LayerStyleInteractionCallbacks>(() => ({
+    start: startInteraction,
+    finish: finishInteraction,
+    cancel: cancelInteraction
+  }), [cancelInteraction, finishInteraction, startInteraction]);
+
+  React.useEffect(() => () => {
+    cancelInteraction(false);
+  }, [cancelInteraction]);
+
+  const cancelDialog = () => {
+    cancelScheduledPreview();
+    latestPreviewRef.current = null;
+    onCancel?.();
+  };
+
+  const commitDialog = () => {
+    publishLatestPreview();
+    onCommit?.();
+  };
 
   const updateDraft = (updater: (current: LayerStyleStack) => LayerStyleStack) => {
     const current = draftRef.current;
@@ -693,8 +902,15 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     });
   };
 
+  const performDiscreteEdit = (edit: () => void) => {
+    startInteraction();
+    edit();
+    finishInteraction();
+  };
+
   if (mode === 'panel') {
     return (
+      <LayerStyleInteractionContext.Provider value={interactionCallbacks}>
       <div
         className="lighttable-style-editor lighttable-style-editor--panel lighttable-style-editor--groups"
         role="region"
@@ -702,7 +918,10 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       >
         <section className="lighttable-group lighttable-master-group">
           <PanelSectionHeader label="All" actions={<>
-              <IconButton variant="quiet" type="button" onClick={resetAllEffects} aria-label="Reset all layer effects" title="Reset all layer effects" icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
+              <IconButton variant="quiet" type="button"
+                onClick={() => performDiscreteEdit(resetAllEffects)}
+                aria-label="Reset all layer effects" title="Reset all layer effects"
+                icon={<MaskIcon src={lightTableIcon('settings_reset.png')} />} />
               <SwitchControl
                 checked={draft.enabled}
                 onCheckedChange={(enabled) => updateDraft((current) => ({
@@ -728,9 +947,9 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                 else next.delete(effect.id);
                 return next;
               })}
-              onEnabledChange={(enabled) => patchEffect(effect.id, { enabled })}
-              onReset={() => resetEffect(effect.id)}
-              onRemove={() => removeEffect(effect.id)}
+              onEnabledChange={(enabled) => performDiscreteEdit(() => patchEffect(effect.id, { enabled }))}
+              onReset={() => performDiscreteEdit(() => resetEffect(effect.id))}
+              onRemove={() => performDiscreteEdit(() => removeEffect(effect.id))}
             >
               <EffectControls
                 effect={effect}
@@ -742,10 +961,11 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             <Select value={newKind} onValueChange={(nextValue) => setNewKind(nextValue as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
             </Select>
-            <Button type="button" onClick={addStyle}>Add</Button>
+            <Button type="button" onClick={() => performDiscreteEdit(addStyle)}>Add</Button>
           </div>
         </div>
       </div>
+      </LayerStyleInteractionContext.Provider>
     );
   }
 
@@ -761,7 +981,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
           <strong>Layer Style</strong>
           <span>{layerName}</span>
         </div>
-        <ButtonBase type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</ButtonBase>
+        <ButtonBase type="button" onClick={cancelDialog} aria-label="Close Layer Style editor">×</ButtonBase>
       </header>
       <div className="lighttable-style-editor__body">
         <aside>
@@ -848,8 +1068,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        <Button tabIndex={0} type="button" onClick={onCancel}>Cancel</Button>
-        <Button tabIndex={0} type="button" onClick={onCommit}>OK</Button>
+        <Button tabIndex={0} type="button" onClick={cancelDialog}>Cancel</Button>
+        <Button tabIndex={0} type="button" onClick={commitDialog}>OK</Button>
       </footer>
     </div>
   );

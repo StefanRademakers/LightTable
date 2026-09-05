@@ -10,8 +10,12 @@ export const GradientAssetEditor = ({ value, onChange, ...props }: Omit<Gradient
   value: LayerStyleGradient;
   onChange: (value: LayerStyleGradient) => void;
 }) => <GradientEditor {...props} value={value} onChange={next => onChange({ ...value, ...next })}
-  renderColorField={({ value: color, onChange: changeColor, onInteractionStart, onInteractionEnd }) =>
+  renderColorField={({
+    value: color, onChange: changeColor, onInteractionStart, onInteractionEnd,
+    onInteractionCancel
+  }) =>
     <PanelColorSwatch label="Color" value={color} onChange={changeColor}
-      onInteractionStart={onInteractionStart} onInteractionCommit={onInteractionEnd} onInteractionCancel={onInteractionEnd} />} />;
+      onInteractionStart={onInteractionStart} onInteractionCommit={onInteractionEnd}
+      onInteractionCancel={onInteractionCancel} />} />;
 
 export const LayerStyleGradientEditor = GradientAssetEditor;

@@ -71,6 +71,12 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
           // history while the panel sits in the background.
           previewLayerStyleFromPanel(controller, target.id, stack);
         }}
+        onInteractionStart={() => {
+          if (controller.request?.layerId !== target.id) controller.open(target.id);
+          controller.beginInteraction();
+        }}
+        onInteractionCommit={controller.commitInteraction}
+        onInteractionCancel={controller.cancelInteraction}
       />
     </aside>
   );

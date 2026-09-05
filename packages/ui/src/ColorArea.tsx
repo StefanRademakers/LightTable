@@ -8,6 +8,7 @@ export interface ColorAreaProps {
   onChange: (value: ColorAreaValue) => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
   publishIntervalMs?: number | 'animation-frame';
   tabIndex?: number;
   disabled?: boolean;
@@ -24,7 +25,8 @@ export function ColorArea({ hue, value, tabIndex = -1, disabled = false, ...inte
     interaction.update({ s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) });
   };
   const finish = () => { pointer.current = null; interaction.end(); };
-  React.useEffect(() => { if (disabled) finish(); }, [disabled]);
+  const cancel = () => { pointer.current = null; interaction.cancel(); };
+  React.useEffect(() => { if (disabled) cancel(); }, [disabled]);
   const { s, v } = interaction.display;
   return <div className="ui-color-area" data-ui-component="color-area" role="slider"
     aria-label="Saturation and brightness" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(s * 100)}
@@ -40,7 +42,8 @@ export function ColorArea({ hue, value, tabIndex = -1, disabled = false, ...inte
     }}
     onPointerMove={event => { if (pointer.current === event.pointerId) move(event.currentTarget, event.clientX, event.clientY); }}
     onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX, event.clientY); finish(); } }}
-    onPointerCancel={finish} onLostPointerCapture={finish}
+    onPointerCancel={cancel}
+    onLostPointerCapture={() => { if (pointer.current !== null) cancel(); }}
     onKeyDown={event => {
       if (disabled || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();

@@ -34,7 +34,10 @@ const toGraphPoint = (event: React.PointerEvent<SVGSVGElement>) => {
 export const LayerStyleContourEditor: React.FC<{
   value: LayerStyleContour;
   onChange: (value: LayerStyleContour) => void;
-}> = ({ value, onChange }) => {
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
+}> = ({ value, onChange, onInteractionStart, onInteractionEnd, onInteractionCancel }) => {
   const dragIndexRef = useRef<number | null>(null);
   const points = useMemo(() => normalizePoints(value.points), [value.points]);
   const path = points.map((point, index) =>
@@ -59,6 +62,7 @@ export const LayerStyleContourEditor: React.FC<{
     dragIndexRef.current = next.findIndex((candidate) =>
       Math.abs(candidate.position - point.position) < 1e-5
     );
+    onInteractionStart?.();
     svg.setPointerCapture(event.pointerId);
     publish(next);
   };
@@ -68,6 +72,7 @@ export const LayerStyleContourEditor: React.FC<{
     event.preventDefault();
     event.stopPropagation();
     dragIndexRef.current = index;
+    onInteractionStart?.();
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
 
@@ -91,13 +96,25 @@ export const LayerStyleContourEditor: React.FC<{
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    onInteractionEnd?.();
+  };
+
+  const cancelDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (dragIndexRef.current === null) return;
+    dragIndexRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onInteractionCancel?.();
   };
 
   const removePoint = (event: React.MouseEvent<SVGCircleElement>, index: number) => {
     if (index === 0 || index === points.length - 1) return;
     event.preventDefault();
     event.stopPropagation();
+    onInteractionStart?.();
     publish(points.filter((_, pointIndex) => pointIndex !== index));
+    onInteractionEnd?.();
   };
 
   return (
@@ -108,7 +125,10 @@ export const LayerStyleContourEditor: React.FC<{
         aria-label="Layer style contour"
         onPointerMove={movePoint}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={(event) => {
+          if (dragIndexRef.current !== null) cancelDrag(event);
+        }}
       >
         <rect
           className="lighttable-style-contour__hit"

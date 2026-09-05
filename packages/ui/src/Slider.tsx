@@ -23,6 +23,7 @@ export interface SliderProps {
   onReset?: () => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
 }
 export interface SliderFieldProps extends SliderProps {
   layout?: 'stacked' | 'inline';
@@ -33,18 +34,26 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
   format = String, resetValue = min, showResetMarker = true, trackBackground,
   transparency = false, disabled = false, tabIndex = -1, className = '',
   publishIntervalMs, resetModifierActive = false, onChange, onReset,
-  onInteractionStart, onInteractionEnd, field
+  onInteractionStart, onInteractionEnd, onInteractionCancel, field
 }: SliderProps & { field?: Pick<SliderFieldProps, 'layout' | 'size'> }) {
   const id = useId();
   const pointer = useRef<number | null>(null);
   const keyboard = useRef(false);
-  const interaction = useSliderInteraction(value, { onChange, onInteractionStart, onInteractionEnd, publishIntervalMs });
+  const interaction = useSliderInteraction(value, {
+    onChange,
+    onInteractionStart,
+    onInteractionEnd,
+    onInteractionCancel,
+    publishIntervalMs
+  });
   const display = Math.min(max, Math.max(min, interaction.display));
   const percentage = (next: number) => max > min ? Math.min(100, Math.max(0, (next - min) / (max - min) * 100)) : 0;
   const reset = () => {
     if (disabled) return;
+    interaction.begin();
     if (onReset) onReset();
-    else { interaction.begin(); interaction.update(resetValue); interaction.end(); }
+    else interaction.update(resetValue);
+    interaction.end();
   };
   const move = (input: HTMLInputElement, x: number) => {
     const bounds = input.getBoundingClientRect();

@@ -5583,7 +5583,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeDocument: imageDocument,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    previewDocumentSnapshot: documentProjectionController.previewDocumentSnapshot,
     applyDocumentSnapshot,
+    discardDocumentPreview: documentProjectionController.discardDocumentPreview,
     pushDocumentHistory,
     onCheckpoint: (before, after, layerId) => {
       const previous = findDocumentLayer(before, layerId);

@@ -13,7 +13,10 @@ import {
 const controller = (): LayerStyleEditorController => ({
   request: null,
   open: vi.fn(),
+  beginInteraction: vi.fn(),
   preview: vi.fn(),
+  commitInteraction: vi.fn(),
+  cancelInteraction: vi.fn(),
   cancel: vi.fn(),
   commit: vi.fn()
 });

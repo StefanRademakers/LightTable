@@ -5,12 +5,14 @@ export function useSliderInteraction<T>(value: T, options: {
   onChange: (value: T) => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
   publishIntervalMs?: number | 'animation-frame';
 }) {
   const [display, setDisplay] = useState(value);
   const [interacting, setInteracting] = useState(false);
   const latest = useRef(value);
   const published = useRef(value);
+  const baseline = useRef(value);
   const active = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const frame = useRef<number | null>(null);
@@ -33,6 +35,7 @@ export function useSliderInteraction<T>(value: T, options: {
   const begin = () => {
     if (active.current) return;
     active.current = true;
+    baseline.current = latest.current;
     setInteracting(true);
     callbacks.current.onInteractionStart?.();
   };
@@ -54,6 +57,16 @@ export function useSliderInteraction<T>(value: T, options: {
     setInteracting(false);
     callbacks.current.onInteractionEnd?.();
   };
+  const cancel = () => {
+    if (!active.current) return;
+    clear();
+    latest.current = baseline.current;
+    published.current = baseline.current;
+    setDisplay(baseline.current);
+    active.current = false;
+    setInteracting(false);
+    callbacks.current.onInteractionCancel?.();
+  };
   useEffect(() => {
     if (active.current) return;
     latest.current = value;
@@ -61,15 +74,13 @@ export function useSliderInteraction<T>(value: T, options: {
     setDisplay(value);
   }, [value, interacting]);
   useEffect(() => () => {
-    // Flush before releasing the transaction; never leave an app preview open.
     clear();
     if (active.current) {
-      if (!Object.is(published.current, latest.current)) callbacks.current.onChange(latest.current);
       active.current = false;
-      callbacks.current.onInteractionEnd?.();
+      callbacks.current.onInteractionCancel?.();
     }
   }, []);
-  return { display, latest, active, begin, update, end };
+  return { display, latest, active, begin, update, end, cancel };
 }
 
 export const sliderEditKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']);

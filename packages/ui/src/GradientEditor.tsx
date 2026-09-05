@@ -13,6 +13,7 @@ export interface GradientColorFieldProps {
   onChange: (value: GradientColor) => void;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
+  onInteractionCancel: () => void;
 }
 export interface GradientEditorProps {
   value: GradientValue;
@@ -24,15 +25,18 @@ export interface GradientEditorProps {
   renderColorField?: (props: GradientColorFieldProps) => React.ReactNode;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  onInteractionCancel?: () => void;
 }
 
 const DEFAULT_HINT = 'Hover over a control for instructions.';
 
 export const GradientEditor = ({
   value, onChange, initialColorStop = 'first', maxStops = 8, publishIntervalMs = 33, tabIndex = -1, renderColorField,
-  onInteractionStart, onInteractionEnd
+  onInteractionStart, onInteractionEnd, onInteractionCancel
 }: GradientEditorProps) => {
-  const interaction = useSliderInteraction(value, { onChange, onInteractionStart, onInteractionEnd, publishIntervalMs });
+  const interaction = useSliderInteraction(value, {
+    onChange, onInteractionStart, onInteractionEnd, onInteractionCancel, publishIntervalMs
+  });
   const presentedValue = interaction.display;
   const colorStops = [...presentedValue.colorStops].sort((a, b) => a.position - b.position);
   const opacityStops = [...presentedValue.opacityStops].sort((a, b) => a.position - b.position);
@@ -50,6 +54,7 @@ export const GradientEditor = ({
 
   const beginInteraction = interaction.begin;
   const endInteraction = interaction.end;
+  const cancelInteraction = interaction.cancel;
   const publish = (patch: Partial<GradientValue>) => {
     const discrete = !interaction.active.current;
     if (discrete) beginInteraction();
@@ -133,8 +138,10 @@ export const GradientEditor = ({
       }
       endInteraction();
     },
-    onPointerCancel: endInteraction,
-    onLostPointerCapture: endInteraction,
+    onPointerCancel: cancelInteraction,
+    onLostPointerCapture: () => {
+      if (interaction.active.current) cancelInteraction();
+    },
     onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
@@ -192,8 +199,10 @@ export const GradientEditor = ({
         }
         endInteraction();
       },
-      onPointerCancel: endInteraction,
-      onLostPointerCapture: endInteraction,
+      onPointerCancel: cancelInteraction,
+      onLostPointerCapture: () => {
+        if (interaction.active.current) cancelInteraction();
+      },
       onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault(); beginInteraction();
@@ -220,7 +229,8 @@ export const GradientEditor = ({
             format={value => `${Math.round(value)}%`} tabIndex={tabIndex}
             transparency trackBackground={`linear-gradient(to right, transparent, ${colorHex(sampleColor(presentedValue.colorStops, selectedOpacity.position))})`}
             onChange={opacity => updateOpacity(selectedOpacity.id, { opacity: opacity / 100 })}
-            onInteractionStart={beginInteraction} onInteractionEnd={endInteraction} />
+            onInteractionStart={beginInteraction} onInteractionEnd={endInteraction}
+            onInteractionCancel={cancelInteraction} />
         </div>
       ) : null}
       <div className="ui-gradient-editor__track">
@@ -342,7 +352,8 @@ export const GradientEditor = ({
           {renderColorField ? renderColorField({
             value: selectedColor.color,
             onChange: color => updateColor(selectedColor.id, { color }),
-            onInteractionStart: beginInteraction, onInteractionEnd: endInteraction
+            onInteractionStart: beginInteraction, onInteractionEnd: endInteraction,
+            onInteractionCancel: cancelInteraction
           }) : <label className="ui-gradient-editor__color-field">Color
             <input type="color" aria-label="Gradient stop color" tabIndex={tabIndex} value={colorHex(selectedColor.color)}
               onFocus={beginInteraction} onBlur={endInteraction}
