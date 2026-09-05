@@ -200,11 +200,17 @@ export interface WebGpuPngExportOptions {
   readonly excludedLayerIds?: readonly LayerId[];
 }
 
+interface PresentationWaiter {
+  readonly generation: number;
+  readonly resolve: () => void;
+}
+
 export class WebGpuEngine {
   private startupTimeline: DocumentStartupTimeline | null = null;
   private startupPresentationArmed = false;
-  private readonly presentationWaiters = new Set<() => void>();
-  private presentationCompletionPending = false;
+  private presentationGeneration = 0;
+  private readonly presentationWaiters = new Set<PresentationWaiter>();
+  private readonly presentationCompletionsPending = new Set<number>();
   private readonly canvas: HTMLCanvasElement;
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
@@ -443,7 +449,16 @@ export class WebGpuEngine {
 
   /** Rebinds generation-guarded UI publications without recreating the engine. */
   updateCallbacks(callbacks: DocumentRendererCallbacks) {
+    this.presentationGeneration += 1;
     this.callbacks = callbacks;
+    this.histogramRuntime?.invalidatePendingPublication();
+    // Superseded open tasks already race their wait against cancellation. Do
+    // not retain their resolver until an unrelated later canvas submission.
+    for (const waiter of this.presentationWaiters) {
+      if (waiter.generation === this.presentationGeneration) continue;
+      this.presentationWaiters.delete(waiter);
+      waiter.resolve();
+    }
   }
 
   setStartupTimeline(timeline: DocumentStartupTimeline | null) {
@@ -460,7 +475,10 @@ export class WebGpuEngine {
   waitForPresentation(): Promise<void> {
     if (this.destroyed) return Promise.reject(new Error('LightTable renderer is closed.'));
     return new Promise((resolve) => {
-      this.presentationWaiters.add(resolve);
+      this.presentationWaiters.add({
+        generation: this.presentationGeneration,
+        resolve
+      });
       this.requestRender();
     });
   }
@@ -2911,6 +2929,9 @@ export class WebGpuEngine {
       !this.imageResources.channelNearestBindGroup ||
       !this.imageResources.differenceNearestBindGroup) return;
 
+    const submittedCallbacks = this.callbacks;
+    const presentationGeneration = this.presentationGeneration;
+
     const textInteractionTrace = this.pendingTextInteractionTrace;
     if (textInteractionTrace) recordTextInteractionTrace(textInteractionTrace, 'render-start');
     if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordRenderCall();
@@ -3368,7 +3389,7 @@ export class WebGpuEngine {
     void this.device.popErrorScope().then(
       (validationError) => {
         if (!this.destroyed && validationError) {
-          this.callbacks.onDeviceLost?.(
+          submittedCallbacks.onDeviceLost?.(
             `LightTable render validation failed: ${validationError.message}`
           );
         }
@@ -3377,14 +3398,17 @@ export class WebGpuEngine {
     );
     this.reportGpuMemoryEstimate();
     const completesFirstFrame = this.firstFramePending && this.startupPresentationArmed;
-    if (renderedCorrection && !this.presentationCompletionPending
-      && (completesFirstFrame || this.presentationWaiters.size > 0)) {
-      this.presentationCompletionPending = true;
+    const hasPresentationWaiter = this.hasPresentationWaiter(presentationGeneration);
+    if (renderedCorrection && !this.presentationCompletionsPending.has(presentationGeneration)
+      && (completesFirstFrame || hasPresentationWaiter)) {
+      this.presentationCompletionsPending.add(presentationGeneration);
       if (completesFirstFrame) this.firstFramePending = false;
       const startupTimeline = completesFirstFrame ? this.startupTimeline : null;
       void this.device.queue.onSubmittedWorkDone().then(() => {
         if (this.destroyed) return;
-        if (completesFirstFrame) this.callbacks.onFirstFrame?.();
+        if (completesFirstFrame && presentationGeneration === this.presentationGeneration) {
+          submittedCallbacks.onFirstFrame?.();
+        }
         if (startupTimeline && this.startupTimeline === startupTimeline) {
           startupTimeline.mark('request-animation-frame');
         }
@@ -3399,17 +3423,13 @@ export class WebGpuEngine {
               startupTimeline.mark('canvas-presentation');
               startupTimeline.mark('first-pixel-visible');
             }
-            const waiters = [...this.presentationWaiters];
-            this.presentationWaiters.clear();
-            this.presentationCompletionPending = false;
-            for (const resolve of waiters) resolve();
+            this.resolvePresentationWaiters(presentationGeneration);
+            this.presentationCompletionsPending.delete(presentationGeneration);
           });
         });
       }, () => {
-        const waiters = [...this.presentationWaiters];
-        this.presentationWaiters.clear();
-        this.presentationCompletionPending = false;
-        for (const resolve of waiters) resolve();
+        this.resolvePresentationWaiters(presentationGeneration);
+        this.presentationCompletionsPending.delete(presentationGeneration);
       });
     }
     this.documentRenderer?.releaseSubmittedResources();
@@ -3867,7 +3887,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     };
     const presentationWaiters = [...this.presentationWaiters];
     this.presentationWaiters.clear();
-    for (const resolve of presentationWaiters) resolve();
+    for (const waiter of presentationWaiters) waiter.resolve();
     this.paintInteractionActive = false;
     this.warpInteractionActive = false;
     // The isolated mask texture is borrowed from the document renderer. Drop
@@ -3918,6 +3938,21 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     if (cleanupErrors.length) {
       console.error('LightTable WebGPU cleanup failed.', new AggregateError(cleanupErrors));
     }
+  }
+
+  private resolvePresentationWaiters(generation: number): void {
+    for (const waiter of this.presentationWaiters) {
+      if (waiter.generation !== generation) continue;
+      this.presentationWaiters.delete(waiter);
+      waiter.resolve();
+    }
+  }
+
+  private hasPresentationWaiter(generation: number): boolean {
+    for (const waiter of this.presentationWaiters) {
+      if (waiter.generation === generation) return true;
+    }
+    return false;
   }
 
   private encodeVectorEditingOverlays(

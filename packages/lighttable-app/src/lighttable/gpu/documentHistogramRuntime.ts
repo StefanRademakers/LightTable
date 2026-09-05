@@ -18,6 +18,8 @@ export class DocumentHistogramRuntime {
   private correctedBindGroup: GPUBindGroup | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private pending = false;
+  private configurationGeneration = 0;
+  private pendingGeneration = 0;
   private retryAfterPending = false;
   private visible = true;
   private interactionActive = false;
@@ -42,6 +44,7 @@ export class DocumentHistogramRuntime {
     correctedTexture: GPUTexture,
     metadata: LightTableImageMetadata
   ): void {
+    this.invalidatePendingPublication();
     this.histogramBuffer?.destroy();
     this.metadata = metadata;
     this.histogramBuffer = this.device.createBuffer({
@@ -54,11 +57,17 @@ export class DocumentHistogramRuntime {
   }
 
   clear(): void {
+    this.invalidatePendingPublication();
     this.metadata = null;
     this.originalBindGroup = null;
     this.correctedBindGroup = null;
     this.histogramBuffer?.destroy();
     this.histogramBuffer = null;
+  }
+
+  /** Rejects a sample owned by callbacks from a superseded document session. */
+  invalidatePendingPublication(): void {
+    this.configurationGeneration += 1;
   }
 
   setVisible(visible: boolean): boolean {
@@ -133,13 +142,15 @@ export class DocumentHistogramRuntime {
       HISTOGRAM_BYTE_SIZE
     );
     this.pending = true;
+    this.pendingGeneration = this.configurationGeneration;
     return readBuffer;
   }
 
   async read(buffer: GPUBuffer): Promise<void> {
+    const sampleGeneration = this.pendingGeneration;
     try {
       const values = new Uint32Array(await mapGpuBufferCopy(buffer));
-      if (!this.destroyed) {
+      if (!this.destroyed && sampleGeneration === this.configurationGeneration) {
         this.onHistogram?.({
           red: values.slice(0, 256),
           green: values.slice(256, 512),
@@ -149,6 +160,7 @@ export class DocumentHistogramRuntime {
     } finally {
       buffer.destroy();
       this.pending = false;
+      this.pendingGeneration = 0;
       const retry = this.retryAfterPending;
       this.retryAfterPending = false;
       if (!this.destroyed && retry) this.requestRender();

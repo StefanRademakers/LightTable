@@ -144,6 +144,17 @@ The document mutation controller now exposes one settlement boundary for asynchr
 
 This synchronization is commit-rate only. It adds no pointer event work, texture allocation, GPU pass, readback or document snapshot copy. A single short-lived promise exists only while an asynchronous compound publication is active.
 
+### Generation-owned GPU presentation and readback
+
+The persistent WebGPU engine can be rebound to another open document while work submitted for the previous document is still completing. Two concrete late-publication races were present at that reuse boundary:
+
+- a histogram readback encoded for document A could publish through callbacks already rebound to document B;
+- a canvas submission for document A could call document B's first-frame callback or resolve document B's presentation waiter, making the new document appear ready before its own frame had been presented.
+
+Presentation waiters, first-frame completion and histogram publication are now owned by the renderer callback generation under which their GPU work was submitted. Rebinding callbacks advances that generation, retires superseded waiters and invalidates an in-flight histogram publication. Old queue completions may still finish normally, but they can no longer publish into or mark a newer document ready.
+
+This guard preserves the resident renderer and document texture caches used for fast tab switching. It adds only scalar generation checks and small waiter bookkeeping at asynchronous submission/completion boundaries: no additional render pass, GPU readback, texture allocation, per-pixel work or pointer-rate work.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.

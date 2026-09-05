@@ -174,4 +174,56 @@ describe('DocumentHistogramRuntime', () => {
 
     runtime.destroy();
   });
+
+  it('does not publish a readback from an earlier document configuration', async () => {
+    let finishReadback: (() => void) | undefined;
+    const readbackReady = new Promise<void>((resolve) => {
+      finishReadback = resolve;
+    });
+    const createBuffer = () => ({
+      destroy: vi.fn(),
+      mapAsync: vi.fn(() => readbackReady),
+      getMappedRange: vi.fn(() => new ArrayBuffer(768 * Uint32Array.BYTES_PER_ELEMENT)),
+      unmap: vi.fn()
+    });
+    const device = {
+      createBuffer: vi.fn(createBuffer),
+      createBindGroup: vi.fn(() => ({})),
+      queue: { writeBuffer: vi.fn() }
+    } as unknown as GPUDevice;
+    const pipeline = {
+      getBindGroupLayout: vi.fn(() => ({}))
+    } as unknown as GPUComputePipeline;
+    const onHistogram = vi.fn();
+    const requestRender = vi.fn();
+    const runtime = new DocumentHistogramRuntime(
+      device,
+      pipeline,
+      onHistogram,
+      requestRender
+    );
+    const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    runtime.configure(texture, texture, { width: 100, height: 100 } as never);
+    const pass = {
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      dispatchWorkgroups: vi.fn(),
+      end: vi.fn()
+    };
+    const encoder = {
+      clearBuffer: vi.fn(),
+      beginComputePass: vi.fn(() => pass),
+      copyBufferToBuffer: vi.fn()
+    } as unknown as GPUCommandEncoder;
+
+    const staleRead = runtime.encode(encoder, { before: false, required: true });
+    runtime.configure(texture, texture, { width: 200, height: 200 } as never);
+    expect(runtime.encode(encoder, { before: false, required: true })).toBeNull();
+    finishReadback!();
+    await runtime.read(staleRead!);
+
+    expect(onHistogram).not.toHaveBeenCalled();
+    expect(requestRender).toHaveBeenCalledOnce();
+    runtime.destroy();
+  });
 });
