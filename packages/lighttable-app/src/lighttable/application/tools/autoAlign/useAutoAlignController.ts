@@ -10,14 +10,14 @@ import {
 import { applyTranslationAlignment } from '../../../editor/document/documentCommands';
 import type { TranslationAlignmentResult } from '../../../editor/autoAlign/alignmentTypes';
 import type { SemanticAutoAlignCommand } from '../../commands/semanticAutoAlignCommandContract';
+import type { DocumentMutationController } from '../../documents/useDocumentMutationController';
 import { executeAutoAlignOperation, reuseAutoAlignPreview,
   type AutoAlignRendererPort } from './executeAutoAlignOperation';
 
 export interface AutoAlignControllerDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): AutoAlignRendererPort | null;
-  applyDocumentSnapshot(document: ImageDocument): void;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  documentMutations: Pick<DocumentMutationController, 'change'>;
   setStatus(status: string | null): void;
   setError(error: string | null): void;
 }
@@ -109,11 +109,24 @@ export const useAutoAlignController = (
 
     // Commit before clearing the compositor preview so no intermediate frame
     // renders the old geometry.
-    dependenciesRef.current.applyDocumentSnapshot(after);
+    const changed = dependenciesRef.current.documentMutations.change(
+      (current) => current === before ? after : current,
+      true,
+      {
+        label: 'Auto Align Layers',
+        type: 'layer.auto-align',
+        layerIds: [currentPreview.referenceLayerId, currentPreview.targetLayerId]
+      }
+    );
     dependenciesRef.current
       .getRenderer()
       ?.clearTranslationAlignmentPreview(currentPreview.targetLayerId);
-    dependenciesRef.current.pushDocumentHistory(before, after);
+    if (!changed) {
+      dependenciesRef.current.setStatus('Auto Align was discarded because the document changed.');
+      return { changed: false, previewReused, referenceLayerId: currentPreview.referenceLayerId,
+        targetLayerId: currentPreview.targetLayerId, model: currentPreview.model,
+        confidence: currentPreview.confidence, correctionMatrix: currentPreview.correctionMatrix };
+    }
     const { inlierCount, mutualMatches } = currentPreview.diagnostics;
     dependenciesRef.current.setStatus(
       inlierCount != null && mutualMatches != null

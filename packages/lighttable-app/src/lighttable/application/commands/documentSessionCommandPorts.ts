@@ -120,7 +120,7 @@ export const createDocumentSessionCommandPorts = (
       change((document) => setLayerStyleStackEnabled(document, layerId, enabled));
     },
     setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
-      { kind: 'toggle', layerId, effectId, enabled }, semanticDependencies
+      { kind: 'toggle', layerId, effectId, enabled }, { changeDocument: mutation.change }
     ),
     executeTextCommand: (command) => executeSemanticTextCommand(command, {
       ...semanticDependencies,
@@ -137,7 +137,7 @@ export const createDocumentSessionCommandPorts = (
     executeFillCommand: () => requiresPresentation('Fill'),
     executeRasterGradientCommand: () => requiresPresentation('Raster gradients'),
     executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(
-      command, semanticDependencies
+      command, { changeDocument: mutation.change }
     ),
     executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(
       command, {

@@ -3,6 +3,10 @@ import { createPositionedTextFixture } from '@lighttable/text-core';
 import { createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  createDocumentMutationController,
+  type DocumentMutationHistoryEntry
+} from '../documents/useDocumentMutationController';
 import { PositionedTextRecoveryCommandController } from './PositionedTextRecoveryCommandController';
 
 const harness = () => {
@@ -14,11 +18,17 @@ const harness = () => {
     'Imported text'
   );
   const opening = document;
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
+  const history: DocumentMutationHistoryEntry[] = [];
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: next => { document = next; },
+    previewSnapshot: next => { document = next; },
+    discardPreview: () => undefined,
+    pushHistoryEntry: entry => history.push(entry)
+  }));
   const controller = new PositionedTextRecoveryCommandController(() => ({
     getDocument: () => document,
-    applyDocument: next => { document = next; },
-    pushDocumentHistory: (before, after) => history.push({ before, after })
+    documentMutations
   }));
   return {
     controller, opening, history,
@@ -39,16 +49,17 @@ describe('PositionedTextRecoveryCommandController', () => {
     expect(state.document()).toBe(state.opening);
     expect(state.controller.recover(layerId)).toBe(true);
     expect(state.history).toHaveLength(1);
-    expect(state.history[0]).toEqual({ before: state.opening, after: state.document() });
+    const recovered = state.document();
     expect(findDocumentLayer(state.document(), layerId)).toMatchObject({
       type: 'text', text: { source: { kind: 'flow', text: 'A' } }
     });
 
-    state.replaceDocument(state.history[0]!.before);
+    state.history[0]!.undo();
     expect(findDocumentLayer(state.document(), layerId)).toMatchObject({
       text: { source: { kind: 'positioned' } }
     });
-    state.replaceDocument(state.history[0]!.after);
+    state.history[0]!.redo();
+    expect(state.document()).toBe(recovered);
     expect(findDocumentLayer(state.document(), layerId)).toMatchObject({
       text: { source: { kind: 'flow' } }
     });

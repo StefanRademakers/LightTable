@@ -96,6 +96,14 @@ Interactive Face Warp drags, option changes and accepted detections already proj
 
 This changes only mutation ownership. Face detection, mesh evaluation and rendering are untouched, and no additional frame work, image allocation or GPU pass is introduced.
 
+### Document-owned editor command publication
+
+The remaining simple editor mutations no longer publish a document snapshot and append history as two independent writes. Auto Align, text recovery and conversion, text creation and layout changes, text warp, automation translation, document guides, mask flags and semantic Layer Style commands now enter through the document mutation controller. Asynchronous text-to-shape conversion holds its document lease until path resolution completes and cancels cleanly when it becomes stale.
+
+Atomic command batches keep their existing single outer history entry: semantic Layer Style changes use a local document adapter inside the batch instead of creating nested history. Interactive translation and text-warp gestures keep the same preview cadence and commit once at gesture completion.
+
+This slice changes transaction ownership only. It adds no GPU readback, texture copy, render pass or pixel allocation; cancellation republishes the opening canonical document through the existing projection path and no new retained GPU resource is introduced.
+
 ### Tool-family ownership status
 
 The migration is deliberately audited by interaction family rather than by toolbar icon. Several icons share one controller, while one visible tool can cross multiple mutation owners.
@@ -110,7 +118,7 @@ The migration is deliberately audited by interaction family rather than by toolb
 | Warp | Document lease plus reversible GPU edit | Migrated |
 | Face Warp | Document transaction for UI gestures, option changes and semantic commands | Migrated; detector/recovery workflow verification remains |
 | Marquee, lasso, Magic Wand, object selection and selection brush | Document-owned exact mask snapshots and serialized selection history | Partial: exact selection ownership is stabilized; cross-owner command/undo integration still needs audit |
-| Point, paragraph, vertical and path text | Move, resize and handle gestures use document leases | Partial: typing, conversion and recovery paths still need audit |
+| Point, paragraph, vertical and path text | Move, resize, handles, creation, layout, warp, recovery and text-to-shape use document leases | Partial: typing internals and renderer recovery still need audit |
 | Layer mutations, merge, rasterize and flatten | Document lease plus atomic document/GPU publication | Migrated; repeated workflow and renderer-resource verification remains |
 | Adjustments, effects and filters | Shared preview controller for the migrated adjustment paths | Partial: every effect/filter commit and resource cleanup still needs an inventory |
 

@@ -91,7 +91,14 @@ export const executeAtomicCommandBatch = async (
     } else if (operation.command.startsWith('layer.effect.') && operation.command !== 'layer.effect.setEnabled') {
       const parsed = parseSemanticLayerStyleCommand(semanticKind(operation) as 'add' | 'update' | 'remove' | 'move', parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
-      result = executeSemanticLayerStyleCommand(parsed, local);
+      result = executeSemanticLayerStyleCommand(parsed, {
+        changeDocument: (change) => {
+          const next = change(current);
+          if (next === current) return false;
+          current = next;
+          return true;
+        }
+      });
     } else if (operation.command === 'layer.move' || operation.command === 'layer.setBlendMode'
       || operation.command === 'layer.setClipping' || operation.command === 'layer.setLock') {
       const kinds = {

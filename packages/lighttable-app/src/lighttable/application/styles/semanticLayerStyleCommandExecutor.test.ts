@@ -9,8 +9,14 @@ import { executeSemanticLayerStyleCommand } from './semanticLayerStyleCommandExe
 const harness = () => {
   let document = createRasterLayer(createImageDocument('Styles', 100, 100, 'fixture'));
   const history = vi.fn();
-  const dependencies = { getDocument: () => document,
-    applyDocument: (next: typeof document) => { document = next; }, recordHistory: history };
+  const dependencies = { changeDocument: (change: (current: typeof document) => typeof document) => {
+    const before = document;
+    const next = change(before);
+    if (next === before) return false;
+    document = next;
+    history(before, next);
+    return true;
+  } };
   return { dependencies, history, document: () => document };
 };
 const kinds: LayerStyleKind[] = ['drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow',

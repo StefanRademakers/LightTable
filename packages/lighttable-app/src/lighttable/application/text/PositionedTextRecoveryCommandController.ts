@@ -5,11 +5,11 @@ import {
 import { recoverPositionedTextAsFlow } from '../../editor/document/textLayerCommands';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 
 export interface PositionedTextRecoveryCommandDependencies {
   getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  documentMutations: Pick<DocumentMutationController, 'change'>;
 }
 
 /** Typed query/command seam for UI, host automation and a future MCP adapter. */
@@ -26,14 +26,10 @@ export class PositionedTextRecoveryCommandController {
 
   recover(layerId: LayerId): boolean {
     const dependencies = this.resolveDependencies();
-    const before = dependencies.getDocument();
-    if (!before) return false;
-    const after = recoverPositionedTextAsFlow(before, layerId);
-    if (after === before) return false;
-    const latest = this.resolveDependencies();
-    if (latest.getDocument() !== before) return false;
-    latest.applyDocument(after);
-    latest.pushDocumentHistory(before, after);
-    return true;
+    return dependencies.documentMutations.change(
+      (current) => recoverPositionedTextAsFlow(current, layerId),
+      true,
+      { label: 'Recover Editable Type', type: 'text.recover', layerIds: [layerId] }
+    );
   }
 }

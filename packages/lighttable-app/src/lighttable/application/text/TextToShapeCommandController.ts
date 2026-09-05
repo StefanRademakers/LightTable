@@ -2,17 +2,23 @@ import type { VectorPath } from '@lighttable/vector-core';
 import { replaceTextLayerWithVectorPaths } from '../../editor/document/documentCommands';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 
 export interface TextToShapeCommandDependencies {
   getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
   resolveVectorPaths(layerId: LayerId, signal: AbortSignal): Promise<readonly VectorPath[] | null>;
 }
 
 /** Owns the one-shot, one-history-entry boundary for Convert to Shape. */
 export class TextToShapeCommandController {
-  private operation: { controller: AbortController; documentId: ImageDocument['id'] } | null = null;
+  private operation: {
+    controller: AbortController;
+    transaction: DocumentMutationTransaction;
+  } | null = null;
 
   constructor(private readonly resolveDependencies: () => TextToShapeCommandDependencies) {}
 
@@ -27,21 +33,32 @@ export class TextToShapeCommandController {
     const layer = before && findDocumentLayer(before, layerId);
     if (!before || layer?.type !== 'text' || layer.locks.all || layer.locks.pixels) return false;
     const controller = new AbortController();
-    const operation = { controller, documentId: before.id };
+    const transaction = dependencies.documentMutations.begin(
+      'text.convert-to-shape',
+      { label: 'Convert to Shape', type: 'text.convert-to-shape', layerIds: [layerId] },
+      (reason) => {
+        if (reason !== 'commit') controller.abort();
+      },
+      'cancel'
+    );
+    if (!transaction) return false;
+    const operation = { controller, transaction };
     this.operation = operation;
     try {
       const paths = await dependencies.resolveVectorPaths(layerId, controller.signal);
-      if (controller.signal.aborted || this.operation !== operation || !paths?.length) return false;
-      const current = this.resolveDependencies().getDocument();
-      if (current !== before || current?.id !== operation.documentId) return false;
-      const after = replaceTextLayerWithVectorPaths(before, layerId, paths);
-      if (after === before) return false;
-      const latest = this.resolveDependencies();
-      if (latest.getDocument() !== before) return false;
-      latest.applyDocument(after);
-      latest.pushDocumentHistory(before, after);
-      return true;
+      if (controller.signal.aborted || this.operation !== operation || !paths?.length) {
+        transaction.cancel();
+        return false;
+      }
+      if (!transaction.stage(
+        (current) => replaceTextLayerWithVectorPaths(current, layerId, paths)
+      )) {
+        transaction.cancel();
+        return false;
+      }
+      return transaction.commit();
     } finally {
+      transaction.cancel();
       if (this.operation === operation) this.operation = null;
     }
   }
@@ -49,6 +66,7 @@ export class TextToShapeCommandController {
   cancel() {
     if (!this.operation) return false;
     this.operation.controller.abort();
+    this.operation.transaction.cancel();
     this.operation = null;
     return true;
   }

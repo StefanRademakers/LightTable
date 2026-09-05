@@ -1437,7 +1437,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commit: boolean
   ) => boolean>(() => false);
   const automationTranslateRef = useRef<{
-    readonly before: ImageDocument;
+    readonly transaction: DocumentMutationTransaction;
     readonly layerId: LayerId;
     readonly start: LightTableGestureSample;
   } | null>(null);
@@ -1451,9 +1451,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     | null
   >(null);
   const textWarpGestureRef = useRef<{
-    readonly documentId: ImageDocument['id'];
     readonly layerId: LayerId;
-    readonly before: ImageDocument;
+    readonly transaction: DocumentMutationTransaction;
   } | null>(null);
   const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
   const textPaintPreviewFrameRef = useRef<number | null>(null);
@@ -2622,8 +2621,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
   textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
     getDocument: () => imageDocumentRef.current,
-    applyDocument: applyDocumentSnapshot,
-    pushDocumentHistory,
+    documentMutations: documentMutationController,
     resolveVectorPaths: (layerId, signal) => (
       engineRef.current?.vectorPathsForTextLayer(layerId, signal) ?? Promise.resolve(null)
     )
@@ -2632,8 +2630,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const positionedTextRecoveryControllerRef = useRef<PositionedTextRecoveryCommandController | null>(null);
   positionedTextRecoveryControllerRef.current ??= new PositionedTextRecoveryCommandController(() => ({
     getDocument: () => imageDocumentRef.current,
-    applyDocument: applyDocumentSnapshot,
-    pushDocumentHistory
+    documentMutations: documentMutationController
   }));
   const positionedTextRecoveryController = positionedTextRecoveryControllerRef.current;
   const pendingTextDocumentRef = useRef<ImageDocument | null>(null);
@@ -4897,23 +4894,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
       return Boolean(execution);
     }
-    const after = pathTarget
-      ? createPathTextDocument(
-          before, request, pathTarget, editorSession.text, font, editorSession.brush.color
-        )
-      : createPointTextDocument(
-          before,
-          request,
-          editorSession.text,
-          font,
-          editorSession.brush.color,
-          editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
-        );
-    if (after === before) return false;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
-    if (beginEditing && after.activeLayerId) {
-      textEditingController.begin(after.activeLayerId);
+    let createdLayerId: LayerId | null = null;
+    const changed = documentMutationController.change(
+      (document) => {
+        if (document.id !== request.documentId) return document;
+        const next = pathTarget
+          ? createPathTextDocument(
+              document, request, pathTarget, editorSession.text, font, editorSession.brush.color
+            )
+          : createPointTextDocument(
+              document,
+              request,
+              editorSession.text,
+              font,
+              editorSession.brush.color,
+              editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
+            );
+        createdLayerId = next === document ? null : next.activeLayerId;
+        return next;
+      },
+      true,
+      { label: 'New Type Layer', type: 'text.create' }
+    );
+    if (!changed) return false;
+    if (beginEditing && createdLayerId) {
+      textEditingController.begin(createdLayerId);
       textEditingController.selectAll();
     }
     return true;
@@ -5007,19 +5012,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
       return Boolean(execution);
     }
-    const after = createParagraphTextDocument(
-      before,
-      request,
-      editorSession.text,
-      font,
-      editorSession.brush.color,
-      editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
+    let createdLayerId: LayerId | null = null;
+    const changed = documentMutationController.change(
+      (document) => {
+        if (document.id !== request.documentId) return document;
+        const next = createParagraphTextDocument(
+          document,
+          request,
+          editorSession.text,
+          font,
+          editorSession.brush.color,
+          editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
+        );
+        createdLayerId = next === document ? null : next.activeLayerId;
+        return next;
+      },
+      true,
+      { label: 'New Type Layer', type: 'text.create' }
     );
-    if (after === before) return false;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
-    if (beginEditing && after.activeLayerId) {
-      textEditingController.begin(after.activeLayerId);
+    if (!changed) return false;
+    if (beginEditing && createdLayerId) {
+      textEditingController.begin(createdLayerId);
       textEditingController.selectAll();
     }
     return true;
@@ -5593,8 +5606,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const autoAlignController = useAutoAlignController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
-    applyDocumentSnapshot,
-    pushDocumentHistory,
+    documentMutations: documentMutationController,
     setStatus: setGradeStatus,
     setError
   });
@@ -5654,9 +5666,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const result = executeSemanticLayerStyleCommand(
         { kind: 'add', layerId: layer.id, effectKind },
         {
-          getDocument: () => imageDocumentRef.current,
-          applyDocument: applyDocumentSnapshot,
-          recordHistory: pushDocumentHistory
+          changeDocument: documentMutationController.change
         }
       );
       if (result) openLayerStyleEditor(result.layerId, result.effectId);
@@ -5669,7 +5679,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         openLayerStyleEditor(result.layerId as LayerId, result.effectId as LayerStyleId);
       }
     });
-  }, [applyDocumentSnapshot, executeRegisteredCommand, openLayerStyleEditor, pushDocumentHistory]);
+  }, [documentMutationController, executeRegisteredCommand, openLayerStyleEditor]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
@@ -5907,8 +5917,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerFillOpacity: layerPanelController.setFillOpacity,
       setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
       setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
-        { kind: 'toggle', layerId, effectId, enabled }, { getDocument: () => imageDocumentRef.current,
-          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+        { kind: 'toggle', layerId, effectId, enabled }, {
+          changeDocument: documentMutationController.change
+        }),
       executeTextCommand: async (command) => {
         const result = await executeSemanticTextCommand(command, {
           fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
@@ -5941,7 +5952,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         await settlePixelInteractionRef.current();
         return rasterGradientController.apply(command);
       },
-      executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, {
+        changeDocument: documentMutationController.change
+      }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,
         changeDocument: documentMutationController.change
@@ -5977,12 +5990,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           return { layerId: command.layerId, clipping: command.clipping };
         }
         if (command.kind === 'set-transform') {
-          const before = imageDocumentRef.current;
-          if (!before) return null;
-          const after = setLayerTransform(before, command.layerId, command.transform);
-          if (after === before) return null;
-          applyDocumentSnapshot(after);
-          pushDocumentHistory(before, after);
+          const changed = documentMutationController.change(
+            (document) => setLayerTransform(document, command.layerId, command.transform),
+            true,
+            { label: 'Free Transform', type: 'layer.transform', layerIds: [command.layerId] }
+          );
+          if (!changed) return null;
           return { layerId: command.layerId, transform: command.transform };
         }
         if (command.kind === 'set-mask') {
@@ -5996,16 +6009,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             ) ? { layerId: command.layerId, operation: command.operation,
               source: command.source ?? 'reveal-all' } : null;
           }
-          const before = imageDocumentRef.current;
-          if (!before) return null;
-          const after = command.operation === 'remove'
-            ? removeLayerMask(before, command.layerId)
-            : command.operation === 'set-enabled'
-              ? setLayerMaskEnabled(before, command.layerId, command.enabled!)
-              : setLayerMaskLinked(before, command.layerId, command.linked!);
-          if (after === before) return null;
-          applyDocumentSnapshot(after);
-          pushDocumentHistory(before, after);
+          const changed = documentMutationController.change(
+            (document) => command.operation === 'remove'
+              ? removeLayerMask(document, command.layerId)
+              : command.operation === 'set-enabled'
+                ? setLayerMaskEnabled(document, command.layerId, command.enabled!)
+                : setLayerMaskLinked(document, command.layerId, command.linked!),
+            true,
+            { label: command.operation === 'remove' ? 'Delete Layer Mask' : 'Edit Layer Mask',
+              type: `layer.mask.${command.operation}`, layerIds: [command.layerId] }
+          );
+          if (!changed) return null;
           return { layerId: command.layerId, operation: command.operation,
             ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
             ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
@@ -6550,21 +6564,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setGuideDraft(null);
   }, [imageDocument?.id]);
   const commitDocumentGuides = useCallback((guides: readonly DocumentGuide[]) => {
-    const before = imageDocumentRef.current;
-    if (!before) return;
-    const after = replaceDocumentGuides(before, guides);
-    if (after === before) return;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
-  }, [applyDocumentSnapshot, pushDocumentHistory]);
+    documentMutationController.change(
+      (document) => replaceDocumentGuides(document, guides),
+      true,
+      { label: 'Edit Guides', type: 'document.guides' }
+    );
+  }, [documentMutationController]);
   const clearGuides = useCallback(() => {
-    const before = imageDocumentRef.current;
-    if (!before) return;
-    const after = clearDocumentGuides(before);
-    if (after === before) return;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
-  }, [applyDocumentSnapshot, pushDocumentHistory]);
+    documentMutationController.change(
+      clearDocumentGuides,
+      true,
+      { label: 'Clear Guides', type: 'document.guides' }
+    );
+  }, [documentMutationController]);
 
   const transformSession = useTransformSessionController({
     activeTool: editorSession.activeTool,
@@ -6818,7 +6830,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? parameters.layerId as LayerId
       : document?.activeLayerId ?? null;
     if (!document || !layerId || !findDocumentLayer(document, layerId)) return false;
-    automationTranslateRef.current = { before: document, layerId, start: sample };
+    const transaction = documentMutationController.begin(
+      'automation.translate',
+      { label: 'Move Layer', type: 'layer.transform', layerIds: [layerId] },
+      undefined,
+      'cancel'
+    );
+    if (!transaction) return false;
+    automationTranslateRef.current = { transaction, layerId, start: sample };
     return true;
   };
   updateAutomationGestureRef.current = (kind, pointerId, sample) => {
@@ -6839,15 +6858,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     const transaction = automationTranslateRef.current;
     const layer = transaction
-      ? findDocumentLayer(transaction.before, transaction.layerId)
+      ? findDocumentLayer(transaction.transaction.before, transaction.layerId)
       : null;
-    if (!transaction || !layer || imageDocumentRef.current?.id !== transaction.before.id) return false;
-    applyDocumentSnapshot(setLayerTransform(transaction.before, transaction.layerId, {
-      ...layer.transform,
-      tx: layer.transform.tx + sample.x - transaction.start.x,
-      ty: layer.transform.ty + sample.y - transaction.start.y
-    }));
-    return true;
+    if (!transaction || !transaction.transaction.active || !layer) return false;
+    transaction.transaction.change(() => setLayerTransform(
+      transaction.transaction.before,
+      transaction.layerId,
+      {
+        ...layer.transform,
+        tx: layer.transform.tx + sample.x - transaction.start.x,
+        ty: layer.transform.ty + sample.y - transaction.start.y
+      }
+    ));
+    return transaction.transaction.active;
   };
   finishAutomationGestureRef.current = (kind, pointerId, commit) => {
     if (kind === 'selection-rectangle') {
@@ -6867,14 +6890,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     const transaction = automationTranslateRef.current;
     automationTranslateRef.current = null;
-    if (!transaction || imageDocumentRef.current?.id !== transaction.before.id) return false;
-    if (!commit) {
-      applyDocumentSnapshot(transaction.before);
-      return true;
-    }
-    const after = imageDocumentRef.current;
-    if (after !== transaction.before) pushDocumentHistory(transaction.before, after);
-    return true;
+    if (!transaction) return false;
+    return commit ? transaction.transaction.commit() : transaction.transaction.cancel();
   };
 
   const activatePersistentTool = (requestedTool: ToolId) => {
@@ -7784,18 +7801,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? textEditingController.getSnapshot().selection.focus
       : undefined;
     if (restoreEditing) textEditingController.finish();
-    const before = imageDocumentRef.current;
-    if (!before) return;
-    const after = mode === 'paragraph'
-      ? convertPointTextToParagraph(before, layerId, {
-          width: 240,
-          height: 120,
-          firstBaselineOffset
-        })
-      : convertParagraphTextToPoint(before, layerId, { firstBaselineOffset });
-    if (after === before) return;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
+    const changed = documentMutationController.change(
+      (document) => mode === 'paragraph'
+        ? convertPointTextToParagraph(document, layerId, {
+            width: 240,
+            height: 120,
+            firstBaselineOffset
+          })
+        : convertParagraphTextToPoint(document, layerId, { firstBaselineOffset }),
+      true,
+      { label: mode === 'paragraph' ? 'Convert to Paragraph Text' : 'Convert to Point Text',
+        type: 'text.set-layout', layerIds: [layerId] }
+    );
+    if (!changed) return;
     activatePersistentTool('text-point');
     if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
   };
@@ -8011,50 +8029,64 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
       return;
     }
-    const after = setFlowTextLayout(before, layerId, {
-      ...layer.text.source.layout,
-      writingMode
-    });
-    if (after === before) return;
-    applyDocumentSnapshot(after);
-    pushDocumentHistory(before, after);
+    const changed = documentMutationController.change(
+      (document) => {
+        const current = findDocumentLayer(document, layerId);
+        return current?.type === 'text' && current.text.source.kind === 'flow'
+          && current.text.source.layout.mode !== 'path'
+          ? setFlowTextLayout(document, layerId, {
+              ...current.text.source.layout,
+              writingMode
+            })
+          : document;
+      },
+      true,
+      { label: 'Change Text Direction', type: 'text.set-layout', layerIds: [layerId] }
+    );
+    if (!changed) return;
     activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
   };
   const applyTextWarp = (warp: TextWarp | null) => {
-    const before = imageDocumentRef.current;
-    const layerId = before?.activeLayerId;
-    if (!before || !layerId) return;
-    const layer = findDocumentLayer(before, layerId);
+    const document = imageDocumentRef.current;
+    const layerId = document?.activeLayerId;
+    if (!document || !layerId) return;
+    const layer = findDocumentLayer(document, layerId);
     if (layer?.type !== 'text') return;
-    const after = setTextWarp(before, layerId, warp);
-    if (after === before) return;
-    applyDocumentSnapshot(after);
     const gesture = textWarpGestureRef.current;
-    if (!gesture || gesture.documentId !== before.id || gesture.layerId !== layerId) {
-      pushDocumentHistory(before, after);
+    if (gesture?.transaction.active && gesture.layerId === layerId) {
+      gesture.transaction.change((current) => setTextWarp(current, layerId, warp));
+      return;
     }
+    documentMutationController.change(
+      (current) => setTextWarp(current, layerId, warp),
+      true,
+      { label: 'Warp Text', type: 'text.warp', layerIds: [layerId] }
+    );
   };
   const beginTextWarpGesture = () => {
-    if (textWarpGestureRef.current) return;
+    if (textWarpGestureRef.current?.transaction.active) return;
+    textWarpGestureRef.current = null;
     const before = imageDocumentRef.current;
     const layerId = before?.activeLayerId;
     const layer = before && layerId ? findDocumentLayer(before, layerId) : null;
     if (!before || !layerId || layer?.type !== 'text') return;
-    textWarpGestureRef.current = { documentId: before.id, layerId, before };
+    const transaction = documentMutationController.begin(
+      'text.warp',
+      { label: 'Warp Text', type: 'text.warp', layerIds: [layerId] },
+      () => { textWarpGestureRef.current = null; },
+      'cancel'
+    );
+    if (transaction) textWarpGestureRef.current = { layerId, transaction };
   };
   const commitTextWarpGesture = () => {
     const gesture = textWarpGestureRef.current;
     textWarpGestureRef.current = null;
-    const after = imageDocumentRef.current;
-    if (!gesture || !after || after.id !== gesture.documentId || after === gesture.before) return;
-    pushDocumentHistory(gesture.before, after);
+    gesture?.transaction.commit();
   };
   const cancelTextWarpGesture = () => {
     const gesture = textWarpGestureRef.current;
     textWarpGestureRef.current = null;
-    if (gesture && imageDocumentRef.current?.id === gesture.documentId) {
-      applyDocumentSnapshot(gesture.before);
-    }
+    gesture?.transaction.cancel();
   };
   useEffect(() => () => {
     pendingTextPaintPatchRef.current = null;
@@ -8487,11 +8519,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             duplicateImageSourceName: documentSession?.getSnapshot().title ?? initialSourceName,
             onDuplicateImage: (name) => { void duplicateImage(name); },
             onCreateGuide: (guide) => {
-              const before = imageDocumentRef.current;
-              if (!before) return;
-              const after = addDocumentGuide(before, guide);
-              applyDocumentSnapshot(after);
-              pushDocumentHistory(before, after);
+              documentMutationController.change(
+                (document) => addDocumentGuide(document, guide),
+                true,
+                { label: 'New Guide', type: 'document.guides' }
+              );
             }
           }}
           toolOptions={toolOptionsMenu ? {

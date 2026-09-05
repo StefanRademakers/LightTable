@@ -4,6 +4,10 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  createDocumentMutationController,
+  type DocumentMutationHistoryEntry
+} from '../documents/useDocumentMutationController';
 import { TextToShapeCommandController } from './TextToShapeCommandController';
 
 const path = () => createVectorPath('glyph', 'Glyph', [createSubpath('contour', [
@@ -19,15 +23,21 @@ const harness = () => {
     'Editable'
   );
   const opening = document;
-  const history: Array<{ before: typeof document; after: typeof document }> = [];
+  const history: DocumentMutationHistoryEntry[] = [];
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: next => { document = next; },
+    previewSnapshot: next => { document = next; },
+    discardPreview: () => undefined,
+    pushHistoryEntry: entry => history.push(entry)
+  }));
   const resolveVectorPaths = vi.fn(async (
     _layerId: LayerId,
     _signal: AbortSignal
   ): Promise<readonly VectorPath[] | null> => [path()]);
   const controller = new TextToShapeCommandController(() => ({
     getDocument: () => document,
-    applyDocument: (next) => { document = next; },
-    pushDocumentHistory: (before, after) => history.push({ before, after }),
+    documentMutations,
     resolveVectorPaths
   }));
   return {
@@ -46,13 +56,12 @@ describe('TextToShapeCommandController', () => {
     await expect(state.controller.convert(layerId)).resolves.toBe(true);
 
     expect(state.history).toHaveLength(1);
-    expect(state.history[0]?.before).toBe(state.opening);
-    expect(state.history[0]?.after).toBe(state.document());
+    const converted = state.document();
     expect(findDocumentLayer(state.document(), layerId)?.type).toBe('vector');
-    expect(findDocumentLayer(state.history[0]!.before, layerId)).toBe(originalLayer);
-    state.replaceDocument(state.history[0]!.before);
+    state.history[0]!.undo();
     expect(findDocumentLayer(state.document(), layerId)).toBe(originalLayer);
-    state.replaceDocument(state.history[0]!.after);
+    state.history[0]!.redo();
+    expect(state.document()).toBe(converted);
     expect(findDocumentLayer(state.document(), layerId)?.type).toBe('vector');
   });
 
