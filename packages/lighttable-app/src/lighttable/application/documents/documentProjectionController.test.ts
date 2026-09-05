@@ -200,6 +200,34 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.getDocument()).toBe(originalDocument);
   });
 
+  it('restores the canonical renderer projection when a preview is discarded', () => {
+    const fixture = createFixture();
+    const canonicalDocument = fixture.getDocument();
+
+    fixture.controller.previewAdjustmentSnapshot({
+      ...createDefaultAdjustments(),
+      exposureEV: 1
+    }, canonicalDocument.activeLayerId);
+    fixture.publishRendererDocument.mockClear();
+    fixture.publishRendererAdjustments.mockClear();
+
+    fixture.controller.discardAdjustmentPreview();
+
+    expect(fixture.getDocument()).toBe(canonicalDocument);
+    expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
+    expect(fixture.publishRendererDocument).toHaveBeenCalledWith(canonicalDocument);
+    expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
+  });
+
+  it('does not republish the renderer when no adjustment preview exists', () => {
+    const fixture = createFixture();
+
+    fixture.controller.discardAdjustmentPreview();
+
+    expect(fixture.publishRendererDocument).not.toHaveBeenCalled();
+    expect(fixture.publishRendererAdjustments).not.toHaveBeenCalled();
+  });
+
   it('reprojects renderer adjustments when a presentation group is bypassed', () => {
     const fixture = createFixture();
     const visibility = {

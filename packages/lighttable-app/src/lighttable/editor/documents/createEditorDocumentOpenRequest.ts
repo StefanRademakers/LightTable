@@ -28,6 +28,10 @@ export interface EditorDocumentOpenRequestOptions<
     source: Source,
     task: DocumentTaskContext
   ) => Promise<void>;
+  readonly waitUntilPresented?: (
+    renderer: Renderer,
+    task: DocumentTaskContext
+  ) => Promise<void>;
   readonly rendererSlot: EditorDocumentRendererSlot<Renderer>;
   readonly lifecycleBridge: DocumentRendererLifecycleBridge<Renderer>;
   readonly configureRenderer?: (renderer: Renderer) => void;
@@ -49,6 +53,8 @@ export const createEditorDocumentOpenRequest = <
   createRenderer: options.createRenderer,
   loadSource: options.resolveSource,
   hydrate: options.hydrate,
+  waitUntilPresented: options.waitUntilPresented
+    ?? ((renderer) => renderer.waitForPresentation()),
   disposeSource: options.disposeSource,
   onRendererReady: (renderer, elapsedMs) => {
     options.configureRenderer?.(renderer);

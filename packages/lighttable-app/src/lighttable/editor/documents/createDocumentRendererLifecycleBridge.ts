@@ -18,6 +18,7 @@ export interface EditorDocumentRenderer {
     options: WebGpuScopeOptions
   ): void;
   initializeScopes(canvases: DocumentRendererScopeCanvases): Promise<void>;
+  waitForPresentation(): Promise<void>;
 }
 
 export interface DocumentRendererLifecycleBridgeOptions<

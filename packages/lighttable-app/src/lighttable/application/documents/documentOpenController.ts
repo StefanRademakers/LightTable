@@ -21,6 +21,14 @@ export interface DocumentOpenRequest<
     source: Source,
     context: DocumentTaskContext
   ) => Promise<void>;
+  /**
+   * Resolves only after the hydrated document has reached its presentation
+   * surface. Hosts without a presentation surface may omit this boundary.
+   */
+  readonly waitUntilPresented?: (
+    renderer: Renderer,
+    context: DocumentTaskContext
+  ) => Promise<void>;
   readonly onRendererReady?: (
     renderer: Renderer,
     elapsedMs: number,
@@ -102,6 +110,8 @@ export class DocumentOpenController<
             request.onSourceReady?.(source, performance.now() - sourceStartedAt);
             await request.hydrate(reusableRenderer, source, task);
             if (isCanceled()) task.throwIfCanceled();
+            await request.waitUntilPresented?.(reusableRenderer, task);
+            if (isCanceled()) task.throwIfCanceled();
             consumed = true;
           } finally {
             if (!consumed) request.disposeSource?.(source);
@@ -111,8 +121,11 @@ export class DocumentOpenController<
         const renderer = await startDocumentRenderer({
           createRenderer: request.createRenderer,
           loadSource: () => request.loadSource(task.signal),
-          hydrate: (created, source) =>
-            request.hydrate(created, source, task),
+          hydrate: async (created, source) => {
+            await request.hydrate(created, source, task);
+            if (isCanceled()) task.throwIfCanceled();
+            await request.waitUntilPresented?.(created, task);
+          },
           isCanceled,
           onRendererReady: (created, elapsedMs) => {
             request.onRendererReady?.(created, elapsedMs, generation);

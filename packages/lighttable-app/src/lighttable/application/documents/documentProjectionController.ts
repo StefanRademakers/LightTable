@@ -136,7 +136,14 @@ export const createDocumentProjectionController = (
       publishRendererAdjustments();
     },
     discardAdjustmentPreview: () => {
+      const canonicalDocument = port.getDocument();
+      const hadDocumentPreview = previewDocument !== null
+        && previewDocument.id === canonicalDocument?.id;
       previewDocument = null;
+      if (hadDocumentPreview && canonicalDocument) {
+        port.publishRendererDocument(canonicalDocument);
+      }
+      if (hadDocumentPreview) publishRendererAdjustments();
     }
   };
 };

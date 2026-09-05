@@ -139,4 +139,34 @@ describe('DocumentOpenController', () => {
     expect(replacement.destroy).not.toHaveBeenCalled();
     controller.close();
   });
+
+  it('does not settle or become ready before the current document is presented', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController(
+      new DocumentTaskRegistry('document-1' as DocumentSessionId),
+      lifecycle
+    );
+    const presented = deferred<void>();
+    const onSettled = vi.fn();
+    const target = renderer();
+
+    const opening = controller.open({
+      createRenderer: async () => target,
+      loadSource: async () => new Blob(),
+      hydrate: async () => undefined,
+      waitUntilPresented: () => presented.promise,
+      onSettled
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(lifecycle.getSnapshot().status).toBe('starting');
+    expect(onSettled).not.toHaveBeenCalled();
+
+    presented.resolve();
+    await opening;
+
+    expect(lifecycle.getSnapshot().status).toBe('ready');
+    expect(onSettled).toHaveBeenCalledOnce();
+  });
 });

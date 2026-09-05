@@ -6,7 +6,8 @@ const createRenderer = (name: string) => ({
   destroy: vi.fn(),
   setLensBlurDepthVisualization: vi.fn(),
   setScopeOptions: vi.fn(),
-  initializeScopes: vi.fn().mockResolvedValue(undefined)
+  initializeScopes: vi.fn().mockResolvedValue(undefined),
+  waitForPresentation: vi.fn().mockResolvedValue(undefined)
 });
 
 describe('createEditorDocumentOpenRequest', () => {
@@ -41,6 +42,28 @@ describe('createEditorDocumentOpenRequest', () => {
     request.onRendererDiscarded?.(renderer);
     expect(current).toBeNull();
     expect(lifecycleBridge.onRendererDiscarded).toHaveBeenCalledWith(renderer);
+  });
+
+  it('uses the renderer presentation boundary for document-open completion', async () => {
+    let current: ReturnType<typeof createRenderer> | null = null;
+    const lifecycleBridge = {
+      callbacks: {}, onRendererReady: vi.fn(), onRendererDiscarded: vi.fn(),
+      onSourceReady: vi.fn(), onFailed: vi.fn(), onSettled: vi.fn()
+    };
+    const request = createEditorDocumentOpenRequest({
+      createRenderer: async () => createRenderer('created'),
+      resolveSource: async () => new Blob(), hydrate: async () => undefined,
+      rendererSlot: {
+        get: () => current,
+        set: (renderer) => { current = renderer; }
+      },
+      lifecycleBridge
+    });
+    const renderer = createRenderer('active');
+
+    await request.waitUntilPresented?.(renderer, {} as never);
+
+    expect(renderer.waitForPresentation).toHaveBeenCalledOnce();
   });
 
   it('does not let a stale discard clear a replacement renderer', () => {

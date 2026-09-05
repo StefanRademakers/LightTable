@@ -15,7 +15,8 @@ const createRenderer = () => ({
   setActive: vi.fn(),
   setLensBlurDepthVisualization: vi.fn(),
   setScopeOptions: vi.fn(),
-  initializeScopes: vi.fn().mockResolvedValue(undefined)
+  initializeScopes: vi.fn().mockResolvedValue(undefined),
+  waitForPresentation: vi.fn().mockResolvedValue(undefined)
 });
 
 describe('createDocumentRendererLifecycleBridge', () => {

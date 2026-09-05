@@ -44,6 +44,32 @@ export interface EditorResolvedDocumentSource {
   readonly prepared: PreparedDocumentOpenSource | null;
 }
 
+const waitForActivePresentation = async (
+  renderer: DocumentRendererPort,
+  lifecycle: DocumentRendererLifecycle,
+  task: DocumentTaskContext
+): Promise<void> => {
+  if (!lifecycle.getSnapshot().active || !task.isCurrent()) return;
+
+  let releaseSuspension!: () => void;
+  const suspended = new Promise<void>((resolve) => {
+    releaseSuspension = resolve;
+  });
+  const unsubscribe = lifecycle.subscribe((snapshot) => {
+    if (!snapshot.active || !task.isCurrent()) releaseSuspension();
+  });
+  const onAbort = () => releaseSuspension();
+  task.signal.addEventListener('abort', onAbort, { once: true });
+  if (!lifecycle.getSnapshot().active || !task.isCurrent()) releaseSuspension();
+
+  try {
+    await Promise.race([renderer.waitForPresentation(), suspended]);
+  } finally {
+    unsubscribe();
+    task.signal.removeEventListener('abort', onAbort);
+  }
+};
+
 export interface EditorDocumentOpenRequestFactoryOptions {
   readonly canvases: EditorDocumentScopeCanvasRefs;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
@@ -165,6 +191,8 @@ export const useEditorDocumentOpenRequestFactory = ({
       renderer.setStartupTimeline(telemetryRef.current.activeTimeline());
       return hydrate(renderer, resolvedSource, task, isCurrent);
     },
+    waitUntilPresented: (renderer, task) =>
+      waitForActivePresentation(renderer, rendererLifecycle, task),
     disposeSource: (resolvedSource) => resolvedSource.prepared?.dispose(),
     rendererSlot: {
       get: () => rendererRef.current,
