@@ -208,6 +208,7 @@ import {
   projectSelectionTransform,
   type DocumentGeometryRequest
 } from './application/documentGeometry/documentGeometryModel';
+import { commitDocumentSurfaceMutation } from './application/documentGeometry/commitDocumentSurfaceMutation';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
@@ -2452,8 +2453,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const commitImageSize = async (request: ImageSizeRequest, reportError = true) => {
     await finishOpenHistoryTransactions();
-    const before = imageDocumentRef.current;
-    if (!before) return;
     const renderer = engineRef.current;
     if (!renderer) {
       const reason = new Error('The document renderer is unavailable.');
@@ -2461,20 +2460,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setError(reason.message);
       return;
     }
-    const beforeSelection = editorSessionRef.current.selection;
-    let beforeSelectionMask = editorSessionRef.current.selectionMaskSnapshot;
-    let gpuResize: ReturnType<DocumentRendererPort['resizeImagePixels']> | null = null;
+    const history = { type: 'document.image-size', label: 'Image Size' } as const;
+    const transaction = documentMutationController.begin(
+      'document.image-size',
+      history,
+      undefined,
+      'cancel'
+    );
+    if (!transaction) {
+      const reason = new Error('Image Size could not acquire the active document.');
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return;
+    }
+    const before = transaction.before;
+    const selectionIdentity = editorSessionRef.current.selection;
+    const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
+    const beforeSelection = [...selectionIdentity];
     try {
       const plan = createResizePlan(before, request);
       const after = resizeImageDocumentSemantics(before, request);
       if (after === before) {
+        transaction.cancel();
         editorDialogs.closeImageSize();
         return;
-      }
-      beforeSelectionMask ??= await renderer.captureSelectionSnapshot();
-      const exactBeforeSelectionMask = beforeSelectionMask;
-      if (!await renderer.restoreSelectionSnapshot(exactBeforeSelectionMask)) {
-        throw new Error('The exact selection state could not be prepared for Image Size.');
       }
       const afterSelection = plan.targetWidth === plan.sourceWidth
         && plan.targetHeight === plan.sourceHeight
@@ -2482,48 +2491,40 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : projectSelectionTransform(beforeSelection, {
             a: plan.scaleX, b: 0, c: 0, d: plan.scaleY, tx: 0, ty: 0
           });
-      gpuResize = renderer.resizeImagePixels(
-        before,
-        plan,
-        request.preserveDetailsNoiseReduction
-      );
-      renderer.resizeDocumentSurface(after);
-      const afterSelectionMask = await renderer.captureSelectionSnapshot();
-      publishDocumentSelection(after, afterSelection, afterSelectionMask);
-      pushHistoryEntry({
-        type: 'document.image-size',
-        label: 'Image Size',
-        documentMutation: true,
-        byteSize: exactBeforeSelectionMask.byteSize + afterSelectionMask.byteSize,
-        undo: () => {
-          gpuResize?.apply('before');
-          renderer.resizeDocumentSurface(before);
-          publishDocumentSelection(before, beforeSelection, exactBeforeSelectionMask);
-        },
-        redo: () => {
-          gpuResize?.apply('after');
-          renderer.resizeDocumentSurface(after);
-          publishDocumentSelection(after, afterSelection, afterSelectionMask);
-        },
-        dispose: () => gpuResize?.dispose()
+      const committed = await commitDocumentSurfaceMutation({
+        transaction,
+        afterDocument: after,
+        beforeSelection,
+        afterSelection,
+        beforeSelectionMask: selectionMaskIdentity,
+        history,
+        originIsCurrent: () => imageDocumentRef.current === before
+          && engineRef.current === renderer
+          && editorSessionRef.current.selection === selectionIdentity
+          && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
+        captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
+        restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
+        createRuntimeMutation: () => renderer.resizeImagePixels(
+          before,
+          plan,
+          request.preserveDetailsNoiseReduction
+        ),
+        resizeDocumentSurface: (document) => renderer.resizeDocumentSurface(document),
+        publishDocumentSelection,
+        pushHistoryEntry
       });
+      if (!committed) throw new Error('Image Size did not complete.');
       editorDialogs.closeImageSize();
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
     } catch (reason) {
-      if (gpuResize) {
-        gpuResize.apply('before');
-        renderer.resizeDocumentSurface(before);
-        if (beforeSelectionMask) publishDocumentSelection(before, beforeSelection, beforeSelectionMask);
-      }
+      transaction.cancel();
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
     }
   };
   const commitDocumentGeometry = async (request: DocumentGeometryRequest, reportError = true) => {
     await finishOpenHistoryTransactions();
-    const before = imageDocumentRef.current;
-    if (!before) return;
     const renderer = engineRef.current;
     if (!renderer) {
       const reason = new Error('The document renderer is unavailable.');
@@ -2531,57 +2532,64 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setError(reason.message);
       return;
     }
-    const beforeSelection = editorSessionRef.current.selection;
-    let beforeSelectionMask = editorSessionRef.current.selectionMaskSnapshot;
-    let gpuGeometry: ReturnType<DocumentRendererPort['applyDocumentGeometryPixels']> | null = null;
+    const history = {
+      type: `document.${request.operation}`,
+      label: request.operation === 'canvas-size' ? 'Canvas Size'
+        : request.operation === 'crop' ? 'Crop'
+          : request.operation === 'flip' ? 'Flip Canvas' : 'Image Rotation'
+    } as const;
+    const transaction = documentMutationController.begin(
+      `document.${request.operation}`,
+      history,
+      undefined,
+      'cancel'
+    );
+    if (!transaction) {
+      const reason = new Error(`${history.label} could not acquire the active document.`);
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return;
+    }
+    const before = transaction.before;
+    const selectionIdentity = editorSessionRef.current.selection;
+    const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
+    const beforeSelection = [...selectionIdentity];
     try {
       const plan = createDocumentGeometryPlan(before, request);
       const matrix = plan.oldDocumentToNewDocument;
       if (plan.targetWidth === before.width && plan.targetHeight === before.height
         && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1
         && matrix.tx === 0 && matrix.ty === 0) {
+        transaction.cancel();
         editorDialogs.closeCanvasSize();
         return;
       }
-      beforeSelectionMask ??= await renderer.captureSelectionSnapshot();
-      const exactBeforeSelectionMask = beforeSelectionMask;
-      if (!await renderer.restoreSelectionSnapshot(exactBeforeSelectionMask)) {
-        throw new Error('The exact selection state could not be prepared for document geometry.');
-      }
       const after = projectDocumentGeometry(before, plan);
       const afterSelection = projectSelectionGeometry(beforeSelection, plan);
-      gpuGeometry = renderer.applyDocumentGeometryPixels(before, plan);
-      renderer.resizeDocumentSurface(after);
-      const afterSelectionMask = await renderer.captureSelectionSnapshot();
-      publishDocumentSelection(after, afterSelection, afterSelectionMask);
-      pushHistoryEntry({
-        type: `document.${request.operation}`,
-        label: request.operation === 'canvas-size' ? 'Canvas Size'
-          : request.operation === 'crop' ? 'Crop'
-            : request.operation === 'flip' ? 'Flip Canvas' : 'Image Rotation',
-        documentMutation: true,
-        byteSize: exactBeforeSelectionMask.byteSize + afterSelectionMask.byteSize,
-        undo: () => {
-          gpuGeometry?.apply('before');
-          renderer.resizeDocumentSurface(before);
-          publishDocumentSelection(before, beforeSelection, exactBeforeSelectionMask);
-        },
-        redo: () => {
-          gpuGeometry?.apply('after');
-          renderer.resizeDocumentSurface(after);
-          publishDocumentSelection(after, afterSelection, afterSelectionMask);
-        },
-        dispose: () => gpuGeometry?.dispose()
+      const committed = await commitDocumentSurfaceMutation({
+        transaction,
+        afterDocument: after,
+        beforeSelection,
+        afterSelection,
+        beforeSelectionMask: selectionMaskIdentity,
+        history,
+        originIsCurrent: () => imageDocumentRef.current === before
+          && engineRef.current === renderer
+          && editorSessionRef.current.selection === selectionIdentity
+          && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
+        captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
+        restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
+        createRuntimeMutation: () => renderer.applyDocumentGeometryPixels(before, plan),
+        resizeDocumentSurface: (document) => renderer.resizeDocumentSurface(document),
+        publishDocumentSelection,
+        pushHistoryEntry
       });
+      if (!committed) throw new Error(`${history.label} did not complete.`);
       editorDialogs.closeCanvasSize();
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
     } catch (reason) {
-      if (gpuGeometry) {
-        gpuGeometry.apply('before');
-        renderer.resizeDocumentSurface(before);
-        if (beforeSelectionMask) publishDocumentSelection(before, beforeSelection, beforeSelectionMask);
-      }
+      transaction.cancel();
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
     }

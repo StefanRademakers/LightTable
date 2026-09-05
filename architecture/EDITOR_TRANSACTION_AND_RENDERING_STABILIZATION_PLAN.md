@@ -110,6 +110,14 @@ The document mutation controller now treats history registration as part of the 
 
 This closes a central half-commit path behind apparently successful edits followed by incomplete undo. The normal success path only adds exception handling around the existing history call; it performs no extra render, GPU allocation, texture copy or readback.
 
+### Atomic document-surface geometry
+
+Image Size, Canvas Size, Crop, Flip Canvas and image rotation now retain one document mutation lease while they coordinate the immutable document, renderer surface, raster and mask textures, exact selection snapshot and history entry. Runtime resources are prepared first and published through one compensating exchange boundary; a stale resource, failed surface resize or rejected history entry restores every already-changed owner before the command fails.
+
+Undo and redo use the same boundary, so a partial GPU exchange cannot advance canonical document or selection state. Retained color, mask and selection textures are counted in the existing history memory budget by unique allocation and by the larger of the undo/redo states.
+
+The success path adds no GPU pass, texture copy or readback. Resize and geometry pipelines remain cached per `GPUDevice`; the added work is commit-rate identity validation and bookkeeping only, never pointer-rate work.
+
 ### Explicit single-owner command routing
 
 Command availability and execution now fail closed. Workspace-owned commands are separated from mounted-document commands in an explicit, exhaustive ownership map. While a presentation owner is mounted it is selected as the complete owner; the registry no longer constructs property-level proxy hybrids with canonical fallbacks. After detach, the document-lifetime canonical owner can be selected as one complete alternative.

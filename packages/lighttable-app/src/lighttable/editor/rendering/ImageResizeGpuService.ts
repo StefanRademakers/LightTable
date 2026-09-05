@@ -5,6 +5,11 @@ import type { LayerRuntimeStore, RasterLayerRuntime } from './LayerRuntimeStore'
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
+import {
+  applyAtomicRuntimeState,
+  createAtomicRuntimeExchange,
+  type AtomicRuntimeExchange
+} from './AtomicRuntimeExchange';
 
 const RESIZE_SETTINGS_FLOATS = 8;
 
@@ -130,24 +135,10 @@ const pipelineBundle = (device: GPUDevice): ResizePipelineBundle => {
   return bundle;
 };
 
-interface RuntimeExchange {
-  readonly layerId: LayerId;
-  before: RasterLayerRuntime;
-  after: RasterLayerRuntime;
-  current: 'before' | 'after';
-}
-
 interface PendingRuntimeExchange {
   readonly layerId: LayerId;
   readonly before: RasterLayerRuntime;
   readonly after: RasterLayerRuntime;
-}
-
-interface TextureExchange {
-  readonly layerId: LayerId;
-  before: GPUTexture;
-  after: GPUTexture;
-  current: 'before' | 'after';
 }
 
 interface PendingTextureExchange {
@@ -159,10 +150,46 @@ interface PendingTextureExchange {
 interface SelectionExchange {
   before: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
   after: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-  current: 'before' | 'after';
 }
 
+interface RuntimeExchangeRecord extends PendingRuntimeExchange {
+  readonly exchange: AtomicRuntimeExchange;
+}
+
+interface TextureExchangeRecord extends PendingTextureExchange {
+  readonly exchange: AtomicRuntimeExchange;
+}
+
+type SelectionTargets = SelectionExchange['before'];
+
+const sameSelectionTargets = (left: SelectionTargets, right: SelectionTargets) => (
+  left.mask === right.mask
+  && left.result === right.result
+  && left.shape === right.shape
+);
+
+const destroyUniqueTextures = (textures: readonly GPUTexture[]) => {
+  new Set(textures).forEach((texture) => texture.destroy());
+};
+
+const estimatedUniqueTextureBytes = (
+  allocations: readonly {
+    readonly texture: GPUTexture;
+    readonly width: number;
+    readonly height: number;
+    readonly bytesPerPixel: number;
+  }[]
+) => {
+  const bytesByTexture = new Map<GPUTexture, number>();
+  allocations.forEach(({ texture, width, height, bytesPerPixel }) => {
+    const bytes = Math.max(1, width) * Math.max(1, height) * bytesPerPixel;
+    bytesByTexture.set(texture, Math.max(bytesByTexture.get(texture) ?? 0, bytes));
+  });
+  return [...bytesByTexture.values()].reduce((total, bytes) => total + bytes, 0);
+};
+
 export interface ReversibleGpuImageResize {
+  readonly byteSize: number;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
 }
@@ -178,138 +205,241 @@ export class ImageResizeGpuService {
   constructor(private readonly options: ImageResizeGpuServiceOptions) {}
 
   resize(document: ImageDocument, plan: ResizePlan, noiseReduction: number): ReversibleGpuImageResize {
-    if (!plan.resolvedMethod) return { apply: () => undefined, dispose: () => undefined };
+    if (!plan.resolvedMethod) return { byteSize: 0, apply: () => undefined, dispose: () => undefined };
     const bundle = pipelineBundle(this.options.device);
     const encoder = this.options.device.createCommandEncoder({ label: 'LightTable Image Size' });
     const pendingExchanges: PendingRuntimeExchange[] = [];
     const pendingMaskExchanges: PendingTextureExchange[] = [];
+    const createdTextures: GPUTexture[] = [];
     const transients: GPUTexture[] = [];
     const buffers: GPUBuffer[] = [];
-    for (const { layer } of walkRasterLayers(document.layers)) {
-      const before = this.options.layers.raster(layer.id);
-      if (!before) throw new Error(`Raster pixels are unavailable for ${layer.name}.`);
-      const targetWidth = Math.max(1, Math.round(before.width * plan.scaleX));
-      const targetHeight = Math.max(1, Math.round(before.height * plan.scaleY));
-      const color = this.encodePasses(
-        encoder, before.texture, before.width, before.height,
-        targetWidth, targetHeight, plan.resolvedMethod, noiseReduction,
-        bundle.color, 'rgba16float', transients, buffers
-      );
-      const maskTexture = before.maskTexture ? this.encodePasses(
-        encoder, before.maskTexture, plan.sourceWidth, plan.sourceHeight,
-        plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
-        bundle.mask, LAYER_MASK_TEXTURE_FORMAT, transients, buffers
-      ) : null;
-      const after: RasterLayerRuntime = {
-        texture: color,
-        width: targetWidth,
-        height: targetHeight,
-        maskTexture,
-        maskId: before.maskId
-      };
-      pendingExchanges.push({ layerId: layer.id, before, after });
-    }
-    for (const { node } of walkLayerTree(document.layers)) {
-      if (node.type === 'raster' || !node.mask) continue;
-      const before = this.options.layers.maskTexture(node.id);
-      if (!before) throw new Error(`Mask pixels are unavailable for ${node.name}.`);
-      const after = this.encodePasses(
-        encoder, before, plan.sourceWidth, plan.sourceHeight,
-        plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
-        bundle.mask, LAYER_MASK_TEXTURE_FORMAT, transients, buffers
-      );
-      pendingMaskExchanges.push({ layerId: node.id, before, after });
-    }
     let selectionExchange: SelectionExchange | null = null;
-    const selection = this.options.selection;
-    if (selection.active && selection.mask && selection.result && selection.shape) {
-      const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
-      const after = {
-        mask: this.encodePasses(encoder, before.mask, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers),
-        result: this.encodePasses(encoder, before.result, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers),
-        shape: this.encodePasses(encoder, before.shape, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers)
+    let submitted = false;
+    let runtimeAttached = false;
+    let atomicExchanges: AtomicRuntimeExchange[] = [];
+    try {
+      for (const { layer } of walkRasterLayers(document.layers)) {
+        const before = this.options.layers.raster(layer.id);
+        if (!before) throw new Error(`Raster pixels are unavailable for ${layer.name}.`);
+        const targetWidth = Math.max(1, Math.round(before.width * plan.scaleX));
+        const targetHeight = Math.max(1, Math.round(before.height * plan.scaleY));
+        const color = this.encodePasses(
+          encoder, before.texture, before.width, before.height,
+          targetWidth, targetHeight, plan.resolvedMethod, noiseReduction,
+          bundle.color, 'rgba16float', createdTextures, transients, buffers
+        );
+        const maskTexture = before.maskTexture ? this.encodePasses(
+          encoder, before.maskTexture, plan.sourceWidth, plan.sourceHeight,
+          plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
+          bundle.mask, LAYER_MASK_TEXTURE_FORMAT, createdTextures, transients, buffers
+        ) : null;
+        const after: RasterLayerRuntime = {
+          texture: color,
+          width: targetWidth,
+          height: targetHeight,
+          maskTexture,
+          maskId: before.maskId
+        };
+        pendingExchanges.push({ layerId: layer.id, before, after });
+      }
+      for (const { node } of walkLayerTree(document.layers)) {
+        if (node.type === 'raster' || !node.mask) continue;
+        const before = this.options.layers.maskTexture(node.id);
+        if (!before) throw new Error(`Mask pixels are unavailable for ${node.name}.`);
+        const after = this.encodePasses(
+          encoder, before, plan.sourceWidth, plan.sourceHeight,
+          plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
+          bundle.mask, LAYER_MASK_TEXTURE_FORMAT, createdTextures, transients, buffers
+        );
+        pendingMaskExchanges.push({ layerId: node.id, before, after });
+      }
+      const selection = this.options.selection;
+      if (selection.active && selection.mask && selection.result && selection.shape) {
+        const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
+        const after = {
+          mask: this.encodePasses(encoder, before.mask, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
+            plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers),
+          result: this.encodePasses(encoder, before.result, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
+            plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers),
+          shape: this.encodePasses(encoder, before.shape, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
+            plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers)
+        };
+        selectionExchange = { before, after };
+      }
+      this.options.device.queue.submit([encoder.finish()]);
+      submitted = true;
+
+      // Prepared resources become live as one atomic state transition. The
+      // helper compensates earlier exchanges if a later runtime changed.
+      const exchanges: RuntimeExchangeRecord[] = pendingExchanges.map((record) => ({
+        ...record,
+        exchange: createAtomicRuntimeExchange({
+          label: `Raster runtime ${record.layerId}`,
+          before: record.before,
+          after: record.after,
+          exchange: (replacement) => this.options.layers.exchangeRaster(record.layerId, replacement)
+        })
+      }));
+      const maskExchanges: TextureExchangeRecord[] = pendingMaskExchanges.map((record) => ({
+        ...record,
+        exchange: createAtomicRuntimeExchange({
+          label: `Mask runtime ${record.layerId}`,
+          before: record.before,
+          after: record.after,
+          exchange: (replacement) => this.options.layers.exchangeMaskTexture(record.layerId, replacement)
+        })
+      }));
+      const selectionRuntimeExchange = selectionExchange
+        ? createAtomicRuntimeExchange({
+            label: 'Selection targets',
+            before: selectionExchange.before,
+            after: selectionExchange.after,
+            exchange: (replacement) => selection.exchangeTargets(replacement),
+            equals: sameSelectionTargets
+          })
+        : null;
+      atomicExchanges = [
+        ...exchanges.map((record) => record.exchange),
+        ...maskExchanges.map((record) => record.exchange),
+        ...(selectionRuntimeExchange ? [selectionRuntimeExchange] : [])
+      ];
+      const beforeAllocations = [
+        ...exchanges.flatMap(({ before }) => [
+          { texture: before.texture, width: before.width, height: before.height, bytesPerPixel: 8 },
+          ...(before.maskTexture ? [{
+            texture: before.maskTexture,
+            width: plan.sourceWidth,
+            height: plan.sourceHeight,
+            bytesPerPixel: 2
+          }] : [])
+        ]),
+        ...maskExchanges.map(({ before }) => ({
+          texture: before,
+          width: plan.sourceWidth,
+          height: plan.sourceHeight,
+          bytesPerPixel: 2
+        })),
+        ...(selectionExchange ? Object.values(selectionExchange.before).map((texture) => ({
+          texture,
+          width: plan.sourceWidth,
+          height: plan.sourceHeight,
+          bytesPerPixel: 2
+        })) : [])
+      ];
+      const afterAllocations = [
+        ...exchanges.flatMap(({ after }) => [
+          { texture: after.texture, width: after.width, height: after.height, bytesPerPixel: 8 },
+          ...(after.maskTexture ? [{
+            texture: after.maskTexture,
+            width: plan.targetWidth,
+            height: plan.targetHeight,
+            bytesPerPixel: 2
+          }] : [])
+        ]),
+        ...maskExchanges.map(({ after }) => ({
+          texture: after,
+          width: plan.targetWidth,
+          height: plan.targetHeight,
+          bytesPerPixel: 2
+        })),
+        ...(selectionExchange ? Object.values(selectionExchange.after).map((texture) => ({
+          texture,
+          width: plan.targetWidth,
+          height: plan.targetHeight,
+          bytesPerPixel: 2
+        })) : [])
+      ];
+      const byteSize = Math.max(
+        estimatedUniqueTextureBytes(beforeAllocations),
+        estimatedUniqueTextureBytes(afterAllocations)
+      );
+      applyAtomicRuntimeState(atomicExchanges, 'after');
+      runtimeAttached = true;
+      this.options.invalidateAll();
+      releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+        destroyUniqueTextures(transients);
+        buffers.forEach((buffer) => buffer.destroy());
+      });
+      return {
+        byteSize,
+        apply: (state) => {
+          try {
+            applyAtomicRuntimeState(atomicExchanges, state);
+          } finally {
+            this.options.invalidateAll();
+          }
+        },
+        dispose: () => {
+          const detachedTextures: GPUTexture[] = [];
+          for (const record of exchanges) {
+            const detached = record.exchange.current === 'after' ? record.before : record.after;
+            detachedTextures.push(detached.texture);
+            if (detached.maskTexture) detachedTextures.push(detached.maskTexture);
+          }
+          for (const record of maskExchanges) {
+            detachedTextures.push(record.exchange.current === 'after' ? record.before : record.after);
+          }
+          if (selectionExchange && selectionRuntimeExchange) {
+            const detached = selectionRuntimeExchange.current === 'after'
+              ? selectionExchange.before
+              : selectionExchange.after;
+            detachedTextures.push(detached.mask, detached.result, detached.shape);
+          }
+          // A history entry can be evicted while the detached snapshot still
+          // participates in a submitted frame. Defer destruction until all
+          // preceding GPU work is complete instead of relying on timing.
+          releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+            destroyUniqueTextures(detachedTextures);
+          });
+        }
       };
-      selectionExchange = { before, after, current: 'after' };
-    }
-    this.options.device.queue.submit([encoder.finish()]);
-    releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
-      transients.forEach((texture) => texture.destroy());
-      buffers.forEach((buffer) => buffer.destroy());
-    });
-    // Attach the completed resize as one atomic runtime mutation only after all
-    // layer, mask and selection passes were encoded successfully. A failure
-    // above therefore leaves the live document completely untouched.
-    const exchanges: RuntimeExchange[] = pendingExchanges.map(({ layerId, before, after }) => {
-      const displaced = this.options.layers.exchangeRaster(layerId, after);
-      if (displaced !== before) throw new Error(`Raster runtime ${layerId} changed during Image Size.`);
-      return { layerId, before, after, current: 'after' };
-    });
-    const maskExchanges: TextureExchange[] = pendingMaskExchanges.map(({ layerId, before, after }) => {
-      const displaced = this.options.layers.exchangeMaskTexture(layerId, after);
-      if (displaced !== before) throw new Error(`Mask runtime ${layerId} changed during Image Size.`);
-      return { layerId, before, after, current: 'after' };
-    });
-    if (selectionExchange) {
-      const displaced = selection.exchangeTargets(selectionExchange.after);
-      if (displaced.mask !== selectionExchange.before.mask
-        || displaced.result !== selectionExchange.before.result
-        || displaced.shape !== selectionExchange.before.shape) {
-        throw new Error('Selection targets changed during Image Size.');
+    } catch (reason) {
+      const failures = [reason];
+      if (runtimeAttached) {
+        try {
+          applyAtomicRuntimeState(atomicExchanges, 'before');
+          runtimeAttached = false;
+        } catch (rollbackReason) {
+          failures.push(rollbackReason);
+        }
       }
-    }
-    this.options.invalidateAll();
-    return {
-      apply: (state) => {
-        for (const exchange of exchanges) {
-          if (exchange.current === state) continue;
-          const replacement = state === 'before' ? exchange.before : exchange.after;
-          const displaced = this.options.layers.exchangeRaster(exchange.layerId, replacement);
-          if (state === 'before') exchange.after = displaced;
-          else exchange.before = displaced;
-          exchange.current = state;
-        }
-        for (const exchange of maskExchanges) {
-          if (exchange.current === state) continue;
-          const replacement = state === 'before' ? exchange.before : exchange.after;
-          const displaced = this.options.layers.exchangeMaskTexture(exchange.layerId, replacement);
-          if (state === 'before') exchange.after = displaced;
-          else exchange.before = displaced;
-          exchange.current = state;
-        }
-        if (selectionExchange && selectionExchange.current !== state) {
-          const replacement = state === 'before' ? selectionExchange.before : selectionExchange.after;
-          const displaced = this.options.selection.exchangeTargets(replacement);
-          if (state === 'before') selectionExchange.after = displaced;
-          else selectionExchange.before = displaced;
-          selectionExchange.current = state;
-        }
-        this.options.invalidateAll();
-      },
-      dispose: () => {
-        const detachedTextures: GPUTexture[] = [];
-        for (const exchange of exchanges) {
-          const detached = exchange.current === 'after' ? exchange.before : exchange.after;
-          detachedTextures.push(detached.texture);
-          if (detached.maskTexture) detachedTextures.push(detached.maskTexture);
-        }
-        for (const exchange of maskExchanges) {
-          detachedTextures.push(exchange.current === 'after' ? exchange.before : exchange.after);
-        }
-        if (selectionExchange) {
-          const detached = selectionExchange.current === 'after' ? selectionExchange.before : selectionExchange.after;
-          detachedTextures.push(detached.mask, detached.result, detached.shape);
-        }
-        // A history entry can be evicted while the detached snapshot still
-        // participates in a submitted frame. Defer destruction until all
-        // preceding GPU work is complete instead of relying on timing.
-        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
-          detachedTextures.forEach((texture) => texture.destroy());
-        });
+      const liveTextures = this.collectLiveTextures(pendingExchanges, pendingMaskExchanges);
+      const detachedCreatedTextures = createdTextures.filter((texture) => !liveTextures.has(texture));
+      const release = () => {
+        destroyUniqueTextures(detachedCreatedTextures);
+        buffers.forEach((buffer) => buffer.destroy());
+      };
+      if (submitted) releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
+        release
+      ); else release();
+      if (failures.length > 1) {
+        throw new AggregateError(failures, 'Image Size failed and its GPU state could not be restored.');
       }
-    };
+      throw reason;
+    }
+  }
+
+  private collectLiveTextures(
+    rasterExchanges: readonly PendingRuntimeExchange[],
+    maskExchanges: readonly PendingTextureExchange[]
+  ) {
+    const live = new Set<GPUTexture>();
+    rasterExchanges.forEach(({ layerId }) => {
+      const runtime = this.options.layers.raster(layerId);
+      if (!runtime) return;
+      live.add(runtime.texture);
+      if (runtime.maskTexture) live.add(runtime.maskTexture);
+    });
+    maskExchanges.forEach(({ layerId }) => {
+      const texture = this.options.layers.maskTexture(layerId);
+      if (texture) live.add(texture);
+    });
+    const selection = this.options.selection;
+    if (selection.mask) live.add(selection.mask);
+    if (selection.result) live.add(selection.result);
+    if (selection.shape) live.add(selection.shape);
+    return live;
   }
 
   private encodePasses(
@@ -323,6 +453,7 @@ export class ImageResizeGpuService {
     noiseReduction: number,
     pipeline: GPURenderPipeline,
     format: GPUTextureFormat,
+    createdTextures: GPUTexture[],
     transients: GPUTexture[],
     buffers: GPUBuffer[]
   ) {
@@ -342,11 +473,13 @@ export class ImageResizeGpuService {
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
           | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
       });
+      createdTextures.push(destination);
       const settings = this.options.device.createBuffer({
         label: 'LightTable image resize settings',
         size: RESIZE_SETTINGS_FLOATS * Float32Array.BYTES_PER_ELEMENT,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
+      buffers.push(settings);
       this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
         currentWidth, currentHeight, size.width, size.height,
         methodCode(method), noiseReduction / 100, 0, 0
@@ -364,7 +497,6 @@ export class ImageResizeGpuService {
       }] });
       pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.draw(3); pass.end();
       if (current !== source) transients.push(current);
-      buffers.push(settings);
       current = destination; currentWidth = size.width; currentHeight = size.height;
     }
     return current;

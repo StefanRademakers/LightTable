@@ -6,6 +6,11 @@ import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
+import {
+  applyAtomicRuntimeState,
+  createAtomicRuntimeExchange,
+  type AtomicRuntimeExchange
+} from './AtomicRuntimeExchange';
 
 const SETTINGS_FLOATS = 16;
 
@@ -65,14 +70,41 @@ const bundleFor = (device: GPUDevice): GeometryPipelineBundle => {
   bundles.set(device, bundle); return bundle;
 };
 
-interface TextureExchange { readonly layerId: LayerId; before: GPUTexture; after: GPUTexture; current: 'before' | 'after' }
 interface SelectionExchange {
   before: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
   after: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-  current: 'before' | 'after';
 }
 
-export interface ReversibleGpuDocumentGeometry { apply(state: 'before' | 'after'): void; dispose(): void }
+interface TextureExchangeRecord {
+  readonly layerId: LayerId;
+  readonly before: GPUTexture;
+  readonly after: GPUTexture;
+  readonly exchange: AtomicRuntimeExchange;
+}
+
+type SelectionTargets = SelectionExchange['before'];
+
+const sameSelectionTargets = (left: SelectionTargets, right: SelectionTargets) => (
+  left.mask === right.mask
+  && left.result === right.result
+  && left.shape === right.shape
+);
+
+const destroyUniqueTextures = (textures: readonly GPUTexture[]) => {
+  new Set(textures).forEach((texture) => texture.destroy());
+};
+
+const estimatedUniqueTextureBytes = (
+  textures: readonly GPUTexture[],
+  width: number,
+  height: number
+) => new Set(textures).size * Math.max(1, width) * Math.max(1, height) * 2;
+
+export interface ReversibleGpuDocumentGeometry {
+  readonly byteSize: number;
+  apply(state: 'before' | 'after'): void;
+  dispose(): void;
+}
 export interface DocumentGeometryGpuServiceOptions {
   readonly device: GPUDevice;
   readonly layers: LayerRuntimeStore;
@@ -91,81 +123,155 @@ export class DocumentGeometryGpuService {
     const settings = this.options.device.createBuffer({ label: 'LightTable document geometry settings',
       size: SETTINGS_FLOATS * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
-      plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-      inverse.a, inverse.c, inverse.tx, 0, inverse.b, inverse.d, inverse.ty, 0,
-      plan.sampling === 'filtered-affine' ? 1 : 0, 0, 0, 0
-    ]));
-    const encode = (source: GPUTexture, pipeline: GPURenderPipeline, format: GPUTextureFormat) => {
-      const target = this.options.device.createTexture({ label: 'LightTable transformed mask',
-        size: [plan.targetWidth, plan.targetHeight], format,
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
-          | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
-      const bindGroup = this.options.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
-        { binding: 0, resource: source.createView() }, { binding: 1, resource: bundle.sampler },
-        { binding: 2, resource: { buffer: settings } }
-      ] });
-      const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(),
-        clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }] });
-      pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.draw(3); pass.end();
-      return target;
-    };
-    const pending = [...walkLayerTree(document.layers)]
-      .filter(({ node }) => Boolean(node.mask))
-      .map(({ node }) => {
+    const createdTextures: GPUTexture[] = [];
+    const pending: Array<{ layerId: LayerId; before: GPUTexture; after: GPUTexture }> = [];
+    let selectionExchange: SelectionExchange | null = null;
+    let submitted = false;
+    let runtimeAttached = false;
+    let atomicExchanges: AtomicRuntimeExchange[] = [];
+    try {
+      this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
+        plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
+        inverse.a, inverse.c, inverse.tx, 0, inverse.b, inverse.d, inverse.ty, 0,
+        plan.sampling === 'filtered-affine' ? 1 : 0, 0, 0, 0
+      ]));
+      const encode = (source: GPUTexture, pipeline: GPURenderPipeline, format: GPUTextureFormat) => {
+        const target = this.options.device.createTexture({ label: 'LightTable transformed mask',
+          size: [plan.targetWidth, plan.targetHeight], format,
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+            | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
+        createdTextures.push(target);
+        const bindGroup = this.options.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
+          { binding: 0, resource: source.createView() }, { binding: 1, resource: bundle.sampler },
+          { binding: 2, resource: { buffer: settings } }
+        ] });
+        const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }] });
+        pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.draw(3); pass.end();
+        return target;
+      };
+      for (const { node } of walkLayerTree(document.layers)) {
+        if (!node.mask) continue;
         const before = this.options.layers.maskTexture(node.id);
         if (!before) throw new Error(`Mask pixels are unavailable for ${node.name}.`);
-        return { layerId: node.id, before,
-          after: encode(before, bundle.maskPipeline, LAYER_MASK_TEXTURE_FORMAT) };
-      });
-    let selectionExchange: SelectionExchange | null = null;
-    const selection = this.options.selection;
-    if (selection.active && selection.mask && selection.result && selection.shape) {
-      const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
-      selectionExchange = { before, after: {
-        mask: encode(before.mask, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
-        result: encode(before.result, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
-        shape: encode(before.shape, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT)
-      }, current: 'after' };
-    }
-    this.options.device.queue.submit([encoder.finish()]);
-    const exchanges: TextureExchange[] = pending.map(({ layerId, before, after }) => {
-      const displaced = this.options.layers.exchangeMaskTexture(layerId, after);
-      if (displaced !== before) throw new Error(`Mask runtime ${layerId} changed during document geometry.`);
-      return { layerId, before, after, current: 'after' };
-    });
-    if (selectionExchange) {
-      const displaced = selection.exchangeTargets(selectionExchange.after);
-      if (displaced.mask !== selectionExchange.before.mask || displaced.result !== selectionExchange.before.result
-        || displaced.shape !== selectionExchange.before.shape) throw new Error('Selection targets changed during document geometry.');
-    }
-    this.options.invalidateAll();
-    return {
-      apply: (state) => {
-        for (const exchange of exchanges) {
-          if (exchange.current === state) continue;
-          const displaced = this.options.layers.exchangeMaskTexture(exchange.layerId,
-            state === 'before' ? exchange.before : exchange.after);
-          if (state === 'before') exchange.after = displaced; else exchange.before = displaced;
-          exchange.current = state;
-        }
-        if (selectionExchange && selectionExchange.current !== state) {
-          const displaced = selection.exchangeTargets(state === 'before' ? selectionExchange.before : selectionExchange.after);
-          if (state === 'before') selectionExchange.after = displaced; else selectionExchange.before = displaced;
-          selectionExchange.current = state;
-        }
-        this.options.invalidateAll();
-      },
-      dispose: () => {
-        const detached = exchanges.map((exchange) => exchange.current === 'after' ? exchange.before : exchange.after);
-        if (selectionExchange) {
-          const targets = selectionExchange.current === 'after' ? selectionExchange.before : selectionExchange.after;
-          detached.push(targets.mask, targets.result, targets.shape);
-        }
-        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
-          detached.forEach((texture) => texture.destroy()); settings.destroy();
+        pending.push({
+          layerId: node.id,
+          before,
+          after: encode(before, bundle.maskPipeline, LAYER_MASK_TEXTURE_FORMAT)
         });
       }
-    };
+      const selection = this.options.selection;
+      if (selection.active && selection.mask && selection.result && selection.shape) {
+        const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
+        selectionExchange = { before, after: {
+          mask: encode(before.mask, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
+          result: encode(before.result, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
+          shape: encode(before.shape, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT)
+        } };
+      }
+      this.options.device.queue.submit([encoder.finish()]);
+      submitted = true;
+
+      const exchanges: TextureExchangeRecord[] = pending.map((record) => ({
+        ...record,
+        exchange: createAtomicRuntimeExchange({
+          label: `Mask runtime ${record.layerId}`,
+          before: record.before,
+          after: record.after,
+          exchange: (replacement) => this.options.layers.exchangeMaskTexture(record.layerId, replacement)
+        })
+      }));
+      const selectionRuntimeExchange = selectionExchange
+        ? createAtomicRuntimeExchange({
+            label: 'Selection targets',
+            before: selectionExchange.before,
+            after: selectionExchange.after,
+            exchange: (replacement) => selection.exchangeTargets(replacement),
+            equals: sameSelectionTargets
+          })
+        : null;
+      atomicExchanges = [
+        ...exchanges.map((record) => record.exchange),
+        ...(selectionRuntimeExchange ? [selectionRuntimeExchange] : [])
+      ];
+      const beforeTextures = exchanges.map(({ before }) => before);
+      const afterTextures = exchanges.map(({ after }) => after);
+      if (selectionExchange) {
+        beforeTextures.push(...Object.values(selectionExchange.before));
+        afterTextures.push(...Object.values(selectionExchange.after));
+      }
+      const byteSize = Math.max(
+        estimatedUniqueTextureBytes(beforeTextures, plan.sourceWidth, plan.sourceHeight),
+        estimatedUniqueTextureBytes(afterTextures, plan.targetWidth, plan.targetHeight)
+      );
+      applyAtomicRuntimeState(atomicExchanges, 'after');
+      runtimeAttached = true;
+      this.options.invalidateAll();
+      releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
+        () => settings.destroy()
+      );
+      return {
+        byteSize,
+        apply: (state) => {
+          try {
+            applyAtomicRuntimeState(atomicExchanges, state);
+          } finally {
+            this.options.invalidateAll();
+          }
+        },
+        dispose: () => {
+          const detached = exchanges.map((record) => record.exchange.current === 'after'
+            ? record.before
+            : record.after);
+          if (selectionExchange && selectionRuntimeExchange) {
+            const targets = selectionRuntimeExchange.current === 'after'
+              ? selectionExchange.before
+              : selectionExchange.after;
+            detached.push(targets.mask, targets.result, targets.shape);
+          }
+          releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+            destroyUniqueTextures(detached);
+          });
+        }
+      };
+    } catch (reason) {
+      const failures = [reason];
+      if (runtimeAttached) {
+        try {
+          applyAtomicRuntimeState(atomicExchanges, 'before');
+          runtimeAttached = false;
+        } catch (rollbackReason) {
+          failures.push(rollbackReason);
+        }
+      }
+      const liveTextures = this.collectLiveTextures(pending);
+      const detachedCreatedTextures = createdTextures.filter((texture) => !liveTextures.has(texture));
+      const release = () => {
+        destroyUniqueTextures(detachedCreatedTextures);
+        settings.destroy();
+      };
+      if (submitted) releaseAfterSubmittedWork(
+        () => this.options.device.queue.onSubmittedWorkDone(),
+        release
+      ); else release();
+      if (failures.length > 1) {
+        throw new AggregateError(failures, 'Document geometry failed and its GPU state could not be restored.');
+      }
+      throw reason;
+    }
+  }
+
+  private collectLiveTextures(exchanges: readonly { layerId: LayerId }[]) {
+    const live = new Set<GPUTexture>();
+    exchanges.forEach(({ layerId }) => {
+      const texture = this.options.layers.maskTexture(layerId);
+      if (texture) live.add(texture);
+    });
+    const selection = this.options.selection;
+    if (selection.mask) live.add(selection.mask);
+    if (selection.result) live.add(selection.result);
+    if (selection.shape) live.add(selection.shape);
+    return live;
   }
 }
