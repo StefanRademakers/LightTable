@@ -13,6 +13,8 @@ import type { ToolPipelineBundle } from './ToolPipelineBundle';
 import { SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
 import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
+import { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
+import { readR16FloatTexture } from '../../gpu/gpuReadback';
 
 const selectionModeValue: Record<SelectionMode, number> = {
   replace: 0,
@@ -1502,5 +1504,51 @@ export class SelectionRasterizer {
     const changed = textures.active;
     textures.active = false;
     return changed;
+  }
+
+  async captureSnapshot() {
+    const { width, height } = this.options.dimensions();
+    const { textures, device } = this.options;
+    if (!textures.active || !textures.mask) {
+      return SelectionMaskSnapshot.inactive(width, height);
+    }
+    return SelectionMaskSnapshot.fromRaw(
+      width,
+      height,
+      await readR16FloatTexture(
+        device,
+        textures.mask,
+        width,
+        height,
+        'LightTable selection snapshot readback'
+      )
+    );
+  }
+
+  restoreSnapshot(snapshot: SelectionMaskSnapshot) {
+    const { width, height } = this.options.dimensions();
+    if (snapshot.width !== width || snapshot.height !== height) {
+      throw new RangeError(
+        `Selection snapshot is ${snapshot.width} x ${snapshot.height}, `
+        + `but the active document is ${width} x ${height}.`
+      );
+    }
+    if (!snapshot.active) {
+      this.clear();
+      return true;
+    }
+    const { textures, device } = this.options;
+    textures.ensureTargets();
+    if (!textures.result) throw new Error('The selection restore target is unavailable.');
+    const values = new Uint16Array(snapshot.toRaw());
+    device.queue.writeTexture(
+      { texture: textures.result },
+      values,
+      { bytesPerRow: width * Uint16Array.BYTES_PER_ELEMENT, rowsPerImage: height },
+      [width, height]
+    );
+    textures.swapMaskAndResult();
+    textures.active = true;
+    return true;
   }
 }

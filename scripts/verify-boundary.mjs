@@ -80,6 +80,7 @@ const rendererFacadeImports = new Set([
   '../history/ReversiblePixelEdit',
   '../persistence/layeredDocumentFormat',
   '../selection/selectionCoverage',
+  '../selection/SelectionMaskSnapshot',
   '../selection/selectionTypes',
   '../session/editorSession',
   '../tools/brush/strokeBuilder',
