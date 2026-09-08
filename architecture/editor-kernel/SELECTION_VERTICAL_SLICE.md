@@ -1,6 +1,6 @@
 # Selection and marquee vertical slice
 
-Status: **kernel route implemented; packaged proof passed; owner visual acceptance pending**.
+Status: **kernel route implemented and packaged proof passed; one P1 resource-admission blocker remains before owner visual acceptance**.
 Updated: 2026-09-08.
 
 Implementation baseline for the completion pass: `5152b53b`.
@@ -17,7 +17,7 @@ the review baseline for removing mixed ownership.
 | replace/add/subtract/intersect | semantic `selection.applyShape` command or the same UI gesture result | same shape command service | staged mask, measured bounds and exact snapshot activate together | UI, Actions and MCP already converge on `selection.applyShape` |
 | pointer move of marquee | `useSelectionSessionController` translation gesture | `SelectionShapeCommandService.executeTranslation` | semantic direct-shape preview or mask-contour shader offset; staged final mask | final coverage derives from opening lineage plus cumulative displacement |
 | keyboard nudge | keymap -> `nudgeSelectionMask` -> controller `translate` | same kernel translation command | staged exact translation | serialized through the same transaction/history admission as drag |
-| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | renderer-bound preview lease restores the baseline, then final dabs stage on spare targets | a token-owned lease admits preview operations and rejects every committed-mask entry point; only terminal intent commits |
+| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | renderer-bound preview lease restores the baseline, then final dabs stage on spare targets | a token-owned lease admits preview operations and rejects façade mask consumers; raw target exchange still needs resource-boundary admission |
 | paint through selection | `usePaintSessionController` | pixel-edit transaction | `RasterPaintService` reads the committed mask | stroke captures and revalidates the document selection revision |
 | copy / Copy Merged | layer document command gateway | read-only clipboard task | `SelectionClipboardService` reads the mask | lease uses measured committed bounds and rejects stale completion |
 | undo/redo of shape | document history | `SelectionShapeCommandService.restore` | staged exact-snapshot activation | kernel-owned for shape entries only |
@@ -152,8 +152,8 @@ The preview lock is a token-owned lease bound to the concrete
 `LayerDocumentRenderer` and its `SelectionTextureStore`; release never resolves
 through the engine's current renderer. A late release from a switched document
 therefore cannot unlock a newer preview. Preview capture, measurement, paint and
-baseline restore run through that lease, while all normal selection reads and
-writers cross the committed-access admission guard.
+baseline restore run through that lease, while normal renderer façade selection
+reads and writers cross the committed-access admission guard.
 Pointer-up restores the exact baseline and stages the complete dab list through
 the kernel route. Undo and redo preserve translation lineage while preparing
 the recorded exact snapshot offscreen, activate it, then publish a fresh
@@ -186,10 +186,12 @@ primitive directly.
 
 1. **Contracts — complete:** committed selection value, read lease, prepared
    projection and reversible activation exist in `@lighttable/editor-kernel`.
-2. **Renderer staging — implemented/unit and packaged proven:** shape,
+2. **Renderer staging — implemented/unit and packaged proven, admission open:** shape,
    translation, selection-paint and exact-snapshot results prepare on isolated
-   reusable targets and return snapshot plus bounds. Device-loss injection for
-   a selection transaction remains outside this slice.
+   reusable targets and return snapshot plus bounds. `exchangeState` and direct
+   transform-history swaps are not yet lease-aware, so activation/history/rebind
+   must be blocked centrally while paint preview owns the store. Device-loss
+   injection for a selection transaction remains outside this slice.
 3. **Document state — complete for this route:** `DocumentSession.editor` has a
    monotonic selection revision, measured bounds and a tested CAS adapter.
 4. **History admission — complete for this route:** history is reserved before
@@ -223,7 +225,14 @@ primitive directly.
 - `smoke:desktop:pixel-clipboard`: exact UI/Actions/MCP Copy, Copy Merged and
   Paste render equivalence after undo.
 
-The remaining gate is a manual owner run for contour quality and pointer feel.
+The remaining code gate is central resource-boundary admission for committed
+target exchange and transform-history selection swaps. Without it, an
+Action/MCP shape commit, undo/redo, rebind or geometry/resize activation can
+replace the store during selection-paint preview; later preview dabs or restore
+can then overwrite that committed activation. This must be enforced inside the
+store mutation primitive with the matching owner capability, not with another
+controller boolean. After that fix and independent review, the remaining gate
+is a manual owner run for contour quality and pointer feel.
 Legacy fallbacks for embedded/no-session hosts and out-of-slice modifiers remain
 present. Passing this slice is evidence that the architecture can work; it is
 not a stability claim for transform, text, effects or other editor domains.
