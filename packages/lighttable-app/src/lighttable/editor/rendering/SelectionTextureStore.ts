@@ -28,6 +28,7 @@ export class SelectionTextureStore {
   clipboard: GPUTexture | null = null;
   active = false;
   private previewMutationOwner: symbol | null = null;
+  private previewMutationExecutionOwner: symbol | null = null;
 
   get previewMutationActive() {
     return this.previewMutationOwner !== null;
@@ -43,7 +44,15 @@ export class SelectionTextureStore {
         if (released || this.previewMutationOwner !== owner) {
           throw new Error('The selection preview lease is no longer active.');
         }
-        return operation();
+        const previousOwner = this.previewMutationExecutionOwner;
+        this.previewMutationExecutionOwner = owner;
+        try {
+          return operation();
+        } finally {
+          // Selection texture mutations enqueue GPU work synchronously. Async
+          // readback may outlive this scope, but cannot mutate store ownership.
+          this.previewMutationExecutionOwner = previousOwner;
+        }
       },
       release: () => {
         if (released) return;
@@ -54,7 +63,10 @@ export class SelectionTextureStore {
   }
 
   assertCommittedAccess() {
-    if (this.previewMutationOwner) {
+    if (
+      this.previewMutationOwner
+      && this.previewMutationExecutionOwner !== this.previewMutationOwner
+    ) {
       throw new Error('The selection is still being previewed.');
     }
   }
@@ -62,6 +74,7 @@ export class SelectionTextureStore {
   constructor(private readonly options: SelectionTextureStoreOptions) {}
 
   ensureTargets() {
+    this.assertCommittedAccess();
     if (this.mask && this.result && this.shape) return false;
     this.mask?.destroy();
     this.result?.destroy();
@@ -74,10 +87,12 @@ export class SelectionTextureStore {
   }
 
   swapMaskAndResult() {
+    this.assertCommittedAccess();
     [this.mask, this.result] = [this.result, this.mask];
   }
 
   exchangeTargets(replacement: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture }) {
+    this.assertCommittedAccess();
     if (!this.mask || !this.result || !this.shape) {
       throw new Error('Selection targets are unavailable.');
     }
@@ -94,6 +109,7 @@ export class SelectionTextureStore {
    * not part of selection state and must survive selection undo/redo.
    */
   exchangeState(replacement: SelectionTargetState): SelectionTargetState {
+    this.assertCommittedAccess();
     if (!this.mask || !this.result || !this.shape) {
       throw new Error('Selection targets are unavailable.');
     }
@@ -111,6 +127,7 @@ export class SelectionTextureStore {
   }
 
   detachState(): SelectionTargetState {
+    this.assertCommittedAccess();
     if (!this.mask || !this.result || !this.shape) {
       throw new Error('Selection targets are unavailable.');
     }
@@ -128,6 +145,7 @@ export class SelectionTextureStore {
   }
 
   attachState(state: SelectionTargetState): void {
+    this.assertCommittedAccess();
     if (this.mask || this.result || this.shape) {
       throw new Error('Selection targets are already attached.');
     }
@@ -170,5 +188,6 @@ export class SelectionTextureStore {
     this.clipboard = null;
     this.active = false;
     this.previewMutationOwner = null;
+    this.previewMutationExecutionOwner = null;
   }
 }

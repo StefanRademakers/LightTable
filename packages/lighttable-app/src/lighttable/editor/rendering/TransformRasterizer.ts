@@ -338,6 +338,7 @@ export class TransformRasterizer {
   commit(): ReversiblePixelEdit | null {
     const session = this.options.sessions.current;
     if (!session?.previewTexture) return null;
+    if (session.selectionPreview) this.options.selectionTextures.assertCommittedAccess();
     const runtime = this.options.layerResources.raster(session.layerId);
     if (!runtime) {
       this.cancel();
@@ -394,6 +395,7 @@ export class TransformRasterizer {
     let applied = true;
     const { usesSelection, layerId } = historySeed;
     const swap = (direction: 'undo' | 'redo') => {
+      if (usesSelection) selectionTextures.assertCommittedAccess();
       const sourceSelection = direction === 'undo' ? undoSelection : redoSelection;
       if (applied !== (direction === 'undo')) return false;
       const targetRuntime = this.options.layerResources.raster(layerId);

@@ -1269,6 +1269,10 @@ export const createSelectionSessionController = (
               || !isCurrent(current.document, current.renderer)) {
               throw new Error('The selection brush baseline could not be restored.');
             }
+            // The live preview is fully rolled back. End its exclusive resource
+            // ownership before the kernel activates the prepared committed state.
+            current.preview?.release();
+            current.preview = null;
             const committed = await resolveDependencies().commitPaint!({
               dabs: current.dabs,
               hardness: current.hardness,

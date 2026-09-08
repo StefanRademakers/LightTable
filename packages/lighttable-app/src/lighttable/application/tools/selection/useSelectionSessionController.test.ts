@@ -506,6 +506,9 @@ describe('selection session controller', () => {
     expect(state.renderer.beginSelectionPaintPreview).toHaveBeenCalledOnce();
     expect(state.preview.release).toHaveBeenCalledOnce();
     expect(commitPaint).toHaveBeenCalledOnce();
+    expect(state.preview.release.mock.invocationCallOrder[0]).toBeLessThan(
+      commitPaint.mock.invocationCallOrder[0]
+    );
     expect(commitPaint).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'add', hardness: 0.5, opacity: 1,
       provenance: expect.objectContaining({ source: expect.objectContaining({ kind: 'selection-paint' }) }),

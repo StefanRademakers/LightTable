@@ -57,7 +57,9 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
   const selectionTextures = {
     active: false,
     mask: null as GPUTexture | null,
-    result: null as GPUTexture | null
+    result: null as GPUTexture | null,
+    previewMutationActive: false,
+    assertCommittedAccess: vi.fn(),
   };
   const drawFullscreen = vi.fn();
   const runtime = {

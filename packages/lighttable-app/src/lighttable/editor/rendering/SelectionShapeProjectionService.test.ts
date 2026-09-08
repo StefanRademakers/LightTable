@@ -125,6 +125,51 @@ describe('SelectionShapeProjectionService', () => {
     service.dispose();
   });
 
+  it('cannot activate committed targets while selection paint owns the store', async () => {
+    const committed = store();
+    committed.ensureTargets();
+    const staged = store();
+    const service = new SelectionShapeProjectionService({
+      committedTextures: committed,
+      createStage: () => ({
+        textures: staged,
+        restore: () => true,
+        apply: () => true,
+        transform: () => true,
+        paint: () => true,
+        capture: async () => SelectionMaskSnapshot.fromRaw(
+          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+        ),
+        measure: async () => ({
+          coreBounds: { x: 10, y: 12, width: 30, height: 20 },
+          supportBounds: { x: 10, y: 12, width: 30, height: 20 },
+          peakCoverage: 1,
+        }),
+        dispose: () => staged.destroy(),
+      }),
+    });
+    const prepared = await service.prepare(document, {
+      documentSessionId: document.sessionId,
+      revision: 2 as SelectionRevision,
+      canvas: { width: 100, height: 80 },
+      active: false,
+      coverage: SelectionMaskSnapshot.inactive(100, 80),
+      supportBounds: null,
+      provenance: [],
+    }, {
+      shape: rectangle.shape, mode: 'replace', featherRadius: 0,
+      antiAlias: true, provenance: rectangle,
+    }, 'transaction-preview-owned' as TransactionId, new AbortController().signal);
+    const lease = committed.beginPreviewMutation()!;
+
+    expect(() => prepared.activate()).toThrow('still being previewed');
+    lease.release();
+    prepared.activate().accept();
+    expect(committed.active).toBe(true);
+    service.dispose();
+    committed.destroy();
+  });
+
   it('destroys staged targets when preparation is cancelled', async () => {
     const committed = store();
     committed.ensureTargets();

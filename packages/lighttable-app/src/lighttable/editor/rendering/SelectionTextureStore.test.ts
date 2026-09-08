@@ -114,4 +114,27 @@ describe('SelectionTextureStore', () => {
     expect(() => store.assertCommittedAccess()).not.toThrow();
     expect(() => second!.run(() => 42)).toThrow('no longer active');
   });
+
+  it('rejects committed target mutation while preview owns the store', () => {
+    const store = new SelectionTextureStore({
+      createSelectionTexture: texture,
+      createClipboardTexture: texture
+    });
+    store.ensureTargets();
+    const originalMask = store.mask;
+    const originalResult = store.result;
+    const lease = store.beginPreviewMutation()!;
+
+    expect(() => store.swapMaskAndResult()).toThrow('still being previewed');
+    expect(() => store.exchangeState({
+      mask: texture(), result: texture(), shape: texture(), active: true
+    })).toThrow('still being previewed');
+    expect(store.mask).toBe(originalMask);
+    expect(store.result).toBe(originalResult);
+
+    lease.run(() => store.swapMaskAndResult());
+    expect(store.mask).toBe(originalResult);
+    expect(store.result).toBe(originalMask);
+    lease.release();
+  });
 });
