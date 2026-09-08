@@ -103,6 +103,60 @@ const runFile = async (sourceFile, fileIndex) => {
     await canvas.waitFor({ state: 'visible' });
     const results = [];
 
+    const rasterizeSource = initialLayers.find(({ type }) =>
+      type === 'vector' || type === 'text');
+    if (rasterizeSource
+      && await page.locator(`[data-layer-id="${rasterizeSource.id}"]`).count()) {
+      const before = await screenshotCanvas(page, canvas);
+      const startedAt = performance.now();
+      const row = page.locator(`[data-layer-id="${rasterizeSource.id}"]`);
+      await row.click();
+      await row.click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Rasterize Layer', exact: true }).click();
+      await page.waitForFunction(({ documentId, sourceId }) => {
+        const automation = window.__lightTableAutomation;
+        const document = automation?.queryDocument(documentId);
+        const layers = automation?.queryLayers(documentId) ?? [];
+        return !layers.some(({ id }) => id === sourceId)
+          && layers.some(({ id, type }) => id === document?.activeLayerId && type === 'raster');
+      }, { documentId, sourceId: rasterizeSource.id }, { timeout: 30_000 });
+      await animationFrames(page);
+      const after = await screenshotCanvas(page, canvas);
+      const rmse = await comparePng(before, after);
+      results.push({ operation: 'rasterize-layer', source: rasterizeSource, rmse,
+        durationMs: performance.now() - startedAt });
+      if (rmse > MAX_RMSE) {
+        throw new Error(`${rasterizeSource.type} rasterize RMSE ${rmse.toFixed(3)} exceeds ${MAX_RMSE}.`);
+      }
+      await driver.execute(documentId, 'history.undo', {});
+      await page.waitForFunction(({ documentId, sourceId }) =>
+        window.__lightTableAutomation?.queryLayers(documentId)?.some(({ id }) => id === sourceId),
+      { documentId, sourceId: rasterizeSource.id }, { timeout: 15_000 });
+    }
+
+    if (initialLayers.length > 1) {
+      const before = await screenshotCanvas(page, canvas);
+      const startedAt = performance.now();
+      await page.getByRole('menuitem', { name: 'Layer' }).click();
+      await page.getByRole('menuitem', { name: 'Flatten Image...', exact: true }).click();
+      await page.waitForFunction((id) =>
+        window.__lightTableAutomation?.queryLayers(id)?.length === 1,
+      documentId, { timeout: 30_000 });
+      await animationFrames(page);
+      const after = await screenshotCanvas(page, canvas);
+      const rmse = await comparePng(before, after);
+      results.push({ operation: 'flatten-image', rmse,
+        durationMs: performance.now() - startedAt });
+      if (rmse > MAX_RMSE) {
+        throw new Error(`Flatten image RMSE ${rmse.toFixed(3)} exceeds ${MAX_RMSE}.`);
+      }
+      await driver.execute(documentId, 'history.undo', {});
+      await page.waitForFunction(({ documentId, sourceIds }) => {
+        const layers = window.__lightTableAutomation?.queryLayers(documentId) ?? [];
+        return sourceIds.every((sourceId) => layers.some(({ id }) => id === sourceId));
+      }, { documentId, sourceIds: initialLayers.map(({ id }) => id) }, { timeout: 15_000 });
+    }
+
     for (const siblings of siblingRuns(initialLayers)) {
       for (let index = 1; index < siblings.length; index += 1) {
         const bottom = siblings[index - 1];
@@ -110,7 +164,27 @@ const runFile = async (sourceFile, fileIndex) => {
         if (await page.locator(`[data-layer-id="${top.id}"]`).count() === 0) continue;
         process.stdout.write(`Merge-down ${bottom.type}:${bottom.name} -> ${top.type}:${top.name}\n`);
         const before = await screenshotCanvas(page, canvas);
+        const startedAt = performance.now();
         await page.locator(`[data-layer-id="${top.id}"]`).click();
+        const keyboardContext = await page.evaluate(() => {
+          const active = document.activeElement;
+          window.__mergeSmokeKeyEvent = null;
+          window.addEventListener('keydown', (event) => {
+            window.__mergeSmokeKeyEvent = {
+              key: event.key,
+              code: event.code,
+              ctrlKey: event.ctrlKey,
+              defaultPrevented: event.defaultPrevented
+            };
+          }, { capture: true, once: true });
+          return active instanceof HTMLElement ? {
+            tag: active.tagName,
+            role: active.getAttribute('role'),
+            layerId: active.closest('[data-layer-id]')?.getAttribute('data-layer-id') ?? null,
+            nativeNavigation: active.closest('[data-editor-native-tab-navigation]')
+              ?.getAttribute('data-editor-native-tab-navigation') ?? null
+          } : null;
+        });
         await page.keyboard.press('Control+e');
         try {
           await page.waitForFunction(({ documentId, bottomId, topId }) => {
@@ -119,8 +193,19 @@ const runFile = async (sourceFile, fileIndex) => {
           }, { documentId, bottomId: bottom.id, topId: top.id }, { timeout: 15_000 });
         } catch (reason) {
           const body = (await page.locator('body').innerText()).slice(-2_000);
+          const keyEvent = await page.evaluate(() => window.__mergeSmokeKeyEvent ?? null);
+          let directCommandDiagnostic;
+          try {
+            directCommandDiagnostic = await driver.execute(documentId, 'layer.merge', {
+              layerIds: [bottom.id, top.id]
+            });
+          } catch (commandReason) {
+            directCommandDiagnostic = commandReason instanceof Error
+              ? commandReason.message
+              : String(commandReason);
+          }
           throw new Error(
-            `Merge-down did not complete for ${bottom.type}:${bottom.name} -> ${top.type}:${top.name}. UI: ${body}`,
+            `Merge-down did not complete for ${bottom.type}:${bottom.name} -> ${top.type}:${top.name}. Keyboard context: ${JSON.stringify(keyboardContext)}; downstream event: ${JSON.stringify(keyEvent)}. Direct command: ${JSON.stringify(directCommandDiagnostic)}. UI: ${body}`,
             { cause: reason }
           );
         }
@@ -131,7 +216,8 @@ const runFile = async (sourceFile, fileIndex) => {
         const beforePath = path.join(outputDirectory, `${evidenceStem}-before.png`);
         const afterPath = path.join(outputDirectory, `${evidenceStem}-after.png`);
         await Promise.all([writeFile(beforePath, before), writeFile(afterPath, after)]);
-        results.push({ operation: 'merge-down', bottom, top, rmse, beforePath, afterPath });
+        results.push({ operation: 'merge-down', bottom, top, rmse, beforePath, afterPath,
+          durationMs: performance.now() - startedAt });
         if (rmse > MAX_RMSE) {
           throw new Error(`${bottom.type} -> ${top.type} merge RMSE ${rmse.toFixed(3)} exceeds ${MAX_RMSE}.`);
         }
@@ -149,6 +235,7 @@ const runFile = async (sourceFile, fileIndex) => {
           ({ id }) => page.locator(`[data-layer-id="${id}"]`).count()
         )).then((counts) => counts.some((count) => count === 0))) continue;
         const before = await screenshotCanvas(page, canvas);
+        const startedAt = performance.now();
         await page.locator(`[data-layer-id="${selected[0].id}"]`).click();
         for (const layer of selected.slice(1)) {
           await page.locator(`[data-layer-id="${layer.id}"]`).click({ modifiers: ['Control'] });
@@ -162,7 +249,8 @@ const runFile = async (sourceFile, fileIndex) => {
         await animationFrames(page);
         const after = await screenshotCanvas(page, canvas);
         const rmse = await comparePng(before, after);
-        results.push({ operation: 'merge-selected', layers: selected, rmse });
+        results.push({ operation: 'merge-selected', layers: selected, rmse,
+          durationMs: performance.now() - startedAt });
         if (rmse > MAX_RMSE) {
           throw new Error(`Three-layer merge RMSE ${rmse.toFixed(3)} exceeds ${MAX_RMSE}.`);
         }

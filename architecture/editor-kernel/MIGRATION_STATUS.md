@@ -11,7 +11,7 @@ This status file remains the compact statement of what is actually migrated.
 | shared identities and lifecycle | n/a | partial | n/a | n/a | n/a |
 | selection/marquee vertical | fallback retained outside migrated routes | implemented | shape/move/nudge/paint/Magic Wand/Object Selection/rebind | packaged automated | partial |
 | transform and snapping | yes | documented | no | no | no |
-| rasterize/merge/flatten | yes | documented | no | no | no |
+| rasterize/merge/flatten | no | implemented | complete vertical | packaged automated | yes |
 | text/path text/warp | yes | documented | no | no | no |
 | adjustments/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
@@ -54,6 +54,15 @@ Legacy fallbacks outside the migrated routes remain until owner
 visual/interaction acceptance. Object Selection's direct renderer/history
 fallback has been removed; do not begin a second domain migration or delete the
 remaining S00 fallbacks before the owner gate.
+
+Layer finalization is the second implemented vertical. Rasterize, Merge Down,
+Merge Selected, Flatten Group and Flatten Image now reserve a fresh destination,
+render once, publish one document/history transition and either transfer or
+release every source/destination runtime. UI, keyboard, Actions and MCP share
+the semantic eligibility route. Context-dependent pass-through, adjustment and
+blend selections fail closed with the same explicit reason rather than baking
+against transparent pixels. Packaged vector/text PSD evidence is recorded in
+[Layer finalization vertical slice](LAYER_FINALIZATION_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

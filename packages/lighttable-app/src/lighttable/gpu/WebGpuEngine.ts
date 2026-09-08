@@ -21,7 +21,6 @@ import {
   type LayerNode,
   type Rect,
   type RasterLayer,
-  type TextLayer,
   type VectorLayer
 } from '../editor/document/documentTypes';
 import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/document/layerTree';
@@ -2204,12 +2203,6 @@ export class WebGpuEngine {
 
   releaseRasterDestination(layerId: LayerId) {
     return this.documentRenderer?.releaseRasterDestination(layerId) ?? false;
-  }
-
-  rasterizeText(document: ImageDocument, source: TextLayer, destination: RasterLayer) {
-    const changed = this.documentRenderer?.rasterizeText(document, source, destination) ?? false;
-    if (changed) this.markDocumentDirty();
-    return changed;
   }
 
   rasterizeLayer(document: ImageDocument, sourceId: LayerId, destinationId: LayerId) {

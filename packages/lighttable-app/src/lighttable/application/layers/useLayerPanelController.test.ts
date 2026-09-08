@@ -52,7 +52,6 @@ const setup = (initialDocument: ImageDocument) => {
     createAttachedAdjustment: vi.fn(() => null),
     addActiveLayerMask: vi.fn(() => true),
     duplicateActiveLayer: vi.fn(() => true),
-    rasterizeActiveTextLayer: vi.fn(() => true),
     rasterizeActiveLayer: vi.fn(async () => true),
     loadLayerMaskSelection: vi.fn(),
     loadLayerTransparencySelection: vi.fn(),
@@ -75,14 +74,14 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
-  it('delegates duplicate and fixture text rasterization to the document command owner', () => {
+  it('delegates duplicate and rasterization to the document command owner', () => {
     const state = setup(createImageDocument('test', 100, 100, 'asset'));
 
     state.controller.duplicateActive();
-    state.controller.rasterizeActiveText();
+    state.controller.rasterizeActive();
 
     expect(state.dependencies.duplicateActiveLayer).toHaveBeenCalledOnce();
-    expect(state.dependencies.rasterizeActiveTextLayer).toHaveBeenCalledOnce();
+    expect(state.dependencies.rasterizeActiveLayer).toHaveBeenCalledOnce();
     expect(state.dependencies.finishTextEditing).toHaveBeenCalledOnce();
   });
 

@@ -12,7 +12,7 @@ import {
   moveLayerIntoGroup,
   moveLayerRelative,
   replaceVectorLayerElements,
-  rasterizeTextLayer,
+  rasterizeLayer,
   setLayerBlendMode,
   setLayerFillOpacity,
   setLayerOpacity,
@@ -93,6 +93,9 @@ describe('canonical text layer integration', () => {
     const withGroup = createGroupLayer(document, 'Group');
     const groupId = withGroup.activeLayerId!;
     const grouped = moveLayerIntoGroup(withGroup, textId, groupId);
+    const group = findDocumentLayer(grouped, groupId);
+    if (group?.type !== 'group') throw new Error('Expected group fixture.');
+    group.compositing = 'isolated';
 
     expect(mergeLayerDown(document, textId).layers).toEqual([
       expect.objectContaining({ type: 'raster', name: 'Text' })
@@ -139,7 +142,7 @@ describe('canonical text layer integration', () => {
       .toEqual(beforeNested);
   });
 
-  it('creates a same-ID neutral-geometry raster destination while retaining layer semantics', () => {
+  it('creates a fresh neutral-geometry raster destination while retaining outer stack semantics', () => {
     const document = createTextLayer(
       createImageDocument('Rasterize', 128, 96, 'background'),
       createDefaultTextLayerData(),
@@ -151,11 +154,10 @@ describe('canonical text layer integration', () => {
       id,
       translationMatrix(12, 8)
     ), id);
-    const rasterized = rasterizeTextLayer(prepared, id);
-    const raster = findDocumentLayer(rasterized, id);
+    const rasterized = rasterizeLayer(prepared, id);
+    const raster = findDocumentLayer(rasterized, rasterized.activeLayerId);
 
     expect(raster).toMatchObject({
-      id,
       type: 'raster',
       opacity: 0.75,
       blendMode: 'multiply',
@@ -164,9 +166,10 @@ describe('canonical text layer integration', () => {
       height: 96,
       pixelRevision: 1
     });
-    expect(raster?.mask?.id).toBe(findDocumentLayer(prepared, id)?.mask?.id);
-    expect(rasterized.activeLayerId).toBe(id);
+    expect(raster?.id).not.toBe(id);
+    expect(raster?.mask).toBeNull();
+    expect(rasterized.activeLayerId).toBe(raster?.id);
     expect(flattenImage(rasterized)).not.toBe(rasterized);
-    expect(mergeLayerDown(rasterized, id)).not.toBe(rasterized);
+    expect(mergeLayerDown(rasterized, rasterized.activeLayerId!)).not.toBe(rasterized);
   });
 });

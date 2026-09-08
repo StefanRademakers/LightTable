@@ -176,36 +176,32 @@ try {
     window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
       .filter((step) => step.command === command).length >= count,
   { command, count }, { timeout: 30_000 });
+  const ensureActionsPanel = async () => {
+    const actions = window.getByRole('complementary', { name: 'Actions' });
+    if (!await actions.isVisible().catch(() => false)) {
+      await window.getByRole('menuitem', { name: 'View' }).click();
+      await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+    }
+    await actions.waitFor({ state: 'visible', timeout: 30_000 });
+    return actions;
+  };
 
   workflowPhase = 'workspace-action-recording';
   const workspaceBeforeAction = await driver.queryWorkspace();
-  await window.getByRole('menuitem', { name: 'View' }).click();
-  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  let workspaceActionPanel = window.getByRole('complementary', { name: 'Actions' });
+  let workspaceActionPanel = await ensureActionsPanel();
   let workspaceRecorder = workspaceActionPanel.locator('.lighttable-action-recorder');
   await workspaceRecorder.getByRole('button', { name: 'Record' }).click();
-  await workspaceActionPanel.getByRole('radio', { name: 'Commands' }).click();
-  const createDocumentAction = workspaceActionPanel.locator('details')
-    .filter({ hasText: 'document.create' });
-  await createDocumentAction.locator('summary').click();
-  await createDocumentAction.getByRole('button', { name: 'Run', exact: true }).click();
-  await window.waitForFunction((previousDocumentId) => {
-    const workspace = window.__lightTableAutomation?.queryWorkspace();
-    return workspace?.activeDocumentId && workspace.activeDocumentId !== previousDocumentId;
-  }, workspaceBeforeAction.activeDocumentId, { timeout: 30_000 });
-  const recordedCreatedDocumentId = (await driver.queryWorkspace()).activeDocumentId;
+  // The Actions panel records semantic commands; it no longer contains a
+  // duplicate command browser. Exercise workspace command recording through
+  // the same automation command service used by MCP and wait for publication.
+  const recordedCreatedDocumentId = await createDocument(driver, 'Recorded workspace route');
+  assert.notEqual(recordedCreatedDocumentId, workspaceBeforeAction.activeDocumentId);
   if (!recordedCreatedDocumentId) throw new Error('Actions document.create did not activate a document.');
   await waitForDocument(driver, recordedCreatedDocumentId);
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  workspaceActionPanel = window.getByRole('complementary', { name: 'Actions' });
+  workspaceActionPanel = await ensureActionsPanel();
   workspaceRecorder = workspaceActionPanel.locator('.lighttable-action-recorder');
-  await window.getByRole('menuitem', { name: 'Layer' }).click();
-  await window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
+  await driver.execute(recordedCreatedDocumentId, 'layer.createRaster', {});
   await waitForRecorded('layer.createRaster');
-  await workspaceActionPanel.getByRole('radio', { name: 'Actions' }).click();
   await workspaceRecorder.getByRole('button', { name: 'Stop' }).click();
   const workspaceRecording = await driver.queryActionRecording();
   const createStep = workspaceRecording.steps.find(({ command }) => command === 'document.create');
@@ -226,18 +222,10 @@ try {
       && automation.actionPlaybackSnapshot?.().status === 'completed';
   }, { previousDocumentId: recordedCreatedDocumentId, expectedLayerCount: expectedCreatedLayerCount },
   { timeout: 30_000 });
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  await window.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder').getByRole('button', { name: 'Clear' }).click();
-
+  await ensureActionsPanel();
   workflowPhase = 'ui-recording';
   const uiDocumentId = await createDocument(driver, 'UI route');
-  await window.getByRole('menuitem', { name: 'View' }).click();
-  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  const panel = window.getByRole('complementary', { name: 'Actions' });
+  const panel = await ensureActionsPanel();
   const recorder = panel.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
 
@@ -630,7 +618,6 @@ try {
   }
   let failureRecorder = window.getByRole('complementary', { name: 'Actions' })
     .locator('.lighttable-action-recorder');
-  await failureRecorder.getByRole('button', { name: 'Clear' }).click();
   await failureRecorder.getByRole('button', { name: 'Record' }).click();
   await window.getByRole('button', { name: 'Type tool (T)', exact: true }).first().click();
   const failureViewport = window.locator('.lighttable-viewport:visible').last();

@@ -3,7 +3,6 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
-import { createTextLayer, rasterizeTextLayer } from '../document/documentCommands';
 import {
   createAdjustmentLayer,
   createGroupLayer,
@@ -191,6 +190,37 @@ describe('RasterDocumentOperations', () => {
       [64, 32]
     );
     expect(submit).toHaveBeenCalledWith(['rasterize commands']);
+  });
+
+  it('destroys unsubmitted composite transients when rasterization encoding throws', () => {
+    const document = createImageDocument('Rasterize failure', 64, 32, 'background');
+    const source = createVectorLayer([], 'Shape');
+    document.layers = [source];
+    document.activeLayerId = source.id;
+    const destinationId = layerId('failed-destination');
+    const destroyPendingResources = vi.fn();
+    const releaseSubmittedResources = vi.fn();
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({ copyTextureToTexture: vi.fn(), finish: vi.fn() }),
+        queue: { submit: vi.fn() }
+      } as unknown as GPUDevice,
+      layerResources: {
+        raster: (id: LayerId) => id === destinationId
+          ? { texture: texture('destination'), width: 64, height: 32 }
+          : null
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite: () => { throw new Error('compositor failed'); },
+      invalidateLayer: vi.fn(),
+      releaseSubmittedResources,
+      destroyPendingResources
+    });
+
+    expect(() => operations.rasterizeLayer(document, source.id, destinationId))
+      .toThrow('compositor failed');
+    expect(destroyPendingResources).toHaveBeenCalledOnce();
+    expect(releaseSubmittedResources).not.toHaveBeenCalled();
   });
 
   it('composites a cached vector presentation into the raster destination', () => {
@@ -442,105 +472,4 @@ describe('RasterDocumentOperations', () => {
     });
   });
 
-  it('renders isolated normalized text into its prepared same-ID raster destination', () => {
-    const document = createTextLayer(
-      createImageDocument('Text', 64, 32, 'background'),
-      createDefaultTextLayerData(),
-      'Headline'
-    );
-    const source = findDocumentLayer(document, document.activeLayerId);
-    const destinationDocument = rasterizeTextLayer(document, document.activeLayerId!);
-    const destination = findRasterLayer(destinationDocument, document.activeLayerId!);
-    if (source?.type !== 'text' || !destination) throw new Error('Expected text rasterization fixtures.');
-    const destinationTexture = texture('destination');
-    const compositeTexture = texture('composite');
-    const ensureRaster = vi.fn(() => ({
-      texture: destinationTexture,
-      maskTexture: null,
-      maskId: null
-    }));
-    const copyTextureToTexture = vi.fn();
-    const submit = vi.fn();
-    const encodeComposite = vi.fn(() => compositeTexture);
-    const releaseSubmittedResources = vi.fn();
-    const invalidateLayer = vi.fn();
-    const layerResources = {
-      hasRaster: vi.fn(() => false),
-      ensureRaster,
-      raster: vi.fn(() => ({ texture: destinationTexture, maskTexture: null, maskId: null })),
-      releaseRaster: vi.fn(() => true)
-    };
-    const operations = new RasterDocumentOperations({
-      device: {
-        createCommandEncoder: () => ({ copyTextureToTexture, finish: () => 'commands' }),
-        queue: { submit }
-      } as unknown as GPUDevice,
-      layerResources: layerResources as never,
-      dimensions: () => ({ width: 64, height: 32 }),
-      encodeComposite,
-      invalidateLayer,
-      releaseSubmittedResources
-    });
-
-    expect(operations.prepareRasterDestination(destination)).toBe(true);
-    expect(operations.rasterizeText(document, source, destination)).toBe(true);
-
-    expect(ensureRaster).toHaveBeenCalledWith(destination);
-    expect(encodeComposite).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        layers: [expect.objectContaining({
-          id: source.id,
-          type: 'text',
-          opacity: 1,
-          fillOpacity: 1,
-          blendMode: 'normal',
-          clipping: false,
-          mask: null
-        })]
-      })
-    );
-    expect(copyTextureToTexture).toHaveBeenCalledWith(
-      { texture: compositeTexture },
-      { texture: destinationTexture },
-      [64, 32]
-    );
-    expect(submit).toHaveBeenCalledWith(['commands']);
-    expect(releaseSubmittedResources).toHaveBeenCalledOnce();
-    expect(invalidateLayer).toHaveBeenCalledWith(destination.id);
-
-    expect(operations.releaseRasterDestination(destination.id)).toBe(true);
-    expect(layerResources.releaseRaster).toHaveBeenCalledWith(destination.id, true);
-  });
-
-  it('performs an exact zero-submit bypass while a text source is unready', () => {
-    const document = createTextLayer(
-      createImageDocument('Text', 64, 32, 'background'),
-      createDefaultTextLayerData(),
-      'Headline'
-    );
-    const source = findDocumentLayer(document, document.activeLayerId);
-    const destination = findRasterLayer(
-      rasterizeTextLayer(document, document.activeLayerId!),
-      document.activeLayerId!
-    );
-    if (source?.type !== 'text' || !destination) throw new Error('Expected text fixtures.');
-    const createCommandEncoder = vi.fn();
-    const submit = vi.fn();
-    const operations = new RasterDocumentOperations({
-      device: { createCommandEncoder, queue: { submit } } as unknown as GPUDevice,
-      layerResources: {
-        raster: vi.fn(() => ({ texture: texture('destination'), maskTexture: null }))
-      } as never,
-      dimensions: () => ({ width: 64, height: 32 }),
-      encodeComposite: vi.fn(),
-      invalidateLayer: vi.fn(),
-      releaseSubmittedResources: vi.fn(),
-      textSourceReady: vi.fn(() => false)
-    });
-
-    expect(operations.rasterizeText(document, source, destination)).toBe(false);
-    expect(createCommandEncoder).not.toHaveBeenCalled();
-    expect(submit).not.toHaveBeenCalled();
-  });
 });

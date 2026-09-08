@@ -54,6 +54,7 @@ document/history   renderer/WebGPU/UI
 9. [Migration status](MIGRATION_STATUS.md)
 10. [Stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md)
 11. [Selection vertical slice](SELECTION_VERTICAL_SLICE.md)
+12. [Layer finalization vertical slice](LAYER_FINALIZATION_VERTICAL_SLICE.md)
 
 ## Package-shape rule
 

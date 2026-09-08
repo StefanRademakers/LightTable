@@ -1723,7 +1723,11 @@ describe('LightTableCommandService registry', () => {
 
   it('validates, records and replays universal layer rasterization', async () => {
     const state = setup();
-    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const current = state.session.getSnapshot().document!;
+    const vector = createVectorLayer([], 'Vector');
+    state.session.setDocument({ ...current, layers: [vector], activeLayerId: vector.id,
+      revision: current.revision + 1 });
+    const layerId = vector.id;
     vi.mocked(state.ports.executeLayerRasterize!).mockImplementation((_documentId, command) => {
       const current = state.session.getSnapshot().document!;
       state.session.setDocument({ ...current, revision: current.revision + 1 });
@@ -1750,8 +1754,8 @@ describe('LightTableCommandService registry', () => {
       });
     expect(await state.service.execute(request('layer.rasterize', state.session.id,
       { layerId, unexpected: true }))).toMatchObject({
-        status: 'rejected', code: 'invalid-parameters'
-      });
+      status: 'rejected', code: 'invalid-parameters'
+    });
     state.service.dispose(); state.workspace.dispose();
   });
 

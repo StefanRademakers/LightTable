@@ -1,5 +1,6 @@
-import { layerIsLocked, type ImageDocument } from '../../editor/document/documentTypes';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { layerCanBeRasterized } from '../../editor/document/layerRasterization';
 import {
   parseSemanticLayerRasterizeCommand,
   type SemanticLayerRasterizeCommand
@@ -21,9 +22,9 @@ export const dispatchSemanticLayerRasterize = async (
     return { ok: false, code: 'invalid-parameters', message: command.message };
   }
   const layer = findDocumentLayer(document, command.layerId);
-  if (!layer || layerIsLocked(layer, 'pixels')) {
+  if (!layer || !layerCanBeRasterized(layer)) {
     return { ok: false, code: 'command-unavailable',
-      message: 'The target must be an existing layer whose pixels are not locked.' };
+      message: 'The target must contain live, unlocked layer semantics to rasterize.' };
   }
   if (!execute) {
     return { ok: false, code: 'command-unavailable',

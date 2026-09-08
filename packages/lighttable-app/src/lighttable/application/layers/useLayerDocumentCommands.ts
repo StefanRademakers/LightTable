@@ -16,14 +16,14 @@ import {
   flattenGroup,
   flattenImage,
   getFlattenGroupPlan,
+  getFlattenGroupEligibility,
   getFlattenImagePlan,
-  getMergeLayersPlan,
+  getMergeLayersEligibility,
   markLayerMaskPixelsChanged,
   markLayerPixelsChanged,
   mergeLayers as mergeDocumentLayers,
   moveLayerRelative,
-  rasterizeLayer as rasterizeDocumentLayer,
-  rasterizeTextLayer
+  rasterizeLayer as rasterizeDocumentLayer
 } from '../../editor/document/documentCommands';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
 import {
@@ -96,11 +96,6 @@ export interface LayerCommandRendererPort {
   prepareRasterDestination(destination: import('../../editor/document/documentTypes').RasterLayer): boolean;
   commitRasterDestination(layerId: LayerId): void;
   releaseRasterDestination(layerId: LayerId): boolean;
-  rasterizeText(
-    document: ImageDocument,
-    source: import('../../editor/document/documentTypes').TextLayer,
-    destination: import('../../editor/document/documentTypes').RasterLayer
-  ): boolean;
   rasterizeLayer(
     document: ImageDocument,
     sourceId: LayerId,
@@ -181,9 +176,7 @@ export interface LayerDocumentCommands {
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
   flattenWhenReady(request: FlattenRequest): Promise<boolean>;
-  rasterizeTextLayer(layerId: LayerId): boolean;
   rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
-  rasterizeActiveTextLayer(): boolean;
   rasterizeLayer(layerId: LayerId): boolean;
   rasterizeLayerWhenReady(layerId: LayerId): Promise<boolean>;
   rasterizeActiveLayer(): Promise<boolean>;
@@ -233,6 +226,39 @@ const contributingTextLayerIds = (
   return node.type === 'text' && visible ? [node.id] : [];
 });
 
+const retainedLayerRuntimeIds = (nodes: readonly LayerNode[]): LayerId[] =>
+  nodes.flatMap((node) => [
+    node.id,
+    ...(node.type === 'group' ? retainedLayerRuntimeIds(node.children) : [])
+  ]);
+
+const estimateRetainedLayerRuntimeBytes = (
+  document: ImageDocument,
+  nodes: readonly LayerNode[],
+  includeDestination = true
+): number => {
+  const canvasPixels = document.width * document.height;
+  const visit = (node: LayerNode): number => {
+    const maskBytes = node.mask
+      ? canvasPixels * 2
+      : 0;
+    const previewBytes = node.derivedPreview
+      ? Math.max(1, node.derivedPreview.width) * Math.max(1, node.derivedPreview.height) * 8
+      : 0;
+    if (node.type === 'group') {
+      return maskBytes + previewBytes
+        + node.children.reduce((total, child) => total + visit(child), 0);
+    }
+    if (node.type === 'adjustment') return maskBytes + previewBytes;
+    const colorBytes = node.type === 'raster'
+      ? node.width * node.height * 8
+      : canvasPixels * 8;
+    return colorBytes + maskBytes + previewBytes;
+  };
+  const sourceBytes = nodes.reduce((total, node) => total + visit(node), 0);
+  return sourceBytes + (includeDestination ? canvasPixels * 8 : 0);
+};
+
 /**
  * Owns renderer-backed layer mutations as atomic application transactions.
  *
@@ -252,17 +278,33 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const waitForTextTargets = async (layerIds: readonly LayerId[]) => {
+  const waitForTextTargets = async (
+    layerIds: readonly LayerId[],
+    forceRootContribution = false
+  ) => {
     const dependencies = dependenciesRef.current;
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
     if (!document || !renderer?.waitForTextSource) return true;
+    const admittedDocumentId = document.id;
+    const admittedRevision = document.revision;
     const targets = layerIds.map((layerId) => findDocumentLayer(document, layerId))
       .filter((layer): layer is LayerNode => Boolean(layer));
-    const textLayerIds = [...new Set(contributingTextLayerIds(targets))];
+    const readinessTargets = forceRootContribution
+      ? targets.map((layer) => ({ ...layer, visible: true, opacity: 1 }))
+      : targets;
+    const textLayerIds = [...new Set(contributingTextLayerIds(readinessTargets))];
     for (const textLayerId of textLayerIds) {
       if (!await renderer.waitForTextSource(textLayerId)) {
         throw new Error('A contributing text source could not be prepared for compositing.');
+      }
+      const currentDependencies = dependenciesRef.current;
+      const currentDocument = currentDependencies.getDocument();
+      if (!currentDocument
+        || currentDocument.id !== admittedDocumentId
+        || currentDocument.revision !== admittedRevision
+        || currentDependencies.getRenderer() !== renderer) {
+        throw new Error('The document changed while its text source was being prepared.');
       }
     }
     return true;
@@ -1035,17 +1077,18 @@ export const createLayerDocumentCommands = (
       transaction.cancel();
       return false;
     }
-    const plan = getMergeLayersPlan(current, selectedLayerIds);
-    if (!plan) {
+    const eligibility = getMergeLayersEligibility(current, selectedLayerIds);
+    if (!eligibility.ok) {
       transaction.cancel();
-      dependenciesRef.current.setError(
-        'Merge Selected requires at least two contiguous layers in the same group.'
-      );
+      dependenciesRef.current.setError(eligibility.message);
       return false;
     }
+    const plan = eligibility.plan;
 
     const next = mergeDocumentLayers(current, plan.layerIds);
     const destination = findRasterLayer(next, next.activeLayerId);
+    const retainedSources = plan.layerIds.map((layerId) => findDocumentLayer(current, layerId))
+      .filter((layer): layer is LayerNode => Boolean(layer));
     if (next === current || !destination) {
       transaction.cancel();
       dependenciesRef.current.setError('The full-canvas merge destination could not be allocated.');
@@ -1061,8 +1104,10 @@ export const createLayerDocumentCommands = (
       historyEntry: {
         label: 'Merge Layers',
         type: 'layer.merge',
-        byteSize: current.width * current.height * 8,
-        layerIds: [...new Set([...plan.layerIds, destination.id])],
+        byteSize: estimateRetainedLayerRuntimeBytes(current, retainedSources),
+        layerIds: [...new Set([
+          ...retainedLayerRuntimeIds(retainedSources), destination.id
+        ])],
         undo: () => applyDocumentTransition('Undo Merge Layers', next, current),
         redo: () => applyDocumentTransition('Redo Merge Layers', current, next)
       },
@@ -1202,14 +1247,19 @@ export const createLayerDocumentCommands = (
       ? dependencies.getGlobalGradeStrength?.() ?? 100
       : 100;
     const neutralAdjustments = createDefaultAdjustments();
+    const groupEligibility = request.kind === 'group'
+      ? getFlattenGroupEligibility(current, request.groupId)
+      : null;
     const plan = request.kind === 'group'
-      ? getFlattenGroupPlan(current, request.groupId)
+      ? groupEligibility?.ok ? groupEligibility.plan : null
       : getFlattenImagePlan(current);
     if (!plan) {
       documentTransaction.cancel();
       dependencies.setError(
         request.kind === 'group'
-          ? 'This group has no layers to flatten.'
+          ? groupEligibility && !groupEligibility.ok
+            ? groupEligibility.message
+            : 'The target must be a non-empty group.'
           : 'This image has no layers to flatten.'
       );
       return false;
@@ -1219,6 +1269,11 @@ export const createLayerDocumentCommands = (
       ? flattenGroup(current, request.groupId)
       : flattenImage(current);
     const destination = findRasterLayer(next, next.activeLayerId);
+    const retainedSources = request.kind === 'group'
+      ? [findDocumentLayer(current, request.groupId)].filter(
+        (layer): layer is LayerNode => Boolean(layer)
+      )
+      : current.layers;
     if (next === current || !destination) {
       documentTransaction.cancel();
       dependenciesRef.current.setError('The full-canvas flatten destination could not be allocated.');
@@ -1270,8 +1325,10 @@ export const createLayerDocumentCommands = (
       historyEntry: {
         label: description.label,
         type: description.type,
-        byteSize: current.width * current.height * 8,
-        layerIds: [...plan.layerIds, destination.id],
+        byteSize: estimateRetainedLayerRuntimeBytes(current, retainedSources),
+        layerIds: [...new Set([
+          ...retainedLayerRuntimeIds(retainedSources), destination.id
+        ])],
         undo: () => request.kind === 'group'
           ? applyDocumentTransition('Undo Flatten Group', next, current)
           : applyFlattenState(false),
@@ -1295,146 +1352,14 @@ export const createLayerDocumentCommands = (
       ? getFlattenGroupPlan(current, request.groupId)
       : getFlattenImagePlan(current));
     if (!plan) throw new Error('The flatten target is unavailable.');
-    await waitForTextTargets(plan.layerIds);
+    await waitForTextTargets(
+      request.kind === 'group'
+        ? [request.groupId]
+        : current.layers.map(({ id }) => id),
+      request.kind === 'group'
+    );
     if (flatten(request)) return true;
     throw new Error('The prepared layer stack could not be flattened.');
-  };
-
-  const rasterizeTextLayerById = (layerId: LayerId) => {
-    const dependencies = dependenciesRef.current;
-    const description = { label: 'Rasterize Type', type: 'layer.rasterize-type' } as const;
-    const documentTransaction = beginDocumentTransaction(
-      `layer.rasterize-type:${layerId}`,
-      description
-    );
-    if (!documentTransaction) return false;
-    const current = documentTransaction.before;
-    const renderer = dependencies.getRenderer();
-    const source = findDocumentLayer(current, layerId);
-    if (source?.type !== 'text' || !renderer) {
-      documentTransaction.cancel();
-      dependencies.setError('Select a text layer to rasterize.');
-      return false;
-    }
-    const next = rasterizeTextLayer(current, source.id);
-    const destination = findRasterLayer(next, source.id);
-    if (next === current || !destination) {
-      documentTransaction.cancel();
-      dependencies.setError('The text layer is locked or cannot be rasterized.');
-      return false;
-    }
-
-    let editOpen = false;
-    let pixelEdit: ReversiblePixelEdit | null = null;
-    try {
-      if (!renderer.prepareRasterDestination(destination)) {
-        documentTransaction.cancel();
-        dependencies.setError('The raster destination could not be allocated on the GPU.');
-        return false;
-      }
-      renderer.beginLayerPixelEdit(destination.id);
-      editOpen = true;
-      if (renderer.captureAllPixelEdit(destination.id) === 0) {
-        renderer.cancelPixelEdit();
-        editOpen = false;
-        renderer.releaseRasterDestination(destination.id);
-        documentTransaction.cancel();
-        dependencies.setError('Rasterize Type could not capture a recoverable pre-edit snapshot.');
-        return false;
-      }
-      if (!renderer.rasterizeText(current, source, destination)) {
-        renderer.cancelPixelEdit();
-        editOpen = false;
-        renderer.releaseRasterDestination(destination.id);
-        documentTransaction.cancel();
-        dependencies.setError('The text layer could not be rasterized on the GPU.');
-        return false;
-      }
-      pixelEdit = renderer.finishPixelEdit();
-      editOpen = false;
-      if (!pixelEdit) {
-        renderer.releaseRasterDestination(destination.id);
-        documentTransaction.cancel();
-        dependencies.setError('Rasterize Type could not create a recoverable undo step.');
-        return false;
-      }
-      const completedEdit = pixelEdit;
-      const applyTextRasterState = (rasterized: boolean) => runEditorOperationTransaction({
-        operation: rasterized ? 'Redo Rasterize Type' : 'Undo Rasterize Type'
-      }, (transaction) => {
-        transaction.step(
-          'apply raster pixel history',
-          () => {
-            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(
-              completedEdit,
-              rasterized ? 'redo' : 'undo'
-            )) {
-              throw new Error(
-                `Rasterize Type ${rasterized ? 'redo' : 'undo'} is no longer available.`
-              );
-            }
-          },
-          () => {
-            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(
-              completedEdit,
-              rasterized ? 'undo' : 'redo'
-            )) {
-              throw new Error('Rasterize Type pixel rollback is no longer available.');
-            }
-          }
-        );
-        transaction.step(
-          'publish document snapshot',
-          () => dependenciesRef.current.applyDocumentSnapshot(rasterized ? next : current),
-          () => dependenciesRef.current.applyDocumentSnapshot(rasterized ? current : next)
-        );
-      });
-      if (!documentTransaction.stage(() => next)) {
-        throw new Error('Rasterize Type could not stage its document state.');
-      }
-      if (!documentTransaction.commitWith((ownedBefore, ownedAfter) => {
-          runEditorOperationTransaction({ operation: description.label }, (publication) => {
-            publication.adopt('restore raster pixels', () => {
-              completedEdit.undo();
-              completedEdit.destroy();
-            });
-            // Publication or history owns the snapshot after rollback is registered.
-            pixelEdit = null;
-            publication.step(
-              'publish document snapshot',
-              () => dependencies.applyDocumentSnapshot(ownedAfter),
-              () => dependencies.applyDocumentSnapshot(ownedBefore)
-            );
-            dependencies.pushHistoryEntry({
-              label: description.label,
-              type: description.type,
-              byteSize: completedEdit.byteSize,
-              layerIds: [source.id],
-              undo: () => applyTextRasterState(false),
-              redo: () => applyTextRasterState(true),
-              dispose: completedEdit.destroy
-            });
-            renderer.commitRasterDestination(destination.id);
-          });
-          return true;
-        })) throw new Error('Rasterize Type could not commit its document state.');
-      dependencies.setActiveChannel('pixels');
-      dependencies.setError(null);
-      dependencies.setStatus('Text layer rasterized');
-      return true;
-    } catch (reason) {
-      if (editOpen) renderer.cancelPixelEdit();
-      discardUnpublishedPixelEdit(pixelEdit);
-      if (dependencies.getDocument() === next) {
-        dependencies.applyDocumentSnapshot(current);
-      }
-      documentTransaction.cancel();
-      renderer.releaseRasterDestination(destination.id);
-      dependencies.setError(
-        reason instanceof Error ? reason.message : 'The text layer could not be rasterized.'
-      );
-      return false;
-    }
   };
 
   const rasterizeLayerById = (layerId: LayerId) => {
@@ -1470,8 +1395,10 @@ export const createLayerDocumentCommands = (
       historyEntry: {
         label: 'Rasterize Layer',
         type: 'layer.rasterize',
-        byteSize: current.width * current.height * 8,
-        layerIds: [source.id, destination.id],
+        byteSize: estimateRetainedLayerRuntimeBytes(current, [source]),
+        layerIds: [...new Set([
+          ...retainedLayerRuntimeIds([source]), destination.id
+        ])],
         undo: () => applyDocumentTransition('Undo Rasterize Layer', next, current),
         redo: () => applyDocumentTransition('Redo Rasterize Layer', current, next)
       },
@@ -1484,7 +1411,7 @@ export const createLayerDocumentCommands = (
   };
 
   const rasterizeLayerWhenReady = async (layerId: LayerId) => {
-    await waitForTextTargets([layerId]);
+    await waitForTextTargets([layerId], true);
     if (rasterizeLayerById(layerId)) return true;
     throw new Error('The prepared layer could not be rasterized.');
   };
@@ -1506,24 +1433,15 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const rasterizeActiveTextLayer = () => {
-    const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
-    if (!activeLayerId) {
-      dependenciesRef.current.setError('Select a text layer to rasterize.');
-      return false;
-    }
-    return rasterizeTextLayerById(activeLayerId);
-  };
-
   const rasterizeTextLayerWhenReady = async (layerId: LayerId) => {
-    const renderer = dependenciesRef.current.getRenderer();
-    if (renderer?.waitForTextSource && !await renderer.waitForTextSource(layerId)) {
-      const message = 'The text source could not be prepared for rasterization.';
+    const current = dependenciesRef.current.getDocument();
+    const layer = current ? findDocumentLayer(current, layerId) : null;
+    if (layer?.type !== 'text') {
+      const message = 'Select a text layer to rasterize.';
       dependenciesRef.current.setError(message);
       throw new Error(message);
     }
-    if (rasterizeTextLayerById(layerId)) return true;
-    throw new Error('The text source was ready, but the GPU raster transaction could not be completed.');
+    return rasterizeLayerWhenReady(layerId);
   };
 
   const invertLayerColors = (layerId: LayerId, channel: PaintChannel) => {
@@ -2095,9 +2013,7 @@ export const createLayerDocumentCommands = (
     mergeActiveLayerDown,
     flatten,
     flattenWhenReady,
-    rasterizeTextLayer: rasterizeTextLayerById,
     rasterizeTextLayerWhenReady,
-    rasterizeActiveTextLayer,
     rasterizeLayer: rasterizeLayerById,
     rasterizeLayerWhenReady,
     rasterizeActiveLayer,

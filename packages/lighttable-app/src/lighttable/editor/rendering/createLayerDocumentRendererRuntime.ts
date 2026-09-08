@@ -404,6 +404,7 @@ export const createLayerDocumentRendererRuntime = (
     encodeComposite,
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
+    destroyPendingResources: () => renderResources.destroyPending(),
     textSourceReady: (layer) => textLayerCoordinator.isSettledForCurrentGeneration(layer)
       || (layerDerivedPreviewIsCurrent(layer) && Boolean(layerResources.derivedPreview(layer.id)))
   });

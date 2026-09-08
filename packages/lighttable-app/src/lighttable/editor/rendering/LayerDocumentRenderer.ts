@@ -573,18 +573,6 @@ export class LayerDocumentRenderer {
     return this.runtime.rasterDocumentOperations.releaseRasterDestination(layerId);
   }
 
-  rasterizeText(
-    document: ImageDocument,
-    source: import('../document/documentTypes').TextLayer,
-    destination: RasterLayer
-  ) {
-    return this.runtime.rasterDocumentOperations.rasterizeText(
-      document,
-      source,
-      destination
-    );
-  }
-
   rasterizeLayer(
     document: ImageDocument,
     sourceId: LayerId,

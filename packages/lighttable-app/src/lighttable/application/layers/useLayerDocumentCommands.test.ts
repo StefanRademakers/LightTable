@@ -31,6 +31,7 @@ import {
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnapshot';
 import type { LightTableSelectionReadLease } from '../tools/selection/DocumentSelectionStateStore';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 
 const pixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 64,
@@ -50,7 +51,6 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   loadLayerAssets: vi.fn(async () => undefined),
   commitRasterDestination: vi.fn(),
   releaseRasterDestination: vi.fn(() => true),
-  rasterizeText: vi.fn(() => true),
   rasterizeLayer: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
@@ -594,7 +594,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('rasterizes fixture text as one recoverable GPU and document transaction', () => {
+  it('rasterizes text through the same fresh-destination transaction as every semantic layer', async () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
       createDefaultTextLayerData(),
@@ -602,28 +602,22 @@ describe('useLayerDocumentCommands', () => {
     ));
     const layerId = state.document().activeLayerId!;
 
-    expect(state.commands.rasterizeActiveTextLayer()).toBe(true);
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
 
-    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
-      expect.objectContaining({ id: layerId, type: 'raster' })
+    const destination = state.document().layers.at(-1)!;
+    expect(destination).toMatchObject({ type: 'raster' });
+    expect(destination.id).not.toBe(layerId);
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(destination);
+    expect(state.renderer.rasterizeLayer).toHaveBeenCalledWith(
+      expect.anything(), layerId, destination.id
     );
-    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId);
-    expect(state.renderer.captureAllPixelEdit).toHaveBeenCalledWith(layerId);
-    expect(state.renderer.rasterizeText).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ id: layerId, type: 'text' }),
-      expect.objectContaining({ id: layerId, type: 'raster' })
-    );
-    expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
     expect(state.historyEntries).toHaveLength(1);
 
     for (let cycle = 0; cycle < 20; cycle += 1) {
       state.historyEntries[0].undo();
       expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'text' });
-      expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'undo');
       state.historyEntries[0].redo();
-      expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
-      expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+      expect(state.document().layers.at(-1)).toMatchObject({ id: destination.id, type: 'raster' });
     }
   });
 
@@ -649,6 +643,31 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]).toMatchObject({ id: vector.id, type: 'vector' });
     state.historyEntries[0]!.redo();
     expect(state.document().layers[0]).toMatchObject({ id: destination.id, type: 'raster' });
+  });
+
+  it('retains every nested runtime when rasterizing a group', async () => {
+    const document = createImageDocument('Group rasterize', 32, 24, 'unused');
+    const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
+    child.derivedPreview = {
+      width: 4,
+      height: 3,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      dependencyKey: 'test-preview',
+      source: 'imported-semantic-preview'
+    };
+    const group = createGroupLayerNode('Artwork');
+    group.children = [child];
+    document.layers = [group];
+    document.activeLayerId = group.id;
+    const state = setup(document);
+
+    await expect(state.commands.rasterizeLayerWhenReady(group.id)).resolves.toBe(true);
+
+    const destination = state.document().layers[0]!;
+    expect(state.historyEntries[0]?.layerIds).toEqual([group.id, child.id, destination.id]);
+    expect(state.historyEntries[0]?.byteSize).toBe((32 * 24 * 8 * 2) + (4 * 3 * 8));
+    state.historyEntries[0]!.undo();
+    expect(findDocumentLayer(state.document(), child.id)).toBe(child);
   });
 
   it('releases an unpublished raster and restores the semantic layer when history rejects rasterize', () => {
@@ -682,78 +701,108 @@ describe('useLayerDocumentCommands', () => {
     await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
 
     expect(waitForTextSource).toHaveBeenCalledWith(layerId);
-    expect(state.renderer.rasterizeText).toHaveBeenCalledOnce();
-    expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
+    expect(state.renderer.rasterizeLayer).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)).toMatchObject({ type: 'raster' });
+    expect(state.document().layers.at(-1)?.id).not.toBe(layerId);
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('rolls back a failed GPU text rasterization without document history', () => {
+  it('waits for hidden intrinsic text before forcing it visible for rasterization', async () => {
+    const document = createTextLayer(
+      createImageDocument('Hidden text', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Hidden text'
+    );
+    const layer = findDocumentLayer(document, document.activeLayerId)!;
+    layer.visible = false;
+    layer.opacity = 0;
+    const state = setup(document);
+    const waitForTextSource = vi.fn(async () => true);
+    state.renderer.waitForTextSource = waitForTextSource;
+
+    await expect(state.commands.rasterizeLayerWhenReady(layer.id)).resolves.toBe(true);
+
+    expect(waitForTextSource).toHaveBeenCalledWith(layer.id);
+    expect(state.renderer.rasterizeLayer).toHaveBeenCalledOnce();
+  });
+
+  it('waits for contributing text inside a hidden group before flattening the group', async () => {
+    const document = createImageDocument('Hidden group', 32, 24, 'asset');
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Nested text');
+    const group = createGroupLayerNode('Hidden group');
+    group.visible = false;
+    group.opacity = 0;
+    group.children = [text];
+    document.layers = [group];
+    document.activeLayerId = group.id;
+    const state = setup(document);
+    const waitForTextSource = vi.fn(async () => true);
+    state.renderer.waitForTextSource = waitForTextSource;
+
+    await expect(state.commands.flattenWhenReady({ kind: 'group', groupId: group.id }))
+      .resolves.toBe(true);
+
+    expect(waitForTextSource).toHaveBeenCalledWith(text.id);
+    expect(state.renderer.flattenGroup).toHaveBeenCalledOnce();
+  });
+
+  it('rejects rasterization when the document changes while text is being prepared', async () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Fresh text'
+    ));
+    const layerId = state.document().activeLayerId!;
+    state.renderer.waitForTextSource = vi.fn(async () => {
+      const current = state.document();
+      state.dependencies.applyDocumentSnapshot({ ...current, revision: current.revision + 1 });
+      return true;
+    });
+
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
+      'The document changed while its text source was being prepared.'
+    );
+
+    expect(state.renderer.rasterizeLayer).not.toHaveBeenCalled();
+    expect(state.historyEntries).toEqual([]);
+  });
+
+  it('rolls back a failed GPU text rasterization without document history', async () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
       createDefaultTextLayerData(),
       'Text fixture'
     ));
-    vi.mocked(state.renderer.rasterizeText).mockReturnValue(false);
+    vi.mocked(state.renderer.rasterizeLayer).mockReturnValue(false);
+    const layerId = state.document().activeLayerId!;
 
-    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
+      'The prepared layer could not be rasterized.'
+    );
 
-    expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
     expect(state.document().layers.at(-1)?.type).toBe('text');
     expect(state.historyEntries).toEqual([]);
   });
 
-  it('refuses text rasterization when no recoverable pre-edit tiles were captured', () => {
+  it('releases the fresh text destination and restores the source when history publication throws', async () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
       createDefaultTextLayerData(),
       'Text fixture'
     ));
-    vi.mocked(state.renderer.captureAllPixelEdit).mockReturnValue(0);
-
-    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
-
-    expect(state.renderer.rasterizeText).not.toHaveBeenCalled();
-    expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
-    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
-    expect(state.document().layers.at(-1)?.type).toBe('text');
-    expect(state.historyEntries).toEqual([]);
-  });
-
-  it('releases a reserved raster when no reversible pixel edit can be created', () => {
-    const state = setup(createTextLayer(
-      createImageDocument('Test', 32, 24, 'asset'),
-      createDefaultTextLayerData(),
-      'Text fixture'
-    ));
-    vi.mocked(state.renderer.finishPixelEdit).mockReturnValue(null);
-
-    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
-
-    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
-    expect(state.document().layers.at(-1)?.type).toBe('text');
-    expect(state.historyEntries).toEqual([]);
-  });
-
-  it('restores GPU pixels and the text snapshot when history publication throws', () => {
-    const state = setup(createTextLayer(
-      createImageDocument('Test', 32, 24, 'asset'),
-      createDefaultTextLayerData(),
-      'Text fixture'
-    ));
-    const edit = vi.mocked(state.renderer.finishPixelEdit).getMockImplementation()!();
-    vi.mocked(state.renderer.finishPixelEdit).mockReturnValue(edit);
+    const layerId = state.document().activeLayerId!;
     vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
+      'The prepared layer could not be rasterized.'
+    );
 
-    expect(edit?.undo).toHaveBeenCalledOnce();
-    expect(edit?.destroy).toHaveBeenCalledOnce();
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
     expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
-    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'text' });
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
@@ -1097,6 +1146,28 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.applyPixelHistory).not.toHaveBeenCalled();
     state.historyEntries[0].redo();
     expect(state.document().layers[0]?.id).toBe(mergedId);
+  });
+
+  it('retains nested source runtimes and accounts for them when merging a group', () => {
+    const document = createImageDocument('Group merge', 32, 24, 'unused');
+    const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
+    const group = createGroupLayerNode('Artwork');
+    group.children = [child];
+    const top = createImageDocument('Top', 32, 24, 'top-asset').layers[0]!;
+    document.layers = [group, top];
+    document.activeLayerId = top.id;
+    const state = setup(document);
+
+    expect(state.commands.mergeSelectedLayers([top.id, group.id])).toBe(true);
+
+    const destination = state.document().layers[0]!;
+    expect(state.historyEntries[0]?.layerIds).toEqual([
+      group.id, child.id, top.id, destination.id
+    ]);
+    expect(state.historyEntries[0]?.byteSize).toBe(32 * 24 * 8 * 3);
+    state.historyEntries[0]!.undo();
+    expect(findDocumentLayer(state.document(), group.id)).toBe(group);
+    expect(findDocumentLayer(state.document(), child.id)).toBe(child);
   });
 
   it('restores every source layer and releases the destination when merge history rejects', () => {

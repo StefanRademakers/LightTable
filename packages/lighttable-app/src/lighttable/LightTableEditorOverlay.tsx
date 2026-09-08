@@ -5624,15 +5624,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return layerDocumentCommands.rasterizeVectorCreation(transaction);
   };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
-  const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;
-  const mergeSelectedLayers = layerDocumentCommands.mergeSelectedLayers;
-  const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
   const mergeLayersCommand = useCallback((layerIds: LayerId[]) => {
-    if (!executeRegisteredCommand('layer.merge', { layerIds })) {
-      return mergeSelectedLayers(layerIds);
-    }
-    return true;
-  }, [executeRegisteredCommand, mergeSelectedLayers]);
+    return Boolean(executeRegisteredCommand('layer.merge', { layerIds }));
+  }, [executeRegisteredCommand]);
   const mergeSelectionOrActiveDown = useCallback(async () => {
     await settlePixelInteractionRef.current();
     const selectedLayerIds = selectedLayerIdsRef.current;
@@ -5643,26 +5637,29 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return mergeLayersCommand(selectedLayerIds);
     }
     const document = imageDocumentRef.current;
-    const activeLayerId = document?.activeLayerId;
-    if (!document || !activeLayerId) return mergeActiveLayerDown();
+    // The Layers panel publishes its interaction selection synchronously,
+    // while canonical active-layer preparation may cross an async renderer
+    // boundary. Ctrl/Cmd+E must target the row the user just clicked, not the
+    // previously active document layer during that short hand-off.
+    const activeLayerId = selectedLayerIds[0] ?? document?.activeLayerId;
+    if (!document || !activeLayerId) {
+      setError('Select a layer with a lower sibling to merge.');
+      return false;
+    }
     const siblings = siblingLayers(document, activeLayerId);
     const index = siblings.findIndex(({ id }) => id === activeLayerId);
-    return index > 0
-      ? mergeLayersCommand([siblings[index - 1]!.id, activeLayerId])
-      : mergeActiveLayerDown();
-  }, [mergeActiveLayerDown, mergeLayersCommand]);
+    if (index <= 0) {
+      setError('The active layer has no layer below it to merge with.');
+      return false;
+    }
+    return mergeLayersCommand([siblings[index - 1]!.id, activeLayerId]);
+  }, [mergeLayersCommand]);
   const flattenGroupCommand = useCallback((groupId: LayerId) => {
-    if (!executeRegisteredCommand('layer.flattenGroup', { groupId })) {
-      return layerDocumentCommands.flatten({ kind: 'group', groupId });
-    }
-    return true;
-  }, [executeRegisteredCommand, layerDocumentCommands]);
+    return Boolean(executeRegisteredCommand('layer.flattenGroup', { groupId }));
+  }, [executeRegisteredCommand]);
   const flattenImageCommand = useCallback(() => {
-    if (!executeRegisteredCommand('document.flattenImage', {})) {
-      return layerDocumentCommands.flatten({ kind: 'image' });
-    }
-    return true;
-  }, [executeRegisteredCommand, layerDocumentCommands]);
+    return Boolean(executeRegisteredCommand('document.flattenImage', {}));
+  }, [executeRegisteredCommand]);
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     // A layer-panel selection made after an asynchronous canvas hit supersedes
     // that hit and must never be overwritten when its GPU readback resolves.
@@ -5931,7 +5928,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     duplicateActiveLayer,
-    rasterizeActiveTextLayer,
     rasterizeActiveLayer: layerDocumentCommands.rasterizeActiveLayer,
     loadLayerMaskSelection: async (layerId) => {
       await settlePixelInteractionRef.current();
@@ -6070,6 +6066,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // pixels from the tab we just left.
     if (documentSession
       && imageDocument?.id !== documentSession.getSnapshot().document?.id) return;
+    const waitForStableLayerCommandFrame = async () => {
+      const admittedDocument = imageDocumentRef.current;
+      const admittedRenderer = engineRef.current;
+      if (!admittedDocument || !admittedRenderer) {
+        throw new Error('The active document renderer is unavailable.');
+      }
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const currentDocument = imageDocumentRef.current;
+      if (!currentDocument
+        || currentDocument.id !== admittedDocument.id
+        || currentDocument.revision !== admittedDocument.revision
+        || engineRef.current !== admittedRenderer) {
+        throw new Error('The document changed before layer finalization could begin.');
+      }
+    };
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       supportsCommand: isMountedDocumentCommand,
       resizeImage: (request) => commitImageSize(request, false),
@@ -6356,7 +6367,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ) ? command : null;
       },
       executeLayerRasterize: async (command) => {
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.rasterizeLayerWhenReady(command.layerId)) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId
@@ -6373,21 +6384,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         // the text coordinator observes a newly created layer on the next
         // editor frame. Rasterization must wait for that host boundary before
         // asking the coordinator for its final outline source.
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        await waitForStableLayerCommandFrame();
         return await layerDocumentCommands.rasterizeTextLayerWhenReady(command.layerId)
-          ? { layerId: command.layerId, outputType: 'raster' as const }
+          ? { layerId: imageDocumentRef.current?.activeLayerId, outputType: 'raster' as const }
           : null;
       },
       executeLayerMerge: async (command) => {
         await settlePixelInteractionRef.current();
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.mergeLayersWhenReady([...command.layerIds])) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId ? { layerIds: command.layerIds, outputLayerId } : null;
       },
       executeFlattenGroup: async (command) => {
         await settlePixelInteractionRef.current();
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.flattenWhenReady({
           kind: 'group', groupId: command.groupId
         })) return null;
@@ -6396,7 +6407,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeFlattenImage: async () => {
         await settlePixelInteractionRef.current();
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId ? { outputLayerId } : null;
@@ -6583,9 +6594,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     rasterizeActive: () => {
       const layerId = imageDocumentRef.current?.activeLayerId;
-      if (!layerId || !executeRegisteredCommand('layer.rasterize', { layerId })) {
-        layerPanelController.rasterizeActive();
-      }
+      if (!layerId) return setError('Select a layer to rasterize.');
+      executeRegisteredCommand('layer.rasterize', { layerId });
     },
     deleteSelection: (layerIds: LayerId[]) => {
       if (!executeRegisteredCommand('layer.delete', { layerIds })) layerPanelController.deleteSelection(layerIds);
@@ -7162,15 +7172,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const rasterizeActiveTextLayerCommand = () => {
     const layerId = imageDocumentRef.current?.activeLayerId;
     if (!layerId) {
-      layerDocumentCommands.rasterizeActiveTextLayer();
+      void layerDocumentCommands.rasterizeActiveLayer();
       return;
     }
     textEditingController.finish();
     pointTextController.cancel();
     paragraphTextController.cancel();
-    if (!executeRegisteredCommand('text.rasterize', { layerId })) {
-      layerDocumentCommands.rasterizeTextLayer(layerId);
-    }
+    executeRegisteredCommand('layer.rasterize', { layerId });
   };
 
   const focusActiveLayerName = () => {

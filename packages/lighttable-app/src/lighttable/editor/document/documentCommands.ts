@@ -1369,25 +1369,73 @@ export interface FlattenLayersPlan {
   targetGroupId: LayerId | null;
 }
 
+export type MergeLayersEligibility =
+  | { readonly ok: true; readonly plan: MergeLayersPlan }
+  | { readonly ok: false; readonly reason: 'invalid-selection' | 'external-backdrop'; readonly message: string };
+
+export type FlattenGroupEligibility =
+  | { readonly ok: true; readonly plan: FlattenLayersPlan }
+  | { readonly ok: false; readonly reason: 'invalid-group' | 'external-backdrop'; readonly message: string };
+
 const layerIdsIn = (nodes: readonly LayerNode[]) =>
   walkLayerTree(nodes).map((entry) => entry.node.id);
 
-export const getFlattenGroupPlan = (
+const hasBackdropThroughPassThroughAncestors = (
+  document: ImageDocument,
+  layerId: LayerId,
+  siblingIndex: number
+): boolean => {
+  if (siblingIndex > 0) return true;
+  let entry = findLayerNode(document.layers, layerId);
+  while (entry?.parentId) {
+    const parentEntry = findLayerNode(document.layers, entry.parentId);
+    if (!parentEntry || parentEntry.node.type !== 'group') return false;
+    if (parentEntry.node.compositing !== 'pass-through') return false;
+    const parentSiblings = siblingLayers(document, parentEntry.node.id);
+    const parentIndex = parentSiblings.findIndex(({ id }) => id === parentEntry.node.id);
+    if (parentIndex > 0) return true;
+    entry = parentEntry;
+  }
+  return false;
+};
+
+export const getFlattenGroupEligibility = (
   document: ImageDocument,
   groupId: LayerId
-): FlattenLayersPlan | null => {
+): FlattenGroupEligibility => {
   const entry = findLayerNode(document.layers, groupId);
-  if (!entry || entry.node.type !== 'group') return null;
+  if (!entry || entry.node.type !== 'group' || !entry.node.children.length) {
+    return { ok: false, reason: 'invalid-group', message: 'The target must be a non-empty group.' };
+  }
+  const siblings = siblingLayers(document, groupId);
+  const groupIndex = siblings.findIndex(({ id }) => id === groupId);
+  if (entry.node.compositing === 'pass-through'
+    && hasBackdropThroughPassThroughAncestors(document, groupId, groupIndex)) {
+    // A pass-through group can change siblings below it. Flattening only its
+    // subtree cannot encode that external relationship into one raster.
+    return {
+      ok: false,
+      reason: 'external-backdrop',
+      message: 'This pass-through group depends on content below it and cannot be flattened without changing appearance.'
+    };
+  }
   const descendantIds = layerIdsIn(entry.node.children);
-  if (!descendantIds.length) return null;
-  return {
+  return { ok: true, plan: {
     // History must retain the group runtime too. Its mask belongs to the
     // group id and is needed again when undo restores the original subtree.
     layerIds: [groupId, ...descendantIds],
     destinationId: entry.node.children[0]!.id,
     name: entry.node.name,
     targetGroupId: groupId
-  };
+  } };
+};
+
+export const getFlattenGroupPlan = (
+  document: ImageDocument,
+  groupId: LayerId
+): FlattenLayersPlan | null => {
+  const eligibility = getFlattenGroupEligibility(document, groupId);
+  return eligibility.ok ? eligibility.plan : null;
 };
 
 export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan | null => {
@@ -1470,38 +1518,6 @@ export const flattenImage = (document: ImageDocument): ImageDocument => {
   return updateDocument(document, [replacement], replacement.id);
 };
 
-/** Replaces live text with a full-canvas raster destination using the same stable layer ID. */
-export const rasterizeTextLayer = (
-  document: ImageDocument,
-  layerId: LayerId
-): ImageDocument => {
-  const source = findLayerNode(document.layers, layerId)?.node ?? null;
-  if (source?.type !== 'text' || layerIsLocked(source, 'pixels')) return document;
-  const { text: _text, ...common } = source;
-  const now = Date.now();
-  const replacement: RasterLayer = {
-    ...common,
-    type: 'raster',
-    transform: identityAffineMatrix(),
-    geometryRevision: source.geometryRevision + 1,
-    pixelRevision: 1,
-    width: document.width,
-    height: document.height,
-    offsetX: 0,
-    offsetY: 0,
-    pixelSource: { kind: 'runtime-raster', runtimeId: source.id },
-    adjustmentStack: null,
-    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height },
-    revision: source.revision + 1,
-    modifiedAt: now
-  };
-  return updateDocument(
-    document,
-    updateLayerNode(document.layers, layerId, () => replacement),
-    replacement.id
-  );
-};
-
 /**
  * Replaces any canonical layer node with a fresh full-canvas raster target.
  * The renderer bakes the node's intrinsic presentation into that target while
@@ -1562,15 +1578,20 @@ export const rasterizeLayer = (
  * silently move unselected layers above or below the flattened result and
  * therefore change the document's appearance.
  */
-export const getMergeLayersPlan = (
+export const getMergeLayersEligibility = (
   document: ImageDocument,
   selectedLayerIds: readonly LayerId[]
-): MergeLayersPlan | null => {
+): MergeLayersEligibility => {
   const selected = new Set(selectedLayerIds);
-  if (selected.size < 2) return null;
+  const invalid = (): MergeLayersEligibility => ({
+    ok: false,
+    reason: 'invalid-selection',
+    message: 'Merge requires at least two contiguous sibling layers.'
+  });
+  if (selected.size < 2) return invalid();
   const entries = [...selected].map((id) => findLayerNode(document.layers, id));
   if (entries.some((entry) => !entry)
-    || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)) return null;
+    || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)) return invalid();
 
   const siblings = siblingLayers(document, entries[0]!.node.id);
   const indexes = siblings
@@ -1579,17 +1600,43 @@ export const getMergeLayersPlan = (
   if (
     indexes.length !== selected.size
     || indexes[indexes.length - 1] - indexes[0] + 1 !== indexes.length
-  ) return null;
+  ) return invalid();
 
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
   // The GPU compositor evaluates each selected layer's realized presentation
   // in document order and writes it to a fresh raster destination.
-  if (!layers[0]) return null;
-  return {
+  if (!layers[0]) return invalid();
+  const hasExternalBackdrop = hasBackdropThroughPassThroughAncestors(
+    document,
+    layers[0].id,
+    indexes[0]
+  );
+  const dependsOnExternalBackdrop = hasExternalBackdrop && layers.some((layer, index) => (
+    layer.blendMode !== 'normal'
+    || layer.type === 'adjustment'
+    || (layer.type === 'group' && layer.compositing === 'pass-through')
+    || (layer.clipping && !layers.slice(0, index).some((candidate) => !candidate.clipping))
+  ));
+  if (dependsOnExternalBackdrop) {
+    return {
+      ok: false,
+      reason: 'external-backdrop',
+      message: 'The selected layers depend on content below the selection and cannot be merged without changing appearance.'
+    };
+  }
+  return { ok: true, plan: {
     layerIds: layers.map((layer) => layer.id),
     destinationId: layers[0].id,
     name: layers[layers.length - 1].name
-  };
+  } };
+};
+
+export const getMergeLayersPlan = (
+  document: ImageDocument,
+  selectedLayerIds: readonly LayerId[]
+): MergeLayersPlan | null => {
+  const eligibility = getMergeLayersEligibility(document, selectedLayerIds);
+  return eligibility.ok ? eligibility.plan : null;
 };
 
 export const mergeLayers = (

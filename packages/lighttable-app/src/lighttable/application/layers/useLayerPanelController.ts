@@ -85,7 +85,6 @@ export interface LayerPanelControllerDependencies {
     settings?: AdjustmentInitialSettings): string | null;
   addActiveLayerMask(): boolean | Promise<boolean>;
   duplicateActiveLayer(): boolean;
-  rasterizeActiveTextLayer(): boolean;
   rasterizeActiveLayer(): Promise<boolean>;
   loadLayerMaskSelection(layerId: LayerId): void | Promise<void>;
   loadLayerTransparencySelection(layerId: LayerId): void | Promise<void>;
@@ -149,7 +148,6 @@ export interface LayerPanelController {
   ungroupSelection(layerIds: LayerId[]): void;
   deleteSelection(layerIds: LayerId[]): void;
   duplicateActive(): void;
-  rasterizeActiveText(): void;
   rasterizeActive(): void;
   mergeDown(): void;
   mergeSelected(layerIds: LayerId[]): void;
@@ -387,11 +385,6 @@ export const createLayerPanelController = (
       usePixelChannel((current) => deleteLayers(current, layerIds));
     },
     duplicateActive: () => { resolveDependencies().duplicateActiveLayer(); },
-    rasterizeActiveText: () => {
-      const dependencies = resolveDependencies();
-      dependencies.finishTextEditing?.();
-      dependencies.rasterizeActiveTextLayer();
-    },
     rasterizeActive: () => {
       const dependencies = resolveDependencies();
       dependencies.finishTextEditing?.();

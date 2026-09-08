@@ -114,6 +114,18 @@ UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
 owner visual acceptance: keep the complete legacy fallback until the owner has
 confirmed the contour and pointer feel in a manual run.
 
+Layer-finalization reset, updated 2026-09-08: read
+[Layer finalization vertical slice](editor-kernel/LAYER_FINALIZATION_VERTICAL_SLICE.md)
+before changing rasterize, Merge Down/Selected, Flatten Group/Image, their
+affordances or GPU retention. These operations use one fresh raster destination
+and one atomic document/history publication. Never reintroduce the removed
+same-ID text rasterizer or a UI/controller fallback. A correction adjustment,
+non-normal blend or pass-through group that reads pixels outside the selected
+subtree must fail closed until a contextual compositor plan exists. History
+retention includes group descendants, masks and derived previews. The packaged
+layer-finalization matrix is automated proof; owner feel acceptance is still
+pending.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

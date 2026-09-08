@@ -8,7 +8,6 @@ import type {
 } from '../document/documentTypes';
 import { findLayerNode } from '../document/layerTree';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
-import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 
 export type EncodeAdjustment = (
   encoder: GPUCommandEncoder,
@@ -49,6 +48,7 @@ interface RasterDocumentOperationsOptions {
   ) => GPUTexture;
   invalidateLayer: (layerId: LayerId) => void;
   releaseSubmittedResources: () => void;
+  destroyPendingResources?: () => void;
   textSourceReady?: (layer: TextLayer) => boolean;
 }
 
@@ -61,6 +61,30 @@ export class RasterDocumentOperations {
   private readonly newRasterReservations = new Set<LayerId>();
 
   constructor(private readonly options: RasterDocumentOperationsOptions) {}
+
+  private submitCompositeCopy(
+    label: string,
+    destination: GPUTexture,
+    width: number,
+    height: number,
+    encode: (encoder: GPUCommandEncoder) => GPUTexture
+  ) {
+    let submitted = false;
+    try {
+      const encoder = this.options.device.createCommandEncoder({ label });
+      const source = encode(encoder);
+      encoder.copyTextureToTexture(
+        { texture: source },
+        { texture: destination },
+        [width, height]
+      );
+      this.options.device.queue.submit([encoder.finish()]);
+      submitted = true;
+    } finally {
+      if (submitted) this.options.releaseSubmittedResources();
+      else this.options.destroyPendingResources?.();
+    }
+  }
 
   duplicate(sourceId: LayerId, destinationId: LayerId) {
     const { device, layerResources } = this.options;
@@ -107,50 +131,13 @@ export class RasterDocumentOperations {
     return this.options.layerResources.releaseRaster(layerId, true);
   }
 
-  rasterizeText(
-    document: ImageDocument,
-    source: TextLayer,
-    destination: RasterLayer
-  ) {
-    if (source.id !== destination.id) return false;
-    if (this.options.textSourceReady && !this.options.textSourceReady(source)) return false;
-    const runtime = this.options.layerResources.raster(destination.id);
-    if (!runtime) return false;
-    const { device } = this.options;
-    const { width, height } = this.options.dimensions();
-    if (destination.width !== width || destination.height !== height) return false;
-    const encoder = device.createCommandEncoder({ label: 'LightTable rasterize text layer' });
-    const renderedTexture = this.options.encodeComposite(encoder, {
-      ...document,
-      layers: [{
-        ...source,
-        visible: true,
-        opacity: 1,
-        fillOpacity: 1,
-        blendMode: 'normal',
-        clipping: false,
-        styleStack: createDefaultLayerStyleStack(),
-        mask: null
-      }]
-    });
-    encoder.copyTextureToTexture(
-      { texture: renderedTexture },
-      { texture: runtime.texture },
-      [width, height]
-    );
-    device.queue.submit([encoder.finish()]);
-    this.options.releaseSubmittedResources();
-    this.options.invalidateLayer(destination.id);
-    return true;
-  }
-
   rasterizeLayer(
     document: ImageDocument,
     sourceId: LayerId,
     destinationId: LayerId,
     encodeAdjustment?: EncodeAdjustment
   ) {
-    const { device, layerResources } = this.options;
+    const { layerResources } = this.options;
     const source = findLayerNode(document.layers, sourceId)?.node;
     const destination = layerResources.raster(destinationId);
     if (!source || !destination || sourceId === destinationId) return false;
@@ -161,7 +148,6 @@ export class RasterDocumentOperations {
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
 
-    const encoder = device.createCommandEncoder({ label: 'LightTable rasterize layer' });
     const intrinsicSource: LayerNode = {
       ...source,
       visible: true,
@@ -169,18 +155,14 @@ export class RasterDocumentOperations {
       blendMode: 'normal',
       clipping: false
     };
-    const rasterizedTexture = this.options.encodeComposite(
-      encoder,
-      { ...document, layers: [intrinsicSource], activeLayerId: sourceId },
-      encodeAdjustment
+    this.submitCompositeCopy(
+      'LightTable rasterize layer', destination.texture, width, height,
+      (encoder) => this.options.encodeComposite(
+        encoder,
+        { ...document, layers: [intrinsicSource], activeLayerId: sourceId },
+        encodeAdjustment
+      )
     );
-    encoder.copyTextureToTexture(
-      { texture: rasterizedTexture },
-      { texture: destination.texture },
-      [width, height]
-    );
-    device.queue.submit([encoder.finish()]);
-    this.options.releaseSubmittedResources();
     this.options.invalidateLayer(destinationId);
     return true;
   }
@@ -191,7 +173,7 @@ export class RasterDocumentOperations {
     destinationId: LayerId,
     encodeAdjustment?: EncodeAdjustment
   ) {
-    const { device, layerResources } = this.options;
+    const { layerResources } = this.options;
     const destination = layerResources.raster(destinationId);
     const layers = layerIds.map(
       (layerId) => findLayerNode(document.layers, layerId)?.node ?? null
@@ -208,24 +190,14 @@ export class RasterDocumentOperations {
     ) return false;
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
-    const encoder = device.createCommandEncoder({
-      label: 'LightTable merge selected layers'
-    });
-    const mergedTexture = this.options.encodeComposite(
-      encoder,
-      {
-        ...document,
-        layers: selectedTree
-      },
-      encodeAdjustment
+    this.submitCompositeCopy(
+      'LightTable merge selected layers', destination.texture, width, height,
+      (encoder) => this.options.encodeComposite(
+        encoder,
+        { ...document, layers: selectedTree },
+        encodeAdjustment
+      )
     );
-    encoder.copyTextureToTexture(
-      { texture: mergedTexture },
-      { texture: destination.texture },
-      [width, height]
-    );
-    device.queue.submit([encoder.finish()]);
-    this.options.releaseSubmittedResources();
     this.options.invalidateLayer(destinationId);
     return true;
   }
@@ -236,7 +208,7 @@ export class RasterDocumentOperations {
     destinationId: LayerId,
     encodeAdjustment?: EncodeAdjustment
   ) {
-    const { device, layerResources } = this.options;
+    const { layerResources } = this.options;
     const group = findLayerNode(document.layers, groupId)?.node;
     const destination = layerResources.raster(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
@@ -246,7 +218,6 @@ export class RasterDocumentOperations {
     )) return false;
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
-    const encoder = device.createCommandEncoder({ label: 'LightTable flatten group' });
     const intrinsicGroup: LayerNode = {
       ...group,
       visible: true,
@@ -254,21 +225,14 @@ export class RasterDocumentOperations {
       blendMode: 'normal',
       clipping: false
     };
-    const flattenedTexture = this.options.encodeComposite(
-      encoder,
-      {
-        ...document,
-        layers: [intrinsicGroup]
-      },
-      encodeAdjustment
+    this.submitCompositeCopy(
+      'LightTable flatten group', destination.texture, width, height,
+      (encoder) => this.options.encodeComposite(
+        encoder,
+        { ...document, layers: [intrinsicGroup] },
+        encodeAdjustment
+      )
     );
-    encoder.copyTextureToTexture(
-      { texture: flattenedTexture },
-      { texture: destination.texture },
-      [width, height]
-    );
-    device.queue.submit([encoder.finish()]);
-    this.options.releaseSubmittedResources();
     this.options.invalidateLayer(destinationId);
     return true;
   }
@@ -278,7 +242,7 @@ export class RasterDocumentOperations {
     destinationId: LayerId,
     encodeAdjustment?: EncodeAdjustment
   ) {
-    const { device, layerResources } = this.options;
+    const { layerResources } = this.options;
     const destination = layerResources.raster(destinationId);
     if (!destination) return false;
     if (hasMissingContributingRasterRuntime(document.layers, layerResources)) return false;
@@ -287,19 +251,10 @@ export class RasterDocumentOperations {
     )) return false;
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
-    const encoder = device.createCommandEncoder({ label: 'LightTable flatten image' });
-    const flattenedTexture = this.options.encodeComposite(
-      encoder,
-      document,
-      encodeAdjustment
+    this.submitCompositeCopy(
+      'LightTable flatten image', destination.texture, width, height,
+      (encoder) => this.options.encodeComposite(encoder, document, encodeAdjustment)
     );
-    encoder.copyTextureToTexture(
-      { texture: flattenedTexture },
-      { texture: destination.texture },
-      [width, height]
-    );
-    device.queue.submit([encoder.finish()]);
-    this.options.releaseSubmittedResources();
     this.options.invalidateLayer(destinationId);
     return true;
   }

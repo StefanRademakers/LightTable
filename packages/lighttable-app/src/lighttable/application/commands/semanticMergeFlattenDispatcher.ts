@@ -1,4 +1,8 @@
-import { getFlattenGroupPlan, getFlattenImagePlan, getMergeLayersPlan } from '../../editor/document/documentCommands';
+import {
+  getFlattenGroupEligibility,
+  getFlattenImagePlan,
+  getMergeLayersEligibility
+} from '../../editor/document/documentCommands';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import {
   parseSemanticFlattenGroupCommand,
@@ -26,10 +30,10 @@ export const dispatchSemanticLayerMerge = async (value: unknown, document: Image
   execute: Executor<SemanticLayerMergeCommand>, revision: () => number | undefined): Promise<Result> => {
   const command = parseSemanticLayerMergeCommand(value);
   if ('message' in command) return { ok: false, code: 'invalid-parameters', message: command.message };
-  const plan = getMergeLayersPlan(document, command.layerIds);
-  if (!plan) return { ok: false, code: 'command-unavailable',
-    message: 'Merge requires at least two contiguous sibling layers.' };
-  return executeChanged({ layerIds: plan.layerIds }, execute,
+  const eligibility = getMergeLayersEligibility(document, command.layerIds);
+  if (!eligibility.ok) return { ok: false, code: 'command-unavailable',
+    message: eligibility.message };
+  return executeChanged({ layerIds: eligibility.plan.layerIds }, execute,
     'Layer merge is unavailable in this host.', document, revision);
 };
 
@@ -37,8 +41,9 @@ export const dispatchSemanticFlattenGroup = async (value: unknown, document: Ima
   execute: Executor<SemanticFlattenGroupCommand>, revision: () => number | undefined): Promise<Result> => {
   const command = parseSemanticFlattenGroupCommand(value);
   if ('message' in command) return { ok: false, code: 'invalid-parameters', message: command.message };
-  if (!getFlattenGroupPlan(document, command.groupId)) return { ok: false, code: 'command-unavailable',
-    message: 'The target must be a non-empty group.' };
+  const eligibility = getFlattenGroupEligibility(document, command.groupId);
+  if (!eligibility.ok) return { ok: false, code: 'command-unavailable',
+    message: eligibility.message };
   return executeChanged(command, execute, 'Group flatten is unavailable in this host.', document, revision);
 };
 

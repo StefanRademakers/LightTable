@@ -164,7 +164,7 @@ slice; they are not postponed to the final phase.
 | S00B-1 | Horizontal/vertical strip marquees | `owner` | yes | passed | passed | [ ] | retained with S00A |
 | S00B-2 | Magic Wand | `owner` | yes | passed | passed | [ ] | retained |
 | S00B-3 | Object Selection | `owner` | yes | passed | passed | [ ] | yes |
-| S01 | Layer capabilities, rasterize, merge and flatten | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S01 | Layer capabilities, rasterize, merge and flatten | `owner` | yes | passed | passed | [ ] | yes |
 | S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S04 | Transform, selected-pixel transform, snapping and guides | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -242,17 +242,23 @@ skip the manual gate.
 
 This is next because later tools need one trustworthy way to finalize content.
 
-- [ ] Derive icons/menu/shortcut availability from one capability projection.
-- [ ] Rasterize text, live shapes/vector, gradient/fill, raster with adjustments,
-      raster with layer styles, adjustment layers and supported groups.
-- [ ] Define whether rasterizing an already-raster layer applies its non-destructive
+- [x] Derive icons/menu/shortcut availability from one capability projection.
+- [x] Rasterize text, live shapes/vector, gradient/fill, raster with adjustments,
+      raster with layer styles, pixel-generating adjustment layers and supported
+      groups. Backdrop-reading correction layers deliberately use Merge Down.
+- [x] Define whether rasterizing an already-raster layer applies its non-destructive
       stack, and preserve visual bounds/placement exactly.
-- [ ] Merge Down / selected layers (`Ctrl/Cmd+E`) with order, blend, masks,
+- [x] Merge Down / selected layers (`Ctrl/Cmd+E`) with order, blend, masks,
       clipping, opacity, adjustments and styles preserved in the result.
-- [ ] Flatten Group and Flatten Image with global adjustment/Lens Fx ordering.
-- [ ] Atomic failure rollback: no half-replaced layer, leaked texture or history.
-- [ ] Layer-stack collapse/expand, selection and thumbnail state remain coherent.
-- [ ] UI, shortcut, Action and MCP all use the same commands.
+- [x] Flatten Group and Flatten Image with global adjustment/Lens Fx ordering.
+- [x] Atomic failure rollback: no half-replaced layer, leaked texture or history.
+- [x] Layer-stack collapse/expand, selection and thumbnail state remain coherent.
+- [x] UI, shortcut, Action and MCP all use the same commands.
+- [x] Two critic repair loops closed backdrop admission, recursive runtime
+      retention, byte accounting, error parity and submitted/pending cleanup.
+- [x] Packaged WebGPU matrix preserves rasterize/merge/flatten pixels across
+      vector and text PSDs; `Ctrl+E`, multi-select, undo and redo are exercised.
+- [ ] Owner manually accepts layer affordances and repeated finalization feel.
 
 ### S02 -- masks and background removal
 

@@ -24,7 +24,9 @@ import {
   flattenGroup,
   flattenImage,
   getFlattenGroupPlan,
+  getFlattenGroupEligibility,
   getMergeLayersPlan,
+  getMergeLayersEligibility,
   groupLayers,
   mergeLayerDown,
   mergeLayers,
@@ -562,6 +564,9 @@ describe('LightTable document commands', () => {
 
     expect(mergeLayers(document, [background.id, top.id])).toBe(document);
     const grouped = createGroupLayer(document, 'Group');
+    const mergeGroup = findDocumentLayer(grouped, grouped.activeLayerId!);
+    if (mergeGroup?.type !== 'group') throw new Error('Expected group fixture.');
+    mergeGroup.compositing = 'isolated';
     const mergedWithGroup = mergeLayers(grouped, [top.id, grouped.activeLayerId!]);
     expect(mergedWithGroup).not.toBe(grouped);
     expect(mergedWithGroup.layers.at(-1)).toMatchObject({ type: 'raster', name: 'Group' });
@@ -588,7 +593,11 @@ describe('LightTable document commands', () => {
       );
       if (kind === 'text') return createTextLayer(source, createDefaultTextLayerData(), name);
       const withChild = createRasterLayer(source, `${name} content`);
-      return groupLayers(withChild, [withChild.activeLayerId!], name);
+      const grouped = groupLayers(withChild, [withChild.activeLayerId!], name);
+      const group = findDocumentLayer(grouped, grouped.activeLayerId!);
+      if (group?.type !== 'group') throw new Error('Expected group fixture.');
+      group.compositing = 'isolated';
+      return grouped;
     };
     const selectedRootIds = (document: ImageDocument, count: number): LayerId[] =>
       document.layers.slice(-count).map(({ id }) => id);
@@ -600,6 +609,13 @@ describe('LightTable document commands', () => {
         pair = append(pair, topKind, `Top ${topKind}`);
         const [bottomId, topId] = selectedRootIds(pair, 2);
         const plan = getMergeLayersPlan(pair, [topId, bottomId]);
+        const boundaryDependsOnBackground = bottomKind === 'adjustment' || topKind === 'adjustment';
+        if (boundaryDependsOnBackground) {
+          expect(plan, `${bottomKind} below ${topKind}`).toBeNull();
+          expect(mergeLayers(pair, [topId, bottomId])).toBe(pair);
+          expect(mergeLayerDown(pair, topId)).toBe(pair);
+          continue;
+        }
         expect(plan, `${bottomKind} below ${topKind}`).toMatchObject({
           layerIds: [bottomId, topId], destinationId: bottomId, name: `Top ${topKind}`
         });
@@ -614,6 +630,11 @@ describe('LightTable document commands', () => {
           const triple = append(pair, thirdKind, `Topmost ${thirdKind}`);
           const ids = selectedRootIds(triple, 3);
           const triplePlan = getMergeLayersPlan(triple, [...ids].reverse());
+          if (thirdKind === 'adjustment') {
+            expect(triplePlan, `${bottomKind}/${topKind}/${thirdKind}`).toBeNull();
+            expect(mergeLayers(triple, [...ids].reverse())).toBe(triple);
+            continue;
+          }
           expect(triplePlan, `${bottomKind}/${topKind}/${thirdKind}`).toMatchObject({
             layerIds: ids, destinationId: ids[0], name: `Topmost ${thirdKind}`
           });
@@ -711,6 +732,8 @@ describe('LightTable document commands', () => {
         const topId = document.activeLayerId!;
         document = groupLayers(document, [bottomId, topId], 'Pair');
         const groupId = document.activeLayerId!;
+        const group = findDocumentLayer(document, groupId);
+        if (group?.type === 'group') group.compositing = 'isolated';
         const plan = getMergeLayersPlan(document, [topId, bottomId]);
         expect(plan, `${bottomKind} below ${topKind} in group`).toMatchObject({
           layerIds: [bottomId, topId], destinationId: bottomId
@@ -739,6 +762,83 @@ describe('LightTable document commands', () => {
       destinationId: background.id,
       layerIds: [background.id, middle.id, top.id],
       name: top.name
+    });
+  });
+
+  it('fails closed when a merge boundary depends on an unselected lower sibling', () => {
+    const base = createImageDocument('Boundary', 100, 50, 'asset');
+    const appendRasterPair = (document: ImageDocument) => {
+      const middle = createRasterLayer(document, 'Middle');
+      return createRasterLayer(middle, 'Top');
+    };
+
+    let blended = appendRasterPair(base);
+    blended = setLayerBlendMode(blended, blended.layers[1]!.id, 'multiply');
+    expect(getMergeLayersPlan(blended, blended.layers.slice(1).map(({ id }) => id))).toBeNull();
+
+    let clipped = appendRasterPair(base);
+    clipped = setLayerClipping(clipped, clipped.layers[1]!.id, true);
+    expect(getMergeLayersPlan(clipped, clipped.layers.slice(1).map(({ id }) => id))).toBeNull();
+
+    const adjusted = createAdjustmentLayer(
+      base,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Grade'
+    );
+    const top = createRasterLayer(adjusted, 'Top');
+    expect(getMergeLayersPlan(top, top.layers.slice(1).map(({ id }) => id))).toBeNull();
+
+    const selectedBase = createRasterLayer(base, 'Selected base');
+    const selectedWithGrade = createAdjustmentLayer(
+      selectedBase,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Selected grade'
+    );
+    const selectedIds = selectedWithGrade.layers.slice(1).map(({ id }) => id);
+    expect(getMergeLayersEligibility(selectedWithGrade, selectedIds)).toMatchObject({
+      ok: false,
+      reason: 'external-backdrop',
+      message: expect.stringContaining('content below')
+    });
+
+    const withChild = createRasterLayer(base, 'Group child');
+    const grouped = groupLayers(withChild, [withChild.activeLayerId!], 'Pass through');
+    const withTop = createRasterLayer(grouped, 'Top');
+    expect(getMergeLayersPlan(
+      withTop,
+      withTop.layers.slice(1).map(({ id }) => id)
+    )).toBeNull();
+  });
+
+  it('only flattens a pass-through group when it has no external lower sibling', () => {
+    const sole = createImageDocument('Sole group', 100, 50, 'asset');
+    const soleGroup = groupLayers(sole, [sole.activeLayerId!], 'Only root');
+    expect(getFlattenGroupPlan(soleGroup, soleGroup.activeLayerId!)).not.toBeNull();
+
+    const base = createImageDocument('External backdrop', 100, 50, 'background');
+    const withChild = createRasterLayer(base, 'Group child');
+    const grouped = groupLayers(withChild, [withChild.activeLayerId!], 'Pass through');
+    const groupId = grouped.activeLayerId!;
+    expect(getFlattenGroupPlan(grouped, groupId)).toBeNull();
+    expect(getFlattenGroupEligibility(grouped, groupId)).toMatchObject({
+      ok: false,
+      reason: 'external-backdrop',
+      message: expect.stringContaining('content below')
+    });
+
+    const isolated = structuredClone(grouped);
+    const group = findDocumentLayer(isolated, groupId);
+    if (group?.type !== 'group') throw new Error('Expected group fixture.');
+    group.compositing = 'isolated';
+    expect(getFlattenGroupPlan(isolated, groupId)).not.toBeNull();
+
+    const innerSource = createRasterLayer(base, 'Inner source');
+    const withInner = groupLayers(innerSource, [innerSource.activeLayerId!], 'Inner');
+    const innerId = withInner.activeLayerId!;
+    const withOuter = groupLayers(withInner, [innerId], 'Outer');
+    expect(getFlattenGroupEligibility(withOuter, innerId)).toMatchObject({
+      ok: false,
+      reason: 'external-backdrop'
     });
   });
 
@@ -823,6 +923,8 @@ describe('LightTable document commands', () => {
       groupId,
       true
     );
+    const group = findDocumentLayer(grouped, groupId);
+    if (group?.type === 'group') group.compositing = 'isolated';
     expect(getFlattenGroupPlan(grouped, groupId)?.layerIds).toEqual([groupId, paint.id]);
 
     const flattenedGroup = flattenGroup(grouped, groupId);

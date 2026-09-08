@@ -40,10 +40,26 @@ export interface EditorKeyboardControllerOptions {
   readonly onCapsLockChange: (active: boolean) => void;
 }
 
+const textEditingInputTypes = new Set([
+  'text', 'search', 'email', 'url', 'tel', 'password', 'number',
+  'date', 'datetime-local', 'month', 'time', 'week'
+]);
+
+export const isTextEditingInputType = (type: string): boolean => (
+  textEditingInputTypes.has(type.toLowerCase())
+);
+
+export const inputAcceptsTextEditing = (
+  type: string,
+  readOnly: boolean,
+  disabled: boolean
+): boolean => !readOnly && !disabled && isTextEditingInputType(type);
+
 const isTextEditingTarget = (target: EventTarget | null) => (
-  target instanceof HTMLTextAreaElement
-  || target instanceof HTMLSelectElement
-  || (target instanceof HTMLInputElement && target.type !== 'range')
+  (target instanceof HTMLTextAreaElement && !target.readOnly && !target.disabled)
+  || (target instanceof HTMLSelectElement && !target.disabled)
+  || (target instanceof HTMLInputElement
+    && inputAcceptsTextEditing(target.type, target.readOnly, target.disabled))
   || (target instanceof HTMLElement && target.isContentEditable)
 );
 
