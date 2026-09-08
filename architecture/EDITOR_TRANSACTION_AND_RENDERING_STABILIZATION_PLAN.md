@@ -20,6 +20,26 @@ The stabilization objective is to make one visible user action one coherent, rec
 
 This document is the working plan for escaping the current bug-fix loop. It does not authorize new editor features or visual redesign work.
 
+## 2026-09-08 architecture boundary decision
+
+The prior stabilization work improved several local lifetimes but did not make
+one owner enforceable across complete user workflows. Further broad mutation of
+the legacy editor is therefore paused. The target control plane is now being
+built beside it as the isolated `@lighttable/editor-kernel` package.
+
+The authoritative migration rules are in
+[Editor kernel migration](editor-kernel/README.md). Existing algorithms and
+working interactions remain in place until a complete vertical slice is proven.
+Within one semantic command, legacy and kernel transaction ownership may not be
+mixed. The first intended proof is the selection/marquee vertical recorded in
+[Migration playbook](editor-kernel/MIGRATION_PLAYBOOK.md); its actual progress
+is recorded separately in
+[Migration status](editor-kernel/MIGRATION_STATUS.md).
+
+This decision changes the continuation method, not the evidence below. Entries
+in this stabilization document remain historical/current implementation facts
+and must not be re-labelled as kernel behavior.
+
 ## Executive conclusion
 
 The central defect is shared transaction ownership.

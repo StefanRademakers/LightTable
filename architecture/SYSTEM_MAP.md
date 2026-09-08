@@ -9,6 +9,7 @@ apps/ui-demo             Interactive catalog for shared UI primitives and compos
 apps/local-ai-provider   Managed desktop local-inference process
 apps/mcp-server          Remote MCP/OAuth adapter over semantic commands
 packages/command-contract Machine-readable semantic command and exposure profiles
+packages/editor-kernel    Target semantic transaction, ownership and projection contracts
 packages/lighttable-app  Shared application, editor, UI and WebGPU engine
 packages/ui              Themeable shared UI primitives and reusable composites
 packages/genai-core      Provider-neutral GenAI models, workflows, jobs and presentation contracts
@@ -70,6 +71,13 @@ Dependencies flow downward. GPU and DOM types must not leak into the canonical
 document model, workspace model or reversible command descriptions. Hosts may
 provide capabilities, but the editor must not import host state, routes, S3
 details or Electron APIs.
+
+`@lighttable/editor-kernel` is a target control-plane boundary being introduced
+beside the current editor. It may coordinate document-scoped commands,
+transactions, history/resource ownership and render invalidation through ports,
+but it may not import React, host APIs or concrete WebGPU types. No workflow is
+kernel-owned merely because this package exists; current migration evidence is
+tracked in [Editor kernel migration status](editor-kernel/MIGRATION_STATUS.md).
 
 ## Ownership boundaries
 

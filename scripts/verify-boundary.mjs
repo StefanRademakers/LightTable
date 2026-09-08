@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const roots = [
+  'packages/editor-kernel/src',
   'packages/genai-core/src',
   'packages/genai-openart/src',
   'packages/genai-higgsfield/src',
@@ -40,6 +41,32 @@ function verifyGenAiCoreBoundary(relativePath, source) {
   for (const token of forbiddenDependencies) {
     if (source.includes(token)) {
       failures.push(`${relativePath}: genai-core must not depend on ${token}`);
+    }
+  }
+}
+
+function verifyEditorKernelBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/editor-kernel/src/')) return;
+  const forbiddenDependencies = [
+    'react', 'react-dom', 'electron', 'document.', 'window.', 'navigator.',
+    'HTMLCanvasElement', 'OffscreenCanvas', '@lighttable/app',
+    '@lighttable/lighttable-app', 'node:fs', 'node:http', 'node:https'
+  ];
+  for (const token of forbiddenDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: editor-kernel must not depend on ${token}`);
+    }
+  }
+  for (const match of source.matchAll(/\bGPU[A-Z][A-Za-z0-9_]*/g)) {
+    failures.push(`${relativePath}: editor-kernel must not reference WebGPU handle ${match[0]}`);
+  }
+  const importPattern = /from\s+['"]([^'"]+)['"]/g;
+  for (const match of source.matchAll(importPattern)) {
+    const moduleSpecifier = match[1];
+    const isTestDependency = normalizedPath.endsWith('.test.ts') && moduleSpecifier === 'vitest';
+    if (!moduleSpecifier.startsWith('.') && !isTestDependency) {
+      failures.push(`${relativePath}: editor-kernel imports must stay package-relative (${moduleSpecifier})`);
     }
   }
 }
@@ -237,6 +264,7 @@ async function scan(relativeDirectory) {
 
     const source = await readFile(relativePath, 'utf8');
     verifyRendererFacadeImports(relativePath, source);
+    verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);
     verifyGenAiHiggsfieldBoundary(relativePath, source);

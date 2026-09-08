@@ -47,6 +47,39 @@ Do not preload `work/done/`, `architecture/reference/`, `obsolete/`, every test
 or every source file. Search those collections only to answer a concrete
 question. Context is a working set, not a measure of diligence.
 
+### Editor-kernel migration -- mandatory for editor mutations
+
+Updated 2026-09-08. A new isolated `@lighttable/editor-kernel` foundation is
+being built beside the legacy editor. Its purpose is to establish one
+enforceable owner for a complete edit transaction; it is not evidence that the
+current tools have already migrated or become stable.
+
+For selection, transform, layer finalization, text, adjustments/effects,
+history, rendering or command-route work, read
+[Editor kernel migration](editor-kernel/README.md) and its routed contract
+before editing. Check
+[Migration status](editor-kernel/MIGRATION_STATUS.md) to distinguish target,
+partial and proven behavior.
+
+The continuation rules are strict:
+
+- React remains UI and low-frequency projection only; it is not canonical edit
+  authority.
+- A semantic operation uses either its complete legacy route or its complete
+  kernel route. Never split preview, commit, history or cleanup across both.
+- Existing algorithms stay in their domain packages. The kernel coordinates
+  identity, transaction, ownership and invalidation; it does not absorb paint,
+  vector, text, filter or WebGPU implementations.
+- No legacy route is removed until one explicit artist-visible vertical passes
+  canonical state, pixels, layers, history, cleanup and real-app validation.
+- A passing unit suite does not advance the migration ledger's real-app column.
+- Large files are reduced only as a migrated slice removes a named authority;
+  mechanical file splitting is not an architectural milestone.
+
+The package boundary check rejects React, DOM/host and concrete WebGPU
+dependencies inside `editor-kernel`. Do not weaken that check to make an
+adapter convenient; adapters belong outside the kernel.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after
@@ -360,12 +393,12 @@ historical measurements for evidence, not as today's launch configuration. Read
 
 | Change | Read first | Trace to |
 | --- | --- | --- |
-| canvas interaction, tool or shortcut | [INPUT_TOOLS_AND_HISTORY.md](INPUT_TOOLS_AND_HISTORY.md) | input router -> document controller -> preview -> one history commit |
-| transform, bounds, masks or layer semantics | [DOCUMENT_AND_SCENE_MODEL.md](DOCUMENT_AND_SCENE_MODEL.md) | canonical operation -> scene graph -> renderer contract -> export |
+| canvas interaction, tool or shortcut | [INPUT_TOOLS_AND_HISTORY.md](INPUT_TOOLS_AND_HISTORY.md) and [Tool session protocol](editor-kernel/TOOL_SESSION_PROTOCOL.md) | input adapter -> one legacy or kernel route -> preview -> one history commit |
+| transform, bounds, masks or layer semantics | [DOCUMENT_AND_SCENE_MODEL.md](DOCUMENT_AND_SCENE_MODEL.md), [Document ownership](editor-kernel/DOCUMENT_OWNERSHIP.md) and [Edit transaction](editor-kernel/EDIT_TRANSACTION.md) | canonical operation -> scene graph -> renderer projection -> export |
 | compositor, shader, vector backend, effect or performance | [RENDERING_AND_PROCESSING.md](RENDERING_AND_PROCESSING.md), [VECTOR_SYSTEM.md](VECTOR_SYSTEM.md) and [PERFORMANCE_CONTRACT.md](PERFORMANCE_CONTRACT.md) | dirty domain -> render island/resource owner -> encoder stage -> telemetry |
 | visible UI, panel, workspace or accessibility | [UI_WORKSPACE_AND_DESIGN_SYSTEM.md](UI_WORKSPACE_AND_DESIGN_SYSTEM.md) and [ACCESSIBILITY_KEYBOARD_AND_FOCUS.md](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md) | shared primitive/model -> projected panel -> desktop smoke |
 | PSD, PDF, color or format behavior | [PHOTOSHOP_INTERCHANGE.md](PHOTOSHOP_INTERCHANGE.md) or [PDF_OPEN_AND_EXPORT_AUDIT.md](PDF_OPEN_AND_EXPORT_AUDIT.md) | importer model -> representability -> worker/export -> real oracle |
-| MCP, Agent Access or command exposure | [integrations/LIGHTTABLE_MCP_V1.md](integrations/LIGHTTABLE_MCP_V1.md) | stable command ID -> validation/permission -> driver -> adapter |
+| MCP, Agent Access or command exposure | [integrations/LIGHTTABLE_MCP_V1.md](integrations/LIGHTTABLE_MCP_V1.md) and [Command routing](editor-kernel/COMMAND_ROUTING.md) | stable command ID -> validation/permission -> one semantic handler -> adapter |
 | GenAI, local inference or model lifecycle | [features/GENAI_BOUNDED_CONTEXT.md](features/GENAI_BOUNDED_CONTEXT.md) | provider contract -> host process/auth -> asset/provenance -> document command |
 | save, recovery, host or portability | [HOSTS_IO_AND_PORTABILITY.md](HOSTS_IO_AND_PORTABILITY.md) and [RELIABILITY_AND_VERIFICATION.md](RELIABILITY_AND_VERIFICATION.md) | host capability -> session revision -> durable result/failure |
 | licensing, release or distribution | [COMMERCIAL_OPERATIONS_AND_OUTAGE_RUNBOOK.md](COMMERCIAL_OPERATIONS_AND_OUTAGE_RUNBOOK.md) and [SUPPORTED_HARDWARE_AND_SOAK_GATE.md](SUPPORTED_HARDWARE_AND_SOAK_GATE.md) | policy contract -> signed/packaged artifact -> exact-build evidence |

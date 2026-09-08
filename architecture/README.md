@@ -70,6 +70,7 @@ the task genuinely spans every system.
 - [First-run onboarding](features/FIRST_RUN_ONBOARDING.md)
 - [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
 - [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+- [Editor kernel migration](editor-kernel/README.md)
 - [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
 - [Build and distribution](contracts/BUILD_AND_DISTRIBUTION.md)
 - [Accessibility, keyboard and focus](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md)

@@ -50,3 +50,12 @@ the normal image path working. Update this architecture when a boundary or
 contract changes; update `work/todo/` for unfinished task details. Completed
 task packages move to `work/done/`, but architectural knowledge must not depend
 on task archives or chat transcripts.
+
+## Editor-kernel migration discipline
+
+For any operation covered by `architecture/editor-kernel/`, record whether its
+route is legacy or kernel before editing. Do not mix those owners inside one
+gesture or command. Update `editor-kernel/MIGRATION_STATUS.md` only when the
+corresponding evidence column is actually proven. A contract or test alone is
+not real-app proof, and a kernel route is not complete while the legacy fallback
+can still mutate part of the same operation.
