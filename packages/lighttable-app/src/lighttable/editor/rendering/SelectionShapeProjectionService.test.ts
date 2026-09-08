@@ -288,13 +288,23 @@ describe('SelectionShapeProjectionService', () => {
     expect(left.result.coverage.translation).toEqual({ source, x: -30, y: 0 });
     left.dispose();
 
-    const back = await service.prepareTranslation(document, left.result, {
+    const replayed = await service.prepareSnapshot(
+      document,
+      baseline,
+      left.result,
+      'translation-redo' as TransactionId,
+      new AbortController().signal,
+    );
+    expect(replayed.result.coverage.translation).toEqual({ source, x: -30, y: 0 });
+    replayed.dispose();
+
+    const back = await service.prepareTranslation(document, replayed.result, {
       x: 30, y: 0,
       provenance: { mode: 'transform', shape: rectangle.shape,
         transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 0 } },
     }, 'translation-back' as TransactionId, new AbortController().signal);
 
-    expect(restored).toEqual([source, source]);
+    expect(restored).toEqual([source, left.result.coverage, source]);
     expect(transforms).toEqual([{ tx: -30, ty: 0 }, { tx: 0, ty: 0 }]);
     expect(back.result.coverage.translation).toEqual({ source, x: 0, y: 0 });
     back.dispose();

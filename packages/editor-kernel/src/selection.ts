@@ -49,7 +49,7 @@ export interface PreparedSelectionProjection<Coverage = unknown, Provenance = un
 }
 
 export interface SelectionProjectionActivation {
-  /** Keeps the activated projection after canonical state and history accept it. */
+  /** Keeps the activated projection. Terminal cleanup MUST NOT throw. */
   accept(): void;
   /** Restores the exact prior projection when publication is rejected. */
   rollback(): void;
@@ -157,7 +157,9 @@ export class SelectionMutationCoordinator<Intent = unknown, Coverage = unknown, 
         reservation.cancel();
         return { ok: false, reason: 'conflict', message: 'The selection changed concurrently.' };
       }
-      activation.accept();
+      // State and history are now irreversibly published. Acceptance is
+      // terminal resource cleanup and may not invalidate that atomic result.
+      try { activation.accept(); } catch { /* projection violated its non-throwing contract */ }
       return { ok: true, selection: prepared.result };
     } catch (reason) {
       if (activation) {

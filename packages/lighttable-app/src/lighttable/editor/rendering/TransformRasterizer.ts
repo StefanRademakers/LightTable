@@ -105,6 +105,9 @@ export class TransformRasterizer {
       throw new Error('The active raster layer is not available on the GPU.');
     }
     const { selectionTextures } = this.options;
+    if (useSelection && selectionTextures.previewMutationActive) {
+      throw new Error('The selection is still being previewed.');
+    }
     if (useSelection && (!selectionTextures.active || !selectionTextures.mask)) {
       throw new Error('The active selection is not available on the GPU.');
     }

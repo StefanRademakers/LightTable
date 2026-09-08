@@ -85,16 +85,20 @@ Selection-specific reset, updated 2026-09-08: read
 touching marquee, selection paint, clipboard crop or selection history.
 Geometric pointer-up, `selection.applyShape`, move, nudge and selection-paint
 terminal commits use `SelectionShapeCommandService` and the kernel coordinator.
-Pointer movement is renderer-only: simple shapes use semantic overlay geometry
-and compound masks use a shader sampling offset over the opening mask. Exact
+Pointer movement is renderer-only: previews may use semantic overlay geometry
+and compound masks use a shader sampling offset over the opening mask; committed
+contours and hit-tests always use exact mask coverage. Exact
 mask snapshot, measured support bounds, semantic provenance and monotonic
 selection revision are one committed value. Document rebind projects that
 value without authoring a revision. Copy/Copy Merged and raster paint retain a
 revision lease through completion.
 
-The packaged `smoke:desktop:selection-kernel` acceptance covers edge excursions
-and return on all sides, nudge, paint clipping, selection paint, copy bounds,
-undo/redo and tab rebind. `smoke:desktop:pixel-clipboard` additionally proves
+The packaged `smoke:desktop:selection-kernel` acceptance covers byte-identical
+edge excursions and return on all sides, clipped-translation undo/redo, nudge,
+paint clipping, drag from paint-only coverage, selection paint, copy bounds and
+tab rebind. Selection-paint preview temporarily owns the live GPU mask and all
+committed-mask consumers fail closed until the exact baseline is restored.
+`smoke:desktop:pixel-clipboard` additionally proves
 UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
 owner visual acceptance: keep the complete legacy fallback until the owner has
 confirmed the contour and pointer feel in a manual run.

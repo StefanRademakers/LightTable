@@ -95,13 +95,13 @@ class PreparedShapeProjection implements PreparedSelectionProjection<
     return {
       accept: () => {
         if (resolved || this.phase !== 'activated' || !this.priorState) {
-          throw new Error('The selection projection activation is already resolved.');
+          return;
         }
         resolved = true;
-        this.recycle(this.priorState);
+        try { this.recycle(this.priorState); } catch { /* terminal cleanup is best-effort */ }
         this.priorState = null;
         this.phase = 'terminal';
-        this.stage.dispose();
+        try { this.stage.dispose(); } catch { /* terminal cleanup is best-effort */ }
       },
       rollback: () => {
         if (resolved || this.phase !== 'activated' || !this.priorState) {
@@ -254,18 +254,21 @@ export class SelectionShapeProjectionService {
       if (!stage.restore(target.coverage)) {
         throw new Error('The selection snapshot could not be staged.');
       }
-      const coverage = await stage.capture();
+      const captured = await stage.capture();
       if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
-      const measured = coverage.active ? await stage.measure() : null;
+      const measured = target.active ? await stage.measure() : null;
       if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
-      if (coverage.active && !measured && target.supportBounds !== null) {
+      if (target.active && !measured && target.supportBounds !== null) {
         throw new Error('The restored selection has no measurable coverage.');
       }
+      const coverage = target.coverage.translation
+        ? captured.withTranslation(target.coverage, 0, 0)
+        : captured;
       const result: SelectionState = {
         documentSessionId: document.sessionId,
         revision: (baseline.revision + 1) as SelectionRevision,
         canvas: { ...baseline.canvas },
-        active: coverage.active,
+        active: target.active,
         coverage,
         supportBounds: measured?.supportBounds ?? null,
         provenance: [...target.provenance],

@@ -22,6 +22,8 @@ export class SelectionTextureStore {
   shape: GPUTexture | null = null;
   clipboard: GPUTexture | null = null;
   active = false;
+  /** True only while a reversible selection-paint preview owns the live mask. */
+  previewMutationActive = false;
 
   constructor(private readonly options: SelectionTextureStoreOptions) {}
 
@@ -133,5 +135,6 @@ export class SelectionTextureStore {
     this.shape = null;
     this.clipboard = null;
     this.active = false;
+    this.previewMutationActive = false;
   }
 }

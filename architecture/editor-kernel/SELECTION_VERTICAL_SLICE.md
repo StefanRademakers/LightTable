@@ -17,7 +17,7 @@ the review baseline for removing mixed ownership.
 | replace/add/subtract/intersect | semantic `selection.applyShape` command or the same UI gesture result | same shape command service | staged mask, measured bounds and exact snapshot activate together | UI, Actions and MCP already converge on `selection.applyShape` |
 | pointer move of marquee | `useSelectionSessionController` translation gesture | `SelectionShapeCommandService.executeTranslation` | semantic direct-shape preview or mask-contour shader offset; staged final mask | final coverage derives from opening lineage plus cumulative displacement |
 | keyboard nudge | keymap -> `nudgeSelectionMask` -> controller `translate` | same kernel translation command | staged exact translation | serialized through the same transaction/history admission as drag |
-| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | live preview is restored, then final dabs stage on spare targets | pointer preview is renderer-local; only terminal intent commits |
+| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | reversible live preview is restored, then final dabs stage on spare targets | committed-mask consumers fail closed while preview owns the live texture; only terminal intent commits |
 | paint through selection | `usePaintSessionController` | pixel-edit transaction | `RasterPaintService` reads the committed mask | stroke captures and revalidates the document selection revision |
 | copy / Copy Merged | layer document command gateway | read-only clipboard task | `SelectionClipboardService` reads the mask | lease uses measured committed bounds and rejects stale completion |
 | undo/redo of shape | document history | `SelectionShapeCommandService.restore` | staged exact-snapshot activation | kernel-owned for shape entries only |
@@ -48,7 +48,7 @@ At every point the visible contour, reported bounds, effective paint mask,
 clipboard crop and undo state must refer to the same committed selection
 revision. Temporary viewport clipping may not shrink that committed value.
 
-## Current authority map
+## Baseline authority map at `5152b53b`
 
 | Concern | Current owner/path | Current truth used |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ revision. Temporary viewport clipping may not shrink that committed value.
 | selection history | `useSelectionSessionController.pushHistory` -> `DocumentCommandHistory` | closures over before/after operations and snapshots |
 | Action/MCP | command service -> overlay command port -> selection controller | active presentation controller |
 
-## Proven divergence
+## Proven baseline divergence
 
 The current system does not have one committed selection value:
 
@@ -134,18 +134,26 @@ allocating three document-sized textures per gesture. A dimension change
 destroys the incompatible spare. This preserves the required double buffer
 without adding pointer-rate allocation churn.
 
-Move and nudge commits use the same route. A translated snapshot retains its
+Move and nudge commits use the same route. Hit-testing samples the exact mask
+without decoding a document-sized copy, snapping starts from its measured
+support bounds, and the committed contour always reads the mask rather than
+semantic provenance. A translated snapshot retains its
 opening coverage and cumulative displacement, so moving outside the fixed-size
 canvas mask and back cannot accept clipped texels as the new source. Pointer
-movement does not mutate canonical state or allocate full-size targets: direct
-shapes move semantically and compound masks move by an inverse sampling offset
-in the contour shader.
+movement does not mutate canonical state or allocate full-size targets: preview
+shapes may move semantically and compound masks move by an inverse sampling
+offset in the contour shader.
 
 Selection paint may mutate the live mask only as a reversible pointer preview.
+While that preview owns the texture, clipboard, raster paint/fill/invert and
+selection-based transform consumers fail closed instead of observing temporary
+coverage under the unchanged committed revision.
 Pointer-up restores the exact baseline and stages the complete dab list through
-the kernel route. Undo and redo prepare the recorded exact snapshot offscreen,
-activate it, then publish a fresh monotonic selection revision. A failed prepare
-cannot change canonical state or history.
+the kernel route. Undo and redo preserve translation lineage while preparing
+the recorded exact snapshot offscreen, activate it, then publish a fresh
+monotonic selection revision. A failed prepare cannot change canonical state or
+history. Terminal activation acceptance is a non-throwing cleanup contract, so
+cleanup cannot retroactively split already-published state and history.
 
 Copy and Copy Merged acquire a `SelectionReadLease`, crop to the measured mask
 support bounds and reject an async result if either the document or selection
@@ -201,9 +209,11 @@ primitive directly.
   paths, including committed geometric coverage and current controls.
 - `smoke:desktop:selection-zoom-drag`: zoomed pointer translation without a
   runtime/GPU error.
-- `smoke:desktop:selection-kernel`: all four edge excursions and return, nudge,
-  raster paint clipped to the selection (3,840 changed pixels, none outside),
-  selection paint, exact Copy bounds, undo/redo and two-document rebind.
+- `smoke:desktop:selection-kernel`: all four edge excursions and return with
+  byte-identical copied pixels, clipped-translation undo/redo/return, nudge,
+  raster paint spanning every selected column (3,840 changed pixels, none
+  outside), drag from paint-only coverage, selection paint, exact Copy bounds
+  and two-document rebind.
 - `smoke:desktop:pixel-clipboard`: exact UI/Actions/MCP Copy, Copy Merged and
   Paste render equivalence after undo.
 

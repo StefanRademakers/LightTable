@@ -893,6 +893,16 @@ export class LayerDocumentRenderer {
     );
   }
 
+  beginSelectionPaintPreview() {
+    if (this.runtime.selectionTextures.previewMutationActive) return false;
+    this.runtime.selectionTextures.previewMutationActive = true;
+    return true;
+  }
+
+  endSelectionPaintPreview() {
+    this.runtime.selectionTextures.previewMutationActive = false;
+  }
+
   applyMagicWandToActiveLayer(
     document: ImageDocument,
     layerId: LayerId,

@@ -45,7 +45,22 @@ try {
     const copied = await driver.execute(documentId, 'selection.copyPixels', { source: 'merged' });
     return copied.value?.bounds;
   };
-  assert.deepEqual(await copyBounds(), expectedBounds);
+  const copyPixels = async () => {
+    const copied = await driver.execute(documentId, 'selection.copyPixels', { source: 'merged' });
+    const artifact = await driver.readArtifact(copied.value?.artifact?.id);
+    assert.ok(artifact?.bytes?.length, 'Selection copy returned no pixel artifact.');
+    const image = await sharp(artifact.bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    return { bounds: copied.value?.bounds, image };
+  };
+  const originalCopy = await copyPixels();
+  assert.deepEqual(originalCopy.bounds, expectedBounds);
+  const assertOriginalCopy = async () => {
+    const current = await copyPixels();
+    assert.deepEqual(current.bounds, expectedBounds);
+    assert.deepEqual(current.image.info, originalCopy.image.info);
+    assert.deepEqual(current.image.data, originalCopy.image.data,
+      'Selection pixels changed after an edge excursion and return.');
+  };
 
   let pointer = 100;
   const gesture = async (kind, parameters, start, samples) => {
@@ -73,8 +88,18 @@ try {
   for (const [start, outside, displaced, returnStart, returned] of excursions) {
     await gesture('selection-rectangle', { mode: 'replace' }, start, [outside, displaced]);
     await gesture('selection-rectangle', { mode: 'replace' }, returnStart, [returned]);
-    assert.deepEqual(await copyBounds(), expectedBounds);
+    await assertOriginalCopy();
   }
+
+  // History restore must retain the opening mask lineage, not the clipped GPU
+  // realization produced while the selection is partly outside the canvas.
+  await gesture('selection-rectangle', { mode: 'replace' },
+    { x: 60, y: 60 }, [{ x: -140, y: 60 }, { x: 10, y: 60 }]);
+  await driver.execute(documentId, 'history.undo');
+  await driver.execute(documentId, 'history.redo');
+  await gesture('selection-rectangle', { mode: 'replace' },
+    { x: 20, y: 60 }, [{ x: 70, y: 60 }]);
+  await assertOriginalCopy();
 
   // Nudge uses the same terminal translation route and must also round-trip.
   await page.keyboard.press('m');
@@ -100,6 +125,9 @@ try {
     { x: 0, y: 60, pressure: 1 }, [{ x: 255, y: 60, pressure: 1 }]);
   const afterPaint = await previewRaw();
   let changed = 0;
+  const changedColumns = new Set();
+  let changedMinX = Infinity;
+  let changedMaxX = -Infinity;
   for (let index = 0; index < beforePaint.data.length; index += 4) {
     if (beforePaint.data[index] === afterPaint.data[index]
       && beforePaint.data[index + 1] === afterPaint.data[index + 1]
@@ -110,8 +138,15 @@ try {
     assert.ok(x >= expectedBounds.x && x < expectedBounds.x + expectedBounds.width
       && y >= expectedBounds.y && y < expectedBounds.y + expectedBounds.height,
     `Paint escaped committed selection at ${x},${y}`);
+    changedColumns.add(x);
+    changedMinX = Math.min(changedMinX, x);
+    changedMaxX = Math.max(changedMaxX, x);
   }
   assert.ok(changed > 0, 'Paint through the committed selection changed no pixels.');
+  assert.equal(changedColumns.size, expectedBounds.width,
+    'Paint did not cover every selected column.');
+  assert.equal(changedMinX, expectedBounds.x);
+  assert.equal(changedMaxX, expectedBounds.x + expectedBounds.width - 1);
 
   await gesture('selection-paint', { mode: 'add', size: 24, hardness: 1, opacity: 1, smooth: 0 },
     { x: 110, y: 60, pressure: 1 }, [{ x: 116, y: 60, pressure: 1 }]);
@@ -121,6 +156,15 @@ try {
   assert.deepEqual(await copyBounds(), expectedBounds);
   await driver.execute(documentId, 'history.redo');
   assert.deepEqual(await copyBounds(), paintedBounds);
+  const paintedCopy = await copyPixels();
+  await gesture('selection-rectangle', { mode: 'replace' },
+    { x: 110, y: 60 }, [{ x: 113, y: 60 }]);
+  await gesture('selection-rectangle', { mode: 'replace' },
+    { x: 113, y: 60 }, [{ x: 110, y: 60 }]);
+  const returnedPaintedCopy = await copyPixels();
+  assert.deepEqual(returnedPaintedCopy.bounds, paintedCopy.bounds);
+  assert.deepEqual(returnedPaintedCopy.image.data, paintedCopy.image.data,
+    'Paint-only selection coverage was not draggable from its exact mask.');
 
   const second = await driver.executeWorkspace('document.create', {
     name: 'Selection kernel secondary', width: 64, height: 64, resolutionPpi: 72,

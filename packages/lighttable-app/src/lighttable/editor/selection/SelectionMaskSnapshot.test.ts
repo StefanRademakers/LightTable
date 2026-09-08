@@ -42,4 +42,13 @@ describe('SelectionMaskSnapshot', () => {
     expect(second.translation).toEqual({ source, x: 0, y: 0 });
     expect([...second.toRaw()]).toEqual([1, 2, 3, 4, 5, 6]);
   });
+
+  it('samples raw and compressed exact coverage without decoding a full copy', () => {
+    const raw = SelectionMaskSnapshot.fromRaw(3, 2, Uint16Array.from([0, 1, 0, 2, 0, 3]));
+    const compressed = SelectionMaskSnapshot.fromRaw(3, 2, Uint16Array.from([0, 0, 0, 4, 4, 4]));
+    expect(raw.contains(1, 0)).toBe(true);
+    expect(raw.contains(0, 0)).toBe(false);
+    expect(compressed.contains(2, 1)).toBe(true);
+    expect(compressed.contains(-1, 0)).toBe(false);
+  });
 });

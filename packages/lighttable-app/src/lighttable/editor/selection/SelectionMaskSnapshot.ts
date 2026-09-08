@@ -101,6 +101,24 @@ export class SelectionMaskSnapshot {
     if (!this.#runs) throw new Error('The selection snapshot payload is unavailable.');
     return decodeRuns(this.#runs, this.width * this.height);
   }
+
+  /** Samples exact committed coverage without allocating a decoded full-size copy. */
+  contains(x: number, y: number): boolean {
+    if (!this.active || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const column = Math.floor(x);
+    const row = Math.floor(y);
+    if (column < 0 || row < 0 || column >= this.width || row >= this.height) return false;
+    const target = row * this.width + column;
+    if (this.#raw) return this.#raw[target] !== 0;
+    if (!this.#runs) return false;
+    let offset = 0;
+    for (const run of this.#runs) {
+      const length = (run & 0xffff) + 1;
+      if (target < offset + length) return (run >>> 16) !== 0;
+      offset += length;
+    }
+    return false;
+  }
 }
 
 const assertDimensions = (width: number, height: number) => {

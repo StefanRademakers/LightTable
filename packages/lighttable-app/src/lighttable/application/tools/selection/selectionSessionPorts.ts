@@ -50,6 +50,8 @@ export interface SelectionRendererPort {
     opacity: number,
     mode: 'add' | 'subtract'
   ): Promise<boolean>;
+  beginSelectionPaintPreview?(): boolean;
+  endSelectionPaintPreview?(): void;
 }
 
 /** Ports at the gesture boundary; committed writes enter through commit*. */
@@ -58,6 +60,7 @@ export interface SelectionSessionDependencies {
   getRenderer(): SelectionRendererPort | null;
   getSelection(): SelectionOperation[];
   getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
+  getSelectionSupportBounds?(): Rect | null;
   publishSelection(
     operations: SelectionOperation[],
     pointerId: number | null,

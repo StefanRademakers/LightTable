@@ -29,15 +29,17 @@ describe('SelectionClipboardService copy orchestration', () => {
     const encoder = { finish } as unknown as GPUCommandEncoder;
     const submit = vi.fn();
     const textureCodec = { encodeUnchecked: vi.fn(async () => new Blob(['region'])) };
+    const textures = {
+      active: true,
+      mask: {} as GPUTexture,
+      previewMutationActive: false,
+    };
     const service = new SelectionClipboardService({
       device: {
         createCommandEncoder: vi.fn(() => encoder),
         queue: { submit }
       } as unknown as GPUDevice,
-      textures: {
-        active: true,
-        mask: {} as GPUTexture
-      } as never,
+      textures: textures as never,
       layerResources: {} as never,
       textureCodec: textureCodec as never,
       dimensions: () => ({ width: 64, height: 32 }),
@@ -47,7 +49,7 @@ describe('SelectionClipboardService copy orchestration', () => {
       drawFullscreen: vi.fn()
     });
     vi.spyOn(service, 'encodeLayerCopy').mockReturnValue(true);
-    return { service, encoder, finish, submit, textureCodec };
+    return { service, encoder, finish, submit, textureCodec, textures };
   };
 
   it('isolates a visible layer with normal blend before copying its selection', () => {
@@ -95,6 +97,17 @@ describe('SelectionClipboardService copy orchestration', () => {
       vi.fn()
     )).toBe(false);
     expect(encodeComposite).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('refuses to read the mask during a reversible selection-paint preview', () => {
+    const { service, textures, submit } = createService();
+    const document = createImageDocument('Clipboard', 64, 32, 'source');
+    textures.previewMutationActive = true;
+
+    expect(service.copySelectedLayer(
+      document, document.layers[0].id, vi.fn(), vi.fn()
+    )).toBe(false);
     expect(submit).not.toHaveBeenCalled();
   });
 

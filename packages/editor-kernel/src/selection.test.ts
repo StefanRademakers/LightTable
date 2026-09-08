@@ -120,4 +120,51 @@ describe('SelectionMutationCoordinator', () => {
     expect(result).toMatchObject({ ok: false, reason: 'conflict' });
     expect(events).toEqual(['rollback', 'cancel']);
   });
+
+  it('keeps published state and history when terminal acceptance cleanup misbehaves', async () => {
+    let current = baseline;
+    let historyCommitted = false;
+    let rolledBack = false;
+    const coordinator = new SelectionMutationCoordinator<string, string, string>({
+      state: {
+        read: () => current,
+        compareAndSwap: (expected, next) => {
+          if (current.revision !== expected) return false;
+          current = next;
+          return true;
+        },
+      },
+      projection: {
+        prepare: async () => ({
+          transactionId: 'transaction-cleanup' as TransactionId,
+          baselineRevision: baseline.revision,
+          result: after,
+          activate: () => ({
+            accept: () => { throw new Error('cleanup failed'); },
+            rollback: () => { rolledBack = true; },
+          }),
+          dispose: () => undefined,
+        }),
+        presentPreview: () => undefined,
+        clearPreview: () => undefined,
+      },
+      history: {
+        reserve: () => ({
+          commit: () => { historyCommitted = true; return true; },
+          cancel: () => undefined,
+        }),
+      },
+      publication: { run: (operation) => operation() },
+    });
+
+    await expect(coordinator.execute({
+      target: { sessionId: documentSessionId, revision: 0 as never },
+      intent: 'rectangle',
+      transactionId: 'transaction-cleanup' as TransactionId,
+      signal: new AbortController().signal,
+    })).resolves.toEqual({ ok: true, selection: after });
+    expect(current).toBe(after);
+    expect(historyCommitted).toBe(true);
+    expect(rolledBack).toBe(false);
+  });
 });

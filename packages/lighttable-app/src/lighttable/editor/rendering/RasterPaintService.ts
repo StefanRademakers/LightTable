@@ -75,6 +75,12 @@ export class RasterPaintService {
 
   constructor(private readonly options: RasterPaintServiceOptions) {}
 
+  private assertCommittedSelectionReadable() {
+    if (this.options.selectionTextures.previewMutationActive) {
+      throw new Error('The selection is still being previewed.');
+    }
+  }
+
   /**
    * Moves the lazy paint-only GPU setup out of the first pointer gesture.
    * This is deliberately allocation-bounded and does not encode commands,
@@ -142,6 +148,7 @@ export class RasterPaintService {
     operator?: PaintBrushStrokePlan
   ) {
     if (!dabs.length) return;
+    this.assertCommittedSelectionReadable();
     const pipelines = this.options.brushPipelines();
     this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
@@ -353,6 +360,7 @@ export class RasterPaintService {
     transform: AffineMatrix = identityAffineMatrix(),
     opacity = 1
   ) {
+    this.assertCommittedSelectionReadable();
     const pipelines = this.options.pipelines();
     this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
@@ -424,6 +432,7 @@ export class RasterPaintService {
     preserveTransparency: boolean,
     transform: AffineMatrix = identityAffineMatrix()
   ) {
+    this.assertCommittedSelectionReadable();
     this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
     const target = channel === 'mask'
@@ -507,6 +516,7 @@ export class RasterPaintService {
     channel: PaintChannel = 'pixels',
     transform: AffineMatrix = identityAffineMatrix()
   ) {
+    this.assertCommittedSelectionReadable();
     this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
     const target = channel === 'mask'

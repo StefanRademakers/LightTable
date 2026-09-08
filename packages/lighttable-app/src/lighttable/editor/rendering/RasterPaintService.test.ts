@@ -49,6 +49,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const captureAllHistory = vi.fn();
   const releaseSubmittedResources = vi.fn();
   const drawFullscreen = vi.fn();
+  const selectionTextures = { mask: selection, previewMutationActive: false };
   const service = new RasterPaintService({
     device: {
       createBuffer,
@@ -72,7 +73,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
         ? { texture: source, maskTexture: null, maskId: null, ...rasterSize }
         : null
     } as never,
-    selectionTextures: { mask: selection } as never,
+    selectionTextures: selectionTextures as never,
     dimensions: () => ({ width: 64, height: 32 }),
     brushPipelines: brushPipelines as never,
     pipelines: pipelines as never,
@@ -111,7 +112,8 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     captureHistoryRegions,
     captureAllHistory,
     releaseSubmittedResources,
-    drawFullscreen
+    drawFullscreen,
+    selectionTextures,
   };
 };
 
@@ -154,6 +156,21 @@ describe('RasterPaintService', () => {
     expect(test.pipelines).not.toHaveBeenCalled();
     expect(test.ensureSelectionTargets).not.toHaveBeenCalled();
     expect(test.createBuffer).not.toHaveBeenCalled();
+  });
+
+  it('rejects raster paint while selection-paint preview owns the mask', () => {
+    const test = harness();
+    test.selectionTextures.previewMutationActive = true;
+    expect(() => test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 4, y: 4, size: 4, pressure: 1, flowScale: 1 }],
+      [1, 0, 0],
+      1,
+      1,
+      1
+    )).toThrow('selection is still being previewed');
+    expect(test.captureHistoryRegions).not.toHaveBeenCalled();
   });
 
   it('runs tone brushes from a GPU scratch snapshot and preserves one history capture', () => {

@@ -1873,6 +1873,14 @@ export class WebGpuEngine {
     return task;
   }
 
+  beginSelectionPaintPreview() {
+    return this.documentRenderer?.beginSelectionPaintPreview() ?? false;
+  }
+
+  endSelectionPaintPreview() {
+    this.documentRenderer?.endSelectionPaintPreview();
+  }
+
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
     return this.documentRenderer?.copySelectedLayerContent(
       document,
@@ -4134,6 +4142,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     const selectionTransformPreviewActive =
       this.documentRenderer?.selectionTransformPreviewActive() === true;
     const directShape = this.selectionOverlayVisible
+      && this.selectionPreviewProjectionActive
       && !this.selectionPaintOverlayVisible
       && !selectionTransformPreviewActive
       ? directSelectionShape(this.selectionOverlayOperations)

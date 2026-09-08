@@ -51,6 +51,7 @@ import type {
   SelectionRendererPort,
   SelectionSessionDependencies,
 } from './selectionSessionPorts';
+import { committedSelectionContainsPoint } from './selectionHitTesting';
 export type {
   SelectionHistoryEntry,
   SelectionRendererPort,
@@ -175,72 +176,6 @@ export const cloneSelectionOperations = (
     points: operation.shape.points.map((point) => ({ ...point }))
   }
 }));
-
-const pointInShape = (shape: SelectionShape, point: SelectionPoint): boolean => {
-  if (shape.points.length < 2) return false;
-  if (shape.kind === 'rectangle') {
-    const [first, last] = shape.points;
-    return point.x >= Math.min(first.x, last.x) && point.x <= Math.max(first.x, last.x)
-      && point.y >= Math.min(first.y, last.y) && point.y <= Math.max(first.y, last.y);
-  }
-  if (shape.kind === 'ellipse') {
-    const [first, last] = shape.points;
-    const rx = Math.abs(last.x - first.x) / 2;
-    const ry = Math.abs(last.y - first.y) / 2;
-    if (rx < 1e-6 || ry < 1e-6) return false;
-    const cx = (first.x + last.x) / 2;
-    const cy = (first.y + last.y) / 2;
-    return ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2 <= 1;
-  }
-  let inside = false;
-  const points = shape.points;
-  for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
-    const first = points[index];
-    const second = points[previous];
-    if (((first.y > point.y) !== (second.y > point.y))
-      && point.x < (second.x - first.x) * (point.y - first.y)
-        / (second.y - first.y || 1e-12) + first.x) inside = !inside;
-  }
-  return inside;
-};
-
-const selectionContainsPoint = (
-  operations: readonly SelectionOperation[],
-  point: SelectionPoint
-): boolean => {
-  let sample = (_point: SelectionPoint) => false;
-  operations.forEach((operation) => {
-    const previous = sample;
-    if (operation.mode === 'transform' && operation.transform) {
-      const matrix = operation.transform;
-      const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-      if (Math.abs(determinant) < 1e-8) return;
-      sample = (target) => previous({
-        x: (matrix.d * (target.x - matrix.tx) - matrix.c * (target.y - matrix.ty)) / determinant,
-        y: (-matrix.b * (target.x - matrix.tx) + matrix.a * (target.y - matrix.ty)) / determinant
-      });
-      return;
-    }
-    if (operation.mode === 'feather' || operation.mode === 'border'
-      || operation.mode === 'smooth' || operation.mode === 'expand'
-      || operation.mode === 'contract' || operation.source?.kind === 'similar') return;
-    if (operation.mode === 'invert') {
-      sample = (target) => !previous(target);
-      return;
-    }
-    const shapeSample = operation.source
-      ? (_target: SelectionPoint) => false
-      : (target: SelectionPoint) => pointInShape(operation.shape, target);
-    sample = operation.mode === 'replace'
-      ? shapeSample
-      : operation.mode === 'add'
-        ? (target) => previous(target) || shapeSample(target)
-        : operation.mode === 'subtract'
-          ? (target) => previous(target) && !shapeSample(target)
-          : (target) => previous(target) && shapeSample(target);
-  });
-  return sample(point);
-};
 
 /**
  * Owns selection gestures, command publication and selection-only history.
@@ -457,9 +392,6 @@ export const createSelectionSessionController = (
     const supportBounds = mask.active
       ? (await renderer.measureSelectionBounds())?.supportBounds ?? null
       : null;
-    if (mask.active && !supportBounds) {
-      throw new Error('The restored selection has no measurable coverage.');
-    }
     resolveDependencies().publishSelection(snapshot, null, mask, { supportBounds });
   };
 
@@ -933,7 +865,7 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
-    contains: (point) => selectionContainsPoint(resolveDependencies().getSelection(), point),
+    contains: (point) => committedSelectionContainsPoint(resolveDependencies(), point),
     begin: (
       pointerId,
       tool,
@@ -950,10 +882,12 @@ export const createSelectionSessionController = (
       const renderer = dependencies.getRenderer();
       if (!document || !renderer) return false;
       const before = cloneSelectionOperations(dependencies.getSelection());
-      if (mode === 'replace' && before.length && selectionContainsPoint(before, point)) {
-        const sourceBounds = selectionOperationsEditingBounds(before, {
-          x: 0, y: 0, width: document.width, height: document.height
-        });
+      if (mode === 'replace' && before.length
+        && committedSelectionContainsPoint(dependencies, point)) {
+        const sourceBounds = dependencies.getSelectionSupportBounds?.()
+          ?? selectionOperationsEditingBounds(before, {
+            x: 0, y: 0, width: document.width, height: document.height
+          });
         translation = {
           pointerId,
           document,
@@ -1231,6 +1165,9 @@ export const createSelectionSessionController = (
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
       if (!document || !renderer || paintGesture) return false;
+      if (renderer.beginSelectionPaintPreview && !renderer.beginSelectionPaintPreview()) {
+        return false;
+      }
       const size = Math.max(1, Math.min(1000, options.size));
       const smooth = Math.max(0, Math.min(1, options.smooth));
       const builder = new StrokeBuilder(
@@ -1373,6 +1310,8 @@ export const createSelectionSessionController = (
                 : 'The selection brush stroke could not be applied.'
             );
           }
+        } finally {
+          current.renderer.endSelectionPaintPreview?.();
         }
       });
       return true;
@@ -1397,7 +1336,7 @@ export const createSelectionSessionController = (
             reason instanceof Error ? reason.message : 'The selection could not be restored.'
           );
         }
-      });
+      }).finally(() => current.renderer.endSelectionPaintPreview?.());
       return true;
     },
     ownsPaint: (pointerId) => paintGesture?.pointerId === pointerId,
@@ -1451,7 +1390,7 @@ export const createSelectionSessionController = (
               reason instanceof Error ? reason.message : 'The selection could not be restored.'
             );
           }
-        });
+        }).finally(() => interruptedPaint?.renderer.endSelectionPaintPreview?.());
         }
       }
       if (restoreSelectionAfterMagicWand) {

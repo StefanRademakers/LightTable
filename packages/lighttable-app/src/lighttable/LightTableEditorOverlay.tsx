@@ -2854,6 +2854,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getSelection: () => editorSessionRef.current.selection,
     getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
+    getSelectionSupportBounds: () => editorSessionRef.current.selectionSupportBounds,
     publishSelection: (selection, pointerId, selectionMaskSnapshot, commit) => {
       const nextMask = selectionMaskSnapshot === undefined
         ? editorSessionRef.current.selectionMaskSnapshot

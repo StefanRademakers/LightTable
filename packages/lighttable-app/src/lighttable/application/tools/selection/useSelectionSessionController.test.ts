@@ -44,7 +44,9 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
     applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
     applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true),
-    paintSelectionDabs: vi.fn(async () => true)
+    paintSelectionDabs: vi.fn(async () => true),
+    beginSelectionPaintPreview: vi.fn(() => true),
+    endSelectionPaintPreview: vi.fn(),
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
@@ -388,6 +390,28 @@ describe('selection session controller', () => {
     expect(state.selectionPublications).toBe(publicationsBeforeDrag);
   });
 
+  it('uses exact committed mask coverage and measured bounds for painted-selection drag', () => {
+    const words = new Uint16Array(document.width * document.height);
+    words[20 * document.width + 70] = 0x3c00;
+    const mask = SelectionMaskSnapshot.fromRaw(document.width, document.height, words);
+    const painted: SelectionOperation = {
+      mode: 'add',
+      source: { kind: 'selection-paint', dabs: [], hardness: 1, opacity: 1 },
+      shape: { kind: 'rectangle', points: [{ x: 0, y: 0 }, { x: 100, y: 80 }] },
+    };
+    const state = setup({
+      getSelection: () => [painted],
+      getSelectionMaskSnapshot: () => mask,
+      getSelectionSupportBounds: () => ({ x: 70, y: 20, width: 1, height: 1 }),
+    });
+
+    expect(state.controller.contains({ x: 70, y: 20 })).toBe(true);
+    expect(state.controller.contains({ x: 20, y: 20 })).toBe(false);
+    expect(state.controller.begin(
+      8, 'select-rectangle', { x: 70, y: 20 }, 'replace'
+    )).toBe(true);
+  });
+
   it('drags inside a geometric selection as one selection-only history edit', async () => {
     const state = setup();
     state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
@@ -468,6 +492,8 @@ describe('selection session controller', () => {
     await state.controller.settle();
 
     expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(state.renderer.beginSelectionPaintPreview).toHaveBeenCalledOnce();
+    expect(state.renderer.endSelectionPaintPreview).toHaveBeenCalledOnce();
     expect(commitPaint).toHaveBeenCalledOnce();
     expect(commitPaint).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'add', hardness: 0.5, opacity: 1,

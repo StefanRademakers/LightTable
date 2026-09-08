@@ -67,6 +67,16 @@ interface SelectionClipboardServiceOptions {
 export class SelectionClipboardService {
   constructor(private readonly options: SelectionClipboardServiceOptions) {}
 
+  private committedMaskReadable() {
+    return !this.options.textures.previewMutationActive;
+  }
+
+  private assertCommittedMaskReadable() {
+    if (!this.committedMaskReadable()) {
+      throw new Error('The selection is still being previewed.');
+    }
+  }
+
   copySelectedLayer(
     document: ImageDocument,
     layerId: LayerId,
@@ -77,7 +87,7 @@ export class SelectionClipboardService {
     releaseSubmittedResources: () => void
   ) {
     const { device, textures } = this.options;
-    if (!textures.active || !textures.mask) return false;
+    if (!this.committedMaskReadable() || !textures.active || !textures.mask) return false;
     const layer = findRasterLayer(document, layerId);
     if (!layer || !layer.visible) return false;
     const encoder = device.createCommandEncoder({
@@ -100,7 +110,7 @@ export class SelectionClipboardService {
 
   encodeLayerCopy(encoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
     const { textures, device, drawFullscreen } = this.options;
-    if (!textures.active || !textures.mask) return false;
+    if (!this.committedMaskReadable() || !textures.active || !textures.mask) return false;
     const clipboard = textures.replaceClipboard();
     const pipeline = this.options.pipelines().selectionCopy;
     const bindGroup = device.createBindGroup({
@@ -121,6 +131,7 @@ export class SelectionClipboardService {
   }
 
   async exportLayerSelection(bounds: Rect) {
+    this.assertCommittedMaskReadable();
     const { device, textures, textureCodec } = this.options;
     if (!textures.clipboard) {
       throw new Error('No copied LightTable pixels are available.');
@@ -158,6 +169,7 @@ export class SelectionClipboardService {
   }
 
   async exportDisplaySelection(displayTexture: GPUTexture, bounds: Rect) {
+    this.assertCommittedMaskReadable();
     const { device, textures, drawFullscreen } = this.options;
     if (!textures.active || !textures.mask) {
       throw new Error('A selection is required for Copy Merged.');
@@ -222,6 +234,7 @@ export class SelectionClipboardService {
    * exact document-space registration, so this intentionally does not crop.
    */
   async exportSelectionMask() {
+    this.assertCommittedMaskReadable();
     const { device, textures } = this.options;
     if (!textures.active || !textures.mask) {
       throw new Error('A selection is required for mask export.');
