@@ -67,6 +67,7 @@ export const resolvePathTextCreationTarget = (
     });
   }
   if (references.size === 0) {
+    if (!document.activeLayerId) return { kind: 'none' };
     const activeLayer = findLayerNode(document.layers, document.activeLayerId)?.node;
     if (!activeLayer || activeLayer.type !== 'vector') return { kind: 'none' };
     if (activeLayer.elements.length !== 1) return { kind: 'ambiguous' };
