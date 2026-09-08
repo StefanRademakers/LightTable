@@ -344,6 +344,10 @@ describe('selection session controller', () => {
     expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
       a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 4
     });
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
+    expect(state.renderer.restoreSelectionSnapshot.mock.invocationCallOrder.at(-1)!).toBeLessThan(
+      state.renderer.transformSelection.mock.invocationCallOrder.at(-1)!
+    );
     expect(state.selection.at(-1)?.transform).toMatchObject({ tx: 7, ty: 4 });
     expect(state.history).toHaveLength(historyBefore + 1);
   });

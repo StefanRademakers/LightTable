@@ -1056,7 +1056,20 @@ export const createSelectionSessionController = (
             return;
           }
           try {
-            if (!await current.renderer.replaceSelection(after)
+            // Pointer-rate translation may temporarily clip the document-sized
+            // GPU mask at a canvas edge. Commit from the exact opening mask so
+            // dragging back into the canvas restores that coverage instead of
+            // accepting the clipped preview as the durable selection.
+            if (!await current.renderer.restoreSelectionSnapshot(beforeMask)
+              || !isCurrent(current.document, current.renderer)
+              || !await current.renderer.transformSelection({
+                a: 1,
+                b: 0,
+                c: 0,
+                d: 1,
+                tx: current.x,
+                ty: current.y
+              })
               || !isCurrent(current.document, current.renderer)) {
               if (isCurrent(current.document, current.renderer)) {
                 await current.renderer.restoreSelectionSnapshot(beforeMask);

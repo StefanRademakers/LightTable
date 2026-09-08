@@ -10,6 +10,7 @@ import {
   createImageDocument,
   createTextLayerNode,
   createVectorLayer,
+  type ImageDocument,
   type LayerId,
   type LayerNode
 } from '../document/documentTypes';
@@ -395,6 +396,9 @@ describe('RasterDocumentOperations', () => {
     hiddenChild.visible = false;
     const group = createGroupLayer('Lazy group');
     group.children = [hiddenChild];
+    group.opacity = 0.4;
+    group.blendMode = 'multiply';
+    group.clipping = true;
     const vector = createVectorLayer([
       createVectorLiveShape('visible-shape', {
         kind: 'ellipse', width: 20, height: 12
@@ -407,6 +411,10 @@ describe('RasterDocumentOperations', () => {
     };
     const composite = texture('composite');
     const copyTextureToTexture = vi.fn();
+    const encodeComposite = vi.fn((
+      _encoder: GPUCommandEncoder,
+      _document: ImageDocument
+    ) => composite);
     const operations = new RasterDocumentOperations({
       device: {
         createCommandEncoder: () => ({ copyTextureToTexture, finish: () => 'commands' }),
@@ -416,7 +424,7 @@ describe('RasterDocumentOperations', () => {
         raster: (id: LayerId) => id === destinationId ? destination : null
       } as never,
       dimensions: () => ({ width: 64, height: 32 }),
-      encodeComposite: vi.fn(() => composite),
+      encodeComposite,
       invalidateLayer: vi.fn(),
       releaseSubmittedResources: vi.fn()
     });
@@ -425,6 +433,13 @@ describe('RasterDocumentOperations', () => {
     expect(operations.flattenGroup(document, group.id, destinationId)).toBe(true);
     expect(operations.flattenImage(document, destinationId)).toBe(true);
     expect(copyTextureToTexture).toHaveBeenCalledTimes(3);
+    expect(encodeComposite.mock.calls[1]?.[1].layers[0]).toMatchObject({
+      id: group.id,
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      clipping: false
+    });
   });
 
   it('renders isolated normalized text into its prepared same-ID raster destination', () => {

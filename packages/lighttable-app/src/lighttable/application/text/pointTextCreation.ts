@@ -66,7 +66,15 @@ export const resolvePathTextCreationTarget = (
       elementId: selection.active.pathId
     });
   }
-  if (references.size === 0) return { kind: 'none' };
+  if (references.size === 0) {
+    const activeLayer = findLayerNode(document.layers, document.activeLayerId)?.node;
+    if (!activeLayer || activeLayer.type !== 'vector') return { kind: 'none' };
+    if (activeLayer.elements.length !== 1) return { kind: 'ambiguous' };
+    references.set(`${activeLayer.id}\0${activeLayer.elements[0]!.id}`, {
+      layerId: activeLayer.id,
+      elementId: activeLayer.elements[0]!.id
+    });
+  }
   if (references.size !== 1) return { kind: 'ambiguous' };
   const reference = [...references.values()][0]!;
   const layer = findLayerNode(document.layers, reference.layerId)?.node;

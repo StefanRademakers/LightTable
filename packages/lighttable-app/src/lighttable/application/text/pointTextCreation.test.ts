@@ -340,6 +340,23 @@ describe('path text creation', () => {
     });
   });
 
+  it('resolves the sole native path on the explicitly active vector layer', () => {
+    const { document, vector, path } = pathDocument();
+    expect(resolvePathTextCreationTarget({
+      ...document,
+      activeLayerId: vector.id
+    }, {
+      elements: [], paths: [], anchors: [], active: null
+    })).toEqual({
+      kind: 'resolved',
+      target: {
+        pathLayerId: vector.id,
+        pathElementId: path.id,
+        pathSubpathId: 'contour'
+      }
+    });
+  });
+
   it('rejects absent and ambiguous path selections instead of guessing', () => {
     const { document, vector, path } = pathDocument();
     expect(resolvePathTextCreationTarget(document, {

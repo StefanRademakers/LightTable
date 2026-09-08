@@ -247,11 +247,18 @@ export class RasterDocumentOperations {
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
     const encoder = device.createCommandEncoder({ label: 'LightTable flatten group' });
+    const intrinsicGroup: LayerNode = {
+      ...group,
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      clipping: false
+    };
     const flattenedTexture = this.options.encodeComposite(
       encoder,
       {
         ...document,
-        layers: [{ ...group, visible: true }]
+        layers: [intrinsicGroup]
       },
       encodeAdjustment
     );

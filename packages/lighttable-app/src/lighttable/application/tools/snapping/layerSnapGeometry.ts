@@ -40,9 +40,26 @@ export const buildLayerSnapTargets = (
   document: ImageDocument,
   options: LayerSnapTargetOptions = {}
 ): SnapFeature[] => {
-  const excluded = options.excludedLayerIds ?? new Set<LayerId>();
   const entries = walkLayerTree(document.layers);
   const byId = new Map(entries.map((entry) => [entry.node.id, entry]));
+  const excludedRoots = new Set(options.excludedLayerIds ?? []);
+  const excluded = new Set(excludedRoots);
+  if (excludedRoots.size > 0) {
+    // A group derives its bounds from its descendants, and an ancestor derives
+    // its bounds from the moving child. Treat that complete dependency chain as
+    // moving geometry; otherwise the transform can snap back to a target whose
+    // position it is changing itself.
+    for (const { node, parentId } of entries) {
+      if (parentId && excluded.has(parentId)) excluded.add(node.id);
+    }
+    for (const rootId of excludedRoots) {
+      let parentId = byId.get(rootId)?.parentId ?? null;
+      while (parentId) {
+        excluded.add(parentId);
+        parentId = byId.get(parentId)?.parentId ?? null;
+      }
+    }
+  }
   // Resolve the scene graph once for the complete target build. The old path
   // rebuilt this O(n) index once per layer, turning every pointer-time snap
   // refresh into O(n²) work on imported SVGs with many logical objects.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createImageDocument, type RasterLayer } from '../../../editor/document/documentTypes';
+import { createGroupLayer, createImageDocument, type RasterLayer } from '../../../editor/document/documentTypes';
 import { buildLayerSnapTargets, layerDocumentSnapBounds } from './layerSnapGeometry';
 
 const raster = (name: string, width: number, height: number): RasterLayer => {
@@ -63,5 +63,26 @@ describe('layer snap geometry', () => {
       expect.objectContaining({ axis: 'x', position: 20, source: 'grid' }),
       expect.objectContaining({ axis: 'y', position: 20, source: 'grid' })
     ]));
+  });
+
+  it('does not expose ancestor or descendant bounds derived from moving geometry', () => {
+    const document = createImageDocument('Nested snap targets', 640, 480, 'asset');
+    const first = document.layers[0];
+    const child = { ...first, id: 'moving-child' as typeof first.id };
+    const sibling = { ...first, id: 'stable-sibling' as typeof first.id };
+    const group = createGroupLayer('Group');
+    group.id = 'moving-group' as typeof group.id;
+    group.children = [child, sibling];
+    document.layers = [group];
+
+    const targets = buildLayerSnapTargets(document, {
+      excludedLayerIds: new Set([child.id]),
+      includeCanvas: false,
+      includeGuides: false
+    });
+
+    expect(targets.some((target) => target.sourceId === child.id)).toBe(false);
+    expect(targets.some((target) => target.sourceId === group.id)).toBe(false);
+    expect(targets.some((target) => target.sourceId === sibling.id)).toBe(true);
   });
 });

@@ -1060,7 +1060,7 @@ export const createLayerDocumentCommands = (
         label: 'Merge Layers',
         type: 'layer.merge',
         byteSize: current.width * current.height * 8,
-        layerIds: [...plan.layerIds, destination.id],
+        layerIds: [...new Set([...plan.layerIds, destination.id])],
         undo: () => applyDocumentTransition('Undo Merge Layers', next, current),
         redo: () => applyDocumentTransition('Redo Merge Layers', current, next)
       },
@@ -1616,11 +1616,12 @@ export const createLayerDocumentCommands = (
   ) => selectionOperationsSupportBounds([...selection], fullDocumentBounds(document));
 
   const writeClipboard = async (
+    clipboard: LightTableImageClipboard,
     blob: Blob,
-    document: ImageDocument,
+    sourceDocumentId: string,
     bounds: Rect
-  ) => dependenciesRef.current.getImageClipboard().writeImage(blob, {
-    sourceDocumentId: dependenciesRef.current.getDocumentId(),
+  ) => clipboard.writeImage(blob, {
+    sourceDocumentId,
     ...bounds
   });
 
@@ -1628,10 +1629,14 @@ export const createLayerDocumentCommands = (
     const dependencies = dependenciesRef.current;
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
+    const clipboard = dependencies.getImageClipboard();
+    const sourceDocumentId = dependencies.getDocumentId();
     const activeLayer = document
       ? findRasterLayer(document, document.activeLayerId)
       : null;
     if (!document || !renderer || !activeLayer || !selection.length) return null;
+    const copyGeneration = ++clipboardGeneration;
+    fastClipboardToken = null;
     const bounds = clipboardBounds(document, selection);
     if (!renderer.copySelectedLayerContent(document, activeLayer.id)) {
       dependencies.setError(
@@ -1642,13 +1647,18 @@ export const createLayerDocumentCommands = (
     dependencies.setSelectionClipboardAvailable(true);
     try {
       const blob = await renderer.exportSelectionClipboard(bounds);
-      await writeClipboard(blob, document, bounds);
-      fastClipboardToken = `${dependencies.getDocumentId()}:${++clipboardGeneration}`;
+      await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
+      const fastPasteToken = copyGeneration === clipboardGeneration
+        && dependenciesRef.current.getDocumentId() === sourceDocumentId
+        && dependenciesRef.current.getRenderer() === renderer
+        ? `${sourceDocumentId}:${copyGeneration}`
+        : undefined;
+      if (copyGeneration === clipboardGeneration) fastClipboardToken = fastPasteToken ?? null;
       dependencies.setStatus('Selected pixels copied to the system clipboard');
       dependencies.setError(null);
       return { file: new File([blob], 'Selected pixels.png', {
         type: blob.type || 'image/png'
-      }), bounds, fastPasteToken: fastClipboardToken };
+      }), bounds, ...(fastPasteToken ? { fastPasteToken } : {}) };
     } catch (reason) {
       dependencies.setError(
         reason instanceof Error
@@ -1663,12 +1673,15 @@ export const createLayerDocumentCommands = (
     const dependencies = dependenciesRef.current;
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
+    const clipboard = dependencies.getImageClipboard();
+    const sourceDocumentId = dependencies.getDocumentId();
     if (!document || !renderer || !selection.length) return null;
     const bounds = clipboardBounds(document, selection);
+    ++clipboardGeneration;
     fastClipboardToken = null;
     try {
       const blob = await renderer.exportMergedSelection(bounds);
-      await writeClipboard(blob, document, bounds);
+      await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
       dependencies.setSelectionClipboardAvailable(true);
       dependencies.setStatus('Merged selection copied to the system clipboard');
       dependencies.setError(null);
@@ -1854,6 +1867,7 @@ export const createLayerDocumentCommands = (
   const pasteSelectedContent = async (selection: readonly SelectionOperation[]) => {
     const dependencies = dependenciesRef.current;
     if (!dependencies.getDocument()) return false;
+    const targetDocumentId = dependencies.getDocumentId();
     let clipboardImage;
     try {
       clipboardImage = await dependencies.getImageClipboard().readImage();
@@ -1865,6 +1879,8 @@ export const createLayerDocumentCommands = (
       );
       return false;
     }
+    if (dependenciesRef.current.getDocumentId() !== targetDocumentId
+      || !dependenciesRef.current.getDocument()) return false;
     if (!clipboardImage) {
       dependencies.setError('The system clipboard does not contain an image.');
       return false;
@@ -1876,9 +1892,10 @@ export const createLayerDocumentCommands = (
     const bitmap = await createImageBitmap(file);
     const size = { width: bitmap.width, height: bitmap.height };
     bitmap.close();
-    // Clipboard access is asynchronous. Resolve the document only after it
-    // completes so placement cannot be calculated from a document that was
-    // switched or replaced while the browser/native clipboard was responding.
+    if (dependenciesRef.current.getDocumentId() !== targetDocumentId) return false;
+    // Use the latest immutable snapshot of the same document session. A tab
+    // switch cancels this paste instead of combining its old selection with a
+    // different document's pixels and active layer.
     const current = dependencies.getDocument();
     if (!current) return false;
     const targetBounds = selection.length

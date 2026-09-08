@@ -14,9 +14,11 @@ import {
   type DocumentHistoryDependencies
 } from './useDocumentHistoryController';
 
-const setup = () => {
+const setup = (
+  historyOptions: ConstructorParameters<typeof DocumentCommandHistory>[1] = {}
+) => {
   const documentId = 'workspace-document' as DocumentSessionId;
-  const history = new DocumentCommandHistory(documentId);
+  const history = new DocumentCommandHistory(documentId, historyOptions);
   let document: ImageDocument | null = createImageDocument('Image', 32, 24, 'image');
   const pruneLayerRuntimes = vi.fn<(
     documentResourceKey: string,
@@ -73,6 +75,28 @@ describe('document history controller', () => {
     expect(resourceKey).toBe(state.getDocument()!.id);
     expect(keep?.has(retained)).toBe(true);
     expect(keep?.size).toBeGreaterThan(1);
+  });
+
+  it('stops retaining an evicted history runtime at the next prune boundary', () => {
+    const state = setup({ maxEntries: 1 });
+    const evicted = 'evicted-runtime' as LayerId;
+    const retained = 'retained-runtime' as LayerId;
+    state.controller.record({
+      layerIds: [evicted],
+      undo: () => undefined,
+      redo: () => undefined
+    });
+    state.controller.record({
+      layerIds: [retained],
+      undo: () => undefined,
+      redo: () => undefined
+    });
+
+    const [, keepRaster, keepMasks] = state.pruneLayerRuntimes.mock.lastCall!;
+    expect(keepRaster.has(evicted)).toBe(false);
+    expect(keepMasks.has(evicted)).toBe(false);
+    expect(keepRaster.has(retained)).toBe(true);
+    expect(keepMasks.has(retained)).toBe(true);
   });
 
   it('separates active node masks from raster runtime retention', () => {

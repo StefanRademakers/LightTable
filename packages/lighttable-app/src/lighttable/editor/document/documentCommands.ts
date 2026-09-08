@@ -1378,10 +1378,12 @@ export const getFlattenGroupPlan = (
 ): FlattenLayersPlan | null => {
   const entry = findLayerNode(document.layers, groupId);
   if (!entry || entry.node.type !== 'group') return null;
-  const layerIds = layerIdsIn(entry.node.children);
-  if (!layerIds.length) return null;
+  const descendantIds = layerIdsIn(entry.node.children);
+  if (!descendantIds.length) return null;
   return {
-    layerIds,
+    // History must retain the group runtime too. Its mask belongs to the
+    // group id and is needed again when undo restores the original subtree.
+    layerIds: [groupId, ...descendantIds],
     destinationId: entry.node.children[0]!.id,
     name: entry.node.name,
     targetGroupId: groupId
@@ -1443,10 +1445,15 @@ export const flattenGroup = (
   if (!plan || !destination || group?.type !== 'group') return document;
   const replacement = {
     ...flattenedRaster(document, destination, plan.name),
-    // Flattening bakes the group's children, but the replacement still
-    // occupies the group's place and must retain its outer visibility/locks.
+    // Flattening bakes the group's intrinsic contents, mask and styles. Its
+    // relationship with the surrounding stack remains live: blend and
+    // clipping cannot be baked correctly against an isolated transparent
+    // background, and overall opacity must not be applied twice.
     visible: group.visible,
-    locks: { ...group.locks }
+    locks: { ...group.locks },
+    opacity: group.opacity,
+    blendMode: group.blendMode,
+    clipping: group.clipping
   };
   return updateDocument(
     document,

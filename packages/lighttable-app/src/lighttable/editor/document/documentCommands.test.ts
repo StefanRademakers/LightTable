@@ -23,6 +23,7 @@ import {
   duplicateLayer,
   flattenGroup,
   flattenImage,
+  getFlattenGroupPlan,
   getMergeLayersPlan,
   groupLayers,
   mergeLayerDown,
@@ -813,7 +814,16 @@ describe('LightTable document commands', () => {
     const paint = base.layers[1];
     const withGroup = createGroupLayer(base, 'Retouch');
     const groupId = withGroup.activeLayerId!;
-    const grouped = moveLayerIntoGroup(withGroup, paint.id, groupId);
+    const grouped = setLayerClipping(
+      setLayerBlendMode(
+        setLayerOpacity(moveLayerIntoGroup(withGroup, paint.id, groupId), groupId, 0.6),
+        groupId,
+        'multiply'
+      ),
+      groupId,
+      true
+    );
+    expect(getFlattenGroupPlan(grouped, groupId)?.layerIds).toEqual([groupId, paint.id]);
 
     const flattenedGroup = flattenGroup(grouped, groupId);
     expect(flattenedGroup.layers.map((layer) => layer.name)).toEqual(['Background', 'Retouch']);
@@ -821,7 +831,9 @@ describe('LightTable document commands', () => {
     expect(flattenedGroup.layers[1]).toMatchObject({
       type: 'raster',
       transform: translationMatrix(0, 0),
-      opacity: 1
+      opacity: 0.6,
+      blendMode: 'multiply',
+      clipping: true
     });
 
     const flattenedImage = flattenImage(grouped);

@@ -70,6 +70,8 @@ Selection no longer treats the mounted tool or renderer as the durable owner. Th
 
 Selection mutations are serialized per controller. Each successful mutation captures its exact result, registers history and then publishes document state. Failure restores both the exact GPU mask and the matching canonical operations. Magic Wand, selection-outline drag and Selection Brush now use this same acceptance order; rapid Magic Wand clicks publish every accepted serialized result instead of keeping a hidden intermediate state. Action recording is notified only after acceptance and cannot roll back an already-recorded history entry.
 
+Selection-outline translation commits restore the exact opening mask and apply the final cumulative offset once. Incremental pointer previews may be clipped temporarily at a document edge, but that clipped preview can no longer become the durable paint/copy mask when the outline is dragged back into the canvas.
+
 The canonical mask is read and restored as raw IEEE-754 half-float words. Clipboard mask export now also reads the actual `r16float` texture instead of interpreting its bytes as an `r8unorm` channel.
 
 Verification for this slice currently covers exact snapshot encoding, half-float readback, selection clipboard conversion, semantic selection commands, rapid asynchronous Magic Wand operations, cancel/rollback, selection movement and exact undo/redo. The broader product acceptance matrix still requires manual GPU runs on Windows and macOS.
@@ -333,7 +335,7 @@ Required change:
 
 ### Transform snapping does not retain its target
 
-Current disposition: resolved in code. Axis matches and release hysteresis are retained for the drag, self/selected targets are excluded, and affine as well as projective translation calculate from pointer-down geometry. The overlay now freezes its source points at pointer-down so a React preview update cannot feed moving geometry back into snapping. Slow edge/corner verification on Windows and macOS remains required.
+Current disposition: resolved in code. Axis matches and release hysteresis are retained for the drag, self/selected targets are excluded, and affine as well as projective translation calculate from pointer-down geometry. The overlay now freezes its source points at pointer-down so a React preview update cannot feed moving geometry back into snapping. Ancestors whose bounds derive from a moving child and descendants of a moving group are also excluded, while stable siblings remain valid targets. Slow edge/corner verification on Windows and macOS remains required.
 
 The snap engine supports retained matches and a release tolerance, but Transform translation does not consistently pass that state back into subsequent evaluations.
 
@@ -472,12 +474,30 @@ Implemented boundary:
 - failed staging or publication restores unfinished pixel edits and releases reservations;
 - text rasterization uses the same document lease as generic rasterization;
 - merge-down resolves its adjacent layers from the leased snapshot rather than a pre-transaction UI read.
+- group flatten now bakes only intrinsic group contents, mask and effects; outer opacity,
+  blend mode and clipping remain live on the replacement raster so they are not applied
+  twice or incorrectly baked against transparency;
+- group flatten retains the group id as a history resource in addition to all descendants
+  and the destination, so an evicted group-mask runtime is still available after Undo.
+- the renderer contract exercises every pair in the raster, vector, gradient, adjustment,
+  text and group merge matrix and forwards the adjustment encoder through merge and flatten;
+- command-level rollback now covers group-flatten history rejection and same-id text
+  rasterization rejection without publishing or retaining the prepared destination;
+- twenty repeated same-id text rasterize and group-flatten Undo/Redo cycles restore the
+  original semantic node and the prepared raster deterministically;
+- history eviction pruning and document close destroy raster, raster-mask, derived-preview
+  and node-mask resources once they are no longer reachable.
 
 Still required before declaring the family complete:
 
-- repeat merge with masks, clipping, transforms, adjustments and layer effects through undo/redo;
-- inject failures at reservation, render, document publication and history registration;
-- verify renderer resource counts after history eviction and document close.
+- visually compare merge-down, merge-selected, group flatten and image flatten with masks,
+  clipping, transforms, adjustments, layer effects, pass-through/isolated groups and an
+  external backdrop on real WebGPU;
+- repeat the representative visual combinations through long Undo/Redo sequences; the
+  automated long-cycle checks currently prove group flatten and same-id text rasterization;
+- verify live renderer resource telemetry returns to baseline after history eviction and
+  document close on Windows and macOS. Unit contracts prove ownership and destruction,
+  but not driver-side reclamation timing.
 
 ### Paint always consumes a selection texture
 

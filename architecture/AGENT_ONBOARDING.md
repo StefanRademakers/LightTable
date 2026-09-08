@@ -82,7 +82,144 @@ Task 264 save/export, independent verification, error/reconnect and cleanup
 acceptance remains open. Do not turn a successful design pass into a claim that
 all artist capabilities or the complete A-Z benchmark are finished.
 
-### Current renderer/editor recovery capsule
+### Current editor-stabilization reality -- read before the renderer capsule
+
+Updated 2026-09-06. This section supersedes optimistic integration or release
+interpretations in the older renderer capsule and roadmap. The durable
+subsystems described there still exist, but their presence does not prove that
+the current editor integration is usable.
+
+#### What changed architecturally
+
+The stabilization program started from commit `0298946f` after repeated bugs
+showed that document state, transient previews, GPU resources, selection state
+and history could be changed or restored by different owners. Between that
+baseline and current committed `HEAD` (`cce15c7c`) 38 commits moved the editor
+toward this transaction model:
+
+```text
+input / command
+  -> operation transaction bound to one document generation
+  -> immutable baseline plus disposable preview
+  -> validate
+  -> atomic document + GPU + selection + resource + history commit
+     or complete rollback
+```
+
+The main changes are:
+
+- committed exact selection snapshots now belong to document editor state;
+  renderer selection textures and outlines are disposable projections;
+- selection, clipboard, history restore, source publication and GPU readback
+  work is bound to the document/session generation that started it;
+- fill, document geometry, LUT import, merge/rasterize/flatten and several
+  text/grade/vector/warp operations gained explicit commit or rollback
+  boundaries;
+- transform previews retain a stable source instead of repeatedly sampling
+  the previous preview, and snapping derives from a gesture baseline;
+- layer resources and temporary history resources gained explicit ownership,
+  transfer and disposal rules;
+- optional GPU pipeline compilation is shared and async presentation rejects
+  results for a stale document generation;
+- renderer selection snapshot IO remains behind the rasterizer boundary rather
+  than widening the renderer facade.
+
+The canonical program and its remaining matrix are in
+[EDITOR_TRANSACTION_AND_RENDERING_STABILIZATION_PLAN.md](EDITOR_TRANSACTION_AND_RENDERING_STABILIZATION_PLAN.md).
+Do not reconstruct the migration from commit subjects alone.
+
+#### What this led to
+
+The positive result is a clearer target architecture: more operations now have
+an explicit document identity, immutable starting state, rollback boundary and
+resource lifetime. Several previously implicit cross-document and late-async
+failure modes are now represented in code and narrow tests.
+
+The negative result is more important for current work: the migration crossed
+too many user workflows before each complete workflow was accepted in the real
+application. Canonical state, renderer projections, capability/affordance
+checks and history restore are therefore not consistently in sync. Narrow
+tests often proved the new local contract while missing the artist-visible
+state transition across tool, layer, renderer and undo owners. A passing test
+suite or successful command return must not be reported as proof that the
+editor is usable.
+
+The owner's short manual run after this migration found core regressions,
+including:
+
+- marquee visibility disappearing, and visible selection bounds diverging
+  from the effective paint/copy mask after edge-clipped movement;
+- rasterize affordance or capability disappearing for text, shape, gradient,
+  processed raster and layers with effects, plus `Ctrl+E` merge doing nothing;
+- transform gestures progressively degrading pixels within one tool session,
+  while snapping could fight, shrink or return geometry toward stale state;
+- visible text failing edit/transform measurement, path text rejecting a
+  visible native path and warp preview alternating between old and new state;
+- undo failing to restore the selection and reporting an incomplete undo;
+- Remove Background and other established end-user flows no longer working
+  reliably.
+
+This is not a claim that every item has the same cause, nor that all older
+features are lost. It is evidence that the current integration is an
+**unstable internal development build under feature freeze**, not a
+tester-ready technical preview. A broad rewrite is not authorized by this
+finding; the architecture direction must be judged through repaired vertical
+workflows, not another repository-wide migration.
+
+#### Current dirty worktree
+
+At this update, committed `HEAD` and the working tree are materially different.
+`npm run context:agent` reports active changes in the stabilization plan and in
+selection translation, snapping geometry, document/history commands, layer
+resource ownership, merge/flatten operations and point-text creation. The
+worktree attempts, among other things, to:
+
+- keep an exact opening selection mask and apply the final cumulative
+  translation so temporary clipping at a document edge does not become the
+  durable selection;
+- exclude the selected snap geometry and dependent ancestors/descendants from
+  its own snap targets;
+- preserve group outer compositing semantics while flattening intrinsic group
+  contents and keep rollback/history resource IDs unique;
+- bind queued paste/clipboard work to the initiating document generation;
+- settle pixel interactions before undo/redo and allow point text to use the
+  one active native vector layer when no explicit vector selection reference
+  exists.
+
+These are **uncommitted repair attempts**, not verified fixes. Preserve them,
+inspect their diff and separate them explicitly from committed behavior. Do
+not mark the corresponding bugs done until the owner-visible GPU workflow has
+been exercised.
+
+#### Required continuation discipline
+
+Feature freeze remains in force. Work one user-visible vertical at a time:
+
+1. Write the exact interaction sequence and expected pixels, selection,
+   layers, affordances and undo result before editing.
+2. Trace its real authority chain from input/command through canonical state,
+   GPU projection, resource ownership, history and UI capability. Do not add a
+   parallel repair path.
+3. Fix the owning boundary and use narrow tests while iterating. Run broader
+   boundary/type/build suites at a meaningful milestone, not after every edit.
+4. Exercise the complete workflow in the real WebGPU application before
+   claiming it fixed. Owner validation remains required for interaction and
+   visual behavior that automation cannot establish.
+5. After every slice, report what is proven, what is only inferred, what
+   remains broken and whether the dirty worktree is safer than its baseline.
+
+Restore these short acceptance chains before resuming breadth:
+
+- marquee draw -> move/nudge at edges -> paint/copy/paste/invert -> undo/redo;
+- repeated transform and snapping in one tool session without pixel
+  degradation, shrinking or stale-state jumps;
+- rasterize and merge for raster, processed/effected raster, text, vector and
+  gradient layers, including failure rollback and undo/redo;
+- text edit/measure/transform, path text and warp preview/commit/undo;
+- open -> first correct frame -> edit -> save/close for representative desktop
+  and web formats.
+
+### Renderer/editor subsystem recovery capsule
 
 When the recovered work concerns rendering, SVG, document startup, canvas
 tools or workspace state, use this reset state before reading historical task
@@ -307,10 +444,13 @@ work as commercially ready, distinguish all of the following:
 - accessibility, external beta evidence and owner visual acceptance;
 - pricing, tax, refunds, support and upgrade policy.
 
-The current product is a strong technical preview. Production entitlement is
-not implemented, model disclosures are incomplete, platform qualification is
-not broad enough and owner/legal decisions remain. Local editing, save, export
-and recovery are intended to remain available without a live licensing server.
+The repository contains strong technical subsystems, but the current editor
+integration is an unstable internal development build during stabilization and
+must not be described as tester-ready or commercially ready. In addition,
+production entitlement is not implemented, model disclosures are incomplete,
+platform qualification is not broad enough and owner/legal decisions remain.
+Local editing, save, export and recovery are intended to remain available
+without a live licensing server.
 
 ## Queue mode and completion
 

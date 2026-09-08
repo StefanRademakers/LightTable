@@ -1839,10 +1839,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
   const finishOpenHistoryTransactions = useCallback(async () => {
-    // Undo/redo must first retire the renderer's active transform preview.
-    // Otherwise GPU history restores the backing pixels while the stale preview
-    // remains composited on top, making committed transforms appear not to undo.
-    await commitTransformPendingRef.current();
+    // Undo/redo must retire pending selection work as well as the renderer's
+    // active transform preview before either can restore shared GPU state.
+    await settlePixelInteractionRef.current();
     commitPointTextRef.current();
     commitParagraphTextRef.current();
     finishTextEditingRef.current();
@@ -5611,8 +5610,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   copyMergedContentRef.current = copyMergedContent;
 
   const pasteSelectedContent = () => {
+    const targetDocumentId = workspaceDocumentId;
     void (async () => {
       await settlePixelInteractionRef.current();
+      if (workspaceDocumentIdRef.current !== targetDocumentId) return;
       if (!commandService) {
         await layerDocumentCommands.pasteSelectedContent(editorSessionRef.current.selection);
         return;
@@ -5620,14 +5621,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // Always inspect the host clipboard. A prior LightTable copy must never
       // shadow a newer image copied from another application.
       const clipboardImage = await imageClipboard.readImage();
+      if (workspaceDocumentIdRef.current !== targetDocumentId) return;
       if (!clipboardImage) {
         setError('The system clipboard does not contain an image.');
         return;
       }
       if (clipboardImage.blob.type === 'image/svg+xml'
         && editorSessionRef.current.activeChannel !== 'mask') {
+        const svg = await clipboardImage.blob.text();
+        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
         await executeRegisteredCommand('vector.importSvg', {
-          svg: await clipboardImage.blob.text(), placement: 'document', layerName: 'Pasted SVG'
+          svg, placement: 'document', layerName: 'Pasted SVG'
         });
         return;
       }
@@ -5637,6 +5641,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
       const bitmap = await createImageBitmap(file);
       try {
+        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
         if (bitmap.width < 1 || bitmap.height < 1 || bitmap.width > 32_768
           || bitmap.height > 32_768 || bitmap.width * bitmap.height > 268_435_456) {
           throw new Error('Clipboard image dimensions exceed the supported resource bounds.');
@@ -5658,6 +5663,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             canvas.width = 1;
             canvas.height = 1;
           }
+          if (workspaceDocumentIdRef.current !== targetDocumentId) return;
           file = new File([png], 'Clipboard image.png', { type: 'image/png' });
         }
         const artifact = clipboardImage.placement
@@ -5672,7 +5678,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           height: bitmap.height
         } };
         const currentDocument = imageDocumentRef.current;
-        if (!currentDocument) return;
+        if (!currentDocument || workspaceDocumentIdRef.current !== targetDocumentId) return;
         const selection = editorSessionRef.current.selection;
         const targetBounds = selection.length
           ? selectionOperationsBounds([...selection], {
@@ -5686,6 +5692,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const target = editorSessionRef.current.activeChannel === 'mask'
           ? { channel: 'mask' as const, layerId: currentDocument.activeLayerId ?? undefined }
           : { channel: 'pixels' as const };
+        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
         await executeRegisteredCommand('selection.pastePixels', {
           artifactId: copied.artifactId,
           name: 'Pasted Selection',
@@ -5695,9 +5702,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       } finally {
         bitmap.close();
       }
-    })().catch((reason) => setError(
-      reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.'
-    ));
+    })().catch((reason) => {
+      if (workspaceDocumentIdRef.current === targetDocumentId) {
+        setError(reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.');
+      }
+    });
   };
   pasteSelectedContentRef.current = pasteSelectedContent;
 

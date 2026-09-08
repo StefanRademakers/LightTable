@@ -27,9 +27,20 @@ describe('DocumentLayerResourceRepository', () => {
   it('releases only the explicitly closed document', () => {
     const repository = new DocumentLayerResourceRepository();
     const firstPixels = texture();
+    const firstRasterMask = texture();
+    const firstPreview = texture();
+    const firstNodeMask = texture();
     const secondPixels = texture();
-    repository.acquire('document-a').rasterRuntimes.set('layer-a' as LayerId, {
-      texture: firstPixels, width: 1, height: 1, maskTexture: null, maskId: null
+    const first = repository.acquire('document-a');
+    first.rasterRuntimes.set('layer-a' as LayerId, {
+      texture: firstPixels, width: 1, height: 1,
+      maskTexture: firstRasterMask, maskId: 'raster-mask-a'
+    });
+    first.derivedPreviews.set('preview-a' as LayerId, {
+      texture: firstPreview, width: 1, height: 1
+    });
+    first.nodeMasks.set('node-a' as LayerId, {
+      texture: firstNodeMask, maskId: 'node-mask-a'
     });
     repository.acquire('document-b').rasterRuntimes.set('layer-b' as LayerId, {
       texture: secondPixels, width: 1, height: 1, maskTexture: null, maskId: null
@@ -38,6 +49,9 @@ describe('DocumentLayerResourceRepository', () => {
     expect(repository.release('document-a')).toBe(true);
 
     expect(firstPixels.destroy).toHaveBeenCalledOnce();
+    expect(firstRasterMask.destroy).toHaveBeenCalledOnce();
+    expect(firstPreview.destroy).toHaveBeenCalledOnce();
+    expect(firstNodeMask.destroy).toHaveBeenCalledOnce();
     expect(secondPixels.destroy).not.toHaveBeenCalled();
     expect(repository.has('document-a')).toBe(false);
     expect(repository.has('document-b')).toBe(true);

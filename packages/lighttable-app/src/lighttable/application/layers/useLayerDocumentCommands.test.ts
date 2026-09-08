@@ -68,6 +68,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
 
 const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
+  let documentId = 'test-document';
   let previewDocument: ImageDocument | null = null;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
@@ -92,7 +93,7 @@ const setup = (initialDocument: ImageDocument) => {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
     getImageClipboard: () => imageClipboard,
-    getDocumentId: () => 'test-document',
+    getDocumentId: () => documentId,
     get documentMutations() {
       return documentMutations;
     },
@@ -137,6 +138,9 @@ const setup = (initialDocument: ImageDocument) => {
     imageClipboard,
     historyEntries,
     document: () => document,
+    setDocumentId: (next: string) => {
+      documentId = next;
+    },
     previewDocument: () => previewDocument,
     documentAdjustments: () => documentAdjustments,
     panelAdjustments: () => panelAdjustments,
@@ -306,6 +310,23 @@ describe('useLayerDocumentCommands', () => {
     expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
   });
 
+  it('keeps async copy metadata owned by its source document', async () => {
+    let finishExport!: (blob: Blob) => void;
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    vi.mocked(state.renderer.exportSelectionClipboard).mockReturnValue(new Promise((resolve) => {
+      finishExport = resolve;
+    }));
+
+    const copying = state.commands.copySelectedContent(createFullCanvasSelection(32, 24));
+    state.setDocumentId('other-document');
+    finishExport(new Blob(['selection'], { type: 'image/png' }));
+    const copied = await copying;
+
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledWith(expect.any(Blob),
+      expect.objectContaining({ sourceDocumentId: 'test-document' }));
+    expect(copied?.fastPasteToken).toBeUndefined();
+  });
+
   it('retains feather support in clipboard export and placement bounds', async () => {
     const state = setup(createImageDocument('Test', 100, 80, 'asset'));
     const selection = [{
@@ -447,6 +468,22 @@ describe('useLayerDocumentCommands', () => {
     vi.unstubAllGlobals();
   });
 
+  it('cancels an async clipboard paste when the target document changes', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    let finishRead!: (image: Awaited<ReturnType<typeof state.imageClipboard.readImage>>) => void;
+    state.imageClipboard.readImage.mockReturnValue(new Promise((resolve) => {
+      finishRead = resolve;
+    }));
+
+    const pasting = state.commands.pasteSelectedContent([]);
+    state.setDocumentId('other-document');
+    finishRead({ blob: new Blob(['clipboard'], { type: 'image/png' }), placement: null });
+
+    await expect(pasting).resolves.toBe(false);
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.renderer.loadLayerAssets).not.toHaveBeenCalled();
+  });
+
   it('centers an external clipboard image at the active selection without scaling it', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
       width: 10, height: 6, close: vi.fn()
@@ -543,12 +580,14 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
     expect(state.historyEntries).toHaveLength(1);
 
-    state.historyEntries[0].undo();
-    expect(state.document().layers.at(-1)?.type).toBe('text');
-    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'undo');
-    state.historyEntries[0].redo();
-    expect(state.document().layers.at(-1)?.type).toBe('raster');
-    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      state.historyEntries[0].undo();
+      expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'text' });
+      expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'undo');
+      state.historyEntries[0].redo();
+      expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
+      expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+    }
   });
 
   it('rasterizes a semantic vector layer through one reversible full-canvas destination', async () => {
@@ -676,6 +715,7 @@ describe('useLayerDocumentCommands', () => {
     expect(edit?.undo).toHaveBeenCalledOnce();
     expect(edit?.destroy).toHaveBeenCalledOnce();
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
     expect(state.document().layers.at(-1)?.type).toBe('text');
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
@@ -1081,6 +1121,56 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.id).toBe(destination?.id);
     expect(state.documentAdjustments()).toEqual(createDefaultAdjustments());
     expect(state.globalGradeStrength()).toBe(100);
+  });
+
+  it('flattens a group without baking its outer stack relationship and restores it repeatedly', () => {
+    const document = createImageDocument('Group flatten', 32, 24, 'unused');
+    const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
+    const group = createGroupLayerNode('Artwork');
+    group.children = [child];
+    group.opacity = 0.45;
+    group.blendMode = 'multiply';
+    group.clipping = true;
+    document.layers = [group];
+    document.activeLayerId = group.id;
+    const state = setup(document);
+
+    expect(state.commands.flatten({ kind: 'group', groupId: group.id })).toBe(true);
+
+    const destination = state.document().layers[0]!;
+    expect(destination).toMatchObject({
+      type: 'raster', name: 'Artwork', opacity: 0.45,
+      blendMode: 'multiply', clipping: true
+    });
+    expect(state.renderer.flattenGroup).toHaveBeenCalledWith(document, group.id, destination.id);
+    expect(state.historyEntries[0]?.layerIds).toEqual([group.id, child.id, destination.id]);
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      state.historyEntries[0]!.undo();
+      expect(state.document().layers[0]).toMatchObject({ id: group.id, type: 'group' });
+      state.historyEntries[0]!.redo();
+      expect(state.document().layers[0]).toMatchObject({ id: destination.id, type: 'raster' });
+    }
+  });
+
+  it('restores the complete group and releases its destination when flatten history rejects', () => {
+    const document = createImageDocument('Group rollback', 32, 24, 'unused');
+    const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
+    const group = createGroupLayerNode('Artwork');
+    group.children = [child];
+    document.layers = [group];
+    document.activeLayerId = group.id;
+    const state = setup(document);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.flatten({ kind: 'group', groupId: group.id })).toBe(false);
+
+    expect(state.document()).toBe(document);
+    expect(state.document().layers[0]).toBe(group);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
   it('restores layers and document processing when flatten history rejects', () => {
