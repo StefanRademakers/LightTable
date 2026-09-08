@@ -62,7 +62,17 @@ class PreparedShapeProjection implements PreparedSelectionProjection<
     if (this.phase !== 'prepared') {
       throw new Error('A prepared selection projection can only be activated once.');
     }
-    this.priorState = this.committedTextures.exchangeState(this.stage.textures.detachState());
+    // Selection targets are intentionally lazy on a new document. Allocate the
+    // empty committed set before detaching the prepared set so activation can
+    // never strand the stage when the first selection is committed.
+    this.committedTextures.ensureTargets();
+    const replacement = this.stage.textures.detachState();
+    try {
+      this.priorState = this.committedTextures.exchangeState(replacement);
+    } catch (reason) {
+      this.stage.textures.attachState(replacement);
+      throw reason;
+    }
     this.phase = 'activated';
     let resolved = false;
     return {

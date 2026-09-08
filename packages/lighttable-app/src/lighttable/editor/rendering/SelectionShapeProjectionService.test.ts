@@ -25,6 +25,50 @@ const rectangle: SelectionOperation = {
 };
 
 describe('SelectionShapeProjectionService', () => {
+  it('activates the first selection when committed targets are still lazy', async () => {
+    const committed = store();
+    const staged = store();
+    const service = new SelectionShapeProjectionService({
+      committedTextures: committed,
+      createStage: () => ({
+        textures: staged,
+        restore: () => true,
+        apply: () => true,
+        capture: async () => SelectionMaskSnapshot.fromRaw(
+          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+        ),
+        measure: async () => ({
+          coreBounds: { x: 10, y: 12, width: 30, height: 20 },
+          supportBounds: { x: 10, y: 12, width: 30, height: 20 },
+          peakCoverage: 1,
+        }),
+        dispose: () => staged.destroy(),
+      }),
+    });
+    const baseline = {
+      documentSessionId: document.sessionId,
+      revision: 0 as SelectionRevision,
+      canvas: { width: 100, height: 80 },
+      active: false,
+      coverage: SelectionMaskSnapshot.inactive(100, 80),
+      supportBounds: null,
+      provenance: [] as SelectionOperation[],
+    };
+
+    const prepared = await service.prepare(document, baseline, {
+      shape: rectangle.shape, mode: 'replace', featherRadius: 0,
+      antiAlias: true, provenance: rectangle,
+    }, 'transaction-first' as TransactionId, new AbortController().signal);
+    expect(committed.mask).toBeNull();
+
+    prepared.activate().accept();
+
+    expect(committed.mask).not.toBeNull();
+    expect(committed.active).toBe(true);
+    service.dispose();
+    committed.destroy();
+  });
+
   it('keeps prepared targets isolated and can atomically roll activation back', async () => {
     const committed = store();
     committed.ensureTargets();
