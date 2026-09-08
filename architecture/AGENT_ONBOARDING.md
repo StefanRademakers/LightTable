@@ -60,6 +60,11 @@ history, rendering or command-route work, read
 before editing. Check
 [Migration status](editor-kernel/MIGRATION_STATUS.md) to distinguish target,
 partial and proven behavior.
+Use the
+[stabilization execution ledger](editor-kernel/STABILIZATION_EXECUTION_LEDGER.md)
+for work order and completion gates. Do not invent a parallel checklist or skip
+its independent critic, maximum two repair loops, packaged real-app proof and
+owner-acceptance gate.
 
 The continuation rules are strict:
 

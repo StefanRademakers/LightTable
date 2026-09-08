@@ -1,0 +1,424 @@
+# LightTable stabilization execution ledger
+
+Status: **active feature-freeze plan**. Updated 2026-09-08.
+
+This is the single ordered, checkable execution ledger for stabilizing the
+artist-visible editor. It does not replace the kernel contracts or the broader
+[transaction and rendering audit](../EDITOR_TRANSACTION_AND_RENDERING_STABILIZATION_PLAN.md).
+Those documents explain the architecture and evidence; this file controls work
+order, gates and status.
+
+The aim is not to make every old path pass more tests. The aim is to migrate one
+complete user operation at a time to one predictable ownership route while the
+rest of the application remains on an intact legacy route.
+
+## Status vocabulary
+
+Only these states may be used in the master ledger:
+
+- `queued`: not started;
+- `mapping`: current owners and failure modes are being proved;
+- `implementation`: one end-to-end kernel route is being built;
+- `critic`: an independent read-only review is active;
+- `real-app`: automated checks pass and the packaged app is being exercised;
+- `owner`: waiting for manual product acceptance;
+- `complete`: every definition-of-done gate passed and fallback removal is safe;
+- `blocked`: the stop rule fired and an explicit decision is required.
+
+Passing unit tests alone never changes a slice to `real-app`, `owner` or
+`complete`.
+
+## Non-negotiable system shape
+
+Every migrated operation follows this route:
+
+```text
+UI / shortcut / Action / MCP
+             |
+      semantic command + validated capabilities
+             v
+     editor-kernel transaction/session
+       |                         |
+canonical document/history   projection/resource ports
+       |                         |
+serializable committed state  renderer/WebGPU/UI projections
+```
+
+- React owns controls, input adaptation and low-frequency projections only.
+- The document owns serializable committed meaning; GPU handles are never
+  document truth.
+- The kernel owns command coordination, transaction identity, revision order,
+  commit/cancel and resource-lifetime rules. Domain algorithms remain in paint,
+  vector, text, filter and renderer packages.
+- Preview state is disposable, revision-bound and never a history baseline.
+- One user gesture produces zero history entries when cancelled and exactly one
+  history entry when committed.
+- UI, shortcut, Action and MCP entry points must reach the same semantic handler.
+- A user operation is completely legacy or completely kernel-owned. A mixed
+  preview/commit/history/resource path is a release blocker.
+- Failure, document switch, supersession and unmount all have explicit terminal
+  behavior. Stale asynchronous work cannot publish into a newer generation.
+- Pointer hot paths do not write React/document/history state, perform GPU
+  readback, or allocate full-document resources per event.
+
+## Fixed loop for every slice
+
+Copy this checklist beneath a slice-specific work note. Do not skip a stage.
+
+### A. Map and bound the work
+
+- [ ] Write the exact artist-visible flows, layer types and unsupported cases.
+- [ ] Record the baseline commit and reproduce each reported failure.
+- [ ] Map the current owners of input, preview, canonical state, renderer
+      projection, resources, history, cleanup, UI availability, Action and MCP.
+- [ ] Define the canonical serializable value and all transient values.
+- [ ] Define transaction states, revisions, resource leases and terminal paths.
+- [ ] Define invariants and a numeric performance baseline in debug and packaged
+      builds.
+- [ ] Name the responsibility that will leave every legacy hotspot touched.
+- [ ] Agree the smallest complete vertical slice. Do not begin adjacent cleanup.
+
+### B. Build one complete route
+
+- [ ] Add or amend the small kernel contract before adding orchestration.
+- [ ] Keep algorithms behind typed ports; do not move them into the kernel.
+- [ ] Connect every supported entry point to one semantic command.
+- [ ] Implement preview, commit, cancel, undo, redo, failure rollback, document
+      rebind and resource disposal as one lifecycle.
+- [ ] Keep the legacy fallback isolated until acceptance; never interleave it.
+- [ ] Add focused contract, lifecycle, generation/failure and projection tests.
+- [ ] Add Action/MCP equivalence tests for any externally reachable command.
+
+### C. Self-review and focused proof
+
+- [ ] Run boundary verification, typecheck for touched packages and focused tests.
+- [ ] Run source-structure audit and record hotspot line/responsibility deltas.
+- [ ] Inspect the diff for duplicate truth, fallback leakage and silent catches.
+- [ ] Measure the declared hot path; investigate a repeatable regression over
+      10% rather than explaining it away as debug overhead.
+
+### D. Independent critic, at most two repair loops
+
+- [ ] Start a separate senior architecture critic agent after implementation.
+- [ ] The critic is read-only and judges ownership, failure atomicity, lifecycle,
+      performance shape, fit with the existing codebase and unnecessary scope.
+- [ ] Triage every finding yourself: accept only feedback supported by code and
+      the kernel contracts; record rejected feedback with a reason.
+- [ ] Repair P0/P1 findings, rerun only affected checks, then request rereview.
+- [ ] Repeat once more if needed. After two repair loops, unresolved P0/P1 means
+      `blocked`; do not silently start a third loop or mark the slice complete.
+
+Suggested critic prompt:
+
+> Independently review this completed LightTable vertical slice. Do not modify
+> code. Ignore routine green-build praise. Determine whether this is the best
+> implementation for the existing architecture: one canonical owner, one
+> transaction lifecycle, safe failure/undo/resource behavior, no legacy/kernel
+> split, shared UI/Action/MCP semantics, bounded hot paths and reduced rather
+> than displaced responsibility. Report only evidence-backed P0/P1/P2 findings,
+> then state whether the slice may enter packaged-app acceptance.
+
+### E. Real-app acceptance
+
+- [ ] Build the exact packaged desktop artifact under test.
+- [ ] Use the computer-use/browser skill to exercise the real Windows UI, not a
+      synthetic DOM substitute. Read that skill's guidance before controlling it.
+- [ ] Exercise normal, edge, cancel, undo/redo, repeated-use, document-switch and
+      failure flows with visible evidence or telemetry.
+- [ ] Compare UI, shortcut, Action and MCP results where supported.
+- [ ] Repeat the performance scenario in debug for diagnosis and in packaged
+      release for the acceptance result.
+- [ ] Record artifact identity, scenario, result and screenshots/log locations.
+
+### F. Product-owner gate and closure
+
+- [ ] Owner manually confirms that the interaction feels correct.
+- [ ] Remove the legacy fallback only after that confirmation and rerun focused
+      plus direct-neighbour regressions.
+- [ ] Update this ledger, `MIGRATION_STATUS.md` and the slice document.
+- [ ] Make an atomic milestone commit; push only when requested.
+- [ ] Confirm the worktree contains no accidental generated or unrelated files.
+
+## Definition of done
+
+A slice is `complete` only when all of these are true:
+
+- no accepted P0/P1 critic finding remains;
+- canonical state, pixels, layer presentation, history and resources agree after
+  commit, cancel, undo, redo, failure and document switch;
+- focused automated tests and direct-neighbour tests are green;
+- packaged WebGPU real-app acceptance is recorded;
+- the declared performance budget is met;
+- UI/shortcut/Action/MCP parity is proved or an unsupported route is explicit;
+- no new source-structure failure exists and touched hotspots lost a named owner;
+- the owner accepted the user interaction.
+
+## Ordered master ledger
+
+The order is dependency-driven. Cross-cutting checks are performed in every
+slice; they are not postponed to the final phase.
+
+| ID | Vertical slice | State | Kernel | critic | packaged app | owner | fallback removed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S00A | Selection geometric/paint foundation | `owner` | yes | passed | passed | [ ] | [ ] |
+| S00B | Remaining selection catalog | `queued` | partial | [ ] | [ ] | [ ] | [ ] |
+| S01 | Layer capabilities, rasterize, merge and flatten | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S04 | Transform, selected-pixel transform, snapping and guides | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S05 | Vector paths and live shapes | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S06 | Text, paragraph/vertical/path text and text conversion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S07 | Warp and experimental Face Warp | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S08 | Adjustment-layer lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S09 | Layer styles/effects lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S10 | Filters P0, P1 and P2 by release tier | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S11 | Document geometry, clipboard, open/place/save/export/recovery | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
+
+The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
+and effect inventories come from `adjustmentLayerCatalog.ts`,
+`layerStyleDefaults.ts` and the P0/P1/P2 filter catalogs. When a catalog changes,
+this ledger must change in the same commit.
+
+### S00A -- selection geometric/paint foundation
+
+Already implemented and independently reviewed; the legacy fallback remains
+until owner acceptance. The existing packaged smoke is proof, not permission to
+skip the manual gate.
+
+- [x] Rectangular selection shape/preview/commit.
+- [x] Elliptical selection shape/preview/commit.
+- [x] Free selection shape/preview/commit.
+- [x] Polygonal selection shape/preview/commit.
+- [x] Selection Brush preview/commit and resource ownership.
+- [x] Move, nudge, edge excursion/return, paint clipping and exact copy bounds.
+- [x] Combine modes, rollback, undo/redo and document rebind coverage.
+- [x] Separate critic with two ownership repairs.
+- [x] Packaged WebGPU smoke.
+- [ ] Owner manual interaction/performance acceptance.
+- [ ] Remove fallback and reduce selection controller responsibilities.
+
+### S00B -- remaining selection catalog
+
+- [ ] Horizontal selection single-row marquee acceptance.
+- [ ] Vertical selection single-column marquee acceptance.
+- [ ] Magic Wand acceptance.
+- [ ] Object Selection result/model acceptance.
+- [ ] Selection Brush catalogue/shortcut parity after S00A fallback removal.
+
+### S01 -- layer capabilities, rasterize, merge and flatten
+
+This is next because later tools need one trustworthy way to finalize content.
+
+- [ ] Derive icons/menu/shortcut availability from one capability projection.
+- [ ] Rasterize text, live shapes/vector, gradient/fill, raster with adjustments,
+      raster with layer styles, adjustment layers and supported groups.
+- [ ] Define whether rasterizing an already-raster layer applies its non-destructive
+      stack, and preserve visual bounds/placement exactly.
+- [ ] Merge Down / selected layers (`Ctrl/Cmd+E`) with order, blend, masks,
+      clipping, opacity, adjustments and styles preserved in the result.
+- [ ] Flatten Group and Flatten Image with global adjustment/Lens Fx ordering.
+- [ ] Atomic failure rollback: no half-replaced layer, leaked texture or history.
+- [ ] Layer-stack collapse/expand, selection and thumbnail state remain coherent.
+- [ ] UI, shortcut, Action and MCP all use the same commands.
+
+### S02 -- masks and background removal
+
+- [ ] Add/delete/enable/disable/invert/apply mask and load mask as selection.
+- [ ] Mask painting uses the shared raster-session lifecycle and selection lease.
+- [ ] Remove Background has one cancellable generation-bound task and inserts its
+      result through the same layer/mask command as UI, Action and MCP.
+- [ ] Undo/redo and failure restore layer pixels, mask, selection and resources.
+
+### S03 -- raster paint and pixel mutations
+
+- [ ] Brush.
+- [ ] Erase.
+- [ ] Healing Brush, including source acquisition.
+- [ ] Clone Stamp, including source acquisition.
+- [ ] Dodge.
+- [ ] Burn.
+- [ ] Sponge.
+- [ ] Paint bucket.
+- [ ] Raster Gradient.
+- [ ] Selection/mask clipping, transformed/tight raster coordinates and edge cases.
+- [ ] One continuous stroke session, bounded dirty regions and one history entry.
+
+### S04 -- transform and snapping
+
+- [ ] Transform for raster, text, vector, shape, group and supported masks.
+- [ ] Selected-pixel transform keeps an immutable source until terminal commit.
+- [ ] Move, scale, rotate, skew and supported projective modes.
+- [ ] Snap candidates exclude self; one latched target with hysteresis prevents
+      corner fighting, guide flicker and return-to-previous-state jumps.
+- [ ] Repeated transforms in one tool session never recursively rasterize previews.
+- [ ] Auto-pan, document bounds, cancel, undo/redo and multi-document rebind.
+
+### S05 -- vector paths and live shapes
+
+- [ ] Pen.
+- [ ] Add anchor point.
+- [ ] Delete anchor point.
+- [ ] Convert anchor point.
+- [ ] Path selection.
+- [ ] Direct selection.
+- [ ] Rectangle live shape.
+- [ ] Ellipse live shape.
+- [ ] Triangle live shape.
+- [ ] Line live shape.
+- [ ] Vector Gradient, fill/stroke, masks/clipping and hybrid renderer parity.
+- [ ] Path create/edit/close/transform/undo and rasterize hand-off.
+
+### S06 -- text
+
+- [ ] Type tool (point text) creation and editing.
+- [ ] Paragraph text creation and editing.
+- [ ] Vertical type tool creation and editing.
+- [ ] Text measurement is canonical enough for transform before glyph realization.
+- [ ] Path text attaches to exactly one selected native path and survives path edit.
+- [ ] Style/run/paragraph edits preview and commit as one transaction.
+- [ ] Text transform, text warp, convert-to-shape and rasterize hand-offs.
+- [ ] Font load/failure, document switch, undo/redo and export behavior.
+
+### S07 -- warp
+
+- [ ] Warp for raster and supported shape/text has one immutable source per session.
+- [ ] Preview cannot switch between old and new generations while dragging.
+- [ ] Commit/cancel/repeat/undo and resource cleanup are deterministic.
+- [ ] Face Warp stays experimental until its separate accuracy/performance gate.
+
+### S08 -- adjustment layers
+
+First prove the common lifecycle: create, select, edit preview, commit/cancel,
+mask/clipping, reorder, duplicate, enable, delete, rasterize/merge, undo/redo,
+save/open and renderer rebind. Then check every catalog entry:
+
+- [ ] Grade; Lens Fx.
+- [ ] Brightness / Contrast; Levels; Curves; Exposure.
+- [ ] Color and Vibrance; Hue / Saturation; Color Balance; Black & White.
+- [ ] Photo Filter; Channel Mixer; Color Lookup; Selective Color.
+- [ ] Invert; Posterize; Threshold; Gradient Map.
+- [ ] Clarity and Dehaze; Grain.
+- [ ] Hidden legacy `Vibrance` identity remains readable without a duplicate UI.
+
+### S09 -- layer styles/effects
+
+Prove the shared live-preview/commit stack once, then every effect and stack
+combination. Rasterize/merge must consume the same renderer projection.
+
+- [ ] Drop Shadow; Inner Shadow; Outer Glow; Inner Glow.
+- [ ] Bevel & Emboss; Color Overlay; Gradient Overlay; Pattern Overlay.
+- [ ] Satin; Stroke; global-light and multi-effect ordering.
+
+### S10 -- filters
+
+Each tier is its own sub-slice and cannot inherit acceptance from another tier.
+
+- [ ] P0: Gaussian Blur, Motion Blur, Surface Blur, Displace, Median, Reduce
+      Noise, Smart Sharpen, Unsharp Mask, High Pass, Maximum, Minimum, Offset.
+- [ ] P1: Box Blur, Radial Blur, Field Blur, Iris Blur, Tilt-Shift, Wave, Ripple,
+      Twirl, Spherize, Polar Coordinates, Dust & Scratches, Despeckle, Mosaic,
+      Color Halftone, Clouds, Lens Flare, Find Edges, Emboss.
+- [ ] P2: Shape Blur, Smart Blur, Path Blur, Spin Blur, Pinch, Shear, Glass,
+      Crystallize, Mezzotint, Pointillize, Difference Clouds, Fibers, Oil Paint,
+      Glowing Edges, Diffuse, Solarize, Custom, Cutout, Plastic Wrap,
+      Poster Edges, Watercolor, Photocopy, Halftone Pattern, Stamp, Torn Edges,
+      Texturizer.
+- [ ] Common filter preview/commit/cancel, masks, stacking, reorder, rasterize,
+      merge, save/open, undo/redo and GPU resource reuse.
+
+### S11 -- document and file lifecycle
+
+- [ ] New document and instant clipboard-dimension probe; Paste/Copy/Copy Merged.
+- [ ] Resize image, canvas size, crop and rotate with layers/masks/selection.
+- [ ] Open/Place and save/export for the formats in `formatCapabilities.ts`, with
+      explicit semantic versus flattened behavior.
+- [ ] Autosave/recovery, failed decode/export and unsaved-document close.
+- [ ] Generated/AI results use the normal cancellable result-insertion commands.
+
+### S12 -- view and multi-document presentation
+
+- [ ] Move canvas, including middle-button/modifier conflicts.
+- [ ] Zoom, including wheel/middle-button/modifier conflicts and
+      stable 100% document zoom.
+- [ ] Side panels, floating layer panel, tool options, scopes and rulers do not
+      alter document coordinates or edge zones.
+- [ ] Tab switch, close/reopen and renderer rebind show the correct first frame.
+- [ ] Hidden documents release transient work without losing committed resources.
+
+### S13 -- final system matrix
+
+This is a cross-domain proof, not the first time these properties are tested.
+
+- [ ] Long mixed-operation undo/redo chains across all completed slices.
+- [ ] Equivalent UI, shortcut, Actions and MCP command results and errors.
+- [ ] GPU device loss/recovery, allocation failure and document-close cleanup.
+- [ ] Multi-document memory and repeated-operation soak.
+- [ ] Full boundary, source audit, typecheck, tests, web build and packaged desktop.
+
+## Large-file reduction ledger
+
+Do not create a separate cleanup campaign that mechanically moves code. When a
+slice touches a hotspot, remove one named authority and record before/after
+lines plus responsibilities here.
+
+| Hotspot | Intended remaining role | Responsibility to extract with slice | Done |
+| --- | --- | --- | --- |
+| `useSelectionSessionController.ts` | React/input adapter | terminal command, mask/resource and history coordination -> S00 kernel/adapters | [ ] |
+| `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; clipboard/document geometry -> S11 | [ ] |
+| `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
+| `LayerStyleEditor.tsx` | presentational editor composition | preview transaction and style mutation service -> S09 | [ ] |
+| `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
+| `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | [ ] |
+| `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | [ ] |
+
+Rules:
+
+- New production modules target one responsibility and normally stay below 350
+  lines. At 500 lines a recorded decomposition decision is mandatory. The
+  existing hard kernel ceiling of 800 handwritten lines remains absolute.
+- A touched hotspot may not grow unless the slice note identifies a temporary
+  adapter seam and the same slice removes more authority than it adds.
+- Splitting a file without changing ownership does not satisfy this ledger.
+- Generated catalogs/shaders are judged by generation and ownership, not by the
+  same handwritten line target.
+
+## Performance ledger
+
+Every slice records, before and after:
+
+- pointer/preview frame time and dropped frames for interactive work;
+- terminal commit and first-correct-frame latency;
+- GPU allocations, readbacks and retained bytes/resources;
+- history snapshot bytes and undo/redo latency;
+- document-switch/rebind latency where relevant.
+
+Debug is used to diagnose ownership and duplicate work. Packaged release is the
+performance acceptance environment. A repeatable regression above 10% blocks
+the slice until explained and explicitly accepted; a faster path still fails if
+it weakens correctness or cleanup.
+
+## Stop rules
+
+Set the slice to `blocked` and request a decision when:
+
+- two critic-repair loops leave an accepted P0/P1;
+- real-app behavior contradicts tests;
+- canonical ownership cannot be named without widening the slice substantially;
+- a mixed legacy/kernel mutation is required;
+- performance or GPU-memory behavior exceeds its declared budget;
+- the implementation creates a new god object or merely moves one;
+- required owner interaction acceptance is unavailable.
+
+## Required progress report after each slice
+
+Report exactly:
+
+1. **Done:** user flows and architectural owners now proved.
+2. **Changed:** files/responsibilities moved, including hotspot deltas.
+3. **Proof:** focused checks, critic rounds, packaged scenarios and performance.
+4. **Still open:** unchecked items and retained fallback, without optimistic
+   wording.
+5. **Decision:** proceed, repair, block or ask for owner acceptance.
+6. **Next slice:** one named slice only.

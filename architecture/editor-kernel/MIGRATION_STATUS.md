@@ -2,6 +2,10 @@
 
 Updated: 2026-09-08.
 
+The ordered, checkable work queue and the mandatory critic/repair/real-app loop
+live in the [stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md).
+This status file remains the compact statement of what is actually migrated.
+
 | Domain | Legacy | Kernel contract | Kernel route | Real-app proof | Legacy removed |
 | --- | --- | --- | --- | --- | --- |
 | shared identities and lifecycle | n/a | partial | n/a | n/a | n/a |

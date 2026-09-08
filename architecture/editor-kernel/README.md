@@ -52,7 +52,8 @@ document/history   renderer/WebGPU/UI
 7. [Layer capabilities](LAYER_CAPABILITIES.md)
 8. [Migration playbook](MIGRATION_PLAYBOOK.md)
 9. [Migration status](MIGRATION_STATUS.md)
-10. [Selection vertical slice](SELECTION_VERTICAL_SLICE.md)
+10. [Stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md)
+11. [Selection vertical slice](SELECTION_VERTICAL_SLICE.md)
 
 ## Package-shape rule
 
