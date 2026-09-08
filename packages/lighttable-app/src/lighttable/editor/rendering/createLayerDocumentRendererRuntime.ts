@@ -14,6 +14,7 @@ import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
 import { SelectionClipboardService } from './SelectionClipboardService';
 import { SelectionShapeProjectionService } from './SelectionShapeProjectionService';
+import { createSelectionProjectionStageDisposer } from './selectionProjectionStageLifecycle';
 import { RasterDocumentOperations } from './RasterDocumentOperations';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
 import { LayerCompositor } from './LayerCompositor';
@@ -348,6 +349,7 @@ export const createLayerDocumentRendererRuntime = (
       const ensureStageTargets = () => { stageTextures.ensureTargets(); };
       const rasterizer = createSelectionRasterizer(stageTextures, ensureStageTargets);
       const analyzer = createSelectionContentAnalyzer(stageTextures, ensureStageTargets);
+      const dispose = createSelectionProjectionStageDisposer(rasterizer, stageTextures);
       return {
         textures: stageTextures,
         restore: (snapshot) => rasterizer.restoreSnapshot(snapshot),
@@ -364,9 +366,15 @@ export const createLayerDocumentRendererRuntime = (
           intent.opacity,
           intent.mode
         ),
+        magicWand: (source, intent) => rasterizer.magicWand(
+          source,
+          intent.point,
+          intent.options,
+          intent.mode
+        ),
         capture: () => rasterizer.captureSnapshot(),
         measure: () => analyzer.measureSelection(),
-        dispose: () => rasterizer.destroy(),
+        dispose,
       };
     },
   });

@@ -13,6 +13,7 @@ import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionM
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type {
   SelectionPaintProjectionIntent,
+  SelectionMagicWandProjectionIntent,
   SelectionShapeProjectionIntent,
   SelectionTranslationProjectionIntent,
 } from '../../../editor/rendering/SelectionShapeProjectionService';
@@ -48,6 +49,13 @@ export interface SelectionProjectionCommandPort {
     document: DocumentAddress,
     baseline: LightTableCommittedSelection,
     intent: SelectionPaintProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
+  prepareSelectionMagicWandProjection(
+    document: DocumentAddress,
+    baseline: LightTableCommittedSelection,
+    intent: SelectionMagicWandProjectionIntent,
     transactionId: TransactionId,
     signal: AbortSignal,
   ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
@@ -113,6 +121,20 @@ export class SelectionShapeCommandService {
     );
   }
 
+  async executeMagicWand(
+    intent: SelectionMagicWandProjectionIntent,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<boolean> {
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionMagicWandProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
   async projectCurrent(rendererOverride?: SelectionProjectionCommandPort): Promise<boolean> {
     const address = this.address();
     const renderer = rendererOverride ?? this.resolveRenderer();
@@ -121,7 +143,8 @@ export class SelectionShapeCommandService {
     const prepared = await renderer.prepareSelectionSnapshotProjection(
       address, committed, committed, transactionId(), new AbortController().signal,
     );
-    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer) {
+    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer
+      || this.state.read(address.sessionId).revision !== committed.revision) {
       prepared.dispose();
       return false;
     }
@@ -174,29 +197,7 @@ export class SelectionShapeCommandService {
       transactionId: transactionId(),
       signal,
     });
-    if (!result.ok && this.matchesAddress(address) && this.resolveRenderer() === renderer) {
-      await this.restoreCommittedProjection(address, renderer).catch(() => undefined);
-    }
     return result.ok;
-  }
-
-  private async restoreCommittedProjection(
-    address: DocumentAddress,
-    renderer: SelectionProjectionCommandPort,
-  ): Promise<void> {
-    const committed = this.state.read(address.sessionId);
-    const prepared = await renderer.prepareSelectionSnapshotProjection(
-      address, committed, committed, transactionId(), new AbortController().signal,
-    );
-    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer) {
-      prepared.dispose();
-      return;
-    }
-    const projected = this.withOverlayProjection(
-      prepared, renderer, committed.provenance,
-    );
-    const activation = projected.activate();
-    activation.accept();
   }
 
   private reserveHistory(
@@ -205,10 +206,12 @@ export class SelectionShapeCommandService {
     const final = change.after.provenance.at(-1);
     const type = final?.source?.kind === 'selection-paint'
       ? 'selection.paint'
+      : final?.source?.kind === 'magic-wand' ? 'selection.magic-wand'
       : final?.mode === 'transform' ? 'selection.transform'
         : `selection.${final?.mode ?? 'replace'}`;
     const label = final?.source?.kind === 'selection-paint'
       ? 'Selection Brush'
+      : final?.source?.kind === 'magic-wand' ? 'Magic Wand'
       : final?.mode === 'transform' ? 'Transform Selection' : 'Make Selection';
     return this.session.history.reserve({
       id: String(change.transactionId),

@@ -145,7 +145,7 @@ export const createMagicWandSelectionOperation = (
   mode,
   source: {
     kind: 'magic-wand',
-    point: { ...point },
+    point: { x: point.x, y: point.y },
     options: {
       ...options,
       tolerance: Math.max(0, Math.min(255, Math.round(options.tolerance)))

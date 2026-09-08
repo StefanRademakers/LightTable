@@ -192,6 +192,7 @@ export const createSelectionSessionController = (
 ): SelectionSessionController => {
   let magicWandGeneration = 0;
   let pendingMagicWandRequests = 0;
+  const magicWandAborts = new Set<AbortController>();
   let paintGesture: {
     pointerId: number;
     document: ImageDocument;
@@ -776,11 +777,31 @@ export const createSelectionSessionController = (
       mode
     );
     const generation = magicWandGeneration;
+    const cancellation = new AbortController();
+    magicWandAborts.add(cancellation);
     pendingMagicWandRequests += 1;
     try {
       return await queueCommit(async () => {
         if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
         const latest = resolveDependencies();
+        if (latest.commitMagicWand) {
+          const applied = await latest.commitMagicWand({
+            layerId,
+            point: { x: point.x, y: point.y },
+            mode,
+            options: { ...options },
+            provenance: operation,
+          }, cancellation.signal);
+          if (!applied || generation !== magicWandGeneration) return false;
+          latest.setError(null);
+          if (recordObserved) {
+            notifyObservedCommit(latest, () => latest.onMagicWandCommitted?.({
+              kind: 'magic-wand', layerId,
+              point: { x: point.x, y: point.y }, mode, options: { ...options },
+            }));
+          }
+          return true;
+        }
         const before = cloneSelectionOperations(latest.getSelection());
         const beforeMask = documentCommittedMask(latest, document, before)
           ?? await renderer.captureSelectionSnapshot();
@@ -826,6 +847,7 @@ export const createSelectionSessionController = (
         }
       });
     } finally {
+      magicWandAborts.delete(cancellation);
       pendingMagicWandRequests = Math.max(0, pendingMagicWandRequests - 1);
     }
   };
@@ -1383,10 +1405,14 @@ export const createSelectionSessionController = (
       return true;
     },
     reset: () => {
-      const restoreSelectionAfterMagicWand = pendingMagicWandRequests > 0;
+      const dependencies = resolveDependencies();
+      const restoreSelectionAfterMagicWand = pendingMagicWandRequests > 0
+        && !dependencies.commitMagicWand;
       const interruptedTranslation = translation;
       const interruptedPaint = paintGesture;
       magicWandGeneration += 1;
+      magicWandAborts.forEach((controller) => controller.abort());
+      magicWandAborts.clear();
       if (interruptedTranslation) interruptedTranslation.stopped = true;
       translation = null;
       paintGesture = null;
@@ -1395,7 +1421,6 @@ export const createSelectionSessionController = (
       resolveDependencies().publishSnapFeedback?.([], null);
       gesture.reset();
       polygonGesture.reset();
-      const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);
       if (interruptedTranslation || interruptedPaint) {

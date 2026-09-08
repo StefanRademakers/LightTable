@@ -9,7 +9,7 @@ This status file remains the compact statement of what is actually migrated.
 | Domain | Legacy | Kernel contract | Kernel route | Real-app proof | Legacy removed |
 | --- | --- | --- | --- | --- | --- |
 | shared identities and lifecycle | n/a | partial | n/a | n/a | n/a |
-| selection/marquee vertical | fallback retained | implemented | shape/move/nudge/paint/rebind | packaged automated | no |
+| selection/marquee vertical | fallback retained | implemented | shape/move/nudge/paint/Magic Wand/rebind | packaged automated | no |
 | transform and snapping | yes | documented | no | no | no |
 | rasterize/merge/flatten | yes | documented | no | no | no |
 | text/path text/warp | yes | documented | no | no | no |
@@ -40,12 +40,15 @@ The current owners, implemented shape path and remaining gates are recorded in
 authority inventory, renderer staging, state/history adapters and consumer
 leases are implemented. A packaged WebGPU smoke proves four-edge excursions
 and return, nudge, selection paint, paint clipping, exact Copy bounds,
-undo/redo and tab rebind. Rectangle, ellipse, free and polygon UI paths have
-packaged coverage; unit tests cover combine modes and failure rollback.
+undo/redo and tab rebind. Rectangle, ellipse, free, polygon, horizontal/vertical
+strip and Magic Wand UI paths have packaged coverage; unit tests cover combine
+modes, cancellation, resource teardown and failure rollback. Magic Wand stages
+on a reusable full GPU workspace, publishes through the same atomic selection
+coordinator, and records/replays one strict semantic Action after commit.
 
-The legacy fallback remains until owner visual/interaction acceptance. The
-next decision is whether this slice feels correct in a manual editor run. Do
-not begin a second domain migration or delete the fallback before that gate.
+The legacy fallback remains until owner visual/interaction acceptance. Object
+Selection is the last catalog item in this same selection domain; do not begin
+a second domain migration or delete the fallback before the owner gate.
 
 ## Structural baseline still failing
 

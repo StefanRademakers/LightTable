@@ -111,6 +111,13 @@ export interface SelectionSessionDependencies {
     readonly mode: 'add' | 'subtract';
     readonly provenance: SelectionOperation;
   }): Promise<boolean>;
+  commitMagicWand?(command: {
+    readonly layerId: LayerId;
+    readonly point: SelectionPoint;
+    readonly mode: SelectionCombineMode;
+    readonly options: MagicWandOptions;
+    readonly provenance: SelectionOperation;
+  }, signal: AbortSignal): Promise<boolean>;
   onMagicWandCommitted?(command: {
     readonly kind: 'magic-wand';
     readonly layerId: LayerId;

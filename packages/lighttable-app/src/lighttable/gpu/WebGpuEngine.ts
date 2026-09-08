@@ -54,6 +54,7 @@ import type {
   DocumentAssetBlob
 } from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer } from '../editor/rendering/LayerDocumentRenderer';
+import { prepareMagicWandSelectionProjection } from '../editor/rendering/prepareMagicWandSelectionProjection';
 import {
   documentLayerResourceRepositoryFor,
   type DocumentLayerResourceRepository
@@ -1710,6 +1711,37 @@ export class WebGpuEngine {
     return this.prepareSelectionProjection(
       'paint', (renderer) => renderer.prepareSelectionPaintProjection(...parameters),
     );
+  }
+
+  prepareSelectionMagicWandProjection(
+    documentAddress: Parameters<LayerDocumentRenderer['prepareSelectionMagicWandProjection']>[0],
+    baseline: Parameters<LayerDocumentRenderer['prepareSelectionMagicWandProjection']>[1],
+    intent: Parameters<LayerDocumentRenderer['prepareSelectionMagicWandProjection']>[2],
+    transactionId: Parameters<LayerDocumentRenderer['prepareSelectionMagicWandProjection']>[4],
+    signal: Parameters<LayerDocumentRenderer['prepareSelectionMagicWandProjection']>[5],
+  ) {
+    return this.prepareSelectionProjection('magic-wand', async (renderer) => {
+      const document = this.imageDocument;
+      if (!document) throw new Error('The Magic Wand document is no longer current.');
+      return prepareMagicWandSelectionProjection({
+        device: this.device,
+        renderer,
+        document,
+        documentAddress,
+        baseline,
+        intent,
+        transactionId,
+        signal,
+        resolveCompositeSource: async () => {
+          this.settleInteractiveRenderQuality();
+          this.renderScheduler.flush();
+          await this.device.queue.onSubmittedWorkDone();
+          signal.throwIfAborted();
+          return this.imageResources.finalTexture;
+        },
+        reportValidationError: (message) => this.callbacks.onDeviceLost?.(message),
+      });
+    });
   }
 
   replaceSelection(operations: SelectionOperation[]) {

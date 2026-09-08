@@ -755,6 +755,46 @@ describe('selection session controller', () => {
     expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it('routes Magic Wand exclusively through the kernel port and aborts stale work', async () => {
+    let release!: (applied: boolean) => void;
+    let signal: AbortSignal | null = null;
+    const commitMagicWand = vi.fn((_command, nextSignal: AbortSignal) => {
+      signal = nextSignal;
+      return new Promise<boolean>((resolve) => { release = resolve; });
+    });
+    const onMagicWandCommitted = vi.fn();
+    const state = setup({ commitMagicWand, onMagicWandCommitted });
+    const options = {
+      sampleSize: 3 as const, tolerance: 12, antiAlias: true,
+      contiguous: true, sampleAllLayers: false,
+    };
+
+    expect(state.controller.magicWand({ x: 16, y: 24 }, 'replace', options)).toBe(true);
+    await vi.waitFor(() => expect(commitMagicWand).toHaveBeenCalledOnce());
+    expect(commitMagicWand).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: document.activeLayerId,
+      point: { x: 16, y: 24 },
+      mode: 'replace',
+      options,
+      provenance: expect.objectContaining({
+        mode: 'replace', source: expect.objectContaining({ kind: 'magic-wand' }),
+      }),
+    }), expect.any(AbortSignal));
+    expect(state.renderer.applyMagicWand).not.toHaveBeenCalled();
+    expect(state.renderer.captureSelectionSnapshot).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+
+    state.controller.reset();
+    expect((signal as unknown as AbortSignal).aborted).toBe(true);
+    release(true);
+    await state.controller.settle();
+
+    expect(onMagicWandCommitted).not.toHaveBeenCalled();
+    expect(state.renderer.restoreSelectionSnapshot).not.toHaveBeenCalled();
+    expect(state.selection).toEqual([]);
+    expect(state.history).toEqual([]);
+  });
+
   it('awaits direct Magic Wand execution without publishing a second UI observation', async () => {
     const onMagicWandCommitted = vi.fn();
     const state = setup({ onMagicWandCommitted });

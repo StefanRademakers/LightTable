@@ -23,6 +23,7 @@ the review baseline for removing mixed ownership.
 | undo/redo of shape | document history | `SelectionShapeCommandService.restore` | staged exact-snapshot activation | kernel-owned for shape entries only |
 | undo/redo of move/paint | document history | kernel selection history reservation | staged exact-snapshot activation | fresh monotonic revision; projection/state rollback together |
 | document rebind/tab switch | document lifecycle in `LightTableEditorOverlay` | read-only `projectCurrent` | staged exact-snapshot activation | rejects stale completion without authoring history or revision |
+| Magic Wand | pointer tool or semantic `selection.applyMagicWand` | `SelectionShapeCommandService.executeMagicWand` -> `SelectionMutationCoordinator` | active-layer/composite source feeds a pooled isolated rasterizer stage | cancellation and document/revision changes cannot publish; Action observation occurs only after commit |
 
 The completion pass must remove commit authority for move/nudge, selection
 paint and exact rebind from the controller/React lifecycle. Gesture sampling
@@ -187,7 +188,7 @@ primitive directly.
 1. **Contracts — complete:** committed selection value, read lease, prepared
    projection and reversible activation exist in `@lighttable/editor-kernel`.
 2. **Renderer staging — implemented/unit and packaged proven:** shape,
-   translation, selection-paint and exact-snapshot results prepare on isolated
+   translation, selection-paint, Magic Wand and exact-snapshot results prepare on isolated
    reusable targets and return snapshot plus bounds. Store allocation, swaps,
    exchange, detach and attach enforce preview ownership at the resource
    boundary; transform commit/history uses the same admission. Device-loss
@@ -228,13 +229,18 @@ primitive directly.
   and two-document rebind.
 - `smoke:desktop:pixel-clipboard`: exact UI/Actions/MCP Copy, Copy Merged and
   Paste render equivalence after undo.
+- `smoke:desktop:magic-wand -- --generated-4k`: six repeated 4K UI operations,
+  replace/add/subtract/intersect routing and visible/GPU timing. The accepted
+  runs measured 66--102 ms GPU and 176--196 ms to visible change.
+- `smoke:desktop:magic-wand-actions`: strict sampled-recipe recording, undo and
+  Action playback through the same kernel commit route.
 
 Resource-boundary admission now prevents Action/MCP shape commits, undo/redo,
 rebind, geometry/resize activation and transform-history swaps from replacing
 the store during selection-paint preview. After exact baseline restore the
 controller releases the lease and transfers rollback ownership to the kernel;
 a losing paint CAS cannot republish its stale gesture baseline. Independent
-review found no remaining P0/P1 in this slice. The remaining gate is a manual
+review found no remaining P0/P1/P2 in the implemented slice. The remaining gate is a manual
 owner run for contour quality and pointer feel.
 Legacy fallbacks for embedded/no-session hosts and out-of-slice modifiers remain
 present. Passing this slice is evidence that the architecture can work; it is

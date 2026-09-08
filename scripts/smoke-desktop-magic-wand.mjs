@@ -76,7 +76,16 @@ try {
   await page.getByLabel('Magic Wand settings').waitFor({ state: 'hidden' });
   await page.keyboard.press('w');
   await page.getByLabel('Magic Wand settings').waitFor({ state: 'visible' });
-  await page.getByLabel('Magic Wand sample size').selectOption(sampleSize);
+  await page.getByLabel('Magic Wand sample size').click();
+  const sampleSizeLabels = {
+    1: 'Point Sample',
+    3: '3 by 3 Average',
+    5: '5 by 5 Average',
+    11: '11 by 11 Average'
+  };
+  const sampleSizeLabel = sampleSizeLabels[sampleSize];
+  if (!sampleSizeLabel) throw new Error(`Unsupported Magic Wand sample size: ${sampleSize}`);
+  await page.getByRole('option', { name: sampleSizeLabel, exact: true }).click();
   await page.getByLabel('Tolerance').fill('20');
   await page.getByLabel('Contiguous').setChecked(contiguous);
   await page.getByLabel('Sample All Layers').setChecked(sampleAllLayers);

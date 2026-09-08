@@ -5,6 +5,7 @@ import type {
   SelectionRevision,
   TransactionId,
 } from '@lighttable/editor-kernel';
+import type { LayerId } from '../document/documentTypes';
 import { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../selection/selectionTypes';
 import { SelectionShapeProjectionService } from './SelectionShapeProjectionService';
@@ -22,6 +23,19 @@ const document = {
 const rectangle: SelectionOperation = {
   mode: 'replace',
   shape: { kind: 'rectangle', points: [{ x: 10, y: 12 }, { x: 40, y: 32 }] },
+};
+const magicLayerId = 'layer-1' as LayerId;
+const magicWand: SelectionOperation = {
+  mode: 'replace',
+  shape: { kind: 'rectangle', points: [{ x: 0, y: 0 }, { x: 100, y: 80 }] },
+  source: {
+    kind: 'magic-wand', layerId: magicLayerId, documentRevision: document.revision,
+    point: { x: 24, y: 18 },
+    options: {
+      sampleSize: 3, tolerance: 20, antiAlias: true,
+      contiguous: true, sampleAllLayers: false,
+    },
+  },
 };
 
 describe('SelectionShapeProjectionService', () => {
@@ -121,8 +135,9 @@ describe('SelectionShapeProjectionService', () => {
     expect(committed.mask).not.toBe(originalMask);
     activation.rollback();
     expect(committed.mask).toBe(originalMask);
-    expect(dispose).toHaveBeenCalledOnce();
+    expect(dispose).not.toHaveBeenCalled();
     service.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('cannot activate committed targets while selection paint owns the store', async () => {
@@ -211,6 +226,77 @@ describe('SelectionShapeProjectionService', () => {
     created.forEach((entry) => expect(entry.destroy).toHaveBeenCalledOnce());
   });
 
+  it('prepares Magic Wand coverage on isolated targets and activates it atomically', async () => {
+    const committed = store();
+    committed.ensureTargets();
+    const originalMask = committed.mask;
+    const staged = store();
+    const restore = vi.fn(() => true);
+    const applyMagicWand = vi.fn(() => true);
+    const source = texture();
+    const service = new SelectionShapeProjectionService({
+      committedTextures: committed,
+      createStage: () => ({
+        textures: staged,
+        restore,
+        apply: () => true,
+        transform: () => true,
+        paint: () => true,
+        magicWand: applyMagicWand,
+        capture: async () => SelectionMaskSnapshot.fromRaw(
+          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+        ),
+        measure: async () => ({
+          coreBounds: { x: 20, y: 16, width: 12, height: 10 },
+          supportBounds: { x: 20, y: 16, width: 12, height: 10 },
+          peakCoverage: 1,
+        }),
+        dispose: () => staged.destroy(),
+      }),
+    });
+    const baseline = {
+      documentSessionId: document.sessionId,
+      revision: 4 as SelectionRevision,
+      canvas: { width: 100, height: 80 },
+      active: false,
+      coverage: SelectionMaskSnapshot.inactive(100, 80),
+      supportBounds: null,
+      provenance: [] as SelectionOperation[],
+    };
+    const magicSource = magicWand.source?.kind === 'magic-wand'
+      ? magicWand.source : null;
+    if (!magicSource) throw new Error('Magic Wand fixture is invalid.');
+    const intent = {
+      layerId: magicSource.layerId,
+      point: { x: 24, y: 18 },
+      options: magicSource.options,
+      mode: 'replace' as const,
+      provenance: magicWand,
+    };
+
+    const prepared = await service.prepareMagicWand(
+      document, baseline, intent, source,
+      'transaction-magic-wand' as TransactionId,
+      new AbortController().signal,
+    );
+
+    expect(restore).toHaveBeenCalledWith(baseline.coverage);
+    expect(applyMagicWand).toHaveBeenCalledWith(source, intent);
+    expect(committed.mask).toBe(originalMask);
+    expect(prepared.result).toMatchObject({
+      revision: 5,
+      active: true,
+      supportBounds: { x: 20, y: 16, width: 12, height: 10 },
+      provenance: [magicWand],
+    });
+
+    prepared.activate().accept();
+    expect(committed.mask).not.toBe(originalMask);
+    expect(committed.active).toBe(true);
+    service.dispose();
+    committed.destroy();
+  });
+
   it('normalizes an empty subtract result to one inactive committed value', async () => {
     const committed = store();
     committed.ensureTargets();
@@ -250,7 +336,7 @@ describe('SelectionShapeProjectionService', () => {
     const committed = store();
     committed.ensureTargets();
     let allocations = 0;
-    const createStage = () => {
+    const createStage = vi.fn(() => {
       const staged = new SelectionTextureStore({
         createSelectionTexture: () => {
           allocations += 1;
@@ -273,7 +359,7 @@ describe('SelectionShapeProjectionService', () => {
         }),
         dispose: () => staged.destroy(),
       };
-    };
+    });
     const service = new SelectionShapeProjectionService({ committedTextures: committed, createStage });
     let baseline: Parameters<SelectionShapeProjectionService['prepare']>[1] = {
       documentSessionId: document.sessionId, revision: 0 as SelectionRevision,
@@ -290,6 +376,7 @@ describe('SelectionShapeProjectionService', () => {
       baseline = next.result;
     }
     expect(allocations).toBe(3);
+    expect(createStage).toHaveBeenCalledOnce();
     service.dispose();
     committed.destroy();
   });

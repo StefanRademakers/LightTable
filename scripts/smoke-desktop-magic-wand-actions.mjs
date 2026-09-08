@@ -48,33 +48,59 @@ try {
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
   const recorder = panel.locator('.lighttable-action-recorder');
+  await window.evaluate(() => {
+    globalThis.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__ = [];
+    globalThis.__LIGHTTABLE_MAGIC_WAND_TRACE__ = [];
+  });
   await recorder.getByRole('button', { name: 'Record' }).click();
   await window.getByRole('button', { name: 'Magic Wand (W)', exact: true }).first().click();
   await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Magic Wand' }).waitFor();
-  const bounds = await window.locator('.lighttable-viewport').boundingBox();
-  if (!bounds) throw new Error('Magic Wand smoke could not measure the viewport.');
-  await window.mouse.click(bounds.x + bounds.width * 0.18, bounds.y + bounds.height * 0.42);
+  const clickPoint = await window.evaluate(() => {
+    const canvas = document.querySelector('.lighttable-viewport__canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) return null;
+    const bounds = canvas.getBoundingClientRect();
+    for (const yRatio of [0.42, 0.58, 0.3, 0.7]) {
+      for (const xRatio of [0.18, 0.32, 0.5, 0.68]) {
+        const x = bounds.left + bounds.width * xRatio;
+        const y = bounds.top + bounds.height * yRatio;
+        if (document.elementFromPoint(x, y) === canvas) return { x, y };
+      }
+    }
+    return null;
+  });
+  if (!clickPoint) throw new Error('Magic Wand smoke found no unobstructed canvas point.');
+  await window.mouse.click(clickPoint.x, clickPoint.y);
 
-  const step = recorder.locator('li').filter({ hasText: 'selection.applyMagicWand' });
+  const step = recorder.locator('[data-command="selection.applyMagicWand"]');
   await step.waitFor({ timeout: 30_000 }).catch(async () => {
-    throw new Error(`Magic Wand Action did not publish: ${await recorder.textContent()}`);
+    const trace = await window.evaluate(() => ({
+      observation: globalThis.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__,
+      magicWand: globalThis.__LIGHTTABLE_MAGIC_WAND_TRACE__,
+    }));
+    throw new Error(
+      `Magic Wand Action did not publish: ${await recorder.textContent()} ${JSON.stringify(trace)}`,
+    );
   });
   if (await step.count() !== 1) throw new Error('Magic Wand published more than one Action.');
-  await step.locator('summary').click();
-  const text = await step.textContent();
-  if (!text?.includes(rasterTargetId) || !text.includes('"kind": "magic-wand"')
-    || !text.includes('"tolerance": 20') || text.includes('documentRevision')
-    || text.includes('raster-mask')) {
-    throw new Error(`Magic Wand Action lost its sampled recipe boundary: ${text}`);
+  await recorder.getByRole('button', { name: 'Stop' }).click();
+  await step.click();
+  const inspector = recorder.locator('.lighttable-action-inspector');
+  await inspector.locator('summary').click();
+  const text = await inspector.textContent();
+  const values = await inspector.locator('input').evaluateAll((inputs) => (
+    inputs.map((input) => input instanceof HTMLInputElement ? input.value : '')
+  ));
+  if (!text?.includes('Selection kind') || !text.includes('Source layer ID')
+    || !text.includes('Document sample point') || !text.includes('Magic Wand options')
+    || !values.includes(rasterTargetId) || !values.includes('20')
+    || text.includes('documentRevision') || text.includes('Raster mask')) {
+    throw new Error(
+      `Magic Wand Action lost its sampled recipe boundary: ${JSON.stringify({ text, values })}`,
+    );
   }
 
-  await recorder.getByRole('button', { name: 'Stop' }).click();
-  await panel.getByRole('radio', { name: 'Commands' }).click();
-  const undo = panel.locator('details').filter({ hasText: 'history.undo' });
-  const runUndo = undo.getByRole('button', { name: 'Run' });
-  if (!await runUndo.isVisible()) await undo.locator('summary').click();
-  await runUndo.click();
-  await panel.getByRole('radio', { name: 'Actions' }).click();
+  await window.keyboard.press('Control+z');
+  await window.waitForTimeout(250);
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
   await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
     .waitFor({ timeout: 30_000 }).catch(async () => {

@@ -7,8 +7,14 @@ import type {
 } from '@lighttable/editor-kernel';
 import { createImageDocument } from '../../../editor/document/documentTypes';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
-import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
-import type { SelectionShapeProjectionIntent } from '../../../editor/rendering/SelectionShapeProjectionService';
+import {
+  createMagicWandSelectionOperation,
+  type SelectionOperation,
+} from '../../../editor/selection/selectionTypes';
+import type {
+  SelectionMagicWandProjectionIntent,
+  SelectionShapeProjectionIntent,
+} from '../../../editor/rendering/SelectionShapeProjectionService';
 import { DocumentSession, type DocumentSessionId } from '../../documents/documentSession';
 import type { LightTableCommittedSelection } from './DocumentSelectionStateStore';
 import {
@@ -95,6 +101,21 @@ const setup = () => {
       supportBounds: { x: 2, y: 1, width: 5, height: 5 },
       provenance: [...baseline.provenance, intent.provenance],
     }, events, id)),
+    prepareSelectionMagicWandProjection: vi.fn(async (
+      _document,
+      baseline,
+      intent: SelectionMagicWandProjectionIntent,
+      id,
+    ) => prepared(baseline, {
+      ...baseline,
+      revision: (baseline.revision + 1) as SelectionRevision,
+      active: true,
+      coverage,
+      supportBounds: { x: 2, y: 1, width: 5, height: 5 },
+      provenance: intent.mode === 'replace'
+        ? [intent.provenance]
+        : [...baseline.provenance, intent.provenance],
+    }, events, id)),
   };
   return { session, renderer, events,
     service: new SelectionShapeCommandService(session, () => renderer) };
@@ -165,6 +186,52 @@ describe('SelectionShapeCommandService', () => {
     session.dispose();
   });
 
+  it('commits Magic Wand, exact history and undo/redo through the reserved route', async () => {
+    const { session, renderer, events, service } = setup();
+    const document = session.getSnapshot().document!;
+    const point = { x: 4, y: 3 };
+    const options = {
+      sampleSize: 3 as const,
+      tolerance: 18,
+      antiAlias: true,
+      contiguous: true,
+      sampleAllLayers: false,
+    };
+    const magicWand = createMagicWandSelectionOperation(
+      document.activeLayerId!, document.revision, document.width, document.height,
+      point, options, 'replace',
+    );
+
+    expect(await service.executeMagicWand({
+      layerId: document.activeLayerId!, point, options, mode: 'replace',
+      provenance: magicWand,
+    })).toBe(true);
+
+    expect(renderer.prepareSelectionMagicWandProjection).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 1,
+      selection: [magicWand],
+      selectionMaskSnapshot: coverage,
+      selectionSupportBounds: { x: 2, y: 1, width: 5, height: 5 },
+    });
+    expect(session.history.getSnapshot()).toMatchObject({
+      undoDepth: 1, redoDepth: 0, undoLabel: 'Magic Wand', busy: false,
+    });
+    expect(events).toEqual(['activate', 'overlay:1', 'accept']);
+
+    expect(await session.history.undo()).toBe(true);
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 2, selection: [], selectionSupportBounds: null,
+    });
+    expect(await session.history.redo()).toBe(true);
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 3, selection: [magicWand],
+      selectionSupportBounds: { x: 2, y: 1, width: 5, height: 5 },
+    });
+    expect(renderer.prepareSelectionSnapshotProjection).toHaveBeenCalledTimes(2);
+    session.dispose();
+  });
+
   it('projects the current selection without changing revision or history', async () => {
     const { session, renderer, service } = setup();
     await service.execute({
@@ -208,7 +275,30 @@ describe('SelectionShapeCommandService', () => {
     session.dispose();
   });
 
-  it('restores the canonical projection and leaves history empty when preparation fails', async () => {
+  it('disposes a rebind projection when a newer selection commits while it prepares', async () => {
+    const { session, renderer, events, service } = setup();
+    let release!: () => void;
+    vi.mocked(renderer.prepareSelectionSnapshotProjection).mockImplementationOnce(async (
+      _document, baseline, target, id,
+    ) => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return prepared(baseline, target, events, id);
+    });
+
+    const projecting = service.projectCurrent(renderer);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    expect(await service.execute({
+      shape: operation.shape, mode: 'replace', featherRadius: 0,
+      antiAlias: true, provenance: operation,
+    })).toBe(true);
+    release();
+
+    await expect(projecting).resolves.toBe(false);
+    expect(events).toEqual(['activate', 'overlay:1', 'accept', 'dispose']);
+    session.dispose();
+  });
+
+  it('leaves the untouched canonical projection and history empty when preparation fails', async () => {
     const { session, renderer, events, service } = setup();
     vi.mocked(renderer.prepareSelectionShapeProjection).mockRejectedValueOnce(
       new Error('GPU preparation failed'),
@@ -225,8 +315,8 @@ describe('SelectionShapeCommandService', () => {
     expect(session.history.getSnapshot()).toMatchObject({
       busy: false, undoDepth: 0, redoDepth: 0,
     });
-    expect(renderer.prepareSelectionSnapshotProjection).toHaveBeenCalledOnce();
-    expect(events).toEqual(['activate', 'overlay:0', 'accept']);
+    expect(renderer.prepareSelectionSnapshotProjection).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
     session.dispose();
   });
 

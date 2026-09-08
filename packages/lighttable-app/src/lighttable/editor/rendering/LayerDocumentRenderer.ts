@@ -935,8 +935,16 @@ export class LayerDocumentRenderer {
     mode: SelectionCombineMode
   ) {
     this.assertCommittedSelectionAccess();
+    const source = this.createMagicWandSourceForActiveLayer(document, layerId);
+    if (!source) return false;
+    const applied = this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
+    this.releaseSubmittedResources();
+    return applied;
+  }
+
+  createMagicWandSourceForActiveLayer(document: ImageDocument, layerId: LayerId) {
     const layer = findDocumentLayer(document, layerId);
-    if (!layer) return false;
+    if (!layer) return null;
     const encoder = this.device.createCommandEncoder({
       label: 'LightTable isolate active layer for Magic Wand'
     });
@@ -946,9 +954,7 @@ export class LayerDocumentRenderer {
       activeLayerId: layer.id
     });
     this.device.queue.submit([encoder.finish()]);
-    const applied = this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
-    this.releaseSubmittedResources();
-    return applied;
+    return source;
   }
 
   applySelectSimilarToActiveLayer(
@@ -1129,6 +1135,12 @@ export class LayerDocumentRenderer {
     ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['preparePaint']>
   ) {
     return this.runtime.selectionShapeProjection.preparePaint(...parameters);
+  }
+
+  prepareSelectionMagicWandProjection(
+    ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareMagicWand']>
+  ) {
+    return this.runtime.selectionShapeProjection.prepareMagicWand(...parameters);
   }
 
   destroyImageResources() {

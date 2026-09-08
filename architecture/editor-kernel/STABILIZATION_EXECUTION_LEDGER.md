@@ -162,7 +162,7 @@ slice; they are not postponed to the final phase.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S00A | Selection geometric/paint foundation | `owner` | yes | passed | passed | [ ] | [ ] |
 | S00B-1 | Horizontal/vertical strip marquees | `owner` | yes | passed | passed | [ ] | retained with S00A |
-| S00B-2 | Magic Wand | `queued` | no | [ ] | [ ] | [ ] | [ ] |
+| S00B-2 | Magic Wand | `owner` | yes | passed | passed | [ ] | retained |
 | S00B-3 | Object Selection | `queued` | no | [ ] | [ ] | [ ] | [ ] |
 | S01 | Layer capabilities, rasterize, merge and flatten | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -210,7 +210,19 @@ skip the manual gate.
 - [x] Independent critic plus two focused evidence repairs; no P0/P1/P2 remains.
 - [ ] Committed strip survives background/minimize and foreground restoration.
 - [ ] Owner visual/interaction acceptance for both strip tools.
-- [ ] Magic Wand acceptance.
+- [x] Magic Wand UI and semantic command commit through one isolated kernel
+      projection with exact history, cancellation and stale-document guards.
+- [x] Full staged rasterizer/workspace reuse prevents per-click full-canvas
+      scratch allocation; terminal teardown destroys scratch and mask textures.
+- [x] Independent critic completed two repair passes; stale recovery races,
+      source cleanup and pooled-resource disposal are closed with no accepted
+      P0/P1/P2 remaining.
+- [x] Packaged 4K UI acceptance: six repeated replace/add/subtract/intersect
+      operations completed at 66--102 ms GPU and 176--196 ms visible update.
+- [x] Packaged Action recording, undo and playback preserve the sampled semantic
+      recipe without serializing document revision or raster mask bytes.
+- [ ] Owner visual/interaction acceptance for Magic Wand.
+- [ ] Remove the legacy direct-renderer fallback with the other S00 fallbacks.
 - [ ] Object Selection result/model acceptance.
 - [ ] Selection Brush catalogue/shortcut parity after S00A fallback removal.
 
