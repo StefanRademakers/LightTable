@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, createTextLayer, duplicateLayer, groupLayers, renameLayer,
+import { addLayerMask, createRasterLayer, createTextLayer, duplicateLayer, groupLayers, renameLayer,
   setLayerBlendMode } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
@@ -1457,6 +1457,32 @@ describe('LightTableCommandService registry', () => {
       { layerId: topId, operation: 'set-enabled' }));
     expect(invalidMask).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(7);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('routes every pixel-bearing mask operation through the mounted semantic owner', async () => {
+    const state = setup();
+    const document = state.session.getSnapshot().document!;
+    const layerId = document.activeLayerId!;
+    state.session.setDocument(addLayerMask(document, layerId));
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => (
+      command.kind === 'set-mask'
+        ? { layerId: command.layerId, operation: command.operation }
+        : null
+    ));
+
+    for (const operation of ['invert', 'apply', 'load-selection'] as const) {
+      const result = await state.service.execute(request('layer.setMask', state.session.id, {
+        layerId, operation
+      }));
+      expect(result).toMatchObject({ status: 'completed', value: { layerId, operation } });
+      if (result.status === 'completed') {
+        expect(validateJsonSchemaValue(
+          LIGHTTABLE_COMMAND_SCHEMAS['layer.setMask']!.result, result.value
+        ).valid).toBe(true);
+      }
+    }
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(3);
     state.service.dispose(); state.workspace.dispose();
   });
 

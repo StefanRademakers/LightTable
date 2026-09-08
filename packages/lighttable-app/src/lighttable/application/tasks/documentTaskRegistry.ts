@@ -6,6 +6,7 @@ export type DocumentTaskKind =
   | 'export'
   | 'import'
   | 'analysis'
+  | 'background-removal'
   | 'automation'
   | 'thumbnail';
 
@@ -174,7 +175,8 @@ export class DocumentTaskRegistry {
       this.finish(id, 'completed');
       return { status: 'completed', value };
     } catch (reason) {
-      if (controller.signal.aborted || !isCurrent()) {
+      if (controller.signal.aborted || !isCurrent()
+        || (reason instanceof DOMException && reason.name === 'AbortError')) {
         this.finish(id, 'canceled');
         return { status: 'canceled' };
       }

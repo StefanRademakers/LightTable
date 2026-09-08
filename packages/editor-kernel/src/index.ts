@@ -3,6 +3,7 @@ export * from './documents';
 export * from './history';
 export * from './identities';
 export * from './layers';
+export * from './pixel-mutations';
 export * from './rendering';
 export * from './resources';
 export * from './selection';

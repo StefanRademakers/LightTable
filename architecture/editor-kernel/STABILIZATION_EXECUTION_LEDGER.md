@@ -165,7 +165,7 @@ slice; they are not postponed to the final phase.
 | S00B-2 | Magic Wand | `owner` | yes | passed | passed | [ ] | retained |
 | S00B-3 | Object Selection | `owner` | yes | passed | passed | [ ] | yes |
 | S01 | Layer capabilities, rasterize, merge and flatten | `owner` | yes | passed | passed | [ ] | yes |
-| S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S02 | Masks, Remove Background and layer-result insertion | `owner` | yes | passed | passed | [ ] | partial (paint -> S03) |
 | S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S04 | Transform, selected-pixel transform, snapping and guides | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S05 | Vector paths and live shapes | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -262,11 +262,17 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S02 -- masks and background removal
 
-- [ ] Add/delete/enable/disable/invert/apply mask and load mask as selection.
-- [ ] Mask painting uses the shared raster-session lifecycle and selection lease.
-- [ ] Remove Background has one cancellable generation-bound task and inserts its
+- [x] Add/delete/enable/disable/invert/apply mask and load mask as selection.
+- [x] Mask painting uses the shared raster-session lifecycle and selection lease.
+- [x] Remove Background has one cancellable generation-bound task and inserts its
       result through the same layer/mask command as UI, Action and MCP.
-- [ ] Undo/redo and failure restore layer pixels, mask, selection and resources.
+- [x] Undo/redo and failure restore layer pixels, mask, selection and resources.
+- [x] Independent critic completed two repair loops; final gate found no P0/P1/P2.
+- [x] Instrumented and debug packaged mask-kernel acceptance passed; Apply Mask
+      visual RMSE 0.037 and no page errors.
+- [ ] Owner manually accepts mask editing and a real Ben2 Remove Background run.
+- [ ] S03 removes the retained legacy raster-paint session ownership and profiles
+      the 741-767 ms cold Load Mask as Selection path.
 
 ### S03 -- raster paint and pixel mutations
 
@@ -408,11 +414,11 @@ lines plus responsibilities here.
 | --- | --- | --- | --- |
 | `useSelectionSessionController.ts` | React/input adapter | terminal command, mask/resource and history coordination -> S00 kernel/adapters | [ ] |
 | `SmartSelectionToolController.ts` | model-neutral inference and gesture session | preview renderer lifetime -> `SmartSelectionPreviewLease`; terminal document mutation/history -> S00 kernel adapter | S00B-3 |
-| `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; clipboard/document geometry -> S11 | [ ] |
+| `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; clipboard/document geometry -> S11 | S02: 1970 -> 1804; four mask owners extracted |
 | `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
 | `LayerStyleEditor.tsx` | presentational editor composition | preview transaction and style mutation service -> S09 | [ ] |
 | `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
-| `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | [ ] |
+| `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | [ ] |
 
 Rules:

@@ -115,7 +115,7 @@ export interface SelectionSessionController {
     radius: number,
     applyAtCanvasBounds: boolean
   ): Promise<boolean>;
-  selectLayerMask(layerId: LayerId): void;
+  selectLayerMask(layerId: LayerId): Promise<boolean>;
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
@@ -1583,8 +1583,8 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const layer = document ? findDocumentLayer(document, layerId) : null;
-      if (!document || !layer?.mask) return;
-      void commitSnapshot(
+      if (!document || !layer?.mask) return Promise.resolve(false);
+      return commitSnapshot(
         [createLayerMaskSelectionOperation(
           layer.id,
           layer.mask.pixelRevision,

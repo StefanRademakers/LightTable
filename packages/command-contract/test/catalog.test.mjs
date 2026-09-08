@@ -375,13 +375,18 @@ test('layer mask schemas require only operation-relevant properties', () => {
     { layerId: 'photo', operation: 'add', source: 'selection' },
     { layerId: 'photo', operation: 'remove' },
     { layerId: 'photo', operation: 'set-enabled', enabled: false },
-    { layerId: 'photo', operation: 'set-linked', linked: false }
+    { layerId: 'photo', operation: 'set-linked', linked: false },
+    { layerId: 'photo', operation: 'invert' },
+    { layerId: 'photo', operation: 'apply' },
+    { layerId: 'photo', operation: 'load-selection' }
   ]) assert.equal(validateJsonSchemaValue(mask.input, value).valid, true, JSON.stringify(value));
   for (const value of [
     { layerId: 'photo', operation: 'add', enabled: true },
     { layerId: 'photo', operation: 'remove', source: 'reveal-all' },
     { layerId: 'photo', operation: 'set-enabled' },
-    { layerId: 'photo', operation: 'set-linked', linked: true, enabled: true }
+    { layerId: 'photo', operation: 'set-linked', linked: true, enabled: true },
+    { layerId: 'photo', operation: 'invert', linked: true },
+    { layerId: 'photo', operation: 'apply', source: 'selection' }
   ]) assert.equal(validateJsonSchemaValue(mask.input, value).valid, false, JSON.stringify(value));
 });
 

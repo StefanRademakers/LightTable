@@ -178,6 +178,12 @@ export const createDocumentSessionCommandPorts = (
       }
       if (command.kind === 'set-mask') {
         if (command.operation === 'add') return requiresPresentation('Creating raster masks');
+        if (command.operation === 'remove') return requiresPresentation('Deleting raster masks');
+        if (command.operation === 'invert') return requiresPresentation('Inverting raster masks');
+        if (command.operation === 'apply') return requiresPresentation('Applying raster masks');
+        if (command.operation === 'load-selection') {
+          return requiresPresentation('Loading raster masks as selections');
+        }
         change((document) => command.operation === 'remove'
           ? removeLayerMask(document, command.layerId)
           : command.operation === 'set-enabled'

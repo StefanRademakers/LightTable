@@ -11,7 +11,8 @@ export type SemanticLayerCommand =
   | { readonly kind: 'set-clipping'; readonly layerId: LayerId; readonly clipping: boolean }
   | { readonly kind: 'set-transform'; readonly layerId: LayerId; readonly transform: AffineMatrix }
   | { readonly kind: 'set-mask'; readonly layerId: LayerId;
-    readonly operation: 'add' | 'remove' | 'set-enabled' | 'set-linked';
+    readonly operation: 'add' | 'remove' | 'set-enabled' | 'set-linked'
+      | 'invert' | 'apply' | 'load-selection';
     readonly source?: 'reveal-all' | 'selection'; readonly enabled?: boolean; readonly linked?: boolean }
   | { readonly kind: 'set-lock'; readonly layerIds: readonly LayerId[];
     readonly lock: keyof LayerLocks; readonly locked: boolean };
@@ -91,7 +92,9 @@ export const parseSemanticLayerCommand = (
     const target = layerId(value.layerId);
     const operation = value.operation;
     if (!target || (operation !== 'add' && operation !== 'remove'
-      && operation !== 'set-enabled' && operation !== 'set-linked')) {
+      && operation !== 'set-enabled' && operation !== 'set-linked'
+      && operation !== 'invert' && operation !== 'apply'
+      && operation !== 'load-selection')) {
       return { message: 'Layer mask requires layerId and a supported operation.' };
     }
     if (operation === 'add') {

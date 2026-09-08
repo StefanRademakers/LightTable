@@ -8,7 +8,6 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
-  addLayerMask,
   addRasterLayerAttachedAdjustment,
   createAdjustmentLayer,
   duplicateLayer as duplicateDocumentLayer,
@@ -67,6 +66,10 @@ import type {
 } from '../documents/useDocumentMutationController';
 import type { VectorElementCreationTransaction } from '../vectors/VectorDocumentController';
 import type { LightTableSelectionReadLease } from '../tools/selection/DocumentSelectionStateStore';
+import { createRemoveLayerMaskCommand } from './removeLayerMaskCommand';
+import { createApplyLayerMaskCommand } from './applyLayerMaskCommand';
+import { createApplyBackgroundRemovalMaskCommand } from './applyBackgroundRemovalMaskCommand';
+import { createAddLayerMaskCommand } from './addLayerMaskCommand';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -109,6 +112,7 @@ export interface LayerCommandRendererPort {
     mask: RasterSelectionMask,
     mode: 'replace' | 'intersect'
   ): boolean;
+  applyLayerMaskToPixels(document: ImageDocument, layerId: LayerId): boolean;
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
   exportSelectionClipboard(bounds: Rect): Promise<Blob>;
   exportMergedSelection(bounds: Rect): Promise<Blob>;
@@ -156,6 +160,8 @@ export interface LayerDocumentCommandDependencies {
 export interface LayerDocumentCommands {
   addActiveLayerMask(useSelection: boolean): boolean;
   addLayerMask(layerId: LayerId, useSelection: boolean, present?: boolean): boolean;
+  removeLayerMask(layerId: LayerId, present?: boolean): boolean;
+  applyLayerMask(layerId: LayerId, present?: boolean): boolean;
   applyBackgroundRemovalMask(
     layerId: LayerId,
     mask: RasterSelectionMask,
@@ -522,115 +528,42 @@ export const createLayerDocumentCommands = (
     });
   };
 
-  const addMaskToLayer = (layerId: LayerId, useSelection: boolean, present = false) => {
+  const addMaskCommands = createAddLayerMaskCommand(() => {
     const dependencies = dependenciesRef.current;
-    const description = { label: 'Add Layer Mask', type: 'layer.mask.add' } as const;
-    const transaction = beginDocumentTransaction(`layer.mask.add:${layerId}`, description);
-    if (!transaction) return false;
-    const current = transaction.before;
-    const layer = findDocumentLayer(current, layerId);
-    if (!layerId || !layer || layer.mask) {
-      transaction.cancel();
-      return false;
-    }
+    return {
+      getDocument: dependencies.getDocument,
+      getRenderer: dependencies.getRenderer,
+      applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      setActiveChannel: dependencies.setActiveChannel,
+      setStatus: dependencies.setStatus,
+      setError: dependencies.setError
+    };
+  }, beginDocumentTransaction);
 
-    const withMask = addLayerMask(current, layerId);
-    if (withMask === current) {
-      transaction.cancel();
-      return false;
-    }
+  const removeMaskFromLayer = createRemoveLayerMaskCommand(() => {
+    const dependencies = dependenciesRef.current;
+    return {
+      getRenderer: dependencies.getRenderer,
+      applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      setActiveChannel: dependencies.setActiveChannel,
+      setStatus: dependencies.setStatus,
+      setError: dependencies.setError
+    };
+  }, beginDocumentTransaction);
 
-    if (!useSelection) {
-      try {
-        if (!commitDocumentTransition(transaction, withMask, description)) return false;
-      } catch (reason) {
-        transaction.cancel();
-        if (present) dependencies.setError(
-          reason instanceof Error ? reason.message : 'The layer mask could not be added.'
-        );
-        return false;
-      }
-      if (present) {
-        dependencies.setActiveChannel('mask');
-        dependencies.setError(null);
-        dependencies.setStatus(`Added layer mask to ${layer.name}`);
-      }
-      return true;
-    }
-
-    const renderer = dependencies.getRenderer();
-    if (!renderer) {
-      transaction.cancel();
-      if (present) dependencies.setError('The current selection could not be baked into a layer mask.');
-      return false;
-    }
-
-    let editOpen = false;
-    let pixelEdit: ReversiblePixelEdit | null = null;
-    try {
-      // Publishing the mask node allocates its document-owned GPU target. It
-      // remains an internal transaction state until history accepts the edit.
-      if (!transaction.change(() => withMask)) {
-        throw new Error('The layer mask preview could not be prepared.');
-      }
-      renderer.beginLayerPixelEdit(layerId, 'mask');
-      editOpen = true;
-      if (!renderer.bakeSelectionIntoLayerMask(layerId)) {
-        throw new Error('The current selection could not be copied into the layer mask.');
-      }
-      pixelEdit = renderer.finishPixelEdit();
-      editOpen = false;
-      if (!pixelEdit) {
-        throw new Error('The layer mask could not create a recoverable undo step.');
-      }
-      const next = markLayerMaskPixelsChanged(
-        withMask,
-        layerId,
-        fullDocumentBounds(current)
-      );
-      if (!transaction.stage(() => next)) {
-        throw new Error('The layer mask transaction could not be staged.');
-      }
-      const completedEdit = pixelEdit;
-      if (!transaction.commitWith((before, after) => {
-        // From this point the atomic pixel publisher owns rollback/disposal.
-        pixelEdit = null;
-        commitAppliedPixelMutation(() => dependenciesRef.current, {
-          operation: 'Add Layer Mask',
-          label: 'Add Layer Mask', type: 'layer.mask.add',
-          layerIds: [layerId],
-          before,
-          redoBase: withMask,
-          after,
-          edits: [completedEdit]
-        });
-        return true;
-      })) throw new Error('The layer mask transaction could not be committed.');
-      if (present) {
-        dependencies.setActiveChannel('mask');
-        dependencies.setError(null);
-        dependencies.setStatus(`Added selection as a mask to ${layer.name}`);
-      }
-      return true;
-    } catch (reason) {
-      if (editOpen) renderer.cancelPixelEdit();
-      discardUnpublishedPixelEdit(pixelEdit);
-      transaction.cancel();
-      if (present) {
-        dependencies.setError(
-          reason instanceof Error
-            ? reason.message
-            : 'The current selection could not be baked into a layer mask.'
-        );
-      }
-      return false;
-    }
-  };
-
-  const addActiveLayerMask = (useSelection: boolean) => {
-    const layerId = dependenciesRef.current.getDocument()?.activeLayerId;
-    return layerId ? addMaskToLayer(layerId, useSelection, true) : false;
-  };
+  const applyMaskToLayer = createApplyLayerMaskCommand(() => {
+    const dependencies = dependenciesRef.current;
+    return {
+      getRenderer: dependencies.getRenderer,
+      applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      setActiveChannel: dependencies.setActiveChannel,
+      setStatus: dependencies.setStatus,
+      setError: dependencies.setError
+    };
+  }, beginDocumentTransaction);
 
   const duplicateLayer = (sourceId: LayerId): LayerId | null => {
     const dependencies = dependenciesRef.current;
@@ -686,123 +619,17 @@ export const createLayerDocumentCommands = (
     return activeLayerId ? duplicateLayer(activeLayerId) !== null : false;
   };
 
-  const applyBackgroundRemovalMask = (
-    layerId: LayerId,
-    mask: RasterSelectionMask,
-    mode: 'replace' | 'intersect' | 'new-layer'
-  ) => {
+  const applyBackgroundRemovalMask = createApplyBackgroundRemovalMaskCommand(() => {
     const dependencies = dependenciesRef.current;
-    const description = {
-      label: 'Remove Background', type: 'layer.background-removal'
-    } as const;
-    const transaction = beginDocumentTransaction(
-      `layer.background-removal:${layerId}`,
-      description
-    );
-    if (!transaction) return false;
-    const before = transaction.before;
-    const renderer = dependencies.getRenderer();
-    const sourceId = layerId;
-    const source = before && sourceId ? findRasterLayer(before, sourceId) : null;
-    if (!renderer || !sourceId || !source) {
-      transaction.cancel();
-      return false;
-    }
-    if (layerIsLocked(source, 'pixels')) {
-      transaction.cancel();
-      dependencies.setError('Unlock the active raster layer before removing its background.');
-      return false;
-    }
-    if (mask.width !== before.width || mask.height !== before.height) {
-      transaction.cancel();
-      dependencies.setError('The generated background mask does not match this document.');
-      return false;
-    }
-
-    let prepared = before;
-    let targetId = sourceId;
-    if (mode === 'new-layer') {
-      prepared = duplicateDocumentLayer(before, sourceId);
-      targetId = prepared.activeLayerId ?? sourceId;
-      if (prepared === before || targetId === sourceId) {
-        transaction.cancel();
-        return false;
-      }
-    }
-    const target = findDocumentLayer(prepared, targetId);
-    if (!target?.mask) prepared = addLayerMask(prepared, targetId);
-    if (!findDocumentLayer(prepared, targetId)?.mask) {
-      transaction.cancel();
-      return false;
-    }
-
-    let reservedDestination: RasterLayer | null = null;
-    let editOpen = false;
-    let pixelEdit: ReversiblePixelEdit | null = null;
-    try {
-      if (mode === 'new-layer') {
-        reservedDestination = findRasterLayer(prepared, targetId);
-        if (!reservedDestination || !renderer.prepareRasterDestination(reservedDestination)) {
-          throw new Error('The background-removal layer could not be allocated on the GPU.');
-        }
-      }
-      if (prepared !== before && !transaction.change(() => prepared)) {
-        throw new Error('The background-removal preview could not be prepared.');
-      }
-      if (mode === 'new-layer' && !renderer.duplicateLayerPixels(sourceId, targetId)) {
-        throw new Error('The source layer pixels could not be duplicated.');
-      }
-      renderer.beginLayerPixelEdit(targetId, 'mask');
-      editOpen = true;
-      if (!renderer.applyGeneratedLayerMask(
-        targetId,
-        mask,
-        mode === 'intersect' && source.mask ? 'intersect' : 'replace'
-      )) {
-        throw new Error('The generated background mask could not be uploaded to the GPU.');
-      }
-      pixelEdit = renderer.finishPixelEdit();
-      editOpen = false;
-      if (!pixelEdit) throw new Error('Background removal could not create a recoverable undo step.');
-      const after = markLayerMaskPixelsChanged(prepared, targetId, fullDocumentBounds(before));
-      if (!transaction.stage(() => after)) {
-        throw new Error('The background-removal transaction could not be staged.');
-      }
-      const completedEdit = pixelEdit;
-      if (!transaction.commitWith((ownedBefore, ownedAfter) => {
-        // From this point the atomic pixel publisher owns rollback/disposal.
-        pixelEdit = null;
-        commitAppliedPixelMutation(() => dependenciesRef.current, {
-          operation: 'Remove Background',
-          label: 'Remove Background', type: 'layer.background-removal',
-          layerIds: [sourceId, targetId],
-          before: ownedBefore,
-          redoBase: prepared,
-          after: ownedAfter,
-          edits: [completedEdit]
-        });
-        if (reservedDestination) renderer.commitRasterDestination(reservedDestination.id);
-        return true;
-      })) throw new Error('The background-removal transaction could not be committed.');
-      dependencies.setActiveChannel('mask');
-      dependencies.setError(null);
-      dependencies.setStatus(
-        mode === 'new-layer'
-          ? `Created ${source.name} with a removable background mask`
-          : `Removed the background from ${source.name}`
-      );
-      return true;
-    } catch (reason) {
-      if (editOpen) renderer.cancelPixelEdit();
-      discardUnpublishedPixelEdit(pixelEdit);
-      transaction.cancel();
-      if (reservedDestination) renderer.releaseRasterDestination(reservedDestination.id);
-      dependencies.setError(
-        reason instanceof Error ? reason.message : 'The generated background mask could not be applied.'
-      );
-      return false;
-    }
-  };
+    return {
+      getRenderer: dependencies.getRenderer,
+      applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      setActiveChannel: dependencies.setActiveChannel,
+      setStatus: dependencies.setStatus,
+      setError: dependencies.setError
+    };
+  }, beginDocumentTransaction);
 
   const applyInitialSettings = (source: BasicAdjustments, settings?: AdjustmentInitialSettings) => {
     if (!settings) return;
@@ -1997,8 +1824,10 @@ export const createLayerDocumentCommands = (
   };
 
   return {
-    addActiveLayerMask,
-    addLayerMask: addMaskToLayer,
+    addActiveLayerMask: addMaskCommands.addActive,
+    addLayerMask: addMaskCommands.add,
+    removeLayerMask: removeMaskFromLayer,
+    applyLayerMask: applyMaskToLayer,
     applyBackgroundRemovalMask,
     duplicateActiveLayer,
     duplicateLayer,

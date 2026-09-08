@@ -92,6 +92,9 @@ export interface EditorMenuControllerOptions {
     layerViaCopy(): void;
     rename(): void;
     invertColors(): void;
+    loadMaskSelection?(): void;
+    invertMask?(): void;
+    applyMask?(): void;
     addEffect(kind: LayerStyleKind): void;
     mergeDown(): void;
   };
@@ -259,6 +262,9 @@ export const createEditorMenuController = ({
       editMask: () => layers.panel.changeChannel('mask'),
       addMask: layers.panel.addMask,
       toggleMask: layers.panel.toggleMask,
+      loadMaskSelection: layers.loadMaskSelection ?? (() => undefined),
+      invertMask: layers.invertMask ?? (() => undefined),
+      applyMask: layers.applyMask ?? (() => undefined),
       removeMask: layers.panel.removeMask,
       moveLayerUp: () => layers.panel.moveActive('up'),
       moveLayerDown: () => layers.panel.moveActive('down'),

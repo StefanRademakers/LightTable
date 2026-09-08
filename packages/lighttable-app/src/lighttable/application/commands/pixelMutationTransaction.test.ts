@@ -76,7 +76,7 @@ describe('pixelMutationTransaction', () => {
     })).toThrow('history rejected');
 
     expect(fixture.getDocument()).toBe(fixture.before);
-    expect(fixture.calls).toEqual(['document:After', 'document:Before', 'undo:40', 'undo:20']);
+    expect(fixture.calls).toEqual(['document:After', 'undo:40', 'undo:20', 'document:Before']);
     expect(pixels.destroy).toHaveBeenCalledOnce();
     expect(surface.destroy).toHaveBeenCalledOnce();
   });
@@ -101,6 +101,27 @@ describe('pixelMutationTransaction', () => {
       'document:After'
     ]);
     expect(fixture.getDocument()).toBe(fixture.after);
+  });
+
+  it('restores a removed document-owned GPU target before pixel undo', () => {
+    const fixture = createFixture();
+    const undoBase = { ...fixture.before, name: 'Prepared undo' };
+    const pixels = createEdit(40);
+    commitAppliedPixelMutation(() => fixture.dependencies, {
+      operation: 'Delete mask', label: 'Delete Layer Mask', type: 'layer.mask.remove',
+      layerIds: [fixture.before.layers[0]!.id],
+      before: fixture.before, undoBase, after: fixture.after, edits: [pixels]
+    });
+
+    fixture.calls.length = 0;
+    fixture.history[0]?.undo();
+
+    expect(fixture.calls).toEqual([
+      'document:Prepared undo',
+      'undo:40',
+      'document:Before'
+    ]);
+    expect(fixture.getDocument()).toBe(fixture.before);
   });
 
   it('compensates earlier edits when an undo edit fails', () => {

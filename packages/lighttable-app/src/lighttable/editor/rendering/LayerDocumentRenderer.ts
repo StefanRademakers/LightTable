@@ -801,6 +801,13 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.applyLayerMask(target, mask, mode);
   }
 
+  applyLayerMaskToPixels(document: ImageDocument, layerId: LayerId) {
+    const layer = findDocumentLayer(document, layerId);
+    const transform = buildSceneTransformIndex(document).get(layerId)?.localToDocument;
+    if (layer?.type !== 'raster' || !layer.mask || !transform) return false;
+    return this.runtime.layerMaskPixels.apply(layerId, transform, layer.mask);
+  }
+
   loadLayerMaskAsSelection(layerId: LayerId) {
     this.assertCommittedSelectionAccess();
     const source = this.maskTextureFor(layerId);

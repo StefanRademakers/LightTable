@@ -143,6 +143,9 @@ export interface EditorMenuCommands {
   editMask: () => void;
   addMask: () => void;
   toggleMask: () => void;
+  loadMaskSelection: () => void;
+  invertMask: () => void;
+  applyMask: () => void;
   removeMask: () => void;
   moveLayerUp: () => void;
   moveLayerDown: () => void;
@@ -823,6 +826,24 @@ export const createEditorMenuOptions = (
           label: layer?.maskEnabled ? 'Disable Layer Mask' : 'Enable Layer Mask',
           onClick: commands.toggleMask,
           disabled: !layer?.hasMask
+        }, {
+          value: 'load-mask-selection',
+          label: 'Load Mask as Selection',
+          onClick: commands.loadMaskSelection,
+          disabled: !layer?.hasMask
+        }, {
+          value: 'invert-mask',
+          label: 'Invert Layer Mask',
+          onClick: commands.invertMask,
+          disabled: !layer?.hasMask || layer.locked
+        }, {
+          value: 'apply-mask',
+          label: 'Apply Layer Mask',
+          onClick: commands.applyMask,
+          // S02 applies masks in-place without flattening unrelated live
+          // semantics. Non-raster application requires the fresh-destination
+          // finalization route and remains explicit follow-up scope.
+          disabled: !layer?.hasMask || layer.locked || layer.type !== 'raster'
         }, {
           value: 'remove-mask',
           label: 'Remove Layer Mask',

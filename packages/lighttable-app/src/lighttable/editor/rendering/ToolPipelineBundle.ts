@@ -42,6 +42,7 @@ import {
   SELECT_SIMILAR_MARK_WGSL
 } from './selectSimilarShaders';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
+import { APPLY_LAYER_MASK_WGSL } from './layerMaskShaders';
 
 export interface BrushPipelineBundle {
   brush: GPURenderPipeline;
@@ -65,6 +66,7 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   maskFillColor: GPURenderPipeline;
   maskFillGradient: GPURenderPipeline;
   maskInvertColors: GPURenderPipeline;
+  applyLayerMask: GPURenderPipeline;
   selectionShape: GPURenderPipeline;
   selectionBrushAdd: GPURenderPipeline;
   selectionBrushSubtract: GPURenderPipeline;
@@ -270,6 +272,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     maskFillColor: fullscreenPipeline('LightTable fill mask color', LAYER_FILL_COLOR_WGSL, LAYER_MASK_TEXTURE_FORMAT),
     maskFillGradient: fullscreenPipeline('LightTable fill mask gradient', LAYER_FILL_GRADIENT_WGSL, LAYER_MASK_TEXTURE_FORMAT),
     maskInvertColors: fullscreenPipeline('LightTable invert mask', LAYER_INVERT_COLORS_WGSL, LAYER_MASK_TEXTURE_FORMAT),
+    applyLayerMask: fullscreenPipeline('LightTable apply layer mask', APPLY_LAYER_MASK_WGSL),
     selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, SELECTION_TEXTURE_FORMAT),
     selectionBrushAdd: (() => {
       const module = device.createShaderModule({ code: SELECTION_BRUSH_DAB_WGSL });

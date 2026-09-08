@@ -5,10 +5,15 @@ import type { BackgroundRemovalModel, BackgroundRemovalResult } from './backgrou
 
 export class Ben2BackgroundRemovalModel implements BackgroundRemovalModel {
   private generation = 0;
-  private readonly client: WorkerInferenceClient<Blob, BackgroundRemovalResult>;
+  private client: WorkerInferenceClient<Blob, BackgroundRemovalResult>;
+  private disposed = false;
 
   constructor(private readonly profile: BackgroundRemovalModelProfile = BEN2_BASE_PROFILE) {
-    this.client = new WorkerInferenceClient({
+    this.client = this.createClient();
+  }
+
+  private createClient() {
+    return new WorkerInferenceClient<Blob, BackgroundRemovalResult>({
       createWorker: () => new Worker(new URL('./backgroundRemoval.worker.ts', import.meta.url), { type: 'module' }),
       createRequest: (requestId, image) => ({ type: 'remove', requestId, image, profile: this.profile }),
       parseResult: (raw) => {
@@ -30,6 +35,7 @@ export class Ben2BackgroundRemovalModel implements BackgroundRemovalModel {
   }
 
   async remove(image: Blob, options: Parameters<BackgroundRemovalModel['remove']>[1] = {}) {
+    if (this.disposed) throw new Error('Background removal model is closed.');
     const generation = ++this.generation;
     if (options?.signal?.aborted) throw new DOMException('Background removal was canceled.', 'AbortError');
     const abort = () => this.cancel();
@@ -47,6 +53,16 @@ export class Ben2BackgroundRemovalModel implements BackgroundRemovalModel {
     }
   }
 
-  cancel() { this.generation += 1; this.client.dispose(); }
-  dispose() { this.cancel(); }
+  cancel() {
+    this.generation += 1;
+    this.client.dispose();
+    if (!this.disposed) this.client = this.createClient();
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.generation += 1;
+    this.client.dispose();
+  }
 }

@@ -34,7 +34,7 @@
           "operation": {
             "type": "string",
             "title": "Operation",
-            "enum": ["add", "remove", "set-enabled", "set-linked"],
+            "enum": ["add", "remove", "set-enabled", "set-linked", "invert", "apply", "load-selection"],
             "default": "add"
           },
           "source": {
@@ -75,6 +75,14 @@
               { "type": "object", "required": ["source"] },
               { "type": "object", "required": ["enabled"] }
             ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "enum": ["invert", "apply", "load-selection"] } } },
+            "then": { "type": "object", "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
           }
         ]
       },
@@ -84,7 +92,7 @@
         "required": ["layerId", "operation"],
         "properties": {
           "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
-          "operation": { "type": "string", "enum": ["add", "remove", "set-enabled", "set-linked"] },
+          "operation": { "type": "string", "enum": ["add", "remove", "set-enabled", "set-linked", "invert", "apply", "load-selection"] },
           "source": { "type": "string", "enum": ["reveal-all", "selection"] },
           "enabled": { "type": "boolean" },
           "linked": { "type": "boolean" }
@@ -117,6 +125,14 @@
             "then": { "type": "object", "required": ["linked"], "not": { "type": "object", "anyOf": [
               { "type": "object", "required": ["source"] },
               { "type": "object", "required": ["enabled"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "enum": ["invert", "apply", "load-selection"] } } },
+            "then": { "type": "object", "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
             ] } }
           }
         ]

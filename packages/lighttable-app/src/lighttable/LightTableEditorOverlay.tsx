@@ -104,7 +104,9 @@ import { useLayerStyleEditorController } from './application/styles/useLayerStyl
 import { observedLayerStyleCommands } from './application/styles/semanticLayerStyleObservation';
 import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
-import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
+import { executeSemanticMaskCommand } from './application/layers/executeSemanticMaskCommand';
+import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
+import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import {
   canRestoreLayerVisibility,
@@ -413,9 +415,6 @@ import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapte
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import {
-  removeLayerMask,
-  setLayerMaskEnabled,
-  setLayerMaskLinked,
   setRasterLayerAdjustmentStack,
   setLayerTransform,
   replaceVectorElement,
@@ -5598,19 +5597,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getGlobalGradeStrength: () => globalGradeStrengthRef.current,
     publishGlobalGradeStrength
   });
-  const backgroundRemovalTaskIdRef = useRef<string | null>(null);
-  const startBackgroundRemovalTask = useCallback((layerId: LayerId, mode: BackgroundRemovalMaskMode) => {
-    void executeRegisteredCommand('layer.removeBackground', { layerId, mode })?.then((result) => {
-      if (result.status === 'accepted') backgroundRemovalTaskIdRef.current = result.taskId;
-    });
-  }, [executeRegisteredCommand]);
-  const cancelBackgroundRemovalTask = useCallback(() => {
-    const taskId = backgroundRemovalTaskIdRef.current;
-    if (!taskId) return false;
-    backgroundRemovalTaskIdRef.current = null;
-    void executeRegisteredCommand('task.cancel', { taskId });
-    return true;
-  }, [executeRegisteredCommand]);
+  const {
+    startTask: startBackgroundRemovalTask,
+    cancelTask: cancelBackgroundRemovalTask,
+    clearCompletedTask: clearCompletedBackgroundRemovalTask
+  } = useBackgroundRemovalTaskBridge(executeRegisteredCommand);
   const backgroundRemovalController = useBackgroundRemovalController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -5618,8 +5609,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     setError,
     startTask: startBackgroundRemovalTask,
-    cancelTask: cancelBackgroundRemovalTask
+    cancelTask: cancelBackgroundRemovalTask,
+    subscribeDocument: (listener) => documentSession?.subscribe(() => listener()) ?? (() => undefined),
+    lifetimeKey: `${workspaceDocumentId}:${rendererSnapshot.generation}`
   });
+
+  useEffect(() => {
+    if (backgroundRemovalController.state.phase === 'idle') {
+      clearCompletedBackgroundRemovalTask();
+    }
+  }, [backgroundRemovalController.state.phase, clearCompletedBackgroundRemovalTask]);
   rasterizeShapeRef.current = (transaction) => {
     return layerDocumentCommands.rasterizeVectorCreation(transaction);
   };
@@ -5930,8 +5929,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     duplicateActiveLayer,
     rasterizeActiveLayer: layerDocumentCommands.rasterizeActiveLayer,
     loadLayerMaskSelection: async (layerId) => {
-      await settlePixelInteractionRef.current();
-      await selectionSessionController.selectLayerMask(layerId);
+      await executeRegisteredCommand('layer.setMask', {
+        layerId, operation: 'load-selection'
+      });
     },
     loadLayerTransparencySelection: async (layerId) => {
       await settlePixelInteractionRef.current();
@@ -6213,30 +6213,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           return { layerId: command.layerId, transform: command.transform };
         }
         if (command.kind === 'set-mask') {
-          if (command.operation === 'add') {
-            if (command.source === 'selection') {
-              await settlePixelInteractionRef.current();
-            }
-            return layerDocumentCommands.addLayerMask(
-              command.layerId,
-              command.source === 'selection'
-            ) ? { layerId: command.layerId, operation: command.operation,
-              source: command.source ?? 'reveal-all' } : null;
-          }
-          const changed = documentMutationController.change(
-            (document) => command.operation === 'remove'
-              ? removeLayerMask(document, command.layerId)
-              : command.operation === 'set-enabled'
-                ? setLayerMaskEnabled(document, command.layerId, command.enabled!)
-                : setLayerMaskLinked(document, command.layerId, command.linked!),
-            true,
-            { label: command.operation === 'remove' ? 'Delete Layer Mask' : 'Edit Layer Mask',
-              type: `layer.mask.${command.operation}`, layerIds: [command.layerId] }
-          );
-          if (!changed) return null;
-          return { layerId: command.layerId, operation: command.operation,
-            ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
-            ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
+          return executeSemanticMaskCommand(command, {
+            commands: layerDocumentCommands,
+            settlePixelInteraction: () => settlePixelInteractionRef.current(),
+            loadMaskAsSelection: selectionSessionController.selectLayerMask,
+            changeDocument: documentMutationController.change
+          });
         }
         layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
@@ -6413,17 +6395,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return outputLayerId ? { outputLayerId } : null;
       },
       executeBackgroundRemoval: async (command, signal, report) => {
-        try {
-          return await backgroundRemovalController.removeBackgroundFromLayer(
-            command.layerId,
-            command.mode,
-            { signal, onProgress: (progress) => report(
-              Math.max(0, Math.min(1, (progress.percent ?? 0) / 100)), progress.message
-            ) }
-          );
-        } finally {
-          backgroundRemovalTaskIdRef.current = null;
-        }
+        return await backgroundRemovalController.removeBackgroundFromLayer(
+          command.layerId,
+          command.mode,
+          { signal, onProgress: (progress) => report(
+            Math.max(0, Math.min(1, (progress.percent ?? 0) / 100)), progress.message
+          ) }
+        );
       },
       executeAutoAlign: (command, signal) => autoAlignController.execute(command, signal),
       queryBasicAdjustments: (target) => {
@@ -6621,9 +6599,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const execution = layerId
         ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'add', source })
         : null;
-      if (!execution) {
-        layerPanelController.addMask();
-      } else {
+      if (!execution) setError('Layer mask commands are unavailable in this document.');
+      else {
         void execution.then((result) => {
           if (result.status === 'completed') layerPanelController.changeChannel('mask');
         });
@@ -6632,13 +6609,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     toggleMask: () => {
       const document = imageDocumentRef.current;
       const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-      if (!layer?.mask || !executeRegisteredCommand('layer.setMask', {
+      if (!layer?.mask) return;
+      if (!executeRegisteredCommand('layer.setMask', {
         layerId: layer.id, operation: 'set-enabled', enabled: !layer.mask.enabled
-      })) layerPanelController.toggleMask();
+      })) setError('Layer mask commands are unavailable in this document.');
     },
     setMaskLinked: (layerId: LayerId, linked: boolean) => {
       if (!executeRegisteredCommand('layer.setMask', { layerId, operation: 'set-linked', linked })) {
-        layerPanelController.setMaskLinked(layerId, linked);
+        setError('Layer mask commands are unavailable in this document.');
       }
     },
     removeMask: (requestedLayerId?: LayerId) => {
@@ -6646,9 +6624,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const execution = layerId
         ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'remove' })
         : null;
-      if (!execution) {
-        layerPanelController.removeMask(requestedLayerId);
-      } else {
+      if (!execution) setError('Layer mask commands are unavailable in this document.');
+      else {
         void execution.then((result) => {
           if (result.status === 'completed') layerPanelController.changeChannel('pixels');
         });
@@ -7688,6 +7665,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       layerViaCopy,
       rename: focusActiveLayerName,
       invertColors: invertActiveLayerColors,
+      loadMaskSelection: () => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) executeRegisteredCommand('layer.setMask', {
+          layerId, operation: 'load-selection'
+        });
+      },
+      invertMask: () => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) executeRegisteredCommand('layer.setMask', {
+          layerId, operation: 'invert'
+        });
+      },
+      applyMask: () => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) executeRegisteredCommand('layer.setMask', {
+          layerId, operation: 'apply'
+        });
+      },
       addEffect: addLayerEffectFromMenu,
       mergeDown: mergeSelectionOrActiveDown
     },
@@ -7846,9 +7841,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ));
       }}
       onSelectLayerMask={(layerId) => {
-        void settlePixelInteractionRef.current().then(() => (
-          selectionSessionController.selectLayerMask(layerId)
-        ));
+        void executeRegisteredCommand('layer.setMask', {
+          layerId, operation: 'load-selection'
+        });
       }}
     />
   );

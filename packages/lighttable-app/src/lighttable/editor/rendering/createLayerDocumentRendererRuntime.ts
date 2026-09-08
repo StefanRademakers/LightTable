@@ -22,6 +22,7 @@ import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
 import { layerDerivedPreviewIsCurrent } from '../document/documentTypes';
 import { RasterPaintService } from './RasterPaintService';
+import { LayerMaskPixelService } from './LayerMaskPixelService';
 export type RasterGradientPaint = Parameters<RasterPaintService['fillGradient']>[2];
 export type RasterGradientBlendMode = Parameters<RasterPaintService['fillGradient']>[4];
 import { PatternAssetLoader } from './PatternAssetLoader';
@@ -67,6 +68,7 @@ export interface LayerDocumentRendererRuntime {
   transformRasterizer: TransformRasterizer;
   pixelEditHistory: PixelEditHistoryService;
   rasterPaint: RasterPaintService;
+  layerMaskPixels: LayerMaskPixelService;
   rasterDocumentOperations: RasterDocumentOperations;
   layerThumbnails: LayerThumbnailService;
   importedLayerInitializer: ImportedLayerInitializer;
@@ -298,6 +300,19 @@ export const createLayerDocumentRendererRuntime = (
       pixelEditHistory.captureRegions(layerId, channel, regions),
     captureAllHistory: (layerId, channel) =>
       pixelEditHistory.captureAll(layerId, channel),
+    releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
+    drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+      textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+  });
+  const layerMaskPixels = new LayerMaskPixelService({
+    device,
+    sampler,
+    layers: layerResources,
+    dimensions: resources.dimensions,
+    pipelines: toolPipelines.get,
+    createTexture: (label, width, height) => textures.createColorSized(label, width, height),
+    maskTexture: (layerId) => layerResources.maskTexture(layerId),
+    invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
@@ -624,6 +639,7 @@ export const createLayerDocumentRendererRuntime = (
     transformRasterizer,
     pixelEditHistory,
     rasterPaint,
+    layerMaskPixels,
     rasterDocumentOperations,
     layerThumbnails,
     importedLayerInitializer,

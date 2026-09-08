@@ -39,6 +39,30 @@ describe('DocumentTaskRegistry', () => {
     expect(await second).toEqual({ status: 'completed', value: 'current' });
   });
 
+  it('supersedes only background removal and leaves unrelated automation running', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    let finishAutomation!: () => void;
+    let finishFirstRemoval!: () => void;
+    const automation = registry.run('automation', 'Action playback', async () => {
+      await new Promise<void>((resolve) => { finishAutomation = resolve; });
+      return 'action';
+    }, { replace: false });
+    const firstRemoval = registry.run('background-removal', 'First removal', async () => {
+      await new Promise<void>((resolve) => { finishFirstRemoval = resolve; });
+      return 'stale';
+    });
+    const secondRemoval = registry.run(
+      'background-removal', 'Second removal', async () => 'current'
+    );
+
+    finishFirstRemoval();
+    expect(await firstRemoval).toEqual({ status: 'canceled' });
+    expect(await secondRemoval).toEqual({ status: 'completed', value: 'current' });
+    expect(registry.getSnapshot().activeTaskIds).toHaveLength(1);
+    finishAutomation();
+    expect(await automation).toEqual({ status: 'completed', value: 'action' });
+  });
+
   it('captures failures instead of leaving a task running', async () => {
     const registry = new DocumentTaskRegistry(documentId);
     const result = await registry.run('save', 'Save', async () => {
@@ -85,6 +109,30 @@ describe('DocumentTaskRegistry', () => {
       expect.objectContaining({ label: 'Cancelable inference', status: 'canceled' }),
     ]);
     expect(registry.getSnapshot().activeTaskIds).toEqual([]);
+  });
+
+  it('classifies an operation-owned AbortError as cancellation', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    const result = await registry.run('background-removal', 'Switched document', async () => {
+      throw new DOMException('The document changed.', 'AbortError');
+    }, { completionPolicy: 'operation-result' });
+
+    expect(result).toEqual({ status: 'canceled' });
+    expect(Object.values(registry.getSnapshot().tasks)[0]).toMatchObject({
+      status: 'canceled', error: null
+    });
+  });
+
+  it('classifies a document-lifetime AbortError as cancellation', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    const result = await registry.run('background-removal', 'Canceled on document switch', async () => {
+      throw new DOMException('Document switched.', 'AbortError');
+    }, { completionPolicy: 'operation-result' });
+
+    expect(result).toEqual({ status: 'canceled' });
+    expect(Object.values(registry.getSnapshot().tasks)[0]).toMatchObject({
+      status: 'canceled', error: null
+    });
   });
 
   it('aborts active work on disposal', async () => {

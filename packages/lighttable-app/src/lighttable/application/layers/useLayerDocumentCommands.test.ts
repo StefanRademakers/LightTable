@@ -55,6 +55,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
   applyGeneratedLayerMask: vi.fn(() => true),
+  applyLayerMaskToPixels: vi.fn(() => true),
   copySelectedLayerContent: vi.fn(() => true),
   exportSelectionClipboard: vi.fn(async () => new Blob(['selection'], { type: 'image/png' })),
   exportMergedSelection: vi.fn(async () => new Blob(['merged'], { type: 'image/png' })),
@@ -140,6 +141,9 @@ const setup = (initialDocument: ImageDocument) => {
     imageClipboard,
     historyEntries,
     document: () => document,
+    setDocumentMutations: (next: LayerDocumentCommandDependencies['documentMutations']) => {
+      documentMutations = next;
+    },
     setDocumentId: (next: string) => {
       documentId = next;
     },
@@ -242,6 +246,131 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(0);
   });
 
+  it('deletes and restores exact mask pixels through one history entry', () => {
+    const source = createImageDocument('Delete mask', 32, 24, 'asset');
+    const layerId = source.activeLayerId!;
+    const state = setup(addLayerMask(source, layerId));
+
+    expect(state.commands.removeLayerMask(layerId)).toBe(true);
+    expect(state.document().layers[0]?.mask).toBeNull();
+    expect(state.renderer.captureAllPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
+    expect(state.historyEntries).toHaveLength(1);
+
+    state.historyEntries[0]!.undo();
+    expect(state.document().layers[0]?.mask).not.toBeNull();
+    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'undo');
+    state.historyEntries[0]!.redo();
+    expect(state.document().layers[0]?.mask).toBeNull();
+    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+  });
+
+  it('keeps the mask and destroys its unpublished edit when delete history rejects', () => {
+    const source = createImageDocument('Delete mask failure', 32, 24, 'asset');
+    const layerId = source.activeLayerId!;
+    const state = setup(addLayerMask(source, layerId));
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.removeLayerMask(layerId)).toBe(false);
+
+    expect(state.document().layers[0]?.mask).not.toBeNull();
+    expect(state.renderer.applyPixelHistory).toHaveBeenCalledWith(expect.anything(), 'undo');
+    expect(state.historyEntries).toHaveLength(0);
+  });
+
+  it('applies a raster mask without baking unrelated live layer semantics', () => {
+    const source = createImageDocument('Apply mask', 32, 24, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = addLayerMask(source, layerId);
+    const layer = masked.layers[0]!;
+    const liveStyle = layer.styleStack;
+    const pixelHistory = pixelEdit();
+    const maskHistory = pixelEdit();
+    const state = setup(masked);
+    vi.mocked(state.renderer.finishPixelEdit)
+      .mockReturnValueOnce(pixelHistory)
+      .mockReturnValueOnce(maskHistory);
+
+    expect(state.commands.applyLayerMask(layerId)).toBe(true);
+
+    const result = state.document().layers[0]!;
+    expect(result.id).toBe(layerId);
+    expect(result.mask).toBeNull();
+    expect(result.styleStack).toBe(liveStyle);
+    expect(state.renderer.applyLayerMaskToPixels).toHaveBeenCalledWith(masked, layerId);
+    expect(vi.mocked(state.renderer.beginLayerPixelEdit).mock.calls).toEqual([
+      [layerId, 'pixels'], [layerId, 'mask']
+    ]);
+    expect(state.historyEntries[0]).toMatchObject({ type: 'layer.mask.apply', layerIds: [layerId] });
+
+    state.historyEntries[0]!.undo();
+    expect(state.document().layers[0]?.mask).not.toBeNull();
+    expect(vi.mocked(state.renderer.applyPixelHistory).mock.calls.slice(-2)).toEqual([
+      [maskHistory, 'undo'], [pixelHistory, 'undo']
+    ]);
+    state.historyEntries[0]!.redo();
+    expect(state.document().layers[0]?.mask).toBeNull();
+    expect(vi.mocked(state.renderer.applyPixelHistory).mock.calls.slice(-2)).toEqual([
+      [pixelHistory, 'redo'], [maskHistory, 'redo']
+    ]);
+  });
+
+  it('restores both pixels and mask when Apply Mask history rejects', () => {
+    const source = createImageDocument('Apply mask failure', 32, 24, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = addLayerMask(source, layerId);
+    const state = setup(masked);
+    vi.mocked(state.renderer.finishPixelEdit)
+      .mockReturnValueOnce(pixelEdit())
+      .mockReturnValueOnce(pixelEdit());
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.applyLayerMask(layerId)).toBe(false);
+    expect(state.document()).toBe(masked);
+    expect(vi.mocked(state.renderer.applyPixelHistory).mock.calls.map(([, direction]) => direction))
+      .toEqual(['undo', 'undo']);
+    expect(state.historyEntries).toHaveLength(0);
+  });
+
+  it('retains rollback ownership when Apply Mask publication is refused before admission', () => {
+    const source = createImageDocument('Apply mask refusal', 32, 24, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = addLayerMask(source, layerId);
+    const pixelHistory = pixelEdit();
+    const maskHistory = pixelEdit();
+    const state = setup(masked);
+    vi.mocked(state.renderer.finishPixelEdit)
+      .mockReturnValueOnce(pixelHistory)
+      .mockReturnValueOnce(maskHistory);
+    const cancel = vi.fn(() => true);
+    state.setDocumentMutations({
+      begin: vi.fn(() => ({
+        documentId: masked.id,
+        owner: 'layer.mask.apply',
+        before: masked,
+        current: masked,
+        active: true,
+        stage: vi.fn(() => true),
+        change: vi.fn(() => false),
+        commit: vi.fn(() => false),
+        commitWith: vi.fn(() => false),
+        commitWithAsync: vi.fn(async () => false),
+        cancel
+      }))
+    });
+
+    expect(state.commands.applyLayerMask(layerId)).toBe(false);
+    expect(pixelHistory.undo).toHaveBeenCalledOnce();
+    expect(maskHistory.undo).toHaveBeenCalledOnce();
+    expect(pixelHistory.destroy).toHaveBeenCalledOnce();
+    expect(maskHistory.destroy).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(0);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it('applies a generated background matte as one editable mask transaction', () => {
     const state = setup(createImageDocument('Remove background', 32, 24, 'asset'));
     const layerId = state.document().activeLayerId!;
@@ -278,6 +407,22 @@ describe('useLayerDocumentCommands', () => {
     expect(duplicate.renderer.duplicateLayerPixels).toHaveBeenCalledWith(
       originalId, duplicate.document().activeLayerId
     );
+    expect(duplicate.historyEntries[0]?.byteSize).toBe(64 + (8 * 8 * 10));
+  });
+
+  it('rolls a new background-removal layer back when history rejects it', () => {
+    const source = createImageDocument('Remove background failure', 8, 8, 'asset');
+    const state = setup(source);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+    expect(state.commands.applyBackgroundRemovalMask(source.activeLayerId!, {
+      width: 8, height: 8, data: new Uint8Array(64).fill(255)
+    }, 'new-layer')).toBe(false);
+    expect(state.document()).toBe(source);
+    expect(state.renderer.applyPixelHistory).toHaveBeenCalledWith(expect.anything(), 'undo');
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.historyEntries).toHaveLength(0);
   });
 
   it('does not publish a partial mask command when the GPU upload fails', () => {
@@ -292,6 +437,19 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.mask).toBeNull();
     expect(state.historyEntries).toHaveLength(0);
     expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects malformed generated mask storage before opening a GPU edit', () => {
+    const state = setup(createImageDocument('Malformed mask', 8, 8, 'asset'));
+    const layerId = state.document().activeLayerId!;
+
+    expect(state.commands.applyBackgroundRemovalMask(layerId, {
+      width: 8, height: 8, data: new Uint8Array(12)
+    }, 'replace')).toBe(false);
+
+    expect(state.renderer.beginLayerPixelEdit).not.toHaveBeenCalled();
+    expect(state.historyEntries).toHaveLength(0);
+    expect(state.document().layers[0]?.mask).toBeNull();
   });
 
   it('copies selected layer pixels to the system image clipboard', async () => {

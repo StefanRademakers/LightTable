@@ -28,7 +28,8 @@ describe('executeBackgroundRemovalOperation', () => {
     await expect(executeBackgroundRemovalOperation({
       document: state.document, layer: state.layer, renderer: state.renderer,
       model: state.model, mode: 'new-layer', signal: new AbortController().signal,
-      getDocument: () => state.document, applyMask: state.applyMask, onProgress
+      getDocument: () => state.document, getRenderer: () => state.renderer,
+      applyMask: state.applyMask, onProgress
     })).resolves.toMatchObject({ layerId: state.layer.id, mode: 'new-layer', modelId: 'ben2' });
     expect(state.renderer.exportLayerForBackgroundRemoval).toHaveBeenCalledWith(state.document, state.layer);
     expect(state.applyMask).toHaveBeenCalledWith(state.layer.id, state.mask, 'new-layer');
@@ -44,7 +45,19 @@ describe('executeBackgroundRemovalOperation', () => {
     await expect(executeBackgroundRemovalOperation({
       document: state.document, layer: state.layer, renderer: state.renderer,
       model: state.model, mode: 'replace', signal: new AbortController().signal,
-      getDocument: () => state.document, applyMask: state.applyMask
+      getDocument: () => state.document, getRenderer: () => state.renderer,
+      applyMask: state.applyMask
+    })).rejects.toThrow('document changed');
+    expect(state.applyMask).not.toHaveBeenCalled();
+  });
+
+  it('rejects a result prepared by a superseded renderer binding', async () => {
+    const state = setup();
+    await expect(executeBackgroundRemovalOperation({
+      document: state.document, layer: state.layer, renderer: state.renderer,
+      model: state.model, mode: 'replace', signal: new AbortController().signal,
+      getDocument: () => state.document, getRenderer: () => null,
+      applyMask: state.applyMask
     })).rejects.toThrow('document changed');
     expect(state.applyMask).not.toHaveBeenCalled();
   });
@@ -58,8 +71,30 @@ describe('executeBackgroundRemovalOperation', () => {
     await expect(executeBackgroundRemovalOperation({
       document: state.document, layer: state.layer, renderer: state.renderer,
       model: state.model, mode: 'replace', signal: abort.signal,
-      getDocument: () => state.document, applyMask: state.applyMask
+      getDocument: () => state.document, getRenderer: () => state.renderer,
+      applyMask: state.applyMask
     })).rejects.toMatchObject({ name: 'AbortError' });
     expect(state.model.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not publish when document-lifetime cancellation interrupts inference', async () => {
+    const state = setup();
+    const abort = new AbortController();
+    vi.mocked(state.model.remove).mockImplementation((_image, options) => {
+      const signal = options?.signal;
+      return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => {
+        reject(new DOMException('Document switched.', 'AbortError'));
+      }, { once: true }));
+    });
+    const running = executeBackgroundRemovalOperation({
+      document: state.document, layer: state.layer, renderer: state.renderer,
+      model: state.model, mode: 'replace', signal: abort.signal,
+      getDocument: () => state.document, getRenderer: () => state.renderer,
+      applyMask: state.applyMask
+    });
+    await vi.waitFor(() => expect(state.model.remove).toHaveBeenCalledOnce());
+    abort.abort();
+    await expect(running).rejects.toMatchObject({ name: 'AbortError' });
+    expect(state.applyMask).not.toHaveBeenCalled();
   });
 });

@@ -230,6 +230,8 @@
     "smoke:desktop:tight-merge": "node scripts/smoke-desktop-tight-merge.mjs",
     "smoke:desktop:tight-merge:build": "npm run package:desktop:verify && npm run smoke:desktop:tight-merge --",
     "smoke:desktop:layer-merge-matrix": "node scripts/smoke-desktop-layer-merge-matrix.mjs",
+    "smoke:desktop:mask-kernel": "node scripts/smoke-desktop-mask-kernel.mjs",
+    "smoke:desktop:mask-kernel:build": "npm run package:desktop:verify && npm run smoke:desktop:mask-kernel --",
     "smoke:desktop:layer-merge-matrix:build": "npm run package:desktop:verify && npm run smoke:desktop:layer-merge-matrix --",
     "smoke:desktop:system-fonts": "node scripts/smoke-desktop-system-fonts.mjs",
     "smoke:desktop:missing-font-recovery": "node scripts/smoke-desktop-missing-font-recovery.mjs",

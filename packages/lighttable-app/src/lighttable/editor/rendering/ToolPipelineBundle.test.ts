@@ -32,14 +32,15 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(38);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(39);
     expect(createComputePipeline).toHaveBeenCalledTimes(9);
-    expect(Object.keys(first)).toHaveLength(47);
+    expect(Object.keys(first)).toHaveLength(48);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)
       .find((value) => value.label === label)!;
     const blend = (label: string) => Array.from(descriptor(label).fragment?.targets ?? [])[0]?.blend;
+    expect(descriptor('LightTable apply layer mask')).toBeDefined();
     expect(blend('LightTable round brush with transparency lock')).toEqual({
         color: {
           srcFactor: 'dst-alpha',

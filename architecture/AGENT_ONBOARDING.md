@@ -126,6 +126,19 @@ retention includes group descendants, masks and derived previews. The packaged
 layer-finalization matrix is automated proof; owner feel acceptance is still
 pending.
 
+Mask/background reset, updated 2026-09-09: read
+[Mask and background-removal vertical slice](editor-kernel/MASK_AND_BACKGROUND_REMOVAL_VERTICAL_SLICE.md)
+before changing raster masks, Apply Mask, mask-as-selection or Remove
+Background. Supported entry points use semantic `layer.setMask`; GPU edits,
+canonical metadata and history publish through the shared pixel-mutation
+coordinator. Remove Background is one document/renderer-generation-bound task.
+Raster Apply Mask preserves the layer ID and unrelated live semantics;
+non-raster Apply Mask is deliberately disabled/fail-closed until the S01
+fresh-destination route is integrated. Do not reintroduce panel fallbacks or
+store inference/task/GPU state in React or the document. The packaged mask
+smoke is automated proof; owner acceptance and S03 paint-session cleanup remain
+open.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

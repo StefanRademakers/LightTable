@@ -24,8 +24,13 @@ interface UseBackgroundRemovalControllerOptions {
   readonly setStatus: (message: string) => void;
   readonly setError: (message: string) => void;
   readonly createModel?: () => BackgroundRemovalModel;
-  readonly startTask?: (layerId: LayerId, mode: BackgroundRemovalMaskMode) => void;
+  readonly startTask?: (
+    layerId: LayerId,
+    mode: BackgroundRemovalMaskMode
+  ) => boolean | Promise<boolean>;
   readonly cancelTask?: () => boolean;
+  readonly subscribeDocument?: (listener: () => void) => () => void;
+  readonly lifetimeKey?: string;
 }
 
 /**
@@ -41,16 +46,20 @@ export const useBackgroundRemovalController = ({
   setError,
   createModel = () => new Ben2BackgroundRemovalModel(),
   startTask,
-  cancelTask
+  cancelTask,
+  subscribeDocument,
+  lifetimeKey
 }: UseBackgroundRemovalControllerOptions) => {
   const [state, setState] = useState<BackgroundRemovalControllerState>({ phase: 'idle' });
   const modelRef = useRef<BackgroundRemovalModel | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const operationRef = useRef(0);
+  const queuedTaskRef = useRef(0);
   const latestProgressRef = useRef<BackgroundRemovalProgress | null>(null);
 
   const cancel = useCallback(() => {
-    if (cancelTask?.()) return;
+    cancelTask?.();
+    queuedTaskRef.current += 1;
     operationRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
@@ -62,6 +71,19 @@ export const useBackgroundRemovalController = ({
     abortRef.current?.abort();
     modelRef.current?.dispose();
   }, []);
+
+  const observedLifetimeRef = useRef(lifetimeKey);
+  useEffect(() => {
+    if (observedLifetimeRef.current === lifetimeKey) return;
+    observedLifetimeRef.current = lifetimeKey;
+    cancelTask?.();
+    queuedTaskRef.current += 1;
+    operationRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    latestProgressRef.current = null;
+    setState({ phase: 'idle' });
+  }, [cancelTask, lifetimeKey]);
 
   const removeBackgroundFromLayer = useCallback(async (
     layerId: LayerId,
@@ -88,6 +110,15 @@ export const useBackgroundRemovalController = ({
     if (options.signal?.aborted) abort.abort();
     abortRef.current?.abort();
     abortRef.current = abort;
+    let publishing = false;
+    const admitted = { documentId: document.id, revision: document.revision, renderer };
+    const unsubscribeDocument = subscribeDocument?.(() => {
+      if (publishing) return;
+      const current = getDocument();
+      if (!current || current.id !== admitted.documentId
+        || current.revision !== admitted.revision
+        || getRenderer() !== admitted.renderer) abort.abort();
+    }) ?? (() => undefined);
     setState({ phase: 'running', progress: { phase: 'decode', message: 'Preparing active layer…' } });
 
     try {
@@ -99,11 +130,13 @@ export const useBackgroundRemovalController = ({
         options.onProgress?.(progress);
       });
       const result = await executeBackgroundRemovalOperation({
-        document, layer, renderer, model, mode, signal: abort.signal, getDocument, applyMask,
+        document, layer, renderer, model, mode, signal: abort.signal,
+        getDocument, getRenderer, applyMask,
         onProgress: (progress) => {
           latestProgressRef.current = progress;
           publishProgress(progress.percent ?? 0, progress.message);
-        }
+        },
+        onBeforeApply: () => { publishing = true; }
       });
       setStatus(`Background removed in ${Math.round(result.durationMs)} ms (${result.backend.toUpperCase()}).`);
       return result;
@@ -115,13 +148,29 @@ export const useBackgroundRemovalController = ({
         ? new DOMException('Background removal was canceled.', 'AbortError') : reason;
     } finally {
       options.signal?.removeEventListener('abort', cancelFromTask);
+      unsubscribeDocument();
       if (operation === operationRef.current) {
         abortRef.current = null;
         latestProgressRef.current = null;
         setState({ phase: 'idle' });
       }
     }
-  }, [applyMask, createModel, getDocument, getRenderer, setError, setStatus]);
+  }, [applyMask, createModel, getDocument, getRenderer, setError, setStatus, subscribeDocument]);
+
+  const queueTask = useCallback((layerId: LayerId, mode: BackgroundRemovalMaskMode) => {
+    if (!startTask) return;
+    const generation = ++queuedTaskRef.current;
+    setState({ phase: 'running', progress: {
+      phase: 'decode', message: 'Queueing background removal…'
+    } });
+    void Promise.resolve(startTask(layerId, mode)).then((started) => {
+      if (generation === queuedTaskRef.current && !started) setState({ phase: 'idle' });
+    }).catch((reason) => {
+      if (generation !== queuedTaskRef.current) return;
+      setState({ phase: 'idle' });
+      setError(reason instanceof Error ? reason.message : 'Background removal did not start.');
+    });
+  }, [setError, startTask]);
 
   const request = useCallback(() => {
     const document = getDocument();
@@ -135,15 +184,15 @@ export const useBackgroundRemovalController = ({
       return;
     }
     if (layer.mask) setState({ phase: 'choose-mask-mode', layerId: layer.id, layerName: layer.name });
-    else if (startTask) startTask(layer.id, 'replace');
+    else if (startTask) queueTask(layer.id, 'replace');
     else void removeBackgroundFromLayer(layer.id, 'replace').catch(() => undefined);
-  }, [getDocument, removeBackgroundFromLayer, setError, startTask]);
+  }, [getDocument, queueTask, removeBackgroundFromLayer, setError, startTask]);
 
   const choose = useCallback((mode: BackgroundRemovalMaskMode) => {
     if (state.phase !== 'choose-mask-mode') return;
-    if (startTask) startTask(state.layerId, mode);
+    if (startTask) queueTask(state.layerId, mode);
     else void removeBackgroundFromLayer(state.layerId, mode).catch(() => undefined);
-  }, [removeBackgroundFromLayer, startTask, state]);
+  }, [queueTask, removeBackgroundFromLayer, startTask, state]);
 
   return { state, request, choose, cancel, removeBackgroundFromLayer } as const;
 };

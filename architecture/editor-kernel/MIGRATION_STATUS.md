@@ -1,6 +1,6 @@
 # Editor kernel migration status
 
-Updated: 2026-09-08.
+Updated: 2026-09-09.
 
 The ordered, checkable work queue and the mandatory critic/repair/real-app loop
 live in the [stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md).
@@ -12,6 +12,7 @@ This status file remains the compact statement of what is actually migrated.
 | selection/marquee vertical | fallback retained outside migrated routes | implemented | shape/move/nudge/paint/Magic Wand/Object Selection/rebind | packaged automated | partial |
 | transform and snapping | yes | documented | no | no | no |
 | rasterize/merge/flatten | no | implemented | complete vertical | packaged automated | yes |
+| masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
 | text/path text/warp | yes | documented | no | no | no |
 | adjustments/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
@@ -63,6 +64,16 @@ the semantic eligibility route. Context-dependent pass-through, adjustment and
 blend selections fail closed with the same explicit reason rather than baking
 against transparent pixels. Packaged vector/text PSD evidence is recorded in
 [Layer finalization vertical slice](LAYER_FINALIZATION_VERTICAL_SLICE.md).
+
+Masks and background-result insertion form the third implemented vertical.
+Supported UI, Action and MCP calls share `layer.setMask`; exact GPU edits,
+document publication and history are one recoverable pixel mutation. Remove
+Background owns one document/renderer-bound task generation, and stale or
+canceled inference cannot publish. Raster Apply Mask keeps the layer identity
+and unrelated live semantics; non-raster Apply Mask explicitly fails closed
+until it can reuse the fresh-destination finalization lifecycle. Packaged debug
+and instrumented evidence is recorded in
+[Mask and background-removal vertical slice](MASK_AND_BACKGROUND_REMOVAL_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

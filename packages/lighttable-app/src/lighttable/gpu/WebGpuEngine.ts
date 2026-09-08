@@ -1342,6 +1342,12 @@ export class WebGpuEngine {
     return changed;
   }
 
+  applyLayerMaskToPixels(document: ImageDocument, layerId: LayerId) {
+    const changed = this.documentRenderer?.applyLayerMaskToPixels(document, layerId) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   private selectionOwnerIsCurrent(
     renderer: LayerDocumentRenderer,
     documentId: string | null

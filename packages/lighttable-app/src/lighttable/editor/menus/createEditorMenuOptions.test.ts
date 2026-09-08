@@ -547,9 +547,24 @@ describe('createEditorMenuOptions', () => {
     expect(options.find(({ value }) => value === 'layer-delete')?.children?.map(({ value }) => value))
       .toEqual(['delete-layer']);
     expect(options.find(({ value }) => value === 'layer-mask')?.children?.map(({ value }) => value))
-      .toEqual(['add-mask', 'edit-layer-mask', 'toggle-mask', 'remove-mask']);
+      .toEqual([
+        'add-mask', 'edit-layer-mask', 'toggle-mask', 'load-mask-selection',
+        'invert-mask', 'apply-mask', 'remove-mask'
+      ]);
     expect(options.find(({ value }) => value === 'arrange')?.children?.map(({ value }) => value))
       .toEqual(['move-up', 'move-down']);
+  });
+
+  it('exposes raster Apply Mask and fails closed for non-raster mask targets', () => {
+    const raster = createEditorMenuOptions('layer', state({
+      layer: { ...state().layer!, type: 'raster', hasMask: true }
+    }), labels, commands());
+    const text = createEditorMenuOptions('layer', state({
+      layer: { ...state().layer!, type: 'text', hasMask: true }
+    }), labels, commands());
+
+    expect(findMenuOption(raster, 'apply-mask')?.disabled).toBe(false);
+    expect(findMenuOption(text, 'apply-mask')?.disabled).toBe(true);
   });
 
   it('creates global or attached adjustments and adds Layer Styles from the Layer menu', () => {

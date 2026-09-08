@@ -38,7 +38,10 @@ export const startBackgroundRemovalTask = (
 ): string | null => {
   if (!ports.executeBackgroundRemoval) return null;
   const name = 'Remove Background';
-  const running = session.tasks.run('automation', name, async (task) => {
+  // Background removal has its own document-lifetime supersession lane. A
+  // second request cancels only an older removal, never an unrelated Action,
+  // MCP batch, export, or analysis task.
+  const running = session.tasks.run('background-removal', name, async (task) => {
     events.append(task.id, 'running', { progress: 0, message: name });
     const report = createBoundedTaskProgress((progress, message) => {
       task.reportProgress(progress);
@@ -47,7 +50,7 @@ export const startBackgroundRemovalTask = (
     await ports.executeBackgroundRemoval!(session.id, command, task.signal, report);
     task.throwIfCanceled();
     return { layerId: command.layerId, mode: command.mode };
-  }, { replace: false });
+  }, { completionPolicy: 'operation-result' });
   const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1) ?? null;
   if (!taskId) return null;
   events.append(taskId, 'queued', { progress: 0, message: name });
