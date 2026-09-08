@@ -1651,6 +1651,82 @@ export class WebGpuEngine {
     return task;
   }
 
+  prepareSelectionShapeProjection(
+    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionShapeProjection']>
+  ) {
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(async () => {
+      if (!renderer || !this.selectionOwnerIsCurrent(renderer, documentId)) {
+        throw new Error('The active selection renderer changed before preparation.');
+      }
+      const prepared = await renderer.prepareSelectionShapeProjection(...parameters);
+      if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
+        prepared.dispose();
+        throw new Error('The active selection renderer changed during preparation.');
+      }
+      return {
+        transactionId: prepared.transactionId,
+        baselineRevision: prepared.baselineRevision,
+        result: prepared.result,
+        activate: () => {
+          const activation = prepared.activate();
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+          return {
+            accept: () => activation.accept(),
+            rollback: () => {
+              activation.rollback();
+              this.renderDirty.invalidate('viewport');
+              this.requestRender();
+            },
+          };
+        },
+        dispose: () => prepared.dispose(),
+      };
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  prepareSelectionSnapshotProjection(
+    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionSnapshotProjection']>
+  ) {
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(async () => {
+      if (!renderer || !this.selectionOwnerIsCurrent(renderer, documentId)) {
+        throw new Error('The active selection renderer changed before restoration.');
+      }
+      const prepared = await renderer.prepareSelectionSnapshotProjection(...parameters);
+      if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
+        prepared.dispose();
+        throw new Error('The active selection renderer changed during restoration.');
+      }
+      return {
+        transactionId: prepared.transactionId,
+        baselineRevision: prepared.baselineRevision,
+        result: prepared.result,
+        activate: () => {
+          const activation = prepared.activate();
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+          return {
+            accept: () => activation.accept(),
+            rollback: () => {
+              activation.rollback();
+              this.renderDirty.invalidate('viewport');
+              this.requestRender();
+            },
+          };
+        },
+        dispose: () => prepared.dispose(),
+      };
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   replaceSelection(operations: SelectionOperation[]) {
     const renderer = this.documentRenderer;
     const document = this.imageDocument;
@@ -2573,6 +2649,22 @@ export class WebGpuEngine {
     });
     this.selectionAntsAnimator.setSelectionVisible(
       visible && !this.selectionPaintOverlayVisible && this.selectionOverlayOperations.length > 0
+    );
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  /** Synchronous committed projection used by the selection kernel activation. */
+  setCommittedSelectionProjection(operations: readonly SelectionOperation[]) {
+    this.selectionOverlayOperations = operations.map((operation) => ({
+      ...operation,
+      shape: { ...operation.shape,
+        points: operation.shape.points.map((point) => ({ ...point })) }
+    }));
+    this.selectionAntsAnimator.setSelectionVisible(
+      this.selectionOverlayVisible
+      && !this.selectionPaintOverlayVisible
+      && this.selectionOverlayOperations.length > 0
     );
     this.renderDirty.invalidate('viewport');
     this.requestRender();

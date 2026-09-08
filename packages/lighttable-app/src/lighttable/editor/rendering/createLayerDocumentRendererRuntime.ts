@@ -13,6 +13,7 @@ import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
 import { SelectionClipboardService } from './SelectionClipboardService';
+import { SelectionShapeProjectionService } from './SelectionShapeProjectionService';
 import { RasterDocumentOperations } from './RasterDocumentOperations';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
 import { LayerCompositor } from './LayerCompositor';
@@ -60,6 +61,7 @@ export interface LayerDocumentRendererRuntime {
   documentAssets: LayerDocumentAssetService;
   selectionRasterizer: SelectionRasterizer;
   selectionContentAnalyzer: SelectionContentAnalyzer;
+  selectionShapeProjection: SelectionShapeProjectionService;
   selectionClipboard: SelectionClipboardService;
   transformRasterizer: TransformRasterizer;
   pixelEditHistory: PixelEditHistoryService;
@@ -214,12 +216,13 @@ export const createLayerDocumentRendererRuntime = (
   const geometryPreviews = new GeometryPreviewStore();
   const maskGeometryPreviews = new GeometryPreviewStore();
   const vectorContentPreviews = new VectorContentPreviewStore();
-  const selectionTextures = new SelectionTextureStore({
+  const createSelectionTextures = () => new SelectionTextureStore({
     createSelectionTexture: (label) => textures.createSelection(label),
     createClipboardTexture: (label) => textures.createColor(label),
     initializeTargets: (mask, result, shape) =>
       textures.initializeSelectionTargets(mask, result, shape)
   });
+  const selectionTextures = createSelectionTextures();
   const ensureSelectionTargets = () => selectionTextures.ensureTargets();
   const compositor = new LayerCompositor({
     device,
@@ -298,31 +301,67 @@ export const createLayerDocumentRendererRuntime = (
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });
-  const selectionRasterizer = new SelectionRasterizer({
+  const createSelectionRasterizer = (
+    targetTextures: SelectionTextureStore,
+    ensureTargets: () => void
+  ) => new SelectionRasterizer({
     device,
     sampler,
-    textures: selectionTextures,
+    textures: targetTextures,
     dimensions: resources.dimensions,
     pipelines: toolPipelines.get,
-    ensureTargets: ensureSelectionTargets,
+    ensureTargets,
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
     clearTexture: (encoder, texture, clearValue) =>
       textures.clear(encoder, texture, clearValue)
   });
-  const selectionContentAnalyzer = new SelectionContentAnalyzer({
+  const selectionRasterizer = createSelectionRasterizer(
+    selectionTextures,
+    ensureSelectionTargets
+  );
+  const createSelectionContentAnalyzer = (
+    targetTextures: SelectionTextureStore,
+    ensureTargets: () => void
+  ) => new SelectionContentAnalyzer({
     device,
-    textures: selectionTextures,
+    textures: targetTextures,
     dimensions: resources.dimensions,
     generation: resources.generation,
     pipelines: toolPipelines.get,
-    ensureTargets: ensureSelectionTargets,
+    ensureTargets,
     rasterRuntime: (layerId) => layerResources.raster(layerId),
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     createCoverageTexture: (label, width, height) =>
       textures.createByteCoverageSized(label, width, height),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+  });
+  const selectionContentAnalyzer = createSelectionContentAnalyzer(
+    selectionTextures,
+    ensureSelectionTargets
+  );
+  const selectionShapeProjection = new SelectionShapeProjectionService({
+    committedTextures: selectionTextures,
+    createStage: () => {
+      const stageTextures = createSelectionTextures();
+      const ensureStageTargets = () => { stageTextures.ensureTargets(); };
+      const rasterizer = createSelectionRasterizer(stageTextures, ensureStageTargets);
+      const analyzer = createSelectionContentAnalyzer(stageTextures, ensureStageTargets);
+      return {
+        textures: stageTextures,
+        restore: (snapshot) => rasterizer.restoreSnapshot(snapshot),
+        apply: (intent) => rasterizer.set(
+          intent.shape,
+          intent.mode,
+          intent.featherRadius,
+          intent.antiAlias
+        ),
+        capture: () => rasterizer.captureSnapshot(),
+        measure: () => analyzer.measureSelection(),
+        dispose: () => rasterizer.destroy(),
+      };
+    },
   });
   const selectionClipboard = new SelectionClipboardService({
     device,
@@ -562,6 +601,7 @@ export const createLayerDocumentRendererRuntime = (
     documentAssets,
     selectionRasterizer,
     selectionContentAnalyzer,
+    selectionShapeProjection,
     selectionClipboard,
     transformRasterizer,
     pixelEditHistory,

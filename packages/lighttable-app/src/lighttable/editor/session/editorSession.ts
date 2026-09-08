@@ -12,7 +12,7 @@ import {
 } from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget, VectorPaint } from '@lighttable/vector-core';
-import type { LayerId } from '../document/documentTypes';
+import type { LayerId, Rect } from '../document/documentTypes';
 import {
   createDefaultToneBrushSettings,
   type ToneBrushSettings
@@ -259,6 +259,10 @@ export interface EditorSession {
   activeChannel: PaintChannel;
   selection: SelectionOperation[];
   selectionMaskSnapshot: SelectionMaskSnapshot | null;
+  /** Monotonic committed-selection identity; pointer previews never increment it. */
+  selectionRevision: number;
+  /** Effective non-zero mask bounds measured from the same committed snapshot. */
+  selectionSupportBounds: Rect | null;
   vectorSelection: VectorEditorSelection;
   selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
@@ -290,13 +294,15 @@ export interface EditorSession {
 /** Stable application/editor UI state shared by every document tab. */
 export type EditorApplicationState = Omit<
   EditorSession,
-  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'vectorSelection'
+  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'selectionRevision'
+  | 'selectionSupportBounds' | 'vectorSelection'
 >;
 
 /** Lightweight interaction state that follows one document. */
 export type DocumentEditorState = Pick<
   EditorSession,
-  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'vectorSelection'
+  'activeChannel' | 'selection' | 'selectionMaskSnapshot' | 'selectionRevision'
+  | 'selectionSupportBounds' | 'vectorSelection'
 >;
 
 export const createEditorSession = (): EditorSession => ({
@@ -305,6 +311,8 @@ export const createEditorSession = (): EditorSession => ({
   activeChannel: 'pixels',
   selection: [],
   selectionMaskSnapshot: null,
+  selectionRevision: 0,
+  selectionSupportBounds: null,
   vectorSelection: createVectorEditorSelection(),
   selectionCombineMode: 'replace',
   selectionPixelSnap: true,
@@ -407,6 +415,8 @@ export const editorApplicationStateFrom = (
 ): EditorApplicationState => {
   const { activeChannel: _activeChannel, selection: _selection,
     selectionMaskSnapshot: _selectionMaskSnapshot,
+    selectionRevision: _selectionRevision,
+    selectionSupportBounds: _selectionSupportBounds,
     vectorSelection: _vectorSelection, ...application } = session;
   return application;
 };
@@ -417,6 +427,10 @@ export const documentEditorStateFrom = (
   activeChannel: session.activeChannel,
   selection: [...session.selection],
   selectionMaskSnapshot: session.selectionMaskSnapshot,
+  selectionRevision: session.selectionRevision,
+  selectionSupportBounds: session.selectionSupportBounds
+    ? { ...session.selectionSupportBounds }
+    : null,
   vectorSelection: cloneVectorEditorSelection(session.vectorSelection)
 });
 
@@ -434,5 +448,9 @@ export const mergeEditorSession = (
   ...document,
   selection: [...document.selection],
   selectionMaskSnapshot: document.selectionMaskSnapshot,
+  selectionRevision: document.selectionRevision,
+  selectionSupportBounds: document.selectionSupportBounds
+    ? { ...document.selectionSupportBounds }
+    : null,
   vectorSelection: cloneVectorEditorSelection(document.vectorSelection)
 });

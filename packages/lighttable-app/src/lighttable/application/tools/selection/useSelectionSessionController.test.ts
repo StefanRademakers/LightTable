@@ -28,6 +28,11 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     setSelection: vi.fn(async () => true),
     clearSelection: vi.fn(async () => true),
     captureSelectionSnapshot: vi.fn(async () => selectionMaskSnapshot),
+    measureSelectionBounds: vi.fn(async () => selectionMaskSnapshot.active ? ({
+      coreBounds: { x: 0, y: 0, width: document.width, height: document.height },
+      supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
+      peakCoverage: 1,
+    }) : null),
     restoreSelectionSnapshot: vi.fn(async (snapshot: SelectionMaskSnapshot) => {
       selectionMaskSnapshot = snapshot;
       return true;
@@ -159,6 +164,30 @@ describe('selection session controller', () => {
     }]);
     expect(state.history).toHaveLength(1);
     expect(state.history[0].documentMutation).toBe(false);
+  });
+
+  it('routes command and pointer shape commits exclusively through the kernel port', async () => {
+    const commitShape = vi.fn(async () => true);
+    const onShapeCommitted = vi.fn();
+    const state = setup({ commitShape, onShapeCommitted });
+    const shape: SelectionShape = {
+      kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }],
+    };
+
+    expect(await state.controller.applyShape(shape, 'replace', 3, true)).toBe(true);
+    expect(state.controller.begin(27, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
+    expect(state.controller.move(27, { x: 40, y: 50 })).toBe(true);
+    expect(state.controller.finish(27)).toBe(true);
+    await state.controller.settle();
+
+    expect(commitShape).toHaveBeenCalledTimes(2);
+    expect(commitShape).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      shape, mode: 'replace', featherRadius: 3, antiAlias: true,
+      provenance: expect.objectContaining({ mode: 'replace', shape }),
+    }));
+    expect(state.renderer.setSelection).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+    expect(onShapeCommitted).toHaveBeenCalledOnce();
   });
 
   it('publishes one pointer gesture and one selection-only history entry', async () => {

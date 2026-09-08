@@ -4,6 +4,13 @@ export interface SelectionTextureStoreOptions {
   initializeTargets?: (mask: GPUTexture, result: GPUTexture, shape: GPUTexture) => void;
 }
 
+export interface SelectionTargetState {
+  readonly mask: GPUTexture;
+  readonly result: GPUTexture;
+  readonly shape: GPUTexture;
+  readonly active: boolean;
+}
+
 /**
  * Owns the mutable GPU textures that form one document's selection state.
  * Selection commands still encode the operations; allocation and lifetime are
@@ -43,6 +50,61 @@ export class SelectionTextureStore {
     this.result = replacement.result;
     this.shape = replacement.shape;
     return current;
+  }
+
+  /**
+   * Atomically exchanges the complete committed selection projection.
+   * Clipboard pixels deliberately stay with the document renderer: they are
+   * not part of selection state and must survive selection undo/redo.
+   */
+  exchangeState(replacement: SelectionTargetState): SelectionTargetState {
+    if (!this.mask || !this.result || !this.shape) {
+      throw new Error('Selection targets are unavailable.');
+    }
+    const current = {
+      mask: this.mask,
+      result: this.result,
+      shape: this.shape,
+      active: this.active,
+    };
+    this.mask = replacement.mask;
+    this.result = replacement.result;
+    this.shape = replacement.shape;
+    this.active = replacement.active;
+    return current;
+  }
+
+  detachState(): SelectionTargetState {
+    if (!this.mask || !this.result || !this.shape) {
+      throw new Error('Selection targets are unavailable.');
+    }
+    const state = {
+      mask: this.mask,
+      result: this.result,
+      shape: this.shape,
+      active: this.active,
+    };
+    this.mask = null;
+    this.result = null;
+    this.shape = null;
+    this.active = false;
+    return state;
+  }
+
+  attachState(state: SelectionTargetState): void {
+    if (this.mask || this.result || this.shape) {
+      throw new Error('Selection targets are already attached.');
+    }
+    this.mask = state.mask;
+    this.result = state.result;
+    this.shape = state.shape;
+    this.active = state.active;
+  }
+
+  static destroyState(state: SelectionTargetState): void {
+    state.mask.destroy();
+    state.result.destroy();
+    state.shape.destroy();
   }
 
   replaceClipboard() {

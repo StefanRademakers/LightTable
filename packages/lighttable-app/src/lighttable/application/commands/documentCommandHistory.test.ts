@@ -133,6 +133,41 @@ describe('DocumentCommandHistory', () => {
     });
   });
 
+  it('reserves admission before external state publication', async () => {
+    const history = new DocumentCommandHistory(documentId);
+    const reservation = history.reserve(command('selection', {}, { affectsDocument: false }));
+
+    expect(history.getSnapshot()).toMatchObject({
+      busy: true,
+      undoDepth: 0,
+      canUndo: false,
+      dirty: false
+    });
+    expect(() => history.record(command('raced'))).toThrow(/while undo or redo is running/i);
+    expect(await history.undo()).toBe(false);
+
+    expect(reservation.commit()).toBe(true);
+    expect(history.getSnapshot()).toMatchObject({
+      busy: false,
+      undoDepth: 1,
+      undoLabel: 'selection',
+      dirty: false
+    });
+    expect(reservation.commit()).toBe(false);
+  });
+
+  it('cancels or invalidates a reservation without adopting its command', () => {
+    const history = new DocumentCommandHistory(documentId);
+    const cancelled = history.reserve(command('cancelled'));
+    cancelled.cancel();
+    expect(history.getSnapshot()).toMatchObject({ busy: false, undoDepth: 0 });
+
+    const invalidated = history.reserve(command('invalidated'));
+    history.clear();
+    expect(invalidated.commit()).toBe(false);
+    expect(history.getSnapshot()).toMatchObject({ busy: false, undoDepth: 0 });
+  });
+
   it('retains an active command until a cleared operation has settled', async () => {
     let resolveUndo: (() => void) | undefined;
     const disposeActive = vi.fn();

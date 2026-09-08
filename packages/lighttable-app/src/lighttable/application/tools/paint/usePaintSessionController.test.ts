@@ -85,6 +85,33 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
 };
 
 describe('PaintSessionController', () => {
+  it('captures one selection revision and rolls the stroke back if it changes', () => {
+    const fixture = createFixture();
+    let selectionRevision = 3;
+    fixture.dependencies.getSelectionRevision = () => selectionRevision;
+
+    expect(fixture.controller.begin({
+      pointerId: 41,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 4, y: 5, pressure: 1 },
+    })).toBe(true);
+    selectionRevision += 1;
+    expect(fixture.controller.move(41, { x: 20, y: 12, pressure: 1 })).toBe(true);
+
+    expect(fixture.controller.active).toBe(false);
+    expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(
+      fixture.pixelEdit, 'undo',
+    );
+    expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(0);
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('selection changed'),
+    );
+  });
+
   it('keeps a large coalesced recorded stroke to one frame submit, history entry and semantic commit', () => {
     let frameCallback: (() => void) | null = null;
     const request = vi.fn((callback: () => void) => {

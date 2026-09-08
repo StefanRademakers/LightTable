@@ -54,4 +54,23 @@ describe('DocumentSession publication transaction', () => {
     expect(session.getSnapshot().title).toBe('Published title');
     session.dispose();
   });
+
+  it('does not publish when a conditional editor update loses its revision race', () => {
+    const session = new DocumentSession({
+      id: 'document-3' as DocumentSessionId,
+      source: { id: 'source-3', name: 'image.png', mediaType: 'image/png' }
+    });
+    session.setReady();
+    const observed = vi.fn();
+    session.subscribe(observed);
+
+    expect(session.updateEditorIf(
+      (current) => current.selectionRevision === 7,
+      (current) => ({ ...current, selectionRevision: 8 })
+    )).toBe(false);
+
+    expect(session.getSnapshot().editor.selectionRevision).toBe(0);
+    expect(observed).not.toHaveBeenCalled();
+    session.dispose();
+  });
 });

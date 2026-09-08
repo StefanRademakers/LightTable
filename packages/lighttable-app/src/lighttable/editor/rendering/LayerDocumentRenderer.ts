@@ -1060,6 +1060,18 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.restoreSnapshot(snapshot);
   }
 
+  prepareSelectionShapeProjection(
+    ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepare']>
+  ) {
+    return this.runtime.selectionShapeProjection.prepare(...parameters);
+  }
+
+  prepareSelectionSnapshotProjection(
+    ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareSnapshot']>
+  ) {
+    return this.runtime.selectionShapeProjection.prepareSnapshot(...parameters);
+  }
+
   destroyImageResources() {
     this.runtime.imageResources.destroy();
   }
@@ -1068,6 +1080,7 @@ export class LayerDocumentRenderer {
     this.destroyImageResources();
     this.runtime.textLayerCoordinator.dispose();
     this.runtime.rasterPaint.destroy();
+    this.runtime.selectionShapeProjection.dispose();
     this.runtime.selectionRasterizer.destroy();
     this.runtime.renderResources.destroyPending();
   }

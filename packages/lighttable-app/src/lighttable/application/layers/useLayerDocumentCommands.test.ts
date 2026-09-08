@@ -29,6 +29,8 @@ import {
   type LayerDocumentCommandDependencies
 } from './useLayerDocumentCommands';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
+import { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnapshot';
+import type { LightTableSelectionReadLease } from '../tools/selection/DocumentSelectionStateStore';
 
 const pixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 64,
@@ -347,6 +349,41 @@ describe('useLayerDocumentCommands', () => {
       expect.any(Blob),
       expect.objectContaining(support)
     );
+  });
+
+  it('uses the committed mask lease bounds instead of semantic operation bounds', async () => {
+    const state = setup(createImageDocument('Test', 100, 80, 'asset'));
+    let revision = 4;
+    state.dependencies.getSelectionLease = () => ({
+      document: { sessionId: 'test-document', revision: 0 },
+      selection: {
+        documentSessionId: 'test-document',
+        revision,
+        canvas: { width: 100, height: 80 },
+        active: true,
+        coverage: SelectionMaskSnapshot.fromRaw(100, 80, new Uint16Array(8_000)),
+        supportBounds: { x: 25, y: 20, width: 18, height: 12 },
+        provenance: createFullCanvasSelection(100, 80),
+      },
+    } as unknown as LightTableSelectionReadLease);
+
+    await expect(state.commands.copySelectedContent(
+      createFullCanvasSelection(100, 80),
+    )).resolves.toMatchObject({
+      bounds: { x: 25, y: 20, width: 18, height: 12 },
+    });
+    expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith({
+      x: 25, y: 20, width: 18, height: 12,
+    });
+
+    let finishExport!: (blob: Blob) => void;
+    vi.mocked(state.renderer.exportSelectionClipboard).mockReturnValueOnce(
+      new Promise((resolve) => { finishExport = resolve; }),
+    );
+    const staleCopy = state.commands.copySelectedContent(createFullCanvasSelection(100, 80));
+    revision += 1;
+    finishExport(new Blob(['selection'], { type: 'image/png' }));
+    await expect(staleCopy).resolves.toBeNull();
   });
 
   it('copies the visible composited result for Copy Merged', async () => {

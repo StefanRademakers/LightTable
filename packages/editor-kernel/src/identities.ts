@@ -5,6 +5,7 @@ export type DocumentRevision = Brand<number, 'DocumentRevision'>;
 export type HistoryStateId = Brand<string, 'HistoryStateId'>;
 export type LayerId = Brand<string, 'LayerId'>;
 export type ResourceId = Brand<string, 'ResourceId'>;
+export type SelectionRevision = Brand<number, 'SelectionRevision'>;
 export type TransactionId = Brand<string, 'TransactionId'>;
 export type TransactionRevision = Brand<number, 'TransactionRevision'>;
 

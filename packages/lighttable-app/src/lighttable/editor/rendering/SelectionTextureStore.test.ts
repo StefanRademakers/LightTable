@@ -39,6 +39,43 @@ describe('SelectionTextureStore', () => {
     expect(store.mask).not.toBeNull();
   });
 
+  it('exchanges and rolls back a complete projection without moving clipboard ownership', () => {
+    const committed = new SelectionTextureStore({
+      createSelectionTexture: texture,
+      createClipboardTexture: texture
+    });
+    const prepared = new SelectionTextureStore({
+      createSelectionTexture: texture,
+      createClipboardTexture: texture
+    });
+    committed.ensureTargets();
+    prepared.ensureTargets();
+    const clipboard = committed.replaceClipboard();
+    committed.active = false;
+    prepared.active = true;
+    const original = {
+      mask: committed.mask,
+      result: committed.result,
+      shape: committed.shape
+    };
+
+    const rollback = committed.exchangeState(prepared.detachState());
+    expect(committed.active).toBe(true);
+    expect(committed.mask).not.toBe(original.mask);
+    expect(committed.clipboard).toBe(clipboard);
+
+    const rejected = committed.exchangeState(rollback);
+    expect(committed.active).toBe(false);
+    expect(committed.mask).toBe(original.mask);
+    expect(committed.result).toBe(original.result);
+    expect(committed.shape).toBe(original.shape);
+    expect(committed.clipboard).toBe(clipboard);
+    SelectionTextureStore.destroyState(rejected);
+    expect(rejected.mask.destroy).toHaveBeenCalledOnce();
+    expect(rejected.result.destroy).toHaveBeenCalledOnce();
+    expect(rejected.shape.destroy).toHaveBeenCalledOnce();
+  });
+
   it('reports and releases all owned channels', () => {
     const store = new SelectionTextureStore({
       createSelectionTexture: texture,

@@ -66,6 +66,7 @@ export interface SelectionRendererPort {
   ): Promise<boolean>;
   clearSelection(): Promise<boolean>;
   captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
+  measureSelectionBounds(): Promise<import('../../../editor/selection/selectionCoverage').SelectionCoverageBounds | null>;
   restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
@@ -87,7 +88,8 @@ export interface SelectionSessionDependencies {
   publishSelection(
     operations: SelectionOperation[],
     pointerId: number | null,
-    snapshot?: SelectionMaskSnapshot
+    snapshot?: SelectionMaskSnapshot,
+    commit?: { readonly supportBounds: Rect | null }
   ): void;
   publishDraft(shape: SelectionShape | null): void;
   pushHistoryEntry(entry: SelectionHistoryEntry): void;
@@ -104,6 +106,14 @@ export interface SelectionSessionDependencies {
     readonly featherRadius: number;
     readonly antiAlias: boolean;
   }): void;
+  /** Kernel-owned committed route; legacy mutation is used only when absent. */
+  commitShape?(command: {
+    readonly mode: SelectionCombineMode;
+    readonly shape: SelectionShape;
+    readonly featherRadius: number;
+    readonly antiAlias: boolean;
+    readonly provenance: SelectionOperation;
+  }): Promise<boolean>;
   onMagicWandCommitted?(command: {
     readonly kind: 'magic-wand';
     readonly layerId: LayerId;
@@ -514,7 +524,13 @@ export const createSelectionSessionController = (
     if (!await renderer.restoreSelectionSnapshot(mask) || !isCurrent(document, renderer)) {
       throw new Error('The LightTable selection could not be restored.');
     }
-    resolveDependencies().publishSelection(snapshot, null, mask);
+    const supportBounds = mask.active
+      ? (await renderer.measureSelectionBounds())?.supportBounds ?? null
+      : null;
+    if (mask.active && !supportBounds) {
+      throw new Error('The restored selection has no measurable coverage.');
+    }
+    resolveDependencies().publishSelection(snapshot, null, mask, { supportBounds });
   };
 
   const pushHistory = (
@@ -591,9 +607,15 @@ export const createSelectionSessionController = (
       }
       const afterMask = await renderer.captureSelectionSnapshot();
       if (!isCurrent(document, renderer)) return false;
+      const supportBounds = afterMask.active
+        ? (await renderer.measureSelectionBounds())?.supportBounds ?? null
+        : null;
+      if (afterMask.active && !supportBounds) {
+        throw new Error('The committed selection has no measurable coverage.');
+      }
       const latest = resolveDependencies();
       pushHistory(document, before, beforeMask, snapshot, afterMask);
-      latest.publishSelection(snapshot, null, afterMask);
+      latest.publishSelection(snapshot, null, afterMask, { supportBounds });
       latest.setError(null);
       notifyObservedCommit(latest, onCommitted ? () => onCommitted(latest) : undefined);
       return true;
@@ -654,6 +676,29 @@ export const createSelectionSessionController = (
     const after = result.mode === 'replace'
       ? [operation]
       : [...before, operation];
+    if (dependencies.commitShape) {
+      void queueCommit(async () => {
+        const applied = await resolveDependencies().commitShape!({
+          mode: result.mode,
+          shape: result.shape,
+          featherRadius: result.featherRadius,
+          antiAlias: result.antiAlias,
+          provenance: operation,
+        });
+        const latest = resolveDependencies();
+        if (applied) {
+          latest.setError(null);
+          notifyObservedCommit(latest, () => latest.onShapeCommitted?.({
+            mode: result.mode,
+            shape: { ...result.shape, points: result.shape.points.map((point) => ({ ...point })) },
+            featherRadius: result.featherRadius,
+            antiAlias: result.antiAlias,
+          }));
+        } else latest.setError('The selection could not be applied.');
+        return applied;
+      });
+      return true;
+    }
     void commitMutation(
       after,
       'The selection could not be applied.',
@@ -711,6 +756,15 @@ export const createSelectionSessionController = (
       ...(featherRadius > 0 ? { amount: featherRadius } : {}),
       ...(antiAlias ? { antiAlias: true } : {})
     };
+    if (dependencies.commitShape) {
+      return queueCommit(() => resolveDependencies().commitShape!({
+        mode,
+        shape,
+        featherRadius,
+        antiAlias,
+        provenance: operation,
+      }));
+    }
     const after = mode === 'replace' ? [operation] : [...before, operation];
     return commitMutation(
       after,
@@ -869,8 +923,14 @@ export const createSelectionSessionController = (
           if (generation !== magicWandGeneration) return false;
           const afterMask = await renderer.captureSelectionSnapshot();
           if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
+          const supportBounds = afterMask.active
+            ? (await renderer.measureSelectionBounds())?.supportBounds ?? null
+            : null;
+          if (afterMask.active && !supportBounds) {
+            throw new Error('The Magic Wand selection has no measurable coverage.');
+          }
           pushHistory(document, before, beforeMask, after, afterMask);
-          latest.publishSelection(after, null, afterMask);
+          latest.publishSelection(after, null, afterMask, { supportBounds });
           latest.setError(null);
           if (recordObserved) {
             const source = operation.source?.kind === 'magic-wand' ? operation.source : null;
@@ -1078,9 +1138,15 @@ export const createSelectionSessionController = (
             }
             const afterMask = await current.renderer.captureSelectionSnapshot();
             if (!isCurrent(current.document, current.renderer)) return;
+            const supportBounds = afterMask.active
+              ? (await current.renderer.measureSelectionBounds())?.supportBounds ?? null
+              : null;
+            if (afterMask.active && !supportBounds) {
+              throw new Error('The moved selection has no measurable coverage.');
+            }
             const latest = resolveDependencies();
             pushHistory(current.document, current.before, beforeMask, after, afterMask);
-            latest.publishSelection(after, null, afterMask);
+            latest.publishSelection(after, null, afterMask, { supportBounds });
             latest.setError(null);
           } catch (reason) {
             if (!isCurrent(current.document, current.renderer)) return;
@@ -1279,9 +1345,15 @@ export const createSelectionSessionController = (
           }
           const afterMask = await current.renderer.captureSelectionSnapshot();
           if (!isCurrent(current.document, current.renderer)) return;
+          const supportBounds = afterMask.active
+            ? (await current.renderer.measureSelectionBounds())?.supportBounds ?? null
+            : null;
+          if (afterMask.active && !supportBounds) {
+            throw new Error('The painted selection has no measurable coverage.');
+          }
           const latest = resolveDependencies();
           pushHistory(current.document, current.before, beforeMask, after, afterMask);
-          latest.publishSelection(after, null, afterMask);
+          latest.publishSelection(after, null, afterMask, { supportBounds });
           latest.setError(null);
           notifyObservedCommit(latest, () => latest.onPaintCommitted?.({
             kind: 'selection-paint',

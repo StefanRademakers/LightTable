@@ -82,6 +82,7 @@ export interface PaintSessionDependencies {
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: PaintHistoryEntry): void;
+  getSelectionRevision?(): number;
   setError(message: string | null): void;
   onStrokeCommitted?(stroke: {
     readonly target: PaintGestureTarget;
@@ -165,6 +166,7 @@ export const createPaintSessionController = (
   let sampledStrokeStarted = false;
   let sampledStrokeClosed = false;
   let specializedCommitOwnsGpuState = false;
+  let activeSelectionRevision: number | null = null;
   const captureSamples = (points: readonly BrushPoint[]) => {
     if (!recordedStroke || recordedStroke.overflowed) return;
     const addedBytes = points.reduce((total, point) => total + JSON.stringify(point).length, 0);
@@ -180,7 +182,14 @@ export const createPaintSessionController = (
 
   const paint = (update: PaintGestureUpdate) => {
     if (!update.dabs.length || !activeBrush) return;
-    const renderer = resolveDependencies().getRenderer();
+    const dependencies = resolveDependencies();
+    if (activeSelectionRevision !== null
+      && dependencies.getSelectionRevision?.() !== activeSelectionRevision) {
+      activeDocument?.cancel();
+      dependencies.setError('The selection changed during the brush stroke; the stroke was cancelled.');
+      return;
+    }
+    const renderer = dependencies.getRenderer();
     if (!renderer) return;
     const preset = resolveBrushPreset(activeBrush.presetId);
     renderer.paintBrushDabs(
@@ -243,6 +252,7 @@ export const createPaintSessionController = (
     sampledStrokeStarted = false;
     sampledStrokeClosed = false;
     specializedCommitOwnsGpuState = false;
+    activeSelectionRevision = null;
   };
 
   const reset = () => {
@@ -281,6 +291,7 @@ export const createPaintSessionController = (
         );
         if (!transaction) throw new Error('The paint document is not available.');
         activeDocument = transaction;
+        activeSelectionRevision = dependencies.getSelectionRevision?.() ?? null;
         rendererEditStarted = false;
         rendererEditClosed = false;
         sampledStrokeStarted = false;
@@ -381,6 +392,8 @@ export const createPaintSessionController = (
       const workingDocument = transaction?.current ?? null;
       if (!renderer || !canonicalDocument || !workingDocument || !transaction?.active
         || canonicalDocument.id !== transaction.documentId
+        || (activeSelectionRevision !== null
+          && dependencies.getSelectionRevision?.() !== activeSelectionRevision)
         || !finished.dirtyBounds) {
         transaction?.cancel();
         if (!transaction) closePaintInteraction('cancel');

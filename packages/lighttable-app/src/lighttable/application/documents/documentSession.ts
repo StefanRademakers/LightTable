@@ -138,6 +138,10 @@ const cloneEditorSession = (session: DocumentEditorState): DocumentEditorState =
   activeChannel: session.activeChannel,
   selection: [...session.selection],
   selectionMaskSnapshot: session.selectionMaskSnapshot,
+  selectionRevision: session.selectionRevision,
+  selectionSupportBounds: session.selectionSupportBounds
+    ? { ...session.selectionSupportBounds }
+    : null,
   vectorSelection: {
     elements: session.vectorSelection.elements.map((reference) => ({ ...reference })),
     paths: session.vectorSelection.paths.map((reference) => ({ ...reference })),
@@ -300,6 +304,18 @@ export class DocumentSession {
     this.assertEditable();
     const next = cloneEditorSession(updater(cloneEditorSession(this.snapshot.editor)));
     this.update({ editor: next });
+  }
+
+  updateEditorIf(
+    predicate: (current: DocumentEditorState) => boolean,
+    updater: (current: DocumentEditorState) => DocumentEditorState
+  ): boolean {
+    this.assertEditable();
+    const current = cloneEditorSession(this.snapshot.editor);
+    if (!predicate(current)) return false;
+    const next = cloneEditorSession(updater(current));
+    this.update({ editor: next });
+    return true;
   }
 
   setDocument(document: ImageDocument | null): void {

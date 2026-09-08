@@ -52,6 +52,15 @@ export interface DocumentCommandHistoryOptions {
   readonly onInternalError?: (reason: unknown) => void;
 }
 
+/**
+ * Exclusive admission for a command whose external state is still being prepared.
+ * The history owns the command only after commit returns true.
+ */
+export interface DocumentHistoryReservation {
+  commit(): boolean;
+  cancel(): void;
+}
+
 export type DocumentCommandHistoryListener = (
   snapshot: DocumentCommandHistorySnapshot
 ) => void;
@@ -77,6 +86,7 @@ export class DocumentCommandHistory {
   private undoNodes: HistoryNode[] = [];
   private redoNodes: HistoryNode[] = [];
   private activeNode: HistoryNode | null = null;
+  private activeReservation: { readonly token: symbol; readonly generation: number } | null = null;
   private busy = false;
   private generation = 0;
   private nextStateId = 1;
@@ -111,6 +121,44 @@ export class DocumentCommandHistory {
     }
     this.append(command);
     this.publish();
+  }
+
+  reserve(command: ReversibleDocumentCommand): DocumentHistoryReservation {
+    this.assertTarget(command);
+    if (this.busy) {
+      throw new Error('A command cannot be reserved while history is busy.');
+    }
+    const token = Symbol(command.id);
+    const generation = this.generation;
+    this.activeReservation = { token, generation };
+    this.busy = true;
+    this.publish();
+    let resolved = false;
+    const release = () => {
+      if (this.activeReservation?.token !== token) return false;
+      this.activeReservation = null;
+      this.busy = false;
+      return true;
+    };
+    return {
+      commit: () => {
+        if (resolved) return false;
+        resolved = true;
+        const valid = this.activeReservation?.token === token
+          && this.activeReservation.generation === generation
+          && generation === this.generation;
+        if (!valid) return false;
+        this.append(command);
+        release();
+        this.publish();
+        return true;
+      },
+      cancel: () => {
+        if (resolved) return;
+        resolved = true;
+        if (release()) this.publish();
+      },
+    };
   }
 
   private append(command: ReversibleDocumentCommand): void {
@@ -212,10 +260,11 @@ export class DocumentCommandHistory {
     const wasDirty = this.snapshot.dirty;
     const operationInFlight = this.busy;
     this.generation += 1;
+    this.activeReservation = null;
     this.disposeNodes([...this.undoNodes, ...this.redoNodes]);
     this.undoNodes = [];
     this.redoNodes = [];
-    this.busy = operationInFlight;
+    this.busy = operationInFlight && this.activeNode !== null;
     this.currentStateId = options.preserveDirtyState && wasDirty
       ? this.nextStateId++
       : 0;

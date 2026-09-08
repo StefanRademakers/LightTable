@@ -66,6 +66,7 @@ import type {
   DocumentMutationTransaction
 } from '../documents/useDocumentMutationController';
 import type { VectorElementCreationTransaction } from '../vectors/VectorDocumentController';
+import type { LightTableSelectionReadLease } from '../tools/selection/DocumentSelectionStateStore';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -138,6 +139,7 @@ export interface LayerDocumentCommandDependencies {
   getRenderer(): LayerCommandRendererPort | null;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
+  getSelectionLease?(): LightTableSelectionReadLease | null;
   getActiveChannel?(): PaintChannel;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   applyDocumentSnapshot(document: ImageDocument): void;
@@ -1612,8 +1614,41 @@ export const createLayerDocumentCommands = (
 
   const clipboardBounds = (
     document: ImageDocument,
-    selection: readonly SelectionOperation[]
-  ) => selectionOperationsSupportBounds([...selection], fullDocumentBounds(document));
+    selection: readonly SelectionOperation[],
+    lease: LightTableSelectionReadLease | null,
+  ) => {
+    if (!lease) return selectionOperationsSupportBounds(
+      [...selection], fullDocumentBounds(document),
+    );
+    const committed = lease.selection;
+    if (String(committed.documentSessionId) !== dependenciesRef.current.getDocumentId()
+      || committed.canvas.width !== document.width
+      || committed.canvas.height !== document.height
+      || !committed.active) return null;
+    return committed.supportBounds ? { ...committed.supportBounds } : null;
+  };
+
+  const leaseIsCurrent = (lease: LightTableSelectionReadLease | null) => {
+    if (!lease || !dependenciesRef.current.getSelectionLease) return true;
+    try {
+      const current = dependenciesRef.current.getSelectionLease();
+      return current?.selection.revision === lease.selection.revision
+        && current.document.revision === lease.document.revision;
+    } catch {
+      return false;
+    }
+  };
+
+  const acquireSelectionLease = (dependencies: LayerDocumentCommandDependencies) => {
+    try {
+      return { ok: true as const, lease: dependencies.getSelectionLease?.() ?? null };
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'The committed selection is unavailable.'
+      );
+      return { ok: false as const, lease: null };
+    }
+  };
 
   const writeClipboard = async (
     clipboard: LightTableImageClipboard,
@@ -1634,10 +1669,14 @@ export const createLayerDocumentCommands = (
     const activeLayer = document
       ? findRasterLayer(document, document.activeLayerId)
       : null;
-    if (!document || !renderer || !activeLayer || !selection.length) return null;
+    const acquired = acquireSelectionLease(dependencies);
+    if (!acquired.ok) return null;
+    const lease = acquired.lease;
+    if (!document || !renderer || !activeLayer || (!lease && !selection.length)) return null;
     const copyGeneration = ++clipboardGeneration;
     fastClipboardToken = null;
-    const bounds = clipboardBounds(document, selection);
+    const bounds = clipboardBounds(document, selection, lease);
+    if (!bounds || !leaseIsCurrent(lease)) return null;
     if (!renderer.copySelectedLayerContent(document, activeLayer.id)) {
       dependencies.setError(
         'The selected pixels could not be copied from the active layer.'
@@ -1647,6 +1686,9 @@ export const createLayerDocumentCommands = (
     dependencies.setSelectionClipboardAvailable(true);
     try {
       const blob = await renderer.exportSelectionClipboard(bounds);
+      if (!leaseIsCurrent(lease)) {
+        throw new Error('The selection changed while its pixels were being copied.');
+      }
       await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
       const fastPasteToken = copyGeneration === clipboardGeneration
         && dependenciesRef.current.getDocumentId() === sourceDocumentId
@@ -1675,12 +1717,19 @@ export const createLayerDocumentCommands = (
     const renderer = dependencies.getRenderer();
     const clipboard = dependencies.getImageClipboard();
     const sourceDocumentId = dependencies.getDocumentId();
-    if (!document || !renderer || !selection.length) return null;
-    const bounds = clipboardBounds(document, selection);
+    const acquired = acquireSelectionLease(dependencies);
+    if (!acquired.ok) return null;
+    const lease = acquired.lease;
+    if (!document || !renderer || (!lease && !selection.length)) return null;
+    const bounds = clipboardBounds(document, selection, lease);
+    if (!bounds || !leaseIsCurrent(lease)) return null;
     ++clipboardGeneration;
     fastClipboardToken = null;
     try {
       const blob = await renderer.exportMergedSelection(bounds);
+      if (!leaseIsCurrent(lease)) {
+        throw new Error('The selection changed while merged pixels were being copied.');
+      }
       await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
       dependencies.setSelectionClipboardAvailable(true);
       dependencies.setStatus('Merged selection copied to the system clipboard');

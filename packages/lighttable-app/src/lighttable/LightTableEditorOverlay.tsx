@@ -348,6 +348,8 @@ import {
   type FaceWarpDetectionReviewSource
 } from './application/tools/faceWarp/faceWarpDetectionReview';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
+import { SelectionShapeCommandService } from './application/tools/selection/SelectionShapeCommandService';
+import { DocumentSelectionStateStore } from './application/tools/selection/DocumentSelectionStateStore';
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
 import { pickCurrentTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
@@ -433,7 +435,7 @@ import {
   type SelectionShape
 } from './editor/selection/selectionTypes';
 import { selectionEditingOverlayIsVisible } from './editor/selection/selectionEditingOverlay';
-import type { SelectionMaskSnapshot } from './editor/selection/SelectionMaskSnapshot';
+import { SelectionMaskSnapshot } from './editor/selection/SelectionMaskSnapshot';
 import {
   DEFAULT_SCOPE_SETTINGS,
   DEFAULT_SCOPE_VISIBILITY,
@@ -1124,6 +1126,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  const activePresentationRef = useRef(active);
+  activePresentationRef.current = active;
   useEffect(() => {
     if (rendererSnapshot.status !== 'ready') return;
     const renderer = engineRef.current;
@@ -2837,12 +2841,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingController.finish();
   }, [imageDocument?.activeLayerId, textEditing.layerId, textEditing.status, textEditingController]);
 
+  const selectionShapeCommandService = useMemo(() => documentSession
+    ? new SelectionShapeCommandService(
+      documentSession,
+      () => engineRef.current,
+      () => activePresentationRef.current
+        && documentSession.getSnapshot().document === imageDocumentRef.current,
+    )
+    : null, [documentSession]);
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getSelection: () => editorSessionRef.current.selection,
     getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
-    publishSelection: (selection, pointerId, selectionMaskSnapshot) => {
+    publishSelection: (selection, pointerId, selectionMaskSnapshot, commit) => {
       const nextMask = selectionMaskSnapshot === undefined
         ? editorSessionRef.current.selectionMaskSnapshot
         : selectionMaskSnapshot;
@@ -2850,7 +2862,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ...editorSessionRef.current,
         pointerId,
         selection,
-        selectionMaskSnapshot: nextMask
+        selectionMaskSnapshot: nextMask,
+        ...(commit ? {
+          selectionRevision: editorSessionRef.current.selectionRevision + 1,
+          selectionSupportBounds: commit.supportBounds,
+        } : {}),
       };
       setEditorSession((current) => ({
         ...current,
@@ -2858,12 +2874,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         selection,
         selectionMaskSnapshot: selectionMaskSnapshot === undefined
           ? current.selectionMaskSnapshot
-          : selectionMaskSnapshot
+          : selectionMaskSnapshot,
+        ...(commit ? {
+          selectionRevision: current.selectionRevision + 1,
+          selectionSupportBounds: commit.supportBounds,
+        } : {}),
       }));
     },
     publishDraft: setSelectionDraft,
     pushHistoryEntry,
     setError,
+    commitShape: selectionShapeCommandService
+      ? (command) => selectionShapeCommandService.execute(command)
+      : undefined,
     getSnapContext: (movingBounds) => {
       const document = imageDocumentRef.current;
       const snap = editorSessionRef.current.snap;
@@ -3782,6 +3805,48 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!await renderer.restoreSelectionSnapshot(exactMask)) {
         throw new Error('The document selection could not be restored.');
       }
+      const coverage = exactMask.active ? await renderer.measureSelectionBounds() : null;
+      if (exactMask.active && !coverage) {
+        if (!await renderer.clearSelection()) {
+          throw new Error('The empty document selection could not be normalized.');
+        }
+        const inactive = imageDocumentRef.current
+          ? SelectionMaskSnapshot.inactive(
+              imageDocumentRef.current.width, imageDocumentRef.current.height,
+            )
+          : null;
+        if (inactive && documentSession) {
+          documentSession.updateEditor((current) => ({
+            ...current,
+            selection: [],
+            selectionMaskSnapshot: inactive,
+            selectionRevision: current.selectionRevision + 1,
+            selectionSupportBounds: null,
+          }));
+        }
+        renderer.setCommittedSelectionProjection([]);
+        return;
+      }
+      const normalizedSelection = exactMask.active ? documentEditor.selection : [];
+      const normalizedInactive = !exactMask.active && documentEditor.selection.length > 0;
+      if (documentSession) {
+        documentSession.updateEditor((current) => ({
+          ...current,
+          selection: [...normalizedSelection],
+          selectionRevision: normalizedInactive
+            ? current.selectionRevision + 1
+            : current.selectionRevision,
+          selectionSupportBounds: coverage?.supportBounds ?? null,
+        }));
+      } else setEditorSession((current) => ({
+        ...current,
+        selection: [...normalizedSelection],
+        selectionRevision: normalizedInactive
+          ? current.selectionRevision + 1
+          : current.selectionRevision,
+        selectionSupportBounds: coverage?.supportBounds ?? null,
+      }));
+      renderer.setCommittedSelectionProjection(normalizedSelection);
       return;
     }
 
@@ -3789,6 +3854,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!await renderer.clearSelection()) {
         throw new Error('The previous document selection could not be cleared.');
       }
+      renderer.setCommittedSelectionProjection([]);
       return;
     }
 
@@ -3796,15 +3862,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       throw new Error('The document selection could not be rebuilt.');
     }
     const capturedMask = await renderer.captureSelectionSnapshot();
+    const coverage = capturedMask.active ? await renderer.measureSelectionBounds() : null;
+    if (capturedMask.active && !coverage) {
+      throw new Error('The rebuilt document selection has no measurable coverage.');
+    }
+    renderer.setCommittedSelectionProjection(documentEditor.selection);
     if (documentSession) {
       documentSession.updateEditor((current) => ({
         ...current,
-        selectionMaskSnapshot: capturedMask
+        selectionMaskSnapshot: capturedMask,
+        selectionRevision: current.selectionRevision + 1,
+        selectionSupportBounds: coverage?.supportBounds ?? null,
       }));
     } else {
       setEditorSession((current) => ({
         ...current,
-        selectionMaskSnapshot: capturedMask
+        selectionMaskSnapshot: capturedMask,
+        selectionRevision: current.selectionRevision + 1,
+        selectionSupportBounds: coverage?.supportBounds ?? null,
       }));
     }
   }, [documentSession, setEditorSession]);
@@ -4514,6 +4589,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController,
     applyDocumentSnapshot,
     pushHistoryEntry,
+    getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
+      ?? editorSessionRef.current.selectionRevision,
     setError,
     onStrokeCommitted: ({ target, brush, operator, samples }) => {
       commandService?.recordObservedCommand(
@@ -5470,6 +5547,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => workspaceDocumentId,
+    getSelectionLease: () => {
+      if (!documentSession) return null;
+      return new DocumentSelectionStateStore(documentSession).acquire(
+        documentSession.getSnapshot().documentRevision,
+      );
+    },
     getActiveChannel: () => editorSessionRef.current.activeChannel,
     documentMutations: documentMutationController,
     applyDocumentSnapshot,

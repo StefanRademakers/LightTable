@@ -80,6 +80,17 @@ The package boundary check rejects React, DOM/host and concrete WebGPU
 dependencies inside `editor-kernel`. Do not weaken that check to make an
 adapter convenient; adapters belong outside the kernel.
 
+Selection-specific reset, updated 2026-09-08: read
+[Selection vertical slice](editor-kernel/SELECTION_VERTICAL_SLICE.md) before
+touching marquee, selection paint, clipboard crop or selection history. Shape
+pointer-up and `selection.applyShape` now use the kernel coordinator; move,
+nudge, pointer-rate draft projection and document rebind remain legacy. Do not
+send a shape commit back through `setSelection`/`commitMutation`, and do not
+claim the whole selection subsystem migrated. Exact mask snapshot, measured
+support bounds, semantic provenance and monotonic selection revision are one
+committed value. Copy/Copy Merged must keep their read lease through system
+clipboard completion, and paint must keep its lease through stroke commit.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

@@ -5,5 +5,6 @@ export * from './identities';
 export * from './layers';
 export * from './rendering';
 export * from './resources';
+export * from './selection';
 export * from './tools';
 export * from './transactions';
