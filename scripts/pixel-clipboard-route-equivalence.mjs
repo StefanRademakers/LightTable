@@ -123,9 +123,15 @@ export const runPixelClipboardRouteEquivalence = async ({ page, driver, mcp, out
   await waitForLayerCount(page, documentId, initialLayers.length, selectionUndoDepth);
   recorder = await openActions(page);
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await page.waitForFunction(() => (
-    window.__lightTableAutomation?.actionPlaybackSnapshot?.().status === 'completed'
-  ), undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const status = window.__lightTableAutomation?.actionPlaybackSnapshot?.().status;
+    return status === 'completed' || status === 'failed';
+  }, undefined, { timeout: 60_000 });
+  const playback = await page.evaluate(() => (
+    window.__lightTableAutomation?.actionPlaybackSnapshot?.()
+  ));
+  assert.equal(playback?.status, 'completed',
+    `Action pixel clipboard playback failed: ${JSON.stringify(playback)}`);
   await waitForLayerCount(page, documentId, initialLayers.length + 1, selectionUndoDepth + 1);
   await writePreview(driver, documentId, previews.actions);
 

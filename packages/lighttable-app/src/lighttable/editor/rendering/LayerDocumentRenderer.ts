@@ -1072,6 +1072,18 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionShapeProjection.prepareSnapshot(...parameters);
   }
 
+  prepareSelectionTranslationProjection(
+    ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareTranslation']>
+  ) {
+    return this.runtime.selectionShapeProjection.prepareTranslation(...parameters);
+  }
+
+  prepareSelectionPaintProjection(
+    ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['preparePaint']>
+  ) {
+    return this.runtime.selectionShapeProjection.preparePaint(...parameters);
+  }
+
   destroyImageResources() {
     this.runtime.imageResources.destroy();
   }

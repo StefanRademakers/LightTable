@@ -34,6 +34,8 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        transform: () => true,
+        paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
           100, 80, new Uint16Array(100 * 80).fill(0x3c00),
         ),
@@ -81,6 +83,8 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: vi.fn(() => true),
         apply: vi.fn(() => true),
+        transform: vi.fn(() => true),
+        paint: vi.fn(() => true),
         capture: vi.fn(async () => SelectionMaskSnapshot.fromRaw(
           100, 80, new Uint16Array(100 * 80).fill(0x3c00)
         )),
@@ -138,6 +142,8 @@ describe('SelectionShapeProjectionService', () => {
       textures: staged,
       restore: vi.fn(() => true),
       apply: vi.fn(() => true),
+      transform: vi.fn(() => true),
+      paint: vi.fn(() => true),
       capture: vi.fn(async () => {
         controller.abort();
         return SelectionMaskSnapshot.fromRaw(100, 80, new Uint16Array(100 * 80));
@@ -170,6 +176,8 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        transform: () => true,
+        paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
           100, 80, new Uint16Array(100 * 80),
         ),
@@ -209,6 +217,8 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        transform: () => true,
+        paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
           100, 80, new Uint16Array(100 * 80).fill(0x3c00),
         ),
@@ -235,6 +245,59 @@ describe('SelectionShapeProjectionService', () => {
       baseline = next.result;
     }
     expect(allocations).toBe(3);
+    service.dispose();
+    committed.destroy();
+  });
+
+  it('derives repeated edge translations from one opening coverage lineage', async () => {
+    const committed = store();
+    const restored: SelectionMaskSnapshot[] = [];
+    const transforms: Array<{ tx: number; ty: number }> = [];
+    const createStage = () => {
+      const staged = store();
+      return {
+        textures: staged,
+        restore: (snapshot: SelectionMaskSnapshot) => { restored.push(snapshot); return true; },
+        apply: () => true,
+        transform: (matrix: { tx: number; ty: number }) => {
+          transforms.push({ tx: matrix.tx, ty: matrix.ty }); return true;
+        },
+        paint: () => true,
+        capture: async () => SelectionMaskSnapshot.fromRaw(
+          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+        ),
+        measure: async () => null,
+        dispose: () => staged.destroy(),
+      };
+    };
+    const service = new SelectionShapeProjectionService({ committedTextures: committed, createStage });
+    const source = SelectionMaskSnapshot.fromRaw(
+      100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+    );
+    const baseline = {
+      documentSessionId: document.sessionId, revision: 4 as SelectionRevision,
+      canvas: { width: 100, height: 80 }, active: true, coverage: source,
+      supportBounds: { x: 5, y: 5, width: 20, height: 20 }, provenance: [rectangle],
+    };
+    const left = await service.prepareTranslation(document, baseline, {
+      x: -30, y: 0,
+      provenance: { mode: 'transform', shape: rectangle.shape,
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: -30, ty: 0 } },
+    }, 'translation-left' as TransactionId, new AbortController().signal);
+    expect(left.result.supportBounds).toBeNull();
+    expect(left.result.coverage.translation).toEqual({ source, x: -30, y: 0 });
+    left.dispose();
+
+    const back = await service.prepareTranslation(document, left.result, {
+      x: 30, y: 0,
+      provenance: { mode: 'transform', shape: rectangle.shape,
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 0 } },
+    }, 'translation-back' as TransactionId, new AbortController().signal);
+
+    expect(restored).toEqual([source, source]);
+    expect(transforms).toEqual([{ tx: -30, ty: 0 }, { tx: 0, ty: 0 }]);
+    expect(back.result.coverage.translation).toEqual({ source, x: 0, y: 0 });
+    back.dispose();
     service.dispose();
     committed.destroy();
   });

@@ -119,7 +119,7 @@ const writeDriverPreview = async (driver, documentId, target) => {
 };
 
 const activateDocument = async (page, driver, documentId, title) => {
-  await page.locator('.lighttable-document-tab__title', { hasText: title }).click();
+  await page.locator('.ui-document-tabs__title', { hasText: title }).click();
   await page.waitForFunction((id) => {
     const document = window.__lightTableAutomation?.queryDocument(id);
     return document?.renderer.active && document.renderer.status === 'ready';

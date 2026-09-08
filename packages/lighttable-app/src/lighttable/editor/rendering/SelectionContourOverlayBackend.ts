@@ -17,6 +17,7 @@ struct VertexOutput {
 
 struct AntUniforms {
   phasePadding: vec4f,
+  translationPadding: vec4f,
 }
 
 @group(0) @binding(0) var selectionMask: texture_2d<f32>;
@@ -71,12 +72,19 @@ fn onePixelInnerContourCoverage(imageUv: vec2f) -> f32 {
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let viewportPixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
-  let imageUv = (
+  let targetImageUv = (
     viewportPixel - vec2f(view.rectX, view.rectY)
   ) / vec2f(view.rectWidth, view.rectHeight);
-  if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
+  if (any(targetImageUv < vec2f(0.0)) || any(targetImageUv > vec2f(1.0))) {
     return vec4f(0.0);
   }
+
+  // Pointer-rate selection movement is a presentation transform over the
+  // committed mask. Sampling the opening texture at the inverse translation
+  // keeps compound selections intact without allocating or rewriting a
+  // document-sized mask for every pointer event.
+  let maskSize = vec2f(textureDimensions(selectionMask));
+  let imageUv = targetImageUv - ants.translationPadding.xy / max(maskSize, vec2f(1.0));
 
   let line = onePixelInnerContourCoverage(imageUv);
   if (line <= 0.0) {
@@ -130,7 +138,7 @@ export class SelectionContourOverlayBackend {
     });
     this.antsBuffer = device.createBuffer({
       label: 'LightTable selection ants phase',
-      size: 4 * Float32Array.BYTES_PER_ELEMENT,
+      size: 8 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
   }
@@ -141,12 +149,13 @@ export class SelectionContourOverlayBackend {
     mask: GPUTexture,
     sampler: GPUSampler,
     viewBuffer: GPUBuffer,
-    phasePx = 0
+    phasePx = 0,
+    translationPx: Readonly<{ x: number; y: number }> = { x: 0, y: 0 }
   ) {
     this.device.queue.writeBuffer(
       this.antsBuffer,
       0,
-      new Float32Array([phasePx, 0, 0, 0])
+      new Float32Array([phasePx, 0, 0, 0, translationPx.x, translationPx.y, 0, 0])
     );
     const bindGroup = this.device.createBindGroup({
       label: 'LightTable selection contour overlay bindings',

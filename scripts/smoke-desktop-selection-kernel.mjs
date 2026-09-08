@@ -1,0 +1,145 @@
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
+import { _electron as electron } from 'playwright-core';
+import sharp from 'sharp';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+
+const root = path.resolve(import.meta.dirname, '..');
+const output = path.join(root, 'tmp', 'selection-kernel-smoke');
+await mkdir(output, { recursive: true });
+const userData = await mkdtemp(path.join(output, 'profile-'));
+const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
+const environment = { ...process.env };
+delete environment.ELECTRON_RUN_AS_NODE;
+const pageErrors = [];
+let app;
+
+const expectedBounds = { x: 20, y: 30, width: 80, height: 60 };
+
+try {
+  app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
+    cwd: root, env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData }, timeout: 30_000 });
+  const page = await app.firstWindow({ timeout: 30_000 });
+  page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+  await waitForDesktopLauncher({ app, page, outputDirectory: output, sourceFile: null,
+    pageErrors, label: 'selection-kernel' });
+  const driver = await attachLightTableAutomation(page, 'selection-kernel');
+  const created = await driver.executeWorkspace('document.create', {
+    name: 'Selection kernel primary', width: 256, height: 192, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'solid', color: '#386aa8' }
+  });
+  const documentId = created.value?.documentId;
+  assert.ok(documentId);
+  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.execute(documentId, 'selection.applyShape', {
+    mode: 'replace', shape: { kind: 'rectangle', points: [
+      { x: expectedBounds.x, y: expectedBounds.y },
+      { x: expectedBounds.x + expectedBounds.width, y: expectedBounds.y + expectedBounds.height }
+    ] }, featherRadius: 0, antiAlias: false
+  });
+
+  const copyBounds = async () => {
+    const copied = await driver.execute(documentId, 'selection.copyPixels', { source: 'merged' });
+    return copied.value?.bounds;
+  };
+  assert.deepEqual(await copyBounds(), expectedBounds);
+
+  let pointer = 100;
+  const gesture = async (kind, parameters, start, samples) => {
+    const before = await driver.queryDocument(documentId);
+    const begun = await driver.beginGesture({ documentId, kind, coordinateSpace: 'document',
+      parameters, sample: start, pointerId: pointer++ });
+    assert.equal(begun?.status, 'started', JSON.stringify(begun));
+    const updated = await driver.updateGesture(begun.gestureId, samples);
+    assert.equal(updated?.status, 'updated', JSON.stringify(updated));
+    const finished = await driver.finishGesture(begun.gestureId, true);
+    assert.equal(finished?.status, 'completed', JSON.stringify(finished));
+    await page.waitForFunction(({ id, depth }) => (
+      window.__lightTableAutomation?.queryDocument(id)?.history.undoDepth >= depth
+    ), { id: documentId, depth: before.history.undoDepth + 1 }, { timeout: 30_000 });
+  };
+
+  // Every excursion crosses one canvas edge, commits a small displacement,
+  // then a second gesture returns to the exact opening coverage.
+  const excursions = [
+    [{ x: 60, y: 60 }, { x: -140, y: 60 }, { x: 55, y: 60 }, { x: 55, y: 60 }, { x: 60, y: 60 }],
+    [{ x: 60, y: 60 }, { x: 396, y: 60 }, { x: 65, y: 60 }, { x: 65, y: 60 }, { x: 60, y: 60 }],
+    [{ x: 60, y: 60 }, { x: 60, y: -120 }, { x: 60, y: 55 }, { x: 60, y: 55 }, { x: 60, y: 60 }],
+    [{ x: 60, y: 60 }, { x: 60, y: 300 }, { x: 60, y: 65 }, { x: 60, y: 65 }, { x: 60, y: 60 }],
+  ];
+  for (const [start, outside, displaced, returnStart, returned] of excursions) {
+    await gesture('selection-rectangle', { mode: 'replace' }, start, [outside, displaced]);
+    await gesture('selection-rectangle', { mode: 'replace' }, returnStart, [returned]);
+    assert.deepEqual(await copyBounds(), expectedBounds);
+  }
+
+  // Nudge uses the same terminal translation route and must also round-trip.
+  await page.keyboard.press('m');
+  const beforeNudge = await driver.queryDocument(documentId);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(({ id, depth }) => (
+    window.__lightTableAutomation?.queryDocument(id)?.history.undoDepth >= depth
+  ), { id: documentId, depth: beforeNudge.history.undoDepth + 2 }, { timeout: 30_000 });
+  assert.deepEqual(await copyBounds(), expectedBounds);
+
+  const previewRaw = async () => {
+    const state = await driver.queryDocument(documentId);
+    const preview = await driver.requestDocumentPreview(documentId, state.canonicalRevision, 256);
+    const artifact = await driver.readArtifact(preview?.artifact?.id ?? preview?.id);
+    assert.ok(artifact?.bytes?.length);
+    return sharp(artifact.bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  };
+  const beforePaint = await previewRaw();
+  const activeLayerId = (await driver.queryDocument(documentId)).activeLayerId;
+  assert.ok(activeLayerId);
+  await gesture('brush-stroke', { layerId: activeLayerId, channel: 'pixels' },
+    { x: 0, y: 60, pressure: 1 }, [{ x: 255, y: 60, pressure: 1 }]);
+  const afterPaint = await previewRaw();
+  let changed = 0;
+  for (let index = 0; index < beforePaint.data.length; index += 4) {
+    if (beforePaint.data[index] === afterPaint.data[index]
+      && beforePaint.data[index + 1] === afterPaint.data[index + 1]
+      && beforePaint.data[index + 2] === afterPaint.data[index + 2]) continue;
+    changed += 1;
+    const x = (index / 4) % beforePaint.info.width;
+    const y = Math.floor(index / 4 / beforePaint.info.width);
+    assert.ok(x >= expectedBounds.x && x < expectedBounds.x + expectedBounds.width
+      && y >= expectedBounds.y && y < expectedBounds.y + expectedBounds.height,
+    `Paint escaped committed selection at ${x},${y}`);
+  }
+  assert.ok(changed > 0, 'Paint through the committed selection changed no pixels.');
+
+  await gesture('selection-paint', { mode: 'add', size: 24, hardness: 1, opacity: 1, smooth: 0 },
+    { x: 110, y: 60, pressure: 1 }, [{ x: 116, y: 60, pressure: 1 }]);
+  const paintedBounds = await copyBounds();
+  assert.ok(paintedBounds.width > expectedBounds.width);
+  await driver.execute(documentId, 'history.undo');
+  assert.deepEqual(await copyBounds(), expectedBounds);
+  await driver.execute(documentId, 'history.redo');
+  assert.deepEqual(await copyBounds(), paintedBounds);
+
+  const second = await driver.executeWorkspace('document.create', {
+    name: 'Selection kernel secondary', width: 64, height: 64, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
+  });
+  assert.ok(second.value?.documentId);
+  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await page.locator('.ui-document-tabs__title', { hasText: 'Selection kernel primary' }).click();
+  await page.waitForFunction((id) => {
+    const state = window.__lightTableAutomation?.queryDocument(id);
+    return state?.renderer.active && state.renderer.status === 'ready';
+  }, documentId, { timeout: 60_000 });
+  assert.deepEqual(await copyBounds(), paintedBounds);
+
+  const report = { documentId, expectedBounds, paintedBounds, changedPaintPixels: changed,
+    history: (await driver.queryDocument(documentId)).history, pageErrors };
+  assert.equal(pageErrors.length, 0, JSON.stringify(pageErrors));
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+  process.stdout.write(`Packaged selection kernel smoke passed: ${output}\n`);
+} finally {
+  await app?.close().catch(() => {});
+}

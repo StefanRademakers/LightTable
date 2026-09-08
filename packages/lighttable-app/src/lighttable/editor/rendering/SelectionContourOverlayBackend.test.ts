@@ -10,7 +10,7 @@ beforeEach(() => {
 });
 
 describe('SelectionContourOverlayBackend', () => {
-  it('keeps the ants uniform contract aligned to one 16-byte vec4', () => {
+  it('keeps the ants and preview translation contract aligned to two vec4s', () => {
     const destroy = vi.fn();
     const device = {
       createShaderModule: vi.fn(() => ({})),
@@ -24,10 +24,12 @@ describe('SelectionContourOverlayBackend', () => {
     );
 
     expect(SELECTION_CONTOUR_WGSL).toContain('phasePadding: vec4f');
+    expect(SELECTION_CONTOUR_WGSL).toContain('translationPadding: vec4f');
+    expect(SELECTION_CONTOUR_WGSL).toContain('ants.translationPadding.xy');
     expect(SELECTION_CONTOUR_WGSL).toContain('onePixelInnerContourCoverage');
     expect(SELECTION_CONTOUR_WGSL).toContain('1.0 / max(view.rectWidth');
     expect(SELECTION_CONTOUR_WGSL).not.toContain('let underlay');
-    expect(device.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 16 }));
+    expect(device.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 32 }));
     backend.dispose();
     expect(destroy).toHaveBeenCalledOnce();
   });

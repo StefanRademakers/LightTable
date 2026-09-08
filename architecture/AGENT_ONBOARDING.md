@@ -82,14 +82,22 @@ adapter convenient; adapters belong outside the kernel.
 
 Selection-specific reset, updated 2026-09-08: read
 [Selection vertical slice](editor-kernel/SELECTION_VERTICAL_SLICE.md) before
-touching marquee, selection paint, clipboard crop or selection history. Shape
-pointer-up and `selection.applyShape` now use the kernel coordinator; move,
-nudge, pointer-rate draft projection and document rebind remain legacy. Do not
-send a shape commit back through `setSelection`/`commitMutation`, and do not
-claim the whole selection subsystem migrated. Exact mask snapshot, measured
-support bounds, semantic provenance and monotonic selection revision are one
-committed value. Copy/Copy Merged must keep their read lease through system
-clipboard completion, and paint must keep its lease through stroke commit.
+touching marquee, selection paint, clipboard crop or selection history.
+Geometric pointer-up, `selection.applyShape`, move, nudge and selection-paint
+terminal commits use `SelectionShapeCommandService` and the kernel coordinator.
+Pointer movement is renderer-only: simple shapes use semantic overlay geometry
+and compound masks use a shader sampling offset over the opening mask. Exact
+mask snapshot, measured support bounds, semantic provenance and monotonic
+selection revision are one committed value. Document rebind projects that
+value without authoring a revision. Copy/Copy Merged and raster paint retain a
+revision lease through completion.
+
+The packaged `smoke:desktop:selection-kernel` acceptance covers edge excursions
+and return on all sides, nudge, paint clipping, selection paint, copy bounds,
+undo/redo and tab rebind. `smoke:desktop:pixel-clipboard` additionally proves
+UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
+owner visual acceptance: keep the complete legacy fallback until the owner has
+confirmed the contour and pointer feel in a manual run.
 
 ### Current Agent/Actions/MCP recovery capsule
 

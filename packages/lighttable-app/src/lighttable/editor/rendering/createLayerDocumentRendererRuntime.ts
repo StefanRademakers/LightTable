@@ -357,6 +357,13 @@ export const createLayerDocumentRendererRuntime = (
           intent.featherRadius,
           intent.antiAlias
         ),
+        transform: (matrix) => rasterizer.transform(matrix),
+        paint: (intent) => rasterizer.paintBrushDabs(
+          intent.dabs,
+          intent.hardness,
+          intent.opacity,
+          intent.mode
+        ),
         capture: () => rasterizer.captureSnapshot(),
         measure: () => analyzer.measureSelection(),
         dispose: () => rasterizer.destroy(),

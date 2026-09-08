@@ -163,6 +163,7 @@ import {
   directSelectionShape
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
+import { withSelectionProjectionPresentation } from '../editor/rendering/preparedSelectionProjectionPresentation';
 import { SelectionPaintOverlayBackend } from '../editor/rendering/SelectionPaintOverlayBackend';
 import { SmartSelectionOverlayBackend } from '../editor/rendering/SmartSelectionOverlayBackend';
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
@@ -371,6 +372,8 @@ export class WebGpuEngine {
   private vectorSelectionPreviewTransform: AffineMatrix | null = null;
   private readonly vectorEditingSceneCache = new VectorDocumentEditingSceneCache();
   private selectionOverlayOperations: SelectionOperation[] = [];
+  private selectionPreviewProjectionActive = false;
+  private selectionPreviewTranslation = { x: 0, y: 0 };
   private selectionOverlayDraft: SelectionShape | null = null;
   private selectionOverlayVisible = false;
   private selectionPaintOverlayVisible = false;
@@ -1651,80 +1654,62 @@ export class WebGpuEngine {
     return task;
   }
 
-  prepareSelectionShapeProjection(
-    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionShapeProjection']>
+  private prepareSelectionProjection(
+    kind: string,
+    prepare: (renderer: LayerDocumentRenderer) => ReturnType<
+      LayerDocumentRenderer['prepareSelectionSnapshotProjection']
+    >,
   ) {
     const renderer = this.documentRenderer;
     const documentId = this.imageDocument?.id ?? null;
     const task = this.selectionQueue.then(async () => {
       if (!renderer || !this.selectionOwnerIsCurrent(renderer, documentId)) {
-        throw new Error('The active selection renderer changed before preparation.');
+        throw new Error(`The active selection renderer changed before ${kind} preparation.`);
       }
-      const prepared = await renderer.prepareSelectionShapeProjection(...parameters);
+      const prepared = await prepare(renderer);
       if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
         prepared.dispose();
-        throw new Error('The active selection renderer changed during preparation.');
+        throw new Error(`The active selection renderer changed during ${kind} preparation.`);
       }
-      return {
-        transactionId: prepared.transactionId,
-        baselineRevision: prepared.baselineRevision,
-        result: prepared.result,
-        activate: () => {
-          const activation = prepared.activate();
-          this.renderDirty.invalidate('viewport');
-          this.requestRender();
-          return {
-            accept: () => activation.accept(),
-            rollback: () => {
-              activation.rollback();
-              this.renderDirty.invalidate('viewport');
-              this.requestRender();
-            },
-          };
-        },
-        dispose: () => prepared.dispose(),
-      };
+      return withSelectionProjectionPresentation(prepared, () => {
+        this.renderDirty.invalidate('viewport');
+        this.requestRender();
+      });
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
 
+  prepareSelectionShapeProjection(
+    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionShapeProjection']>
+  ) {
+    return this.prepareSelectionProjection(
+      'shape', (renderer) => renderer.prepareSelectionShapeProjection(...parameters),
+    );
+  }
+
   prepareSelectionSnapshotProjection(
     ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionSnapshotProjection']>
   ) {
-    const renderer = this.documentRenderer;
-    const documentId = this.imageDocument?.id ?? null;
-    const task = this.selectionQueue.then(async () => {
-      if (!renderer || !this.selectionOwnerIsCurrent(renderer, documentId)) {
-        throw new Error('The active selection renderer changed before restoration.');
-      }
-      const prepared = await renderer.prepareSelectionSnapshotProjection(...parameters);
-      if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
-        prepared.dispose();
-        throw new Error('The active selection renderer changed during restoration.');
-      }
-      return {
-        transactionId: prepared.transactionId,
-        baselineRevision: prepared.baselineRevision,
-        result: prepared.result,
-        activate: () => {
-          const activation = prepared.activate();
-          this.renderDirty.invalidate('viewport');
-          this.requestRender();
-          return {
-            accept: () => activation.accept(),
-            rollback: () => {
-              activation.rollback();
-              this.renderDirty.invalidate('viewport');
-              this.requestRender();
-            },
-          };
-        },
-        dispose: () => prepared.dispose(),
-      };
-    });
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
+    return this.prepareSelectionProjection(
+      'snapshot', (renderer) => renderer.prepareSelectionSnapshotProjection(...parameters),
+    );
+  }
+
+  prepareSelectionTranslationProjection(
+    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionTranslationProjection']>
+  ) {
+    return this.prepareSelectionProjection(
+      'translation', (renderer) => renderer.prepareSelectionTranslationProjection(...parameters),
+    );
+  }
+
+  prepareSelectionPaintProjection(
+    ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionPaintProjection']>
+  ) {
+    return this.prepareSelectionProjection(
+      'paint', (renderer) => renderer.prepareSelectionPaintProjection(...parameters),
+    );
   }
 
   replaceSelection(operations: SelectionOperation[]) {
@@ -2609,13 +2594,15 @@ export class WebGpuEngine {
     visible: boolean,
     paintOverlay?: { visible: boolean; color: string }
   ) {
-    this.selectionOverlayOperations = operations.map((operation) => ({
-      ...operation,
-      shape: {
-        ...operation.shape,
-        points: operation.shape.points.map((point) => ({ ...point }))
-      }
-    }));
+    if (!this.selectionPreviewProjectionActive) {
+      this.selectionOverlayOperations = operations.map((operation) => ({
+        ...operation,
+        shape: {
+          ...operation.shape,
+          points: operation.shape.points.map((point) => ({ ...point }))
+        }
+      }));
+    }
     this.selectionOverlayDraft = draft ? {
       ...draft,
       points: draft.points.map((point) => ({ ...point }))
@@ -2656,6 +2643,29 @@ export class WebGpuEngine {
 
   /** Synchronous committed projection used by the selection kernel activation. */
   setCommittedSelectionProjection(operations: readonly SelectionOperation[]) {
+    this.selectionPreviewProjectionActive = false;
+    this.selectionPreviewTranslation = { x: 0, y: 0 };
+    this.selectionOverlayOperations = operations.map((operation) => ({
+      ...operation,
+      shape: { ...operation.shape,
+        points: operation.shape.points.map((point) => ({ ...point })) }
+    }));
+    this.selectionAntsAnimator.setSelectionVisible(
+      this.selectionOverlayVisible
+      && !this.selectionPaintOverlayVisible
+      && this.selectionOverlayOperations.length > 0
+    );
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  /** Pointer-hot semantic preview; never publishes document or history state. */
+  setSelectionPreviewProjection(
+    operations: readonly SelectionOperation[],
+    translation: Readonly<{ x: number; y: number }> = { x: 0, y: 0 }
+  ) {
+    this.selectionPreviewProjectionActive = true;
+    this.selectionPreviewTranslation = { ...translation };
     this.selectionOverlayOperations = operations.map((operation) => ({
       ...operation,
       shape: { ...operation.shape,
@@ -4130,12 +4140,12 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
       : null;
     // A draft may extend over the pasteboard. Once committed, the selection
     // mask is authoritative because it is clipped to the document bounds.
-    const selectionShape = directShape?.points.every((point) => (
+    const selectionShape = (this.selectionPreviewProjectionActive || directShape?.points.every((point) => (
       point.x >= 0
       && point.y >= 0
       && point.x <= this.imageDocument!.width
       && point.y <= this.imageDocument!.height
-    )) ? directShape : null;
+    ))) ? directShape : null;
     const selectionDraft = this.selectionOverlayVisible
       ? this.selectionOverlayDraft
       : null;
@@ -4294,7 +4304,8 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
           selectionMask,
           this.coreResources.sampler,
           this.coreResources.viewBuffer,
-          this.selectionAntsAnimator.phasePx
+          this.selectionAntsAnimator.phasePx,
+          this.selectionPreviewTranslation
         );
       }
     }

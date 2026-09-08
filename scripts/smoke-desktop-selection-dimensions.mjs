@@ -2,21 +2,25 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const sourceFile = path.resolve(
+  process.argv[2]
+  ?? path.join(workspaceRoot, '..', 'LightTableTestFiles', 'RandomFiles', 'shapes.psd')
+);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'selection-dimensions-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'ellipse-dimensions.png');
 const lassoScreenshotPath = path.join(outputDirectory, 'lasso-settings.png');
 
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
+const launch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -30,7 +34,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const open = await waitForDesktopLauncher({ app, page, outputDirectory, sourceFile,
+    pageErrors, label: 'selection-dimensions' });
+  await open.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const viewport = page.locator('.lighttable-viewport');
@@ -47,7 +53,8 @@ try {
     throw new Error('The always-on marquee pixel snap control is still visible.');
   }
   await marqueeSettings.locator('label').filter({ hasText: 'Feather' }).locator('input').fill('6');
-  await page.getByLabel('Marquee selection style').selectOption('fixed');
+  await page.getByLabel('Marquee selection style').click();
+  await page.getByRole('option', { name: 'Fixed', exact: true }).click();
   await marqueeSettings.locator('label').filter({ hasText: 'Width' }).locator('input').fill('40');
   await marqueeSettings.locator('label').filter({ hasText: 'Height' }).locator('input').fill('25');
   await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.25);
@@ -90,6 +97,17 @@ try {
   if (await polygonSettings.getByText('Smooth', { exact: true }).count()) {
     throw new Error('Polygonal selection exposes freehand smoothing.');
   }
+  const polygon = [
+    { x: bounds.x + bounds.width * 0.25, y: bounds.y + bounds.height * 0.30 },
+    { x: bounds.x + bounds.width * 0.42, y: bounds.y + bounds.height * 0.34 },
+    { x: bounds.x + bounds.width * 0.34, y: bounds.y + bounds.height * 0.52 },
+  ];
+  for (const point of polygon) await page.mouse.click(point.x, point.y);
+  await page.mouse.click(polygon[0].x, polygon[0].y);
+  await page.waitForTimeout(250);
+  const polygonError = await page.locator('.lighttable-toolbar__status--error')
+    .textContent().catch(() => null);
+  if (polygonError) throw new Error(`Polygon selection failed: ${polygonError}`);
 
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   process.stdout.write(

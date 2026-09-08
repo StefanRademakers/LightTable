@@ -2,6 +2,12 @@ const SNAPSHOT_OVERHEAD_BYTES = 32;
 
 export type SelectionMaskSnapshotEncoding = 'raw-r16float' | 'rle-r16float';
 
+export interface SelectionTranslationLineage {
+  readonly source: SelectionMaskSnapshot;
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * Immutable, document-sized copy of the canonical GPU selection channel.
  *
@@ -15,6 +21,7 @@ export class SelectionMaskSnapshot {
   readonly active: boolean;
   readonly encoding: SelectionMaskSnapshotEncoding;
   readonly byteSize: number;
+  readonly translation: SelectionTranslationLineage | null;
 
   readonly #raw: Uint16Array | null;
   readonly #runs: Uint32Array | null;
@@ -25,7 +32,8 @@ export class SelectionMaskSnapshot {
     active: boolean,
     encoding: SelectionMaskSnapshotEncoding,
     raw: Uint16Array | null,
-    runs: Uint32Array | null
+    runs: Uint32Array | null,
+    translation: SelectionTranslationLineage | null = null
   ) {
     this.width = width;
     this.height = height;
@@ -33,7 +41,9 @@ export class SelectionMaskSnapshot {
     this.encoding = encoding;
     this.#raw = raw;
     this.#runs = runs;
-    this.byteSize = (raw?.byteLength ?? runs?.byteLength ?? 0) + SNAPSHOT_OVERHEAD_BYTES;
+    this.translation = translation;
+    this.byteSize = (raw?.byteLength ?? runs?.byteLength ?? 0) + SNAPSHOT_OVERHEAD_BYTES
+      + (translation ? translation.source.byteSize : 0);
   }
 
   static inactive(width: number, height: number) {
@@ -54,6 +64,33 @@ export class SelectionMaskSnapshot {
     return runs.byteLength < raw.byteLength
       ? new SelectionMaskSnapshot(width, height, true, 'rle-r16float', null, runs)
       : new SelectionMaskSnapshot(width, height, true, 'raw-r16float', raw, null);
+  }
+
+  /**
+   * Retains the unshifted exact mask beside the clipped in-canvas realization.
+   * A later nudge can therefore be derived from the original coverage plus the
+   * cumulative displacement instead of translating already clipped texels.
+   */
+  withTranslation(source: SelectionMaskSnapshot, x: number, y: number) {
+    if (!source.active) throw new Error('Selection translation requires active source coverage.');
+    if (source.width !== this.width || source.height !== this.height) {
+      throw new Error('Selection translation source dimensions do not match.');
+    }
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new RangeError('Selection translation must be finite.');
+    }
+    const root = source.translation?.source ?? source;
+    const rootX = source.translation?.x ?? 0;
+    const rootY = source.translation?.y ?? 0;
+    return new SelectionMaskSnapshot(
+      this.width,
+      this.height,
+      this.active,
+      this.encoding,
+      this.#raw,
+      this.#runs,
+      { source: root, x: rootX + x, y: rootY + y }
+    );
   }
 
   toRaw(): Uint16Array {

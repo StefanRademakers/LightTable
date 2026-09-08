@@ -2,18 +2,22 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\adamus2__0002.png');
+const sourceFile = path.resolve(
+  process.argv[2]
+  ?? path.join(root, '..', 'LightTableTestFiles', 'RandomFiles', 'workspace-photoedit.png')
+);
 const output = path.join(root, 'tmp', 'selection-zoom-drag-smoke');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
-await Promise.all([access(sourceFile), access(executablePath), mkdir(output, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
+const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(root, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: root,
   env: {
     ...env,
@@ -31,7 +35,9 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const open = await waitForDesktopLauncher({ app, page, outputDirectory: output,
+    sourceFile, pageErrors, label: 'selection-zoom-drag' });
+  await open.click();
   const ready = page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i });
   await ready.waitFor({ state: 'visible', timeout: 60_000 });
   const viewport = page.locator('.lighttable-viewport');

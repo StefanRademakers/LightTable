@@ -198,7 +198,11 @@ export function assertCommittedSelectionState(
     return;
   }
   const bounds = state.supportBounds;
-  if (!bounds || !finite(bounds.x) || !finite(bounds.y)
+  // A translated selection can retain canonical coverage entirely outside the
+  // canvas. It remains active and movable, but has no effective in-canvas
+  // support for paint/copy until it returns.
+  if (!bounds) return;
+  if (!finite(bounds.x) || !finite(bounds.y)
     || !finite(bounds.width) || !finite(bounds.height)
     || bounds.width <= 0 || bounds.height <= 0) {
     throw new Error('An active selection requires finite, non-empty support bounds');

@@ -12,6 +12,7 @@ import type {
   SelectionOperation,
   SelectionShape,
 } from '../selection/selectionTypes';
+import type { BrushDab } from '../tools/brush/strokeBuilder';
 import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import {
   SelectionTextureStore,
@@ -26,10 +27,26 @@ export interface SelectionShapeProjectionIntent {
   readonly provenance: SelectionOperation;
 }
 
+export interface SelectionTranslationProjectionIntent {
+  readonly x: number;
+  readonly y: number;
+  readonly provenance: SelectionOperation;
+}
+
+export interface SelectionPaintProjectionIntent {
+  readonly dabs: readonly BrushDab[];
+  readonly hardness: number;
+  readonly opacity: number;
+  readonly mode: 'add' | 'subtract';
+  readonly provenance: SelectionOperation;
+}
+
 interface SelectionProjectionStage {
   readonly textures: SelectionTextureStore;
   restore(snapshot: SelectionMaskSnapshot): boolean;
   apply(intent: SelectionShapeProjectionIntent): boolean;
+  transform(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): boolean;
+  paint(intent: SelectionPaintProjectionIntent): boolean;
   capture(): Promise<SelectionMaskSnapshot>;
   measure(): Promise<SelectionCoverageBounds | null>;
   dispose(): void;
@@ -241,7 +258,7 @@ export class SelectionShapeProjectionService {
       if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
       const measured = coverage.active ? await stage.measure() : null;
       if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
-      if (coverage.active && !measured) {
+      if (coverage.active && !measured && target.supportBounds !== null) {
         throw new Error('The restored selection has no measurable coverage.');
       }
       const result: SelectionState = {
@@ -257,6 +274,107 @@ export class SelectionShapeProjectionService {
         transactionId, baseline.revision, result,
         this.options.committedTextures, stage,
         recycle,
+      );
+    } catch (reason) {
+      recycle(stage.textures.detachState());
+      stage.dispose();
+      throw reason;
+    }
+  }
+
+  async prepareTranslation(
+    document: DocumentAddress,
+    baseline: SelectionState,
+    intent: SelectionTranslationProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>> {
+    if (baseline.documentSessionId !== document.sessionId) {
+      throw new Error('The selection translation belongs to another document session.');
+    }
+    if (!baseline.active || !Number.isFinite(intent.x) || !Number.isFinite(intent.y)) {
+      throw new Error('Selection translation requires active coverage and a finite displacement.');
+    }
+    if (signal.aborted) throw new DOMException('Selection translation was cancelled.', 'AbortError');
+    const stage = this.createStage(baseline.canvas.width, baseline.canvas.height);
+    const recycle = (state: SelectionTargetState) => this.recycle(
+      baseline.canvas.width, baseline.canvas.height, state,
+    );
+    try {
+      stage.textures.ensureTargets();
+      const lineage = baseline.coverage.translation;
+      const source = lineage?.source ?? baseline.coverage;
+      const x = (lineage?.x ?? 0) + intent.x;
+      const y = (lineage?.y ?? 0) + intent.y;
+      if (!stage.restore(source) || !stage.transform({
+        a: 1, b: 0, c: 0, d: 1, tx: x, ty: y,
+      })) {
+        throw new Error('The selection translation could not be staged.');
+      }
+      const captured = await stage.capture();
+      if (signal.aborted) throw new DOMException('Selection translation was cancelled.', 'AbortError');
+      const measured = await stage.measure();
+      if (signal.aborted) throw new DOMException('Selection translation was cancelled.', 'AbortError');
+      const result: SelectionState = {
+        documentSessionId: document.sessionId,
+        revision: (baseline.revision + 1) as SelectionRevision,
+        canvas: { ...baseline.canvas },
+        active: true,
+        coverage: captured.withTranslation(baseline.coverage, intent.x, intent.y),
+        supportBounds: measured?.supportBounds ?? null,
+        provenance: [...baseline.provenance, intent.provenance],
+      };
+      return new PreparedShapeProjection(
+        transactionId, baseline.revision, result,
+        this.options.committedTextures, stage, recycle,
+      );
+    } catch (reason) {
+      recycle(stage.textures.detachState());
+      stage.dispose();
+      throw reason;
+    }
+  }
+
+  async preparePaint(
+    document: DocumentAddress,
+    baseline: SelectionState,
+    intent: SelectionPaintProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>> {
+    if (baseline.documentSessionId !== document.sessionId) {
+      throw new Error('The painted selection belongs to another document session.');
+    }
+    if (signal.aborted) throw new DOMException('Selection paint was cancelled.', 'AbortError');
+    const stage = this.createStage(baseline.canvas.width, baseline.canvas.height);
+    const recycle = (state: SelectionTargetState) => this.recycle(
+      baseline.canvas.width, baseline.canvas.height, state,
+    );
+    try {
+      stage.textures.ensureTargets();
+      if (!stage.restore(baseline.coverage) || !stage.paint(intent)) {
+        throw new Error('The selection brush stroke could not be staged.');
+      }
+      const capturedCoverage = await stage.capture();
+      if (signal.aborted) throw new DOMException('Selection paint was cancelled.', 'AbortError');
+      const measured = await stage.measure();
+      if (signal.aborted) throw new DOMException('Selection paint was cancelled.', 'AbortError');
+      const coverage = measured
+        ? capturedCoverage
+        : SelectionMaskSnapshot.inactive(baseline.canvas.width, baseline.canvas.height);
+      stage.textures.active = measured !== null;
+      const result: SelectionState = {
+        documentSessionId: document.sessionId,
+        revision: (baseline.revision + 1) as SelectionRevision,
+        canvas: { ...baseline.canvas },
+        active: measured !== null,
+        coverage,
+        supportBounds: measured?.supportBounds ?? null,
+        provenance: measured ? [...baseline.provenance, intent.provenance] : [],
+      };
+      return new PreparedShapeProjection(
+        transactionId, baseline.revision, result,
+        this.options.committedTextures, stage, recycle,
       );
     } catch (reason) {
       recycle(stage.textures.detachState());

@@ -53,9 +53,6 @@ export class DocumentSelectionStateStore implements SelectionStateStore<
     if (!coverage) {
       throw new Error('The legacy selection has operations but no exact committed coverage.');
     }
-    if (coverage.active && !editor.selectionSupportBounds) {
-      throw new Error('The legacy selection has exact coverage but no measured support bounds.');
-    }
     return {
       documentSessionId,
       revision: editor.selectionRevision as SelectionRevision,

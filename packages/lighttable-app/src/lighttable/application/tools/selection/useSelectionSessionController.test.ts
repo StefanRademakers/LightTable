@@ -21,9 +21,12 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   let pointerId: number | null = null;
   let draft: SelectionShape | null = null;
   let draftPublications = 0;
+  let selectionPublications = 0;
   let selectionMaskSnapshot = SelectionMaskSnapshot.inactive(document.width, document.height);
   const history: SelectionHistoryEntry[] = [];
   const renderer = {
+    setSelectionPreviewProjection: vi.fn(),
+    setCommittedSelectionProjection: vi.fn(),
     replaceSelection: vi.fn(async () => true),
     setSelection: vi.fn(async () => true),
     clearSelection: vi.fn(async () => true),
@@ -49,9 +52,13 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     getSelection: () => selection,
     getSelectionMaskSnapshot: () => selectionMaskSnapshot,
     publishSelection: (next, nextPointerId, nextMask) => {
+      selectionPublications += 1;
       selection = next;
       pointerId = nextPointerId;
       if (nextMask !== undefined) selectionMaskSnapshot = nextMask;
+    },
+    publishPointer: (nextPointerId) => {
+      pointerId = nextPointerId;
     },
     publishDraft: (next) => {
       draft = next;
@@ -70,6 +77,7 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     get pointerId() { return pointerId; },
     get draft() { return draft; },
     get draftPublications() { return draftPublications; },
+    get selectionPublications() { return selectionPublications; },
     switchDocument: (next: ImageDocument | null) => {
       activeDocument = next;
     }
@@ -357,6 +365,29 @@ describe('selection session controller', () => {
     ]);
   });
 
+  it('keeps drag preview renderer-only and commits one cumulative kernel translation', async () => {
+    const commitTranslation = vi.fn(async () => true);
+    const state = setup({ commitTranslation });
+    await state.controller.applyState('all');
+    const publicationsBeforeDrag = state.selectionPublications;
+
+    expect(state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
+    expect(state.controller.move(2, { x: -15, y: 24 })).toBe(true);
+    expect(state.controller.move(2, { x: 35, y: 24 })).toBe(true);
+    expect(state.controller.finish(2)).toBe(true);
+    await state.controller.settle();
+
+    expect(state.renderer.transformSelection).not.toHaveBeenCalled();
+    expect(state.renderer.setSelectionPreviewProjection).toHaveBeenLastCalledWith(
+      expect.any(Array),
+      { x: 15, y: 4 },
+    );
+    expect(commitTranslation).toHaveBeenCalledOnce();
+    expect(commitTranslation).toHaveBeenCalledWith(expect.objectContaining({ x: 15, y: 4 }));
+    expect(state.pointerId).toBeNull();
+    expect(state.selectionPublications).toBe(publicationsBeforeDrag);
+  });
+
   it('drags inside a geometric selection as one selection-only history edit', async () => {
     const state = setup();
     state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
@@ -424,6 +455,25 @@ describe('selection session controller', () => {
     expect(state.selection).toEqual([]);
     expect(state.pointerId).toBeNull();
     expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
+  });
+
+  it('restores selection-paint preview before one kernel terminal commit', async () => {
+    const commitPaint = vi.fn(async () => true);
+    const state = setup({ commitPaint });
+
+    expect(state.controller.beginPaint(4, { x: 12, y: 14, pressure: 1 }, 'add', {
+      size: 24, hardness: 0.5, opacity: 1, smooth: 0,
+    })).toBe(true);
+    expect(state.controller.finishPaint(4)).toBe(true);
+    await state.controller.settle();
+
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(commitPaint).toHaveBeenCalledOnce();
+    expect(commitPaint).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'add', hardness: 0.5, opacity: 1,
+      provenance: expect.objectContaining({ source: expect.objectContaining({ kind: 'selection-paint' }) }),
+    }));
+    expect(state.history).toHaveLength(0);
   });
 
   it('snaps a dragged selection from its retained bounds', async () => {

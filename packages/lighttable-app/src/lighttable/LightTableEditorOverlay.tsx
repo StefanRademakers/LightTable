@@ -2881,11 +2881,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         } : {}),
       }));
     },
+    publishPointer: (pointerId) => {
+      editorSessionRef.current = { ...editorSessionRef.current, pointerId };
+      setEditorSession((current) => ({ ...current, pointerId }));
+    },
     publishDraft: setSelectionDraft,
     pushHistoryEntry,
     setError,
     commitShape: selectionShapeCommandService
       ? (command) => selectionShapeCommandService.execute(command)
+      : undefined,
+    commitTranslation: selectionShapeCommandService
+      ? (command) => selectionShapeCommandService.executeTranslation(command)
+      : undefined,
+    commitPaint: selectionShapeCommandService
+      ? (command) => selectionShapeCommandService.executePaint(command)
       : undefined,
     getSnapContext: (movingBounds) => {
       const document = imageDocumentRef.current;
@@ -3801,6 +3811,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const documentEditor = documentSession?.getSnapshot().editor
       ?? documentEditorStateFrom(editorSessionRef.current);
     const exactMask = documentEditor.selectionMaskSnapshot;
+    if (exactMask && documentSession && selectionShapeCommandService) {
+      if (!await selectionShapeCommandService.projectCurrent(renderer)) {
+        throw new Error('The canonical document selection could not be projected.');
+      }
+      return;
+    }
     if (exactMask) {
       if (!await renderer.restoreSelectionSnapshot(exactMask)) {
         throw new Error('The document selection could not be restored.');
@@ -3882,7 +3898,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         selectionSupportBounds: coverage?.supportBounds ?? null,
       }));
     }
-  }, [documentSession, setEditorSession]);
+  }, [documentSession, selectionShapeCommandService, setEditorSession]);
 
   const documentLifecycleController = useEditorDocumentLifecycleController({
     enabled: open && workspaceDocumentKind === 'image',
@@ -6083,29 +6099,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       cutPixels,
       pastePixels: async (file, command, fastPasteToken) => {
-        const result = await layerDocumentCommands.pastePixelArtifact(
+        return layerDocumentCommands.pastePixelArtifact(
           file, { ...command.bounds, name: command.name,
             target: command.target ? { ...command.target,
               layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
         );
-        if (result && command.target?.channel !== 'mask') {
-          // Paste creates a new pixel layer. The selection that merely supplied
-          // its placement must not become the transform target for that layer.
-          // Otherwise the gizmo keeps the old marquee bounds instead of framing
-          // the pixels that were just pasted.
-          engineRef.current?.clearSelection();
-          editorSessionRef.current = {
-            ...editorSessionRef.current,
-            pointerId: null,
-            selection: []
-          };
-          setEditorSession((current) => ({
-            ...current,
-            pointerId: null,
-            selection: []
-          }));
-        }
-        return result;
       },
       copyGrade: captureCurrentGrade,
       pasteGrade: applyGradeCapture,

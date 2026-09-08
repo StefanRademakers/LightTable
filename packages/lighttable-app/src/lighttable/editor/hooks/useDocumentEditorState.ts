@@ -31,6 +31,17 @@ const resolveUpdate = <T,>(current: T, update: SetStateAction<T>): T => (
 );
 
 /**
+ * Re-reads both external owners before a synchronous command update. React's
+ * last rendered value may lag a kernel publication in the same event turn;
+ * using that stale aggregate would overwrite the newly committed selection.
+ */
+export const latestEditorSessionForUpdate = (
+  rendered: EditorSession,
+  documentState = documentEditorStateFrom(rendered),
+  applicationState = editorApplicationStateFrom(rendered),
+): EditorSession => mergeEditorSession(applicationState, documentState);
+
+/**
  * React adapter for document-owned tool, selection and brush state.
  *
  * The editor may still run without a workspace session in embedded hosts, but
@@ -76,8 +87,13 @@ export const useDocumentEditorSession = (
 
   const updateEditorSession = useCallback<Dispatch<SetStateAction<EditorSession>>>(
     (update) => {
-      const current = editorSessionRef.current;
+      const current = latestEditorSessionForUpdate(
+        editorSessionRef.current,
+        documentSession?.getSnapshot().editor,
+        applicationSession?.getSnapshot(),
+      );
       const next = resolveUpdate(current, update);
+      editorSessionRef.current = next;
       const documentInteractionChanged = next.activeChannel !== current.activeChannel
         || next.selection !== current.selection
         || next.selectionMaskSnapshot !== current.selectionMaskSnapshot

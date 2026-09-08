@@ -24,9 +24,9 @@ describe('assertCommittedSelectionState', () => {
     expect(() => assertCommittedSelectionState(state())).not.toThrow();
   });
 
-  it('rejects active state without bounds and inactive state with bounds', () => {
+  it('allows active off-canvas coverage but rejects incoherent inactive state', () => {
     expect(() => assertCommittedSelectionState(state({ supportBounds: null })))
-      .toThrow('active selection requires');
+      .not.toThrow();
     expect(() => assertCommittedSelectionState(state({ active: false })))
       .toThrow('inactive selection cannot');
     expect(() => assertCommittedSelectionState(state({

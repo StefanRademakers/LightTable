@@ -46,92 +46,16 @@ import {
   type SnapMatch
 } from '../snapping/snapEngine';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
-
-export interface SelectionHistoryEntry {
-  label: string;
-  type: string;
-  documentMutation: false;
-  byteSize?: number;
-  undo(): void | Promise<void>;
-  redo(): void | Promise<void>;
-}
-
-export interface SelectionRendererPort {
-  replaceSelection(operations: SelectionOperation[]): Promise<boolean>;
-  setSelection(
-    shape: SelectionShape,
-    mode: SelectionMode,
-    featherRadius?: number,
-    antiAlias?: boolean
-  ): Promise<boolean>;
-  clearSelection(): Promise<boolean>;
-  captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
-  measureSelectionBounds(): Promise<import('../../../editor/selection/selectionCoverage').SelectionCoverageBounds | null>;
-  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
-  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
-  applyMagicWand(operation: SelectionOperation): Promise<boolean>;
-  applySelectSimilar(operation: SelectionOperation): Promise<boolean>;
-  applyRasterSelection(operation: SelectionOperation): Promise<boolean>;
-  paintSelectionDabs(
-    dabs: BrushDab[],
-    hardness: number,
-    opacity: number,
-    mode: 'add' | 'subtract'
-  ): Promise<boolean>;
-}
-
-export interface SelectionSessionDependencies {
-  getDocument(): ImageDocument | null;
-  getRenderer(): SelectionRendererPort | null;
-  getSelection(): SelectionOperation[];
-  getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
-  publishSelection(
-    operations: SelectionOperation[],
-    pointerId: number | null,
-    snapshot?: SelectionMaskSnapshot,
-    commit?: { readonly supportBounds: Rect | null }
-  ): void;
-  publishDraft(shape: SelectionShape | null): void;
-  pushHistoryEntry(entry: SelectionHistoryEntry): void;
-  setError(message: string | null): void;
-  getSnapContext?(movingBounds: Rect): {
-    targets: readonly SnapFeature[];
-    zoom: number;
-    enabled: boolean;
-  };
-  publishSnapFeedback?(matches: readonly SnapMatch[], bounds: Rect | null): void;
-  onShapeCommitted?(command: {
-    readonly mode: SelectionCombineMode;
-    readonly shape: SelectionShape;
-    readonly featherRadius: number;
-    readonly antiAlias: boolean;
-  }): void;
-  /** Kernel-owned committed route; legacy mutation is used only when absent. */
-  commitShape?(command: {
-    readonly mode: SelectionCombineMode;
-    readonly shape: SelectionShape;
-    readonly featherRadius: number;
-    readonly antiAlias: boolean;
-    readonly provenance: SelectionOperation;
-  }): Promise<boolean>;
-  onMagicWandCommitted?(command: {
-    readonly kind: 'magic-wand';
-    readonly layerId: LayerId;
-    readonly point: SelectionPoint;
-    readonly mode: SelectionCombineMode;
-    readonly options: MagicWandOptions;
-  }): void;
-  onPaintCommitted?(command: {
-    readonly kind: 'selection-paint';
-    readonly mode: 'add' | 'subtract';
-    readonly dabs: BrushDab[];
-    readonly samples: BrushPoint[];
-    readonly size: number;
-    readonly hardness: number;
-    readonly opacity: number;
-    readonly smooth: number;
-  }): void;
-}
+import type {
+  SelectionHistoryEntry,
+  SelectionRendererPort,
+  SelectionSessionDependencies,
+} from './selectionSessionPorts';
+export type {
+  SelectionHistoryEntry,
+  SelectionRendererPort,
+  SelectionSessionDependencies,
+} from './selectionSessionPorts';
 
 export interface SelectionSessionController {
   get active(): boolean;
@@ -405,18 +329,24 @@ export const createSelectionSessionController = (
     const operation = createTranslateSelectionOperation(document.width, document.height, x, y);
     const after = [...before, operation];
     queuedTranslationSelection = after;
-    const execution = commitMutation(
-      after,
-      'The selection could not be moved.',
-      async (target) => {
-        try {
-          if (await target.transformSelection(operation.transform!)) return true;
-        } catch {
-          // Rebuild from the semantic source below if the incremental path is unavailable.
-        }
-        return target.replaceSelection(after);
-      }
-    ).then(() => undefined).finally(() => {
+    const execution = (dependencies.commitTranslation
+      ? queueCommit(() => resolveDependencies().commitTranslation!({
+          x,
+          y,
+          provenance: operation,
+        }))
+      : commitMutation(
+          after,
+          'The selection could not be moved.',
+          async (target) => {
+            try {
+              if (await target.transformSelection(operation.transform!)) return true;
+            } catch {
+              // Rebuild from the semantic source below if the incremental path is unavailable.
+            }
+            return target.replaceSelection(after);
+          }
+        )).then(() => undefined).finally(() => {
       if (queuedTranslationSelection === after) queuedTranslationSelection = null;
     });
     translateQueue = execution;
@@ -823,14 +753,22 @@ export const createSelectionSessionController = (
         || translatedBounds.x + translatedBounds.width > translation.document.width
         || translatedBounds.y + translatedBounds.height > translation.document.height
       ) translation.rebuildFromSource = true;
-      if (dx || dy) pumpTranslationRender(translation);
       const operation = createTranslateSelectionOperation(
         translation.document.width,
         translation.document.height,
         translation.x,
         translation.y
       );
-      resolveDependencies().publishSelection([...translation.before, operation], pointerId);
+      const preview = [...translation.before, operation];
+      if (resolveDependencies().commitTranslation) {
+        translation.renderer.setSelectionPreviewProjection?.(preview, {
+          x: translation.x,
+          y: translation.y
+        });
+      } else {
+        if (dx || dy) pumpTranslationRender(translation);
+        resolveDependencies().publishSelection(preview, pointerId);
+      }
       resolveDependencies().publishSnapFeedback?.(
         snap.matches,
         translateSnapRect(translation.sourceBounds, translation.x, translation.y)
@@ -1040,7 +978,8 @@ export const createSelectionSessionController = (
           stopped: false
         };
         marqueeSnapMatches = [];
-        dependencies.publishSelection(before, pointerId);
+        if (dependencies.publishPointer) dependencies.publishPointer(pointerId);
+        else dependencies.publishSelection(before, pointerId);
         dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
       }
@@ -1105,6 +1044,30 @@ export const createSelectionSessionController = (
             )]
           : current.before;
         resolveDependencies().publishSnapFeedback?.([], null);
+        const kernelTranslation = resolveDependencies().commitTranslation;
+        if (kernelTranslation) {
+          const latest = resolveDependencies();
+          if (latest.publishPointer) latest.publishPointer(null);
+          else latest.publishSelection(current.before, null);
+          if (after === current.before) {
+            current.renderer.setCommittedSelectionProjection?.(current.before);
+            return true;
+          }
+          const provenance = after.at(-1)!;
+          void queueCommit(async () => {
+            const applied = await resolveDependencies().commitTranslation!({
+              x: current.x,
+              y: current.y,
+              provenance,
+            });
+            if (!applied && isCurrent(current.document, current.renderer)) {
+              current.renderer.setCommittedSelectionProjection?.(current.before);
+              resolveDependencies().setError('The selection could not be moved.');
+            }
+            return applied;
+          });
+          return true;
+        }
         void queueCommit(async () => {
           const beforeMask = await current.beforeMask;
           if (!isCurrent(current.document, current.renderer)) return;
@@ -1168,6 +1131,13 @@ export const createSelectionSessionController = (
         translation = null;
         current.stopped = true;
         resolveDependencies().publishSnapFeedback?.([], null);
+        if (resolveDependencies().commitTranslation) {
+          current.renderer.setCommittedSelectionProjection?.(current.before);
+          const latest = resolveDependencies();
+          if (latest.publishPointer) latest.publishPointer(null);
+          else latest.publishSelection(current.before, null);
+          return true;
+        }
         void queueCommit(async () => {
           const beforeMask = await current.beforeMask;
           if (!isCurrent(current.document, current.renderer)) return;
@@ -1343,6 +1313,34 @@ export const createSelectionSessionController = (
             }
             return;
           }
+          const kernelPaint = resolveDependencies().commitPaint;
+          if (kernelPaint) {
+            if (!await current.renderer.restoreSelectionSnapshot(beforeMask)
+              || !isCurrent(current.document, current.renderer)) {
+              throw new Error('The selection brush baseline could not be restored.');
+            }
+            const committed = await resolveDependencies().commitPaint!({
+              dabs: current.dabs,
+              hardness: current.hardness,
+              opacity: current.opacity,
+              mode: current.mode,
+              provenance: operation,
+            });
+            if (!committed) throw new Error('The selection brush stroke could not be committed.');
+            const latest = resolveDependencies();
+            latest.setError(null);
+            notifyObservedCommit(latest, () => latest.onPaintCommitted?.({
+              kind: 'selection-paint',
+              mode: current.mode,
+              dabs: current.dabs.map((dab) => ({ ...dab })),
+              samples: current.samples.map((sample) => ({ ...sample })),
+              size: current.size,
+              hardness: current.hardness,
+              opacity: current.opacity,
+              smooth: current.smooth
+            }));
+            return;
+          }
           const afterMask = await current.renderer.captureSelectionSnapshot();
           if (!isCurrent(current.document, current.renderer)) return;
           const supportBounds = afterMask.active
@@ -1434,6 +1432,9 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), null);
       if (interruptedTranslation || interruptedPaint) {
         const interrupted = interruptedTranslation ?? interruptedPaint!;
+        if (interruptedTranslation && dependencies.commitTranslation) {
+          interrupted.renderer.setCommittedSelectionProjection?.(interrupted.before);
+        } else {
         void queueCommit(async () => {
           const beforeMask = await interrupted.beforeMask;
           if (interruptedPaint) await interruptedPaint.renderQueue;
@@ -1451,6 +1452,7 @@ export const createSelectionSessionController = (
             );
           }
         });
+        }
       }
       if (restoreSelectionAfterMagicWand) {
         const document = dependencies.getDocument();

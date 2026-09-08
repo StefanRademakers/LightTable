@@ -30,4 +30,16 @@ describe('SelectionMaskSnapshot', () => {
     expect(() => SelectionMaskSnapshot.inactive(0, 10)).toThrow(RangeError);
     expect(() => SelectionMaskSnapshot.fromRaw(2, 2, new Uint16Array(3))).toThrow(RangeError);
   });
+
+  it('retains one flattened opening coverage lineage across cumulative translations', () => {
+    const source = SelectionMaskSnapshot.fromRaw(3, 2, Uint16Array.from([1, 2, 3, 4, 5, 6]));
+    const first = SelectionMaskSnapshot.fromRaw(3, 2, Uint16Array.from([0, 1, 2, 0, 4, 5]))
+      .withTranslation(source, -1, 0);
+    const second = SelectionMaskSnapshot.fromRaw(3, 2, Uint16Array.from([1, 2, 3, 4, 5, 6]))
+      .withTranslation(first, 1, 0);
+
+    expect(first.translation).toEqual({ source, x: -1, y: 0 });
+    expect(second.translation).toEqual({ source, x: 0, y: 0 });
+    expect([...second.toRaw()]).toEqual([1, 2, 3, 4, 5, 6]);
+  });
 });

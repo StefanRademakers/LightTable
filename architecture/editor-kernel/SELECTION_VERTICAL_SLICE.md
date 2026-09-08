@@ -1,7 +1,34 @@
 # Selection and marquee vertical slice
 
-Status: **authority inventory complete; shape commit route implemented; real-app proof pending**.
+Status: **kernel route implemented; packaged proof passed; owner visual acceptance pending**.
 Updated: 2026-09-08.
+
+Implementation baseline for the completion pass: `5152b53b`.
+
+## Completion-pass owner and flow map
+
+This map records the production owners at the start of the remaining-slice
+work. It is intentionally narrower than the historical inventory above and is
+the review baseline for removing mixed ownership.
+
+| Flow | Intent/input owner | Commit owner at `5152b53b` | Projection/resource owner | Known boundary |
+| --- | --- | --- | --- | --- |
+| rectangle/ellipse/free/polygon | `SelectionGestureController` and `PolygonalSelectionGestureController` | `SelectionShapeCommandService` -> `SelectionMutationCoordinator` | `SelectionShapeProjectionService` with committed/spare `SelectionTextureStore` targets | kernel-owned after pointer-up; draft remains presentation-only legacy state |
+| replace/add/subtract/intersect | semantic `selection.applyShape` command or the same UI gesture result | same shape command service | staged mask, measured bounds and exact snapshot activate together | UI, Actions and MCP already converge on `selection.applyShape` |
+| pointer move of marquee | `useSelectionSessionController` translation gesture | `SelectionShapeCommandService.executeTranslation` | semantic direct-shape preview or mask-contour shader offset; staged final mask | final coverage derives from opening lineage plus cumulative displacement |
+| keyboard nudge | keymap -> `nudgeSelectionMask` -> controller `translate` | same kernel translation command | staged exact translation | serialized through the same transaction/history admission as drag |
+| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | live preview is restored, then final dabs stage on spare targets | pointer preview is renderer-local; only terminal intent commits |
+| paint through selection | `usePaintSessionController` | pixel-edit transaction | `RasterPaintService` reads the committed mask | stroke captures and revalidates the document selection revision |
+| copy / Copy Merged | layer document command gateway | read-only clipboard task | `SelectionClipboardService` reads the mask | lease uses measured committed bounds and rejects stale completion |
+| undo/redo of shape | document history | `SelectionShapeCommandService.restore` | staged exact-snapshot activation | kernel-owned for shape entries only |
+| undo/redo of move/paint | document history | kernel selection history reservation | staged exact-snapshot activation | fresh monotonic revision; projection/state rollback together |
+| document rebind/tab switch | document lifecycle in `LightTableEditorOverlay` | read-only `projectCurrent` | staged exact-snapshot activation | rejects stale completion without authoring history or revision |
+
+The completion pass must remove commit authority for move/nudge, selection
+paint and exact rebind from the controller/React lifecycle. Gesture sampling
+may remain in the controller, but its terminal intent must enter one
+document-addressed application command service. Pointer preview must be
+replaceable and cancellable and may not publish a committed selection revision.
 
 ## User-visible acceptance chain
 
@@ -107,17 +134,26 @@ allocating three document-sized textures per gesture. A dimension change
 destroys the incompatible spare. This preserves the required double buffer
 without adding pointer-rate allocation churn.
 
-Undo and redo prepare the recorded exact snapshot offscreen, activate it, then
-publish a fresh monotonic selection revision. A failed prepare cannot change
-canonical state or history. A failed shape commit also reprojects the canonical
-snapshot because legacy pointer preview still temporarily uses the live mask.
+Move and nudge commits use the same route. A translated snapshot retains its
+opening coverage and cumulative displacement, so moving outside the fixed-size
+canvas mask and back cannot accept clipped texels as the new source. Pointer
+movement does not mutate canonical state or allocate full-size targets: direct
+shapes move semantically and compound masks move by an inverse sampling offset
+in the contour shader.
+
+Selection paint may mutate the live mask only as a reversible pointer preview.
+Pointer-up restores the exact baseline and stages the complete dab list through
+the kernel route. Undo and redo prepare the recorded exact snapshot offscreen,
+activate it, then publish a fresh monotonic selection revision. A failed prepare
+cannot change canonical state or history.
 
 Copy and Copy Merged acquire a `SelectionReadLease`, crop to the measured mask
 support bounds and reject an async result if either the document or selection
 revision changes. Paint captures the selection revision at stroke start and
 rolls the pixel edit back if the mask changes mid-stroke. Remaining legacy
-selection commits now publish measured bounds and advance the revision, so they
-cannot silently poison these consumers while migration is incomplete.
+selection modifiers outside this first acceptance slice still publish measured
+bounds and advance the revision, so they cannot silently poison these consumers
+while migration is incomplete.
 
 ## Required renderer adapter
 
@@ -136,29 +172,42 @@ primitive directly.
 
 1. **Contracts — complete:** committed selection value, read lease, prepared
    projection and reversible activation exist in `@lighttable/editor-kernel`.
-2. **Renderer staging — implemented/unit proven:** shape and exact-snapshot
-   results prepare on isolated reusable targets and return snapshot plus bounds.
-   Real WebGPU/device-loss proof remains open.
+2. **Renderer staging — implemented/unit and packaged proven:** shape,
+   translation, selection-paint and exact-snapshot results prepare on isolated
+   reusable targets and return snapshot plus bounds. Device-loss injection for
+   a selection transaction remains outside this slice.
 3. **Document state — complete for this route:** `DocumentSession.editor` has a
    monotonic selection revision, measured bounds and a tested CAS adapter.
 4. **History admission — complete for this route:** history is reserved before
    activation and appended in the same publication boundary as selection CAS.
 5. **Command route — implemented:** UI pointer-up and `selection.applyShape`
    (including Action/MCP playback) use the same kernel handler.
-6. **Projection — committed half complete:** committed mask and outline activate
-   together. Pointer-rate draft rendering is still legacy-owned.
-7. **Move/nudge:** derive every preview and final result from the opening coverage
-   plus cumulative delta; never incrementally accept clipped previews.
-8. **Consumers — shape route implemented:** copy and Copy Merged use measured
+6. **Projection — complete for the slice:** committed mask and outline activate
+   together; draft and translation previews are renderer-only and replaceable.
+7. **Move/nudge — complete for the slice:** previews and final results derive
+   from opening coverage plus cumulative delta and never accept clipped previews.
+8. **Consumers — complete for the slice:** copy and Copy Merged use measured
    lease bounds and reject stale async exports; paint captures/revalidates the
-   revision and rolls back on change. Renderer-side revision assertions remain
-   open for non-kernel selection sources.
-9. **Undo/rebind — partial:** shape undo/redo restores the exact snapshot through
-   staging with fresh revisions. Document rebind remains on the legacy restore
-   path and needs a real tab-switch test.
+   revision and rolls back on change.
+9. **Undo/rebind — complete for the slice:** shape/move/paint undo and redo use
+   staged exact snapshots. Rebind uses read-only `projectCurrent` and rejects a
+   stale renderer; the packaged smoke switches away and back before exact copy.
 10. **Removal gate:** delete the legacy shape/move/copy/paint selection route only
-    after the complete real-WebGPU acceptance chain passes.
+    after owner visual/interaction acceptance, not merely automated acceptance.
 
-Steps 6, 7, the remaining part of 8, the rebind part of 9 and the real-WebGPU
-removal gate remain open. Selection therefore remains mixed-owned; this is not
-yet a claim that the complete marquee subsystem is stable.
+## Packaged acceptance evidence
+
+- `smoke:desktop:selection-dimensions`: rectangle, ellipse, free and polygon UI
+  paths, including committed geometric coverage and current controls.
+- `smoke:desktop:selection-zoom-drag`: zoomed pointer translation without a
+  runtime/GPU error.
+- `smoke:desktop:selection-kernel`: all four edge excursions and return, nudge,
+  raster paint clipped to the selection (3,840 changed pixels, none outside),
+  selection paint, exact Copy bounds, undo/redo and two-document rebind.
+- `smoke:desktop:pixel-clipboard`: exact UI/Actions/MCP Copy, Copy Merged and
+  Paste render equivalence after undo.
+
+The remaining gate is a manual owner run for contour quality and pointer feel.
+Legacy fallbacks for embedded/no-session hosts and out-of-slice modifiers remain
+present. Passing this slice is evidence that the architecture can work; it is
+not a stability claim for transform, text, effects or other editor domains.

@@ -72,6 +72,29 @@ const setup = () => {
       ...target,
       revision: (baseline.revision + 1) as SelectionRevision,
     }, events, id)),
+    prepareSelectionTranslationProjection: vi.fn(async (
+      _document,
+      baseline,
+      intent,
+      id,
+    ) => prepared(baseline, {
+      ...baseline,
+      revision: (baseline.revision + 1) as SelectionRevision,
+      provenance: [...baseline.provenance, intent.provenance],
+    }, events, id)),
+    prepareSelectionPaintProjection: vi.fn(async (
+      _document,
+      baseline,
+      intent,
+      id,
+    ) => prepared(baseline, {
+      ...baseline,
+      revision: (baseline.revision + 1) as SelectionRevision,
+      active: true,
+      coverage,
+      supportBounds: { x: 2, y: 1, width: 5, height: 5 },
+      provenance: [...baseline.provenance, intent.provenance],
+    }, events, id)),
   };
   return { session, renderer, events,
     service: new SelectionShapeCommandService(session, () => renderer) };
@@ -112,6 +135,76 @@ describe('SelectionShapeCommandService', () => {
       'activate', 'overlay:0', 'accept',
       'activate', 'overlay:1', 'accept',
     ]);
+    session.dispose();
+  });
+
+  it('commits translation and selection paint through the same reserved history route', async () => {
+    const { session, renderer, service } = setup();
+    await service.execute({
+      shape: operation.shape, mode: 'replace', featherRadius: 0,
+      antiAlias: true, provenance: operation,
+    });
+    const translated: SelectionOperation = {
+      mode: 'transform', shape: operation.shape,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: -4, ty: 2 },
+    };
+    expect(await service.executeTranslation({ x: -4, y: 2, provenance: translated })).toBe(true);
+    const painted: SelectionOperation = {
+      mode: 'add', shape: operation.shape,
+      source: { kind: 'selection-paint', dabs: [], hardness: 0.5, opacity: 1 },
+    };
+    expect(await service.executePaint({
+      dabs: [{ x: 3, y: 4, size: 10, pressure: 1, flowScale: 1 }],
+      hardness: 0.5, opacity: 1, mode: 'add', provenance: painted,
+    })).toBe(true);
+
+    expect(renderer.prepareSelectionTranslationProjection).toHaveBeenCalledOnce();
+    expect(renderer.prepareSelectionPaintProjection).toHaveBeenCalledOnce();
+    expect(session.history.getSnapshot()).toMatchObject({ undoDepth: 3, busy: false });
+    expect(session.getSnapshot().editor.selection.at(-1)?.source?.kind).toBe('selection-paint');
+    session.dispose();
+  });
+
+  it('projects the current selection without changing revision or history', async () => {
+    const { session, renderer, service } = setup();
+    await service.execute({
+      shape: operation.shape, mode: 'replace', featherRadius: 0,
+      antiAlias: true, provenance: operation,
+    });
+    const before = session.getSnapshot().editor.selectionRevision;
+    const undoDepth = session.history.getSnapshot().undoDepth;
+
+    expect(await service.projectCurrent(renderer)).toBe(true);
+
+    expect(session.getSnapshot().editor.selectionRevision).toBe(before);
+    expect(session.history.getSnapshot().undoDepth).toBe(undoDepth);
+    expect(renderer.prepareSelectionSnapshotProjection).toHaveBeenCalledOnce();
+    session.dispose();
+  });
+
+  it('disposes a rebind projection completed for a renderer that is no longer current', async () => {
+    const { session, renderer, events } = setup();
+    let release!: () => void;
+    let currentRenderer: SelectionProjectionCommandPort | null = renderer;
+    vi.mocked(renderer.prepareSelectionSnapshotProjection).mockImplementationOnce(async (
+      _document, baseline, target, id,
+    ) => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return prepared(baseline, target, events, id);
+    });
+    const service = new SelectionShapeCommandService(
+      session,
+      () => currentRenderer,
+    );
+
+    const projecting = service.projectCurrent(renderer);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    currentRenderer = null;
+    release();
+
+    await expect(projecting).resolves.toBe(false);
+    expect(events).toEqual(['dispose']);
+    expect(session.history.getSnapshot().undoDepth).toBe(0);
     session.dispose();
   });
 

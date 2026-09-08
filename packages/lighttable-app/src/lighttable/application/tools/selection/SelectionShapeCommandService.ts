@@ -11,7 +11,11 @@ import {
 import type { DocumentSession } from '../../documents/documentSession';
 import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
-import type { SelectionShapeProjectionIntent } from '../../../editor/rendering/SelectionShapeProjectionService';
+import type {
+  SelectionPaintProjectionIntent,
+  SelectionShapeProjectionIntent,
+  SelectionTranslationProjectionIntent,
+} from '../../../editor/rendering/SelectionShapeProjectionService';
 import {
   DocumentSelectionStateStore,
   type LightTableCommittedSelection,
@@ -33,13 +37,27 @@ export interface SelectionProjectionCommandPort {
     transactionId: TransactionId,
     signal: AbortSignal,
   ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
+  prepareSelectionTranslationProjection(
+    document: DocumentAddress,
+    baseline: LightTableCommittedSelection,
+    intent: SelectionTranslationProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
+  prepareSelectionPaintProjection(
+    document: DocumentAddress,
+    baseline: LightTableCommittedSelection,
+    intent: SelectionPaintProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
 }
 
 const transactionId = (): TransactionId => (
   `selection-${crypto.randomUUID()}` as TransactionId
 );
 
-/** Application adapter for the kernel-owned selection shape transaction. */
+/** Application adapter for every kernel-owned committed selection transaction. */
 export class SelectionShapeCommandService {
   private readonly state: DocumentSelectionStateStore;
 
@@ -55,19 +73,87 @@ export class SelectionShapeCommandService {
     intent: SelectionShapeProjectionIntent,
     signal: AbortSignal = new AbortController().signal,
   ): Promise<boolean> {
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionShapeProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
+  async executeTranslation(
+    intent: SelectionTranslationProjectionIntent,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<boolean> {
+    if (!intent.x && !intent.y) return true;
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionTranslationProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
+  async executePaint(
+    intent: SelectionPaintProjectionIntent,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<boolean> {
+    if (intent.dabs.length === 0) return true;
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionPaintProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
+  async projectCurrent(rendererOverride?: SelectionProjectionCommandPort): Promise<boolean> {
+    const address = this.address();
+    const renderer = rendererOverride ?? this.resolveRenderer();
+    if (!address || !renderer) return false;
+    const committed = this.state.read(address.sessionId);
+    const prepared = await renderer.prepareSelectionSnapshotProjection(
+      address, committed, committed, transactionId(), new AbortController().signal,
+    );
+    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer) {
+      prepared.dispose();
+      return false;
+    }
+    const projected = this.withOverlayProjection(prepared, renderer, committed.provenance);
+    const activation = projected.activate();
+    activation.accept();
+    return true;
+  }
+
+  private async executePrepared<Intent>(
+    intent: Intent,
+    prepare: (
+      renderer: SelectionProjectionCommandPort,
+      document: DocumentAddress,
+      baseline: LightTableCommittedSelection,
+      intent: Intent,
+      transactionId: TransactionId,
+      signal: AbortSignal,
+    ) => Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const address = this.address();
     const renderer = this.resolveRenderer();
     if (!address || !renderer) return false;
     const projection: SelectionProjectionPort<
-      SelectionShapeProjectionIntent,
+      Intent,
       SelectionMaskSnapshot,
       SelectionOperation
     > = {
       prepare: async (document, baseline, nextIntent, id, nextSignal) => {
-        const next = await renderer.prepareSelectionShapeProjection(
-          document, baseline, nextIntent, id, nextSignal,
-        );
-        if (!this.matchesAddress(document)) {
+        const next = await prepare(renderer, document, baseline, nextIntent, id, nextSignal);
+        if (!this.matchesAddress(document) || this.resolveRenderer() !== renderer) {
           next.dispose();
           throw new Error('The selection presentation changed while preparing the commit.');
         }
@@ -88,7 +174,7 @@ export class SelectionShapeCommandService {
       transactionId: transactionId(),
       signal,
     });
-    if (!result.ok && this.matchesAddress(address)) {
+    if (!result.ok && this.matchesAddress(address) && this.resolveRenderer() === renderer) {
       await this.restoreCommittedProjection(address, renderer).catch(() => undefined);
     }
     return result.ok;
@@ -102,6 +188,10 @@ export class SelectionShapeCommandService {
     const prepared = await renderer.prepareSelectionSnapshotProjection(
       address, committed, committed, transactionId(), new AbortController().signal,
     );
+    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer) {
+      prepared.dispose();
+      return;
+    }
     const projected = this.withOverlayProjection(
       prepared, renderer, committed.provenance,
     );
@@ -112,10 +202,18 @@ export class SelectionShapeCommandService {
   private reserveHistory(
     change: SelectionHistoryChange<SelectionMaskSnapshot, SelectionOperation>,
   ) {
+    const final = change.after.provenance.at(-1);
+    const type = final?.source?.kind === 'selection-paint'
+      ? 'selection.paint'
+      : final?.mode === 'transform' ? 'selection.transform'
+        : `selection.${final?.mode ?? 'replace'}`;
+    const label = final?.source?.kind === 'selection-paint'
+      ? 'Selection Brush'
+      : final?.mode === 'transform' ? 'Transform Selection' : 'Make Selection';
     return this.session.history.reserve({
       id: String(change.transactionId),
-      type: `selection.${change.after.provenance.at(-1)?.mode ?? 'replace'}`,
-      label: 'Make Selection',
+      type,
+      label,
       documentId: this.session.id,
       affectsDocument: false,
       byteSize: change.before.coverage.byteSize + change.after.coverage.byteSize,
@@ -134,6 +232,10 @@ export class SelectionShapeCommandService {
     const prepared = await renderer.prepareSelectionSnapshotProjection(
       address, baseline, target, transactionId(), new AbortController().signal,
     );
+    if (!this.matchesAddress(address) || this.resolveRenderer() !== renderer) {
+      prepared.dispose();
+      throw new Error('The selection presentation changed while restoring history.');
+    }
     const projected = this.withOverlayProjection(prepared, renderer, baseline.provenance);
     const activation = projected.activate();
     try {
