@@ -163,7 +163,7 @@ slice; they are not postponed to the final phase.
 | S00A | Selection geometric/paint foundation | `owner` | yes | passed | passed | [ ] | [ ] |
 | S00B-1 | Horizontal/vertical strip marquees | `owner` | yes | passed | passed | [ ] | retained with S00A |
 | S00B-2 | Magic Wand | `owner` | yes | passed | passed | [ ] | retained |
-| S00B-3 | Object Selection | `queued` | no | [ ] | [ ] | [ ] | [ ] |
+| S00B-3 | Object Selection | `owner` | yes | passed | passed | [ ] | yes |
 | S01 | Layer capabilities, rasterize, merge and flatten | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -223,7 +223,19 @@ skip the manual gate.
       recipe without serializing document revision or raster mask bytes.
 - [ ] Owner visual/interaction acceptance for Magic Wand.
 - [ ] Remove the legacy direct-renderer fallback with the other S00 fallbacks.
-- [ ] Object Selection result/model acceptance.
+- [x] Object Selection inference remains tool-owned while its terminal raster
+      mask uses the shared isolated kernel projection, CAS and exact history.
+- [x] Queued results revalidate document, revision, renderer and cancellation;
+      tool invalidation aborts admitted interactive commits.
+- [x] Exact-renderer preview leases prevent an old completion from clearing a
+      newer preview or leaving failed/canceled inference visible.
+- [x] Select Subject task completion, Action recording/playback and external MCP
+      execution agree after the terminal commit boundary.
+- [x] Independent critic completed two repair passes; no accepted P0/P1/P2
+      remains after task-state and tool-invalidation repairs.
+- [x] Packaged SAM2 Object Finder, Select Subject, undo/Action playback and
+      external MCP acceptance passed on a real raster document.
+- [ ] Owner visual contour/interaction acceptance for Object Selection.
 - [ ] Selection Brush catalogue/shortcut parity after S00A fallback removal.
 
 ### S01 -- layer capabilities, rasterize, merge and flatten
@@ -389,6 +401,7 @@ lines plus responsibilities here.
 | Hotspot | Intended remaining role | Responsibility to extract with slice | Done |
 | --- | --- | --- | --- |
 | `useSelectionSessionController.ts` | React/input adapter | terminal command, mask/resource and history coordination -> S00 kernel/adapters | [ ] |
+| `SmartSelectionToolController.ts` | model-neutral inference and gesture session | preview renderer lifetime -> `SmartSelectionPreviewLease`; terminal document mutation/history -> S00 kernel adapter | S00B-3 |
 | `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; clipboard/document geometry -> S11 | [ ] |
 | `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
 | `LayerStyleEditor.tsx` | presentational editor composition | preview transaction and style mutation service -> S09 | [ ] |
@@ -406,6 +419,14 @@ Rules:
 - Splitting a file without changing ownership does not satisfy this ledger.
 - Generated catalogs/shaders are judged by generation and ownership, not by the
   same handwritten line target.
+
+S00B-3 decomposition decision: `SmartSelectionToolController.ts` remains above
+500 lines temporarily because source preparation, prompt inference and interactive
+gesture admission form one cancelable tool session. The slice removed terminal
+document mutation/history ownership and extracted exact-renderer preview lifetime
+to `SmartSelectionPreviewLease`. Before this controller grows again, preparation
+and prompt scheduling must move together behind a model-session port; mechanical
+method splitting is not accepted.
 
 ## Performance ledger
 

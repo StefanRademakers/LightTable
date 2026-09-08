@@ -19,16 +19,15 @@ import { BalancedSmartSelectionBackend } from './BalancedSmartSelectionBackend';
 import { SmartSelectionRequestGate } from './SmartSelectionRequestGate';
 import {
   createSmartSelectionSource,
-  type SmartSelectionSourceRenderer
 } from './smartSelectionSource';
+import {
+  SmartSelectionPreviewLease,
+  type SmartSelectionPreviewRenderer,
+} from './SmartSelectionPreviewLease';
 import type {
   SemanticSubjectSelectionCommand,
   SemanticSubjectSelectionResult
 } from '../../commands/semanticSubjectSelectionCommandContract';
-
-export interface SmartSelectionPreviewRenderer extends SmartSelectionSourceRenderer {
-  setSmartSelectionPreview(mask: RasterSelectionMask | null): void;
-}
 
 export interface SmartSelectionToolCallbacks {
   readonly getDocument: () => ImageDocument | null;
@@ -105,7 +104,8 @@ export class SmartSelectionToolController {
   private readonly backend: SmartSelectionBackend;
   private source: SmartSelectionSource | null = null;
   private preparing: { key: string; promise: Promise<boolean> } | null = null;
-  private preview: SmartSelectionCandidate | null = null;
+  private readonly preview = new SmartSelectionPreviewLease();
+  private interactiveCommit = new AbortController();
   private pendingHoverPoint: SelectionPoint | null = null;
   private hoverInferenceActive = false;
   private selectionInferenceCount = 0;
@@ -235,7 +235,7 @@ export class SmartSelectionToolController {
       const candidate = candidates ? bestCandidate(candidates) : null;
       if (!candidate) throw new Error('Object Selection found no matching object.');
       report(0.8, 'Applying Object Selection mask');
-      const result = await this.commitSubjectCandidate(candidate, command);
+      const result = await this.commitSubjectCandidate(candidate, command, signal);
       if (!result) throw new Error('Object Selection result became stale before commit.');
       report(1, 'Object Selection applied');
       return result;
@@ -256,7 +256,7 @@ export class SmartSelectionToolController {
 
   hover(point: SelectionPoint) {
     if (this.callbacks.getOptions().mode !== 'object-finder') return;
-    if (candidateAtPoint(this.preview, point)) {
+    if (candidateAtPoint(this.preview.candidate, point)) {
       this.pendingHoverPoint = null;
       return;
     }
@@ -267,14 +267,14 @@ export class SmartSelectionToolController {
   selectPoint(point: SelectionPoint, mode: SelectionCombineMode) {
     traceSmartSelection('point-requested', { x: point.x, y: point.y, mode });
     this.pendingHoverPoint = null;
-    if (candidateAtPoint(this.preview, point)) {
+    if (candidateAtPoint(this.preview.candidate, point)) {
       if (this.callbacks.getOptions().refineEdges) {
         // Hover deliberately skips matte refinement. A click is authoritative
         // and repeats the prompt with the configured final quality.
         void this.selectPrompt({ points: [{ point, label: 'positive' }] }, mode);
       } else {
         this.gate.supersede();
-        void this.commitInteractiveCandidate(this.preview!, mode);
+        void this.commitInteractiveCandidate(this.preview.candidate!, mode);
       }
       return true;
     }
@@ -288,7 +288,7 @@ export class SmartSelectionToolController {
     try {
       this.callbacks.setStatus('Finding subject…');
       const result = await this.executeSubjectSelection(
-        command, new AbortController().signal, () => undefined
+        command, this.interactiveCommit.signal, () => undefined
       );
       const recorded = this.callbacks.onSelectionCommitted?.(command, result);
       traceSmartSelection('action-observed', { recorded: recorded === true });
@@ -352,6 +352,8 @@ export class SmartSelectionToolController {
   }
 
   invalidate() {
+    this.interactiveCommit.abort();
+    this.interactiveCommit = new AbortController();
     this.preparing = null;
     this.source = null;
     this.gate.invalidate();
@@ -364,8 +366,7 @@ export class SmartSelectionToolController {
 
   clearPreview() {
     this.pendingHoverPoint = null;
-    this.preview = null;
-    this.callbacks.getRenderer()?.setSmartSelectionPreview(null);
+    this.preview.clear();
   }
 
   clearHoverPreview() {
@@ -375,6 +376,7 @@ export class SmartSelectionToolController {
 
   dispose() {
     this.disposed = true;
+    this.interactiveCommit.abort();
     this.unsubscribeBackendStatus?.();
     this.clearPreview();
     this.gate.dispose();
@@ -414,7 +416,7 @@ export class SmartSelectionToolController {
         const point = this.pendingHoverPoint;
         this.pendingHoverPoint = null;
         await this.resolvePoint(point);
-        if (this.pendingHoverPoint && candidateAtPoint(this.preview, this.pendingHoverPoint)) {
+        if (this.pendingHoverPoint && candidateAtPoint(this.preview.candidate, this.pendingHoverPoint)) {
           this.pendingHoverPoint = null;
         }
       }
@@ -461,13 +463,14 @@ export class SmartSelectionToolController {
   }
 
   private publishCandidate(candidate: SmartSelectionCandidate) {
-    this.preview = candidate;
-    this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
+    const renderer = this.callbacks.getRenderer();
+    const owner = this.preview.publish(candidate, renderer);
     traceSmartSelection('candidate-published', {
       candidate: candidate.id,
       score: candidate.score,
       ...maskCoverageSummary(candidate.mask)
     });
+    return owner;
   }
 
   private publishBackendIdentity() {
@@ -476,9 +479,10 @@ export class SmartSelectionToolController {
 
   private async commitSubjectCandidate(
     candidate: SmartSelectionCandidate,
-    command: SemanticSubjectSelectionCommand
+    command: SemanticSubjectSelectionCommand,
+    signal: AbortSignal,
   ): Promise<SemanticSubjectSelectionResult | false> {
-    if (!await this.commitCandidateMask(candidate, command.mode, command)) return false;
+    if (!await this.commitCandidateMask(candidate, command.mode, command, signal)) return false;
     return {
       kind: 'subject', sourceLayerId: command.sourceLayerId,
       mode: command.mode, sampleAllLayers: command.sampleAllLayers
@@ -486,27 +490,34 @@ export class SmartSelectionToolController {
   }
 
   private commitInteractiveCandidate(candidate: SmartSelectionCandidate, mode: SelectionCombineMode) {
-    return this.commitCandidateMask(candidate, mode, null);
+    return this.commitCandidateMask(candidate, mode, null, this.interactiveCommit.signal);
   }
 
   /** Keeps GPU feedback continuous until the authoritative selection mask is live. */
   private async commitCandidateMask(
     candidate: SmartSelectionCandidate,
     mode: SelectionCombineMode,
-    command: SemanticSubjectSelectionCommand | null
+    command: SemanticSubjectSelectionCommand | null,
+    signal?: AbortSignal,
   ): Promise<boolean> {
     if (!this.sourceIsCurrent(candidate.mask, command)) {
       traceSmartSelection('commit-rejected', { reason: 'stale-source' });
       return false;
     }
-    this.preview = candidate;
-    this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
-    if (!await this.callbacks.selection.rasterMask(candidate.mask, mode)) {
+    const preview = this.publishCandidate(candidate);
+    let committed = false;
+    try {
+      committed = signal
+        ? await this.callbacks.selection.rasterMask(candidate.mask, mode, signal)
+        : await this.callbacks.selection.rasterMask(candidate.mask, mode);
+    } finally {
+      this.preview.release(preview);
+    }
+    if (!committed) {
       traceSmartSelection('commit-rejected');
       return false;
     }
     traceSmartSelection('committed', maskCoverageSummary(candidate.mask));
-    this.clearPreview();
     return true;
   }
 

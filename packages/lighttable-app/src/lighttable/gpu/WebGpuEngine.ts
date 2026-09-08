@@ -1685,7 +1685,18 @@ export class WebGpuEngine {
     ...parameters: Parameters<LayerDocumentRenderer['prepareSelectionShapeProjection']>
   ) {
     return this.prepareSelectionProjection(
-      'shape', (renderer) => renderer.prepareSelectionShapeProjection(...parameters),
+      'shape', (renderer) => {
+        const [address, , intent] = parameters;
+        if ('mask' in intent) {
+          const source = intent.provenance.source;
+          if (source?.kind !== 'object-selection'
+            || source.documentRevision !== address.revision
+            || this.imageDocument?.revision !== address.revision) {
+            throw new Error('The Object Selection result is no longer current.');
+          }
+        }
+        return renderer.prepareSelectionShapeProjection(...parameters);
+      },
     );
   }
 

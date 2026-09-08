@@ -88,9 +88,10 @@ try {
   const recorder = actionsPanel.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
 
-  const selectionMaster = page.getByRole('button', { name: /^Magic Wand/ }).first();
-  await selectionMaster.dispatchEvent('mousedown');
-  const objectButton = page.getByRole('button', { name: 'Object Selection' });
+  const smartSelectionGroup = page.locator('[data-tool-group="Smart selection tools"]');
+  await smartSelectionGroup.locator(':scope > button').click();
+  const objectButton = smartSelectionGroup.locator('.ui-toolbar__flyout')
+    .getByRole('button', { name: /^Object Selection/ });
   await objectButton.waitFor({ state: 'visible' });
   await objectButton.click();
   const objectSelectionSettings = page.locator('[aria-label="Object Selection settings"]:visible');
@@ -156,18 +157,11 @@ try {
   }
   try {
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-      ?.some((entry) => entry.event === 'candidate-published' || entry.event === 'committed'),
+      ?.some((entry) => entry.event === 'committed'),
     undefined, { timeout: inferenceTimeoutMs });
-    const committedDirectly = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-      ?.some((entry) => entry.event === 'committed'));
-    if (!committedDirectly) {
-      const applyButton = objectSelectionSettings.getByRole('button', { name: 'Apply', exact: true });
-      await applyButton.click();
-      await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-        ?.some((entry) => entry.event === 'apply-requested'), undefined, { timeout: 5_000 });
-    }
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
-      entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.visible && entry.maskActive
+      entry.operationCount === 1 && entry.sourceKind === 'object-selection'
+        && entry.visible && entry.maskActive
     )), undefined, { timeout: 15_000 });
     const boxError = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
       ?.find((entry) => entry.event === 'box-error'));
@@ -202,7 +196,7 @@ try {
     throw new Error('Object Selection produced no persistent visible canvas update.');
   }
   if (interactionMode === 'subject') {
-    const actionStep = recorder.locator('li').filter({ hasText: 'selection.selectSubject' });
+    const actionStep = recorder.locator('[data-command="selection.selectSubject"]');
     await actionStep.waitFor({ timeout: 10_000 }).catch(async () => {
       const trace = await page.evaluate(() => ({
         smartSelection: globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__,
@@ -213,20 +207,17 @@ try {
       })}`);
     });
     if (await actionStep.count() !== 1) throw new Error('Select Subject published more than one Action.');
-    await actionStep.locator('summary').click();
-    const actionText = await actionStep.textContent();
-    if (!actionText?.includes('"kind": "subject"')
-      || !actionText.includes('"sourceLayerId"')
+    await recorder.getByRole('button', { name: 'Stop' }).click();
+    await actionStep.click();
+    const inspector = recorder.locator('.lighttable-action-inspector');
+    await inspector.locator('summary').click();
+    const actionText = await inspector.textContent();
+    if (!actionText?.includes('Selection kind') || !actionText.includes('Source layer ID')
       || /model|backend|candidate|refinement|pointerId|pressure|raster-mask|tensor|maskBytes/i.test(actionText)) {
       throw new Error(`Select Subject crossed an invalid Action boundary: ${actionText}`);
     }
-    await recorder.getByRole('button', { name: 'Stop' }).click();
-    await actionsPanel.getByRole('radio', { name: 'Commands' }).click();
-    const undo = actionsPanel.locator('details').filter({ hasText: 'history.undo' });
-    const runUndo = undo.getByRole('button', { name: 'Run' });
-    if (!await runUndo.isVisible()) await undo.locator('summary').click();
-    await runUndo.click();
-    await actionsPanel.getByRole('radio', { name: 'Actions' }).click();
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(250);
     await recorder.getByRole('button', { name: 'Play', exact: true }).click();
     await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
       .waitFor({ timeout: Math.max(30_000, inferenceTimeoutMs + 15_000) }).catch(async () => {

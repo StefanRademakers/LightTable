@@ -9,6 +9,7 @@ import { createImageDocument } from '../../../editor/document/documentTypes';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import {
   createMagicWandSelectionOperation,
+  createObjectSelectionOperation,
   type SelectionOperation,
 } from '../../../editor/selection/selectionTypes';
 import type {
@@ -59,7 +60,7 @@ const setup = () => {
     prepareSelectionShapeProjection: vi.fn(async (
       _document: DocumentAddress,
       baseline: LightTableCommittedSelection,
-      intent: SelectionShapeProjectionIntent,
+      intent,
       id: TransactionId,
     ) => prepared(baseline, {
       ...baseline,
@@ -232,6 +233,50 @@ describe('SelectionShapeCommandService', () => {
     session.dispose();
   });
 
+  it('commits an inferred raster mask through the same atomic route', async () => {
+    const { session, renderer, service } = setup();
+    const document = session.getSnapshot().document!;
+    const mask = {
+      width: document.width,
+      height: document.height,
+      data: new Uint8Array(document.width * document.height).fill(255),
+    };
+    const provenance = createObjectSelectionOperation(
+      document.revision, document.width, document.height, 'replace',
+    );
+
+    expect(await service.executeRasterMask({ mask, mode: 'replace', provenance })).toBe(true);
+
+    expect(renderer.prepareSelectionShapeProjection).toHaveBeenCalledWith(
+      expect.anything(), expect.anything(),
+      { mask, mode: 'replace', provenance }, expect.anything(), expect.any(AbortSignal),
+    );
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 1, selection: [provenance],
+    });
+    expect(session.history.getSnapshot()).toMatchObject({ undoDepth: 1, busy: false });
+    session.dispose();
+  });
+
+  it('rejects stale Object Selection provenance before projection preparation', async () => {
+    const { session, renderer, service } = setup();
+    const document = session.getSnapshot().document!;
+    const mask = {
+      width: document.width,
+      height: document.height,
+      data: new Uint8Array(document.width * document.height).fill(255),
+    };
+    const stale = createObjectSelectionOperation(
+      document.revision - 1, document.width, document.height, 'replace',
+    );
+
+    await expect(service.executeRasterMask({ mask, mode: 'replace', provenance: stale }))
+      .resolves.toBe(false);
+    expect(renderer.prepareSelectionShapeProjection).not.toHaveBeenCalled();
+    expect(session.history.getSnapshot().undoDepth).toBe(0);
+    session.dispose();
+  });
+
   it('projects the current selection without changing revision or history', async () => {
     const { session, renderer, service } = setup();
     await service.execute({
@@ -326,7 +371,7 @@ describe('SelectionShapeCommandService', () => {
     vi.mocked(renderer.prepareSelectionShapeProjection).mockImplementationOnce(async (
       _document: DocumentAddress,
       baseline: LightTableCommittedSelection,
-      intent: SelectionShapeProjectionIntent,
+      intent,
       id: TransactionId,
     ) => {
       current = false;

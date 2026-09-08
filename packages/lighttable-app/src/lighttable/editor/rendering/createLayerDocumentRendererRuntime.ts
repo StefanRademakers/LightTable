@@ -353,12 +353,14 @@ export const createLayerDocumentRendererRuntime = (
       return {
         textures: stageTextures,
         restore: (snapshot) => rasterizer.restoreSnapshot(snapshot),
-        apply: (intent) => rasterizer.set(
-          intent.shape,
-          intent.mode,
-          intent.featherRadius,
-          intent.antiAlias
-        ),
+        apply: (intent) => 'mask' in intent
+          ? rasterizer.applyRasterMask(intent.mask, intent.mode)
+          : rasterizer.set(
+            intent.shape,
+            intent.mode,
+            intent.featherRadius,
+            intent.antiAlias
+          ),
         transform: (matrix) => rasterizer.transform(matrix),
         paint: (intent) => rasterizer.paintBrushDabs(
           intent.dabs,

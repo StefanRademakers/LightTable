@@ -50,6 +50,8 @@ export type DocumentTaskResult<T> =
 
 export interface RunDocumentTaskOptions {
   readonly replace?: boolean;
+  /** The operation owns its terminal commit boundary; a returned value is definitive. */
+  readonly completionPolicy?: 'require-current' | 'operation-result';
 }
 
 export type DocumentTaskRegistryListener = (
@@ -60,6 +62,7 @@ interface RunningTask {
   readonly state: DocumentTaskState;
   readonly controller: AbortController;
   readonly generation: number;
+  readonly completionPolicy: NonNullable<RunDocumentTaskOptions['completionPolicy']>;
 }
 
 const MAX_RETAINED_FINISHED_TASKS = 128;
@@ -123,7 +126,12 @@ export class DocumentTaskRegistry {
       startedAt: performance.now(),
       finishedAt: null
     };
-    const running: RunningTask = { state, controller, generation };
+    const running: RunningTask = {
+      state,
+      controller,
+      generation,
+      completionPolicy: options.completionPolicy ?? 'require-current',
+    };
     this.running.set(id, running);
     this.latestByKind.set(kind, id);
     this.states.set(id, state);
@@ -159,7 +167,7 @@ export class DocumentTaskRegistry {
 
     try {
       const value = await operation(context);
-      if (!isCurrent()) {
+      if (options.completionPolicy !== 'operation-result' && !isCurrent()) {
         this.finish(id, 'canceled');
         return { status: 'canceled' };
       }
@@ -185,7 +193,7 @@ export class DocumentTaskRegistry {
     const task = this.running.get(id);
     if (!task) return;
     task.controller.abort();
-    this.finish(id, 'canceled');
+    if (task.completionPolicy === 'require-current') this.finish(id, 'canceled');
   }
 
   clearFinished(): void {

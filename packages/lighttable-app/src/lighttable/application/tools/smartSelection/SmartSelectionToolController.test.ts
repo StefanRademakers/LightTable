@@ -13,7 +13,7 @@ const harness = () => {
     exportPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
     setSmartSelectionPreview: vi.fn()
   };
-  const rasterMask = vi.fn(async () => true);
+  const rasterMask = vi.fn<SelectionSessionController['rasterMask']>(async () => true);
   const backend: SmartSelectionBackend = {
     identity: {
       modelId: 'test', artifactRevision: 'test', precision: 'fp16',
@@ -55,7 +55,9 @@ describe('SmartSelectionToolController', () => {
   it('keeps an Object Finder point interaction local to the tool owner', async () => {
     const { backend, controller, rasterMask, renderer, onSelectionCommitted } = harness();
     expect(controller.selectPoint({ x: 3, y: 2 }, 'add')).toBe(true);
-    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'add'));
+    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(
+      mask, 'add', expect.any(AbortSignal),
+    ));
     expect(backend.selectPrompt).toHaveBeenCalledWith(
       expect.anything(),
       { points: [{ point: { x: 3, y: 2 }, label: 'positive' }] },
@@ -75,7 +77,7 @@ describe('SmartSelectionToolController', () => {
 
     expect(result).toEqual({ kind: 'subject', sourceLayerId: document.activeLayerId,
       mode: 'intersect', sampleAllLayers: false });
-    expect(rasterMask).toHaveBeenCalledWith(mask, 'intersect');
+    expect(rasterMask).toHaveBeenCalledWith(mask, 'intersect', expect.any(AbortSignal));
     expect(onSelectionCommitted).not.toHaveBeenCalled();
     expect(report).toHaveBeenLastCalledWith(1, 'Object Selection applied');
     expect(JSON.stringify(result)).not.toMatch(/model|backend|candidate|refinement|mask/i);
@@ -98,7 +100,9 @@ describe('SmartSelectionToolController', () => {
     controller.hover({ x: 3, y: 2 });
     await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
     controller.selectPoint({ x: 3, y: 2 }, 'replace');
-    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'replace'));
+    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(
+      mask, 'replace', expect.any(AbortSignal),
+    ));
     expect(backend.selectPrompt).toHaveBeenCalledTimes(2);
     expect(backend.selectPrompt).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -113,7 +117,9 @@ describe('SmartSelectionToolController', () => {
     expect(controller.beginRegion(7, { x: 1, y: 1 }, 'subtract')).toBe(true);
     controller.moveRegion(7, { x: 6, y: 5 });
     expect(controller.finishRegion(7)).toBe(true);
-    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'subtract'));
+    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(
+      mask, 'subtract', expect.any(AbortSignal),
+    ));
     expect(backend.selectPrompt).toHaveBeenCalledWith(
       expect.anything(),
       { points: [], box: { x: 1, y: 1, width: 5, height: 4 } },
@@ -185,7 +191,7 @@ describe('SmartSelectionToolController', () => {
 
     await expect(selecting).resolves.toBe(true);
     expect(rasterMask).toHaveBeenCalledOnce();
-    expect(rasterMask).toHaveBeenCalledWith(subjectMask, 'replace');
+    expect(rasterMask).toHaveBeenCalledWith(subjectMask, 'replace', expect.any(AbortSignal));
   });
 
   it('rejects a subject mask if the document changes before commit', async () => {
@@ -211,16 +217,36 @@ describe('SmartSelectionToolController', () => {
     async (mode) => {
       const { controller, rasterMask } = harness();
       controller.selectPoint({ x: 3, y: 2 }, mode);
-      await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, mode));
+      await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(
+        mask, mode, expect.any(AbortSignal),
+      ));
     }
   );
 
-  it('keeps the preview visible when the persistent selection commit fails', async () => {
+  it('clears its preview lease when the persistent selection commit fails', async () => {
     const { controller, rasterMask, renderer } = harness();
     rasterMask.mockResolvedValueOnce(false);
     controller.selectPoint({ x: 3, y: 2 }, 'replace');
     await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledOnce());
-    expect(renderer.setSmartSelectionPreview).not.toHaveBeenLastCalledWith(null);
+    expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null);
+  });
+
+  it('aborts an admitted interactive mask commit when the tool is invalidated', async () => {
+    const { controller, rasterMask, renderer } = harness();
+    rasterMask.mockImplementationOnce((_mask, _mode, signal) => {
+      if (!signal) throw new Error('Interactive Object Selection requires an abort signal.');
+      return new Promise<boolean>((resolve) => (
+        signal.addEventListener('abort', () => resolve(false))
+      ));
+    });
+
+    controller.selectPoint({ x: 3, y: 2 }, 'replace');
+    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledOnce());
+    const signal = rasterMask.mock.calls[0]?.[2];
+    controller.invalidate();
+
+    expect(signal?.aborted).toBe(true);
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null));
   });
 
   it('reuses a prepared source and releases it when disposed', async () => {

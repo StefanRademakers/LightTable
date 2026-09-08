@@ -2901,6 +2901,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitMagicWand: selectionShapeCommandService
       ? (command, signal) => selectionShapeCommandService.executeMagicWand(command, signal)
       : undefined,
+    commitRasterMask: (command, signal) => selectionShapeCommandService
+      ? selectionShapeCommandService.executeRasterMask(command, signal)
+      : Promise.resolve(false),
     getSnapContext: (movingBounds) => {
       const document = imageDocumentRef.current;
       const snap = editorSessionRef.current.snap;

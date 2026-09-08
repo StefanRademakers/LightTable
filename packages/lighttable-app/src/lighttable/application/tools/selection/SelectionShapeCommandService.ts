@@ -14,6 +14,8 @@ import type { SelectionOperation } from '../../../editor/selection/selectionType
 import type {
   SelectionPaintProjectionIntent,
   SelectionMagicWandProjectionIntent,
+  SelectionRasterMaskProjectionIntent,
+  SelectionRasterizationProjectionIntent,
   SelectionShapeProjectionIntent,
   SelectionTranslationProjectionIntent,
 } from '../../../editor/rendering/SelectionShapeProjectionService';
@@ -27,7 +29,7 @@ export interface SelectionProjectionCommandPort {
   prepareSelectionShapeProjection(
     document: DocumentAddress,
     baseline: LightTableCommittedSelection,
-    intent: SelectionShapeProjectionIntent,
+    intent: SelectionRasterizationProjectionIntent,
     transactionId: TransactionId,
     signal: AbortSignal,
   ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
@@ -135,6 +137,26 @@ export class SelectionShapeCommandService {
     );
   }
 
+  async executeRasterMask(
+    intent: SelectionRasterMaskProjectionIntent,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<boolean> {
+    const document = this.session.getSnapshot().document;
+    const source = intent.provenance.source;
+    if (!document || source?.kind !== 'object-selection'
+      || source.documentRevision !== document.revision
+      || intent.mask.width !== document.width || intent.mask.height !== document.height
+      || intent.mask.data.byteLength !== document.width * document.height) return false;
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionShapeProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
   async projectCurrent(rendererOverride?: SelectionProjectionCommandPort): Promise<boolean> {
     const address = this.address();
     const renderer = rendererOverride ?? this.resolveRenderer();
@@ -207,11 +229,13 @@ export class SelectionShapeCommandService {
     const type = final?.source?.kind === 'selection-paint'
       ? 'selection.paint'
       : final?.source?.kind === 'magic-wand' ? 'selection.magic-wand'
+      : final?.source?.kind === 'object-selection' ? 'selection.object'
       : final?.mode === 'transform' ? 'selection.transform'
         : `selection.${final?.mode ?? 'replace'}`;
     const label = final?.source?.kind === 'selection-paint'
       ? 'Selection Brush'
       : final?.source?.kind === 'magic-wand' ? 'Magic Wand'
+      : final?.source?.kind === 'object-selection' ? 'Object Selection'
       : final?.mode === 'transform' ? 'Transform Selection' : 'Make Selection';
     return this.session.history.reserve({
       id: String(change.transactionId),

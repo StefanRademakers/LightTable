@@ -24,9 +24,8 @@ const startSubjectSelectionTask = (
       events.append(task.id, 'progress', { progress, message });
     }, { minimumIntervalMs: 250 });
     const value = await ports.executeSubjectSelection!(session.id, command, task.signal, report);
-    task.throwIfCanceled();
     return value;
-  }, { replace: false });
+  }, { replace: false, completionPolicy: 'operation-result' });
   const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1) ?? null;
   if (!taskId) return null;
   events.append(taskId, 'queued', { progress: 0, message: name });

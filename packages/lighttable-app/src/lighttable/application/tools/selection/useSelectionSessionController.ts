@@ -10,9 +10,9 @@ import {
   createLayerMaskSelectionOperation,
   createLayerTransparencySelectionOperation,
   createMagicWandSelectionOperation,
+  createObjectSelectionOperation,
   createMorphologySelectionOperation,
   createSmoothSelectionOperation,
-  createRasterMaskSelectionOperation,
   createSimilarSelectionOperation,
   createTranslateSelectionOperation,
   type CompositeSelectionChannel,
@@ -128,7 +128,11 @@ export interface SelectionSessionController {
     options: MagicWandOptions
   ): Promise<boolean>;
   selectSimilar(layerId: LayerId, options: SimilarSelectionOptions): Promise<boolean>;
-  rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
+  rasterMask(
+    mask: RasterSelectionMask,
+    mode: SelectionCombineMode,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   beginPaint(
     pointerId: number,
     point: BrushPoint,
@@ -1162,27 +1166,25 @@ export const createSelectionSessionController = (
     applyMagicWand: (layerId, point, mode, options) =>
       runMagicWand(layerId, point, mode, options, false),
     selectSimilar: runSelectSimilar,
-    rasterMask: async (mask, mode) => {
+    rasterMask: async (mask, mode, signal = new AbortController().signal) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
       if (!document || !renderer
         || mask.width !== document.width || mask.height !== document.height
         || mask.data.byteLength !== document.width * document.height) return false;
-      const before = cloneSelectionOperations(dependencies.getSelection());
-      const operation = createRasterMaskSelectionOperation(
-        document.revision,
-        document.width,
-        document.height,
-        mask,
-        mode
+      const documentRevision = document.revision;
+      const operation = createObjectSelectionOperation(
+        document.revision, document.width, document.height, mode,
       );
-      const after = mode === 'replace' ? [operation] : [...before, operation];
-      return commitMutation(
-        after,
-        'The object selection could not be applied.',
-        (target) => target.applyRasterSelection(operation)
-      );
+      return queueCommit(() => {
+        const latest = resolveDependencies();
+        const latestDocument = latest.getDocument();
+        if (signal.aborted || latest.getRenderer() !== renderer
+          || latestDocument?.id !== document.id
+          || latestDocument.revision !== documentRevision) return Promise.resolve(false);
+        return latest.commitRasterMask({ mask, mode, provenance: operation }, signal);
+      });
     },
     beginPaint: (pointerId, point, mode, options) => {
       const dependencies = resolveDependencies();

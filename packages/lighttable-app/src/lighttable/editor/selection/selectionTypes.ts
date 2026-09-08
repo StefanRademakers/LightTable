@@ -110,6 +110,7 @@ export interface SelectionOperation {
         mask: RasterSelectionMask;
         documentRevision: number;
       }
+    | { kind: 'object-selection'; documentRevision: number }
     | {
         kind: 'selection-paint';
         dabs: BrushDab[];
@@ -186,6 +187,17 @@ export const createRasterMaskSelectionOperation = (
   mode,
   source: { kind: 'raster-mask', mask, documentRevision },
   shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createObjectSelectionOperation = (
+  documentRevision: number,
+  width: number,
+  height: number,
+  mode: SelectionCombineMode,
+): SelectionOperation => ({
+  mode,
+  source: { kind: 'object-selection', documentRevision },
+  shape: createFullCanvasSelection(width, height)[0].shape,
 });
 
 export const createTranslateSelectionOperation = (

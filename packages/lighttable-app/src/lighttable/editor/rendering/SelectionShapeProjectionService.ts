@@ -10,6 +10,7 @@ import { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 import type { LayerId } from '../document/documentTypes';
 import type {
   MagicWandOptions,
+  RasterSelectionMask,
   SelectionCombineMode,
   SelectionOperation,
   SelectionPoint,
@@ -29,6 +30,16 @@ export interface SelectionShapeProjectionIntent {
   readonly antiAlias: boolean;
   readonly provenance: SelectionOperation;
 }
+
+export interface SelectionRasterMaskProjectionIntent {
+  readonly mask: RasterSelectionMask;
+  readonly mode: SelectionCombineMode;
+  readonly provenance: SelectionOperation;
+}
+
+export type SelectionRasterizationProjectionIntent =
+  | SelectionShapeProjectionIntent
+  | SelectionRasterMaskProjectionIntent;
 
 export interface SelectionTranslationProjectionIntent {
   readonly x: number;
@@ -55,7 +66,7 @@ export interface SelectionMagicWandProjectionIntent {
 interface SelectionProjectionStage {
   readonly textures: SelectionTextureStore;
   restore(snapshot: SelectionMaskSnapshot): boolean;
-  apply(intent: SelectionShapeProjectionIntent): boolean;
+  apply(intent: SelectionRasterizationProjectionIntent): boolean;
   transform(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): boolean;
   paint(intent: SelectionPaintProjectionIntent): boolean;
   magicWand?(source: GPUTexture, intent: SelectionMagicWandProjectionIntent): boolean;
@@ -190,7 +201,7 @@ export class SelectionShapeProjectionService {
   async prepare(
     document: DocumentAddress,
     baseline: SelectionState,
-    intent: SelectionShapeProjectionIntent,
+    intent: SelectionRasterizationProjectionIntent,
     transactionId: TransactionId,
     signal: AbortSignal,
   ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>> {

@@ -3,6 +3,7 @@ import type { SelectionCoverageBounds } from '../../../editor/selection/selectio
 import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type {
   MagicWandOptions,
+  RasterSelectionMask,
   SelectionCombineMode,
   SelectionMode,
   SelectionOperation,
@@ -116,6 +117,11 @@ export interface SelectionSessionDependencies {
     readonly point: SelectionPoint;
     readonly mode: SelectionCombineMode;
     readonly options: MagicWandOptions;
+    readonly provenance: SelectionOperation;
+  }, signal: AbortSignal): Promise<boolean>;
+  commitRasterMask(command: {
+    readonly mask: RasterSelectionMask;
+    readonly mode: SelectionCombineMode;
     readonly provenance: SelectionOperation;
   }, signal: AbortSignal): Promise<boolean>;
   onMagicWandCommitted?(command: {

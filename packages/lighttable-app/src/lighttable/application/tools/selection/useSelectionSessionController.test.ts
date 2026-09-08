@@ -78,6 +78,7 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     },
     pushHistoryEntry: (entry) => history.push(entry),
     setError: vi.fn(),
+    commitRasterMask: vi.fn(async () => true),
     ...overrides
   };
   const controller = createSelectionSessionController(() => dependencies);
@@ -817,7 +818,7 @@ describe('selection session controller', () => {
     )).resolves.toBe(false);
   });
 
-  it('commits an immutable raster mask through the normal selection history path', async () => {
+  it('routes an inferred raster mask through the required kernel owner', async () => {
     const state = setup();
     const mask = {
       width: document.width,
@@ -827,18 +828,54 @@ describe('selection session controller', () => {
     mask.data[12] = 255;
     await expect(state.controller.rasterMask(mask, 'replace')).resolves.toBe(true);
 
-    expect(state.renderer.applyRasterSelection).toHaveBeenCalledOnce();
-    const operation = state.renderer.applyRasterSelection.mock.calls[0]![0];
-    expect(operation).toMatchObject({
-      mode: 'replace',
-      source: { kind: 'raster-mask', documentRevision: document.revision, mask }
-    });
-    expect(state.selection).toEqual([operation]);
-    expect(state.history).toHaveLength(1);
+    expect(state.renderer.applyRasterSelection).not.toHaveBeenCalled();
+    expect(state.history).toEqual([]);
+  });
 
-    await state.history[0]!.undo();
-    await state.history[0]!.redo();
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
+  it('routes an inferred raster mask exclusively through the kernel port', async () => {
+    const commitRasterMask = vi.fn(async () => true);
+    const state = setup({ commitRasterMask });
+    const mask = {
+      width: document.width,
+      height: document.height,
+      data: new Uint8Array(document.width * document.height).fill(255),
+    };
+
+    await expect(state.controller.rasterMask(mask, 'add')).resolves.toBe(true);
+
+    expect(commitRasterMask).toHaveBeenCalledWith(expect.objectContaining({
+      mask,
+      mode: 'add',
+      provenance: expect.objectContaining({
+        mode: 'add', source: expect.objectContaining({ kind: 'object-selection' }),
+      }),
+    }), expect.any(AbortSignal));
+    expect(state.renderer.applyRasterSelection).not.toHaveBeenCalled();
+    expect(state.renderer.captureSelectionSnapshot).not.toHaveBeenCalled();
+    expect(state.history).toEqual([]);
+  });
+
+  it('rejects a queued inferred mask after the document revision changes', async () => {
+    let releaseFirst!: (value: boolean) => void;
+    const commitRasterMask = vi.fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { releaseFirst = resolve; }))
+      .mockResolvedValueOnce(true);
+    const state = setup({ commitRasterMask });
+    const mask = {
+      width: document.width,
+      height: document.height,
+      data: new Uint8Array(document.width * document.height).fill(255),
+    };
+
+    const first = state.controller.rasterMask(mask, 'replace');
+    await vi.waitFor(() => expect(commitRasterMask).toHaveBeenCalledOnce());
+    const queued = state.controller.rasterMask(mask, 'add');
+    state.switchDocument({ ...document, revision: document.revision + 1 });
+    releaseFirst(true);
+
+    await expect(first).resolves.toBe(true);
+    await expect(queued).resolves.toBe(false);
+    expect(commitRasterMask).toHaveBeenCalledOnce();
   });
 
   it('publishes each accepted Magic Wand result while preserving queued add operations', async () => {

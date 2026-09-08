@@ -149,7 +149,7 @@ try {
     throw new Error(`MCP Select Subject failed: ${JSON.stringify(subjectTask)}`);
   }
   await window.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
-    entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.maskActive
+    entry.operationCount === 1 && entry.sourceKind === 'object-selection' && entry.maskActive
   )), undefined, { timeout: 15_000 }).catch(async () => {
     const evidence = await window.evaluate(() => ({
       selection: globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__,

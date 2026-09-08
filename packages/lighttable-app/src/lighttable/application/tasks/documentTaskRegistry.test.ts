@@ -52,6 +52,41 @@ describe('DocumentTaskRegistry', () => {
     });
   });
 
+  it('accepts a definitive operation result after its terminal commit boundary', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    let finish!: () => void;
+    const result = registry.run('automation', 'Atomic commit', async () => {
+      await new Promise<void>((resolve) => { finish = resolve; });
+      return 'committed';
+    }, { replace: false, completionPolicy: 'operation-result' });
+
+    registry.cancelKind('automation');
+    finish();
+
+    await expect(result).resolves.toEqual({ status: 'completed', value: 'committed' });
+    expect(Object.values(registry.getSnapshot().tasks)).toEqual([
+      expect.objectContaining({ label: 'Atomic commit', status: 'completed', progress: 1 }),
+    ]);
+    expect(registry.getSnapshot().activeTaskIds).toEqual([]);
+  });
+
+  it('finishes a terminal-boundary task as canceled when its operation observes abort', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    const result = registry.run('automation', 'Cancelable inference', async (task) => {
+      await new Promise((resolve) => task.signal.addEventListener('abort', resolve));
+      task.throwIfCanceled();
+      return 'unreachable';
+    }, { replace: false, completionPolicy: 'operation-result' });
+
+    registry.cancelKind('automation');
+
+    await expect(result).resolves.toEqual({ status: 'canceled' });
+    expect(Object.values(registry.getSnapshot().tasks)).toEqual([
+      expect.objectContaining({ label: 'Cancelable inference', status: 'canceled' }),
+    ]);
+    expect(registry.getSnapshot().activeTaskIds).toEqual([]);
+  });
+
   it('aborts active work on disposal', async () => {
     const registry = new DocumentTaskRegistry(documentId);
     const observedAbort = vi.fn();

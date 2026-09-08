@@ -188,7 +188,8 @@ primitive directly.
 1. **Contracts — complete:** committed selection value, read lease, prepared
    projection and reversible activation exist in `@lighttable/editor-kernel`.
 2. **Renderer staging — implemented/unit and packaged proven:** shape,
-   translation, selection-paint, Magic Wand and exact-snapshot results prepare on isolated
+   translation, selection-paint, Magic Wand, Object Selection raster masks and
+   exact-snapshot results prepare on isolated
    reusable targets and return snapshot plus bounds. Store allocation, swaps,
    exchange, detach and attach enforce preview ownership at the resource
    boundary; transform commit/history uses the same admission. Device-loss
@@ -234,6 +235,12 @@ primitive directly.
   runs measured 66--102 ms GPU and 176--196 ms to visible change.
 - `smoke:desktop:magic-wand-actions`: strict sampled-recipe recording, undo and
   Action playback through the same kernel commit route.
+- `smoke:desktop:object-selection`: packaged SAM2 Object Finder and Select
+  Subject commits with persistent contour feedback; Select Subject also proves
+  undo and semantic Action playback without leaking model or mask state.
+- `smoke:desktop:mcp-design -- --subject-only`: the packaged external MCP tunnel
+  validates the strict Select Subject contract, asynchronous task completion and
+  visible committed Object Selection evidence.
 
 Resource-boundary admission now prevents Action/MCP shape commits, undo/redo,
 rebind, geometry/resize activation and transform-history swaps from replacing
