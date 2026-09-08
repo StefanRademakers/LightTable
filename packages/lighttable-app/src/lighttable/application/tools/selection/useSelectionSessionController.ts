@@ -1252,6 +1252,7 @@ export const createSelectionSessionController = (
       const after = [...current.before, operation];
       void queueCommit(async () => {
         let beforeMask: SelectionMaskSnapshot | null = null;
+        let handedOffToKernel = false;
         try {
           beforeMask = await current.beforeMask;
           const applied = await current.renderQueue;
@@ -1273,6 +1274,7 @@ export const createSelectionSessionController = (
             // ownership before the kernel activates the prepared committed state.
             current.preview?.release();
             current.preview = null;
+            handedOffToKernel = true;
             const committed = await resolveDependencies().commitPaint!({
               dabs: current.dabs,
               hardness: current.hardness,
@@ -1318,7 +1320,17 @@ export const createSelectionSessionController = (
             smooth: current.smooth
           }));
         } catch (reason) {
-          if (beforeMask && isCurrent(current.document, current.renderer)) {
+          if (handedOffToKernel) {
+            // The kernel now exclusively owns CAS, activation and rollback.
+            // Restoring the gesture baseline could overwrite a newer winner.
+            if (isCurrent(current.document, current.renderer)) {
+              resolveDependencies().setError(
+                reason instanceof Error
+                  ? reason.message
+                  : 'The selection brush stroke could not be applied.'
+              );
+            }
+          } else if (beforeMask && isCurrent(current.document, current.renderer)) {
             await (current.preview ?? current.renderer).restoreSelectionSnapshot(beforeMask).catch(() => false);
             resolveDependencies().publishSelection(current.before, null, beforeMask);
             resolveDependencies().setError(

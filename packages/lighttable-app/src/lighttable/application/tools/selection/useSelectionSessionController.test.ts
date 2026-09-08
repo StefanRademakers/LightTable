@@ -516,6 +516,23 @@ describe('selection session controller', () => {
     expect(state.history).toHaveLength(0);
   });
 
+  it('does not restore stale gesture state after the kernel rejects paint', async () => {
+    const commitPaint = vi.fn(async () => false);
+    const state = setup({ commitPaint });
+
+    expect(state.controller.beginPaint(8, { x: 18, y: 16, pressure: 1 }, 'add', {
+      size: 20, hardness: 0.7, opacity: 1, smooth: 0,
+    })).toBe(true);
+    expect(state.controller.finishPaint(8)).toBe(true);
+    await state.controller.settle();
+
+    // The first restore ends preview. Kernel rejection owns rollback from then
+    // on, so the controller may not publish or restore its older baseline.
+    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(state.preview.release).toHaveBeenCalledOnce();
+    expect(commitPaint).toHaveBeenCalledOnce();
+  });
+
   it('snaps a dragged selection from its retained bounds', async () => {
     const feedback = vi.fn();
     const state = setup({
