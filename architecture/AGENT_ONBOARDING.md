@@ -96,8 +96,10 @@ revision lease through completion.
 The packaged `smoke:desktop:selection-kernel` acceptance covers byte-identical
 edge excursions and return on all sides, clipped-translation undo/redo, nudge,
 paint clipping, drag from paint-only coverage, selection paint, copy bounds and
-tab rebind. Selection-paint preview temporarily owns the live GPU mask and all
-committed-mask consumers fail closed until the exact baseline is restored.
+tab rebind. Selection-paint preview owns the live GPU mask through a token lease
+bound to the concrete document renderer. Preview operations use that lease;
+committed-mask entry points fail closed until the exact baseline is restored,
+and a stale release after a tab switch cannot unlock another document.
 `smoke:desktop:pixel-clipboard` additionally proves
 UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
 owner visual acceptance: keep the complete legacy fallback until the owner has

@@ -92,4 +92,26 @@ describe('SelectionTextureStore', () => {
     expect(store.active).toBe(false);
     expect(store.estimatedTextureBytes(10, 5)).toBe(0);
   });
+
+  it('keeps a newer preview lease locked when an older release arrives late', () => {
+    const store = new SelectionTextureStore({
+      createSelectionTexture: texture,
+      createClipboardTexture: texture
+    });
+    const first = store.beginPreviewMutation();
+    expect(first).not.toBeNull();
+    expect(store.beginPreviewMutation()).toBeNull();
+    expect(() => store.assertCommittedAccess()).toThrow('still being previewed');
+
+    first!.release();
+    const second = store.beginPreviewMutation();
+    expect(second).not.toBeNull();
+    first!.release();
+    expect(() => store.assertCommittedAccess()).toThrow('still being previewed');
+
+    expect(second!.run(() => 42)).toBe(42);
+    second!.release();
+    expect(() => store.assertCommittedAccess()).not.toThrow();
+    expect(() => second!.run(() => 42)).toThrow('no longer active');
+  });
 });

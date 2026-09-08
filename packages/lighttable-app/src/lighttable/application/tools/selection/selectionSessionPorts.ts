@@ -21,6 +21,16 @@ export interface SelectionHistoryEntry {
   redo(): void | Promise<void>;
 }
 
+export interface SelectionPaintPreviewPort {
+  paintSelectionDabs(
+    dabs: BrushDab[], hardness: number, opacity: number, mode: 'add' | 'subtract'
+  ): Promise<boolean>;
+  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
+  captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
+  measureSelectionBounds(): Promise<SelectionCoverageBounds | null>;
+  release(): void;
+}
+
 export interface SelectionRendererPort {
   setSelectionPreviewProjection?(
     operations: readonly SelectionOperation[],
@@ -50,8 +60,7 @@ export interface SelectionRendererPort {
     opacity: number,
     mode: 'add' | 'subtract'
   ): Promise<boolean>;
-  beginSelectionPaintPreview?(): boolean;
-  endSelectionPaintPreview?(): void;
+  beginSelectionPaintPreview?(): SelectionPaintPreviewPort | null;
 }
 
 /** Ports at the gesture boundary; committed writes enter through commit*. */

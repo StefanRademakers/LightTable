@@ -11,6 +11,11 @@ export interface SelectionTargetState {
   readonly active: boolean;
 }
 
+export interface SelectionPreviewMutationLease {
+  run<Result>(operation: () => Result): Result;
+  release(): void;
+}
+
 /**
  * Owns the mutable GPU textures that form one document's selection state.
  * Selection commands still encode the operations; allocation and lifetime are
@@ -22,8 +27,37 @@ export class SelectionTextureStore {
   shape: GPUTexture | null = null;
   clipboard: GPUTexture | null = null;
   active = false;
-  /** True only while a reversible selection-paint preview owns the live mask. */
-  previewMutationActive = false;
+  private previewMutationOwner: symbol | null = null;
+
+  get previewMutationActive() {
+    return this.previewMutationOwner !== null;
+  }
+
+  beginPreviewMutation(): SelectionPreviewMutationLease | null {
+    if (this.previewMutationOwner) return null;
+    const owner = Symbol('selection-preview');
+    this.previewMutationOwner = owner;
+    let released = false;
+    return {
+      run: <Result>(operation: () => Result) => {
+        if (released || this.previewMutationOwner !== owner) {
+          throw new Error('The selection preview lease is no longer active.');
+        }
+        return operation();
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        if (this.previewMutationOwner === owner) this.previewMutationOwner = null;
+      },
+    };
+  }
+
+  assertCommittedAccess() {
+    if (this.previewMutationOwner) {
+      throw new Error('The selection is still being previewed.');
+    }
+  }
 
   constructor(private readonly options: SelectionTextureStoreOptions) {}
 
@@ -135,6 +169,6 @@ export class SelectionTextureStore {
     this.shape = null;
     this.clipboard = null;
     this.active = false;
-    this.previewMutationActive = false;
+    this.previewMutationOwner = null;
   }
 }

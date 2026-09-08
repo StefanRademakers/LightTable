@@ -363,6 +363,10 @@ export class LayerDocumentRenderer {
     this.runtime.selectionTextures.ensureTargets();
   }
 
+  private assertCommittedSelectionAccess() {
+    this.runtime.selectionTextures.assertCommittedAccess();
+  }
+
   selectionMaskTexture() {
     const preview = this.runtime.transformRasterizer.selectionPreviewTexture();
     if (preview) return preview;
@@ -788,6 +792,7 @@ export class LayerDocumentRenderer {
   }
 
   bakeSelectionIntoLayerMask(layerId: LayerId) {
+    this.assertCommittedSelectionAccess();
     const target = this.maskTextureFor(layerId);
     if (!target) return false;
     this.runtime.pixelEditHistory.captureAll(layerId, 'mask');
@@ -809,6 +814,7 @@ export class LayerDocumentRenderer {
   }
 
   loadLayerMaskAsSelection(layerId: LayerId) {
+    this.assertCommittedSelectionAccess();
     const source = this.maskTextureFor(layerId);
     return source
       ? this.runtime.selectionRasterizer.loadMask(source)
@@ -816,6 +822,7 @@ export class LayerDocumentRenderer {
   }
 
   loadCompositeChannelAsSelection(source: GPUTexture, channel: CompositeSelectionChannel) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.loadColorChannel(source, channel);
   }
 
@@ -823,6 +830,7 @@ export class LayerDocumentRenderer {
     document: ImageDocument,
     layer: RasterLayer | Extract<LayerNode, { type: 'text' | 'vector' }>
   ) {
+    this.assertCommittedSelectionAccess();
     if (layer.type === 'text') await this.waitForTextSource(layer.id);
     const encoder = this.device.createCommandEncoder({
       label: 'LightTable load layer transparency as selection'
@@ -862,6 +870,7 @@ export class LayerDocumentRenderer {
     options: MagicWandOptions,
     mode: SelectionCombineMode
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
   }
 
@@ -869,6 +878,7 @@ export class LayerDocumentRenderer {
     source: GPUTexture,
     options: import('../selection/selectionTypes').SimilarSelectionOptions
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.selectSimilar(source, options);
   }
 
@@ -876,6 +886,7 @@ export class LayerDocumentRenderer {
     mask: import('../selection/selectionTypes').RasterSelectionMask,
     mode: SelectionCombineMode
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.applyRasterMask(mask, mode);
   }
 
@@ -885,6 +896,7 @@ export class LayerDocumentRenderer {
     opacity: number,
     mode: 'add' | 'subtract'
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.paintBrushDabs(
       dabs,
       hardness,
@@ -894,13 +906,25 @@ export class LayerDocumentRenderer {
   }
 
   beginSelectionPaintPreview() {
-    if (this.runtime.selectionTextures.previewMutationActive) return false;
-    this.runtime.selectionTextures.previewMutationActive = true;
-    return true;
-  }
-
-  endSelectionPaintPreview() {
-    this.runtime.selectionTextures.previewMutationActive = false;
+    const lease = this.runtime.selectionTextures.beginPreviewMutation();
+    if (!lease) return null;
+    return {
+      paintSelectionDabs: (
+        dabs: BrushDab[], hardness: number, opacity: number, mode: 'add' | 'subtract'
+      ) => lease.run(() => this.runtime.selectionRasterizer.paintBrushDabs(
+        dabs, hardness, opacity, mode
+      )),
+      restoreSelectionSnapshot: (snapshot: SelectionMaskSnapshot) => lease.run(
+        () => this.runtime.selectionRasterizer.restoreSnapshot(snapshot)
+      ),
+      captureSelectionSnapshot: () => lease.run(
+        () => this.runtime.selectionRasterizer.captureSnapshot()
+      ),
+      measureSelectionBounds: () => lease.run(
+        () => this.runtime.selectionContentAnalyzer.measureSelection()
+      ),
+      release: lease.release,
+    };
   }
 
   applyMagicWandToActiveLayer(
@@ -910,6 +934,7 @@ export class LayerDocumentRenderer {
     options: MagicWandOptions,
     mode: SelectionCombineMode
   ) {
+    this.assertCommittedSelectionAccess();
     const layer = findDocumentLayer(document, layerId);
     if (!layer) return false;
     const encoder = this.device.createCommandEncoder({
@@ -931,6 +956,7 @@ export class LayerDocumentRenderer {
     layerId: LayerId,
     options: import('../selection/selectionTypes').SimilarSelectionOptions
   ) {
+    this.assertCommittedSelectionAccess();
     const layer = findDocumentLayer(document, layerId);
     if (!layer) return false;
     const encoder = this.device.createCommandEncoder({
@@ -953,6 +979,7 @@ export class LayerDocumentRenderer {
     featherRadius = 0,
     antiAlias = false
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.set(
       shape,
       requestedMode,
@@ -962,14 +989,17 @@ export class LayerDocumentRenderer {
   }
 
   featherSelection(radius: number, applyAtCanvasBounds: boolean) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.feather(radius, applyAtCanvasBounds);
   }
 
   borderSelection(width: number) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.border(width);
   }
 
   smoothSelection(radius: number, applyAtCanvasBounds: boolean) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.smooth(radius, applyAtCanvasBounds);
   }
 
@@ -978,10 +1008,12 @@ export class LayerDocumentRenderer {
     radius: number,
     applyAtCanvasBounds: boolean
   ) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.morphology(mode, radius, applyAtCanvasBounds);
   }
 
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.transform(matrix);
   }
 
@@ -1035,10 +1067,12 @@ export class LayerDocumentRenderer {
   }
 
   async measureSelectedLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionContentAnalyzer.measure(layer, true);
   }
 
   async measureSelectionBounds(): Promise<SelectionCoverageBounds | null> {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionContentAnalyzer.measureSelection();
   }
 
@@ -1059,14 +1093,17 @@ export class LayerDocumentRenderer {
   }
 
   clearSelection() {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.clear();
   }
 
   async captureSelectionSnapshot() {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.captureSnapshot();
   }
 
   restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot) {
+    this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.restoreSnapshot(snapshot);
   }
 

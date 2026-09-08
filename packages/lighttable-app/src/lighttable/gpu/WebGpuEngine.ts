@@ -1874,11 +1874,49 @@ export class WebGpuEngine {
   }
 
   beginSelectionPaintPreview() {
-    return this.documentRenderer?.beginSelectionPaintPreview() ?? false;
-  }
-
-  endSelectionPaintPreview() {
-    this.documentRenderer?.endSelectionPaintPreview();
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const lease = renderer?.beginSelectionPaintPreview();
+    if (!renderer || !lease) return null;
+    const enqueue = <Result>(
+      operation: () => Result | Promise<Result>,
+      stale: () => Result,
+      invalidate = false,
+    ): Promise<Result> => {
+      const task = this.selectionQueue.then(async () => {
+        if (!this.selectionOwnerIsCurrent(renderer, documentId)) return stale();
+        const result = await operation();
+        if (invalidate && this.selectionOwnerIsCurrent(renderer, documentId)) {
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+        }
+        return result;
+      });
+      this.selectionQueue = task.then(() => undefined, () => undefined);
+      return task;
+    };
+    return {
+      paintSelectionDabs: (
+        dabs: BrushDab[], hardness: number, opacity: number, mode: 'add' | 'subtract'
+      ) => enqueue(
+        () => lease.paintSelectionDabs(dabs, hardness, opacity, mode),
+        () => false,
+        true,
+      ),
+      restoreSelectionSnapshot: (snapshot: SelectionMaskSnapshot) => enqueue(
+        () => lease.restoreSelectionSnapshot(snapshot), () => false, true,
+      ),
+      captureSelectionSnapshot: () => enqueue(
+        () => lease.captureSelectionSnapshot(),
+        () => { throw new Error('The selection preview belongs to another document.'); },
+      ),
+      measureSelectionBounds: () => enqueue(
+        () => lease.measureSelectionBounds(), () => null,
+      ),
+      // The concrete lease closes over the exact LayerDocumentRenderer/store;
+      // it never resolves through this.documentRenderer after a tab switch.
+      release: lease.release,
+    };
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {

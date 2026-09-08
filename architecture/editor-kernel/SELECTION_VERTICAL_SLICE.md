@@ -17,7 +17,7 @@ the review baseline for removing mixed ownership.
 | replace/add/subtract/intersect | semantic `selection.applyShape` command or the same UI gesture result | same shape command service | staged mask, measured bounds and exact snapshot activate together | UI, Actions and MCP already converge on `selection.applyShape` |
 | pointer move of marquee | `useSelectionSessionController` translation gesture | `SelectionShapeCommandService.executeTranslation` | semantic direct-shape preview or mask-contour shader offset; staged final mask | final coverage derives from opening lineage plus cumulative displacement |
 | keyboard nudge | keymap -> `nudgeSelectionMask` -> controller `translate` | same kernel translation command | staged exact translation | serialized through the same transaction/history admission as drag |
-| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | reversible live preview is restored, then final dabs stage on spare targets | committed-mask consumers fail closed while preview owns the live texture; only terminal intent commits |
+| selection paint | controller-owned stroke sampling | `SelectionShapeCommandService.executePaint` | renderer-bound preview lease restores the baseline, then final dabs stage on spare targets | a token-owned lease admits preview operations and rejects every committed-mask entry point; only terminal intent commits |
 | paint through selection | `usePaintSessionController` | pixel-edit transaction | `RasterPaintService` reads the committed mask | stroke captures and revalidates the document selection revision |
 | copy / Copy Merged | layer document command gateway | read-only clipboard task | `SelectionClipboardService` reads the mask | lease uses measured committed bounds and rejects stale completion |
 | undo/redo of shape | document history | `SelectionShapeCommandService.restore` | staged exact-snapshot activation | kernel-owned for shape entries only |
@@ -148,6 +148,12 @@ Selection paint may mutate the live mask only as a reversible pointer preview.
 While that preview owns the texture, clipboard, raster paint/fill/invert and
 selection-based transform consumers fail closed instead of observing temporary
 coverage under the unchanged committed revision.
+The preview lock is a token-owned lease bound to the concrete
+`LayerDocumentRenderer` and its `SelectionTextureStore`; release never resolves
+through the engine's current renderer. A late release from a switched document
+therefore cannot unlock a newer preview. Preview capture, measurement, paint and
+baseline restore run through that lease, while all normal selection reads and
+writers cross the committed-access admission guard.
 Pointer-up restores the exact baseline and stages the complete dab list through
 the kernel route. Undo and redo preserve translation lineage while preparing
 the recorded exact snapshot offscreen, activate it, then publish a fresh
@@ -221,3 +227,12 @@ The remaining gate is a manual owner run for contour quality and pointer feel.
 Legacy fallbacks for embedded/no-session hosts and out-of-slice modifiers remain
 present. Passing this slice is evidence that the architecture can work; it is
 not a stability claim for transform, text, effects or other editor domains.
+
+## Deferred non-blocking follow-ups
+
+- `SelectionMaskSnapshot.contains()` is exact but RLE lookup is currently
+  linear in row runs; profile large fragmented masks before choosing an index.
+- Best-effort non-throwing activation cleanup should gain diagnostic telemetry
+  without reopening the atomic commit boundary.
+- History byte estimates can count shared translation-lineage storage more than
+  once; make accounting graph-aware when history memory budgeting is enforced.

@@ -48,6 +48,7 @@ import {
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type {
   SelectionHistoryEntry,
+  SelectionPaintPreviewPort,
   SelectionRendererPort,
   SelectionSessionDependencies,
 } from './selectionSessionPorts';
@@ -195,6 +196,7 @@ export const createSelectionSessionController = (
     pointerId: number;
     document: ImageDocument;
     renderer: SelectionRendererPort;
+    preview: SelectionPaintPreviewPort | null;
     before: SelectionOperation[];
     beforeMask: Promise<SelectionMaskSnapshot>;
     mode: 'add' | 'subtract';
@@ -589,7 +591,7 @@ export const createSelectionSessionController = (
     current.samples.push(...points.map((point) => ({ ...point })));
     const dabs = points.flatMap((point) => current.builder.add(current.smoother.add(point)));
     if (!dabs.length) return true;
-    const request = current.renderer.paintSelectionDabs(
+    const request = (current.preview ?? current.renderer).paintSelectionDabs(
       dabs,
       current.hardness,
       current.opacity,
@@ -1165,9 +1167,6 @@ export const createSelectionSessionController = (
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
       if (!document || !renderer || paintGesture) return false;
-      if (renderer.beginSelectionPaintPreview && !renderer.beginSelectionPaintPreview()) {
-        return false;
-      }
       const size = Math.max(1, Math.min(1000, options.size));
       const smooth = Math.max(0, Math.min(1, options.smooth));
       const builder = new StrokeBuilder(
@@ -1180,17 +1179,31 @@ export const createSelectionSessionController = (
       );
       const before = cloneSelectionOperations(dependencies.getSelection());
       const first = builder.begin(smoother.begin(point));
-      const beforeMask = resolveCommittedMask(dependencies, document, renderer, before);
-      const firstRender = renderer.paintSelectionDabs(
-        first,
-        Math.max(0, Math.min(1, options.hardness)),
-        Math.max(0.01, Math.min(1, options.opacity)),
-        mode
-      );
+      const exactBefore = documentCommittedMask(dependencies, document, before);
+      const beforeMask = Promise.resolve(exactBefore ?? renderer.captureSelectionSnapshot());
+      // Only exact document-owned state can be locked synchronously. Legacy
+      // semantic-only documents capture through the old queued renderer path.
+      const preview = exactBefore && renderer.beginSelectionPaintPreview
+        ? renderer.beginSelectionPaintPreview()
+        : null;
+      if (exactBefore && renderer.beginSelectionPaintPreview && !preview) return false;
+      let firstRender: Promise<boolean>;
+      try {
+        firstRender = (preview ?? renderer).paintSelectionDabs(
+          first,
+          Math.max(0, Math.min(1, options.hardness)),
+          Math.max(0.01, Math.min(1, options.opacity)),
+          mode
+        );
+      } catch (reason) {
+        preview?.release();
+        throw reason;
+      }
       paintGesture = {
         pointerId,
         document,
         renderer,
+        preview,
         before,
         beforeMask,
         mode,
@@ -1215,7 +1228,7 @@ export const createSelectionSessionController = (
       if (!current || current.pointerId !== pointerId) return false;
       const tail = current.smoother.finish().flatMap((point) => current.builder.add(point));
       if (tail.length) {
-        const request = current.renderer.paintSelectionDabs(
+        const request = (current.preview ?? current.renderer).paintSelectionDabs(
           tail,
           current.hardness,
           current.opacity,
@@ -1244,7 +1257,7 @@ export const createSelectionSessionController = (
           const applied = await current.renderQueue;
           if (!applied || !isCurrent(current.document, current.renderer)) {
             if (isCurrent(current.document, current.renderer)) {
-              await current.renderer.restoreSelectionSnapshot(beforeMask);
+              await (current.preview ?? current.renderer).restoreSelectionSnapshot(beforeMask);
               resolveDependencies().publishSelection(current.before, null, beforeMask);
               resolveDependencies().setError('The selection brush stroke could not be applied.');
             }
@@ -1252,7 +1265,7 @@ export const createSelectionSessionController = (
           }
           const kernelPaint = resolveDependencies().commitPaint;
           if (kernelPaint) {
-            if (!await current.renderer.restoreSelectionSnapshot(beforeMask)
+            if (!await (current.preview ?? current.renderer).restoreSelectionSnapshot(beforeMask)
               || !isCurrent(current.document, current.renderer)) {
               throw new Error('The selection brush baseline could not be restored.');
             }
@@ -1278,10 +1291,10 @@ export const createSelectionSessionController = (
             }));
             return;
           }
-          const afterMask = await current.renderer.captureSelectionSnapshot();
+          const afterMask = await (current.preview ?? current.renderer).captureSelectionSnapshot();
           if (!isCurrent(current.document, current.renderer)) return;
           const supportBounds = afterMask.active
-            ? (await current.renderer.measureSelectionBounds())?.supportBounds ?? null
+            ? (await (current.preview ?? current.renderer).measureSelectionBounds())?.supportBounds ?? null
             : null;
           if (afterMask.active && !supportBounds) {
             throw new Error('The painted selection has no measurable coverage.');
@@ -1302,7 +1315,7 @@ export const createSelectionSessionController = (
           }));
         } catch (reason) {
           if (beforeMask && isCurrent(current.document, current.renderer)) {
-            await current.renderer.restoreSelectionSnapshot(beforeMask).catch(() => false);
+            await (current.preview ?? current.renderer).restoreSelectionSnapshot(beforeMask).catch(() => false);
             resolveDependencies().publishSelection(current.before, null, beforeMask);
             resolveDependencies().setError(
               reason instanceof Error
@@ -1311,7 +1324,7 @@ export const createSelectionSessionController = (
             );
           }
         } finally {
-          current.renderer.endSelectionPaintPreview?.();
+          current.preview?.release();
         }
       });
       return true;
@@ -1324,7 +1337,7 @@ export const createSelectionSessionController = (
         const beforeMask = await current.beforeMask;
         await current.renderQueue;
         if (!isCurrent(current.document, current.renderer)) return;
-        if (!await current.renderer.restoreSelectionSnapshot(beforeMask)) {
+        if (!await (current.preview ?? current.renderer).restoreSelectionSnapshot(beforeMask)) {
           throw new Error('The selection could not be restored.');
         }
         if (isCurrent(current.document, current.renderer)) {
@@ -1336,7 +1349,7 @@ export const createSelectionSessionController = (
             reason instanceof Error ? reason.message : 'The selection could not be restored.'
           );
         }
-      }).finally(() => current.renderer.endSelectionPaintPreview?.());
+      }).finally(() => current.preview?.release());
       return true;
     },
     ownsPaint: (pointerId) => paintGesture?.pointerId === pointerId,
@@ -1378,7 +1391,8 @@ export const createSelectionSessionController = (
           const beforeMask = await interrupted.beforeMask;
           if (interruptedPaint) await interruptedPaint.renderQueue;
           if (!isCurrent(interrupted.document, interrupted.renderer)) return;
-          if (!await interrupted.renderer.restoreSelectionSnapshot(beforeMask)) {
+          const restoreTarget = interruptedPaint?.preview ?? interrupted.renderer;
+          if (!await restoreTarget.restoreSelectionSnapshot(beforeMask)) {
             throw new Error('The selection could not be restored.');
           }
           if (isCurrent(interrupted.document, interrupted.renderer)) {
@@ -1390,7 +1404,7 @@ export const createSelectionSessionController = (
               reason instanceof Error ? reason.message : 'The selection could not be restored.'
             );
           }
-        }).finally(() => interruptedPaint?.renderer.endSelectionPaintPreview?.());
+        }).finally(() => interruptedPaint?.preview?.release());
         }
       }
       if (restoreSelectionAfterMagicWand) {

@@ -24,29 +24,39 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   let selectionPublications = 0;
   let selectionMaskSnapshot = SelectionMaskSnapshot.inactive(document.width, document.height);
   const history: SelectionHistoryEntry[] = [];
+  const paintSelectionDabs = vi.fn(async () => true);
+  const captureSelectionSnapshot = vi.fn(async () => selectionMaskSnapshot);
+  const measureSelectionBounds = vi.fn(async () => selectionMaskSnapshot.active ? ({
+    coreBounds: { x: 0, y: 0, width: document.width, height: document.height },
+    supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
+    peakCoverage: 1,
+  }) : null);
+  const restoreSelectionSnapshot = vi.fn(async (snapshot: SelectionMaskSnapshot) => {
+    selectionMaskSnapshot = snapshot;
+    return true;
+  });
+  const preview = {
+    paintSelectionDabs,
+    captureSelectionSnapshot,
+    measureSelectionBounds,
+    restoreSelectionSnapshot,
+    release: vi.fn(),
+  };
   const renderer = {
     setSelectionPreviewProjection: vi.fn(),
     setCommittedSelectionProjection: vi.fn(),
     replaceSelection: vi.fn(async () => true),
     setSelection: vi.fn(async () => true),
     clearSelection: vi.fn(async () => true),
-    captureSelectionSnapshot: vi.fn(async () => selectionMaskSnapshot),
-    measureSelectionBounds: vi.fn(async () => selectionMaskSnapshot.active ? ({
-      coreBounds: { x: 0, y: 0, width: document.width, height: document.height },
-      supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
-      peakCoverage: 1,
-    }) : null),
-    restoreSelectionSnapshot: vi.fn(async (snapshot: SelectionMaskSnapshot) => {
-      selectionMaskSnapshot = snapshot;
-      return true;
-    }),
+    captureSelectionSnapshot,
+    measureSelectionBounds,
+    restoreSelectionSnapshot,
     transformSelection: vi.fn(async () => true),
     applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
     applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
     applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true),
-    paintSelectionDabs: vi.fn(async () => true),
-    beginSelectionPaintPreview: vi.fn(() => true),
-    endSelectionPaintPreview: vi.fn(),
+    paintSelectionDabs,
+    beginSelectionPaintPreview: vi.fn(() => preview),
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
@@ -74,6 +84,7 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   return {
     controller,
     renderer,
+    preview,
     history,
     get selection() { return selection; },
     get pointerId() { return pointerId; },
@@ -493,7 +504,7 @@ describe('selection session controller', () => {
 
     expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
     expect(state.renderer.beginSelectionPaintPreview).toHaveBeenCalledOnce();
-    expect(state.renderer.endSelectionPaintPreview).toHaveBeenCalledOnce();
+    expect(state.preview.release).toHaveBeenCalledOnce();
     expect(commitPaint).toHaveBeenCalledOnce();
     expect(commitPaint).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'add', hardness: 0.5, opacity: 1,
