@@ -161,7 +161,9 @@ slice; they are not postponed to the final phase.
 | ID | Vertical slice | State | Kernel | critic | packaged app | owner | fallback removed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S00A | Selection geometric/paint foundation | `owner` | yes | passed | passed | [ ] | [ ] |
-| S00B | Remaining selection catalog | `queued` | partial | [ ] | [ ] | [ ] | [ ] |
+| S00B-1 | Horizontal/vertical strip marquees | `owner` | yes | passed | passed | [ ] | retained with S00A |
+| S00B-2 | Magic Wand | `queued` | no | [ ] | [ ] | [ ] | [ ] |
+| S00B-3 | Object Selection | `queued` | no | [ ] | [ ] | [ ] | [ ] |
 | S01 | Layer capabilities, rasterize, merge and flatten | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S02 | Masks, Remove Background and layer-result insertion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -201,8 +203,13 @@ skip the manual gate.
 
 ### S00B -- remaining selection catalog
 
-- [ ] Horizontal selection single-row marquee acceptance.
-- [ ] Vertical selection single-column marquee acceptance.
+- [x] Horizontal selection kernel-route and automated packaged acceptance.
+- [x] Vertical selection kernel-route and automated packaged acceptance.
+- [x] Exact configured thickness, full document span, one history entry,
+      undo/redo and restored Copy Merged bounds for both strip tools.
+- [x] Independent critic plus two focused evidence repairs; no P0/P1/P2 remains.
+- [ ] Committed strip survives background/minimize and foreground restoration.
+- [ ] Owner visual/interaction acceptance for both strip tools.
 - [ ] Magic Wand acceptance.
 - [ ] Object Selection result/model acceptance.
 - [ ] Selection Brush catalogue/shortcut parity after S00A fallback removal.
@@ -345,6 +352,10 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
 - [ ] Side panels, floating layer panel, tool options, scopes and rulers do not
       alter document coordinates or edge zones.
 - [ ] Tab switch, close/reopen and renderer rebind show the correct first frame.
+- [ ] Background/minimize/restore preserves committed state and the first correct
+      foreground frame; stale previews do not replay in a burst.
+- [ ] Losing foreground during an active gesture has one documented terminal
+      policy (cancel or resume), with no partial commit or stuck pointer owner.
 - [ ] Hidden documents release transient work without losing committed resources.
 
 ### S13 -- final system matrix

@@ -214,7 +214,11 @@ primitive directly.
 ## Packaged acceptance evidence
 
 - `smoke:desktop:selection-dimensions`: rectangle, ellipse, free and polygon UI
-  paths, including committed geometric coverage and current controls.
+  paths, including committed geometric coverage and current controls. It also
+  exercises the registered horizontal and vertical strip tools through the
+  real toolbar, proves configured thickness and full document span from exact
+  copied mask bounds, and verifies one history entry plus undo/redo restoring
+  the same committed bounds.
 - `smoke:desktop:selection-zoom-drag`: zoomed pointer translation without a
   runtime/GPU error.
 - `smoke:desktop:selection-kernel`: all four edge excursions and return with
