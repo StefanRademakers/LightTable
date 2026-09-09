@@ -48,6 +48,7 @@ import type {
 } from '../editor/selection/selectionTypes';
 import type { SelectionMaskSnapshot } from '../editor/selection/SelectionMaskSnapshot';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
+import { paintTargetSourceToDocument } from '../editor/tools/paint/paintCoordinates';
 import type {
   ColorLookupAssetBlob,
   DocumentAssetBlob
@@ -1280,14 +1281,15 @@ export class WebGpuEngine {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
       : null;
+    const sourceToDocument = this.imageDocument && layer
+      ? paintTargetSourceToDocument(this.imageDocument, layer, channel)
+      : undefined;
     const changed = this.documentRenderer?.fillLayerColor(
       layerId,
       channel,
       color,
       preserveTransparency,
-      channel === 'pixels' && layer?.type === 'raster'
-        ? layer.transform
-        : undefined,
+      sourceToDocument,
       opacity
     ) ?? false;
     if (changed) this.markDocumentDirty();
@@ -1305,6 +1307,9 @@ export class WebGpuEngine {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
       : null;
+    const sourceToDocument = this.imageDocument && layer
+      ? paintTargetSourceToDocument(this.imageDocument, layer, channel)
+      : undefined;
     const changed = this.documentRenderer?.fillLayerGradient(
       layerId,
       channel,
@@ -1312,9 +1317,7 @@ export class WebGpuEngine {
       opacity,
       blendMode,
       preserveTransparency,
-      channel === 'pixels' && layer?.type === 'raster'
-        ? layer.transform
-        : layer?.transform
+      sourceToDocument
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;

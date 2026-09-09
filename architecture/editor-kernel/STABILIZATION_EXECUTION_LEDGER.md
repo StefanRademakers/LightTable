@@ -166,7 +166,7 @@ slice; they are not postponed to the final phase.
 | S00B-3 | Object Selection | `owner` | yes | passed | passed | [ ] | yes |
 | S01 | Layer capabilities, rasterize, merge and flatten | `owner` | yes | passed | passed | [ ] | yes |
 | S02 | Masks, Remove Background and layer-result insertion | `owner` | yes | passed | passed | [ ] | partial (paint -> S03) |
-| S03 | Raster paint and pixel mutation sessions | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S03 | Raster paint and pixel mutation sessions | `owner` | yes | passed | passed | [ ] | yes |
 | S04 | Transform, selected-pixel transform, snapping and guides | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S05 | Vector paths and live shapes | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S06 | Text, paragraph/vertical/path text and text conversion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -276,17 +276,20 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S03 -- raster paint and pixel mutations
 
-- [ ] Brush.
-- [ ] Erase.
-- [ ] Healing Brush, including source acquisition.
-- [ ] Clone Stamp, including source acquisition.
-- [ ] Dodge.
-- [ ] Burn.
-- [ ] Sponge.
-- [ ] Paint bucket.
-- [ ] Raster Gradient.
-- [ ] Selection/mask clipping, transformed/tight raster coordinates and edge cases.
-- [ ] One continuous stroke session, bounded dirty regions and one history entry.
+- [x] Brush and Erase.
+- [x] Healing Brush and Clone Stamp, including immutable source acquisition.
+- [x] Dodge, Burn and Sponge.
+- [x] Paint Bucket/Clear and raster Gradient.
+- [x] Selection/mask clipping and transformed/tight raster coordinates share one
+      document-space transform authority.
+- [x] One continuous renderer/document/selection-bound stroke, bounded dirty
+      regions and one history entry.
+- [x] Cancel, document/renderer change, frame exception, unmount and double
+      rollback failure have complete cleanup or durable quarantine/retry.
+- [x] Independent critic completed two repair loops; no P0/P1/P2 remains.
+- [x] Instrumented and debug packaged browser/Windows matrix passed without page
+      errors, including one real toolbar/viewport Brush drag.
+- [ ] Owner manually accepts paint feel and latency on a large real document.
 
 ### S04 -- transform and snapping
 

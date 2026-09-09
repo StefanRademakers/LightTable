@@ -13,6 +13,7 @@ This status file remains the compact statement of what is actually migrated.
 | transform and snapping | yes | documented | no | no | no |
 | rasterize/merge/flatten | no | implemented | complete vertical | packaged automated | yes |
 | masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
+| raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
 | text/path text/warp | yes | documented | no | no | no |
 | adjustments/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
@@ -74,6 +75,17 @@ and unrelated live semantics; non-raster Apply Mask explicitly fails closed
 until it can reuse the fresh-destination finalization lifecycle. Packaged debug
 and instrumented evidence is recorded in
 [Mask and background-removal vertical slice](MASK_AND_BACKGROUND_REMOVAL_VERTICAL_SLICE.md).
+
+Raster paint is the fourth implemented vertical. Brush, Erase, Clone, Healing,
+Dodge, Burn, Sponge, Paint Bucket/Clear and raster Gradient retain one opening
+document, renderer, selection revision and target matrix. Failed unpublished
+GPU edits are compensated or quarantined with their recovery snapshots until a
+stateful retry succeeds. Pixel targets use the complete scene transform and
+mask targets use the persisted mask transform. Discrete full-surface commands
+now live in `RasterPixelCommandService`, leaving continuous stroke work in
+`RasterPaintService`. Instrumented and debug packaged browser matrices passed;
+manual paint-feel acceptance remains open. See
+[Raster paint vertical slice](RASTER_PAINT_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

@@ -513,6 +513,32 @@ describe('RasterPaintService', () => {
     );
   });
 
+  it('destroys pending command resources when encoding fails before submission', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const test = harness();
+    test.drawFullscreen.mockImplementationOnce(() => {
+      throw new Error('encode failed');
+    });
+
+    expect(() => test.service.fillColor(layerId, 'pixels', [1, 0, 0], false))
+      .toThrow('encode failed');
+    expect(test.createdTextures[0]?.destroy).toHaveBeenCalledOnce();
+    expect(test.createBuffer.mock.results[0]?.value.destroy).toHaveBeenCalledOnce();
+    expect(test.submit).not.toHaveBeenCalled();
+  });
+
+  it('destroys pending command resources when queue submission fails', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const test = harness();
+    test.submit.mockImplementationOnce(() => {
+      throw new Error('submit failed');
+    });
+
+    expect(() => test.service.invertColors(layerId)).toThrow('submit failed');
+    expect(test.createdTextures[0]?.destroy).toHaveBeenCalledOnce();
+    expect(test.createBuffer.mock.results[0]?.value.destroy).toHaveBeenCalledOnce();
+  });
+
   it('encodes a gradient LUT and keeps the GPU copy bounded to the tight raster', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
     const test = harness(true, { width: 12, height: 7 });

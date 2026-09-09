@@ -47,6 +47,7 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     cancelPixelEdit: vi.fn(),
     applyPixelHistory: vi.fn(() => true)
   };
+  let currentRenderer: PaintSessionRendererPort | null = renderer;
   const history: Array<Parameters<PaintSessionDependencies['pushHistoryEntry']>[0]> = [];
   const previewDocumentSnapshot = vi.fn((_next: typeof document) => undefined);
   const discardDocumentPreview = vi.fn();
@@ -64,7 +65,7 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
   }));
   const dependencies: PaintSessionDependencies = {
     getDocument: () => document,
-    getRenderer: () => renderer,
+    getRenderer: () => currentRenderer,
     documentMutations,
     applyDocumentSnapshot,
     pushHistoryEntry,
@@ -80,11 +81,46 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     discardDocumentPreview,
     documentMutations,
     renderer,
+    setRenderer: (next: PaintSessionRendererPort | null) => {
+      currentRenderer = next;
+    },
     getDocument: () => document
   };
 };
 
 describe('PaintSessionController', () => {
+  it('cancels through the opening renderer when the presentation binding changes', () => {
+    const fixture = createFixture();
+    const replacement = {
+      ...fixture.renderer,
+      setPaintInteractionActive: vi.fn(),
+      paintBrushDabs: vi.fn(),
+      finishPixelEdit: vi.fn(() => null),
+      applyPixelHistory: vi.fn(() => true)
+    };
+    expect(fixture.controller.begin({
+      pointerId: 7,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 4, y: 5, pressure: 1 }
+    })).toBe(true);
+
+    fixture.setRenderer(replacement);
+    expect(fixture.controller.move(7, { x: 20, y: 12, pressure: 1 })).toBe(true);
+
+    expect(fixture.controller.active).toBe(false);
+    expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(fixture.pixelEdit, 'undo');
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
+    expect(replacement.paintBrushDabs).not.toHaveBeenCalled();
+    expect(replacement.finishPixelEdit).not.toHaveBeenCalled();
+    expect(fixture.history).toHaveLength(0);
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('renderer changed')
+    );
+  });
+
   it('captures one selection revision and rolls the stroke back if it changes', () => {
     const fixture = createFixture();
     let selectionRevision = 3;
@@ -155,6 +191,133 @@ describe('PaintSessionController', () => {
     expect(onStrokeCommitted).toHaveBeenCalledOnce();
     expect(onStrokeCommitted.mock.calls[0]?.[0].samples).toHaveLength(2049);
     expect(frameCallback).not.toBeNull();
+  });
+
+  it('rolls back an open stroke when frame-delivered GPU paint throws', () => {
+    let frameCallback: (() => void) | null = null;
+    const fixture = createFixture({
+      request: (callback) => {
+        frameCallback = callback;
+        return 44;
+      },
+      cancel: vi.fn()
+    });
+    vi.mocked(fixture.renderer.paintBrushDabs).mockImplementationOnce(() => {
+      throw new Error('GPU paint failed');
+    });
+
+    expect(fixture.controller.begin({
+      pointerId: 44,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 4, y: 5, pressure: 1 }
+    })).toBe(true);
+
+    expect(() => frameCallback?.()).not.toThrow();
+    expect(fixture.controller.active).toBe(false);
+    expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(fixture.pixelEdit, 'undo');
+    expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(0);
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith('GPU paint failed');
+  });
+
+  it('finishes all cleanup when closing a failed frame edit also throws', () => {
+    let frameCallback: (() => void) | null = null;
+    const fixture = createFixture({
+      request: (callback) => {
+        frameCallback = callback;
+        return 45;
+      },
+      cancel: vi.fn()
+    });
+    vi.mocked(fixture.renderer.paintBrushDabs).mockImplementationOnce(() => {
+      throw new Error('GPU paint failed');
+    });
+    vi.mocked(fixture.renderer.finishPixelEdit).mockImplementationOnce(() => {
+      throw new Error('GPU edit close failed');
+    });
+
+    expect(fixture.controller.begin({
+      pointerId: 45,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 4, y: 5, pressure: 1 }
+    })).toBe(true);
+
+    expect(() => frameCallback?.()).not.toThrow();
+    expect(fixture.controller.active).toBe(false);
+    expect(fixture.renderer.cancelPixelEdit).toHaveBeenCalled();
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
+    expect(fixture.dependencies.setError).toHaveBeenLastCalledWith('GPU edit close failed');
+  });
+
+  it('quarantines a double-failed rollback and recovers it before the next stroke', () => {
+    const fixture = createFixture(undefined, true);
+    const surfaceEdit = createPixelEdit();
+    const nextPixelEdit = createPixelEdit();
+    fixture.renderer.prepareRasterPaintSurface = vi.fn();
+    vi.mocked(fixture.renderer.prepareRasterPaintSurface)
+      .mockImplementationOnce(() => surfaceEdit)
+      .mockReturnValue(null);
+    let surfaceApplied = true;
+    let pixelApplied = true;
+    let failSurfaceUndo = true;
+    let failPixelRedo = true;
+    vi.mocked(surfaceEdit.undo).mockImplementation(() => {
+      if (!surfaceApplied) return false;
+      if (failSurfaceUndo) {
+        failSurfaceUndo = false;
+        return false;
+      }
+      surfaceApplied = false;
+      return true;
+    });
+    vi.mocked(surfaceEdit.redo).mockImplementation(() => {
+      if (surfaceApplied) return false;
+      surfaceApplied = true;
+      return true;
+    });
+    vi.mocked(fixture.renderer.applyPixelHistory).mockImplementation((edit, direction) => {
+      if (edit !== fixture.pixelEdit) return true;
+      if (direction === 'undo') {
+        if (!pixelApplied) return false;
+        pixelApplied = false;
+        return true;
+      }
+      if (pixelApplied) return false;
+      if (failPixelRedo) {
+        failPixelRedo = false;
+        return false;
+      }
+      pixelApplied = true;
+      return true;
+    });
+
+    const request = (pointerId: number) => ({
+      pointerId,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels' as const, erase: false,
+        sourceToDocument: fixture.layer.transform },
+      brush: createEditorSession().brush,
+      point: { x: 14, y: 12, pressure: 1 }
+    });
+    expect(fixture.controller.begin(request(46))).toBe(true);
+    expect(fixture.controller.cancel(46)).toBe(true);
+    expect(surfaceEdit.destroy).not.toHaveBeenCalled();
+    expect(fixture.pixelEdit.destroy).not.toHaveBeenCalled();
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('quarantined')
+    );
+
+    vi.mocked(fixture.renderer.finishPixelEdit).mockReturnValue(nextPixelEdit);
+    expect(fixture.controller.begin(request(47))).toBe(true);
+    expect(surfaceEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
+    expect(fixture.controller.cancel(47)).toBe(true);
   });
 
   it('reports one bounded semantic stroke only after the pixel edit commits', () => {

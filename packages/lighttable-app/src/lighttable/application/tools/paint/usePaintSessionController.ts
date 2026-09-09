@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   setRasterLayerDocumentSurface,
   markLayerMaskPixelsChanged,
@@ -34,7 +34,10 @@ import {
   type PaintDabScheduler,
   type PaintFramePort
 } from './paintDabScheduler';
-import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
+import {
+  commitAppliedPixelMutation,
+  UnpublishedPixelRollbackOwner
+} from '../../commands/pixelMutationTransaction';
 import type {
   DocumentMutationCloseReason,
   DocumentMutationController,
@@ -158,6 +161,7 @@ export const createPaintSessionController = (
     overflowed: boolean;
   } | null = null;
   let activeDocument: DocumentMutationTransaction | null = null;
+  let activeRenderer: PaintSessionRendererPort | null = null;
   let preparedSurface: {
     readonly edit: ReversiblePixelEdit;
   } | null = null;
@@ -167,6 +171,8 @@ export const createPaintSessionController = (
   let sampledStrokeClosed = false;
   let specializedCommitOwnsGpuState = false;
   let activeSelectionRevision: number | null = null;
+  const rollbackOwner = new UnpublishedPixelRollbackOwner();
+  let terminalCleanupError: string | null = null;
   const captureSamples = (points: readonly BrushPoint[]) => {
     if (!recordedStroke || recordedStroke.overflowed) return;
     const addedBytes = points.reduce((total, point) => total + JSON.stringify(point).length, 0);
@@ -186,73 +192,152 @@ export const createPaintSessionController = (
     if (activeSelectionRevision !== null
       && dependencies.getSelectionRevision?.() !== activeSelectionRevision) {
       activeDocument?.cancel();
-      dependencies.setError('The selection changed during the brush stroke; the stroke was cancelled.');
+      if (!terminalCleanupError) {
+        dependencies.setError('The selection changed during the brush stroke; the stroke was cancelled.');
+      }
       return;
     }
-    const renderer = dependencies.getRenderer();
-    if (!renderer) return;
+    const renderer = activeRenderer;
+    if (!renderer || dependencies.getRenderer() !== renderer) {
+      activeDocument?.cancel();
+      if (!terminalCleanupError) {
+        dependencies.setError(
+          'The document renderer changed during the brush stroke; the stroke was cancelled.'
+        );
+      }
+      return;
+    }
     const preset = resolveBrushPreset(activeBrush.presetId);
-    renderer.paintBrushDabs(
-      update.target.layerId,
-      update.target.channel,
-      update.dabs,
-      srgbHexToLinearRgb(activeBrush.color) ?? [0, 0, 0],
-      activeBrush.hardness,
-      activeBrush.opacity,
-      // Healing is a patch replacement operation rather than accumulating
-      // paint. A single dab at full opacity must be able to remove a defect;
-      // ordinary Brush and Clone Stamp retain their user-controlled flow.
-      activeOperator?.operator === 'healing' ? 1 : activeBrush.flow,
-      update.target.erase,
-      update.target.sourceToDocument,
-      preset.tip,
-      preset.engine,
-      activeOperator ?? undefined
-    );
+    try {
+      renderer.paintBrushDabs(
+        update.target.layerId,
+        update.target.channel,
+        update.dabs,
+        srgbHexToLinearRgb(activeBrush.color) ?? [0, 0, 0],
+        activeBrush.hardness,
+        activeBrush.opacity,
+        // Healing is a patch replacement operation rather than accumulating
+        // paint. A single dab at full opacity must be able to remove a defect;
+        // ordinary Brush and Clone Stamp retain their user-controlled flow.
+        activeOperator?.operator === 'healing' ? 1 : activeBrush.flow,
+        update.target.erase,
+        update.target.sourceToDocument,
+        preset.tip,
+        preset.engine,
+        activeOperator ?? undefined
+      );
+    } catch (reason) {
+      activeDocument?.cancel();
+      if (!terminalCleanupError) {
+        dependencies.setError(
+          reason instanceof Error ? reason.message : 'The brush stroke could not be rendered.'
+        );
+      }
+    }
   };
   const paintScheduler: PaintDabScheduler = frame
     ? createPaintDabScheduler(frame, paint)
     : createImmediatePaintDabScheduler(paint);
 
   const rollbackPreparedSurface = () => {
-    if (!preparedSurface) return;
-    preparedSurface.edit.undo();
-    preparedSurface.edit.destroy();
-    preparedSurface = null;
+    if (!preparedSurface) return true;
+    const current = preparedSurface;
+    const rollback = rollbackOwner.rollback(
+      (edit, direction) => direction === 'undo' ? edit.undo() : edit.redo(),
+      [current.edit]
+    );
+    if (rollback.ok) preparedSurface = null;
+    return rollback.ok;
   };
 
   const closePaintInteraction = (_reason: DocumentMutationCloseReason) => {
     const dependencies = resolveDependencies();
-    const renderer = dependencies.getRenderer();
-    paintScheduler.cancel();
+    const renderer = activeRenderer;
+    terminalCleanupError = null;
+    const cleanupFailure = (reason: unknown, fallback: string) => {
+      terminalCleanupError ??= reason instanceof Error ? reason.message : fallback;
+    };
+    try {
+      paintScheduler.cancel();
+    } catch (reason) {
+      cleanupFailure(reason, 'Pending brush work could not be cancelled.');
+    }
+    let pixelEdit: ReversiblePixelEdit | null = null;
     if (!specializedCommitOwnsGpuState && !rendererEditClosed) {
       if (!rendererEditStarted) {
-        renderer?.cancelPixelEdit();
-      } else {
-        const edit = renderer?.finishPixelEdit() ?? null;
-        rendererEditClosed = true;
-        if (edit) {
-          renderer?.applyPixelHistory(edit, 'undo');
-          edit.destroy();
-        } else {
+        try {
           renderer?.cancelPixelEdit();
+        } catch (reason) {
+          cleanupFailure(reason, 'The unopened pixel edit could not be cancelled.');
+        }
+      } else {
+        rendererEditClosed = true;
+        try {
+          pixelEdit = renderer?.finishPixelEdit() ?? null;
+        } catch (reason) {
+          cleanupFailure(reason, 'The pixel edit could not be closed.');
+        }
+        if (!pixelEdit) {
+          try {
+            renderer?.cancelPixelEdit();
+          } catch (reason) {
+            cleanupFailure(reason, 'The pixel edit could not be cancelled.');
+          }
         }
       }
     }
-    if (!specializedCommitOwnsGpuState) rollbackPreparedSurface();
-    renderer?.setPaintInteractionActive(false);
-    if (sampledStrokeStarted && !sampledStrokeClosed) renderer?.endSampledBrushStroke();
-    gesture.reset();
+    if (!specializedCommitOwnsGpuState && renderer) {
+      const surfaceEdit = preparedSurface?.edit ?? null;
+      const edits = [
+        ...(surfaceEdit ? [surfaceEdit] : []),
+        ...(pixelEdit ? [pixelEdit] : [])
+      ];
+      const rollback = rollbackOwner.rollback(
+        (edit, direction) => edit === surfaceEdit
+          ? direction === 'undo' ? edit.undo() : edit.redo()
+          : renderer.applyPixelHistory(edit, direction),
+        edits
+      );
+      if (rollback.ok) preparedSurface = null;
+      else cleanupFailure(
+        null,
+        rollback.compensationFailed
+          ? 'The brush rollback and its compensation both failed; painting is quarantined.'
+          : 'The brush stroke was canceled, but its GPU rollback could not be completed.'
+      );
+    } else if (!specializedCommitOwnsGpuState && !rollbackPreparedSurface()) {
+      cleanupFailure(null, 'The prepared paint surface could not be rolled back.');
+    }
+    try {
+      renderer?.setPaintInteractionActive(false);
+    } catch (reason) {
+      cleanupFailure(reason, 'Interactive paint quality could not be released.');
+    }
+    if (sampledStrokeStarted && !sampledStrokeClosed) {
+      sampledStrokeClosed = true;
+      try {
+        renderer?.endSampledBrushStroke();
+      } catch (reason) {
+        cleanupFailure(reason, 'The sampled brush source could not be released.');
+      }
+    }
+    try {
+      gesture.reset();
+    } catch (reason) {
+      cleanupFailure(reason, 'The paint gesture could not be reset.');
+    }
     activeBrush = null;
     activeOperator = null;
     recordedStroke = null;
     activeDocument = null;
+    activeRenderer = null;
     rendererEditStarted = false;
     rendererEditClosed = false;
     sampledStrokeStarted = false;
     sampledStrokeClosed = false;
     specializedCommitOwnsGpuState = false;
     activeSelectionRevision = null;
+    if (terminalCleanupError) dependencies.setError(terminalCleanupError);
   };
 
   const reset = () => {
@@ -272,6 +357,15 @@ export const createPaintSessionController = (
     begin: ({ pointerId, layer, target, brush, point, displayScale = 1, operator,
       recordSemanticCommit = false }) => {
       const dependencies = resolveDependencies();
+      const recovery = rollbackOwner.retry();
+      if (recovery && !recovery.ok) {
+        dependencies.setError(
+          'Painting is blocked until the previous GPU rollback can be recovered.'
+        );
+        return false;
+      }
+      if (recovery?.ok) preparedSurface = null;
+      terminalCleanupError = null;
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
       try {
@@ -291,6 +385,7 @@ export const createPaintSessionController = (
         );
         if (!transaction) throw new Error('The paint document is not available.');
         activeDocument = transaction;
+        activeRenderer = renderer;
         activeSelectionRevision = dependencies.getSelectionRevision?.() ?? null;
         rendererEditStarted = false;
         rendererEditClosed = false;
@@ -347,6 +442,7 @@ export const createPaintSessionController = (
           ...activeBrush,
           maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
         }, point));
+        if (!activeDocument?.active) return false;
         dependencies.setError(null);
         return true;
       } catch (reason) {
@@ -386,11 +482,12 @@ export const createPaintSessionController = (
       activeBrush = null;
       activeOperator = null;
       const dependencies = resolveDependencies();
-      const renderer = dependencies.getRenderer();
+      const renderer = activeRenderer;
       const canonicalDocument = dependencies.getDocument();
       const transaction = activeDocument;
       const workingDocument = transaction?.current ?? null;
-      if (!renderer || !canonicalDocument || !workingDocument || !transaction?.active
+      if (!renderer || dependencies.getRenderer() !== renderer
+        || !canonicalDocument || !workingDocument || !transaction?.active
         || canonicalDocument.id !== transaction.documentId
         || (activeSelectionRevision !== null
           && dependencies.getSelectionRevision?.() !== activeSelectionRevision)
@@ -479,7 +576,7 @@ export const usePaintSessionController = (
 ): PaintSessionController => {
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
-  return useMemo(
+  const controller = useMemo(
     () => createPaintSessionController(
       () => dependenciesRef.current,
       gesture,
@@ -490,4 +587,6 @@ export const usePaintSessionController = (
     ),
     [gesture]
   );
+  useEffect(() => () => controller.reset(), [controller]);
+  return controller;
 };

@@ -20,6 +20,75 @@ export interface PixelMutationTransactionDependencies {
   pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
 }
 
+export type UnpublishedPixelEditApplier = (
+  edit: ReversiblePixelEdit,
+  direction: 'undo' | 'redo'
+) => boolean;
+
+export interface UnpublishedPixelRollbackOutcome {
+  readonly ok: boolean;
+  readonly compensationFailed: boolean;
+}
+
+/** Retains recovery snapshots until an unpublished GPU mutation is fully reversed. */
+export class UnpublishedPixelRollbackOwner {
+  private pending: {
+    readonly apply: UnpublishedPixelEditApplier;
+    readonly edits: Array<{ readonly edit: ReversiblePixelEdit; applied: boolean }>;
+  } | null = null;
+
+  get blocked() { return this.pending !== null; }
+
+  rollback(
+    apply: UnpublishedPixelEditApplier,
+    edits: readonly ReversiblePixelEdit[]
+  ): UnpublishedPixelRollbackOutcome {
+    if (this.pending) return { ok: false, compensationFailed: true };
+    this.pending = { apply, edits: edits.map((edit) => ({ edit, applied: true })) };
+    return this.retry()!;
+  }
+
+  retry(): UnpublishedPixelRollbackOutcome | null {
+    const pending = this.pending;
+    if (!pending) return null;
+    const applySafely = (
+      state: (typeof pending.edits)[number],
+      direction: 'undo' | 'redo'
+    ) => {
+      try {
+        const applied = pending.apply(state.edit, direction);
+        if (applied) state.applied = direction === 'redo';
+        return applied;
+      } catch {
+        return false;
+      }
+    };
+
+    // A previous compensation may have stopped halfway. Restore the known
+    // all-applied side first; only that state is a valid rollback precondition.
+    for (const state of pending.edits) {
+      if (!state.applied && !applySafely(state, 'redo')) {
+        return { ok: false, compensationFailed: true };
+      }
+    }
+
+    for (let index = pending.edits.length - 1; index >= 0; index -= 1) {
+      const state = pending.edits[index]!;
+      if (!applySafely(state, 'undo')) {
+      let compensationFailed = false;
+        for (const restore of pending.edits) {
+          if (!restore.applied && !applySafely(restore, 'redo')) compensationFailed = true;
+        }
+        return { ok: false, compensationFailed };
+      }
+    }
+
+    pending.edits.forEach(({ edit }) => edit.destroy());
+    this.pending = null;
+    return { ok: true, compensationFailed: false };
+  }
+}
+
 export interface CommitAppliedPixelMutation {
   readonly operation: string;
   readonly label: string;

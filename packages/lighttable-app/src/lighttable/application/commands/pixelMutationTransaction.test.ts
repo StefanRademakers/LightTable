@@ -3,6 +3,7 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import {
   commitAppliedPixelMutation,
+  UnpublishedPixelRollbackOwner,
   type PixelMutationHistoryEntry,
   type PixelMutationTransactionDependencies
 } from './pixelMutationTransaction';
@@ -139,5 +140,84 @@ describe('pixelMutationTransaction', () => {
     expect(() => fixture.history[0]?.undo()).toThrow('Brush undo is no longer available.');
     expect(fixture.calls).toEqual(['undo:40', 'undo:20', 'redo:40']);
     expect(fixture.getDocument()).toBe(fixture.after);
+  });
+
+  it('rolls unpublished edits back in reverse order before destroying them', () => {
+    const first = createEdit(20);
+    const second = createEdit(40);
+    const calls: string[] = [];
+    const applied = (edit: ReversiblePixelEdit, direction: 'undo' | 'redo') => {
+      calls.push(`${direction}:${edit.byteSize}`);
+      return true;
+    };
+
+    expect(new UnpublishedPixelRollbackOwner().rollback(applied, [first, second]).ok).toBe(true);
+    expect(calls).toEqual(['undo:40', 'undo:20']);
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(second.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('compensates a partial unpublished rollback and retains recovery snapshots', () => {
+    const first = createEdit(20);
+    const second = createEdit(40);
+    const calls: string[] = [];
+    const applied = (edit: ReversiblePixelEdit, direction: 'undo' | 'redo') => {
+      calls.push(`${direction}:${edit.byteSize}`);
+      return !(direction === 'undo' && edit === first);
+    };
+
+    expect(new UnpublishedPixelRollbackOwner().rollback(applied, [first, second]).ok).toBe(false);
+    expect(calls).toEqual(['undo:40', 'undo:20', 'redo:40']);
+    expect(first.destroy).not.toHaveBeenCalled();
+    expect(second.destroy).not.toHaveBeenCalled();
+  });
+
+  it('contains thrown rollback failures and retains recovery snapshots', () => {
+    const edit = createEdit(20);
+    const applied = vi.fn(() => {
+      throw new Error('renderer disappeared');
+    });
+
+    expect(new UnpublishedPixelRollbackOwner().rollback(applied, [edit]).ok).toBe(false);
+    expect(edit.destroy).not.toHaveBeenCalled();
+  });
+
+  it('retains a double-failed rollback and retries it through the same owner', () => {
+    const first = createEdit(20);
+    const second = createEdit(40);
+    const owner = new UnpublishedPixelRollbackOwner();
+    const state = new Map([[first, true], [second, true]]);
+    let failFirstUndo = true;
+    let failSecondRedo = true;
+    const applied = vi.fn((edit: ReversiblePixelEdit, direction: 'undo' | 'redo') => {
+      const isApplied = state.get(edit)!;
+      if (direction === 'undo') {
+        if (!isApplied) return false;
+        if (edit === first && failFirstUndo) {
+          failFirstUndo = false;
+          return false;
+        }
+        state.set(edit, false);
+        return true;
+      }
+      if (isApplied) return false;
+      if (edit === second && failSecondRedo) {
+        failSecondRedo = false;
+        return false;
+      }
+      state.set(edit, true);
+      return true;
+    });
+
+    expect(owner.rollback(applied, [first, second])).toEqual({
+      ok: false, compensationFailed: true
+    });
+    expect(owner.blocked).toBe(true);
+    expect(first.destroy).not.toHaveBeenCalled();
+    expect(second.destroy).not.toHaveBeenCalled();
+    expect(owner.retry()).toEqual({ ok: true, compensationFailed: false });
+    expect(owner.blocked).toBe(false);
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(second.destroy).toHaveBeenCalledOnce();
   });
 });

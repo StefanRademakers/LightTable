@@ -1214,7 +1214,7 @@ export const useViewportInteractionController = ({
         beginPan(event);
         return;
       }
-      if (intent !== 'paint' || !point || !paintTarget) return;
+      if (intent !== 'paint' || !point || !paintTarget || !document) return;
       const sampledOperation = isSampledBrushTool(activeTool) && document
         ? sampledBrushSource.beginStroke(
             activeTool,
@@ -1258,6 +1258,7 @@ export const useViewportInteractionController = ({
           channel: editorSession.activeChannel,
           erase: activeTool === 'erase',
           sourceToDocument: paintTargetSourceToDocument(
+            document,
             paintTarget,
             editorSession.activeChannel
           )

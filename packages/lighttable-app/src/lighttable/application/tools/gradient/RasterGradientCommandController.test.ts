@@ -35,6 +35,7 @@ describe('RasterGradientCommandController', () => {
     let document: ImageDocument = createImageDocument('Gradient', 64, 48, 'fixture');
     const before = document;
     const settings = { ...createEditorSession().gradient, application: 'pixels' as const };
+    let channel: PaintChannel = 'pixels';
     const history: Array<{ undo(): void; redo(): void }> = [];
     let capturedPaint: GradientPaintInstance | null = null;
     const renderer = {
@@ -55,7 +56,7 @@ describe('RasterGradientCommandController', () => {
     const dependencies = withDocumentMutations({
       getDocument: () => document,
       getRenderer: () => renderer,
-      getChannel: () => 'pixels' as const,
+      getChannel: () => channel,
       getSettings: () => settings,
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => { document = next; }),
       pushHistoryEntry: vi.fn((entry: { undo(): void; redo(): void }) => history.push(entry)),
@@ -66,6 +67,8 @@ describe('RasterGradientCommandController', () => {
     const controller = new RasterGradientCommandController(() => dependencies);
 
     expect(controller.begin(7, { x: 4, y: 5 })).toBe(true);
+    settings.opacity = 0.25;
+    channel = 'mask';
     expect(controller.move(7, { x: 22, y: 18 })).toBe(true);
     expect(controller.finish(7, { x: 22, y: 18 }, true)).toBe(true);
     expect(renderer.fillLayerGradient).toHaveBeenCalledOnce();
@@ -122,5 +125,55 @@ describe('RasterGradientCommandController', () => {
     expect(controller.begin(2, { x: 10, y: 10 })).toBe(true);
     expect(controller.finish(2, { x: 10, y: 10 }, false)).toBe(false);
     expect(dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
+  it('cancels a gesture before GPU work when its renderer binding changes', () => {
+    const document = createImageDocument('Gradient rebind', 64, 48, 'fixture');
+    const renderer = { beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      fillLayerGradient: vi.fn(() => true), finishPixelEdit: vi.fn(() => edit),
+      cancelPixelEdit: vi.fn(), applyPixelHistory: vi.fn(() => true) };
+    let currentRenderer: typeof renderer | null = renderer;
+    const dependencies = withDocumentMutations({
+      getDocument: () => document,
+      getRenderer: () => currentRenderer,
+      getChannel: () => 'pixels' as const,
+      getSettings: () => createEditorSession().gradient,
+      applyDocumentSnapshot: vi.fn(), pushHistoryEntry: vi.fn(),
+      setStatus: vi.fn(), setError: vi.fn()
+    });
+    const controller = new RasterGradientCommandController(() => dependencies);
+
+    expect(controller.begin(3, { x: 2, y: 3 })).toBe(true);
+    currentRenderer = { ...renderer, fillLayerGradient: vi.fn(() => true) };
+    expect(controller.finish(3, { x: 30, y: 20 }, false)).toBe(false);
+    expect(renderer.fillLayerGradient).not.toHaveBeenCalled();
+    expect(dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
+  it('cancels a gesture before GPU work when its selection revision changes', () => {
+    const document = createImageDocument('Gradient selection', 64, 48, 'fixture');
+    const renderer = { beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      fillLayerGradient: vi.fn(() => true), finishPixelEdit: vi.fn(() => edit),
+      cancelPixelEdit: vi.fn(), applyPixelHistory: vi.fn(() => true) };
+    let selectionRevision = 8;
+    const dependencies = withDocumentMutations({
+      getDocument: () => document,
+      getRenderer: () => renderer,
+      getChannel: () => 'pixels' as const,
+      getSettings: () => createEditorSession().gradient,
+      getSelectionRevision: () => selectionRevision,
+      applyDocumentSnapshot: vi.fn(), pushHistoryEntry: vi.fn(),
+      setStatus: vi.fn(), setError: vi.fn()
+    });
+    const controller = new RasterGradientCommandController(() => dependencies);
+
+    expect(controller.begin(9, { x: 2, y: 3 })).toBe(true);
+    selectionRevision += 1;
+    expect(controller.finish(9, { x: 30, y: 20 }, false)).toBe(false);
+    expect(renderer.fillLayerGradient).not.toHaveBeenCalled();
+    expect(dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+    expect(dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('selection changed')
+    );
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RasterLayer } from '../../document/documentTypes';
-import { createImageDocument } from '../../document/documentTypes';
+import { createGroupLayer, createImageDocument } from '../../document/documentTypes';
+import { addLayerMask } from '../../document/documentCommands';
 import {
   aroundPoint,
   multiplyMatrices,
@@ -10,23 +11,30 @@ import {
 } from '../transform/affine';
 import { documentPointToPaintTarget, paintTargetSourceToDocument } from './paintCoordinates';
 
-const layer = (): RasterLayer => createImageDocument('Paint coordinates', 320, 180, 'asset').layers[0] as RasterLayer;
-
 describe('paint coordinate contract', () => {
   it('maps tight raster pixel painting through the layer transform', () => {
-    const transformed = { ...layer(), transform: translationMatrix(48, -12) };
-    expect(paintTargetSourceToDocument(transformed, 'pixels'))
+    const document = createImageDocument('Paint coordinates', 320, 180, 'asset');
+    const transformed = { ...document.layers[0] as RasterLayer,
+      transform: translationMatrix(48, -12) };
+    document.layers = [transformed];
+    expect(paintTargetSourceToDocument(document, transformed, 'pixels'))
       .toEqual(translationMatrix(48, -12));
   });
 
-  it('keeps a mask in document space when its raster content is translated', () => {
-    const transformed = { ...layer(), transform: translationMatrix(48, -12) };
-    const matrix = paintTargetSourceToDocument(transformed, 'mask');
-    expect(matrix).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
-    expect(documentPointToPaintTarget({ x: 70, y: 60 }, matrix)).toEqual({ x: 70, y: 60 });
+  it('uses the persisted mask transform independently from raster content', () => {
+    let document = createImageDocument('Paint coordinates', 320, 180, 'asset');
+    document = addLayerMask(document, document.activeLayerId!);
+    const maskTransform = translationMatrix(7, 11);
+    const transformed = { ...document.layers[0] as RasterLayer,
+      transform: translationMatrix(48, -12),
+      mask: { ...(document.layers[0] as RasterLayer).mask!, transform: maskTransform } };
+    document.layers = [transformed];
+    const matrix = paintTargetSourceToDocument(document, transformed, 'mask');
+    expect(matrix).toEqual(maskTransform);
+    expect(documentPointToPaintTarget({ x: 70, y: 60 }, matrix)).toEqual({ x: 63, y: 49 });
   });
 
-  it('keeps mask painting fixed under rotated and scaled raster content', () => {
+  it('includes ancestor transforms for raster pixels inside a group', () => {
     const matrix = multiplyMatrices(
       translationMatrix(31, -17),
       aroundPoint(
@@ -34,12 +42,12 @@ describe('paint coordinate contract', () => {
         { x: 160, y: 90 }
       )
     );
-    const transformed = { ...layer(), transform: matrix };
-    const paintMatrix = paintTargetSourceToDocument(transformed, 'mask');
-    expect(paintMatrix).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
-    expect(documentPointToPaintTarget({ x: 83.25, y: 112.5 }, paintMatrix)).toEqual({
-      x: 83.25,
-      y: 112.5
-    });
+    const document = createImageDocument('Paint coordinates', 320, 180, 'asset');
+    const transformed = { ...document.layers[0] as RasterLayer,
+      transform: translationMatrix(4, 6) };
+    const group = { ...createGroupLayer(), transform: matrix, children: [transformed] };
+    document.layers = [group];
+    expect(paintTargetSourceToDocument(document, transformed, 'pixels'))
+      .toEqual(multiplyMatrices(matrix, transformed.transform));
   });
 });

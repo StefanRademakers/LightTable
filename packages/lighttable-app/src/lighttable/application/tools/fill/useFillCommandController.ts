@@ -3,7 +3,10 @@ import type { ImageDocument, LayerId } from '../../../editor/document/documentTy
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import type { SemanticFillCommand } from '../../commands/semanticFillCommandContract';
-import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
+import {
+  commitAppliedPixelMutation,
+  UnpublishedPixelRollbackOwner
+} from '../../commands/pixelMutationTransaction';
 import type { DocumentMutationController } from '../../documents/useDocumentMutationController';
 import {
   executeFillOperation,
@@ -55,6 +58,7 @@ export interface FillCommandController {
 export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
 ): FillCommandController => {
+  const rollbackOwner = new UnpublishedPixelRollbackOwner();
   const execute = (
     layerId: LayerId | undefined,
     channel: PaintChannel,
@@ -64,6 +68,11 @@ export const createFillCommandController = (
     history?: { readonly label: string; readonly type: string }
   ) => {
     const dependencies = resolveDependencies();
+    const recovery = rollbackOwner.retry();
+    if (recovery && !recovery.ok) {
+      dependencies.setError('Fill is blocked until its previous GPU rollback can be recovered.');
+      return null;
+    }
     const renderer = dependencies.getRenderer();
     if (!renderer) return null;
     const transaction = dependencies.documentMutations.begin(
@@ -110,8 +119,14 @@ export const createFillCommandController = (
       });
       if (!committed) {
         if (!historyOwnsPixelEdit) {
-          renderer.applyPixelHistory(result.pixelEdit, 'undo');
-          result.pixelEdit.destroy();
+          const rollback = rollbackOwner.rollback(
+            (edit, direction) => renderer.applyPixelHistory(edit, direction),
+            [result.pixelEdit]
+          );
+          if (!rollback.ok) {
+            dependencies.setError('Fill was canceled, but its GPU rollback could not be completed.');
+            return null;
+          }
         }
         dependencies.setError('Fill was canceled because the document changed.');
         return null;

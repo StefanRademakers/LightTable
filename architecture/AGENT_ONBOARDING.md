@@ -139,6 +139,22 @@ store inference/task/GPU state in React or the document. The packaged mask
 smoke is automated proof; owner acceptance and S03 paint-session cleanup remain
 open.
 
+Raster-paint reset, updated 2026-09-09: read
+[Raster paint vertical slice](editor-kernel/RASTER_PAINT_VERTICAL_SLICE.md)
+before changing Brush, Erase, Clone/Healing, tone brushes, Fill/Clear, raster
+Gradient, pixel/mask coordinates or their GPU history. A continuous stroke is
+bound at admission to one document transaction, concrete renderer, committed
+selection revision, immutable target matrix, brush and operator. Do not resolve
+a later renderer or selection during delivery or close. All raster authoring
+coordinates come from `paintTargetSourceToDocument`: full scene transform for
+pixels, persisted mask transform for masks. Unpublished rollback belongs to
+`UnpublishedPixelRollbackOwner`; never destroy or drop recovery snapshots after
+a failed undo/compensation. New pixel work must remain blocked until its exact
+stateful retry succeeds. `RasterPixelCommandService` owns discrete GPU
+fill/gradient/invert resources; React and the kernel do not own shader work.
+The packaged smoke is automated proof, while owner paint-feel acceptance on a
+large document remains open.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

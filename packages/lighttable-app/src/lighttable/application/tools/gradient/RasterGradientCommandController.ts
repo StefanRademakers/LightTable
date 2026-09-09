@@ -1,5 +1,6 @@
+import { cloneGradientPaint } from '@lighttable/paint-core';
 import type { Vec2 } from '@lighttable/vector-core';
-import type { EditorSession, PaintChannel } from '../../../editor/session/editorSession';
+import type { EditorSession, GradientToolSettings, PaintChannel } from '../../../editor/session/editorSession';
 import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import {
@@ -11,7 +12,10 @@ import {
   type GradientRendererPort
 } from './gradientOperation';
 import type { SemanticRasterGradientCommand } from '../../commands/semanticRasterGradientCommandContract';
-import { commitAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
+import {
+  commitAppliedPixelMutation,
+  UnpublishedPixelRollbackOwner
+} from '../../commands/pixelMutationTransaction';
 import type {
   DocumentMutationController,
   DocumentMutationTransaction
@@ -27,14 +31,17 @@ interface GradientHistoryEntry {
   dispose(): void;
 }
 
+type RasterGradientRenderer = GradientRendererPort & {
+  applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
+};
+
 export interface RasterGradientDependencies {
   getDocument(): ImageDocument | null;
-  getRenderer(): (GradientRendererPort & {
-    applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
-  }) | null;
+  getRenderer(): RasterGradientRenderer | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   getChannel(): PaintChannel;
   getSettings(): EditorSession['gradient'];
+  getSelectionRevision?(): number;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: GradientHistoryEntry): void;
   setStatus(message: string | null): void;
@@ -48,21 +55,43 @@ export interface RasterGradientCommandResult {
 }
 
 export class RasterGradientCommandController {
+  private readonly rollbackOwner = new UnpublishedPixelRollbackOwner();
   private gesture: {
     pointerId: number;
     start: Vec2;
     current: Vec2;
     transaction: DocumentMutationTransaction;
+    renderer: RasterGradientRenderer;
+    documentId: ImageDocument['id'];
+    layerId: LayerId;
+    channel: PaintChannel;
+    settings: GradientToolSettings;
+    selectionRevision: number | null;
   } | null = null;
 
   constructor(private readonly resolve: () => RasterGradientDependencies) {}
 
   private applyCommand(
     command: SemanticRasterGradientCommand,
-    ownedTransaction?: DocumentMutationTransaction
+    ownedTransaction?: DocumentMutationTransaction,
+    openingRenderer?: RasterGradientRenderer
   ): RasterGradientCommandResult | null {
     const dependencies = this.resolve();
-    const renderer = dependencies.getRenderer();
+    const recovery = this.rollbackOwner.retry();
+    if (recovery && !recovery.ok) {
+      ownedTransaction?.cancel();
+      dependencies.setError(
+        'The pixel gradient is blocked until its previous GPU rollback can be recovered.'
+      );
+      return null;
+    }
+    const currentRenderer = dependencies.getRenderer();
+    const renderer = openingRenderer ?? currentRenderer;
+    if (openingRenderer && currentRenderer !== openingRenderer) {
+      ownedTransaction?.cancel();
+      dependencies.setError('The document renderer changed during the pixel gradient; the gesture was cancelled.');
+      return null;
+    }
     if (!renderer) {
       ownedTransaction?.cancel();
       return null;
@@ -104,8 +133,16 @@ export class RasterGradientCommandController {
       });
       if (!committed) {
         if (!historyOwnsPixelEdit) {
-          renderer.applyPixelHistory(result.pixelEdit, 'undo');
-          result.pixelEdit.destroy();
+          const rollback = this.rollbackOwner.rollback(
+            (edit, direction) => renderer.applyPixelHistory(edit, direction),
+            [result.pixelEdit]
+          );
+          if (!rollback.ok) {
+            dependencies.setError(
+              'The pixel gradient was canceled, but its GPU rollback could not be completed.'
+            );
+            return null;
+          }
         }
         dependencies.setError('The pixel gradient was canceled because the document changed.');
         return null;
@@ -129,7 +166,10 @@ export class RasterGradientCommandController {
   begin(pointerId: number, start: Vec2) {
     if (this.gesture) return false;
     const dependencies = this.resolve();
-    if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const layerId = document?.activeLayerId;
+    if (!document || !renderer || !layerId) return false;
     const transaction = dependencies.documentMutations.begin(
       'tool.raster-gradient',
       undefined,
@@ -141,7 +181,19 @@ export class RasterGradientCommandController {
       'cancel'
     );
     if (!transaction) return false;
-    this.gesture = { pointerId, start: { ...start }, current: { ...start }, transaction };
+    const settings = dependencies.getSettings();
+    this.gesture = {
+      pointerId,
+      start: { ...start },
+      current: { ...start },
+      transaction,
+      renderer,
+      documentId: document.id,
+      layerId,
+      channel: dependencies.getChannel(),
+      settings: { ...settings, paint: cloneGradientPaint(settings.paint) },
+      selectionRevision: dependencies.getSelectionRevision?.() ?? null
+    };
     return true;
   }
 
@@ -153,33 +205,37 @@ export class RasterGradientCommandController {
 
   finish(pointerId: number, end: Vec2, constrain: boolean) {
     if (!this.owns(pointerId) || !this.gesture) return false;
-    const { start, transaction } = this.gesture;
+    const {
+      start, transaction, renderer, documentId, layerId, channel, settings, selectionRevision
+    } = this.gesture;
     this.gesture = null;
     if (Math.hypot(end.x - start.x, end.y - start.y) < 1e-4) {
       transaction.cancel();
       return false;
     }
     const dependencies = this.resolve();
-    const before = dependencies.getDocument();
-    if (!before) {
+    const currentDocument = dependencies.getDocument();
+    if (!currentDocument || currentDocument.id !== documentId
+      || dependencies.getRenderer() !== renderer
+      || (selectionRevision !== null
+        && dependencies.getSelectionRevision?.() !== selectionRevision)) {
       transaction.cancel();
+      if (selectionRevision !== null
+        && dependencies.getSelectionRevision?.() !== selectionRevision) {
+        dependencies.setError('The selection changed during the pixel gradient; the gesture was cancelled.');
+      }
       return false;
     }
-    const settings = dependencies.getSettings();
     const constrainedEnd = constrainedGradientEnd(start, end, constrain);
     const paint = gradientPaintFromDrag(settings.paint, start, constrainedEnd, settings.transparency);
-    if (!before.activeLayerId) {
-      transaction.cancel();
-      return false;
-    }
     const command: SemanticRasterGradientCommand = {
-      layerId: before.activeLayerId,
-      channel: dependencies.getChannel(),
+      layerId,
+      channel,
       paint,
       opacity: settings.opacity,
       blendMode: settings.blendMode
     };
-    const result = this.applyCommand(command, transaction);
+    const result = this.applyCommand(command, transaction, renderer);
     if (result) dependencies.onGradientCommitted?.(command, result);
     return Boolean(result);
   }

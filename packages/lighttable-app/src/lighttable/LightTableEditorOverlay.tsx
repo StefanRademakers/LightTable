@@ -916,6 +916,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [fontHydrationPending, setFontHydrationPending] = useState(false);
   const fontHydrationGenerationRef = useRef(0);
   const paintGestureRef = useRef(new PaintGestureController());
+  const resetPaintSessionRef = useRef<() => void>(() => undefined);
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
   const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
@@ -3572,7 +3573,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setFocusPickerActive(false);
       setPointColorPickerActive(false);
       selectionGestureRef.current.reset();
-      paintGestureRef.current.reset();
+      resetPaintSessionRef.current();
       setSelectionDraft(null);
       resetTransformRef.current();
       setEditorSession((current) => ({ ...current, selection: [] }));
@@ -3654,7 +3655,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         resetSelection: (editorSession) => {
           setEditorSession(editorSession);
           selectionGestureRef.current.reset();
-          paintGestureRef.current.reset();
+          resetPaintSessionRef.current();
           setSelectionDraft(null);
           setSelectionClipboardAvailable(false);
           editorDialogs.closeFeather();
@@ -3740,7 +3741,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
     finishTextEditingRef.current();
     selectionGestureRef.current.reset();
-    paintGestureRef.current.reset();
+    resetPaintSessionRef.current();
     resetTransformRef.current();
     setSelectionDraft(null);
     setSelectionClipboardAvailable(false);
@@ -4471,6 +4472,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController,
     getChannel: () => editorSession.activeChannel,
     getSettings: () => gradientToolSettings,
+    getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
+      ?? editorSessionRef.current.selectionRevision,
     applyDocumentSnapshot,
     pushHistoryEntry,
     setStatus: setGradeStatus,
@@ -4633,6 +4636,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     }
   }, paintGestureRef.current);
+  resetPaintSessionRef.current = paintSessionController.reset;
   const sampledBrushSourceController = useMemo(
     () => new SampledBrushSourceController(),
     [workspaceDocumentId]
@@ -7004,7 +7008,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           layerId: layer.id,
           channel,
           erase: parameters.erase === true,
-          sourceToDocument: paintTargetSourceToDocument(layer, channel)
+          sourceToDocument: paintTargetSourceToDocument(document, layer, channel)
         },
         brush,
         operator: paintOperator,
