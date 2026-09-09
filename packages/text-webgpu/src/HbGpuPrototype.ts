@@ -7,6 +7,7 @@ import {
 } from '@lighttable/text-rendering';
 import { HB_GPU_DRAW_WGSL, HB_GPU_SOURCE_REVISION } from './hbGpuShader.generated';
 import type { TextPrototypeRenderMetrics, TextPrototypeSurface } from './CoverageAtlasPrototype';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 const VERTEX_BYTES = 32;
 const UNIFORM_BYTES = 96;
@@ -93,58 +94,68 @@ export class HbGpuPrototype {
       || bundle.gpuBytes > TEXT_RENDERER_BAKEOFF_LIMITS.maximumHbGpuBytes) {
       throw new TextRendererResourceLimitError('Invalid or oversized hb-gpu storage bundle.');
     }
-    device.pushErrorScope('validation');
-    const module = device.createShaderModule({ label: 'LightTable hb-gpu bakeoff', code: HB_GPU_DRAW_WGSL });
-    const info = await module.getCompilationInfo();
-    if (info.messages.some((message) => message.type === 'error')) {
-      await device.popErrorScope();
-      throw new Error(`hb-gpu shader compilation failed: ${info.messages.map((message) => message.message).join('; ')}`);
-    }
-    const pipeline = device.createRenderPipeline({
-      label: 'LightTable hb-gpu bakeoff pipeline',
-      layout: 'auto',
-      vertex: {
-        module,
-        entryPoint: 'lighttable_hb_gpu_vertex',
-        buffers: [{
-          arrayStride: VERTEX_BYTES,
-          attributes: [
-            { shaderLocation: 0, offset: 0, format: 'float32x2' },
-            { shaderLocation: 1, offset: 8, format: 'float32x2' },
-            { shaderLocation: 2, offset: 16, format: 'float32x2' },
-            { shaderLocation: 3, offset: 24, format: 'float32' },
-            { shaderLocation: 4, offset: 28, format: 'uint32' }
-          ]
-        }]
-      },
-      fragment: {
-        module,
-        entryPoint: 'lighttable_hb_gpu_fragment',
-        targets: [{
-          format: 'rgba8unorm',
-          blend: {
-            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }
+    const allocated = { storageBuffer: null as GPUBuffer | null };
+    try {
+      const transaction = await runGpuDeviceErrorScopeTransaction(
+        device,
+        ['validation'],
+        async () => {
+          const module = device.createShaderModule({
+            label: 'LightTable hb-gpu bakeoff', code: HB_GPU_DRAW_WGSL
+          });
+          const info = await module.getCompilationInfo();
+          if (info.messages.some((message) => message.type === 'error')) {
+            throw new Error(`hb-gpu shader compilation failed: ${info.messages.map((message) => message.message).join('; ')}`);
           }
-        }]
-      },
-      primitive: { topology: 'triangle-list' }
-    });
-    const validatedStorage = copyValidatedHbGpuStorage(bundle);
-    const storageBuffer = device.createBuffer({
-      label: 'LightTable hb-gpu widened RGBA16I storage',
-      size: bundle.storage.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    // Copy into an owned ArrayBuffer: the WebGPU API deliberately rejects
-    // SharedArrayBuffer-backed views at this boundary.
-    device.queue.writeBuffer(storageBuffer, 0, validatedStorage);
-    const error = await device.popErrorScope();
-    if (error) {
-      storageBuffer.destroy();
-      throw new Error(`hb-gpu prototype validation failed: ${error.message}`);
+          const pipeline = device.createRenderPipeline({
+            label: 'LightTable hb-gpu bakeoff pipeline',
+            layout: 'auto',
+            vertex: {
+              module,
+              entryPoint: 'lighttable_hb_gpu_vertex',
+              buffers: [{
+                arrayStride: VERTEX_BYTES,
+                attributes: [
+                  { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                  { shaderLocation: 1, offset: 8, format: 'float32x2' },
+                  { shaderLocation: 2, offset: 16, format: 'float32x2' },
+                  { shaderLocation: 3, offset: 24, format: 'float32' },
+                  { shaderLocation: 4, offset: 28, format: 'uint32' }
+                ]
+              }]
+            },
+            fragment: {
+              module,
+              entryPoint: 'lighttable_hb_gpu_fragment',
+              targets: [{
+                format: 'rgba8unorm',
+                blend: {
+                  color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+                  alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }
+                }
+              }]
+            },
+            primitive: { topology: 'triangle-list' }
+          });
+          const validatedStorage = copyValidatedHbGpuStorage(bundle);
+          allocated.storageBuffer = device.createBuffer({
+            label: 'LightTable hb-gpu widened RGBA16I storage',
+            size: bundle.storage.byteLength,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+          });
+          // Copy into an owned ArrayBuffer: the WebGPU API deliberately rejects
+          // SharedArrayBuffer-backed views at this boundary.
+          device.queue.writeBuffer(allocated.storageBuffer, 0, validatedStorage);
+          return pipeline;
+        }
+      );
+      const error = transaction.errors.get('validation') ?? null;
+      if (error) throw new Error(`hb-gpu prototype validation failed: ${error.message}`);
+      return new HbGpuPrototype(device, bundle, allocated.storageBuffer!, transaction.value);
+    } catch (reason) {
+      allocated.storageBuffer?.destroy();
+      throw reason;
     }
-    return new HbGpuPrototype(device, bundle, storageBuffer, pipeline);
   }
 
   async render(
@@ -160,7 +171,6 @@ export class HbGpuPrototype {
       size: Math.max(4, vertices.byteLength), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
     });
     let uniformBuffer: GPUBuffer | null = null;
-    let validationScope = false;
     try {
       if (vertices.byteLength) this.device.queue.writeBuffer(vertexBuffer, 0, vertices);
     const uniforms = new Float32Array(UNIFORM_BYTES / 4);
@@ -184,26 +194,29 @@ export class HbGpuPrototype {
         { binding: 1, resource: { buffer: this.storageBuffer } }
       ]
     });
-    this.device.pushErrorScope('validation');
-    validationScope = true;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable hb-gpu bakeoff commands' });
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: surface.view, loadOp: 'clear', storeOp: 'store',
-        clearValue: { r: 0, g: 0, b: 0, a: 0 }
-      }]
-    });
-    if (draws.length) {
-      pass.setPipeline(this.pipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.setVertexBuffer(0, vertexBuffer);
-      pass.draw(draws.length * 6);
-    }
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-    await this.device.queue.onSubmittedWorkDone();
-    const error = await this.device.popErrorScope();
-    validationScope = false;
+    const transaction = await runGpuDeviceErrorScopeTransaction(
+      this.device,
+      ['validation'],
+      async () => {
+        const encoder = this.device.createCommandEncoder({ label: 'LightTable hb-gpu bakeoff commands' });
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: surface.view, loadOp: 'clear', storeOp: 'store',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 }
+          }]
+        });
+        if (draws.length) {
+          pass.setPipeline(this.pipeline);
+          pass.setBindGroup(0, bindGroup);
+          pass.setVertexBuffer(0, vertexBuffer);
+          pass.draw(draws.length * 6);
+        }
+        pass.end();
+        this.device.queue.submit([encoder.finish()]);
+        await this.device.queue.onSubmittedWorkDone();
+      }
+    );
+    const error = transaction.errors.get('validation') ?? null;
     if (error) throw new Error(`hb-gpu render validation failed: ${error.message}`);
     return {
       uploadBytes: this.bundle.sourceBytes + vertices.byteLength + uniforms.byteLength,
@@ -213,7 +226,6 @@ export class HbGpuPrototype {
       drawBatches: draws.length ? 1 : 0
     } satisfies TextPrototypeRenderMetrics;
     } finally {
-      if (validationScope) await this.device.popErrorScope().catch(() => null);
       vertexBuffer.destroy();
       uniformBuffer?.destroy();
     }

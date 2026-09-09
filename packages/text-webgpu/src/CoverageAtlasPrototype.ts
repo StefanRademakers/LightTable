@@ -4,6 +4,7 @@ import {
   type PackedCoverageAtlas
 } from '@lighttable/text-rendering';
 import { COVERAGE_ATLAS_WGSL } from './coverageShader';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 const SETTINGS_BYTES = 16;
 const INSTANCE_FLOATS = 16;
@@ -79,53 +80,63 @@ export class CoverageAtlasPrototype {
       || atlas.pixels.byteLength > TEXT_RENDERER_BAKEOFF_LIMITS.maximumAtlasBytes) {
       throw new TextRendererResourceLimitError('Invalid or oversized R8 coverage atlas.');
     }
-    device.pushErrorScope('validation');
-    const module = device.createShaderModule({ label: 'LightTable coverage bakeoff', code: COVERAGE_ATLAS_WGSL });
-    const info = await module.getCompilationInfo();
-    if (info.messages.some((message) => message.type === 'error')) {
-      await device.popErrorScope();
-      throw new Error(`Coverage shader compilation failed: ${info.messages.map((message) => message.message).join('; ')}`);
-    }
-    const pipeline = device.createRenderPipeline({
-      label: 'LightTable coverage bakeoff pipeline',
-      layout: 'auto',
-      vertex: { module, entryPoint: 'coverageVertex' },
-      fragment: {
-        module,
-        entryPoint: 'coverageFragment',
-        targets: [{
-          format: 'rgba8unorm',
-          blend: {
-            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }
+    const allocated = { texture: null as GPUTexture | null };
+    try {
+      const transaction = await runGpuDeviceErrorScopeTransaction(
+        device,
+        ['validation'],
+        async () => {
+          const module = device.createShaderModule({
+            label: 'LightTable coverage bakeoff', code: COVERAGE_ATLAS_WGSL
+          });
+          const info = await module.getCompilationInfo();
+          if (info.messages.some((message) => message.type === 'error')) {
+            throw new Error(`Coverage shader compilation failed: ${info.messages.map((message) => message.message).join('; ')}`);
           }
-        }]
-      },
-      primitive: { topology: 'triangle-list' }
-    });
-    const texture = device.createTexture({
-      label: 'LightTable coverage R8 atlas',
-      size: { width: atlas.width, height: atlas.height },
-      format: 'r8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    });
-    const padded = padR8TextureRows(atlas);
-    device.queue.writeTexture(
-      { texture },
-      padded.data,
-      { bytesPerRow: padded.bytesPerRow, rowsPerImage: atlas.height },
-      { width: atlas.width, height: atlas.height }
-    );
-    const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-    const error = await device.popErrorScope();
-    if (error) {
-      texture.destroy();
-      throw new Error(`Coverage prototype validation failed: ${error.message}`);
+          const pipeline = device.createRenderPipeline({
+            label: 'LightTable coverage bakeoff pipeline',
+            layout: 'auto',
+            vertex: { module, entryPoint: 'coverageVertex' },
+            fragment: {
+              module,
+              entryPoint: 'coverageFragment',
+              targets: [{
+                format: 'rgba8unorm',
+                blend: {
+                  color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+                  alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }
+                }
+              }]
+            },
+            primitive: { topology: 'triangle-list' }
+          });
+          allocated.texture = device.createTexture({
+            label: 'LightTable coverage R8 atlas',
+            size: { width: atlas.width, height: atlas.height },
+            format: 'r8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+          });
+          const padded = padR8TextureRows(atlas);
+          device.queue.writeTexture(
+            { texture: allocated.texture },
+            padded.data,
+            { bytesPerRow: padded.bytesPerRow, rowsPerImage: atlas.height },
+            { width: atlas.width, height: atlas.height }
+          );
+          const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+          return { pipeline, padded, sampler };
+        }
+      );
+      const error = transaction.errors.get('validation') ?? null;
+      if (error) throw new Error(`Coverage prototype validation failed: ${error.message}`);
+      return new CoverageAtlasPrototype(
+        device, atlas, allocated.texture!, transaction.value.sampler, transaction.value.pipeline,
+        atlas.pixels.byteLength, transaction.value.padded.data.byteLength
+      );
+    } catch (reason) {
+      allocated.texture?.destroy();
+      throw reason;
     }
-    return new CoverageAtlasPrototype(
-      device, atlas, texture, sampler, pipeline,
-      atlas.pixels.byteLength, padded.data.byteLength
-    );
   }
 
   createSurface(width: number, height: number): TextPrototypeSurface {
@@ -172,7 +183,6 @@ export class CoverageAtlasPrototype {
       size: SETTINGS_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     let instanceBuffer: GPUBuffer | null = null;
-    let validationScope = false;
     try {
       instanceBuffer = this.device.createBuffer({
         size: Math.max(16, visibleValues.byteLength), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
@@ -188,26 +198,29 @@ export class CoverageAtlasPrototype {
         { binding: 3, resource: { buffer: instanceBuffer } }
       ]
     });
-    this.device.pushErrorScope('validation');
-    validationScope = true;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable coverage bakeoff commands' });
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: surface.view,
-        loadOp: 'clear', storeOp: 'store',
-        clearValue: { r: 0, g: 0, b: 0, a: 0 }
-      }]
-    });
-    if (visibleDraws.length) {
-      pass.setPipeline(this.pipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.draw(6, visibleDraws.length);
-    }
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-    await this.device.queue.onSubmittedWorkDone();
-    const error = await this.device.popErrorScope();
-    validationScope = false;
+    const transaction = await runGpuDeviceErrorScopeTransaction(
+      this.device,
+      ['validation'],
+      async () => {
+        const encoder = this.device.createCommandEncoder({ label: 'LightTable coverage bakeoff commands' });
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: surface.view,
+            loadOp: 'clear', storeOp: 'store',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 }
+          }]
+        });
+        if (visibleDraws.length) {
+          pass.setPipeline(this.pipeline);
+          pass.setBindGroup(0, bindGroup);
+          pass.draw(6, visibleDraws.length);
+        }
+        pass.end();
+        this.device.queue.submit([encoder.finish()]);
+        await this.device.queue.onSubmittedWorkDone();
+      }
+    );
+    const error = transaction.errors.get('validation') ?? null;
     if (error) throw new Error(`Coverage render validation failed: ${error.message}`);
     return {
       uploadBytes: this.atlasUploadBytes + uniforms.byteLength + (visibleDraws.length ? visibleValues.byteLength : 0),
@@ -217,7 +230,6 @@ export class CoverageAtlasPrototype {
       drawBatches: visibleDraws.length ? 1 : 0
     } satisfies TextPrototypeRenderMetrics;
     } finally {
-      if (validationScope) await this.device.popErrorScope().catch(() => null);
       settingsBuffer.destroy();
       instanceBuffer?.destroy();
     }

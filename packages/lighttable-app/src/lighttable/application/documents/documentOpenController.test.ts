@@ -66,7 +66,7 @@ describe('DocumentOpenController', () => {
 
   it('reuses one renderer while replacing only its active document binding', async () => {
     const lifecycle = new DocumentRendererLifecycle();
-    const controller = new DocumentOpenController(
+    const controller = new DocumentOpenController<ReturnType<typeof renderer>>(
       new DocumentTaskRegistry('application-editor' as DocumentSessionId),
       lifecycle
     );
@@ -140,6 +140,68 @@ describe('DocumentOpenController', () => {
     controller.close();
   });
 
+  it('does not reuse a renderer while a canceled hydrate promise is still unwinding', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController<ReturnType<typeof renderer>>(
+      new DocumentTaskRegistry('application-editor' as DocumentSessionId),
+      lifecycle
+    );
+    const first = renderer();
+    const replacement = renderer();
+    const pendingHydration = deferred<void>();
+    const hydrationStarted = deferred<void>();
+    const createRenderer = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockRejectedValueOnce(new Error('replacement allocation failed'));
+    let externalSlot: ReturnType<typeof renderer> | null = null;
+    const publishReady = (target: ReturnType<typeof renderer>) => { externalSlot = target; };
+    const publishDiscard = vi.fn((target: ReturnType<typeof renderer>) => {
+      if (externalSlot === target) externalSlot = null;
+    });
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['initial']),
+      hydrate: async () => undefined,
+      onRendererReady: publishReady,
+      onRendererDiscarded: publishDiscard
+    }, { reuseRenderer: true });
+
+    const canceled = controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['canceled']),
+      hydrate: () => {
+        hydrationStarted.resolve();
+        return pendingHydration.promise;
+      },
+      onRendererReady: publishReady,
+      onRendererDiscarded: publishDiscard
+    }, { reuseRenderer: true });
+    await hydrationStarted.promise;
+    controller.cancelOpen();
+
+    const newest = controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['newest']),
+      hydrate: async () => undefined,
+      onRendererReady: publishReady,
+      onRendererDiscarded: publishDiscard
+    }, { reuseRenderer: true });
+    pendingHydration.resolve();
+    await Promise.all([canceled, newest]);
+
+    expect(first.destroy).toHaveBeenCalledOnce();
+    expect(publishDiscard).toHaveBeenCalledTimes(1);
+    expect(publishDiscard).toHaveBeenCalledWith(first);
+    expect(externalSlot).toBeNull();
+    expect(createRenderer).toHaveBeenCalledTimes(2);
+    expect(controller.getRenderer()).toBeNull();
+    expect(lifecycle.getSnapshot()).toMatchObject({
+      status: 'failed', error: 'replacement allocation failed'
+    });
+    expect(replacement.destroy).not.toHaveBeenCalled();
+  });
+
   it('does not settle or become ready before the current document is presented', async () => {
     const lifecycle = new DocumentRendererLifecycle();
     const controller = new DocumentOpenController(
@@ -200,6 +262,49 @@ describe('DocumentOpenController', () => {
     }, { reuseRenderer: true });
     expect(lifecycle.getSnapshot().status).toBe('ready');
     expect(controller.getRenderer()).toBe(recoveredRenderer);
+    controller.close();
+  });
+
+  it('retires a reused renderer after allocation failure and retries with a clean engine', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController(
+      new DocumentTaskRegistry('document-1' as DocumentSessionId),
+      lifecycle
+    );
+    const reused = renderer();
+    const replacement = renderer();
+    const createRenderer = vi.fn()
+      .mockResolvedValueOnce(reused)
+      .mockResolvedValueOnce(replacement);
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['initial']),
+      hydrate: async () => undefined
+    }, { reuseRenderer: true });
+
+    const onRendererDiscarded = vi.fn();
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['replacement']),
+      hydrate: async () => { throw new Error('GPU allocation failed'); },
+      onRendererDiscarded
+    }, { reuseRenderer: true });
+
+    expect(controller.getRenderer()).toBeNull();
+    expect(reused.destroy).toHaveBeenCalledOnce();
+    expect(onRendererDiscarded).toHaveBeenCalledWith(reused);
+    expect(lifecycle.getSnapshot()).toMatchObject({
+      status: 'failed', error: 'GPU allocation failed'
+    });
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['valid']),
+      hydrate: async () => undefined
+    }, { reuseRenderer: true });
+    expect(createRenderer).toHaveBeenCalledTimes(2);
+    expect(controller.getRenderer()).toBe(replacement);
     controller.close();
   });
 });

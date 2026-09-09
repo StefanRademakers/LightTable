@@ -15,6 +15,7 @@ import {
 } from './scopeShaders';
 import { InteractiveRefreshGate } from '../application/rendering/interactiveRefreshGate';
 import { resolveScopeCanvasSize } from '../application/rendering/scopeCanvasSize';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 const PARADE_BIN_BYTES = 3 * 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
 const VECTOR_BIN_BYTES = 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
@@ -216,24 +217,30 @@ export class WebGpuScopeEngine {
       vectorscopeContext,
       onError
     );
-    device.pushErrorScope('validation');
-    device.pushErrorScope('out-of-memory');
-    engine.createResources();
-    const memoryError = await device.popErrorScope();
-    const validationError = await device.popErrorScope();
-    const error = memoryError ?? validationError;
-    if (error) {
+    try {
+      const initialization = await runGpuDeviceErrorScopeTransaction(
+        device,
+        ['validation', 'out-of-memory'],
+        () => {
+          engine.createResources();
+        }
+      );
+      const memoryError = initialization.errors.get('out-of-memory') ?? null;
+      const validationError = initialization.errors.get('validation') ?? null;
+      const error = memoryError ?? validationError;
+      if (error) throw new Error(`LightTable scopes are unavailable: ${error.message}`);
+      engine.stopTheme = observeScopeTheme(canvases.hueDistribution, theme => {
+        engine.lightTheme = theme.light;
+        engine.background = theme.background;
+        engine.writeDisplayUniforms();
+        engine.markPresentationDirty();
+        onPresentationChange?.();
+      });
+      return engine;
+    } catch (reason) {
       engine.destroy();
-      throw new Error(`LightTable scopes are unavailable: ${error.message}`);
+      throw reason;
     }
-    engine.stopTheme = observeScopeTheme(canvases.hueDistribution, theme => {
-      engine.lightTheme = theme.light;
-      engine.background = theme.background;
-      engine.writeDisplayUniforms();
-      engine.markPresentationDirty();
-      onPresentationChange?.();
-    });
-    return engine;
   }
 
   /** Attaches the contextual Color Mixer surface without rebuilding scope analysis resources. */

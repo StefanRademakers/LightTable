@@ -12,6 +12,7 @@ import {
 } from '../../gpu/gpuReadback';
 import { invertMatrix } from '../geometry/affine';
 import type { AffineMatrix } from '../geometry/affine';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 const EXPORT_SETTINGS_FLOATS = 16;
 
@@ -370,17 +371,14 @@ export class LayerTextureCodec {
   }
 
   private async withValidationScope<T>(label: string, operation: () => Promise<T>) {
-    this.device.pushErrorScope('validation');
-    let scopeOpen = true;
-    try {
-      const result = await operation();
-      const validationError = await this.device.popErrorScope();
-      scopeOpen = false;
-      if (validationError) throw new Error(`${label}: ${validationError.message}`);
-      return result;
-    } finally {
-      if (scopeOpen) await this.device.popErrorScope();
-    }
+    const transaction = await runGpuDeviceErrorScopeTransaction(
+      this.device,
+      ['validation'],
+      operation
+    );
+    const validationError = transaction.errors.get('validation') ?? null;
+    if (validationError) throw new Error(`${label}: ${validationError.message}`);
+    return transaction.value;
   }
 
   private drawFullscreen(

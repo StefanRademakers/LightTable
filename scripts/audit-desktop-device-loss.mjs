@@ -22,7 +22,7 @@ await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
 
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const profile = await mkdtemp(path.join(output, 'profile-'));
-const report = { generatedAt: new Date().toISOString(), sourceFile,
+const report = { generatedAt: new Date().toISOString(), sourceFile, expectation,
   executablePath: launch.executablePath, pageErrors: [], consoleErrors: [] };
 const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: profile,
   LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile };
@@ -122,6 +122,17 @@ try {
   assert.equal(report.consoleErrors.length, 0, 'Console errors were observed during device recovery.');
 } catch (error) {
   report.failure = error instanceof Error ? error.stack ?? error.message : String(error);
+  const page = app.windows()[0];
+  if (page) {
+    report.failureWorkspace = await page.evaluate(() =>
+      window.__lightTableAutomation?.queryWorkspace?.() ?? null).catch(() => null);
+    if (report.documentId) {
+      report.failureDocument = await page.evaluate((id) =>
+        window.__lightTableAutomation?.queryDocument?.(id) ?? null, report.documentId)
+        .catch(() => null);
+    }
+    await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {});
+  }
   throw error;
 } finally {
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)

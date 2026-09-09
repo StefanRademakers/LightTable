@@ -9,6 +9,7 @@ import type { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 import type { SelectionCombineMode, SelectionOperation } from '../selection/selectionTypes';
 import type { SelectionMagicWandProjectionIntent } from './SelectionShapeProjectionService';
 import type { LayerDocumentRenderer } from './LayerDocumentRenderer';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 interface MagicWandTraceEntry {
   readonly encodeMs: number;
@@ -56,20 +57,25 @@ export const prepareMagicWandSelectionProjection = async ({
   signal.throwIfAborted();
   const trace = traceTarget();
   const startedAt = trace ? performance.now() : 0;
-  device.pushErrorScope('validation');
-  let errorScopeActive = true;
   try {
-    const source = intent.options.sampleAllLayers
-      ? await resolveCompositeSource()
-      : renderer.createMagicWandSourceForActiveLayer(document, intent.layerId);
-    signal.throwIfAborted();
-    if (!source) throw new Error('The Magic Wand source could not be rendered.');
-    const encodedAt = trace ? performance.now() : 0;
-    const prepared = await renderer.prepareSelectionMagicWandProjection(
-      documentAddress, baseline, intent, source, transactionId, signal,
+    const transaction = await runGpuDeviceErrorScopeTransaction(
+      device,
+      ['validation'],
+      async () => {
+        const source = intent.options.sampleAllLayers
+          ? await resolveCompositeSource()
+          : renderer.createMagicWandSourceForActiveLayer(document, intent.layerId);
+        signal.throwIfAborted();
+        if (!source) throw new Error('The Magic Wand source could not be rendered.');
+        const encodedAt = trace ? performance.now() : 0;
+        const prepared = await renderer.prepareSelectionMagicWandProjection(
+          documentAddress, baseline, intent, source, transactionId, signal,
+        );
+        return { prepared, encodedAt };
+      }
     );
-    errorScopeActive = false;
-    const validationError = await device.popErrorScope();
+    const { prepared, encodedAt } = transaction.value;
+    const validationError = transaction.errors.get('validation') ?? null;
     if (validationError) {
       prepared.dispose();
       const message = `LightTable Magic Wand validation failed: ${validationError.message}`;
@@ -86,17 +92,6 @@ export const prepareMagicWandSelectionProjection = async ({
       mode: intent.mode,
     });
     return prepared;
-  } catch (reason) {
-    if (errorScopeActive) {
-      errorScopeActive = false;
-      const validationError = await device.popErrorScope().catch(() => null);
-      if (validationError) {
-        reportValidationError(
-          `LightTable Magic Wand validation failed: ${validationError.message}`,
-        );
-      }
-    }
-    throw reason;
   } finally {
     renderer.releaseSubmittedResources();
   }

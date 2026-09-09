@@ -1,5 +1,5 @@
 {
-  "name": "@lighttable/text-webgpu",
+  "name": "@lighttable/webgpu-runtime",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -11,14 +11,9 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": {
-    "@lighttable/text-rendering": "0.0.1",
-    "@lighttable/webgpu-runtime": "0.0.1"
-  },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
     "typescript": "~5.9.3",
-    "vitest": "^4.1.10",
-    "wgsl_reflect": "^1.5.0"
+    "vitest": "^4.1.10"
   }
 }

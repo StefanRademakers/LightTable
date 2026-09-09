@@ -1,5 +1,6 @@
 import { COVERAGE_ATLAS_WGSL } from './coverageShader';
 import { HB_GPU_DRAW_WGSL, HB_GPU_SOURCE_REVISION } from './hbGpuShader.generated';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 export interface TextShaderValidationResult {
   readonly candidate: 'coverage-atlas' | 'hb-gpu';
@@ -42,20 +43,29 @@ const compile = async (
   createPipeline: (device: GPUDevice, module: GPUShaderModule) => GPURenderPipeline,
   sourceRevision?: string
 ): Promise<TextShaderValidationResult> => {
-  device.pushErrorScope('validation');
   const messages: string[] = [];
   try {
-    const module = device.createShaderModule({ label: `LightTable ${candidate} bakeoff shader`, code });
-    const info = await module.getCompilationInfo();
-    messages.push(...info.messages.map(
-      (message) => `${message.type}:${message.lineNum}:${message.linePos} ${message.message}`
-    ));
-    if (!info.messages.some((message) => message.type === 'error')) createPipeline(device, module);
+    const transaction = await runGpuDeviceErrorScopeTransaction(
+      device,
+      ['validation'],
+      async () => {
+        const module = device.createShaderModule({
+          label: `LightTable ${candidate} bakeoff shader`, code
+        });
+        const info = await module.getCompilationInfo();
+        messages.push(...info.messages.map(
+          (message) => `${message.type}:${message.lineNum}:${message.linePos} ${message.message}`
+        ));
+        if (!info.messages.some((message) => message.type === 'error')) {
+          createPipeline(device, module);
+        }
+      }
+    );
+    const error = transaction.errors.get('validation') ?? null;
+    if (error) messages.push(`validation: ${error.message}`);
   } catch (reason) {
     messages.push(reason instanceof Error ? reason.message : 'Pipeline creation failed.');
   }
-  const error = await device.popErrorScope();
-  if (error) messages.push(`validation: ${error.message}`);
   return {
     candidate,
     validated: messages.every((message) => !/^(?:error|validation:)/i.test(message)),

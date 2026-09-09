@@ -173,6 +173,7 @@ import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 import { ColorLookupAssetStore } from './ColorLookupAssetStore';
 import { WaveletDetailRuntime } from './WaveletDetailRuntime';
 import type { PointColorSample } from '../pointColor';
+import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
 
 const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.1, 0.82, 0.95, 1],
@@ -422,21 +423,34 @@ export class WebGpuEngine {
       colorSpace: 'srgb'
     });
     const engine = new WebGpuEngine(canvas, device, context, canvasFormat, callbacks);
-    device.pushErrorScope('validation');
-    engine.createStaticResources();
-    const validationError = await device.popErrorScope();
-    if (validationError) {
-      const layerStyleErrors = await engine.documentRenderer?.layerStyleShaderErrors() ?? [];
-      engine.destroy();
-      const details = layerStyleErrors.length
-        ? `\nLayer Style shader:\n${layerStyleErrors.join('\n')}`
-        : '';
-      throw new Error(
-        `LightTable WebGPU pipeline validation failed: ${validationError.message}${details}`
+    try {
+      const initialization = await runGpuDeviceErrorScopeTransaction(
+        device,
+        ['out-of-memory', 'validation'],
+        () => {
+          engine.createStaticResources();
+        }
       );
+      const allocationError = initialization.errors.get('out-of-memory') ?? null;
+      const validationError = initialization.errors.get('validation') ?? null;
+      if (allocationError) {
+        throw new Error(`LightTable WebGPU allocation failed: ${allocationError.message}`);
+      }
+      if (validationError) {
+        const layerStyleErrors = await engine.documentRenderer?.layerStyleShaderErrors() ?? [];
+        const details = layerStyleErrors.length
+          ? `\nLayer Style shader:\n${layerStyleErrors.join('\n')}`
+          : '';
+        throw new Error(
+          `LightTable WebGPU pipeline validation failed: ${validationError.message}${details}`
+        );
+      }
+      if (scopeCanvases) await engine.initializeScopes(scopeCanvases);
+      return engine;
+    } catch (reason) {
+      engine.destroy();
+      throw reason;
     }
-    if (scopeCanvases) await engine.initializeScopes(scopeCanvases);
-    return engine;
   }
 
   /**
