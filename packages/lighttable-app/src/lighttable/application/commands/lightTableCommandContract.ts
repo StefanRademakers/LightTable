@@ -12,6 +12,7 @@ import type { SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticSvgImportCommand } from '../vectors/svgDocumentCodec';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import type { SemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
+import type { SemanticFilterSnapshotCommand } from './semanticFilterSnapshotCommandContract';
 import type { VectorElement } from '@lighttable/vector-core';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 import type { AutomationTaskEvent } from './automationTaskEventStore';
@@ -324,6 +325,7 @@ export interface LightTableCommandPorts {
   executeRasterGradientCommand?(documentId: DocumentSessionId, command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeLayerStyleSnapshot?(documentId: DocumentSessionId, command: SemanticLayerStyleSnapshotCommand): unknown | Promise<unknown>;
+  executeFilterSnapshot?(documentId: DocumentSessionId, command: SemanticFilterSnapshotCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand): unknown | Promise<unknown>;
   executeSelectionCommand?(documentId: DocumentSessionId, command: SemanticSelectionCommand): unknown | Promise<unknown>;
@@ -409,6 +411,7 @@ export interface DocumentLightTableCommandPorts {
   executeRasterGradientCommand?(command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeLayerStyleSnapshot?(command: SemanticLayerStyleSnapshotCommand): unknown | Promise<unknown>;
+  executeFilterSnapshot?(command: SemanticFilterSnapshotCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(command: SemanticLayerCommand): unknown | Promise<unknown>;
   executeSelectionCommand?(command: SemanticSelectionCommand): unknown | Promise<unknown>;

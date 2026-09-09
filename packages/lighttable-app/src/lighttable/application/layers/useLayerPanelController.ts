@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type { BasicAdjustments } from '../../types';
+import { isFilterKind } from '@lighttable/filter-core';
 import { cloneAdjustments, createDefaultAdjustments } from '../../types';
 import type { BlendMode } from '../../editor/document/blendModes';
 import type {
@@ -93,6 +94,7 @@ export interface LayerPanelControllerDependencies {
   clearStyles(layerId: LayerId): void;
   finishStyleEditing?(): void;
   finishProcessingEditing?(): void;
+  setAttachedFilterEnabled?(layerId: LayerId, adjustmentId: string, enabled: boolean): boolean;
   prepareActiveLayerChange?(layerId: LayerId): void | Promise<void>;
   finishTextEditing?(): void;
 }
@@ -432,10 +434,21 @@ export const createLayerPanelController = (
       mutate((current) =>
         removeRasterLayerLocalProcessing(current, layerId, owner));
     },
-    setAttachedAdjustmentEnabled: (layerId, adjustmentId, enabled) =>
+    setAttachedAdjustmentEnabled: (layerId, adjustmentId, enabled) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      const adjustment = layer?.type === 'raster'
+        ? (layer.attachedAdjustments ?? []).find(({ id }) => id === adjustmentId)
+        : null;
+      if (adjustment && isFilterKind(adjustment.adjustmentKind)) {
+        dependencies.setAttachedFilterEnabled?.(layerId, adjustmentId, enabled);
+        return;
+      }
       mutate((current) => setRasterLayerAttachedAdjustmentEnabled(
         current, layerId, adjustmentId, enabled
-      )),
+      ));
+    },
     removeAttachedAdjustment: (layerId, adjustmentId) => {
       resolveDependencies().finishProcessingEditing?.();
       mutate((current) => removeRasterLayerAttachedAdjustment(

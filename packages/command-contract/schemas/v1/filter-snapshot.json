@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "category": "filters",
+  "commands": {
+    "filter.setSnapshot": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "snapshot"],
+        "properties": {
+          "target": {
+            "oneOf": [
+              { "type": "object", "additionalProperties": false, "required": ["kind", "layerId"], "properties": { "kind": { "const": "layer" }, "layerId": { "type": "string", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" } } },
+              { "type": "object", "additionalProperties": false, "required": ["kind", "layerId", "adjustmentId"], "properties": { "kind": { "const": "attached" }, "layerId": { "type": "string", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" }, "adjustmentId": { "type": "string", "minLength": 1, "maxLength": 255 } } }
+            ]
+          },
+          "snapshot": {
+            "type": "object",
+            "title": "Complete filter snapshot",
+            "x-lighttable-runtime-validation": "complete-filter-snapshot-v1",
+            "description": "Opaque complete typed filter transport. The runtime codec enforces exact keys, kind-specific canonical settings and bounded finite values before execution."
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "changed"],
+        "properties": {
+          "target": { "type": "object" },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

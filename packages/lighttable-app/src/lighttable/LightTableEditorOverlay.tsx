@@ -126,6 +126,9 @@ import {
   type LayerVisibilitySnapshot
 } from './application/layers/layerVisibilityIsolation';
 import { useP0FilterController } from './application/filters/useP0FilterController';
+import { executeSemanticFilterSnapshot } from './application/filters/executeSemanticFilterSnapshot';
+import { resolveFilterSnapshotOwner } from './application/filters/filterSnapshotOwner';
+import { recordFilterSnapshotCheckpoint } from './application/filters/recordFilterSnapshotCheckpoint';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   adjustmentStackHasLocalProcessing,
@@ -2061,7 +2064,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     document: imageDocument,
     target: propertiesTarget,
     getDocument: () => imageDocumentRef.current,
-    documentMutations: documentMutationController
+    getRenderer: () => engineRef.current,
+    documentMutations: documentMutationController,
+    rendererGeneration: rendererSnapshot.generation,
+    onCheckpoint: (_before, after, target) => recordFilterSnapshotCheckpoint(
+      commandService, workspaceDocumentId as DocumentSessionId, after, target
+    )
   });
   const activeFilterCenter = (() => {
     const model = p0FilterController.model;
@@ -6087,6 +6095,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
     createAdjustmentLayerOfKind: layerDocumentCommands.createAdjustmentLayerOfKind,
     createAttachedAdjustment: layerDocumentCommands.createAttachedAdjustment,
+    setAttachedFilterEnabled: (layerId, adjustmentId, enabled) => {
+      const document = imageDocumentRef.current;
+      const target = { kind: 'attached' as const, layerId, adjustmentId };
+      const owner = document ? resolveFilterSnapshotOwner(document, target) : null;
+      return Boolean(owner && executeRegisteredCommand('filter.setSnapshot', {
+        target,
+        snapshot: { ...owner.snapshot, enabled }
+      }));
+    },
     addActiveLayerMask: async () => {
       await settlePixelInteractionRef.current();
       return layerDocumentCommands.addActiveLayerMask(
@@ -6373,6 +6390,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         changeDocument: documentMutationController.change
       }),
       executeLayerStyleSnapshot: (command) => executeSemanticLayerStyleSnapshot(command, {
+        changeDocument: documentMutationController.change
+      }),
+      executeFilterSnapshot: (command) => executeSemanticFilterSnapshot(command, {
         changeDocument: documentMutationController.change
       }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {

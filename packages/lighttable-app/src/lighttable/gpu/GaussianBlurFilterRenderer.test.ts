@@ -1,10 +1,17 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createAdjustmentLayer, createImageDocument } from '../editor/document/documentTypes';
+import {
+  createAdjustmentLayer as addAdjustmentLayer,
+  createRasterLayer
+} from '../editor/document/documentCommands';
+import { findDocumentLayer } from '../editor/document/layerTree';
+import { createDocumentMutationController } from '../application/documents/useDocumentMutationController';
+import { createFilterInteractionSession } from '../application/filters/filterInteractionSession';
 import { createGaussianBlurStack } from '../processing/gaussianBlurFilter';
 import { createP0FilterStack } from '../processing/p0Filter';
 import { createFilterStack } from '../processing/filter';
 import { P1_FILTER_DEFINITIONS, P2_FILTER_DEFINITIONS } from '@lighttable/filter-core';
-import { GaussianBlurFilterRenderer } from './GaussianBlurFilterRenderer';
+import { P0FilterRenderer } from './P0FilterRenderer';
 
 beforeAll(() => {
   vi.stubGlobal('GPUTextureUsage', { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2 });
@@ -35,12 +42,56 @@ const fixture = (resolveRasterTexture: (id: string) => GPUTexture | null = () =>
     setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn()
   };
   const encoder = { beginRenderPass: vi.fn(() => pass) } as unknown as GPUCommandEncoder;
-  const renderer = new GaussianBlurFilterRenderer(device, resolveRasterTexture);
+  const renderer = new P0FilterRenderer(device, resolveRasterTexture);
   renderer.configure(20, 10, {} as GPUSampler);
   return { renderer, device, encoder, textures, buffers, pass, writeBuffer };
 };
 
 describe('GaussianBlurFilterRenderer', () => {
+  it('uploads every preview generation and the canonical commit, undo and redo generations', () => {
+    const test = fixture();
+    let document = createRasterLayer(createImageDocument('Preview generations', 20, 10, 'asset'));
+    document = addAdjustmentLayer(document, createFilterStack('gaussian-blur'),
+      'Gaussian Blur', document.activeLayerId!, 'gaussian-blur');
+    const layerId = document.activeLayerId!;
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const history: Array<{ undo(): void; redo(): void }> = [];
+    const render = (next: typeof document) => {
+      const layer = findDocumentLayer(next, layerId);
+      if (layer?.type !== 'adjustment') throw new Error('filter fixture missing');
+      test.renderer.encode(test.encoder, source, layer);
+    };
+    const mutations = createDocumentMutationController(() => ({
+      getDocument: () => document,
+      applySnapshot: (next) => { document = next; render(next); },
+      previewSnapshot: render,
+      discardPreview: () => undefined,
+      pushHistoryEntry: (entry) => { history.push(entry); }
+    }));
+    const session = createFilterInteractionSession(() => ({
+      getDocument: () => document,
+      getRenderer: () => test.renderer,
+      getRendererGeneration: () => 1,
+      documentMutations: mutations
+    }));
+    const target = { kind: 'layer' as const, layerId };
+    expect(session.preview(target, {
+      kind: 'gaussian-blur', enabled: true, settings: { radius: 12 }
+    })).toBe(true);
+    expect(session.preview(target, {
+      kind: 'gaussian-blur', enabled: true, settings: { radius: 24 }
+    })).toBe(true);
+    expect(test.writeBuffer).toHaveBeenCalledTimes(4);
+    expect(session.commit()).toBe(true);
+    expect(test.writeBuffer).toHaveBeenCalledTimes(6);
+    const entry = history[0];
+    if (!entry) throw new Error('filter history missing');
+    entry.undo();
+    expect(test.writeBuffer).toHaveBeenCalledTimes(8);
+    entry.redo();
+    expect(test.writeBuffer).toHaveBeenCalledTimes(10);
+  });
+
   it.each([...P1_FILTER_DEFINITIONS, ...P2_FILTER_DEFINITIONS])(
     'routes $kind through an implemented shared filter core',
     (definition) => {

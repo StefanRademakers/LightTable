@@ -64,6 +64,7 @@ import {
 } from './layerTree';
 import { layerCanBeRasterized } from './layerRasterization';
 import { textLayerNameFromData } from './textLayerName';
+import { reconcileRemovedFilterReferences } from './filterReferenceIntegrity';
 import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../rendering/renderContract';
 import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
@@ -86,6 +87,16 @@ const updateDocument = (document: ImageDocument, layers: LayerNode[], activeLaye
   revision: document.revision + 1,
   modifiedAt: Date.now()
 });
+
+const updateDocumentAfterLayerRemoval = (
+  document: ImageDocument,
+  layers: LayerNode[],
+  activeLayerId = document.activeLayerId
+) => updateDocument(
+  document,
+  reconcileRemovedFilterReferences(document.layers, layers),
+  activeLayerId
+);
 
 const affineMatrixEquals = (left: AffineMatrix, right: AffineMatrix) => (
   left.a === right.a && left.b === right.b && left.c === right.c
@@ -206,7 +217,7 @@ export const deleteLayer = (document: ImageDocument, layerId: LayerId): ImageDoc
     || (entry.node.type === 'group' && Boolean(findLayerNode(entry.node.children, document.activeLayerId!)))
     ? remaining[Math.min(visualIndex, remaining.length - 1)]?.node.id ?? null
     : document.activeLayerId;
-  return updateDocument(document, removed.nodes, activeLayerId);
+  return updateDocumentAfterLayerRemoval(document, removed.nodes, activeLayerId);
 };
 
 /** Mirrors the canonical delete invariant without allocating a document snapshot. */
@@ -261,7 +272,7 @@ export const deleteLayers = (
   const activeLayerId = activeRemoved
     ? remaining[Math.min(Math.max(0, firstSelectedVisualIndex), remaining.length - 1)]?.node.id ?? null
     : document.activeLayerId;
-  return updateDocument(document, layers, activeLayerId);
+  return updateDocumentAfterLayerRemoval(document, layers, activeLayerId);
 };
 
 const updateLayer = (
@@ -1517,7 +1528,7 @@ export const flattenGroup = (
     blendMode: group.blendMode,
     clipping: group.clipping
   };
-  return updateDocument(
+  return updateDocumentAfterLayerRemoval(
     document,
     updateLayerNode(document.layers, groupId, () => replacement),
     replacement.id
@@ -1529,7 +1540,7 @@ export const flattenImage = (document: ImageDocument): ImageDocument => {
   const destination = plan ? findLayerNode(document.layers, plan.destinationId)?.node : null;
   if (!plan || !destination) return document;
   const replacement = flattenedRaster(document, destination, plan.name);
-  return updateDocument(document, [replacement], replacement.id);
+  return updateDocumentAfterLayerRemoval(document, [replacement], replacement.id);
 };
 
 /**
@@ -1574,7 +1585,7 @@ export const rasterizeLayer = (
     modifiedAt: now,
     dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
   };
-  return updateDocument(
+  return updateDocumentAfterLayerRemoval(
     document,
     updateLayerNode(document.layers, layerId, () => replacement),
     replacement.id
@@ -1698,7 +1709,7 @@ export const mergeLayers = (
     layers = removeLayerNode(layers, layerId).nodes;
   }
   layers = updateLayerNode(layers, plan.destinationId, () => merged);
-  return updateDocument(document, layers, merged.id);
+  return updateDocumentAfterLayerRemoval(document, layers, merged.id);
 };
 
 export const moveLayer = (document: ImageDocument, layerId: LayerId, targetIndex: number): ImageDocument => {

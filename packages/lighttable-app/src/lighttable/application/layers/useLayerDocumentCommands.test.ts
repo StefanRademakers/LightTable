@@ -1131,6 +1131,20 @@ describe('useLayerDocumentCommands', () => {
     ]);
   });
 
+  it('rejects missing Displace maps for standalone and attached creation', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const rasterId = state.document().layers[0]!.id;
+    const settings = { mapAssetId: 'missing-raster' };
+    expect(state.commands.createAdjustmentLayerOfKind('displace', undefined, settings)).toBe(false);
+    expect(state.commands.createAttachedAdjustment(rasterId, 'displace', settings)).toBeNull();
+    expect(state.historyEntries).toHaveLength(0);
+    expect(state.document().layers).toHaveLength(1);
+
+    expect(state.commands.createAdjustmentLayerOfKind(
+      'displace', undefined, { mapAssetId: rasterId }
+    )).toBe(true);
+  });
+
   it.each([
     ['high-pass', 'High Pass', { radius: 18 }],
     ['unsharp-mask', 'Unsharp Mask', { amount: 140, radius: 2, threshold: 4 }],

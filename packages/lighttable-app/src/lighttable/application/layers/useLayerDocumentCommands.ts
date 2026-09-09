@@ -57,6 +57,7 @@ import {
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 import { isFilterKind, createFilterStack } from '../../processing/filter';
+import { assertFilterStackDocumentReferences } from '../filters/filterDocumentReferences';
 import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
 import { commitAppliedPixelMutation } from '../commands/pixelMutationTransaction';
 import type {
@@ -719,6 +720,7 @@ export const createLayerDocumentCommands = (
     );
 
     try {
+      assertFilterStackDocumentReferences(current, kind, stack);
       if (!commitDocumentTransition(documentTransaction, next, description)) return false;
     } catch (reason) {
       documentTransaction.cancel();
@@ -782,6 +784,7 @@ export const createLayerDocumentCommands = (
       return null;
     }
     try {
+      assertFilterStackDocumentReferences(current, kind, adjustmentStack);
       if (!commitDocumentTransition(documentTransaction, next, description)) return null;
     } catch (reason) {
       documentTransaction.cancel();

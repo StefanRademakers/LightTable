@@ -181,7 +181,7 @@ slice; they are not postponed to the final phase.
 | S07 | Warp and experimental Face Warp | `owner` | yes | passed | passed | [ ] | partial (Text Warp authoring absent) |
 | S08 | Adjustment-layer lifecycle | `owner` | yes | passed | passed | [ ] | partial |
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
-| S10 | Filters P0, P1 and P2 by release tier | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
@@ -435,6 +435,21 @@ combination. Rasterize/merge must consume the same renderer projection.
 ### S10 -- filters
 
 Each tier is its own sub-slice and cannot inherit acceptance from another tier.
+
+- [x] Common owner/resource/command inventory and P0 packaged baseline recorded
+      in `FILTER_VERTICAL_SLICE.md` at `8bf4357d`.
+- [x] Strict complete `filter.setSnapshot` route shared by Properties,
+      Actions/MCP and the Layers attached-filter eye.
+- [x] Pointer previews use disposable GPU generations; commit rebuilds one
+      canonical revision from the immutable interaction origin. The cache
+      regression covers two previews, commit, undo and redo.
+- [x] Displace references are same-document rasters for edit and creation and
+      are cleared atomically when a destructive layer operation removes them.
+- [x] Two critic repair loops completed; no P0/P1 remains in the common route.
+- [x] Full app 3,629 tests, 34 command-contract tests, typecheck and boundary;
+      instrumented package plus 56-filter 1280x720 render/delete/cleanup smoke
+      passed with exact per-filter export replay and no page/console errors.
+- [ ] Locked filters remain visible in a disabled/read-only Properties view (P2).
 
 - [ ] P0: Gaussian Blur, Motion Blur, Surface Blur, Displace, Median, Reduce
       Noise, Smart Sharpen, Unsharp Mask, High Pass, Maximum, Minimum, Offset.

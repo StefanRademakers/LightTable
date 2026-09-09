@@ -5,6 +5,7 @@ import { createImageDocument, createVectorLayer } from '../../editor/document/do
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
+import { defaultFilterSettings } from '@lighttable/filter-core';
 import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
@@ -2099,6 +2100,36 @@ describe('LightTableCommandService registry', () => {
     expect(executeLayerStyleSnapshot).toHaveBeenCalledTimes(2);
     await expect(state.service.execute(request('layer.style.setSnapshot', state.session.id, {
       layerId: parameters.layerId, snapshot: { enabled: true }
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates, records and replays one complete typed filter snapshot', async () => {
+    const executeFilterSnapshot = vi.fn(async (_documentId, command) => ({
+      target: command.target, changed: true
+    }));
+    const state = setup({ executeFilterSnapshot });
+    const parameters = {
+      target: { kind: 'layer' as const, layerId: 'filter-layer' },
+      snapshot: {
+        kind: 'gaussian-blur' as const,
+        enabled: true,
+        settings: defaultFilterSettings('gaussian-blur')
+      }
+    };
+    state.service.startActionRecording('Set Filter');
+    await expect(state.service.execute(request(
+      'filter.setSnapshot', state.session.id, parameters
+    ))).resolves.toMatchObject({ status: 'completed', value: { changed: true } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'filter.setSnapshot', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeFilterSnapshot).toHaveBeenCalledTimes(2);
+    await expect(state.service.execute(request('filter.setSnapshot', state.session.id, {
+      target: parameters.target,
+      snapshot: { kind: 'gaussian-blur', enabled: true, settings: {} }
     }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });

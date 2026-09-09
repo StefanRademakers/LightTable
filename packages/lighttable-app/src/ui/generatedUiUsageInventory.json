@@ -969,18 +969,13 @@
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 17,
+      "productionUsageCount": 16,
       "internalUsageCount": 0,
-      "contextCount": 9,
+      "contextCount": 8,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1025,9 +1020,9 @@
     {
       "id": "adjustment-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 46,
+      "productionUsageCount": 45,
       "internalUsageCount": 4,
-      "contextCount": 14,
+      "contextCount": 13,
       "overrideCount": 0,
       "locations": [
         {
@@ -1042,11 +1037,6 @@
         },
         {
           "path": "lighttable/editor/panels/AdjustmentPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1282,9 +1272,9 @@
     {
       "id": "panel-section",
       "metadataDeclared": true,
-      "productionUsageCount": 28,
+      "productionUsageCount": 27,
       "internalUsageCount": 0,
-      "contextCount": 18,
+      "contextCount": 17,
       "overrideCount": 0,
       "locations": [
         {
@@ -1304,11 +1294,6 @@
         },
         {
           "path": "lighttable/editor/panels/CurvesPropertiesPanel.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },

@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  addRasterLayerAttachedAdjustment,
   addLayerMask,
   createAdjustmentLayer,
   createRasterLayer,
   setRasterLayerAdjustmentStack
 } from '../../editor/document/documentCommands';
+import { createFilterStack } from '../../processing/filter';
 import {
   createImageDocument,
   type ImageDocument
@@ -49,6 +51,7 @@ const setup = (initialDocument: ImageDocument) => {
     createLensFxLayer: vi.fn(),
     createAdjustmentLayerOfKind: vi.fn(),
     createAttachedAdjustment: vi.fn(() => null),
+    setAttachedFilterEnabled: vi.fn(() => true),
     addActiveLayerMask: vi.fn(() => true),
     duplicateActiveLayer: vi.fn(() => true),
     rasterizeActiveLayer: vi.fn(async () => true),
@@ -77,6 +80,24 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
+  it('delegates attached filter visibility to the semantic filter owner', () => {
+    let document = createRasterLayer(createImageDocument('test', 100, 100, 'asset'));
+    const layerId = document.activeLayerId!;
+    document = addRasterLayerAttachedAdjustment(document, layerId, {
+      id: 'attached-filter',
+      adjustmentKind: 'gaussian-blur',
+      name: 'Gaussian Blur',
+      enabled: true,
+      revision: 0,
+      adjustmentStack: createFilterStack('gaussian-blur')
+    });
+    const state = setup(document);
+    state.controller.setAttachedAdjustmentEnabled(layerId, 'attached-filter', false);
+    expect(state.dependencies.setAttachedFilterEnabled)
+      .toHaveBeenCalledWith(layerId, 'attached-filter', false);
+    expect(state.dependencies.mutateDocument).not.toHaveBeenCalled();
+  });
+
   it('delegates style mutations without owning a document fallback', () => {
     const state = setup(createImageDocument('test', 100, 100, 'asset'));
     state.controller.setStyleStackEnabled('layer' as never, false);

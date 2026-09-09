@@ -16,6 +16,7 @@
   "transform.applyFixed": { "operation": "rotate-180 | rotate-clockwise-90 | rotate-counter-clockwise-90 | flip-horizontal | flip-vertical" },
   "adjustment.create": { "kind": "creatable adjustment/filter kind", "placement": "local | attached | adjustment-layer", "layerId?": "string", "aboveLayerId?": "string", "settings?": "validated initial adjustment/filter settings" },
   "adjustment.setSnapshot": { "target": "document Grade/Lens FX | layer | attached adjustment target", "snapshot": "complete validated adjustment snapshot" },
+  "filter.setSnapshot": { "target": "layer or attached filter owner", "snapshot": "complete typed filter settings" },
   "raster.invert": { "layerId": "string", "channel": "pixels | mask" },
   "layer.rasterize": { "layerId": "string" },
   "text.convertToShape": { "layerId": "string" },

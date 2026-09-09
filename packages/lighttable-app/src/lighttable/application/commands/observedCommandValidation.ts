@@ -14,6 +14,7 @@ import { parseSemanticSubjectSelectionCommand } from './semanticSubjectSelection
 import { parseSemanticAssignProfileCommand } from './semanticDocumentColorCommandContract';
 import { parseSemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
 import { parseSemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
+import { parseSemanticFilterSnapshotCommand } from './semanticFilterSnapshotCommandContract';
 
 const valid = (parsed: object) => !('message' in parsed);
 
@@ -40,6 +41,7 @@ export const observedCommandParametersAreValid = (
     case 'grade.setDetail': return valid(parseSemanticDetailAdjustmentCommand(parameters));
     case 'adjustment.setSnapshot': return valid(parseSemanticAdjustmentSnapshotCommand(parameters));
     case 'layer.style.setSnapshot': return valid(parseSemanticLayerStyleSnapshotCommand(parameters));
+    case 'filter.setSnapshot': return valid(parseSemanticFilterSnapshotCommand(parameters));
     case 'layer.setTransform': return valid(parseSemanticLayerCommand('set-transform', parameters));
     case 'layer.style.update': return valid(parseSemanticLayerStyleCommand('stack-update', parameters));
     case 'layer.effect.add': return valid(parseSemanticLayerStyleCommand('add', parameters));

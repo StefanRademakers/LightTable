@@ -524,6 +524,16 @@ reports:
   pixels, exact baseline restoration, no renderer errors and stable warm GPU
   memory. Photoshop Smart Filter masks and production visual/vendor calibration
   remain separate open gates; read [P0 GPU filters](features/P0_GPU_FILTERS.md).
+- Filter edits use one complete `filter.setSnapshot` value for standalone and
+  attached owners. A Properties gesture binds document, target, kind and
+  renderer generation; every pointer sample gets a disposable projection
+  generation, while commit rebuilds exactly one canonical revision from the
+  immutable origin. Never mutate attached filter visibility directly from the
+  Layers panel or accumulate canonical revisions per pointer sample. Displace
+  map ids must resolve to same-document rasters on edit and creation; destructive
+  layer commands clear references to removed maps atomically. The old
+  Gaussian-specific controller/panel/renderer alias is deleted and must not be
+  recreated. Locked-filter read-only presentation remains tracked P2 work.
 - Layer Styles remain a separate alpha-derived compositor stage rather than
   P0 filter nodes. Smooth Bevel now retains ROI-sized height/distance fields
   and crossfades bounded multiscale levels; shadows, glows and Satin reuse

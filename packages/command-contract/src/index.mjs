@@ -23,6 +23,8 @@ import documentGeometryCommandSchemas from '../schemas/v1/document-geometry.json
 
 import documentCommandSchemas from '../schemas/v1/document.json' with { type: 'json' };
 
+import filterSnapshotCommandSchemas from '../schemas/v1/filter-snapshot.json' with { type: 'json' };
+
 import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { type: 'json' };
 
 import gestureCommandSchemas from '../schemas/v1/gesture.json' with { type: 'json' };
@@ -111,6 +113,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'transform.applyFixed',
   'adjustment.create',
   'adjustment.setSnapshot',
+  'filter.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',
@@ -186,6 +189,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(documentColorCommandSchemas),
   ...schemaModuleCommands(documentGeometryCommandSchemas),
   ...schemaModuleCommands(documentCommandSchemas),
+  ...schemaModuleCommands(filterSnapshotCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gestureCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
@@ -252,6 +256,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'transform.applyFixed',
   'adjustment.create',
   'adjustment.setSnapshot',
+  'filter.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',
@@ -327,6 +332,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'transform.applyFixed',
   'adjustment.create',
   'adjustment.setSnapshot',
+  'filter.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',
