@@ -13,6 +13,7 @@ export interface RecoveryJournalSchedulerOptions {
     isCurrent: () => boolean
   ) => Promise<void>;
   readonly onError?: (error: Error) => void;
+  readonly maxFailureRetries?: number;
   readonly setTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   readonly clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
   readonly now?: () => number;
@@ -53,6 +54,7 @@ export class RecoveryJournalScheduler {
   private readonly maxDelayMs: number;
   private readonly checkpoint: RecoveryJournalSchedulerOptions['checkpoint'];
   private readonly onError: (error: Error) => void;
+  private readonly maxFailureRetries: number;
   private readonly setTimer: NonNullable<RecoveryJournalSchedulerOptions['setTimer']>;
   private readonly clearTimer: NonNullable<RecoveryJournalSchedulerOptions['clearTimer']>;
   private readonly now: () => number;
@@ -63,12 +65,16 @@ export class RecoveryJournalScheduler {
   private dirtySince: number | null = null;
   private running = false;
   private disposed = false;
+  private failureAttempts = 0;
+  private lastError: Error | null = null;
+  private readonly idleWaiters = new Set<() => void>();
 
   constructor({
     debounceMs = 5_000,
     maxDelayMs = 30_000,
     checkpoint,
     onError = () => undefined,
+    maxFailureRetries = 2,
     setTimer = (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
     clearTimer = (timer) => globalThis.clearTimeout(timer),
     now = () => Date.now()
@@ -77,6 +83,7 @@ export class RecoveryJournalScheduler {
     this.maxDelayMs = Math.max(this.debounceMs, maxDelayMs);
     this.checkpoint = checkpoint;
     this.onError = onError;
+    this.maxFailureRetries = Math.max(0, Math.floor(maxFailureRetries));
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
     this.now = now;
@@ -84,6 +91,8 @@ export class RecoveryJournalScheduler {
 
   observe(revision: RecoveryJournalRevision): void {
     if (this.disposed || sameRevision(this.latest, revision)) return;
+    this.failureAttempts = 0;
+    this.lastError = null;
     this.latest = { ...revision };
     if (!revision.dirty) {
       this.dirtySince = null;
@@ -99,6 +108,32 @@ export class RecoveryJournalScheduler {
     this.disposed = true;
     this.cancelTimer();
     this.latest = null;
+    for (const resolve of this.idleWaiters) resolve();
+    this.idleWaiters.clear();
+  }
+
+  /** Forces the newest dirty revision through the same single-writer route. */
+  async flush(): Promise<void> {
+    const maxAttempts = this.maxFailureRetries + 1;
+    for (let attempt = 0; attempt < maxAttempts && !this.disposed; attempt += 1) {
+      this.cancelTimer();
+      if (this.running) {
+        await new Promise<void>((resolve) => this.idleWaiters.add(resolve));
+      }
+      if (!this.latest?.dirty) return;
+      if (sameRevision(this.written, this.latest)) return;
+      if (sameRevision(this.attempted, this.latest)) {
+        if (this.lastError) throw this.lastError;
+        return;
+      }
+      await this.run();
+      if (this.latest?.dirty && sameRevision(this.written, this.latest)) return;
+    }
+    this.cancelTimer();
+    if (this.lastError && this.latest && sameRevision(this.attempted, this.latest)) {
+      throw this.lastError;
+    }
+    throw new Error('Recovery changed repeatedly during the document transition. Retry the transition.');
   }
 
   private schedule(): void {
@@ -117,20 +152,35 @@ export class RecoveryJournalScheduler {
     if (sameRevision(this.attempted, revision)) return;
     this.running = true;
     this.attempted = revision;
+    let failed = false;
     const isCurrent = () => !this.disposed
       && Boolean(this.latest?.dirty)
       && sameRevision(this.latest, revision);
     try {
       await this.checkpoint(revision, isCurrent);
-      if (!this.disposed) this.written = revision;
+      if (!this.disposed) {
+        this.written = revision;
+        this.failureAttempts = 0;
+        this.lastError = null;
+      }
     } catch (reason) {
       if (!this.disposed) {
-        this.onError(reason instanceof Error ? reason : new Error(String(reason)));
+        failed = true;
+        this.failureAttempts += 1;
+        this.lastError = reason instanceof Error ? reason : new Error(String(reason));
+        this.onError(this.lastError);
       }
     } finally {
       this.running = false;
+      for (const resolve of this.idleWaiters) resolve();
+      this.idleWaiters.clear();
       if (this.disposed) return;
-      if (this.latest?.dirty && !sameRevision(this.attempted, this.latest)) {
+      if (failed && this.failureAttempts <= this.maxFailureRetries
+        && sameRevision(this.attempted, this.latest!)) {
+        this.attempted = null;
+        this.dirtySince = this.now();
+        this.schedule();
+      } else if (this.latest?.dirty && !sameRevision(this.attempted, this.latest)) {
         this.dirtySince = this.now();
         this.schedule();
       } else {

@@ -652,6 +652,10 @@ export interface LightTableEditorOverlayProps {
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
   recoveryPreferences?: { readonly enabled: boolean; readonly intervalMs: number };
+  onRegisterRecoveryFlush?: (
+    documentId: string,
+    flush: () => Promise<void>
+  ) => (() => void) | void;
   toolPreferences?: {
     readonly zoomWithScrollWheel: boolean;
     readonly openMaskEditingOnDoubleClick: boolean;
@@ -696,6 +700,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onClose,
   onSave,
   onExportFile,
+  onRegisterRecoveryFlush,
   workspaceDocumentId = 'active-document',
   workspaceDocuments,
   onActivateWorkspaceDocument,
@@ -1958,6 +1963,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     discardPreview: documentProjectionController.discardDocumentPreview,
     pushHistoryEntry,
     isMutationBlocked: () => commandHistory.getSnapshot().busy
+      || (documentSession ? !documentSession.isAcceptingMutations() : false)
   });
   const faceWarpSessionControllerRef = useRef<ReturnType<
     typeof createFaceWarpInteractionSessionController
@@ -7529,14 +7535,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError,
     setStatus: setGradeStatus
   });
-  useEditorRecoveryJournal({ store: recoveryStore,
+  const recoveryJournal = useEditorRecoveryJournal({ store: recoveryStore,
     enabled: recoveryPreferences?.enabled ?? true,
     intervalMs: recoveryPreferences?.intervalMs,
     documentId: workspaceDocumentId,
-    sourceKey: effectiveSourceFileKey, sourceName: initialSourceName, sourceBlob: initialSourceBlob, active, commandHistory, exportOutput,
+    sourceKey: effectiveSourceFileKey, sourceName: initialSourceName, sourceBlob: initialSourceBlob, active, commandHistory,
+    documentSession, exportOutput,
     workspaceOrder: Math.max(0, workspaceDocuments?.findIndex(({ id }) => id === workspaceDocumentId) ?? 0),
     getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision ?? commandHistory.getSnapshot().currentStateId,
     setStatus: setGradeStatus });
+  useEffect(() => onRegisterRecoveryFlush?.(workspaceDocumentId, recoveryJournal.flush), [
+    onRegisterRecoveryFlush,
+    recoveryJournal,
+    workspaceDocumentId
+  ]);
   exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
   const captureCurrentRendererBinding = () => captureRendererBinding({
     getDocument: () => imageDocumentRef.current,

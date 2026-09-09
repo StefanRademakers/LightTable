@@ -2,6 +2,8 @@ import type { DocumentCommandHistory } from '../commands/documentCommandHistory'
 import type { ExportedLightTableDocument } from './exportLightTableDocument';
 import { useDocumentRecoveryJournal } from './useDocumentRecoveryJournal';
 import type { LightTableRecoveryStore } from '../../../platform/LightTableRecoveryStore';
+import type { DocumentSession } from './documentSession';
+import type { DocumentRecoveryJournalHandle } from './useDocumentRecoveryJournal';
 
 export interface EditorRecoveryJournalOptions {
   readonly store?: LightTableRecoveryStore;
@@ -14,6 +16,7 @@ export interface EditorRecoveryJournalOptions {
   readonly workspaceOrder: number;
   readonly active: boolean;
   readonly commandHistory: DocumentCommandHistory;
+  readonly documentSession?: DocumentSession;
   readonly getCanonicalRevision: () => number;
   readonly exportOutput: (options?: { readonly lightweightPreview?: boolean }) => Promise<ExportedLightTableDocument>;
   readonly setStatus: (message: string) => void;
@@ -21,8 +24,8 @@ export interface EditorRecoveryJournalOptions {
 
 export const useEditorRecoveryJournal = ({
   store, enabled, intervalMs, documentId, sourceKey, sourceName, sourceBlob, workspaceOrder, active,
-  commandHistory, getCanonicalRevision, exportOutput, setStatus
-}: EditorRecoveryJournalOptions): void => useDocumentRecoveryJournal({
+  commandHistory, documentSession, getCanonicalRevision, exportOutput, setStatus
+}: EditorRecoveryJournalOptions): DocumentRecoveryJournalHandle => useDocumentRecoveryJournal({
   store,
   enabled,
   intervalMs,
@@ -39,6 +42,16 @@ export const useEditorRecoveryJournal = ({
   wasActive: active,
   commandHistory,
   getCanonicalRevision,
+  subscribe: documentSession?.subscribe,
+  getRevision: documentSession ? () => {
+    const snapshot = documentSession.getSnapshot();
+    return {
+      canonicalRevision: snapshot.documentRevision,
+      historyStateId: snapshot.history.currentStateId,
+      savedStateId: snapshot.history.savedStateId,
+      dirty: snapshot.dirty
+    };
+  } : undefined,
   exportOutput,
   onStatus: (status, message) => {
     if (status === 'failed') console.warn(`[Recovery] ${message}`);

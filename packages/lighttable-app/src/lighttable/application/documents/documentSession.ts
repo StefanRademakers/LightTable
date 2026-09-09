@@ -108,6 +108,12 @@ export interface CreateDocumentSessionOptions {
   readonly processing?: DocumentProcessingState;
 }
 
+export interface DocumentMutationAdmission {
+  readonly revision: number;
+  readonly dirty: boolean;
+  release(): void;
+}
+
 const DEFAULT_VIEWPORT: DocumentViewport = {
   zoomMode: 'fit',
   scale: 1,
@@ -176,6 +182,7 @@ export class DocumentSession {
   private readonly unsubscribeTasks: () => void;
   private publicationDepth = 0;
   private publicationPending = false;
+  private readonly mutationBarriers = new Map<symbol, string>();
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
@@ -256,6 +263,44 @@ export class DocumentSession {
     this.assertUsable();
     this.disposers.add(disposer);
     return () => this.disposers.delete(disposer);
+  }
+
+  acquireMutationAdmission(reason: string): DocumentMutationAdmission {
+    this.assertEditable();
+    if (this.snapshot.tasks.activeTaskIds.length > 0 || this.snapshot.history.busy) {
+      throw new Error(`Document session ${this.id} still has active work.`);
+    }
+    const token = Symbol('document-mutation-admission');
+    this.mutationBarriers.set(token, reason);
+    let historyBarrier: ReturnType<DocumentCommandHistory['acquireAdmissionBarrier']> | null = null;
+    let taskBarrier: ReturnType<DocumentTaskRegistry['acquireAdmissionBarrier']> | null = null;
+    try {
+      historyBarrier = this.history.acquireAdmissionBarrier();
+      taskBarrier = this.tasks.acquireAdmissionBarrier(reason);
+    } catch (reason) {
+      historyBarrier?.release();
+      this.mutationBarriers.delete(token);
+      throw reason;
+    }
+    const { documentRevision: revision, dirty } = this.snapshot;
+    let released = false;
+    return {
+      revision,
+      dirty,
+      release: () => {
+        if (released) return;
+        released = true;
+        taskBarrier!.release();
+        historyBarrier!.release();
+        this.mutationBarriers.delete(token);
+      }
+    };
+  }
+
+  isAcceptingMutations(): boolean {
+    return this.snapshot.lifecycle === 'ready'
+      && this.mutationBarriers.size === 0
+      && !this.snapshot.history.busy;
   }
 
   /**
@@ -429,6 +474,7 @@ export class DocumentSession {
         error: null
       }
     };
+    this.mutationBarriers.clear();
     const cleanupErrors: unknown[] = [];
     const cleanup = (operation: () => void) => {
       try { operation(); } catch (reason) { cleanupErrors.push(reason); }
@@ -475,5 +521,7 @@ export class DocumentSession {
     if (this.snapshot.lifecycle === 'closing') {
       throw new Error(`Document session ${this.id} is closing.`);
     }
+    const blockedReason = this.mutationBarriers.values().next().value;
+    if (blockedReason) throw new Error(blockedReason);
   }
 }

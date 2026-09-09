@@ -59,6 +59,10 @@ export type DocumentTaskRegistryListener = (
   snapshot: DocumentTaskRegistrySnapshot
 ) => void;
 
+export interface DocumentTaskAdmissionBarrier {
+  release(): void;
+}
+
 interface RunningTask {
   readonly state: DocumentTaskState;
   readonly controller: AbortController;
@@ -88,6 +92,7 @@ export class DocumentTaskRegistry {
   private sequence = 0;
   private generation = 0;
   private disposed = false;
+  private readonly admissionBarriers = new Map<symbol, string>();
   private snapshot: DocumentTaskRegistrySnapshot;
 
   constructor(documentId: DocumentSessionId) {
@@ -103,6 +108,20 @@ export class DocumentTaskRegistry {
     return () => this.listeners.delete(listener);
   };
 
+  acquireAdmissionBarrier(reason: string): DocumentTaskAdmissionBarrier {
+    this.assertUsable();
+    const token = Symbol('document-task-admission');
+    this.admissionBarriers.set(token, reason);
+    let released = false;
+    return {
+      release: () => {
+        if (released) return;
+        released = true;
+        this.admissionBarriers.delete(token);
+      }
+    };
+  }
+
   async run<T>(
     kind: DocumentTaskKind,
     label: string,
@@ -110,6 +129,12 @@ export class DocumentTaskRegistry {
     options: RunDocumentTaskOptions = {}
   ): Promise<DocumentTaskResult<T>> {
     this.assertUsable();
+    if (this.admissionBarriers.size > 0) {
+      return {
+        status: 'failed',
+        error: new Error([...this.admissionBarriers.values()][0] ?? 'Document task admission is blocked.')
+      };
+    }
     if (options.replace !== false) this.cancelKind(kind);
 
     this.sequence += 1;
@@ -211,6 +236,7 @@ export class DocumentTaskRegistry {
     for (const task of this.running.values()) task.controller.abort();
     this.running.clear();
     this.latestByKind.clear();
+    this.admissionBarriers.clear();
     this.states.clear();
     this.publish();
     this.listeners.clear();

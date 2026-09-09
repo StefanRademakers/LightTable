@@ -105,6 +105,22 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot().busy).toBe(false);
   });
 
+  it('blocks every history mutation while an external transition owns admission', async () => {
+    const history = new DocumentCommandHistory(documentId);
+    history.record(command('before-close'));
+    const barrier = history.acquireAdmissionBarrier();
+
+    expect(history.getSnapshot()).toMatchObject({ canUndo: false, canRedo: false });
+    expect(() => history.record(command('raced'))).toThrow(/not accepting mutations/i);
+    expect(() => history.reserve(command('reserved-race'))).toThrow(/not accepting mutations/i);
+    expect(() => history.markSaved()).toThrow(/not accepting mutations/i);
+    await expect(history.undo()).resolves.toBe(false);
+
+    barrier.release();
+    expect(history.getSnapshot().canUndo).toBe(true);
+    await expect(history.undo()).resolves.toBe(true);
+  });
+
   it('rejects edits recorded during async undo', async () => {
     let resolveUndo: (() => void) | undefined;
     const history = new DocumentCommandHistory(documentId);

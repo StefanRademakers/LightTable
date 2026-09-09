@@ -6,6 +6,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -30,10 +31,7 @@ import {
   useStandaloneFileDrop,
   type StandaloneFileDropModifiers
 } from './useStandaloneFileDrop';
-import {
-  requestWorkspaceDocumentClose,
-  waitForRunningDocumentSave
-} from './requestWorkspaceDocumentClose';
+import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 import {
   imagePickerAccept,
   isSupportedImageFile
@@ -71,6 +69,9 @@ import {
 import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 import { openHostDocuments, waitForDocumentOpeningToSettle } from './openHostDocuments';
 import { executeUiPlaceArtifact } from '../lighttable/application/documents/executeUiPlaceArtifact';
+import { discardDocumentRecovery } from './discardDocumentRecovery';
+import { DocumentRecoveryTransitionGate } from './DocumentRecoveryTransitionGate';
+import { prepareWorkspaceApplicationClose } from './prepareWorkspaceApplicationClose';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -244,6 +245,27 @@ export function LightTableStandaloneApp({
     () => new DocumentRendererLifecycle(),
     []
   );
+  const recoveryTransitions = useMemo(() => new DocumentRecoveryTransitionGate(), []);
+  useLayoutEffect(() => {
+    recoveryTransitions.setActiveDocument(snapshot.activeDocumentId);
+  }, [recoveryTransitions, snapshot.activeDocumentId]);
+  const registerRecoveryFlush = useCallback((
+    documentId: DocumentSessionId,
+    flush: () => Promise<void>
+  ) => recoveryTransitions.register(documentId, flush), [recoveryTransitions]);
+  const openWorkspaceFileSafely = useCallback(async (
+    file: File,
+    decodeMode: StandaloneDecodeMode = 'automatic'
+  ) => {
+    return recoveryTransitions.runTransition(() => {
+      const opened = openWorkspaceDocument(file, decodeMode);
+      if (opened.ok) {
+        recoveryTransitions.setActiveDocument(opened.value.id as DocumentSessionId);
+        recoveryTransitions.noteCommittedTransition();
+      }
+      return opened;
+    });
+  }, [openWorkspaceDocument, recoveryTransitions]);
   const applicationRendererSnapshot = useSyncExternalStore(
     applicationRendererLifecycle.subscribe,
     applicationRendererLifecycle.getSnapshot,
@@ -252,6 +274,8 @@ export function LightTableStandaloneApp({
   const applicationServicesLeaseRef = useRef(0);
   const commandServiceLeaseRef = useRef(0);
   const pendingDocumentClosesRef = useRef(new Set<DocumentSessionId>());
+  const applicationCloseAdmissionRef = useRef<(() => void) | null>(null);
+  const applicationCloseInProgressRef = useRef(false);
   const discardConfirmationQueueRef = useRef<DiscardConfirmationRequest[]>([]);
   const [discardConfirmation, setDiscardConfirmation] = useState<DiscardConfirmationRequest | null>(null);
   const confirmDiscardChanges = useCallback((documentTitle: string) => new Promise<boolean>((resolve) => {
@@ -305,8 +329,8 @@ export function LightTableStandaloneApp({
   }, [applicationEditorTasks, applicationRendererLifecycle]);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
-      openArtifact: (file) => {
-        const opened = openWorkspaceDocument(file);
+      openArtifact: async (file) => {
+        const opened = await openWorkspaceFileSafely(file);
         if (!opened.ok) throw new Error(`The artifact could not be opened: ${opened.error.code}.`);
         return opened.value.id as DocumentSessionId;
       },
@@ -318,10 +342,17 @@ export function LightTableStandaloneApp({
           name: `${options.name.replace(/\.png$/i, '')}.png`,
           backgroundColor: options.background.kind === 'solid' ? options.background.color : null
         });
-        const opened = openDocument(file, 'automatic', {
-          resolutionPpi: options.resolutionPpi,
-          bitDepth: options.bitDepth,
-          profile: options.profile
+        const opened = await recoveryTransitions.runTransition(() => {
+          const result = openDocument(file, 'automatic', {
+            resolutionPpi: options.resolutionPpi,
+            bitDepth: options.bitDepth,
+            profile: options.profile
+          });
+          if (result.ok) {
+            recoveryTransitions.setActiveDocument(result.value.id);
+            recoveryTransitions.noteCommittedTransition();
+          }
+          return result;
         });
         if (!opened.ok) throw new Error(`The document could not be created: ${opened.error.code}.`);
         try {
@@ -339,7 +370,14 @@ export function LightTableStandaloneApp({
         }
         const captured = await commandPorts.exportNativeArtifact(documentId);
         const artifact = await duplicateLayeredDocumentArtifact(captured, name);
-        const opened = openDuplicatedDocument(artifact, name);
+        const opened = await recoveryTransitions.runTransition(() => {
+          const result = openDuplicatedDocument(artifact, name);
+          if (result.ok) {
+            recoveryTransitions.setActiveDocument(result.value.id);
+            recoveryTransitions.noteCommittedTransition();
+          }
+          return result;
+        });
         if (!opened.ok) throw new Error(`The duplicate could not be opened: ${opened.error.code}.`);
         try {
           await waitForReadyDocument(opened.value);
@@ -350,7 +388,7 @@ export function LightTableStandaloneApp({
         return opened.value.id;
       }
     }, undefined, host.actionLibrary),
-    [commandPorts, controller, openDocument, openDuplicatedDocument, openWorkspaceDocument]
+    [commandPorts, controller, openDocument, openDuplicatedDocument, openWorkspaceFileSafely, recoveryTransitions]
   );
   useEffect(() => {
     commandService.setTypedWorkspaceProjection({
@@ -487,8 +525,10 @@ export function LightTableStandaloneApp({
     Object.values(documentSourcePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => host.subscribeOpenFiles?.((files) => {
-    for (const file of files) openWorkspaceDocument(file, 'automatic');
-  }), [host, openWorkspaceDocument]);
+    void (async () => {
+      for (const file of files) await openWorkspaceFileSafely(file, 'automatic');
+    })().catch((reason) => console.warn('[Recovery] Open-file handoff failed.', reason));
+  }), [host, openWorkspaceFileSafely]);
   useEffect(() => {
     const current = documentSourcePreviewUrlsRef.current;
     const openIds = new Set(documents.map(({ id }) => id));
@@ -535,6 +575,15 @@ export function LightTableStandaloneApp({
   recoveryListingRef.current = recoveryListing;
   const recoveryRefreshRequestRef = useRef(0);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const activateDocumentSafely = useCallback(async (documentId: DocumentSessionId) => {
+    try {
+      await recoveryTransitions.activateLatest(documentId, activateDocument);
+    } catch (reason) {
+      setRecoveryError(`Document switch was stopped because recovery failed: ${
+        reason instanceof Error ? reason.message : String(reason)
+      }`);
+    }
+  }, [activateDocument, recoveryTransitions]);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const launcherRecordedRef = useRef(false);
   const projectRestoreStartedRef = useRef(false);
@@ -650,7 +699,7 @@ export function LightTableStandaloneApp({
     && activeWorkspaceDocument.session.getSnapshot().lifecycle === 'ready'
     ? activeWorkspaceDocument.id
     : null;
-  const handleDroppedFile = useCallback((
+  const handleDroppedFile = useCallback(async (
     file: File,
     decodeMode: StandaloneDecodeMode,
     modifiers: StandaloneFileDropModifiers
@@ -658,10 +707,12 @@ export function LightTableStandaloneApp({
     const placeable = modifiers.altKey && activePlaceTargetId
       ? normalizePlaceableDroppedImage(file)
       : null;
-    return placeable && activePlaceTargetId
-      ? placeArtifactFile(activePlaceTargetId, placeable)
-      : openWorkspaceDocument(file, decodeMode);
-  }, [activePlaceTargetId, openWorkspaceDocument, placeArtifactFile]);
+    if (placeable && activePlaceTargetId) {
+      await placeArtifactFile(activePlaceTargetId, placeable);
+      return;
+    }
+    await openWorkspaceFileSafely(file, decodeMode);
+  }, [activePlaceTargetId, openWorkspaceFileSafely, placeArtifactFile]);
   const fileDrop = useStandaloneFileDrop(
     handleDroppedFile,
     rememberDroppedFiles,
@@ -711,13 +762,13 @@ export function LightTableStandaloneApp({
     try {
       const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
       if (!payload) throw new Error(`${asset.label} is no longer available.`);
-      openWorkspaceDocument(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
+      await openWorkspaceFileSafely(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
     } catch (reason) {
       setProjectError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setOpening(false);
     }
-  }, [activeProject, host.genAi, openWorkspaceDocument]);
+  }, [activeProject, host.genAi, openWorkspaceFileSafely]);
 
   const refreshRecentProjects = useCallback(async () => {
     try {
@@ -771,7 +822,7 @@ export function LightTableStandaloneApp({
         const file = project.lastUsedDocument
           ? await host.projects?.openLastUsedDocument(project) ?? null
           : null;
-        if (file) openWorkspaceDocument(file);
+        if (file) await openWorkspaceFileSafely(file);
         await refreshRecentProjects();
       }
     } catch (reason) {
@@ -779,7 +830,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host.projects, openWorkspaceDocument, refreshRecentProjects]);
+  }, [host.projects, openWorkspaceFileSafely, refreshRecentProjects]);
 
   const openRecentProject = useCallback(async (recentId: string) => {
     setProjectError(null);
@@ -791,7 +842,7 @@ export function LightTableStandaloneApp({
         const file = project.lastUsedDocument
           ? await host.projects?.openLastUsedDocument(project) ?? null
           : null;
-        if (file) openWorkspaceDocument(file);
+        if (file) await openWorkspaceFileSafely(file);
       }
       await refreshRecentProjects();
     } catch (reason) {
@@ -799,7 +850,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host.projects, openWorkspaceDocument, refreshRecentProjects]);
+  }, [host.projects, openWorkspaceFileSafely, refreshRecentProjects]);
 
   const clearRecentProjects = useCallback(async () => {
     await host.projects?.clearRecent();
@@ -822,7 +873,7 @@ export function LightTableStandaloneApp({
         if (project?.lastUsedDocument && !cancelled && snapshot.documentOrder.length === 0) {
           const file = await host.projects?.openLastUsedDocument(project) ?? null;
           if (cancelled) return;
-          if (file) openWorkspaceDocument(file);
+          if (file) await openWorkspaceFileSafely(file);
           else setProjectError(
             `${project.lastUsedDocument.name} is unavailable. The project opened in Project Home.`
           );
@@ -836,7 +887,7 @@ export function LightTableStandaloneApp({
       if (!cancelled) await refreshRecentProjects();
     })();
     return () => { cancelled = true; };
-  }, [host.projects, openWorkspaceDocument, refreshRecentProjects, snapshot.documentOrder.length]);
+  }, [host.projects, openWorkspaceFileSafely, refreshRecentProjects, snapshot.documentOrder.length]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -848,7 +899,7 @@ export function LightTableStandaloneApp({
       for (const file of files) {
         const startupTimeline = new DocumentStartupTimeline();
         startupTimeline.mark('bytes-available', { byteLength: file.size });
-        const opened = openWorkspaceDocument(file, decodeMode);
+        const opened = await openWorkspaceFileSafely(file, decodeMode);
         if (opened.ok && 'setStartupTimeline' in opened.value) {
           opened.value.setStartupTimeline(startupTimeline);
           await waitForDocumentOpeningToSettle(opened.value);
@@ -858,7 +909,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host, openWorkspaceDocument, refreshRecentFiles]);
+  }, [host, openWorkspaceFileSafely, refreshRecentFiles]);
 
   const openRecentDocument = useCallback(async (id: string) => {
     if (!host.openRecentFile) return;
@@ -868,13 +919,13 @@ export function LightTableStandaloneApp({
       const file = await host.openRecentFile(id);
       if (file) {
         startupTimeline.mark('bytes-available', { byteLength: file.size });
-        openWorkspaceDocument(file, 'automatic');
+        await openWorkspaceFileSafely(file, 'automatic');
       }
       await refreshRecentFiles();
     } finally {
       setOpening(false);
     }
-  }, [host, openWorkspaceDocument, refreshRecentFiles]);
+  }, [host, openWorkspaceFileSafely, refreshRecentFiles]);
 
   const clearRecentFiles = useCallback(async () => {
     await host.clearRecentFiles?.();
@@ -948,7 +999,14 @@ export function LightTableStandaloneApp({
       );
       const crashLoop = hasRecoveryAttempt(record.recoveryId);
       markRecoveryAttempt(record.recoveryId);
-      const opened = openRecoveredDocument(file, record, crashLoop);
+      const opened = await recoveryTransitions.runTransition(() => {
+        const result = openRecoveredDocument(file, record, crashLoop);
+        if (result.ok) {
+          recoveryTransitions.setActiveDocument(result.value.id);
+          recoveryTransitions.noteCommittedTransition();
+        }
+        return result;
+      });
       if (!opened.ok) {
         clearRecoveryAttempt(record.recoveryId);
         throw new Error(`Recovered work could not be opened: ${opened.error.code}.`);
@@ -960,7 +1018,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host, openRecoveredDocument]);
+  }, [host, openRecoveredDocument, recoveryTransitions]);
 
   const previewRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
     if (!host.recovery) return null;
@@ -992,17 +1050,25 @@ export function LightTableStandaloneApp({
   }, [host, recoveryPreviews]);
 
   const resolveRecovery = useCallback(async (recoveryId: string) => {
-    await host.recovery?.removeRecord(recoveryId);
-    clearRecoveryAttempt(recoveryId);
-    setRecoveryPreviews((current) => {
-      const preview = current[recoveryId];
-      if (!preview) return current;
-      URL.revokeObjectURL(preview);
-      const next = { ...current };
-      delete next[recoveryId];
-      return next;
-    });
-    await refreshRecoveries();
+    try {
+      await host.recovery?.removeRecord(recoveryId);
+      clearRecoveryAttempt(recoveryId);
+      setRecoveryPreviews((current) => {
+        const preview = current[recoveryId];
+        if (!preview) return current;
+        URL.revokeObjectURL(preview);
+        const next = { ...current };
+        delete next[recoveryId];
+        return next;
+      });
+      await refreshRecoveries();
+      return true;
+    } catch (reason) {
+      setRecoveryError(`Recovery record was not removed: ${
+        reason instanceof Error ? reason.message : String(reason)
+      }`);
+      return false;
+    }
   }, [host, refreshRecoveries]);
 
   useEffect(() => {
@@ -1022,47 +1088,81 @@ export function LightTableStandaloneApp({
   }, [requestNewDocument]);
 
   const closeDocument = useCallback((documentId: string) => {
+    if (applicationCloseInProgressRef.current) return;
     const id = documentId as DocumentSessionId;
     if (pendingDocumentClosesRef.current.has(id)) return;
     const document = documents.find((candidate) => candidate.id === id);
+    const recoveryId = document?.kind === 'image'
+      ? document.runtime.recovery?.recoveryId
+      : undefined;
     pendingDocumentClosesRef.current.add(id);
     void requestWorkspaceDocumentClose({
       documentId: id,
       documents,
-      host: { recovery: host.recovery, confirmDiscardChanges },
+      host: { confirmDiscardChanges },
       documentSession: document?.kind === 'image' ? document.session : null,
+      discardRecovery: (throughRevision) => discardDocumentRecovery(
+        host.recovery,
+        id,
+        recoveryId,
+        throughRevision
+      ),
+      onRecoveryCleanupFailed: (error) => {
+        console.warn('[Recovery] Explicit discard cleanup failed.', error);
+        setRecoveryError(`Document stayed open because recovery cleanup failed: ${error.message}`);
+      },
       close: closeWorkspaceDocument
+    }).then((closed) => {
+      if (closed) {
+        recoveryTransitions.noteCommittedTransition();
+        if (recoveryId) clearRecoveryAttempt(recoveryId);
+      }
     }).finally(() => pendingDocumentClosesRef.current.delete(id));
-  }, [closeWorkspaceDocument, confirmDiscardChanges, documents, host.recovery]);
+  }, [closeWorkspaceDocument, confirmDiscardChanges, documents, host.recovery, recoveryTransitions]);
 
   const prepareApplicationClose = useCallback(async (): Promise<boolean> => {
-    const discardedDocumentIds: DocumentSessionId[] = [];
-    for (const document of documents) {
-      if (document.kind === 'image') {
-        const saveStatus = await waitForRunningDocumentSave(document.session);
-        if (saveStatus && saveStatus !== 'completed') return false;
+    if (applicationCloseInProgressRef.current || pendingDocumentClosesRef.current.size > 0) return false;
+    applicationCloseInProgressRef.current = true;
+    const release = await prepareWorkspaceApplicationClose({
+      documents,
+      acquireCommandAdmission: () => commandService.acquireExecutionBarrier('Application close is pending.'),
+      acquireTransitionAdmission: () => recoveryTransitions.acquireBarrier('Application close is pending.'),
+      getTransitionRevision: () => recoveryTransitions.getRevision(),
+      getCanonicalImageIds: () => controller.getSnapshot().documentOrder,
+      getCanonicalSession: (id) => controller.getDocument(id),
+      confirmDiscardChanges,
+      recovery: host.recovery,
+      clearRecoveryAttempt,
+      reportError: (message, reason) => {
+        if (reason) console.warn('[Recovery] Application close preparation failed.', reason);
+        setRecoveryError(message);
       }
-      const dirty = document.kind === 'image'
-        ? document.session.getSnapshot().dirty
-        : document.dirty;
-      if (dirty && !await confirmDiscardChanges(document.title)) return false;
-      if (dirty) discardedDocumentIds.push(document.id);
+    });
+    if (!release) {
+      applicationCloseInProgressRef.current = false;
+      return false;
     }
-    for (const documentId of discardedDocumentIds) {
-      try {
-        await host.recovery?.remove(documentId);
-      } catch (reason) {
-        console.warn('[Recovery] Application discard cleanup failed.', reason);
-      }
-    }
+    applicationCloseAdmissionRef.current = () => {
+      release();
+      applicationCloseInProgressRef.current = false;
+    };
     return true;
-  }, [confirmDiscardChanges, documents, host]);
+  }, [commandService, confirmDiscardChanges, controller, documents, host.recovery, recoveryTransitions]);
 
   const exitApplication = useCallback(async (): Promise<boolean> => {
     if (!host.closeApplication || !await prepareApplicationClose()) return false;
-    await host.closeApplication();
-    return true;
+    try {
+      await host.closeApplication();
+      return true;
+    } catch (reason) {
+      applicationCloseAdmissionRef.current?.();
+      applicationCloseAdmissionRef.current = null;
+      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
+      return false;
+    }
   }, [host, prepareApplicationClose]);
+
+  useEffect(() => () => applicationCloseAdmissionRef.current?.(), []);
 
   useEffect(() => host.subscribeApplicationCloseRequests?.(prepareApplicationClose),
     [host, prepareApplicationClose]);
@@ -1176,7 +1276,7 @@ export function LightTableStandaloneApp({
           onChange={(event) => {
             const file = event.currentTarget.files?.[0] ?? null;
             event.currentTarget.value = '';
-            if (file) openWorkspaceDocument(file);
+            if (file) void openWorkspaceFileSafely(file);
           }} />
         <div className="lighttable-launcher__workspace">
           <nav className="lighttable-preferences__navigation lighttable-launcher__navigation" aria-label="Start">
@@ -1323,7 +1423,7 @@ export function LightTableStandaloneApp({
           applicationRendererLifecycle={applicationRendererLifecycle}
           screenMode={screenMode}
           onScreenModeChange={changeScreenMode}
-          onActivate={activateDocument}
+          onActivate={(documentId) => { void activateDocumentSafely(documentId); }}
           onClose={closeDocument}
           onRequestOpen={host.openFiles || host.openFile ? requestHostDocument : undefined}
           onRequestPlace={requestPlaceArtifact}
@@ -1354,9 +1454,10 @@ export function LightTableStandaloneApp({
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenStyleGuide={onOpenStyleGuide}
           preferences={preferences}
-          onOpen={openWorkspaceDocument}
-          onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
+          onOpen={(file, decodeMode) => openWorkspaceFileSafely(file, decodeMode)}
+          onRecoveryResolved={resolveRecovery}
           onDocumentThumbnailChange={publishDocumentThumbnail}
+          onRegisterRecoveryFlush={registerRecoveryFlush}
           />
         </Suspense>
       ) : null}

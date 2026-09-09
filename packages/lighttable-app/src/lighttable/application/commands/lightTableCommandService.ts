@@ -131,6 +131,11 @@ export interface TypedWorkspaceCommandProjection {
   readonly documents: Readonly<Record<string, TypedWorkspaceCommandDocument>>;
 }
 
+export interface LightTableCommandExecutionBarrier {
+  waitForIdle(): Promise<void>;
+  release(): void;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
@@ -218,6 +223,9 @@ export class LightTableCommandService {
   }>();
   private gestureSequence = 0;
   private readonly executingDocumentCommands = new Map<DocumentSessionId, number>();
+  private executingCommands = 0;
+  private readonly executionBarriers = new Map<symbol, string>();
+  private readonly executionIdleWaiters = new Set<() => void>();
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly publicationEvents = new AutomationPublicationEventStore();
   private readonly actions: SemanticActionWorkflowController;
@@ -1023,6 +1031,22 @@ export class LightTableCommandService {
     return snapshot ? projectCommandCapabilities(snapshot, this.ports, Boolean(this.workspacePorts)) : null;
   }
 
+  acquireExecutionBarrier(reason: string): LightTableCommandExecutionBarrier {
+    const token = Symbol('command-execution-barrier');
+    this.executionBarriers.set(token, reason);
+    let released = false;
+    return {
+      waitForIdle: () => this.executingCommands === 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => this.executionIdleWaiters.add(resolve)),
+      release: () => {
+        if (released) return;
+        released = true;
+        this.executionBarriers.delete(token);
+      }
+    };
+  }
+
   async execute(requestValue: unknown, context: LightTableCommandExecutionContext = {
     origin: 'ui', recording: 'record'
   }): Promise<LightTableCommandResult> {
@@ -1033,6 +1057,7 @@ export class LightTableCommandService {
       : null;
     const parsed = this.parseRequest(requestValue);
     const documentId = 'value' in parsed ? parsed.value.documentId : undefined;
+    this.executingCommands += 1;
     if (documentId) {
       this.executingDocumentCommands.set(documentId,
         (this.executingDocumentCommands.get(documentId) ?? 0) + 1);
@@ -1041,10 +1066,15 @@ export class LightTableCommandService {
     try {
       result = await this.executeCommand(requestValue);
     } finally {
+      this.executingCommands -= 1;
       if (documentId) {
         const depth = (this.executingDocumentCommands.get(documentId) ?? 1) - 1;
         if (depth > 0) this.executingDocumentCommands.set(documentId, depth);
         else this.executingDocumentCommands.delete(documentId);
+      }
+      if (this.executingCommands === 0) {
+        for (const resolve of this.executionIdleWaiters) resolve();
+        this.executionIdleWaiters.clear();
       }
     }
     if (!('rejection' in parsed) && context.recording === 'record') {
@@ -1057,6 +1087,10 @@ export class LightTableCommandService {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;
+    const blockedReason = this.executionBarriers.values().next().value;
+    if (blockedReason) {
+      return this.reject(value.requestId, 'command-unavailable', blockedReason);
+    }
     const sharedSchema = LIGHTTABLE_COMMAND_SCHEMAS[value.command]?.input;
     if (sharedSchema) {
       const validation = validateJsonSchemaValue(sharedSchema, value.parameters);

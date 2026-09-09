@@ -61,6 +61,10 @@ export interface DocumentHistoryReservation {
   cancel(): void;
 }
 
+export interface DocumentHistoryAdmissionBarrier {
+  release(): void;
+}
+
 export type DocumentCommandHistoryListener = (
   snapshot: DocumentCommandHistorySnapshot
 ) => void;
@@ -88,6 +92,7 @@ export class DocumentCommandHistory {
   private activeNode: HistoryNode | null = null;
   private activeReservation: { readonly token: symbol; readonly generation: number } | null = null;
   private busy = false;
+  private readonly admissionBarriers = new Set<symbol>();
   private generation = 0;
   private nextStateId = 1;
   private currentStateId = 0;
@@ -116,6 +121,7 @@ export class DocumentCommandHistory {
 
   record(command: ReversibleDocumentCommand): void {
     this.assertTarget(command);
+    this.assertAdmission();
     if (this.busy) {
       throw new Error('A command cannot be recorded while undo or redo is running.');
     }
@@ -125,6 +131,7 @@ export class DocumentCommandHistory {
 
   reserve(command: ReversibleDocumentCommand): DocumentHistoryReservation {
     this.assertTarget(command);
+    this.assertAdmission();
     if (this.busy) {
       throw new Error('A command cannot be reserved while history is busy.');
     }
@@ -174,7 +181,7 @@ export class DocumentCommandHistory {
   }
 
   async undo(): Promise<boolean> {
-    if (this.busy) return false;
+    if (this.busy || this.admissionBarriers.size > 0) return false;
     const node = this.undoNodes.pop();
     if (!node) return false;
     const generation = this.generation;
@@ -202,7 +209,7 @@ export class DocumentCommandHistory {
   }
 
   async redo(): Promise<boolean> {
-    if (this.busy) return false;
+    if (this.busy || this.admissionBarriers.size > 0) return false;
     const node = this.redoNodes.pop();
     if (!node) return false;
     const generation = this.generation;
@@ -231,7 +238,8 @@ export class DocumentCommandHistory {
 
   async goToPosition(position: number): Promise<boolean> {
     const maximum = this.undoNodes.length + this.redoNodes.length;
-    if (!Number.isSafeInteger(position) || position < 0 || position > maximum || this.busy) return false;
+    if (!Number.isSafeInteger(position) || position < 0 || position > maximum || this.busy
+      || this.admissionBarriers.size > 0) return false;
     while (this.undoNodes.length > position) {
       if (!await this.undo()) return false;
     }
@@ -243,7 +251,8 @@ export class DocumentCommandHistory {
 
   async deleteFromPosition(position: number): Promise<boolean> {
     const maximum = this.undoNodes.length + this.redoNodes.length;
-    if (!Number.isSafeInteger(position) || position < 1 || position > maximum || this.busy) return false;
+    if (!Number.isSafeInteger(position) || position < 1 || position > maximum || this.busy
+      || this.admissionBarriers.size > 0) return false;
     if (!await this.goToPosition(position - 1)) return false;
     this.disposeNodes(this.redoNodes);
     this.redoNodes = [];
@@ -252,11 +261,26 @@ export class DocumentCommandHistory {
   }
 
   markSaved(): void {
+    this.assertAdmission();
     this.savedStateId = this.currentStateId;
     this.publish();
   }
 
+  acquireAdmissionBarrier(): DocumentHistoryAdmissionBarrier {
+    const token = Symbol('history-admission-barrier');
+    this.admissionBarriers.add(token);
+    this.publish();
+    let released = false;
+    return { release: () => {
+      if (released) return;
+      released = true;
+      this.admissionBarriers.delete(token);
+      this.publish();
+    } };
+  }
+
   clear(options: { preserveDirtyState?: boolean } = {}): void {
+    this.assertAdmission();
     const wasDirty = this.snapshot.dirty;
     const operationInFlight = this.busy;
     this.generation += 1;
@@ -273,6 +297,7 @@ export class DocumentCommandHistory {
   }
 
   dispose(): void {
+    this.admissionBarriers.clear();
     this.clear();
     this.listeners.clear();
   }
@@ -294,6 +319,12 @@ export class DocumentCommandHistory {
       throw new Error(
         `Command ${command.id} targets ${command.documentId}, not ${this.documentId}.`
       );
+    }
+  }
+
+  private assertAdmission(): void {
+    if (this.admissionBarriers.size > 0) {
+      throw new Error(`Document history ${this.documentId} is not accepting mutations.`);
     }
   }
 
@@ -334,8 +365,8 @@ export class DocumentCommandHistory {
     ) + (this.activeNode?.command.byteSize ?? 0);
     return {
       documentId: this.documentId,
-      canUndo: this.undoNodes.length > 0 && !this.busy,
-      canRedo: this.redoNodes.length > 0 && !this.busy,
+      canUndo: this.undoNodes.length > 0 && !this.busy && this.admissionBarriers.size === 0,
+      canRedo: this.redoNodes.length > 0 && !this.busy && this.admissionBarriers.size === 0,
       busy: this.busy,
       undoDepth: this.undoNodes.length,
       redoDepth: this.redoNodes.length,

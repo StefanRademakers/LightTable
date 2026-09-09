@@ -132,7 +132,7 @@ describe('RecoveryJournalScheduler', () => {
     vi.useRealTimers();
   });
 
-  it('reports failure and retries only when newer work exists', async () => {
+  it('retries a transient failure twice without creating permanent recurring work', async () => {
     vi.useFakeTimers();
     const onError = vi.fn();
     const checkpoint = vi.fn(async () => { throw new Error('quota'); });
@@ -140,12 +140,65 @@ describe('RecoveryJournalScheduler', () => {
     scheduler.observe(revision(1));
     await vi.advanceTimersByTimeAsync(5_000);
     expect(onError).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(checkpoint).toHaveBeenCalledTimes(3);
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(checkpoint).toHaveBeenCalledOnce();
+    expect(checkpoint).toHaveBeenCalledTimes(3);
     scheduler.observe(revision(2));
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(checkpoint).toHaveBeenCalledTimes(2);
+    expect(checkpoint).toHaveBeenCalledTimes(4);
     scheduler.dispose();
     vi.useRealTimers();
+  });
+
+  it('flushes the newest dirty revision immediately and waits for its writer', async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const checkpoint = vi.fn(() => gate);
+    const scheduler = new RecoveryJournalScheduler({ checkpoint });
+    scheduler.observe(revision(7));
+
+    const flushing = scheduler.flush();
+    await Promise.resolve();
+    expect(checkpoint).toHaveBeenCalledWith(revision(7), expect.any(Function));
+    let settled = false;
+    void flushing.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    release();
+    await flushing;
+    expect(settled).toBe(true);
+    scheduler.dispose();
+    vi.useRealTimers();
+  });
+
+  it('fails a forced flush after bounded checkpoint retries are exhausted', async () => {
+    const scheduler = new RecoveryJournalScheduler({
+      debounceMs: 10,
+      maxDelayMs: 20,
+      maxFailureRetries: 1,
+      checkpoint: () => Promise.reject(new Error('store unavailable'))
+    });
+    scheduler.observe(revision(6));
+    await expect(scheduler.flush()).rejects.toThrow('store unavailable');
+    scheduler.dispose();
+  });
+
+  it('bounds a forced flush when every checkpoint is superseded by a newer revision', async () => {
+    let nextRevision = 7;
+    let scheduler!: RecoveryJournalScheduler;
+    const checkpoint = vi.fn(async () => {
+      scheduler.observe(revision(nextRevision++));
+    });
+    scheduler = new RecoveryJournalScheduler({
+      maxFailureRetries: 1,
+      checkpoint
+    });
+    scheduler.observe(revision(6));
+    await expect(scheduler.flush()).rejects.toThrow('changed repeatedly');
+    expect(checkpoint).toHaveBeenCalledTimes(2);
+    scheduler.dispose();
   });
 });

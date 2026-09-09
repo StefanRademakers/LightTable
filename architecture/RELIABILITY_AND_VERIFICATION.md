@@ -23,6 +23,15 @@ the atomic writer below. Browsers use OPFS with explicit quota/error results.
 Two generations per document, 20 documents, 30 days and 2 GiB are retained.
 Only a verified Save or explicit discard removes a valid checkpoint.
 
+Recovery scheduling observes the canonical `DocumentSession`, not a React
+projection or history alone. Switching/opening waits for the active document's
+flush. Closing acquires one retained admission across semantic commands,
+document/history publication and task creation before it pins revision/dirty,
+asks for confirmation and deletes recovery through that exact revision. A
+session-backed React ref advances only after the session accepts the write.
+Cleanup or persistence failure therefore fails closed instead of leaving a
+locally advanced editor or allowing a late Save/Export task to overtake exit.
+
 The schema, source research, privacy boundary, rejection policy and performance
 evidence live in `contracts/RECOVERY_PERSISTENCE_ADR.md`. On startup the recovery
 chooser appears before recents and offers Preview, Open recovered copy, Discard
@@ -56,8 +65,9 @@ phase-specific failures are normal structured results. Successful saves are
 quiet status updates, while failure text retains the failing phase and cause.
 
 Exports share the host byte writer but never change document dirty state. A
-normal Save does not close the document. Autosave and recovery consume this
-transaction in later tasks rather than adding a second durable-write path.
+normal Save does not close the document. Autosave/recovery is a separate private
+checkpoint lane, but successful Save cleanup is revision-bounded to the same
+committed save result and cannot remove recovery for newer edits.
 
 ## Error boundary
 

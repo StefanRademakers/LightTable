@@ -40,6 +40,7 @@ import { captureRendererBinding } from '../../application/rendering/rendererBind
 import {
   deliverDocumentTaskExport
 } from '../../application/documents/documentExportDelivery';
+import { cleanupRecoveryAfterSave } from '../../application/documents/cleanupRecoveryAfterSave';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -289,14 +290,14 @@ export const useDocumentFileCommands = (
             else current.commandHistory.markSaved();
           }
         });
-        if (outcome.markedClean) {
-          try {
-            await current.onSaveCommitted?.(documentRevision);
-          } catch (reason) {
-            console.warn('[Recovery] Saved document cleanup failed.', reason);
-          }
+        const recoveryCleanupError = await cleanupRecoveryAfterSave(
+          outcome,
+          current.onSaveCommitted
+        );
+        if (recoveryCleanupError) {
+          console.warn('[Recovery] Saved document cleanup failed.', recoveryCleanupError);
         }
-        return outcome;
+        return { outcome, recoveryCleanupError };
       }
     );
     if (result.status === 'failed') {
@@ -306,16 +307,20 @@ export const useDocumentFileCommands = (
       );
     } else if (result.status === 'canceled') {
       current.setStatus?.('Save canceled');
-    } else if (result.value.status === 'failed') {
-      const phase = result.value.phase ?? 'unknown';
+    } else if (result.value.outcome.status === 'failed') {
+      const phase = result.value.outcome.phase ?? 'unknown';
       current.setStatus?.(null);
-      current.setError(`Save failed during ${phase}: ${result.value.message ?? 'Unknown error'}`);
-    } else if (result.value.status === 'canceled') {
+      current.setError(`Save failed during ${phase}: ${result.value.outcome.message ?? 'Unknown error'}`);
+    } else if (result.value.outcome.status === 'canceled') {
       current.setStatus?.('Save canceled');
-    } else if (result.value.markedClean) {
-      current.setStatus?.('Saved');
+    } else if (result.value.outcome.markedClean) {
+      current.setStatus?.(result.value.recoveryCleanupError
+        ? 'Saved; recovery cleanup unavailable'
+        : 'Saved');
     } else {
-      current.setStatus?.('Saved revision; newer edits remain unsaved');
+      current.setStatus?.(result.value.recoveryCleanupError
+        ? 'Saved revision; newer edits remain unsaved; recovery cleanup unavailable'
+        : 'Saved revision; newer edits remain unsaved');
     }
     savingRef.current = false;
     setSaving(false);

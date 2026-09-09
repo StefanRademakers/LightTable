@@ -1,7 +1,7 @@
 # Document and clipboard vertical slice
 
-Status: active; S11 clipboard, document-geometry and Open/Place/Save/Export
-sub-slices accepted on 2026-09-09.
+Status: active; S11 clipboard, document-geometry, Open/Place/Save/Export and
+recovery/close sub-slices accepted on 2026-09-09.
 
 ## Contract
 
@@ -28,6 +28,12 @@ sub-slices accepted on 2026-09-09.
 - Save and Export pin their document/renderer/revision input and require an
   exact host `committed`, `canceled` or `failed` terminal result. Cancellation
   is normal; resolved failure is never success.
+- Recovery observes the canonical `DocumentSession` revision, retries bounded
+  persistence failure and exposes a real flush barrier. Document switch, open,
+  close and application exit cannot overtake that barrier.
+- Close admission is held simultaneously by commands, document/history
+  mutations and document-task creation. Confirmation and revision-bounded
+  recovery deletion happen while that admission remains owned.
 
 ## Implemented route
 
@@ -84,6 +90,20 @@ durability acknowledgment exists. UI Place surfaces structured command
 rejections and is excluded from Actions recording: its released transient
 artifact cannot be replayed until a durable artifact-reference contract exists.
 
+Recovery and close use this route:
+
+```text
+semantic document revision -> newest-only recovery scheduler -> durable journal
+switch/open/close           -> recovery transition barrier -> flush active owner
+tab/application close       -> command + session + history + task admission
+                            -> pin revision/dirty -> confirm -> bounded cleanup
+                            -> revalidate canonical workspace -> terminal close
+```
+
+React refs and renderer previews are adapters, not close authorities. The
+document session must accept a publication before a local ref is advanced, and
+new Save/Export/analysis work is refused while close admission is retained.
+
 ## Critic repairs
 
 1. Added per-format isolation, encoded-before-DIB ordering, case-insensitive
@@ -102,6 +122,13 @@ artifact cannot be replayed until a durable artifact-reference contract exists.
 6. Extracted UI Place from the standalone host shell. It is non-recordable,
    surfaces rejection, and retains the artifact if a future implementation
    unexpectedly returns asynchronous `accepted` instead of `completed`.
+7. Made recovery subscribe to canonical session revisions, added bounded retry
+   and flush, and serialized all document activation/open paths through one
+   transition gate.
+8. Added revision-bounded save/discard cleanup and exact recovered-record
+   removal; cleanup failure keeps the document open and reports the cause.
+9. Added retained command/session/history/task admission for tab and application
+   close. Session publication now precedes local React-ref advancement.
 
 No P0 remains. The second critic's stale-launcher P1 and late-parent-popup P2
 were eliminated by removing the parent preflight. A DIB-only provider can still
@@ -135,13 +162,22 @@ in later performance/soak coverage.
   at 16-bit: pass; measured save completion 289-354 ms;
 - packaged native bitmap export, layered source-save fallback, cold/warm OS
   open and two-page PDF open/one-page PDF export: pass.
+- recovery/close regressions: 188 focused tests pass plus focused extracted-close
+  coverage; full app run: 3,661 tests across 577 files pass; complete workspace
+  `verify`, typecheck, web build, desktop package and boundary checks pass;
+- packaged crash/restart recovery, recovered Save cleanup and identical reopen:
+  pass; report under `tmp/recovery-smoke/2026-09-09T17-41-32-924Z`;
+- packaged close during a 2999x2249 Save waits for the Save and closes only
+  afterward: pass;
+- independent architecture critic: PASS after the task-admission and
+  session-first React-ref repair; no remaining concrete P0/P1/P2 in this slice.
 
-The repository-wide source-structure audit remains red on its eight previously
-tracked legacy hotspots. This file-I/O sub-slice adds no net lines to
-`LightTableEditorOverlay.tsx` and reduces `LightTableStandaloneApp.tsx` by six
-net lines by moving Place lifetime/terminal policy into a bounded application
-service. The broader hotspot reductions remain slice-driven migration work,
-not a claim completed here.
+The repository-wide source-structure audit remains red on its previously
+tracked legacy hotspots. Recovery transition, tab-close and application-close
+coordination live in bounded services rather than adding those authorities to
+the host shell. The shell still contains route wiring and remains an explicit
+S11/S12 decomposition target; the broader hotspot reductions are slice-driven
+migration work, not a claim completed here.
 
 The generic visual browser driver was unavailable with `Transport closed`.
 The packaged Playwright/Electron acceptance is real UI evidence, not a claimed
@@ -149,5 +185,4 @@ manual observation.
 
 ## Remaining S11 work
 
-1. Autosave/recovery, decode/export failure and unsaved close.
-2. Generated/AI result insertion through the normal cancellable command route.
+1. Generated/AI result insertion through the normal cancellable command route.

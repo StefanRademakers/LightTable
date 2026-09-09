@@ -112,14 +112,14 @@ try {
   if (JSON.stringify(recoveredLayers) !== JSON.stringify(editedLayers)) {
     throw new Error('Recovered canonical layer projection differs from the edited checkpoint.');
   }
-  const recoveredTitle = await second.window.locator('.lighttable-document-tab--active').textContent();
+  const recoveredTitle = await second.window.locator('.ui-document-tabs__tab[data-active]').textContent();
   if (!recoveredTitle?.includes('(Recovered)') || !recoveredTitle.includes('*')) {
     throw new Error(`Recovered document is not visibly dirty: ${recoveredTitle}`);
   }
   await second.window.screenshot({ path: path.join(outputDirectory, '03-recovered-editor.png') });
   await second.window.keyboard.press('Control+S');
   await second.window.waitForFunction(() =>
-    !document.querySelector('.lighttable-document-tab--active')?.textContent?.includes('*'),
+    !document.querySelector('.ui-document-tabs__tab[data-active]')?.textContent?.includes('*'),
   undefined, { timeout: 30_000 });
   await access(savedFile);
   let remaining = await readdir(recoveryDirectory).catch(() => []);

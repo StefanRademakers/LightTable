@@ -79,9 +79,13 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onOpen: (
     file: File,
     decodeMode?: StandaloneDecodeMode
-  ) => unknown;
-  readonly onRecoveryResolved: (recoveryId: string) => void;
+  ) => Promise<unknown>;
+  readonly onRecoveryResolved: (recoveryId: string) => Promise<boolean>;
   readonly onDocumentThumbnailChange: (documentId: DocumentSessionId, thumbnail: Blob) => void;
+  readonly onRegisterRecoveryFlush: (
+    documentId: DocumentSessionId,
+    flush: () => Promise<void>
+  ) => () => void;
 }
 
 const titleWithoutExtension = (name: string) =>
@@ -130,7 +134,8 @@ export function StandaloneDocumentRuntimeView({
   preferences,
   onOpen,
   onRecoveryResolved,
-  onDocumentThumbnailChange
+  onDocumentThumbnailChange,
+  onRegisterRecoveryFlush
 }: StandaloneDocumentRuntimeViewProps) {
   const { id, active, runtime: { file } } = document;
   const video = document.kind === 'video' ? document.session.getSnapshot() : null;
@@ -154,11 +159,11 @@ export function StandaloneDocumentRuntimeView({
       && !result.mediaType.startsWith('video/')
       && isImageEditGeneration(job);
     if (forceOpen || !imageEdit) {
-      onOpen(file);
+      await onOpen(file);
       return;
     }
     if (document.kind !== 'image') {
-      onOpen(file);
+      await onOpen(file);
       return;
     }
     const artifact = commandService.registerInputArtifact(file);
@@ -180,7 +185,7 @@ export function StandaloneDocumentRuntimeView({
     if (!activeProject || !host.genAi) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
     if (!payload) return;
-    onOpen(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
+    await onOpen(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
   }, [activeProject, host.genAi, onOpen]);
 
   const recovery = document.kind === 'image' ? document.runtime.recovery : undefined;
@@ -253,6 +258,10 @@ export function StandaloneDocumentRuntimeView({
         imageClipboard={host.clipboard}
         recoveryStore={document.kind === 'image' ? host.recovery : undefined}
         recoveryPreferences={document.kind === 'image' ? preferences.autosave : undefined}
+        onRegisterRecoveryFlush={(documentId, flush) => onRegisterRecoveryFlush(
+          documentId as DocumentSessionId,
+          flush
+        )}
         toolPreferences={preferences.tools}
         genAiPreferences={preferences.genAi}
         releaseService={host.release}
@@ -266,7 +275,11 @@ export function StandaloneDocumentRuntimeView({
           ? `${recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${recovery.originalName}. Save creates a new file.`
           : null}
         onRecoveryResolved={recovery
-          ? () => onRecoveryResolved(recovery.recoveryId)
+          ? async () => {
+              if (!await onRecoveryResolved(recovery.recoveryId)) {
+                throw new Error('The recovered source record could not be removed.');
+              }
+            }
           : undefined}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);

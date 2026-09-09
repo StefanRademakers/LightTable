@@ -20,7 +20,7 @@ This status file remains the compact statement of what is actually migrated.
 | adjustment layers | compatibility paths retained | implemented | complete S08 lifecycle | packaged automated | partial |
 | layer styles/effects | UI presentation adapter retained | implemented | complete S09 lifecycle | packaged automated | yes |
 | filters | yes | documented | no | no | no |
-| open/render/save/recovery | yes | documented | no | no | no |
+| open/render/save/recovery | partial compatibility remains | implemented | open/place/save/export/recovery/close | packaged automated | partial |
 | Action/MCP equivalence | yes | documented | no | no | no |
 
 “Documented” means only that the cross-domain rule exists. It is not an

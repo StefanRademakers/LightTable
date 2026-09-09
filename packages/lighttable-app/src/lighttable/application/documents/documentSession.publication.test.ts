@@ -73,4 +73,38 @@ describe('DocumentSession publication transaction', () => {
     expect(observed).not.toHaveBeenCalled();
     session.dispose();
   });
+
+  it('pins revision and dirty state while a close transition owns mutation admission', async () => {
+    const session = new DocumentSession({
+      id: 'document-4' as DocumentSessionId,
+      source: { id: 'source-4', name: 'image.png', mediaType: 'image/png' }
+    });
+    session.setReady();
+    session.markChanged();
+
+    const admission = session.acquireMutationAdmission('Document is closing.');
+    expect(admission).toMatchObject({ revision: 1, dirty: true });
+    expect(() => session.markChanged()).toThrow('Document is closing.');
+    expect(() => session.history.record({
+      id: 'raced-command',
+      type: 'test',
+      label: 'Raced command',
+      documentId: session.id,
+      undo: () => undefined,
+      redo: () => undefined
+    })).toThrow(/not accepting mutations/i);
+    const racedTask = vi.fn(async () => true);
+    expect(session.isAcceptingMutations()).toBe(false);
+
+    await expect(session.tasks.run('save', 'Raced save', racedTask)).resolves.toMatchObject({
+      status: 'failed',
+      error: { message: 'Document is closing.' }
+    });
+    expect(racedTask).not.toHaveBeenCalled();
+    admission.release();
+    expect(session.isAcceptingMutations()).toBe(true);
+    expect(() => session.markChanged()).not.toThrow();
+    expect(session.getSnapshot().documentRevision).toBe(2);
+    session.dispose();
+  });
 });

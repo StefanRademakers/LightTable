@@ -169,4 +169,37 @@ describe('DocumentOpenController', () => {
     expect(lifecycle.getSnapshot().status).toBe('ready');
     expect(onSettled).toHaveBeenCalledOnce();
   });
+
+  it('publishes decode failure, releases its renderer, and permits a clean retry', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController(
+      new DocumentTaskRegistry('document-1' as DocumentSessionId),
+      lifecycle
+    );
+    const failedRenderer = renderer();
+    const recoveredRenderer = renderer();
+    const createRenderer = vi.fn()
+      .mockResolvedValueOnce(failedRenderer)
+      .mockResolvedValueOnce(recoveredRenderer);
+
+    const onFailed = vi.fn();
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['corrupt']),
+      hydrate: async () => { throw new Error('decode failed'); },
+      onFailed
+    }, { reuseRenderer: true });
+    expect(lifecycle.getSnapshot()).toMatchObject({ status: 'failed', error: 'decode failed' });
+    expect(onFailed).toHaveBeenCalledWith(expect.objectContaining({ message: 'decode failed' }));
+    expect(failedRenderer.destroy).toHaveBeenCalledOnce();
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['valid']),
+      hydrate: async () => undefined
+    }, { reuseRenderer: true });
+    expect(lifecycle.getSnapshot().status).toBe('ready');
+    expect(controller.getRenderer()).toBe(recoveredRenderer);
+    controller.close();
+  });
 });

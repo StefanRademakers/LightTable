@@ -593,6 +593,12 @@ reports:
   reconnects, made workspace preset switching deterministic, rejected stale
   recovery publication after Save and restored an explicit recovery-discard
   workflow. Treat these as regression boundaries, not incidental fixes.
+- Recovery/close authority is now explicit. `DocumentRecoveryTransitionGate`
+  serializes switch/open/close against the active recovery flush;
+  `prepareWorkspaceApplicationClose` retains command, session, history and task
+  admission through host handoff. Never start Save/Export directly around the
+  document task registry, delete recovery without `throughRevision`, or update
+  a session-backed React document ref before `DocumentSession` accepts it.
 
 Archived Task 303 is a dated backend bake-off; completed Task 309 and current
 code supersede its former "current backend by default" decision. Read its

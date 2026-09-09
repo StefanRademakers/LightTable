@@ -224,9 +224,13 @@ export const useDocumentImageState = (
     (update) => {
       const current = documentRef.current;
       const next = resolveUpdate(current, update);
-      documentRef.current = next;
-      if (documentSession) documentSession.setDocument(next);
-      else setLocalDocument(next);
+      if (documentSession) {
+        documentSession.setDocument(next);
+        documentRef.current = next;
+      } else {
+        documentRef.current = next;
+        setLocalDocument(next);
+      }
     },
     [documentSession]
   );

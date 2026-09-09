@@ -152,6 +152,23 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('rejects new commands while an application transition barrier is held', async () => {
+    const state = setup();
+    const barrier = state.service.acquireExecutionBarrier('Application close is pending.');
+    await expect(state.service.execute(request(
+      'history.undo',
+      state.session.id
+    ))).resolves.toMatchObject({
+      status: 'rejected',
+      code: 'command-unavailable',
+      message: 'Application close is pending.'
+    });
+    await barrier.waitForIdle();
+    barrier.release();
+    expect(await state.service.execute(request('history.undo', state.session.id)))
+      .not.toMatchObject({ message: 'Application close is pending.' });
+  });
+
   it('records and replays native SVG import as one semantic operation', async () => {
     const executeSvgImport = vi.fn(async () => ({
       layerId: 'svg-layer', elementIds: ['svg-path'], width: 100, height: 100,

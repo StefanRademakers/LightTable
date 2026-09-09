@@ -74,7 +74,7 @@ const GalleryCard = ({ item, preview, opening, onPreview, onContextMenu }: {
   const available = item.available !== false;
   return <article ref={target} className={`lighttable-launcher-gallery__card${available ? '' : ' is-missing'}`}
     onContextMenu={onContextMenu}>
-    <ButtonBase type="button" disabled={opening || !available} onClick={item.onOpen}>
+    <ButtonBase type="button" tabIndex={0} disabled={opening || !available} onClick={item.onOpen}>
       <span className="lighttable-launcher-gallery__preview">
         {preview && nearViewport ? <img src={preview} alt="" draggable={false} />
           : preview ? null : <span>{available ? 'No preview' : 'Missing'}</span>}
@@ -85,7 +85,7 @@ const GalleryCard = ({ item, preview, opening, onPreview, onContextMenu }: {
       </span>
     </ButtonBase>
     {launcherGalleryShowsRemoveAction(item) ? <ButtonBase
-      className="lighttable-launcher-gallery__remove" type="button" onClick={item.onRemove}
+      className="lighttable-launcher-gallery__remove" type="button" tabIndex={0} onClick={item.onRemove}
       aria-label={item.removeLabel ?? `Remove ${item.title}`}>×</ButtonBase> : null}
   </article>;
 };

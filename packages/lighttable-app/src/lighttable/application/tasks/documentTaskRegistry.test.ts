@@ -161,4 +161,23 @@ describe('DocumentTaskRegistry', () => {
     expect(tasks[0]?.label).toBe('Export 12');
     expect(tasks.at(-1)?.label).toBe('Export 139');
   });
+
+  it('refuses new tasks while a document transition owns admission', async () => {
+    const registry = new DocumentTaskRegistry(documentId);
+    const operation = vi.fn(async () => true);
+    const barrier = registry.acquireAdmissionBarrier('Document close is pending.');
+
+    await expect(registry.run('save', 'Raced save', operation)).resolves.toEqual({
+      status: 'failed',
+      error: expect.objectContaining({ message: 'Document close is pending.' })
+    });
+    expect(operation).not.toHaveBeenCalled();
+    expect(registry.getSnapshot().activeTaskIds).toEqual([]);
+
+    barrier.release();
+    await expect(registry.run('save', 'Allowed save', operation)).resolves.toMatchObject({
+      status: 'completed',
+      value: true
+    });
+  });
 });

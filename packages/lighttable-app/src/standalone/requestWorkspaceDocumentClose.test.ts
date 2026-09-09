@@ -41,26 +41,65 @@ describe('requestWorkspaceDocumentClose', () => {
   it('closes a dirty document with explicit discard permission', async () => {
     const confirmDiscardChanges = vi.fn(async () => true);
     const close = vi.fn(() => ({ ok: true as const }));
-    const remove = vi.fn(async () => undefined);
+    const discardRecovery = vi.fn(async () => undefined);
 
     await expect(requestWorkspaceDocumentClose({
       documentId,
       documents: [{ id: documentId, title: 'Dirty', dirty: true }],
-      host: {
-        confirmDiscardChanges,
-        recovery: {
-          remove,
-          removeRecord: vi.fn(),
-          write: vi.fn(),
-          list: vi.fn(),
-          read: vi.fn()
-        }
-      },
+      host: { confirmDiscardChanges },
+      discardRecovery,
       close
     })).resolves.toBe(true);
 
     expect(close).toHaveBeenCalledWith(documentId, true);
-    expect(remove).toHaveBeenCalledWith(documentId);
+    expect(discardRecovery).toHaveBeenCalledOnce();
+  });
+
+  it('pins recovery cleanup to the admitted revision and rejects late edits', async () => {
+    const session = new DocumentSession({
+      id: documentId,
+      source: { id: 'source', name: 'Dirty', mediaType: 'image/webp' }
+    });
+    session.setReady();
+    session.markChanged();
+    const discardRecovery = vi.fn(async () => undefined);
+    const confirmDiscardChanges = vi.fn(async () => {
+      expect(() => session.markChanged()).toThrow(/close is pending/i);
+      return true;
+    });
+    const close = vi.fn(() => ({ ok: true as const }));
+
+    await expect(requestWorkspaceDocumentClose({
+      documentId,
+      documents: [{ id: documentId, title: 'Dirty', dirty: true }],
+      host: { confirmDiscardChanges },
+      documentSession: session,
+      discardRecovery,
+      close
+    })).resolves.toBe(true);
+
+    expect(discardRecovery).toHaveBeenCalledWith(1);
+    expect(close).toHaveBeenCalledWith(documentId, true);
+    session.dispose();
+  });
+
+  it('keeps the dirty document open when recovery cleanup fails', async () => {
+    const close = vi.fn(() => ({ ok: true as const }));
+    const onRecoveryCleanupFailed = vi.fn();
+
+    await expect(requestWorkspaceDocumentClose({
+      documentId,
+      documents: [{ id: documentId, title: 'Dirty', dirty: true }],
+      host: { confirmDiscardChanges: vi.fn(async () => true) },
+      discardRecovery: async () => { throw new Error('Recovery disk is unavailable.'); },
+      onRecoveryCleanupFailed,
+      close
+    })).resolves.toBe(false);
+
+    expect(close).not.toHaveBeenCalled();
+    expect(onRecoveryCleanupFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Recovery disk is unavailable.' })
+    );
   });
 
   it('waits for an active successful save before closing', async () => {

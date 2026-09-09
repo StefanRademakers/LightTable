@@ -25,8 +25,19 @@ export interface DocumentRecoveryJournalOptions {
   readonly wasActive: boolean;
   readonly commandHistory: DocumentCommandHistory;
   readonly getCanonicalRevision: () => number;
+  readonly subscribe?: (listener: () => void) => () => void;
+  readonly getRevision?: () => {
+    readonly canonicalRevision: number;
+    readonly historyStateId: number;
+    readonly savedStateId: number;
+    readonly dirty: boolean;
+  };
   readonly exportOutput: (options?: { readonly lightweightPreview?: boolean }) => Promise<ExportedLightTableDocument>;
   readonly onStatus?: (status: 'available' | 'failed', message: string) => void;
+}
+
+export interface DocumentRecoveryJournalHandle {
+  flush(): Promise<void>;
 }
 
 const createRecoveryId = (): string => typeof crypto.randomUUID === 'function'
@@ -50,8 +61,14 @@ export const useDocumentRecoveryJournal = ({
   commandHistory,
   getCanonicalRevision,
   exportOutput,
-  onStatus
-}: DocumentRecoveryJournalOptions): void => {
+  onStatus,
+  subscribe,
+  getRevision
+}: DocumentRecoveryJournalOptions): DocumentRecoveryJournalHandle => {
+  const schedulerRef = useRef<RecoveryJournalScheduler | null>(null);
+  const handleRef = useRef<DocumentRecoveryJournalHandle>({
+    flush: () => schedulerRef.current?.flush() ?? Promise.resolve()
+  });
   const currentRef = useRef({
     getCanonicalRevision,
     exportOutput,
@@ -61,7 +78,8 @@ export const useDocumentRecoveryJournal = ({
     sourcePath,
     sourceLastModified,
     workspaceOrder,
-    wasActive
+    wasActive,
+    getRevision
   });
   currentRef.current = {
     getCanonicalRevision,
@@ -72,7 +90,8 @@ export const useDocumentRecoveryJournal = ({
     sourcePath,
     sourceLastModified,
     workspaceOrder,
-    wasActive
+    wasActive,
+    getRevision
   };
 
   useEffect(() => {
@@ -134,7 +153,7 @@ export const useDocumentRecoveryJournal = ({
         if (disposed) return;
         const finishedAt = performance.now();
         if (result.status === 'failed') {
-          currentRef.current.onStatus?.('failed', result.message);
+          throw new Error(`Recovery ${result.phase} failed: ${result.message}`);
         } else if (result.status === 'committed') {
           console.info(
             `[Recovery] Checkpoint committed: ${Math.round(result.byteLength / 1024)} KiB; `
@@ -148,23 +167,33 @@ export const useDocumentRecoveryJournal = ({
         currentRef.current.onStatus?.('failed', error.message);
       }
     });
+    schedulerRef.current = scheduler;
 
-    const observe = (snapshot = commandHistory.getSnapshot()) => scheduler.observe({
-      canonicalRevision: Math.max(
-        currentRef.current.getCanonicalRevision(),
-        snapshot.currentStateId
-      ),
-      historyStateId: snapshot.currentStateId,
-      savedStateId: snapshot.savedStateId,
-      dirty: snapshot.dirty
-    });
+    const observe = () => {
+      if (currentRef.current.getRevision) {
+        scheduler.observe(currentRef.current.getRevision());
+        return;
+      }
+      const snapshot = commandHistory.getSnapshot();
+      scheduler.observe({
+        canonicalRevision: Math.max(
+          currentRef.current.getCanonicalRevision(),
+          snapshot.currentStateId
+        ),
+        historyStateId: snapshot.currentStateId,
+        savedStateId: snapshot.savedStateId,
+        dirty: snapshot.dirty
+      });
+    };
     observe();
-    const unsubscribe = commandHistory.subscribe(observe);
+    const unsubscribe = subscribe ? subscribe(observe) : commandHistory.subscribe(observe);
     return () => {
       disposed = true;
       unsubscribe();
       scheduler.dispose();
+      if (schedulerRef.current === scheduler) schedulerRef.current = null;
       artifactHasher.dispose();
     };
-  }, [commandHistory, documentId, enabled, intervalMs, sourceByteLength, sourceFingerprint, store]);
+  }, [commandHistory, documentId, enabled, intervalMs, sourceByteLength, sourceFingerprint, store, subscribe]);
+  return handleRef.current;
 };
