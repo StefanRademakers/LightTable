@@ -169,7 +169,7 @@ slice; they are not postponed to the final phase.
 | S03 | Raster paint and pixel mutation sessions | `owner` | yes | passed | passed | [ ] | yes |
 | S04 | Transform, selected-pixel transform, snapping and guides | `owner` | yes | repaired | passed | [ ] | partial |
 | S05 | Vector paths and live shapes | `owner` | yes | passed | passed | [ ] | partial |
-| S06 | Text, paragraph/vertical/path text and text conversion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S06 | Text, paragraph/vertical/path text and text conversion | `owner` | yes | passed | passed | [ ] | partial (warp -> S07) |
 | S07 | Warp and experimental Face Warp | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S08 | Adjustment-layer lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S09 | Layer styles/effects lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -328,14 +328,25 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S06 -- text
 
-- [ ] Type tool (point text) creation and editing.
-- [ ] Paragraph text creation and editing.
-- [ ] Vertical type tool creation and editing.
-- [ ] Text measurement is canonical enough for transform before glyph realization.
-- [ ] Path text attaches to exactly one selected native path and survives path edit.
-- [ ] Style/run/paragraph edits preview and commit as one transaction.
-- [ ] Text transform, text warp, convert-to-shape and rasterize hand-offs.
-- [ ] Font load/failure, document switch, undo/redo and export behavior.
+- [x] Type tool (point text) creation and editing.
+- [x] Paragraph text creation and editing.
+- [x] Vertical type tool creation and editing.
+- [x] Text measurement is generation-bound and exact for transform before glyph
+      realization; stale retained layouts cannot become current.
+- [x] Path Text resolves the native contour under the click, records stable ids
+      and replays through Actions after undo.
+- [x] Style/run/paragraph edits use the existing grouped semantic transaction.
+- [x] Text transform, convert-to-shape and rasterize hand-offs preserve semantic
+      text until the explicit conversion/finalization boundary.
+- [x] Font preparation, failure, document/renderer invalidation and undo/redo
+      have focused automated coverage.
+- [x] Two read-only critic passes plus the supplemental async-activation repair;
+      final verdict has no P0/P1.
+- [x] Debug packaged Type Tool and Path Text/Actions browser acceptance.
+- [ ] Owner manually accepts text authoring and transform latency/feel.
+- [ ] Text Warp is deliberately S07 and may not add a second preview owner.
+- [ ] Extract the accepted P2 post-hit activation adapter from the 9k-line
+      overlay before adding more text behavior.
 
 ### S07 -- warp
 

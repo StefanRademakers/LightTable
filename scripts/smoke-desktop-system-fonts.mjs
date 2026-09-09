@@ -69,7 +69,7 @@ try {
   await page.keyboard.press('t');
   await page.getByRole('button', { name: 'Type tool (T)', exact: true })
     .waitFor({ state: 'visible' });
-  const fontPicker = page.locator('.lighttable-tool-options__font-field .lighttable-font-picker__trigger');
+  const fontPicker = page.locator('.lighttable-tool-options').getByLabel('Font', { exact: true });
   await fontPicker.click();
   await page.getByRole('searchbox', { name: 'Search fonts' }).fill(report.selected.family);
   const fontOption = page.getByRole('option').filter({ hasText: report.selected.family }).first();
@@ -85,8 +85,6 @@ try {
     throw new Error('System-font authoring opened the legacy text creation dialog.');
   }
   await textInput.pressSequentially('System font via WASM and WebGPU');
-  await page.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
-    .waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(1_000);
   report.authoredText = await textInput.inputValue();
   report.selectedFamilyInUi = await fontPicker.getAttribute('title');

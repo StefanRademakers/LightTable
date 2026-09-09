@@ -400,7 +400,6 @@ export class TextLayerRenderCoordinator {
       if (!editing || !this.interactingLayerScales.has(layer.id)) continue;
       this.editingLayouts.set(layer.id, Object.freeze({
         ...editing,
-        preparationKey: this.layerPreparationKey(document.id, layer, transform, this.fontPort?.revision ?? 0),
         localToDocument: Object.freeze({ ...transform })
       }));
     }
@@ -475,6 +474,58 @@ export class TextLayerRenderCoordinator {
 
   editingLayout(layerId: LayerId): TextLayerEditingLayout | null {
     return this.editingLayouts.get(layerId) ?? null;
+  }
+
+  /** Returns a layout only when it matches current canonical text/font/path input. */
+  currentEditingLayout(layerId: LayerId): TextLayerEditingLayout | null {
+    if (!this.document || !this.fontPort) return null;
+    const entry = visibleTextLayers(this.document).find(({ layer }) => layer.id === layerId);
+    if (!entry) return null;
+    const expectedKey = this.layerPreparationKey(
+      this.document.id, entry.layer, entry.transform, this.fontPort.revision
+    );
+    const presentation = this.editingLayouts.get(layerId);
+    return presentation?.preparationKey === expectedKey ? presentation : null;
+  }
+
+  /** Joins only editable geometry belonging to the current document/font generation. */
+  async waitForEditingLayout(layerId: LayerId, signal?: AbortSignal): Promise<{
+    readonly kind: 'ready'; readonly presentation: TextLayerEditingLayout;
+  } | { readonly kind: 'invalidated' | 'unavailable' }> {
+    for (;;) {
+      if (signal?.aborted || this.disposed) return { kind: 'invalidated' };
+      const currentPresentation = this.currentEditingLayout(layerId);
+      if (currentPresentation) return { kind: 'ready', presentation: currentPresentation };
+      const openingDocument = this.document;
+      const openingFontPort = this.fontPort;
+      const openingFontRevision = openingFontPort?.revision;
+      const openingEntry = openingDocument
+        ? visibleTextLayers(openingDocument).find(({ layer }) => layer.id === layerId)
+        : null;
+      if (!openingDocument || !openingFontPort || openingFontRevision === undefined || !openingEntry) {
+        return { kind: 'unavailable' };
+      }
+      this.schedule();
+      const openingGeneration = this.generation;
+      const openingWork = this.work;
+      const expectedKey = this.layerPreparationKey(
+        openingDocument.id, openingEntry.layer, openingEntry.transform, openingFontRevision
+      );
+      await openingWork;
+      if (signal?.aborted || this.disposed) return { kind: 'invalidated' };
+      if (this.document !== openingDocument || this.fontPort !== openingFontPort
+        || this.fontPort.revision !== openingFontRevision) return { kind: 'invalidated' };
+      if (openingWork !== this.work || openingGeneration !== this.generation) continue;
+      const currentEntry = visibleTextLayers(openingDocument)
+        .find(({ layer }) => layer.id === layerId);
+      if (!currentEntry || textLayerSourceKey(currentEntry.layer) !== textLayerSourceKey(openingEntry.layer)) {
+        return { kind: 'invalidated' };
+      }
+      const presentation = this.editingLayouts.get(layerId);
+      return presentation?.preparationKey === expectedKey
+        ? { kind: 'ready', presentation }
+        : { kind: 'unavailable' };
+    }
   }
 
   /** Resolves editable layer-local glyph paths without changing the document. */

@@ -80,7 +80,7 @@ try {
   if (await typeButton.getAttribute('aria-pressed') !== 'true') {
     throw new Error('T did not activate the unified Type Tool.');
   }
-  await page.getByRole('button', { name: 'Show text tools' }).click();
+  await page.locator('[data-tool-group="Text tools"] > .ui-toolbar__button').click();
   const family = page.getByRole('toolbar', { name: 'Text tools' });
   const familyTypeButton = family.getByRole('button', { name: 'Type tool (T)', exact: true });
   const pathTextButton = family.getByRole('button', { name: 'Path text (T)', exact: true });
@@ -88,9 +88,9 @@ try {
   await familyTypeButton.waitFor({ state: 'visible' });
   await pathTextButton.waitFor({ state: 'visible' });
   await verticalTypeButton.waitFor({ state: 'visible' });
-  const typeIcon = await familyTypeButton.locator('img').getAttribute('src');
-  const pathIcon = await pathTextButton.locator('img').getAttribute('src');
-  const verticalIcon = await verticalTypeButton.locator('img').getAttribute('src');
+  const typeIcon = await familyTypeButton.locator('.ui-mask-icon').getAttribute('style');
+  const pathIcon = await pathTextButton.locator('.ui-mask-icon').getAttribute('style');
+  const verticalIcon = await verticalTypeButton.locator('.ui-mask-icon').getAttribute('style');
   if (!typeIcon || !pathIcon || !verticalIcon || typeIcon === pathIcon
     || typeIcon === verticalIcon || pathIcon === verticalIcon) {
     throw new Error('Type, Vertical Type and Path Text do not have distinct icons.');
@@ -100,17 +100,17 @@ try {
   }
   await page.locator('.lighttable-tool-options__identity').click();
   await page.keyboard.press('Shift+t');
-  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+  if (await page.locator('.ui-toolbar__group > .ui-toolbar__button[aria-pressed="true"]')
     .getAttribute('aria-label') !== 'Vertical type tool (T)') {
     throw new Error('Shift+T did not activate Vertical Type.');
   }
   await page.keyboard.press('Shift+t');
-  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+  if (await page.locator('.ui-toolbar__group > .ui-toolbar__button[aria-pressed="true"]')
     .getAttribute('aria-label') !== 'Path text (T)') {
     throw new Error('Shift+T did not cycle to Path Text.');
   }
   await page.keyboard.press('Shift+t');
-  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+  if (await page.locator('.ui-toolbar__group > .ui-toolbar__button[aria-pressed="true"]')
     .getAttribute('aria-label') !== 'Type tool (T)') {
     throw new Error('Shift+T did not cycle back to horizontal Type.');
   }
@@ -164,14 +164,18 @@ try {
     throw new Error(`Unified Type gestures produced unexpected history: ${JSON.stringify({ before, afterCreation })}`);
   }
   const orientation = page.locator('.lighttable-tool-options').getByLabel('Orientation');
-  await orientation.selectOption('vertical-rl');
+  const chooseOrientation = async (label) => {
+    await orientation.click();
+    await page.getByRole('option', { name: label, exact: true }).click();
+  };
+  await chooseOrientation('Vertical');
   const verticalLayers = await driver.queryLayers(documentId);
   const verticalLayer = verticalLayers?.find(({ id }) => id === afterCreation.activeLayerId);
   if (!verticalLayer || verticalLayer.textLayout?.writingMode !== 'vertical-rl') {
     throw new Error(`Orientation did not update semantic text: ${JSON.stringify(verticalLayer)}`);
   }
   await page.screenshot({ path: verticalScreenshotPath });
-  await orientation.selectOption('horizontal-tb');
+  await chooseOrientation('Horizontal');
 
   const after = await driver.queryDocument(documentId);
   if (!after || after.layerCount !== before.layerCount + 2
@@ -186,6 +190,10 @@ try {
   await page.keyboard.press('Control+Enter');
   await textInput.waitFor({ state: 'detached', timeout: 30_000 });
   await driver.waitForRenderedDocument(documentId, 30_000);
+  // Move focus out of the detached contenteditable before exercising the
+  // window-owned shortcut. Chromium can otherwise leave the removed editor
+  // as its keyboard target for the next synthetic chord.
+  await page.locator('.lighttable-tool-options__identity').click();
   await page.keyboard.press('Control+t');
   const transformOverlay = page.getByLabel('Transform controls');
   try {
@@ -197,7 +205,7 @@ try {
       details: {
         document: await driver.queryDocument(documentId).catch(() => null),
         layers: await driver.queryLayers(documentId).catch(() => null),
-        activeTool: await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+        activeTool: await page.locator('.ui-toolbar__group > .ui-toolbar__button[aria-pressed="true"]')
           .getAttribute('aria-label').catch(() => null),
         visibleErrors: await page.locator('.lighttable-error, [role="alert"]')
           .allInnerTexts().catch(() => [])
@@ -247,12 +255,36 @@ try {
   }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
   await page.keyboard.press('Escape');
   await transformOverlay.waitFor({ state: 'detached', timeout: 30_000 });
+  await page.locator('.lighttable-tool-options__identity').click();
   await page.keyboard.press('t');
+  if (await typeButton.getAttribute('aria-pressed') !== 'true') {
+    throw new Error('T did not reactivate the Type Tool after Free Transform.');
+  }
+  const transformedTextHit = {
+    x: transformedBounds.left + (transformedBounds.right - transformedBounds.left) * 0.22,
+    y: transformedBounds.top + (transformedBounds.bottom - transformedBounds.top) * 0.28
+  };
   await page.mouse.click(
-    (transformedBounds.left + transformedBounds.right) / 2,
-    (transformedBounds.top + transformedBounds.bottom) / 2
+    transformedTextHit.x,
+    transformedTextHit.y
   );
-  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 }).catch(async (error) => {
+    const diagnosticPath = await captureDesktopTestState({
+      app, page, outputDirectory, sourceFile, pageErrors,
+      label: 'transformed-text-reentry-unavailable', timeout: 30_000,
+      details: {
+        document: await driver.queryDocument(documentId).catch(() => null),
+        layers: await driver.queryLayers(documentId).catch(() => null),
+        activeTool: await page.locator('.ui-toolbar__group > .ui-toolbar__button[aria-pressed="true"]')
+          .getAttribute('aria-label').catch(() => null),
+        transformedBounds,
+        transformedTextHit
+      }
+    });
+    throw new Error(`Transformed text did not re-enter edit mode. Diagnostic: ${diagnosticPath}`, {
+      cause: error
+    });
+  });
   const reopened = await driver.queryDocument(documentId);
   if (reopened?.activeLayerId !== after.activeLayerId) {
     throw new Error('A Type Tool click did not re-enter the transformed text layer.');
@@ -278,8 +310,8 @@ try {
   // work and previously made the one aggregate p95 look like typing latency.
   await page.keyboard.press('t');
   await page.mouse.click(
-    (transformedBounds.left + transformedBounds.right) / 2,
-    (transformedBounds.top + transformedBounds.bottom) / 2
+    transformedTextHit.x,
+    transformedTextHit.y
   );
   await textInput.waitFor({ state: 'attached', timeout: 30_000 });
   await driver.resetRenderTelemetry(documentId);

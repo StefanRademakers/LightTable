@@ -193,6 +193,20 @@ export class LayerDocumentRenderer {
     return projectTextEditingGeometryPreview(presentation, layer.transform, preview);
   }
 
+  currentTextEditingLayout(layerId: LayerId) {
+    const presentation = this.runtime.textLayerCoordinator.currentEditingLayout(layerId);
+    const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
+    if (!presentation || !layer) return presentation;
+    const preview = this.runtime.geometryPreviews.resolve(layer.id, layer.geometryRevision);
+    return preview
+      ? projectTextEditingGeometryPreview(presentation, layer.transform, preview)
+      : presentation;
+  }
+
+  waitForTextEditingLayout(layerId: LayerId, signal?: AbortSignal) {
+    return this.runtime.textLayerCoordinator.waitForEditingLayout(layerId, signal);
+  }
+
   setTextLayerInteraction(layerId: LayerId, active: boolean) {
     return this.runtime.textLayerCoordinator.setLayerInteraction(layerId, active);
   }

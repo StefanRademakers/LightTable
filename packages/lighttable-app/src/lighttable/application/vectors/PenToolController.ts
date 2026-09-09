@@ -373,27 +373,24 @@ export class PenToolController {
   private commit() {
     const operation = this.transaction === 'mutation' ? 'update' : 'create';
     const layerId = this.layerId;
-    const pathId = this.presentedPath?.id ?? this.builder?.snapshot().id;
+    const path = this.presentedPath ?? this.builder?.snapshot() ?? null;
     const existingLayerId = this.existingLayerId;
+    const document = this.documents.currentDocument();
+    const layer = document && layerId ? findDocumentLayer(document, layerId) : null;
+    const layerName = layer?.type === 'vector' ? layer.name : 'Shape';
     const committed = operation === 'update'
       ? this.documents.commitPathMutation()
       : this.documents.commitPathCreation();
-    if (committed && layerId && pathId) {
-      const document = this.documents.currentDocument();
-      const layer = document ? findDocumentLayer(document, layerId) : null;
-      const path = layer?.type === 'vector'
-        ? layer.elements.find((element): element is VectorPath => (
-            element.type === 'path' && element.id === pathId
-          ))
-        : null;
-      if (layer?.type === 'vector' && path) this.onCommitted?.({
-        operation,
-        layerId,
-        layerName: layer.name,
-        path: cloneVectorPath(path),
-        ...(existingLayerId ? { existingLayerId } : {})
-      });
-    }
+    // The transaction payload is the commit result. Re-querying a React-owned
+    // document projection here can observe the previous publication even
+    // though commitPath* already accepted the exact path.
+    if (committed && layerId && path) this.onCommitted?.({
+      operation,
+      layerId,
+      layerName,
+      path: cloneVectorPath(path),
+      ...(existingLayerId ? { existingLayerId } : {})
+    });
     this.reset();
     return committed;
   }

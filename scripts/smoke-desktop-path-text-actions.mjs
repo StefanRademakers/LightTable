@@ -1,13 +1,15 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { prepareRasterSmokeSource } from './desktop-smoke-fixtures.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const outputDirectory = path.join(root, 'tmp', 'path-text-actions-smoke');
-await Promise.all([access(fixture), mkdir(outputDirectory, { recursive: true })]);
+const fixture = await prepareRasterSmokeSource(outputDirectory, process.argv[2]);
+await mkdir(outputDirectory, { recursive: true });
 const userData = await mkdtemp(path.join(outputDirectory, 'profile-'));
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
@@ -33,14 +35,31 @@ try {
   await open.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ timeout: 60_000 });
+  await window.evaluate(() => { window.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__ = []; });
+  const driver = await attachLightTableAutomation(window, 'path-text-actions');
+  const waitForRecorded = (command, count = 1) => window.waitForFunction(({ command, count }) =>
+    window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+      .filter((step) => step.command === command).length >= count,
+  { command, count }, { timeout: 30_000 });
   const beforeLayerIds = await window.locator('.lighttable-layer[data-layer-id]')
     .evaluateAll((nodes) => nodes.map((node) => node.dataset.layerId));
   const beforeLayers = beforeLayerIds.length;
 
-  await window.getByRole('menuitem', { name: 'View' }).click();
-  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
   const recorder = panel.locator('.lighttable-action-recorder');
+  const ensureActionsPanel = async () => {
+    if (await panel.isVisible().catch(() => false)) return;
+    const tab = window.getByRole('tab', { name: 'Actions', exact: true });
+    if (await tab.isVisible().catch(() => false)) {
+      await tab.click();
+    } else {
+      await window.getByRole('menuitem', { name: 'View' }).click();
+      await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+      if (await tab.isVisible().catch(() => false)) await tab.click();
+    }
+    await panel.waitFor({ state: 'visible', timeout: 30_000 });
+  };
+  await ensureActionsPanel();
   await recorder.getByRole('button', { name: 'Record' }).click();
   const bounds = await window.locator('.lighttable-viewport').boundingBox();
   if (!bounds) throw new Error('Path Text smoke could not measure the viewport.');
@@ -52,17 +71,36 @@ try {
     const anchor = point(x, y);
     await window.mouse.click(anchor.x, anchor.y);
   }
+  await window.evaluate(() => document.activeElement instanceof HTMLElement
+    && document.activeElement.blur());
   await window.keyboard.press('Enter');
-  const vectorStep = recorder.locator('li').filter({ hasText: 'vector.create' });
-  await vectorStep.waitFor({ timeout: 15_000 });
-
   await window.keyboard.press('Shift+a');
   await window.locator('.lighttable-tool-options__identity')
     .filter({ hasText: 'Direct selection' }).waitFor();
+  await waitForRecorded('vector.create').catch(async (error) => {
+    const workspace = await driver.queryWorkspace();
+    const layers = workspace?.activeDocumentId
+      ? await driver.queryLayers(workspace.activeDocumentId) : [];
+    const evidence = await window.evaluate(() => ({
+      tool: document.querySelector('.lighttable-tool-options__identity')?.textContent,
+      layers: [...document.querySelectorAll('.lighttable-layer[data-layer-id]')]
+        .map((node) => ({ id: node.dataset.layerId, text: node.textContent })),
+      alerts: [...document.querySelectorAll('[role="alert"]')].map((node) => node.textContent),
+      commandObservationTrace: window.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__
+    }));
+    throw new Error(`Pen path did not publish vector.create: ${JSON.stringify({
+      evidence, workspace, layers,
+      vectors: workspace?.activeDocumentId ? await Promise.all((layers ?? [])
+        .filter(({ type }) => type === 'vector')
+        .map(({ id }) => driver.queryVector(workspace.activeDocumentId, id))) : [],
+      recorder: await recorder.textContent(), pageErrors
+    })}`, { cause: error });
+  });
+
   const pathAnchor = point(0.16, 0.28);
   await window.mouse.click(pathAnchor.x, pathAnchor.y);
 
-  await window.getByRole('button', { name: 'Show text tools' }).click();
+  await window.locator('[data-tool-group="Text tools"] > .ui-toolbar__button').click();
   await window.getByRole('toolbar', { name: 'Text tools' })
     .getByRole('button', { name: 'Path text (T)', exact: true }).click();
   await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Path text' }).waitFor();
@@ -80,34 +118,32 @@ try {
     })}`);
   });
   await textInput.press('Escape');
-  if (!await panel.count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  const textStep = recorder.locator('li').filter({ hasText: 'text.create' });
-  await textStep.waitFor({ timeout: 30_000 }).catch(async () => {
-    throw new Error(`Path Text did not publish text.create: ${await recorder.textContent()}`);
+  await ensureActionsPanel();
+  await waitForRecorded('text.create').catch(async () => {
+    throw new Error(`Path Text did not publish text.create: ${JSON.stringify(
+      await driver.queryActionRecording()
+    )}`);
   });
-  await textStep.locator('summary').click();
-  const text = await textStep.textContent();
-  if (!text?.includes('"mode": "path"') || !text.includes('$step1.layerId')
-    || !text.includes('$step1.elementId') || !text.includes('"side": "left"')) {
-    throw new Error(`Path Text Action lost its native path binding: ${text}`);
+  const textStep = (await driver.queryActionRecording())?.steps
+    .find(({ command }) => command === 'text.create');
+  const pathBinding = textStep?.parameters?.path;
+  if (textStep?.parameters?.mode !== 'path'
+    || pathBinding?.layerId?.$lighttableResult?.step !== 1
+    || pathBinding?.layerId?.$lighttableResult?.path !== 'layerId'
+    || pathBinding?.elementId?.$lighttableResult?.step !== 1
+    || pathBinding?.elementId?.$lighttableResult?.path !== 'elementId'
+    || pathBinding?.side !== 'left') {
+    throw new Error(`Path Text Action lost its native path binding: ${JSON.stringify(textStep)}`);
   }
-  const recordingEvidence = await recorder.textContent();
+  const recordingEvidence = JSON.stringify(await driver.queryActionRecording());
 
   await recorder.getByRole('button', { name: 'Stop' }).click();
-  await panel.getByRole('radio', { name: 'Commands' }).click();
   for (let index = 0; index < 2; index += 1) {
-    const undo = panel.locator('details').filter({ hasText: 'history.undo' });
-    const run = undo.getByRole('button', { name: 'Run' });
-    if (!await run.isVisible()) await undo.locator('summary').click();
-    await run.click();
+    await window.keyboard.press('Control+z');
   }
   await window.waitForFunction((count) =>
     document.querySelectorAll('.lighttable-layer[data-layer-id]').length === count,
   beforeLayers);
-  await panel.getByRole('radio', { name: 'Actions' }).click();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
   await window.waitForFunction((existingLayerIds) =>
     [...document.querySelectorAll('.lighttable-layer[data-layer-id]')]
@@ -123,10 +159,7 @@ try {
       evidence, recordingEvidence, pageErrors
     })}`);
   });
-  if (!await panel.count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
+  await ensureActionsPanel();
   await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
     .waitFor({ timeout: 30_000 });
   const replayed = await window.evaluate((existingLayerIds) => {

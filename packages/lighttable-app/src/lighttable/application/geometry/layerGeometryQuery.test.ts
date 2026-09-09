@@ -7,9 +7,22 @@ import {
   createTextLayerNode,
   createVectorLayer
 } from '../../editor/document/documentTypes';
-import { buildLayerGeometryIndex, pointInBounds } from './layerGeometryQuery';
+import {
+  buildLayerGeometryIndex,
+  pointInBounds,
+  visibleTextLayersTopmostFirst
+} from './layerGeometryQuery';
 
 describe('layer geometry query', () => {
+  it('excludes text hidden by an ancestor from the visual hit order', () => {
+    const visible = createTextLayerNode(createDefaultTextLayerData(), 'Visible');
+    const hidden = createTextLayerNode(createDefaultTextLayerData(), 'Hidden');
+    const group = createGroupLayer('Hidden group');
+    group.visible = false;
+    group.children = [hidden];
+    expect(visibleTextLayersTopmostFirst([visible, group])).toEqual([visible]);
+  });
+
   it('retains one revision-correct index per immutable document snapshot', () => {
     const document = createImageDocument('Geometry', 100, 80, 'source');
     expect(buildLayerGeometryIndex(document)).toBe(buildLayerGeometryIndex(document));

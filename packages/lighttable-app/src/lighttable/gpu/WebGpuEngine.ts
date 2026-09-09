@@ -885,6 +885,15 @@ export class WebGpuEngine {
     return this.documentRenderer?.textEditingLayout(layerId) ?? null;
   }
 
+  currentTextEditingLayout(layerId: LayerId) {
+    return this.documentRenderer?.currentTextEditingLayout(layerId) ?? null;
+  }
+
+  waitForTextEditingLayout(layerId: LayerId, signal?: AbortSignal) {
+    return this.documentRenderer?.waitForTextEditingLayout(layerId, signal)
+      ?? Promise.resolve({ kind: 'unavailable' as const });
+  }
+
   setTextLayerInteraction(layerId: LayerId, active: boolean) {
     return this.documentRenderer?.setTextLayerInteraction(layerId, active) ?? false;
   }
@@ -1080,7 +1089,8 @@ export class WebGpuEngine {
       };
     }
     if (layer.type !== 'text') return null;
-    const realized = this.documentRenderer?.textEditingLayout(layer.id)?.layout;
+    const waited = await this.documentRenderer?.waitForTextEditingLayout(layer.id);
+    const realized = (waited?.kind === 'ready' ? waited.presentation : null)?.layout;
     const bounds = realized?.paragraphFrame?.bounds ?? realized?.logicalBounds;
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
     return {

@@ -183,6 +183,21 @@ current renderer during cleanup/rasterize. Packaged debug and instrumented
 vector gates passed; owner feel acceptance and the named Pen-session extraction
 from the no-growth session router remain open.
 
+Text reset, updated 2026-09-09: read
+[Text and Path Text vertical slice](editor-kernel/TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md)
+before changing point/paragraph/vertical text, Path Text, glyph measurement,
+text hit-testing or semantic text transform. The document text layer is
+canonical; shaped glyphs and editing layout are renderer projections bound to
+their preparation key and renderer generation. Existing-text activation may
+wait, but a continuation after layer selection must revalidate its activation
+revision, document, tool, renderer, source identity and repeat the exact hit.
+Path Text first targets the native contour under the pointer and records stable
+path ids. Never interpret pending layout as empty content, retain a stale layout
+under a current key, or observe a Pen result through a later React projection.
+Packaged Type and Path Text/Actions gates passed. Text Warp remains S07, owner
+feel acceptance is open, and no more text policy may enter the 9k-line overlay
+before its post-hit adapter is extracted.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

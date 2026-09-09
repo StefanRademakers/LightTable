@@ -925,6 +925,27 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).not.toHaveBeenCalled();
   });
 
+  it('waits for current editing geometry and rejects it after document replacement', async () => {
+    const state = harness();
+    let resolveLayout!: (value: unknown) => void;
+    state.client.realizeTextDetailed.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLayout = resolve;
+    }) as never);
+    const first = createImageDocument('First text', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    first.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(first);
+    const waiting = state.coordinator.waitForEditingLayout(layer.id);
+    await flush();
+    const second = createImageDocument('Second text', 32, 24, 'source');
+    second.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Other')];
+    state.coordinator.sync(second);
+    resolveLayout({ layout: { key: 'stale', glyphRuns: [] }, metrics: {} });
+
+    await expect(waiting).resolves.toEqual({ kind: 'invalidated' });
+  });
+
   it('retains the last exact editing geometry until a newer edit finishes shaping', async () => {
     const state = harness();
     const document = createImageDocument('Provisional editing geometry', 32, 24, 'source');
@@ -961,12 +982,17 @@ describe('TextLayerRenderCoordinator', () => {
       sourceText: exactText,
       layout: { key: 'layout' }
     });
+    expect(state.coordinator.currentEditingLayout(layer.id)).toBeNull();
     finishShaping({
       layout: { key: 'new-layout', glyphRuns: [] },
       metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
     });
     await flush();
     expect(state.coordinator.editingLayout(layer.id)).toMatchObject({
+      sourceText: nextText,
+      layout: { key: 'new-layout' }
+    });
+    expect(state.coordinator.currentEditingLayout(layer.id)).toMatchObject({
       sourceText: nextText,
       layout: { key: 'new-layout' }
     });

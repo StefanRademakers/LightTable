@@ -15,7 +15,8 @@ This status file remains the compact statement of what is actually migrated.
 | masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
 | vector paths and live shapes | renderer-only fallback retained | implemented | complete S05 vertical | packaged automated | partial |
-| text/path text/warp | yes | documented | no | no | no |
+| text/path text | overlay adapter retained | implemented | complete S06 vertical | packaged automated | partial |
+| warp | yes | documented | no | no | no |
 | adjustments/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
 | Action/MCP equivalence | yes | documented | no | no | no |
@@ -111,9 +112,20 @@ authoring, Pen, geometry/Pixels, native/PSD and repeated hybrid lifecycle gates
 passed; owner interaction acceptance remains open. See
 [Vector paths and live shapes vertical slice](VECTOR_PATHS_AND_LIVE_SHAPES_VERTICAL_SLICE.md).
 
+Text and Path Text are the seventh implemented vertical. Existing-text entry
+waits for exact generation-bound layout without treating pending shaping as an
+empty layer; asynchronous layer activation revalidates the document, tool,
+renderer, source and click before editing. Path Text targets the clicked native
+contour and its stable result references survive Action recording, undo and
+playback. Debug packaged Type and Path Text gates passed without page errors.
+Text Warp remains S07, owner feel acceptance is open, and the accepted
+overlay-local activation adapter must be extracted before adding more text
+policy. See
+[Text and Path Text vertical slice](TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md).
+
 ## Structural baseline still failing
 
-The 2026-09-08 source-structure audit is not green. It reports responsibility
+The 2026-09-09 source-structure audit is not green. It reports responsibility
 growth in `useLayerDocumentCommands.ts`, `useSelectionSessionController.ts`,
 `LayerStyleEditor.tsx`, `WebGpuEngine.ts`, `LightTableEditorOverlay.tsx` and
 `LightTableStandaloneApp.tsx`, plus a still-red 1,002-line

@@ -25,6 +25,7 @@ import {
   createPointTextDocument,
   defaultTextStyleForFamily,
   resolvePathTextCreationTarget,
+  resolvePathTextCreationTargetAtPoint,
   resolveTextToolFont,
   textCreationKind
 } from './pointTextCreation';
@@ -331,6 +332,20 @@ describe('path text creation', () => {
       elements: [{ layerId: vector.id, elementId: path.id }],
       paths: [], anchors: [], active: null
     })).toEqual({
+      kind: 'resolved',
+      target: {
+        pathLayerId: vector.id,
+        pathElementId: path.id,
+        pathSubpathId: 'contour'
+      }
+    });
+  });
+
+  it('binds to the native contour clicked by the Path Text cursor', () => {
+    const { document, vector, path } = pathDocument();
+    expect(resolvePathTextCreationTargetAtPoint(document, {
+      elements: [], paths: [], anchors: [], active: null
+    }, { x: 20, y: 40 }, 8)).toEqual({
       kind: 'resolved',
       target: {
         pathLayerId: vector.id,

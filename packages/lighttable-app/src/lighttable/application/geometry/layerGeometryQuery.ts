@@ -3,7 +3,8 @@ import type {
   ImageDocument,
   LayerId,
   LayerNode,
-  Rect
+  Rect,
+  TextLayer
 } from '../../editor/document/documentTypes';
 import { layerDerivedPreviewIsCurrent } from '../../editor/document/documentTypes';
 import {
@@ -203,3 +204,15 @@ export const pointInBounds = (
   && point.y >= bounds.y - padding
   && point.x <= bounds.x + bounds.width + padding
   && point.y <= bounds.y + bounds.height + padding);
+
+/** Text layers in visual topmost-first order with ancestor visibility applied. */
+export const visibleTextLayersTopmostFirst = (
+  nodes: readonly LayerNode[],
+  ancestorVisible = true
+): TextLayer[] => [...nodes].reverse().flatMap((node) => {
+  const visible = ancestorVisible && node.visible && node.opacity > 0;
+  if (!visible) return [];
+  return node.type === 'group'
+    ? visibleTextLayersTopmostFirst(node.children, visible)
+    : node.type === 'text' ? [node] : [];
+});
