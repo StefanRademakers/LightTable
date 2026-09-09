@@ -6,12 +6,14 @@ import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
 import {
   LayerStylesPanel,
+  layerStyleEditorInstanceKey,
   layerStylePreviewIntervalForLayerCount,
   previewLayerStyleFromPanel
 } from './LayerStylesPanel';
 
 const controller = (): LayerStyleEditorController => ({
   request: null,
+  draftGeneration: 0,
   open: vi.fn(),
   beginInteraction: vi.fn(),
   preview: vi.fn(),
@@ -22,6 +24,25 @@ const controller = (): LayerStyleEditorController => ({
 });
 
 describe('LayerStylesPanel', () => {
+  it('isolates editor drafts by document, layer and cancellation generation', () => {
+    expect(layerStyleEditorInstanceKey('document-a' as never, 'shared-layer' as never, 0))
+      .not.toBe(layerStyleEditorInstanceKey('document-b' as never, 'shared-layer' as never, 0));
+    expect(layerStyleEditorInstanceKey('document-a' as never, 'shared-layer' as never, 0))
+      .not.toBe(layerStyleEditorInstanceKey('document-a' as never, 'shared-layer' as never, 1));
+  });
+
+  it('does not render editable controls for a locked layer', () => {
+    const document = createImageDocument('Image', 64, 32, 'source');
+    document.layers = document.layers.map((layer) => ({
+      ...layer, locks: { ...layer.locks, all: true }
+    }));
+    const markup = renderToStaticMarkup(
+      <LayerStylesPanel document={document} controller={controller()} />
+    );
+    expect(markup).toContain('Unlock the layer to edit effects.');
+    expect(markup).not.toContain('lighttable-style-editor');
+  });
+
   it('keeps 30 Hz previews for normal documents and applies backpressure to large PSDs', () => {
     expect(layerStylePreviewIntervalForLayerCount(32)).toBe(33);
     expect(layerStylePreviewIntervalForLayerCount(33)).toBe(100);

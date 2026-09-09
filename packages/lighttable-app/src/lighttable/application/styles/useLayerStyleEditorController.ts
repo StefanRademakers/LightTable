@@ -5,36 +5,33 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { setLayerStyleStack } from '../../editor/styles/layerStyleCommands';
 import type {
   LayerStyleId,
   LayerStyleStack
 } from '../../editor/styles/layerStyleTypes';
 import type {
-  DocumentMutationController,
-  DocumentMutationTransaction
+  DocumentMutationController
 } from '../documents/useDocumentMutationController';
+import {
+  createLayerStyleInteractionSession,
+  type LayerStyleEditorRequest,
+  type LayerStyleInteractionPort
+} from './layerStyleInteractionSession';
 
-export interface LayerStyleInteractionPort {
-  setLayerStyleInteractionActive(active: boolean, layerId?: LayerId): void;
-}
-
-export interface LayerStyleEditorRequest {
-  layerId: LayerId;
-  effectId?: LayerStyleId;
-  before: ImageDocument;
-}
+export type { LayerStyleEditorRequest, LayerStyleInteractionPort } from './layerStyleInteractionSession';
 
 export interface LayerStyleEditorDependencies {
   activeDocument: ImageDocument | null;
   getDocument(): ImageDocument | null;
   getRenderer(): LayerStyleInteractionPort | null;
+  rendererGeneration: number;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   onCheckpoint?(before: ImageDocument, after: ImageDocument, layerId: LayerId): void;
 }
 
 export interface LayerStyleEditorController {
   request: LayerStyleEditorRequest | null;
+  draftGeneration: number;
   open(layerId: LayerId, effectId?: LayerStyleId): void;
   beginInteraction(): void;
   preview(stack: LayerStyleStack): void;
@@ -44,10 +41,17 @@ export interface LayerStyleEditorController {
   commit(): void;
 }
 
-interface LayerStyleInteraction {
-  layerId: LayerId;
-  transaction: DocumentMutationTransaction;
-}
+export const reconcileLayerStyleEditorRequest = (
+  activeDocument: ImageDocument | null,
+  request: LayerStyleEditorRequest | null
+): LayerStyleEditorRequest | null => {
+  if (!activeDocument || !request || activeDocument.id !== request.before.id) return null;
+  const layer = findDocumentLayer(activeDocument, request.layerId);
+  if (!layer || !layerSupportsLayerStyles(layer) || layer.locks.all) return null;
+  return request.effectId && !layer.styleStack.effects.some(({ id }) => id === request.effectId)
+    ? { layerId: request.layerId, before: activeDocument }
+    : request;
+};
 
 /**
  * Owns the transient gesture around editing a document-owned Layer Style stack.
@@ -63,67 +67,45 @@ export const useLayerStyleEditorController = (
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
   const requestRef = useRef<LayerStyleEditorRequest | null>(null);
-  const interactionRef = useRef<LayerStyleInteraction | null>(null);
   const [request, setRequestState] = useState<LayerStyleEditorRequest | null>(null);
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  const mountedRef = useRef(true);
 
   const setRequest = useCallback((next: LayerStyleEditorRequest | null) => {
     requestRef.current = next;
     setRequestState(next);
   }, []);
 
-  const endRendererInteraction = useCallback(() => {
-    dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(false);
-  }, []);
+  const interactionRef = useRef<ReturnType<typeof createLayerStyleInteractionSession> | null>(null);
+  interactionRef.current ??= createLayerStyleInteractionSession(() => ({
+    getDocument: dependenciesRef.current.getDocument,
+    getRenderer: dependenciesRef.current.getRenderer,
+    getRendererGeneration: () => dependenciesRef.current.rendererGeneration,
+    documentMutations: dependenciesRef.current.documentMutations,
+    onCanceled: () => {
+      if (mountedRef.current) setDraftGeneration((current) => current + 1);
+    },
+    onCheckpoint: (before, after, layerId) => {
+      const currentRequest = requestRef.current;
+      if (currentRequest?.layerId === layerId && currentRequest.before.id === after.id) {
+        setRequest({ ...currentRequest, before: after });
+      }
+      dependenciesRef.current.onCheckpoint?.(before, after, layerId);
+    }
+  }));
 
   const discardInteraction = useCallback(() => {
-    const interaction = interactionRef.current;
-    interactionRef.current = null;
-    if (!interaction) return;
-    interaction.transaction.cancel();
-    endRendererInteraction();
-  }, [endRendererInteraction]);
+    interactionRef.current?.cancel();
+  }, []);
 
   const beginInteraction = useCallback(() => {
-    if (interactionRef.current) return;
     const currentRequest = requestRef.current;
-    const current = dependenciesRef.current.getDocument();
-    if (!currentRequest || !current || current.id !== currentRequest.before.id) return;
-    const layer = findDocumentLayer(current, currentRequest.layerId);
-    if (!layer || !layerSupportsLayerStyles(layer)) return;
-    const transaction = dependenciesRef.current.documentMutations.begin(
-      `layer-style:${currentRequest.layerId}`,
-      { label: 'Layer Style', type: 'layer.style' }
-    );
-    if (!transaction) return;
-    interactionRef.current = {
-      layerId: currentRequest.layerId,
-      transaction
-    };
-    dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(
-      true,
-      currentRequest.layerId
-    );
+    if (currentRequest) interactionRef.current?.begin(currentRequest);
   }, []);
 
   const commitInteraction = useCallback(() => {
-    const interaction = interactionRef.current;
-    if (!interaction) return;
-    interactionRef.current = null;
-    const before = interaction.transaction.before;
-    const after = interaction.transaction.current;
-    const changed = interaction.transaction.commit();
-    endRendererInteraction();
-    if (!changed) return;
-    const currentRequest = requestRef.current;
-    if (currentRequest?.layerId === interaction.layerId) {
-      setRequest({ ...currentRequest, before: after });
-    }
-    dependenciesRef.current.onCheckpoint?.(
-      before,
-      after,
-      interaction.layerId
-    );
-  }, [endRendererInteraction, setRequest]);
+    interactionRef.current?.commit();
+  }, []);
 
   const cancelInteraction = useCallback(() => {
     discardInteraction();
@@ -132,9 +114,10 @@ export const useLayerStyleEditorController = (
   const open = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
     const current = dependenciesRef.current.getDocument();
     const layer = current ? findDocumentLayer(current, layerId) : null;
-    if (!current || !layer || !layerSupportsLayerStyles(layer)) return;
+    if (!current || !layer || !layerSupportsLayerStyles(layer) || layer.locks.all) return;
     const activeRequest = requestRef.current;
-    if (activeRequest?.layerId === layerId && activeRequest.before.id === current.id) {
+    if (activeRequest?.layerId === layerId && activeRequest.before.id === current.id
+      && activeRequest.effectId === effectId) {
       setRequest({ ...activeRequest, effectId });
       return;
     }
@@ -143,17 +126,9 @@ export const useLayerStyleEditorController = (
   }, [discardInteraction, setRequest]);
 
   const preview = useCallback((stack: LayerStyleStack) => {
-    if (!interactionRef.current) beginInteraction();
-    const interaction = interactionRef.current;
-    if (!interaction) return;
-    if (!interaction.transaction.active) {
-      discardInteraction();
-      return;
-    }
-    interaction.transaction.change((current) => (
-      setLayerStyleStack(current, interaction.layerId, stack)
-    ));
-  }, [beginInteraction, discardInteraction]);
+    const currentRequest = requestRef.current;
+    if (currentRequest) interactionRef.current?.preview(currentRequest, stack);
+  }, []);
 
   const cancel = useCallback(() => {
     discardInteraction();
@@ -168,21 +143,31 @@ export const useLayerStyleEditorController = (
   useEffect(() => {
     const currentRequest = requestRef.current;
     if (!currentRequest) return;
-    const isSameDocument = dependencies.activeDocument?.id === currentRequest.before.id;
-    const layer = isSameDocument && dependencies.activeDocument
-      ? findDocumentLayer(dependencies.activeDocument, currentRequest.layerId)
-      : null;
-    if (layer && layerSupportsLayerStyles(layer)) return;
+    const reconciled = reconcileLayerStyleEditorRequest(
+      dependencies.activeDocument, currentRequest
+    );
+    if (reconciled) {
+      if (!interactionRef.current?.reconcileBinding()) discardInteraction();
+      if (reconciled === currentRequest) return;
+      discardInteraction();
+      setRequest(reconciled);
+      return;
+    }
     discardInteraction();
     setRequest(null);
-  }, [dependencies.activeDocument, discardInteraction, setRequest]);
+  }, [dependencies.activeDocument, dependencies.rendererGeneration, discardInteraction, setRequest]);
 
-  useEffect(() => () => {
-    discardInteraction();
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      discardInteraction();
+    };
   }, [discardInteraction]);
 
   return {
     request,
+    draftGeneration,
     open,
     beginInteraction,
     preview,

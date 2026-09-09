@@ -89,7 +89,29 @@ try {
     'xpath=following-sibling::*[contains(concat(" ", normalize-space(@class), " "), " lighttable-layer-effects ")][1]'
   ).locator('.lighttable-layer-effect--summary');
   await effectSummary.getByRole('button', { name: 'Effects', exact: true }).click();
-  const effectToggle = page.locator('.lighttable-group__toggle[title="Drop Shadow"]');
+  await page.waitForTimeout(1_000);
+  report.properties = {
+    target: await page.locator('.lighttable-layer-effect--selected').allTextContents(),
+    panels: await page.locator('[aria-label$="properties"], [aria-label="Layer effects"]')
+      .allTextContents()
+  };
+  await page.screenshot({ path: path.join(output, `${label}-opened.png`) });
+  await driver.execute(documentId, 'layer.setLock', {
+    layerIds: [target.id], lock: 'all', locked: true
+  });
+  const lockedNotice = page.getByText('Unlock the layer to edit effects.', { exact: true });
+  await lockedNotice.waitFor({ state: 'visible' });
+  const lockedEditorCount = await page.locator('.lighttable-style-editor').count();
+  await driver.execute(documentId, 'layer.setLock', {
+    layerIds: [target.id], lock: 'all', locked: false
+  });
+  await lockedNotice.waitFor({ state: 'hidden' });
+  report.lockedOwner = { noticeVisible: true, editableEditorCount: lockedEditorCount };
+  if (lockedEditorCount !== 0) {
+    throw new Error('A locked Layer Style owner retained editable controls.');
+  }
+  const effectToggle = page.getByRole('complementary', { name: 'Layer effects' })
+    .getByRole('button', { name: 'Drop Shadow', exact: true });
   await effectToggle.waitFor({ state: 'visible' });
   if (await effectToggle.getAttribute('aria-expanded') !== 'true') await effectToggle.click();
   const slider = page.getByRole('slider', { name: report.control, exact: true });
@@ -149,7 +171,9 @@ try {
   await waitForRecordingStatus(driver, 'stopped');
   const recording = await driver.queryActionRecording();
   const replayable = recording?.steps.filter(({ replayable }) => replayable) ?? [];
-  const recordedUpdate = replayable.find(({ command }) => command === 'layer.effect.update');
+  const recordedSnapshot = replayable.find(({ command }) => command === 'layer.style.setSnapshot');
+  const recordedShadow = recordedSnapshot?.parameters?.snapshot?.effects
+    ?.find(({ id }) => id === initialShadow.id);
   const finalEffects = await driver.queryLayerEffects(documentId, target.id);
   const finalShadow = finalEffects?.effects.find(({ id }) => id === initialShadow.id);
   report.actions = {
@@ -158,7 +182,7 @@ try {
     byteLength: recording?.byteLength ?? null,
     initialSize: initialShadow.settings?.size,
     finalSize: finalShadow?.settings?.size,
-    recordedParameters: recordedUpdate?.parameters ?? null
+    recordedParameters: recordedSnapshot?.parameters ?? null
   };
   report.gesture = {
     requestedInputEvents: inputEvents,
@@ -182,9 +206,10 @@ try {
   report.render.publishHz = report.render.submittedFrames / (gestureMs / 1000);
   report.runtimeStopped = /document runtime stopped unexpectedly/i.test(await page.locator('body').innerText());
 
-  if (replayable.length !== 1 || recordedUpdate?.parameters?.effectId !== initialShadow.id
-    || Object.keys(recordedUpdate.parameters.settings ?? {}).join(',') !== 'size'
-    || report.actions.byteLength > 4096 || report.actions.finalSize === report.actions.initialSize) {
+  if (replayable.length !== 1 || recordedSnapshot?.parameters?.layerId !== target.id
+    || recordedShadow?.size !== finalShadow?.settings?.size
+    || report.actions.byteLength > 16_384
+    || report.actions.finalSize === report.actions.initialSize) {
     throw new Error(`Layer Style UI checkpoint was not one bounded Action: ${JSON.stringify(report.actions)}`);
   }
   await driver.execute(documentId, 'history.undo', {});

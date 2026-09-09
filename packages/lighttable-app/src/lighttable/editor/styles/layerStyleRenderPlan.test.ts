@@ -11,6 +11,7 @@ import {
 } from './layerStyleRenderPlan';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createImageDocument, createTextLayerNode, type RasterLayer } from '../document/documentTypes';
+import { MAX_LAYER_STYLE_MAGNITUDE, MAX_LAYER_STYLE_SCALE } from './layerStyleValidation';
 
 const rasterLayer = (width: number, height: number) => {
   const document = createImageDocument('Fixture', width, height, 'asset');
@@ -18,6 +19,20 @@ const rasterLayer = (width: number, height: number) => {
 };
 
 describe('Layer Style render planning', () => {
+  it('keeps the largest canonical effect expansion finite', () => {
+    const stack = createDefaultLayerStyleStack();
+    const shadow = createDefaultLayerStyle('drop-shadow');
+    if (shadow.kind !== 'drop-shadow') throw new Error('Expected drop shadow fixture.');
+    stack.scale = MAX_LAYER_STYLE_SCALE;
+    stack.effects = [{
+      ...shadow,
+      size: MAX_LAYER_STYLE_MAGNITUDE,
+      distance: MAX_LAYER_STYLE_MAGNITUDE
+    }];
+    expect(layerStyleExpansion(stack)).toBe(2_000_000_000);
+    expect(Number.isFinite(layerStyleExpansion(stack))).toBe(true);
+  });
+
   it('caches final style results without copying one-frame interaction previews', () => {
     expect(persistentLayerStyleCacheKey('revision-1', 'interactive')).toBeNull();
     expect(persistentLayerStyleCacheKey('revision-1', 'final')).toBe('revision-1');

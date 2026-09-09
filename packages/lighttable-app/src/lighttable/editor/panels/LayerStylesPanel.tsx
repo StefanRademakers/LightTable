@@ -14,6 +14,10 @@ export interface LayerStylesPanelProps {
 export const layerStylePreviewIntervalForLayerCount = (layerCount: number) =>
   layerCount > 32 ? 100 : 33;
 
+export const layerStyleEditorInstanceKey = (
+  documentId: ImageDocument['id'], layerId: LayerId, draftGeneration: number
+) => `${documentId}:${layerId}:${draftGeneration}`;
+
 export const previewLayerStyleFromPanel = (
   controller: LayerStyleEditorController,
   layerId: LayerId,
@@ -32,13 +36,13 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
   const requestedLayer = document && request
     ? findDocumentLayer(document, request.layerId)
     : null;
-  const supportedLayer = activeLayer && layerSupportsLayerStyles(activeLayer)
+  const supportedLayer = activeLayer && layerSupportsLayerStyles(activeLayer) && !activeLayer.locks.all
     ? activeLayer
     : null;
 
   // A child effect click carries an explicit owner. Prefer it over a possibly
   // one-render-stale active layer while the Layers selection is publishing.
-  const target = requestedLayer && layerSupportsLayerStyles(requestedLayer)
+  const target = requestedLayer && layerSupportsLayerStyles(requestedLayer) && !requestedLayer.locks.all
     ? requestedLayer
     : supportedLayer;
   const layerCount = document ? walkLayerTree(document.layers).length : 0;
@@ -47,10 +51,13 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
   // those documents. Small documents retain the normal 30 Hz live preview.
   const previewIntervalMs = layerStylePreviewIntervalForLayerCount(layerCount);
 
-  if (!target || !layerSupportsLayerStyles(target)) {
+  if (!target || !layerSupportsLayerStyles(target) || target.locks.all) {
     return (
       <aside className="lighttable-panel lighttable-layer-styles-panel" aria-label="Layer effects">
-        <div className="lighttable-panel__empty">Select a layer that supports effects.</div>
+        <div className="lighttable-panel__empty">
+          {activeLayer?.locks.all ? 'Unlock the layer to edit effects.'
+            : 'Select a layer that supports effects.'}
+        </div>
       </aside>
     );
   }
@@ -58,7 +65,7 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
   return (
     <aside className="lighttable-panel lighttable-layer-styles-panel" aria-label="Layer effects">
       <LayerStyleEditor
-        key={target.id}
+        key={layerStyleEditorInstanceKey(document!.id, target.id, controller.draftGeneration)}
         mode="panel"
         layerName={target.name}
         initialStack={target.styleStack}

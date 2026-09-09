@@ -41,12 +41,6 @@ import {
 } from '../../editor/document/layerTree';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
-import {
-  clearLayerStyles,
-  removeLayerStyle,
-  setLayerStyleEnabled,
-  setLayerStyleStackEnabled
-} from '../../editor/styles/layerStyleCommands';
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 import type { GradeModuleGroup } from '../../processing/adjustmentStack';
@@ -93,6 +87,10 @@ export interface LayerPanelControllerDependencies {
   flattenGroup(groupId: LayerId): void;
   flattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
+  setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
+  setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
+  removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
+  clearStyles(layerId: LayerId): void;
   finishStyleEditing?(): void;
   finishProcessingEditing?(): void;
   prepareActiveLayerChange?(layerId: LayerId): void | Promise<void>;
@@ -155,6 +153,9 @@ export interface LayerPanelController {
   flattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
+  setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
+  removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
+  clearStyles(layerId: LayerId): void;
   setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalCurvesEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalLensFxEnabled(layerId: LayerId, enabled: boolean): void;
@@ -162,9 +163,6 @@ export interface LayerPanelController {
   removeLocalProcessing(layerId: LayerId, owner: LocalProcessingKind): void;
   setAttachedAdjustmentEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): void;
   removeAttachedAdjustment(layerId: LayerId, adjustmentId: string): void;
-  setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
-  removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
-  clearStyles(layerId: LayerId): void;
 }
 
 /**
@@ -413,7 +411,7 @@ export const createLayerPanelController = (
     editStyles: (layerId, effectId) =>
       resolveDependencies().editStyles(layerId, effectId),
     setStyleStackEnabled: (layerId, enabled) =>
-      mutate((current) => setLayerStyleStackEnabled(current, layerId, enabled)),
+      resolveDependencies().setStyleStackEnabled(layerId, enabled),
     setLocalGradeEnabled: (layerId, enabled) =>
       mutate((current) => setRasterLayerLocalProcessingEnabled(
         ensureRasterLayerLocalProcessing(current, layerId, 'grade'),
@@ -445,16 +443,17 @@ export const createLayerPanelController = (
       ));
     },
     setStyleEnabled: (layerId, effectId, enabled) =>
-      mutate((current) =>
-        setLayerStyleEnabled(current, layerId, effectId, enabled)),
+      resolveDependencies().setStyleEnabled(layerId, effectId, enabled),
     removeStyle: (layerId, effectId) => {
-      resolveDependencies().finishStyleEditing?.();
-      mutate((current) => removeLayerStyle(current, layerId, effectId));
+      const dependencies = resolveDependencies();
+      dependencies.finishStyleEditing?.();
+      dependencies.removeStyle(layerId, effectId);
     },
     clearStyles: (layerId) => {
-      resolveDependencies().finishStyleEditing?.();
-      mutate((current) => clearLayerStyles(current, layerId));
-    }
+      const dependencies = resolveDependencies();
+      dependencies.finishStyleEditing?.();
+      dependencies.clearStyles(layerId);
+    },
   };
 };
 

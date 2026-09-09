@@ -109,7 +109,7 @@ import {
   createSmartSelectionBackend
 } from './application/tools/smartSelection/smartSelectionBackendFactory';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
-import { observedLayerStyleCommands } from './application/styles/semanticLayerStyleObservation';
+import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
 import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { executeSemanticMaskCommand } from './application/layers/executeSemanticMaskCommand';
@@ -245,6 +245,7 @@ import { executeSemanticWarpStrokeCommand } from './application/commands/semanti
 import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
   observedVectorPathUpdateCommand } from './application/vectors/semanticVectorObservation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
+import { executeSemanticLayerStyleSnapshot } from './application/styles/executeSemanticLayerStyleSnapshot';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
 import { applySemanticFaceWarpCommandToDocument, executeSemanticFaceWarpCommand } from './application/effects/faceWarp/semanticFaceWarpCommandExecutor';
 import { resolveFaceWarpEligibility } from './application/effects/faceWarp/faceWarpEligibility';
@@ -6017,19 +6018,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeDocument: imageDocument,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    rendererGeneration: rendererSnapshot.generation,
     documentMutations: documentMutationController,
     onCheckpoint: (before, after, layerId) => {
-      const previous = findDocumentLayer(before, layerId);
       const current = findDocumentLayer(after, layerId);
-      if (!previous || !current) return;
-      for (const operation of observedLayerStyleCommands(
-        layerId, previous.styleStack, current.styleStack
-      )) {
-        commandService?.recordObservedCommand(
-          operation.command, workspaceDocumentId as DocumentSessionId,
-          operation.parameters, operation.result
-        );
-      }
+      if (!findDocumentLayer(before, layerId) || !current) return;
+      commandService?.recordObservedCommand(
+        'layer.style.setSnapshot', workspaceDocumentId as DocumentSessionId,
+        { layerId, snapshot: layerStyleSnapshot(current.styleStack) },
+        { layerId, changed: true }
+      );
     }
   });
   const openLayerStyleEditor = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
@@ -6054,13 +6052,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       effectKind
     });
     if (!execution) {
-      const result = executeSemanticLayerStyleCommand(
-        { kind: 'add', layerId: layer.id, effectKind },
-        {
-          changeDocument: documentMutationController.change
-        }
-      );
-      if (result) openLayerStyleEditor(result.layerId, result.effectId);
+      setError('Layer effect commands are unavailable in this document.');
       return;
     }
     void execution.then((response) => {
@@ -6117,6 +6109,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     flattenGroup: flattenGroupCommand,
     flattenImage: flattenImageCommand,
     editStyles: openLayerStyleEditor,
+    setStyleStackEnabled: (layerId, enabled) => {
+      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) {
+        setError('Layer Style commands are unavailable in this document.');
+      }
+    },
+    setStyleEnabled: (layerId, effectId, enabled) => {
+      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) {
+        setError('Layer effect commands are unavailable in this document.');
+      }
+    },
+    removeStyle: (layerId, effectId) => {
+      if (!executeRegisteredCommand('layer.effect.remove', { layerId, effectId })) {
+        setError('Layer effect commands are unavailable in this document.');
+      }
+    },
+    clearStyles: (layerId) => {
+      const document = imageDocumentRef.current;
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      if (!layer || !executeRegisteredCommand('layer.style.setSnapshot', {
+        layerId, snapshot: { ...layerStyleSnapshot(layer.styleStack), effects: [] }
+      })) setError('Layer Style commands are unavailable in this document.');
+    },
     finishStyleEditing: layerStyleEditor.commit,
     finishProcessingEditing: () => {
       endAdjustmentTransaction();
@@ -6304,7 +6318,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,
       setLayerFillOpacity: layerPanelController.setFillOpacity,
-      setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
+      setLayerStyleEnabled: (layerId, enabled) => {
+        const document = imageDocumentRef.current;
+        const layer = document ? findDocumentLayer(document, layerId) : null;
+        if (!layer) throw new Error('The Layer Style owner does not exist.');
+        void executeSemanticLayerStyleSnapshot({
+          layerId,
+          snapshot: { ...layerStyleSnapshot(layer.styleStack), enabled }
+        }, { changeDocument: documentMutationController.change });
+      },
       setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
         { kind: 'toggle', layerId, effectId, enabled }, {
           changeDocument: documentMutationController.change
@@ -6348,6 +6370,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return rasterGradientController.apply(command);
       },
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, {
+        changeDocument: documentMutationController.change
+      }),
+      executeLayerStyleSnapshot: (command) => executeSemanticLayerStyleSnapshot(command, {
         changeDocument: documentMutationController.change
       }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
@@ -6832,10 +6857,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!executeRegisteredCommand('layer.setLock', { layerIds, lock, locked })) layerPanelController.setLock(layerIds, lock, locked);
     },
     setStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => {
-      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) layerPanelController.setStyleEnabled(layerId, effectId, enabled);
+      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) {
+        setError('Layer effect commands are unavailable in this document.');
+      }
     },
     setStyleStackEnabled: (layerId: LayerId, enabled: boolean) => {
-      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) layerPanelController.setStyleStackEnabled(layerId, enabled);
+      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) {
+        setError('Layer Style commands are unavailable in this document.');
+      }
     }
   }), [executeLayerVisibilityChanges, executeRegisteredCommand, layerPanelController]);
   toggleSelectedLayerVisibilityRef.current = () => {

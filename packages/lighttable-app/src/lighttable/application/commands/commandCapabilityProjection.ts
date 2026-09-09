@@ -67,6 +67,8 @@ export const projectCommandCapabilities = (
     availability('layer.rename', Boolean(layerCapabilities.activeLayer), 'Select an existing layer.'),
     availability('layer.setVisibility', true, ''), availability('layer.setFillOpacity', true, ''),
     availability('layer.style.setEnabled', true, ''), availability('layer.style.update', true, ''),
+    availability('layer.style.setSnapshot', supports('executeLayerStyleSnapshot', ports.executeLayerStyleSnapshot),
+      'Layer Style snapshot editing is unavailable in this host.'),
     availability('layer.effect.setEnabled', true, ''),
     availability('file.openArtifact', workspaceCommandsAvailable, 'Artifact open is unavailable in this host.'),
     availability('text.create', true, ''), availability('text.replaceRange', true, ''),

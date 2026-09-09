@@ -41,6 +41,8 @@ import layerMaskCommandSchemas from '../schemas/v1/layer-mask.json' with { type:
 
 import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };
 
+import layerStyleSnapshotCommandSchemas from '../schemas/v1/layer-style-snapshot.json' with { type: 'json' };
+
 import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };
 
 import mergeFlattenCommandSchemas from '../schemas/v1/merge-flatten.json' with { type: 'json' };
@@ -126,6 +128,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'layer.setFillOpacity',
   'layer.style.setEnabled',
   'layer.style.update',
+  'layer.style.setSnapshot',
   'layer.effect.setEnabled',
   'file.openArtifact',
   'text.create',
@@ -192,6 +195,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(layerEffectsCommandSchemas),
   ...schemaModuleCommands(layerMaskCommandSchemas),
   ...schemaModuleCommands(layerStructureCommandSchemas),
+  ...schemaModuleCommands(layerStyleSnapshotCommandSchemas),
   ...schemaModuleCommands(layerCommandSchemas),
   ...schemaModuleCommands(mergeFlattenCommandSchemas),
   ...schemaModuleCommands(rasterPaintCommandSchemas),
@@ -265,6 +269,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'layer.setFillOpacity',
   'layer.style.setEnabled',
   'layer.style.update',
+  'layer.style.setSnapshot',
   'layer.effect.setEnabled',
   'file.openArtifact',
   'text.create',
@@ -339,6 +344,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'layer.setFillOpacity',
   'layer.style.setEnabled',
   'layer.style.update',
+  'layer.style.setSnapshot',
   'layer.effect.setEnabled',
   'text.create',
   'text.replaceRange',

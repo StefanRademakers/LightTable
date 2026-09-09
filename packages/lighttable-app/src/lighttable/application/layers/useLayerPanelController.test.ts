@@ -10,7 +10,6 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import {
   adjustmentStackForOwner,
   adjustmentStackHasLocalProcessing,
@@ -60,6 +59,10 @@ const setup = (initialDocument: ImageDocument) => {
     flattenGroup: vi.fn(),
     flattenImage: vi.fn(),
     editStyles: vi.fn(),
+    setStyleStackEnabled: vi.fn(),
+    setStyleEnabled: vi.fn(),
+    removeStyle: vi.fn(),
+    clearStyles: vi.fn(),
     finishStyleEditing: vi.fn(),
     finishProcessingEditing: vi.fn(),
     finishTextEditing: vi.fn()
@@ -74,6 +77,20 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
+  it('delegates style mutations without owning a document fallback', () => {
+    const state = setup(createImageDocument('test', 100, 100, 'asset'));
+    state.controller.setStyleStackEnabled('layer' as never, false);
+    state.controller.setStyleEnabled('layer' as never, 'effect' as never, false);
+    state.controller.removeStyle('layer' as never, 'effect' as never);
+    state.controller.clearStyles('layer' as never);
+    expect(state.dependencies.setStyleStackEnabled).toHaveBeenCalledWith('layer', false);
+    expect(state.dependencies.setStyleEnabled).toHaveBeenCalledWith('layer', 'effect', false);
+    expect(state.dependencies.removeStyle).toHaveBeenCalledWith('layer', 'effect');
+    expect(state.dependencies.clearStyles).toHaveBeenCalledWith('layer');
+    expect(state.dependencies.finishStyleEditing).toHaveBeenCalledTimes(2);
+    expect(state.dependencies.mutateDocument).not.toHaveBeenCalled();
+  });
+
   it('delegates duplicate and rasterization to the document command owner', () => {
     const state = setup(createImageDocument('test', 100, 100, 'asset'));
 
@@ -331,20 +348,6 @@ describe('createLayerPanelController', () => {
       ? adjustmentStackForOwner(layer.adjustmentStack, 'lens-fx').modules.length
       : 0).toBeGreaterThan(0);
     expect(harness.dependencies.finishProcessingEditing).toHaveBeenCalledOnce();
-  });
-
-  it('removes one Layer Effect without clearing its siblings', () => {
-    const base = createImageDocument('test', 100, 100, 'asset');
-    const layerId = base.activeLayerId!;
-    const styled = addLayerStyle(addLayerStyle(base, layerId, 'drop-shadow'), layerId, 'stroke');
-    const effects = findDocumentLayer(styled, layerId)!.styleStack.effects;
-    const harness = setup(styled);
-
-    harness.controller.removeStyle(layerId, effects[0].id);
-
-    expect(findDocumentLayer(harness.document(), layerId)?.styleStack.effects)
-      .toEqual([effects[1]]);
-    expect(harness.dependencies.finishStyleEditing).toHaveBeenCalledOnce();
   });
 
   it('removes the active mask and returns painting to pixels', () => {

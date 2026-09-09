@@ -10,6 +10,7 @@ import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract'
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
+import type { SemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
 import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
 import type { SemanticSubjectSelectionCommand } from './semanticSubjectSelectionCommandContract';
@@ -143,6 +144,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
     return this.resolve(documentId).executeLayerStyleCommand(command);
+  }
+  executeLayerStyleSnapshot(documentId: DocumentSessionId, command: SemanticLayerStyleSnapshotCommand) {
+    const execute = this.resolve(documentId).executeLayerStyleSnapshot;
+    if (!execute) throw new Error('Layer Style snapshot commands are unavailable in the target document.');
+    return execute(command);
   }
   executeFaceWarpCommand(documentId: DocumentSessionId, command: SemanticFaceWarpCommand) {
     const execute = this.resolve(documentId).executeFaceWarpCommand;

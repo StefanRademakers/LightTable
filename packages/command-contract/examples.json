@@ -171,6 +171,9 @@
       "effects": { "grain":{"enabled":false,"amount":1.55,"size":0.5,"softness":1.19,"color":75,"shadowResponse":3.24,"blend":16,"seed":23,"redScale":0.64,"greenScale":1.25,"blueScale":1.7,"redContrast":2.01,"greenContrast":1.43,"blueContrast":0.85}, "halation":{"enabled":false,"amount":35,"radius":42,"threshold":72,"warmth":70}, "chromaticAberration":{"enabled":false,"amount":18,"falloff":70,"balance":0}, "lensDistortion":{"enabled":false,"amount":18,"midpoint":50,"zoom":0}, "lensBlur":{"enabled":false,"apertureSize":42,"bokehShape":"circle","quality":"high","catEye":0,"bokehBoost":20,"focusDistance":0.5,"depthOfField":0.16,"transitionFeather":0.4}, "vignette":{"enabled":false,"amount":0,"midpoint":50,"roundness":0,"feather":50,"highlights":0} }
     } }
   ],
+  "layer.style.setSnapshot": [
+    { "layerId": "layer-photo", "snapshot": { "enabled": true, "scale": 1, "globalLight": { "angle": 120, "altitude": 30 }, "effects": [] } }
+  ],
   "raster.invert": [
     { "layerId": "layer-photo", "channel": "pixels" }
   ],

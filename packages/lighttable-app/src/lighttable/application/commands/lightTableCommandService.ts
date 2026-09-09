@@ -81,6 +81,7 @@ import {
 } from './semanticBasicAdjustmentCommandContract';
 import { parseSemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import { parseSemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
+import { parseSemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
   parseAdjustmentQueryTarget,
@@ -1599,6 +1600,18 @@ export class LightTableCommandService {
         const result = await this.ports.executeAdjustmentSnapshot(request.documentId, command);
         if (!result || typeof result !== 'object') {
           return { code: 'execution-failed', message: 'The adjustment snapshot could not be applied.' };
+        }
+        return { value: result, changed: (result as { changed?: boolean }).changed !== false };
+      }
+      case 'layer.style.setSnapshot': {
+        const command = parseSemanticLayerStyleSnapshotCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeLayerStyleSnapshot) {
+          return { code: 'command-unavailable', message: 'Layer Style editing is unavailable in this host.' };
+        }
+        const result = await this.ports.executeLayerStyleSnapshot(request.documentId, command);
+        if (!result || typeof result !== 'object') {
+          return { code: 'execution-failed', message: 'The Layer Style snapshot could not be applied.' };
         }
         return { value: result, changed: (result as { changed?: boolean }).changed !== false };
       }

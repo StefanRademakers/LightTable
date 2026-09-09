@@ -18,7 +18,8 @@ This status file remains the compact statement of what is actually migrated.
 | text/path text | overlay adapter retained | implemented | complete S06 vertical | packaged automated | partial |
 | warp | compatibility paths retained | implemented | complete S07 raster/Face Warp vertical | packaged automated | partial |
 | adjustment layers | compatibility paths retained | implemented | complete S08 lifecycle | packaged automated | partial |
-| layer styles/effects/filters | yes | documented | no | no | no |
+| layer styles/effects | UI presentation adapter retained | implemented | complete S09 lifecycle | packaged automated | yes |
+| filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
 | Action/MCP equivalence | yes | documented | no | no | no |
 
@@ -141,6 +142,18 @@ catalog coverage and 4K packaged interaction passed. The final critic reported
 no P0/P1; owner visual/feel acceptance and the S13 double-failure resource soak
 remain open. See
 [Adjustment-layer vertical slice](ADJUSTMENT_LAYER_VERTICAL_SLICE.md).
+
+Layer Styles are the tenth implemented vertical. `LayerNode.styleStack` remains
+the sole committed owner; renderer previews are disposable projections bound
+to one exact document, layer/effect target, renderer and generation. A local
+gesture publishes one strict complete `layer.style.setSnapshot`, while granular
+commands share the same canonical validation and no-op rules. Cancel, failure,
+lock, supersession, document switch and renderer rebind reset the draft and
+clean the admitted renderer. PSD input is normalized at its boundary into the
+same finite scalar, contour/gradient and effect-count domain. The final critic
+found no P0/P1; packaged interaction, subtarget and PSD roundtrip gates pass.
+Owner visual/feel acceptance and S13 resource-failure soak remain open. See
+[Layer Style vertical slice](LAYER_STYLE_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

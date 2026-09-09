@@ -180,7 +180,7 @@ slice; they are not postponed to the final phase.
 | S06 | Text, paragraph/vertical/path text and text conversion | `owner` | yes | passed | passed | [ ] | partial (warp -> S07) |
 | S07 | Warp and experimental Face Warp | `owner` | yes | passed | passed | [ ] | partial (Text Warp authoring absent) |
 | S08 | Adjustment-layer lifecycle | `owner` | yes | passed | passed | [ ] | partial |
-| S09 | Layer styles/effects lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -408,9 +408,29 @@ save/open and renderer rebind. Then check every catalog entry:
 Prove the shared live-preview/commit stack once, then every effect and stack
 combination. Rasterize/merge must consume the same renderer projection.
 
-- [ ] Drop Shadow; Inner Shadow; Outer Glow; Inner Glow.
-- [ ] Bevel & Emboss; Color Overlay; Gradient Overlay; Pattern Overlay.
-- [ ] Satin; Stroke; global-light and multi-effect ordering.
+- [x] Ownership map, strict route and packaged interaction baseline recorded in
+      `LAYER_STYLE_VERTICAL_SLICE.md`.
+- [x] Baseline: 120 input events, 22 submitted frames / 17.0 Hz, no long tasks
+      or renderer errors, one bounded Action and exact undo/playback.
+- [x] Bind the interaction to one document, layer, presentation target and
+      exact renderer; total cleanup on every terminal path.
+- [x] Record one strict complete snapshot for one local stack checkpoint while
+      retaining granular external commands behind the same codec.
+- [x] Locked owners fail closed; cancel/supersede/rebind/failure remount clean
+      document/layer/generation-keyed UI drafts.
+- [x] PSD import is normalized to the same finite scalar and 2..64/64
+      collection domain, then asserted through the canonical stack parser.
+- [x] Two critic repair loops closed renderer generation, target/draft reset,
+      fallback leakage, granular no-op history and PSD-domain mismatches; final
+      verdict ACCEPT with no P0/P1.
+- [x] Full app 3,615 tests, 34 command-contract tests, typecheck and boundary;
+      instrumented package, Layer Style interaction, layer-subtarget and PSD
+      roundtrip gates pass.
+- [ ] Owner manually accepts Layer Style interaction and visual output.
+
+- [x] Drop Shadow; Inner Shadow; Outer Glow; Inner Glow.
+- [x] Bevel & Emboss; Color Overlay; Gradient Overlay; Pattern Overlay.
+- [x] Satin; Stroke; global-light and multi-effect ordering.
 
 ### S10 -- filters
 
@@ -474,7 +494,7 @@ lines plus responsibilities here.
 | `SmartSelectionToolController.ts` | model-neutral inference and gesture session | preview renderer lifetime -> `SmartSelectionPreviewLease`; terminal document mutation/history -> S00 kernel adapter | S00B-3 |
 | `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; adjustment duplication -> S08; clipboard/document geometry -> S11 | S08: 1812 -> 1710; adjustment mask duplication/history coordination extracted to `duplicateAdjustmentLayerCommand` |
 | `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
-| `LayerStyleEditor.tsx` | presentational editor composition | preview transaction and style mutation service -> S09 | [ ] |
+| `LayerStyleEditor.tsx` | presentational editor composition | transaction/history authority extracted to S09 session/snapshot route; 1,027-line UI decomposition debt remains | S09 authority extracted; no-growth |
 | `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
 | `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | [ ] |

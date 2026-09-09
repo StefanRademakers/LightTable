@@ -32,6 +32,11 @@ import type {
 } from '../styles/layerStyleTypes';
 import type { DocumentBlendProfile } from '../document/documentTypes';
 import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
+import {
+  MAX_LAYER_STYLE_MAGNITUDE,
+  MAX_LAYER_STYLE_SCALE,
+  parseLayerStyleStack
+} from '../styles/layerStyleValidation';
 
 export type PsdStyleSupport = 'editable' | 'preserved' | 'rasterized';
 
@@ -80,15 +85,21 @@ const clamp01 = (value: number | undefined, fallback = 0) =>
   Math.min(1, Math.max(0, Number.isFinite(value) ? value! : fallback));
 const normalizedPercent = (value: number | undefined, fallback = 0) =>
   clamp01(value !== undefined && value > 1 ? value / 100 : value, fallback);
+const boundedMagnitude = (value: number | undefined, fallback = 0) =>
+  Number.isFinite(value)
+    ? Math.max(-MAX_LAYER_STYLE_MAGNITUDE, Math.min(MAX_LAYER_STYLE_MAGNITUDE, value!))
+    : fallback;
 const percentRatio = (value: number | undefined, fallback = 1) =>
-  Number.isFinite(value) ? Math.max(0, value! > 10 ? value! / 100 : value!) : fallback;
+  Number.isFinite(value)
+    ? Math.min(MAX_LAYER_STYLE_SCALE, Math.max(0, value! > 10 ? value! / 100 : value!))
+    : fallback;
 const signedPercent = (value: number | undefined, fallback = 0) =>
   Number.isFinite(value)
     ? Math.max(-1, Math.min(1, Math.abs(value!) > 1 ? value! / 100 : value!))
     : fallback;
 const pixels = (value: UnitsValue | undefined, fallback = 0) =>
-  value?.units === 'Pixels' || value?.units === 'None'
-    ? Math.max(0, value.value)
+  (value?.units === 'Pixels' || value?.units === 'None') && Number.isFinite(value.value)
+    ? Math.min(MAX_LAYER_STYLE_MAGNITUDE, Math.max(0, value.value))
     : fallback;
 
 const blendModes: Partial<Record<PsdBlendMode, BlendMode>> = {
@@ -166,9 +177,9 @@ const color = (
 };
 
 const contour = (value: EffectContour | undefined): LayerStyleContour =>
-  value?.curve?.length
+  value?.curve && value.curve.length >= 2
     ? {
-        points: value.curve.map(({ x, y }) => ({
+        points: value.curve.slice(0, 64).map(({ x, y }) => ({
           position: clamp01(x > 1 ? x / 255 : x),
           value: clamp01(y > 1 ? y / 255 : y)
         }))
@@ -192,18 +203,28 @@ const solidGradient = (
   const gradient = createDefaultLayerStyleGradient();
   gradient.name = value.name;
   gradient.smoothness = normalizedPercent(value.smoothness, 1);
-  gradient.colorStops = value.colorStops.map((stop, index) => ({
+  const colorStops = value.colorStops.slice(0, 64).map((stop, index) => ({
     id: `psd-color-${index}`,
     position: clamp01(stop.location > 1 ? stop.location / 4096 : stop.location),
     midpoint: normalizedPercent(stop.midpoint, 0.5),
     color: color(stop.color, layerStyleColor(0, 0, 0), `${path}.colorStops[${index}]`, report)
   }));
-  gradient.opacityStops = value.opacityStops.map((stop, index) => ({
+  const opacityStops = value.opacityStops.slice(0, 64).map((stop, index) => ({
     id: `psd-opacity-${index}`,
     position: clamp01(stop.location > 1 ? stop.location / 4096 : stop.location),
     midpoint: normalizedPercent(stop.midpoint, 0.5),
     opacity: normalizedPercent(stop.opacity, 1)
   }));
+  if (colorStops.length >= 2) gradient.colorStops = colorStops;
+  else if (colorStops.length === 1) gradient.colorStops = [
+    colorStops[0]!, {
+      ...colorStops[0]!, color: { ...colorStops[0]!.color }, id: 'psd-color-1', position: 1
+    }
+  ];
+  if (opacityStops.length >= 2) gradient.opacityStops = opacityStops;
+  else if (opacityStops.length === 1) gradient.opacityStops = [
+    opacityStops[0]!, { ...opacityStops[0]!, id: 'psd-opacity-1', position: 1 }
+  ];
   return gradient;
 };
 
@@ -228,7 +249,7 @@ const shadow = (
   const effect = common(value, createDefaultLayerStyle(kind), path, report);
   if (effect.kind !== kind) throw new Error('Layer Style shadow adapter mismatch.');
   effect.size = pixels(value.size, effect.size);
-  effect.angle = value.angle ?? effect.angle;
+  effect.angle = boundedMagnitude(value.angle, effect.angle);
   effect.distance = pixels(value.distance, effect.distance);
   effect.color = color(value.color, effect.color, `${path}.color`, report);
   effect.useGlobalLight = value.useGlobalLight ?? effect.useGlobalLight;
@@ -288,7 +309,7 @@ const satin = (
   if (effect.kind !== 'satin') throw new Error('Satin adapter mismatch.');
   effect.size = pixels(value.size, effect.size);
   effect.distance = pixels(value.distance, effect.distance);
-  effect.angle = value.angle ?? effect.angle;
+  effect.angle = boundedMagnitude(value.angle, effect.angle);
   effect.color = color(value.color, effect.color, `${path}.color`, report);
   effect.antiAlias = value.antialiased ?? effect.antiAlias;
   effect.invert = value.invert ?? effect.invert;
@@ -305,8 +326,8 @@ const bevel = (
   if (effect.kind !== 'bevel-emboss') throw new Error('Bevel adapter mismatch.');
   effect.size = pixels(value.size, effect.size);
   effect.soften = pixels(value.soften, effect.soften);
-  effect.angle = value.angle ?? effect.angle;
-  effect.altitude = value.altitude ?? effect.altitude;
+  effect.angle = boundedMagnitude(value.angle, effect.angle);
+  effect.altitude = boundedMagnitude(value.altitude, effect.altitude);
   effect.depth = percentRatio(value.strength, effect.depth);
   effect.useGlobalLight = value.useGlobalLight ?? effect.useGlobalLight;
   effect.highlightMode = blendMode(
@@ -367,7 +388,7 @@ const gradientOverlay = (
   effect.dither = value.dither ?? effect.dither;
   effect.reverse = value.reverse ?? effect.reverse;
   effect.alignWithLayer = value.align ?? effect.alignWithLayer;
-  effect.angle = value.angle ?? effect.angle;
+  effect.angle = boundedMagnitude(value.angle, effect.angle);
   effect.scale = percentRatio(value.scale, effect.scale);
   effect.offsetX = signedPercent(value.offset?.x, 0);
   effect.offsetY = signedPercent(value.offset?.y, 0);
@@ -407,7 +428,7 @@ const stroke = (
       reverse: value.gradient.reverse ?? false,
       style: value.gradient.style ?? 'linear',
       alignWithLayer: value.gradient.align ?? true,
-      angle: value.gradient.angle ?? 0,
+      angle: boundedMagnitude(value.gradient.angle, 0),
       scale: percentRatio(value.gradient.scale, 1),
       offsetX: signedPercent(value.gradient.offset?.x, 0),
       offsetY: signedPercent(value.gradient.offset?.y, 0),
@@ -456,8 +477,8 @@ const patternOverlay = (
   if (effect.kind !== 'pattern-overlay') throw new Error('Pattern Overlay adapter mismatch.');
   effect.scale = percentRatio(value.scale, effect.scale);
   effect.linkWithLayer = value.align ?? effect.linkWithLayer;
-  effect.offsetX = value.phase?.x ?? 0;
-  effect.offsetY = value.phase?.y ?? 0;
+  effect.offsetX = boundedMagnitude(value.phase?.x, 0);
+  effect.offsetY = boundedMagnitude(value.phase?.y, 0);
   effect.pattern = pattern(value.pattern, options);
   if (!effect.pattern?.assetId) {
     preserved.push(value);
@@ -519,6 +540,15 @@ export const importPsdLayerStyles = (
     ));
   }
   if (stack.effects.length) {
+    if (stack.effects.length > 64) {
+      const omitted = stack.effects.splice(64);
+      preservedDescriptors.push(...omitted);
+      compatibility.push({
+        path: 'effects[64+]',
+        support: 'preserved',
+        reason: `${omitted.length} effect(s) exceeded the canonical 64-effect limit and use the Photoshop preview.`
+      });
+    }
     compatibility.unshift({
       path: 'effects',
       support: 'editable',
@@ -526,5 +556,5 @@ export const importPsdLayerStyles = (
     });
   }
   normalizeSemanticColors(stack, options.sourceProfile ?? 'srgb');
-  return { stack, compatibility, preservedDescriptors };
+  return { stack: parseLayerStyleStack(stack), compatibility, preservedDescriptors };
 };

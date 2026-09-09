@@ -63,6 +63,17 @@ describe('semantic Layer Style commands', () => {
     expect(state.history).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects values that pass the transport bound but violate the canonical effect bound', () => {
+    const state = harness(); const layerId = state.document().activeLayerId!;
+    const effectId = executeSemanticLayerStyleCommand(
+      { kind: 'add', layerId, effectKind: 'drop-shadow' }, state.dependencies
+    )!.effectId;
+    expect(() => executeSemanticLayerStyleCommand({
+      kind: 'update', layerId, effectId, settings: { size: -1 }
+    }, state.dependencies)).toThrow(/invalid|canonical bounds/i);
+    expect(state.history).toHaveBeenCalledTimes(1);
+  });
+
   it('updates bounded stack-wide scale and global light without replacing effects', () => {
     const state = harness(); const layerId = state.document().activeLayerId!;
     executeSemanticLayerStyleCommand({ kind: 'add', layerId, effectKind: 'drop-shadow' }, state.dependencies);
@@ -75,5 +86,32 @@ describe('semantic Layer Style commands', () => {
       scale: 1.5, globalLight: { angle: 210, altitude: 45 }, effects: [{ kind: 'drop-shadow' }]
     });
     expect(state.history).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not create revisions or history for granular semantic no-ops', () => {
+    const state = harness(); const layerId = state.document().activeLayerId!;
+    const effectId = executeSemanticLayerStyleCommand(
+      { kind: 'add', layerId, effectKind: 'drop-shadow' }, state.dependencies
+    )!.effectId;
+    const openingStack = findDocumentLayer(state.document(), layerId)!.styleStack;
+    const openingRevision = openingStack.revision;
+    const openingSize = openingStack.effects[0]?.kind === 'drop-shadow'
+      ? openingStack.effects[0].size : 0;
+
+    expect(executeSemanticLayerStyleCommand(
+      { kind: 'toggle', layerId, effectId, enabled: true }, state.dependencies
+    )).toBeNull();
+    expect(executeSemanticLayerStyleCommand(
+      { kind: 'move', layerId, effectId, targetIndex: 0 }, state.dependencies
+    )).toBeNull();
+    expect(executeSemanticLayerStyleCommand(
+      { kind: 'update', layerId, effectId, settings: { size: openingSize } }, state.dependencies
+    )).toBeNull();
+    expect(executeSemanticLayerStyleCommand(
+      { kind: 'stack-update', layerId, settings: { scale: 1 } }, state.dependencies
+    )).toBeNull();
+
+    expect(findDocumentLayer(state.document(), layerId)!.styleStack.revision).toBe(openingRevision);
+    expect(state.history).toHaveBeenCalledTimes(1);
   });
 });

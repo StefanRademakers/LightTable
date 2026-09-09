@@ -8,6 +8,8 @@ import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { createDefaultLayerStyleStack } from '../../editor/styles/layerStyleDefaults';
+import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import { createDefaultAdjustments } from '../../types';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
@@ -2072,6 +2074,31 @@ describe('LightTableCommandService registry', () => {
     expect(executeAdjustmentSnapshot).toHaveBeenCalledTimes(2);
     await expect(state.service.execute(request('adjustment.setSnapshot', state.session.id, {
       target: parameters.target, snapshot: { exposureEV: 1 }
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates, records and replays one complete Layer Style stack', async () => {
+    const executeLayerStyleSnapshot = vi.fn(async (_documentId, command) => ({
+      layerId: command.layerId, changed: true
+    }));
+    const state = setup({ executeLayerStyleSnapshot });
+    const parameters = {
+      layerId: state.session.getSnapshot().document!.activeLayerId!,
+      snapshot: layerStyleSnapshot(createDefaultLayerStyleStack())
+    };
+    state.service.startActionRecording('Set Layer Styles');
+    await expect(state.service.execute(request(
+      'layer.style.setSnapshot', state.session.id, parameters
+    ))).resolves.toMatchObject({ status: 'completed', value: { changed: true } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.style.setSnapshot', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeLayerStyleSnapshot).toHaveBeenCalledTimes(2);
+    await expect(state.service.execute(request('layer.style.setSnapshot', state.session.id, {
+      layerId: parameters.layerId, snapshot: { enabled: true }
     }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });

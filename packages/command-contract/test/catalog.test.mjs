@@ -118,6 +118,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.delete',
     'layer.move',
     'layer.setClipping',
+    'layer.style.setSnapshot',
     'layer.rename',
     'layer.setVisibility',
     'layer.setFillOpacity',
@@ -821,6 +822,13 @@ test('adjustment creation schemas preserve exact placement semantics', () => {
 test('complete adjustment snapshots declare their strict runtime codec instead of a looser nested schema', () => {
   const snapshot = LIGHTTABLE_COMMAND_SCHEMAS['adjustment.setSnapshot'].input.properties.snapshot;
   assert.equal(snapshot['x-lighttable-runtime-validation'], 'complete-adjustment-snapshot-v1');
+  assert.equal(snapshot.properties, undefined);
+  assert.match(snapshot.description, /pass it through unchanged/i);
+});
+
+test('complete Layer Style snapshots declare their strict runtime codec', () => {
+  const snapshot = LIGHTTABLE_COMMAND_SCHEMAS['layer.style.setSnapshot'].input.properties.snapshot;
+  assert.equal(snapshot['x-lighttable-runtime-validation'], 'complete-layer-style-snapshot-v1');
   assert.equal(snapshot.properties, undefined);
   assert.match(snapshot.description, /pass it through unchanged/i);
 });

@@ -233,6 +233,23 @@ critic gates passed. Owner acceptance remains open, and S13 must define durable
 quarantine/retry ownership when both history publication and GPU compensation
 fail.
 
+Layer Style reset, updated 2026-09-09: read
+[Layer Style vertical slice](editor-kernel/LAYER_STYLE_VERTICAL_SLICE.md) before
+changing Effects, their Properties editor or PSD effect import.
+`LayerNode.styleStack` is the only committed owner. The UI draft is keyed by
+document, layer and cancel generation; `layerStyleInteractionSession` binds the
+exact effect target, renderer object and renderer generation. Preview is
+renderer-only and one accepted gesture records one strict complete
+`layer.style.setSnapshot`. Granular UI/Action/MCP commands use the same
+canonical bounds and semantic no-op rules. Locked owners fail closed, and all
+non-commit terminal reasons reset the draft. PSD effect scalars and collections
+must be normalized at import and pass `parseLayerStyleStack`; never admit a
+second domain through an adapter. Do not restore direct panel/overlay mutation
+fallbacks or add transaction/history policy to the 1,027-line
+`LayerStyleEditor.tsx`; it is a presentation hotspot to decompose by UI
+responsibility only. Automated package and critic gates passed; owner
+acceptance remains open.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

@@ -52,6 +52,7 @@ const MOUNTED_DOCUMENT_COMMAND_PORTS = {
   'layer.setFillOpacity': 'setLayerFillOpacity',
   'layer.style.setEnabled': 'setLayerStyleEnabled',
   'layer.style.update': 'executeLayerStyleCommand',
+  'layer.style.setSnapshot': 'executeLayerStyleSnapshot',
   'layer.effect.setEnabled': 'setLayerEffectEnabled',
   'text.create': 'executeTextCommand',
   'text.replaceRange': 'executeTextCommand',

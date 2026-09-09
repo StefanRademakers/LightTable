@@ -2,10 +2,84 @@ import { describe, expect, it } from 'vitest';
 import type { LayerEffectsInfo } from 'ag-psd';
 import { importPsdLayerStyles } from './layerStylePsdAdapter';
 import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
+import { MAX_LAYER_STYLE_MAGNITUDE } from '../styles/layerStyleValidation';
 
 const px = (value: number) => ({ units: 'Pixels', value } as const);
 
 describe('PSD Layer Style adapter', () => {
+  it('normalizes extreme finite renderer scalars at the import boundary', () => {
+    const result = importPsdLayerStyles({
+      dropShadow: [{
+        enabled: true, size: px(1e308), distance: px(1e308), angle: -1e308
+      }]
+    });
+    expect(result.stack.effects[0]).toMatchObject({
+      size: MAX_LAYER_STYLE_MAGNITUDE,
+      distance: MAX_LAYER_STYLE_MAGNITUDE,
+      angle: -MAX_LAYER_STYLE_MAGNITUDE
+    });
+  });
+
+  it('normalizes non-finite scalars and structural collections into the canonical domain', () => {
+    const excessiveCurve = Array.from({ length: 70 }, (_, index) => ({
+      x: index / 69, y: index / 69
+    }));
+    const excessiveStops = Array.from({ length: 70 }, (_, index) => ({
+      color: { r: index, g: index, b: index }, location: index / 69, midpoint: 50
+    }));
+    const excessiveOpacityStops = Array.from({ length: 70 }, (_, index) => ({
+      opacity: 100, location: index / 69, midpoint: 50
+    }));
+    const result = importPsdLayerStyles({
+      dropShadow: Array.from({ length: 65 }, (_, index) => ({
+        enabled: true,
+        size: px(index === 0 ? Number.NaN : index),
+        distance: px(index === 0 ? Number.POSITIVE_INFINITY : index),
+        contour: { name: 'bounded', curve: excessiveCurve }
+      })),
+      gradientOverlay: [{
+        enabled: true,
+        gradient: {
+          type: 'solid', name: 'bounded', smoothness: 100,
+          colorStops: excessiveStops,
+          opacityStops: excessiveOpacityStops
+        }
+      }]
+    });
+    expect(result.stack.effects).toHaveLength(64);
+    expect(result.stack.effects[0]).toMatchObject({ size: 30, distance: 30 });
+    expect(result.stack.effects[0]?.kind === 'drop-shadow'
+      ? result.stack.effects[0].contour.points : []).toHaveLength(64);
+    expect(result.preservedDescriptors).toHaveLength(2);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      path: 'effects[64+]', support: 'preserved'
+    }));
+
+    const gradient = importPsdLayerStyles({ gradientOverlay: [{
+      enabled: true,
+      gradient: {
+        type: 'solid', name: 'single', smoothness: 100,
+        colorStops: excessiveStops.slice(0, 1),
+        opacityStops: excessiveOpacityStops.slice(0, 1)
+      }
+    }] }).stack.effects[0];
+    expect(gradient?.kind === 'gradient-overlay' ? gradient.gradient.colorStops : []).toHaveLength(2);
+    expect(gradient?.kind === 'gradient-overlay' ? gradient.gradient.opacityStops : []).toHaveLength(2);
+
+    const boundedGradient = importPsdLayerStyles({ gradientOverlay: [{
+      enabled: true,
+      gradient: {
+        type: 'solid', name: 'bounded', smoothness: 100,
+        colorStops: excessiveStops,
+        opacityStops: excessiveOpacityStops
+      }
+    }] }).stack.effects[0];
+    expect(boundedGradient?.kind === 'gradient-overlay'
+      ? boundedGradient.gradient.colorStops : []).toHaveLength(64);
+    expect(boundedGradient?.kind === 'gradient-overlay'
+      ? boundedGradient.gradient.opacityStops : []).toHaveLength(64);
+  });
+
   it('normalizes Adobe RGB FX colors and gradient stops into canonical sRGB semantics', () => {
     const result = importPsdLayerStyles({
       solidFill: [{ enabled: true, color: { r: 220, g: 40, b: 15 } }],
@@ -25,9 +99,9 @@ describe('PSD Layer Style adapter', () => {
       { r: 20 / 255, g: 180 / 255, b: 240 / 255 }, 'adobe-rgb-1998'
     );
     expect(result.stack.effects[0]).toMatchObject({ color: solidExpected });
-    expect(result.stack.effects[1]).toMatchObject({
-      gradient: { colorStops: [{ color: gradientExpected }] }
-    });
+    const importedGradient = result.stack.effects[1];
+    expect(importedGradient?.kind === 'gradient-overlay'
+      ? importedGradient.gradient.colorStops[0]?.color : null).toMatchObject(gradientExpected);
   });
 
   it('imports ordered multiple-instance effects into editable canonical styles', () => {

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "category": "effects",
+  "commands": {
+    "layer.style.setSnapshot": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "snapshot"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" },
+          "snapshot": {
+            "type": "object",
+            "title": "Complete Layer Styles snapshot",
+            "x-lighttable-runtime-validation": "complete-layer-style-snapshot-v1",
+            "description": "Opaque complete Layer Style stack transport. Client schema tooling must pass it through unchanged; the named runtime codec enforces exact keys, canonical numeric ranges, stable effect identity, order and bounded arrays before execution."
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "changed"],
+        "properties": {
+          "layerId": { "type": "string" },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
