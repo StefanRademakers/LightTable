@@ -2,7 +2,7 @@ import type { ResizePlan, ConcreteResampleMethod } from '../document/imageResize
 import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
 import type { LayerRuntimeStore, RasterLayerRuntime } from './LayerRuntimeStore';
-import type { SelectionTextureStore } from './SelectionTextureStore';
+import type { SelectionTargetState, SelectionTextureStore } from './SelectionTextureStore';
 import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 import {
@@ -147,10 +147,7 @@ interface PendingTextureExchange {
   readonly after: GPUTexture;
 }
 
-interface SelectionExchange {
-  before: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-  after: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-}
+interface SelectionExchange { before: SelectionTargetState; after: SelectionTargetState }
 
 interface RuntimeExchangeRecord extends PendingRuntimeExchange {
   readonly exchange: AtomicRuntimeExchange;
@@ -160,12 +157,11 @@ interface TextureExchangeRecord extends PendingTextureExchange {
   readonly exchange: AtomicRuntimeExchange;
 }
 
-type SelectionTargets = SelectionExchange['before'];
-
-const sameSelectionTargets = (left: SelectionTargets, right: SelectionTargets) => (
+const sameSelectionTargets = (left: SelectionTargetState, right: SelectionTargetState) => (
   left.mask === right.mask
   && left.result === right.result
   && left.shape === right.shape
+  && left.active === right.active
 );
 
 const destroyUniqueTextures = (textures: readonly GPUTexture[]) => {
@@ -190,6 +186,7 @@ const estimatedUniqueTextureBytes = (
 
 export interface ReversibleGpuImageResize {
   readonly byteSize: number;
+  setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
 }
@@ -205,7 +202,12 @@ export class ImageResizeGpuService {
   constructor(private readonly options: ImageResizeGpuServiceOptions) {}
 
   resize(document: ImageDocument, plan: ResizePlan, noiseReduction: number): ReversibleGpuImageResize {
-    if (!plan.resolvedMethod) return { byteSize: 0, apply: () => undefined, dispose: () => undefined };
+    if (!plan.resolvedMethod) return {
+      byteSize: 0,
+      setAfterSelectionActive: () => undefined,
+      apply: () => undefined,
+      dispose: () => undefined
+    };
     const bundle = pipelineBundle(this.options.device);
     const encoder = this.options.device.createCommandEncoder({ label: 'LightTable Image Size' });
     const pendingExchanges: PendingRuntimeExchange[] = [];
@@ -254,15 +256,22 @@ export class ImageResizeGpuService {
         pendingMaskExchanges.push({ layerId: node.id, before, after });
       }
       const selection = this.options.selection;
-      if (selection.active && selection.mask && selection.result && selection.shape) {
-        const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
+      selection.ensureTargets();
+      if (selection.mask && selection.result && selection.shape) {
+        const before = {
+          mask: selection.mask,
+          result: selection.result,
+          shape: selection.shape,
+          active: selection.active
+        };
         const after = {
           mask: this.encodePasses(encoder, before.mask, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
             plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers),
           result: this.encodePasses(encoder, before.result, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
             plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers),
           shape: this.encodePasses(encoder, before.shape, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-            plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers)
+            plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, createdTextures, transients, buffers),
+          active: before.active
         };
         selectionExchange = { before, after };
       }
@@ -294,7 +303,7 @@ export class ImageResizeGpuService {
             label: 'Selection targets',
             before: selectionExchange.before,
             after: selectionExchange.after,
-            exchange: (replacement) => selection.exchangeTargets(replacement),
+            exchange: (replacement) => selection.exchangeState(replacement),
             equals: sameSelectionTargets
           })
         : null;
@@ -319,7 +328,11 @@ export class ImageResizeGpuService {
           height: plan.sourceHeight,
           bytesPerPixel: 2
         })),
-        ...(selectionExchange ? Object.values(selectionExchange.before).map((texture) => ({
+        ...(selectionExchange ? [
+          selectionExchange.before.mask,
+          selectionExchange.before.result,
+          selectionExchange.before.shape
+        ].map((texture) => ({
           texture,
           width: plan.sourceWidth,
           height: plan.sourceHeight,
@@ -342,7 +355,11 @@ export class ImageResizeGpuService {
           height: plan.targetHeight,
           bytesPerPixel: 2
         })),
-        ...(selectionExchange ? Object.values(selectionExchange.after).map((texture) => ({
+        ...(selectionExchange ? [
+          selectionExchange.after.mask,
+          selectionExchange.after.result,
+          selectionExchange.after.shape
+        ].map((texture) => ({
           texture,
           width: plan.targetWidth,
           height: plan.targetHeight,
@@ -362,6 +379,11 @@ export class ImageResizeGpuService {
       });
       return {
         byteSize,
+        setAfterSelectionActive: (active) => {
+          if (!selectionExchange || !selectionRuntimeExchange) return;
+          (selectionExchange.after as { active: boolean }).active = active;
+          if (selectionRuntimeExchange.current === 'after') selection.active = active;
+        },
         apply: (state) => {
           try {
             applyAtomicRuntimeState(atomicExchanges, state);

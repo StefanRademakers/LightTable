@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createImageDocument } from '../../editor/document/documentTypes';
-import { identityAffineMatrix } from '../../editor/geometry/affine';
+import { createGroupLayer, createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
+import { identityAffineMatrix, invertMatrix, multiplyMatrices } from '../../editor/geometry/affine';
 import { createDocumentGeometryPlan, projectDocumentGeometry, projectSelectionGeometry } from './documentGeometryModel';
 
 describe('document geometry model', () => {
@@ -69,6 +69,31 @@ describe('document geometry model', () => {
       operation: 'crop', bounds: { x: 10, y: 15, width: 40, height: 30 }
     });
     expect(plan).toMatchObject({ targetWidth: 40, targetHeight: 30, oldDocumentToNewDocument: { tx: -10, ty: -15 } });
+  });
+
+  it('projects a nested independent mask while preserving child-local geometry', () => {
+    const document = createImageDocument('Geometry', 100, 50, 'source');
+    const group = createGroupLayer('Group');
+    const child = createVectorLayer([], 'Masked child');
+    child.mask = {
+      id: 'child-mask', enabled: true, linked: false,
+      transform: { ...identityAffineMatrix(), tx: 7, ty: 3 },
+      density: 1, feather: 0, revision: 0, pixelRevision: 0, dirtyBounds: null
+    };
+    group.children = [child];
+    document.layers = [group];
+    const plan = createDocumentGeometryPlan(document, {
+      operation: 'rotate', rotation: 'clockwise-90'
+    });
+    const inverse = invertMatrix(plan.oldDocumentToNewDocument)!;
+    const next = projectDocumentGeometry(document, plan);
+    const nextChild = next.layers[0]!.type === 'group' ? next.layers[0]!.children[0]! : null;
+    expect(nextChild?.transform).toEqual(child.transform);
+    expect(nextChild?.mask?.transform).toEqual(multiplyMatrices(
+      plan.oldDocumentToNewDocument,
+      multiplyMatrices(child.mask.transform, inverse)
+    ));
+    expect(nextChild?.mask?.pixelRevision).toBe(child.mask.pixelRevision + 1);
   });
 
   it('projects selection replay through the identical document mapping', () => {

@@ -167,6 +167,11 @@ export class SelectionTextureStore {
     return this.clipboard;
   }
 
+  clearClipboard() {
+    this.clipboard?.destroy();
+    this.clipboard = null;
+  }
+
   estimatedTextureBytes(width: number, height: number) {
     const pixels = Math.max(1, width) * Math.max(1, height);
     let bytes = 0;

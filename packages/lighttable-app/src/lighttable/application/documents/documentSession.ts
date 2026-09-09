@@ -318,6 +318,27 @@ export class DocumentSession {
     return true;
   }
 
+  /**
+   * Atomically replaces the canonical document and its document-scoped editor
+   * projection. Dimension-changing commands must not expose a new canvas with
+   * the previous selection mask, or the reverse, even synchronously.
+   */
+  updateDocumentAndEditorIf(
+    predicate: (document: ImageDocument | null, editor: DocumentEditorState) => boolean,
+    document: ImageDocument,
+    updater: (current: DocumentEditorState) => DocumentEditorState
+  ): boolean {
+    this.assertEditable();
+    const currentEditor = cloneEditorSession(this.snapshot.editor);
+    if (!predicate(this.snapshot.document, currentEditor)) return false;
+    document.assets.fonts.forEach((asset) => this.fonts.registerReference(asset));
+    this.update({
+      document,
+      editor: cloneEditorSession(updater(currentEditor))
+    });
+    return true;
+  }
+
   setDocument(document: ImageDocument | null): void {
     this.assertEditable();
     if (this.snapshot.document === document) return;

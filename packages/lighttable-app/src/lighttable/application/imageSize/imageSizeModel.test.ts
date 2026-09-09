@@ -54,6 +54,11 @@ describe('Image Size model', () => {
     const document = createImageDocument('Layered', 100, 50, 'pixels');
     const group = createGroupLayer('Group');
     const shape = createVectorLayer([], 'Shape');
+    shape.mask = {
+      id: 'shape-mask', enabled: true, linked: false,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 6 },
+      density: 1, feather: 0, revision: 0, pixelRevision: 0, dirtyBounds: null
+    };
     group.children = [shape];
     group.styleStack.scale = 1.25;
     document.layers = [document.layers[0]!, group];
@@ -67,6 +72,8 @@ describe('Image Size model', () => {
       elements: shape.elements,
       transform: shape.transform
     });
+    expect(resizedGroup.type === 'group' && resizedGroup.children[0]?.mask?.transform)
+      .toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 8, ty: 12 });
     expect(resized.layers[0]).toMatchObject({ width: 200, height: 100, transform: { a: 1, d: 1 } });
   });
 });

@@ -70,15 +70,28 @@ export class DocumentSelectionStateStore implements SelectionStateStore<
     expectedRevision: SelectionRevision,
     next: LightTableCommittedSelection,
   ): boolean {
+    const document = this.session.getSnapshot().document;
+    return document
+      ? this.compareAndSwapForDocument(expectedRevision, document, next, document)
+      : false;
+  }
+
+  /** Publishes a dimension-changing document and its selection as one value. */
+  compareAndSwapForDocument(
+    expectedRevision: SelectionRevision,
+    expectedDocument: import('../../../editor/document/documentTypes').ImageDocument,
+    next: LightTableCommittedSelection,
+    document: import('../../../editor/document/documentTypes').ImageDocument,
+  ): boolean {
     try { assertCommittedSelectionState(next); } catch { return false; }
     if (String(next.documentSessionId) !== String(this.session.id)) return false;
-    const snapshot = this.session.getSnapshot();
-    const document = snapshot.document;
-    if (!document || next.canvas.width !== document.width || next.canvas.height !== document.height
+    if (next.canvas.width !== document.width || next.canvas.height !== document.height
       || next.coverage.width !== document.width || next.coverage.height !== document.height
       || next.coverage.active !== next.active) return false;
-    return this.session.updateEditorIf(
-      (current) => current.selectionRevision === expectedRevision,
+    return this.session.updateDocumentAndEditorIf(
+      (currentDocument, current) => currentDocument === expectedDocument
+        && current.selectionRevision === expectedRevision,
+      document,
       (current) => ({
         ...current,
         selection: [...next.provenance],

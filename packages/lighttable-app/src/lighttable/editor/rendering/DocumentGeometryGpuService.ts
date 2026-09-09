@@ -3,7 +3,7 @@ import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree } from '../document/layerTree';
 import { invertMatrix } from '../geometry/affine';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
-import type { SelectionTextureStore } from './SelectionTextureStore';
+import type { SelectionTargetState, SelectionTextureStore } from './SelectionTextureStore';
 import { releaseAfterSubmittedWork } from './SubmittedResourceRetainer';
 import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 import {
@@ -70,10 +70,7 @@ const bundleFor = (device: GPUDevice): GeometryPipelineBundle => {
   bundles.set(device, bundle); return bundle;
 };
 
-interface SelectionExchange {
-  before: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-  after: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture };
-}
+interface SelectionExchange { before: SelectionTargetState; after: SelectionTargetState }
 
 interface TextureExchangeRecord {
   readonly layerId: LayerId;
@@ -82,12 +79,11 @@ interface TextureExchangeRecord {
   readonly exchange: AtomicRuntimeExchange;
 }
 
-type SelectionTargets = SelectionExchange['before'];
-
-const sameSelectionTargets = (left: SelectionTargets, right: SelectionTargets) => (
+const sameSelectionTargets = (left: SelectionTargetState, right: SelectionTargetState) => (
   left.mask === right.mask
   && left.result === right.result
   && left.shape === right.shape
+  && left.active === right.active
 );
 
 const destroyUniqueTextures = (textures: readonly GPUTexture[]) => {
@@ -102,6 +98,7 @@ const estimatedUniqueTextureBytes = (
 
 export interface ReversibleGpuDocumentGeometry {
   readonly byteSize: number;
+  setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
 }
@@ -161,12 +158,19 @@ export class DocumentGeometryGpuService {
         });
       }
       const selection = this.options.selection;
-      if (selection.active && selection.mask && selection.result && selection.shape) {
-        const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
+      selection.ensureTargets();
+      if (selection.mask && selection.result && selection.shape) {
+        const before = {
+          mask: selection.mask,
+          result: selection.result,
+          shape: selection.shape,
+          active: selection.active
+        };
         selectionExchange = { before, after: {
           mask: encode(before.mask, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
           result: encode(before.result, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
-          shape: encode(before.shape, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT)
+          shape: encode(before.shape, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
+          active: before.active
         } };
       }
       this.options.device.queue.submit([encoder.finish()]);
@@ -186,7 +190,7 @@ export class DocumentGeometryGpuService {
             label: 'Selection targets',
             before: selectionExchange.before,
             after: selectionExchange.after,
-            exchange: (replacement) => selection.exchangeTargets(replacement),
+            exchange: (replacement) => selection.exchangeState(replacement),
             equals: sameSelectionTargets
           })
         : null;
@@ -197,8 +201,16 @@ export class DocumentGeometryGpuService {
       const beforeTextures = exchanges.map(({ before }) => before);
       const afterTextures = exchanges.map(({ after }) => after);
       if (selectionExchange) {
-        beforeTextures.push(...Object.values(selectionExchange.before));
-        afterTextures.push(...Object.values(selectionExchange.after));
+        beforeTextures.push(
+          selectionExchange.before.mask,
+          selectionExchange.before.result,
+          selectionExchange.before.shape
+        );
+        afterTextures.push(
+          selectionExchange.after.mask,
+          selectionExchange.after.result,
+          selectionExchange.after.shape
+        );
       }
       const byteSize = Math.max(
         estimatedUniqueTextureBytes(beforeTextures, plan.sourceWidth, plan.sourceHeight),
@@ -213,6 +225,11 @@ export class DocumentGeometryGpuService {
       );
       return {
         byteSize,
+        setAfterSelectionActive: (active) => {
+          if (!selectionExchange || !selectionRuntimeExchange) return;
+          (selectionExchange.after as { active: boolean }).active = active;
+          if (selectionRuntimeExchange.current === 'after') selection.active = active;
+        },
         apply: (state) => {
           try {
             applyAtomicRuntimeState(atomicExchanges, state);

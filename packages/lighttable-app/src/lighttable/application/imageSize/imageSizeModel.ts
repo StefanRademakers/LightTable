@@ -4,7 +4,8 @@ import type {
   ResampleMethod,
   ResizePlan
 } from '../../editor/document/imageResizeTypes';
-import { multiplyMatrices, scaleMatrix } from '../../editor/geometry/affine';
+import { invertMatrix, multiplyMatrices, scaleMatrix } from '../../editor/geometry/affine';
+import { projectDocumentSpaceMask } from '../documentGeometry/documentGeometryModel';
 
 export type {
   ConcreteResampleMethod,
@@ -176,6 +177,8 @@ const scaleNode = (
   scaleX: number,
   scaleY: number,
   effectScale: number | null,
+  documentMatrix: ReturnType<typeof scaleMatrix>,
+  inverseDocumentMatrix: ReturnType<typeof scaleMatrix>,
   root: boolean
 ): LayerNode => {
   const documentTransform = root
@@ -189,6 +192,9 @@ const scaleNode = (
     : documentTransform;
   const common = {
     transform,
+    mask: node.mask
+      ? projectDocumentSpaceMask(node.mask, documentMatrix, inverseDocumentMatrix)
+      : null,
     styleStack: effectScale === null ? node.styleStack : {
       ...node.styleStack,
       scale: node.styleStack.scale * effectScale,
@@ -211,7 +217,9 @@ const scaleNode = (
   if (node.type === 'group') return {
     ...node,
     ...common,
-    children: node.children.map((child) => scaleNode(child, scaleX, scaleY, effectScale, false))
+    children: node.children.map((child) => scaleNode(
+      child, scaleX, scaleY, effectScale, documentMatrix, inverseDocumentMatrix, false
+    ))
   };
   return { ...node, ...common };
 };
@@ -232,13 +240,19 @@ export const resizeImageDocumentSemantics = (
   const effectScale = request.scaleStyles && pixelDimensionsChanged
     ? Math.sqrt(plan.scaleX * plan.scaleY)
     : null;
+  const documentMatrix = scaleMatrix(plan.scaleX, plan.scaleY);
+  const inverseDocumentMatrix = invertMatrix(documentMatrix);
+  if (!inverseDocumentMatrix) throw new Error('Image resize mapping is not invertible.');
   return {
     ...document,
     width: plan.targetWidth,
     height: plan.targetHeight,
     resolutionPpi: request.resolutionPpi,
     layers: pixelDimensionsChanged
-      ? document.layers.map((node) => scaleNode(node, plan.scaleX, plan.scaleY, effectScale, true))
+      ? document.layers.map((node) => scaleNode(
+          node, plan.scaleX, plan.scaleY, effectScale,
+          documentMatrix, inverseDocumentMatrix, true
+        ))
       : document.layers,
     revision: document.revision + 1,
     modifiedAt: Date.now()

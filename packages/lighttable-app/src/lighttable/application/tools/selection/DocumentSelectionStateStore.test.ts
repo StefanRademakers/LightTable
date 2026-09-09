@@ -74,6 +74,46 @@ describe('DocumentSelectionStateStore', () => {
     session.dispose();
   });
 
+  it('publishes a resized document and matching selection in one notification', () => {
+    const session = createSession();
+    const store = new DocumentSelectionStateStore(session);
+    const documentSessionId = session.id as unknown as KernelDocumentSessionId;
+    const baseline = store.read(documentSessionId);
+    const beforeDocument = session.getSnapshot().document!;
+    const resizedDocument = {
+      ...beforeDocument,
+      width: 20,
+      height: 16,
+      revision: beforeDocument.revision + 1,
+    };
+    const observations: Array<{ width: number; maskWidth: number }> = [];
+    const release = session.subscribe(() => {
+      const snapshot = session.getSnapshot();
+      observations.push({
+        width: snapshot.document!.width,
+        maskWidth: snapshot.editor.selectionMaskSnapshot!.width,
+      });
+    });
+
+    expect(store.compareAndSwapForDocument(baseline.revision, beforeDocument, {
+      ...baseline,
+      revision: 1 as SelectionRevision,
+      canvas: { width: 20, height: 16 },
+      coverage: SelectionMaskSnapshot.inactive(20, 16),
+    }, resizedDocument)).toBe(true);
+    expect(observations).toEqual([{ width: 20, maskWidth: 20 }]);
+    expect(session.getSnapshot().document).toBe(resizedDocument);
+    expect(store.compareAndSwapForDocument(
+      1 as SelectionRevision,
+      beforeDocument,
+      { ...store.read(documentSessionId), revision: 2 as SelectionRevision },
+      { ...resizedDocument, revision: resizedDocument.revision + 1 }
+    )).toBe(false);
+    expect(session.getSnapshot().document).toBe(resizedDocument);
+    release();
+    session.dispose();
+  });
+
   it('rejects another document identity and mismatched coverage dimensions', () => {
     const session = createSession();
     const store = new DocumentSelectionStateStore(session);

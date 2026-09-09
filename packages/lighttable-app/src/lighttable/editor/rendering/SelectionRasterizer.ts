@@ -1512,17 +1512,17 @@ export class SelectionRasterizer {
     if (!textures.active || !textures.mask) {
       return SelectionMaskSnapshot.inactive(width, height);
     }
-    return SelectionMaskSnapshot.fromRaw(
-      width,
-      height,
-      await readR16FloatTexture(
+    const values = await readR16FloatTexture(
         device,
         textures.mask,
         width,
         height,
         'LightTable selection snapshot readback'
-      )
-    );
+      );
+    // `active` is semantic state, not a derived pixel-visibility flag. An
+    // active selection may be translated fully outside the canvas and must
+    // remain movable even though its in-canvas readback contains only zeroes.
+    return SelectionMaskSnapshot.fromRaw(width, height, values);
   }
 
   restoreSnapshot(snapshot: SelectionMaskSnapshot) {

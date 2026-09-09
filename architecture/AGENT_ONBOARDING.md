@@ -130,6 +130,17 @@ containers over DIB, isolate broken advertised formats and decode no pixels on
 the normal path. Manual width/height edits always beat late probe results and a
 pending probe cannot submit provisional defaults.
 
+Image Size, Canvas Size, Crop and document Rotate share one document-surface
+mutation contract. `DocumentSession.updateDocumentAndEditorIf` publishes the
+new canonical document and exact document-sized selection in one notification;
+never return to sequential `setDocument`/selection publication. Geometry GPU
+services exchange every layer mask and all selection targets under the same
+history owner. Apply a document mapping to root layer transforms once, but
+project document-space masks recursively at every tree depth. An active
+selection may have no in-canvas support after crop/resize and must remain active
+and movable. Surface dimension changes invalidate renderer-internal clipboard
+textures; they do not clear or reinterpret the OS clipboard.
+
 Layer-finalization reset, updated 2026-09-08: read
 [Layer finalization vertical slice](editor-kernel/LAYER_FINALIZATION_VERTICAL_SLICE.md)
 before changing rasterize, Merge Down/Selected, Flatten Group/Image, their

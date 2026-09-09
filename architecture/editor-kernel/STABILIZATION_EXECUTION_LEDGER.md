@@ -182,7 +182,7 @@ slice; they are not postponed to the final phase.
 | S08 | Adjustment-layer lifecycle | `owner` | yes | passed | passed | [ ] | partial |
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
-| S11 | Document geometry, clipboard, open/place/save/export/recovery | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S11 | Document geometry, clipboard, open/place/save/export/recovery | `active` | partial | repaired | partial passed | [ ] | partial |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
 
@@ -470,7 +470,10 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       See `DOCUMENT_AND_CLIPBOARD_VERTICAL_SLICE.md`: the packaged Ctrl+N route
       populated and created the exact clipboard canvas in 59.7 ms; packaged
       Copy/Copy Merged/Paste equivalence also passes.
-- [ ] Resize image, canvas size, crop and rotate with layers/masks/selection.
+- [x] Resize image, canvas size, crop and rotate with layers/masks/selection.
+      Canonical document and exact selection publish atomically; all nested
+      document-sized masks and selection GPU targets exchange with one retained
+      history owner. Instrumented UI/command/undo smokes pass.
 - [ ] Open/Place and save/export for the formats in `formatCapabilities.ts`, with
       explicit semantic versus flattened behavior.
 - [ ] Autosave/recovery, failed decode/export and unsaved-document close.

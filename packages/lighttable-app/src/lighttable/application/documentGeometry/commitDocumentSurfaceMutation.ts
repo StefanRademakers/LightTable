@@ -7,6 +7,7 @@ import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 
 export interface ReversibleDocumentSurfaceMutation {
   readonly byteSize?: number;
+  setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
 }
@@ -141,6 +142,10 @@ export const commitDocumentSurfaceMutation = async (
       }
 
       runtimeMutation = input.createRuntimeMutation(before);
+      // Document-surface mutations preserve the semantic selection. Coverage
+      // may become fully clipped by the new canvas, but that does not deselect
+      // it: the user must still be able to move it back into view.
+      runtimeMutation.setAfterSelectionActive(exactBeforeSelectionMask.active);
       // The surface implementation may throw after changing dimensions, so
       // install rollback responsibility before invoking it.
       surfaceMayBeAfter = true;

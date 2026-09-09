@@ -203,25 +203,41 @@ export const createDocumentGeometryPlan = (
   };
 };
 
-const projectRoot = (node: LayerNode, matrix: AffineMatrix, now: number): LayerNode => {
-  const inverse = invertMatrix(matrix);
-  if (!inverse) throw new Error('Document geometry mapping is not invertible.');
-  return ({
-  ...node,
-  transform: multiplyMatrices(matrix, node.transform),
-  mask: node.mask ? {
-    ...node.mask,
-    // Mask pixels are physically transferred into the new document-sized
-    // surface. Conjugating retains an authored independent mask transform
-    // without applying the document mapping a second time.
-    transform: multiplyMatrices(matrix, multiplyMatrices(node.mask.transform, inverse)),
-    revision: node.mask.revision + 1,
-    dirtyBounds: null
-  } : null,
-  geometryRevision: node.geometryRevision + 1,
-  revision: node.revision + 1,
-  modifiedAt: now
-  });
+export const projectDocumentSpaceMask = (
+  mask: NonNullable<LayerNode['mask']>,
+  matrix: AffineMatrix,
+  inverse: AffineMatrix,
+) => ({
+  ...mask,
+  // Mask pixels are physically transferred into the new document-sized
+  // surface. Conjugating retains an authored independent mask transform
+  // without applying the document mapping a second time.
+  transform: multiplyMatrices(matrix, multiplyMatrices(mask.transform, inverse)),
+  revision: mask.revision + 1,
+  pixelRevision: mask.pixelRevision + 1,
+  dirtyBounds: null
+});
+
+const projectNode = (
+  node: LayerNode,
+  matrix: AffineMatrix,
+  inverse: AffineMatrix,
+  now: number,
+  root: boolean,
+): LayerNode => {
+  const common = {
+    transform: root ? multiplyMatrices(matrix, node.transform) : node.transform,
+    mask: node.mask ? projectDocumentSpaceMask(node.mask, matrix, inverse) : null,
+    geometryRevision: node.geometryRevision + 1,
+    revision: node.revision + 1,
+    modifiedAt: now
+  };
+  if (node.type === 'group') return {
+    ...node,
+    ...common,
+    children: node.children.map((child) => projectNode(child, matrix, inverse, now, false))
+  };
+  return { ...node, ...common };
 };
 
 export const projectDocumentGeometry = (
@@ -232,6 +248,8 @@ export const projectDocumentGeometry = (
     throw new Error('Document geometry plan no longer matches the source document.');
   }
   const now = Date.now();
+  const inverse = invertMatrix(plan.oldDocumentToNewDocument);
+  if (!inverse) throw new Error('Document geometry mapping is not invertible.');
   const guidePoint = (orientation: 'horizontal' | 'vertical', position: number) => orientation === 'horizontal'
     ? { x: 0, y: position } : { x: position, y: 0 };
   // The current guide model only represents horizontal and vertical lines.
@@ -250,7 +268,9 @@ export const projectDocumentGeometry = (
     width: plan.targetWidth,
     height: plan.targetHeight,
     guides,
-    layers: document.layers.map((node) => projectRoot(node, plan.oldDocumentToNewDocument, now)),
+    layers: document.layers.map((node) => projectNode(
+      node, plan.oldDocumentToNewDocument, inverse, now, true
+    )),
     revision: document.revision + 1,
     modifiedAt: now
   };

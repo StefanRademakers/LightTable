@@ -658,6 +658,7 @@ export const createLayerDocumentRendererRuntime = (
     documentGeometry,
     layerPresentationPicker,
     resizeSurface: (width, height) => {
+      selectionTextures.clearClipboard();
       resources.setDimensions(width, height);
       compositor.destroyCaches();
       compositeTargets.destroy();

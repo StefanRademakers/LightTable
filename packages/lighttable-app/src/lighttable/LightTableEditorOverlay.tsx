@@ -1903,24 +1903,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const publish = () => {
       if (documentSession) {
         const store = new DocumentSelectionStateStore(documentSession);
-        const lease = store.acquire(documentSession.getSnapshot().documentRevision);
+        const sessionSnapshot = documentSession.getSnapshot();
+        const expectedDocument = sessionSnapshot.document;
+        if (!expectedDocument) throw new Error('The selection document is unavailable.');
+        const lease = store.acquire(sessionSnapshot.documentRevision);
         if ((expectedSelectionRevision !== undefined
-          && Number(lease.selection.revision) !== expectedSelectionRevision)
-          || !bindingIsCurrent()) {
+          && Number(lease.selection.revision) !== expectedSelectionRevision) || !bindingIsCurrent())
           throw new Error('The selection publication lease is no longer current.');
-        }
-        const committed = store.compareAndSwap(lease.selection.revision, {
+        const committed = store.compareAndSwapForDocument(lease.selection.revision, expectedDocument, {
           ...lease.selection,
           revision: (Number(lease.selection.revision) + 1) as typeof lease.selection.revision,
+          canvas: { width: document.width, height: document.height },
           active: selectionMaskSnapshot.active,
           coverage: selectionMaskSnapshot,
           supportBounds,
           provenance: [...selection]
-        });
+        }, document);
         if (!committed) throw new Error('The selection changed during compound publication.');
-        if (!bindingIsCurrent()) {
-          throw new Error('The renderer changed during compound publication.');
-        }
+        if (!bindingIsCurrent()) throw new Error('The renderer changed during compound publication.');
         applyDocumentSnapshot(document);
         editorSessionRef.current = {
           ...editorSessionRef.current,

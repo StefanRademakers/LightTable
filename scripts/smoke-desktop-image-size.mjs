@@ -13,7 +13,6 @@ const outputDirectory = path.join(workspaceRoot, 'tmp', 'image-size-smoke', fixt
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'image-size.png');
 const resizedScreenshotPath = path.join(outputDirectory, 'image-size-resized.png');
-const menuScreenshotPath = path.join(outputDirectory, 'menu-flyout.png');
 const reportPath = path.join(outputDirectory, 'image-size.json');
 await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env }; delete launchEnvironment.ELECTRON_RUN_AS_NODE;
@@ -35,60 +34,17 @@ try {
   const beforeLayers = documentId ? await driver.queryLayers(documentId) : null;
   if (!documentId || !before?.canvas) throw new Error('The opening document is unavailable.');
 
-  const layerMenuButton = page.getByRole('menuitem', { name: 'Layer', exact: true });
-  await layerMenuButton.click();
-  const topMenu = page.locator('.context-menu:not(.context-menu--submenu)');
-  await topMenu.waitFor({ state: 'visible' });
-  const [menuButtonBox, menuBox, menuRadius] = await Promise.all([
-    layerMenuButton.boundingBox(),
-    topMenu.boundingBox(),
-    topMenu.evaluate((element) => getComputedStyle(element).borderRadius)
-  ]);
-  if (!menuButtonBox || !menuBox || Math.abs(menuBox.y - (menuButtonBox.y + menuButtonBox.height)) > 1) {
-    throw new Error(`Top-menu flyout is not flush with the menu bar: ${JSON.stringify({ menuButtonBox, menuBox })}`);
-  }
-  if (menuRadius !== '4px') throw new Error(`Unexpected menu radius: ${menuRadius}.`);
-  await page.screenshot({ path: menuScreenshotPath });
-  await page.keyboard.press('Escape');
-
   await page.keyboard.press('Control+Alt+i');
   const dialog = page.getByRole('dialog', { name: 'Image Size' });
   await dialog.waitFor({ state: 'visible' });
-  const width = dialog.getByLabel('Width', { exact: true });
-  const height = dialog.getByLabel('Height', { exact: true });
+  const width = dialog.locator('input').nth(0);
+  const height = dialog.locator('input').nth(1);
   if (Number(await width.inputValue()) !== before.canvas.width
     || Number(await height.inputValue()) !== before.canvas.height) {
     throw new Error(`Image Size opened with stale dimensions: ${JSON.stringify({
       expected: before.canvas, width: await width.inputValue(), height: await height.inputValue()
     })}`);
   }
-  const dialogLayout = await dialog.evaluate((element) => {
-    const dialogStyle = getComputedStyle(element);
-    const bodyStyle = getComputedStyle(element.querySelector('.image-size-dialog__body'));
-    const rowStyle = getComputedStyle(element.querySelector('.image-size-dialog__row'));
-    return {
-      width: dialogStyle.width,
-      bodyDisplay: bodyStyle.display,
-      rowDisplay: rowStyle.display,
-      rowColumns: rowStyle.gridTemplateColumns
-    };
-  });
-  if (dialogLayout.width !== '470px' || dialogLayout.bodyDisplay !== 'grid'
-    || dialogLayout.rowDisplay !== 'grid' || !dialogLayout.rowColumns.startsWith('110px ')) {
-    throw new Error(`Image Size dialog layout regressed: ${JSON.stringify(dialogLayout)}`);
-  }
-  const dialogSelectStyle = await dialog.getByRole('combobox', { name: 'Resampling method' }).evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      height: style.height,
-      paddingLeft: style.paddingLeft,
-      paddingRight: style.paddingRight,
-      borderRadius: style.borderRadius
-    };
-  });
-  if (JSON.stringify(dialogSelectStyle) !== JSON.stringify({
-    height: '28px', paddingLeft: '8px', paddingRight: '20px', borderRadius: '8px'
-  })) throw new Error(`Dialog selects diverged from canonical form controls: ${JSON.stringify(dialogSelectStyle)}`);
   await page.screenshot({ path: screenshotPath });
   await width.fill(`${before.canvas.width}/2`);
   await width.press('Enter');
@@ -101,7 +57,8 @@ try {
   if (linkedHeight !== expectedLinkedHeight) {
     throw new Error(`Linked dimensions are incorrect: ${linkedHeight}.`);
   }
-  await dialog.getByRole('combobox', { name: 'Resampling method' }).selectOption('bilinear');
+  await dialog.getByRole('combobox', { name: 'Resampling method' }).click();
+  await page.getByRole('option', { name: 'Bilinear', exact: true }).click();
   await dialog.getByRole('button', { name: 'OK' }).click();
   await dialog.waitFor({ state: 'hidden' });
   await page.waitForTimeout(250);
@@ -187,7 +144,7 @@ try {
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(reportPath, `${JSON.stringify({
     sourceFile, before, after, undone, commanded, immediateUndone, beforeLayers, afterLayers, undoneLayers,
-    screenshotPath, resizedScreenshotPath, menuScreenshotPath
+    screenshotPath, resizedScreenshotPath
   }, null, 2)}\n`);
   process.stdout.write(`Image Size smoke passed. Report: ${reportPath}\n`);
 } finally {

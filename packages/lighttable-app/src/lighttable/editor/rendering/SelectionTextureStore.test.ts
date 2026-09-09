@@ -37,6 +37,9 @@ describe('SelectionTextureStore', () => {
     expect(first.destroy).toHaveBeenCalledOnce();
     expect(second).not.toBe(first);
     expect(store.mask).not.toBeNull();
+    store.clearClipboard();
+    expect(second.destroy).toHaveBeenCalledOnce();
+    expect(store.clipboard).toBeNull();
   });
 
   it('exchanges and rolls back a complete projection without moving clipboard ownership', () => {

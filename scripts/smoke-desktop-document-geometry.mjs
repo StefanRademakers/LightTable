@@ -152,14 +152,20 @@ try {
     throw new Error(`Selection-bound Crop failed the renderer lifecycle: ${rendererMessage}`);
   }
   await driver.execute(documentId, 'history.undo', {});
+  const beforeDeselect = await driver.queryDocument(documentId);
   await page.keyboard.press('Control+d');
-  const beforeFixed = await driver.queryDocument(documentId);
+  let beforeFixed = await driver.queryDocument(documentId);
+  for (let attempt = 0; attempt < 80
+    && beforeFixed?.history.undoDepth !== beforeDeselect.history.undoDepth + 1; attempt += 1) {
+    await page.waitForTimeout(25); beforeFixed = await driver.queryDocument(documentId);
+  }
   const layersBeforeFixed = await driver.queryLayers(documentId);
   await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Transform', exact: true }).hover();
   await page.getByRole('menuitem', { name: 'Flip Horizontal', exact: true }).click();
   let fixed = await driver.queryDocument(documentId);
-  for (let attempt = 0; attempt < 80 && fixed?.history.undoDepth !== 1; attempt += 1) {
+  for (let attempt = 0; attempt < 80
+    && fixed?.history.undoDepth !== beforeFixed.history.undoDepth + 1; attempt += 1) {
     await page.waitForTimeout(25); fixed = await driver.queryDocument(documentId);
   }
   const layersAfterFixed = await driver.queryLayers(documentId);

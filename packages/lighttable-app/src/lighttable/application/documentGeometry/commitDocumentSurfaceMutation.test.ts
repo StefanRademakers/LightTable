@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnapshot';
+import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { EditorHistoryEntry } from '../commands/useDocumentHistoryController';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { commitDocumentSurfaceMutation } from './commitDocumentSurfaceMutation';
@@ -12,7 +13,7 @@ const documentSnapshot = (revision: number, width: number, height: number) => ({
   height
 }) as ImageDocument;
 
-const setup = (rejectHistory = false) => {
+const setup = (rejectHistory = false, selectionActive = false) => {
   const before = documentSnapshot(0, 100, 80);
   const after = documentSnapshot(1, 200, 160);
   let currentDocument = before;
@@ -28,13 +29,22 @@ const setup = (rejectHistory = false) => {
     pushHistoryEntry: () => undefined
   }));
   const transaction = controller.begin('image-size', undefined, undefined, 'cancel')!;
-  const beforeMask = SelectionMaskSnapshot.inactive(before.width, before.height);
-  const afterMask = SelectionMaskSnapshot.inactive(after.width, after.height);
+  const beforeMask = selectionActive
+    ? SelectionMaskSnapshot.fromRaw(before.width, before.height, new Uint16Array(before.width * before.height))
+    : SelectionMaskSnapshot.inactive(before.width, before.height);
+  const afterMask = selectionActive
+    ? SelectionMaskSnapshot.fromRaw(after.width, after.height, new Uint16Array(after.width * after.height))
+    : SelectionMaskSnapshot.inactive(after.width, after.height);
+  const selection: readonly SelectionOperation[] = selectionActive ? [{
+    mode: 'replace',
+    shape: { kind: 'rectangle', points: [{ x: 250, y: 200 }, { x: 275, y: 225 }] }
+  }] : [];
+  const setAfterSelectionActive = vi.fn();
   const commit = () => commitDocumentSurfaceMutation({
     transaction,
     afterDocument: after,
-    beforeSelection: [],
-    afterSelection: [],
+    beforeSelection: selection,
+    afterSelection: selection,
     beforeSelectionMask: beforeMask,
     history: { type: 'document.image-size', label: 'Image Size' },
     originIsCurrent: () => currentDocument === before,
@@ -44,6 +54,7 @@ const setup = (rejectHistory = false) => {
       runtimeState = 'after';
       return {
         byteSize: 512,
+        setAfterSelectionActive,
         apply: (state) => { runtimeState = state; },
         dispose
       };
@@ -60,6 +71,7 @@ const setup = (rejectHistory = false) => {
     after,
     commit,
     dispose,
+    setAfterSelectionActive,
     historyEntries,
     get currentDocument() { return currentDocument; },
     get surfaceDocument() { return surfaceDocument; },
@@ -68,6 +80,15 @@ const setup = (rejectHistory = false) => {
 };
 
 describe('commitDocumentSurfaceMutation', () => {
+  it('preserves an active selection whose coverage is fully outside the resized canvas', async () => {
+    const state = setup(false, true);
+
+    await expect(state.commit()).resolves.toBe(true);
+    expect(state.setAfterSelectionActive).toHaveBeenCalledOnce();
+    expect(state.setAfterSelectionActive).toHaveBeenCalledWith(true);
+    expect(state.historyEntries[0]!.byteSize).toBeGreaterThan(512);
+  });
+
   it('publishes runtime, document, selection and history as one reversible operation', async () => {
     const state = setup();
 
