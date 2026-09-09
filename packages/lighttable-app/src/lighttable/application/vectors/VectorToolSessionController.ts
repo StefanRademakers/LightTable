@@ -54,21 +54,15 @@ import {
   type GradientToolSettingsSnapshot
 } from './GradientToolController';
 import type { VectorPathMutationCommit } from './vectorPathCommit';
+import type { VectorTransformPreviewBinding } from './VectorTransformPreviewBinding';
 
 export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 'live-shape' | 'gradient' | VectorPointToolMode;
 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
-  setLayerTransformPreview?(
-    layer: VectorLayer,
-    matrix: AffineMatrix | null,
-    documentOperation?: AffineMatrix | null
-  ): boolean;
-  setElementTransformPreview?(
-    layers: readonly VectorLayer[],
-    documentOperation: AffineMatrix | null
-  ): boolean;
+  getRendererGeneration(): number;
+  captureTransformPreview?(): VectorTransformPreviewBinding | null;
 }
 
 export interface VectorToolSessionOptions {
@@ -78,7 +72,10 @@ export interface VectorToolSessionOptions {
   gradientSettings?: () => GradientToolSettingsSnapshot;
   layerName?: string;
   pathName?: string;
-  rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
+  rasterizeShape?: (
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
+  ) => boolean;
   requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   onLiveShapeCommitted?: (result: {
     readonly layerId: LayerId;
@@ -104,6 +101,7 @@ interface CapturedPointer {
   readonly id: number;
   readonly mode: VectorToolMode;
   readonly documentId: ImageDocument['id'];
+  readonly rendererGeneration: number;
   readonly rasterize?: boolean;
   readonly existingVectorLayerId?: LayerId;
 }
@@ -129,8 +127,9 @@ export class VectorToolSessionController {
   private capturedPointer: CapturedPointer | null = null;
   private activeMode: VectorToolMode | null = null;
   private documentId: ImageDocument['id'] | null;
+  private rendererGeneration: number;
   private disposed = false;
-  private readonly rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
+  private readonly rasterizeShape?: VectorToolSessionOptions['rasterizeShape'];
   private readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
 
   constructor(
@@ -140,6 +139,7 @@ export class VectorToolSessionController {
     this.rasterizeShape = options.rasterizeShape;
     this.onLiveShapeCommitted = options.onLiveShapeCommitted;
     this.documentId = dependencies.getDocument()?.id ?? null;
+    this.rendererGeneration = dependencies.getRendererGeneration();
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(
       this.documents, dependencies, options.onPathMutationCommitted
@@ -189,7 +189,7 @@ export class VectorToolSessionController {
 
   activate(mode: VectorToolMode) {
     if (!this.assertAvailable()) return false;
-    this.synchronizeDocument();
+    this.synchronizeRuntime();
     if (this.activeMode !== mode) {
       this.finishActiveMode();
       this.activeMode = mode;
@@ -211,7 +211,7 @@ export class VectorToolSessionController {
 
   setLiveShapePreset(preset: LiveShapeToolPreset) {
     if (!this.assertAvailable() || this.capturedPointer) return false;
-    if (!this.synchronizeDocument()) return false;
+    if (!this.synchronizeRuntime()) return false;
     return this.liveShape.setPreset(preset);
   }
 
@@ -221,9 +221,10 @@ export class VectorToolSessionController {
     options: VectorPointerDownOptions
   ) {
     if (!this.assertAvailable() || !this.activeMode || this.capturedPointer) return false;
-    if (!this.synchronizeDocument()) return false;
+    if (!this.synchronizeRuntime()) return false;
     const documentId = this.dependencies.getDocument()?.id;
     if (!documentId) return false;
+    const rendererGeneration = this.dependencies.getRendererGeneration();
 
     if (this.activeMode === 'pen') {
       if (options.temporaryDirect) {
@@ -240,14 +241,14 @@ export class VectorToolSessionController {
           additive: options.additive,
           breakHandle: options.temporaryConvert
         })) return false;
-        this.capturedPointer = { id: pointerId, mode: 'direct-selection', documentId };
+        this.capturedPointer = { id: pointerId, mode: 'direct-selection', documentId, rendererGeneration };
         return true;
       }
       if (options.temporaryConvert) {
         const converted = this.pointTools.pointerDown('convert-anchor', documentPoint, options.hitRadius);
         if (!converted.handled) return false;
         if (converted.capture) {
-          this.capturedPointer = { id: pointerId, mode: 'convert-anchor', documentId };
+          this.capturedPointer = { id: pointerId, mode: 'convert-anchor', documentId, rendererGeneration };
         }
         return true;
       }
@@ -264,7 +265,7 @@ export class VectorToolSessionController {
         documentPoint,
         options.closeTolerance ?? options.hitRadius
       )) {
-        this.capturedPointer = { id: pointerId, mode: 'pen', documentId };
+        this.capturedPointer = { id: pointerId, mode: 'pen', documentId, rendererGeneration };
         return true;
       }
       if (this.pen.isActive() && this.tryConnectPenPath(documentPoint, options.hitRadius)) {
@@ -311,6 +312,7 @@ export class VectorToolSessionController {
       id: pointerId,
       mode: this.activeMode,
       documentId,
+      rendererGeneration,
       rasterize: this.activeMode === 'live-shape' && options.rasterize,
       ...(existingVectorTarget?.type === 'vector'
         && !layerIsLocked(existingVectorTarget, 'pixels')
@@ -359,7 +361,7 @@ export class VectorToolSessionController {
         const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
         if (!transaction) return false;
         return transaction.commitWith(
-          () => this.rasterizeShape?.(transaction) ?? false
+          () => this.rasterizeShape?.(transaction, capture.rendererGeneration) ?? false
         );
       }
       const opening = this.liveShape.snapshot();
@@ -407,17 +409,20 @@ export class VectorToolSessionController {
 
   finishPenPath() {
     if (!this.assertAvailable() || this.activeMode !== 'pen') return false;
+    if (!this.synchronizeRuntime()) return false;
     this.capturedPointer = null;
     return this.pen.finishOpen();
   }
 
   penRubberBand(documentPoint: Vec2): PenRubberBand | null {
     if (!this.assertAvailable() || this.activeMode !== 'pen' || this.capturedPointer) return null;
+    if (!this.synchronizeRuntime()) return null;
     return this.pen.rubberBand(documentPoint);
   }
 
   penEditingOverlay(): VectorEditingOverlay | null {
     if (!this.assertAvailable() || this.activeMode !== 'pen') return null;
+    if (!this.synchronizeRuntime()) return null;
     const snapshot = this.pen.snapshot();
     const path = snapshot.path;
     const subpathId = snapshot.activeSubpathId;
@@ -446,12 +451,14 @@ export class VectorToolSessionController {
 
   cancelPenPath() {
     if (!this.assertAvailable()) return false;
+    if (!this.synchronizeRuntime()) return false;
     this.capturedPointer = null;
     return this.pen.cancel();
   }
 
   undoPenAnchor() {
     if (!this.assertAvailable() || this.activeMode !== 'pen') return false;
+    if (!this.synchronizeRuntime()) return false;
     this.capturedPointer = null;
     return this.pen.undoLastAnchor();
   }
@@ -580,21 +587,27 @@ export class VectorToolSessionController {
 
   private validCapture(pointerId: number) {
     if (!this.assertAvailable() || this.capturedPointer?.id !== pointerId) return null;
-    if (!this.synchronizeDocument()) return null;
+    const capture = this.capturedPointer;
+    if (!this.synchronizeRuntime()
+      || this.dependencies.getRendererGeneration() !== capture.rendererGeneration) return null;
     return this.capturedPointer;
   }
 
-  private synchronizeDocument() {
+  private synchronizeRuntime() {
     const currentId = this.dependencies.getDocument()?.id ?? null;
-    if (currentId === this.documentId) return currentId !== null;
+    const currentRendererGeneration = this.dependencies.getRendererGeneration();
+    if (currentId === this.documentId && currentRendererGeneration === this.rendererGeneration) {
+      return currentId !== null;
+    }
     this.cancelActiveMode();
     this.documentId = currentId;
+    this.rendererGeneration = currentRendererGeneration;
     return currentId !== null;
   }
 
   private prepareSelectionCommand() {
     if (!this.assertAvailable() || this.capturedPointer) return false;
-    return this.synchronizeDocument();
+    return this.synchronizeRuntime();
   }
 
   private finishActiveMode() {

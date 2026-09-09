@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
+import type { AffineMatrix, VectorIdSource, VectorPath } from '@lighttable/vector-core';
 import {
   createAnchor,
   createSubpath,
@@ -8,7 +8,8 @@ import {
 } from '@lighttable/vector-core';
 import {
   createImageDocument,
-  createVectorLayer
+  createVectorLayer,
+  type VectorLayer
 } from '../../editor/document/documentTypes';
 import { setActiveLayer } from '../../editor/document/documentCommands';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
@@ -33,28 +34,61 @@ const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] =
 );
 
 const setup = (
-  rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean,
+  rasterizeShape?: (
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
+  ) => boolean,
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
   onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
-  preview?: Pick<ConstructorParameters<typeof VectorToolSessionController>[0],
-    'setLayerTransformPreview' | 'setElementTransformPreview'>
+  preview?: {
+    setLayerTransformPreview?: (
+      layer: VectorLayer,
+      matrix: AffineMatrix | null,
+      documentOperation: AffineMatrix | null
+    ) => boolean;
+    setElementTransformPreview?: (
+      layers: readonly VectorLayer[],
+      documentOperation: AffineMatrix | null
+    ) => boolean;
+  }
 ) => {
   const host = createVectorDocumentTestHarness(
     createImageDocument('Vector tools', 200, 100, 'asset')
   );
   let selection: VectorEditorSelection = createVectorEditorSelection();
+  let rendererGeneration = 1;
   const controller = new VectorToolSessionController({
     ...host.dependencies,
+    getRendererGeneration: () => rendererGeneration,
     getSelection: () => selection,
     setSelection: (next) => { selection = next; },
-    ...preview
+    ...(preview ? {
+      captureTransformPreview: () => {
+        const openingDocument = host.dependencies.getDocument();
+        if (!openingDocument) return null;
+        return {
+          document: openingDocument,
+          rendererGeneration: 1,
+          isCurrent: () => host.dependencies.getDocument() === openingDocument,
+          setLayer: (layer: VectorLayer, matrix: AffineMatrix, operation: AffineMatrix) =>
+            preview.setLayerTransformPreview?.(layer, matrix, operation) ?? false,
+          clearLayer: (layer: VectorLayer) =>
+            preview.setLayerTransformPreview?.(layer, null, null) ?? false,
+          setElements: (layers: readonly VectorLayer[], operation: AffineMatrix) =>
+            preview.setElementTransformPreview?.(layers, operation) ?? false,
+          clearElements: () => preview.setElementTransformPreview?.([], null) ?? false
+        };
+      }
+    } : {})
   }, { ids: ids(), rasterizeShape, onLiveShapeCommitted, onPathMutationCommitted });
   return {
     controller,
     history: host.history,
     get document() { return host.document; },
     set document(next) { host.replaceDocument(next); },
-    get selection() { return selection; }
+    get selection() { return selection; },
+    get rendererGeneration() { return rendererGeneration; },
+    set rendererGeneration(next) { rendererGeneration = next; }
   };
 };
 
@@ -257,7 +291,10 @@ describe('VectorToolSessionController', () => {
   });
 
   it('hands Pixels-mode live shapes to one deferred raster transaction', () => {
-    const rasterizeShape = vi.fn((_transaction: VectorElementCreationTransaction) => true);
+    const rasterizeShape = vi.fn((
+      _transaction: VectorElementCreationTransaction,
+      _rendererGeneration: number
+    ) => true);
     const state = setup(rasterizeShape);
     state.controller.activate('live-shape');
 
@@ -275,6 +312,7 @@ describe('VectorToolSessionController', () => {
       previewDocument: { activeLayerId: expect.any(String) },
       elementId: 'live-shape-1'
     });
+    expect(rasterizeShape.mock.calls[0]?.[1]).toBe(1);
     expect(state.history).toHaveLength(0);
   });
 
@@ -399,10 +437,35 @@ describe('VectorToolSessionController', () => {
       .toMatchObject({ tx: 20, ty: 15 });
   });
 
+  it('cancels instead of committing an intermediate layer preview when the final frame fails', () => {
+    let acceptPreview = true;
+    const setLayerTransformPreview = vi.fn((
+      _layer: VectorLayer,
+      matrix: AffineMatrix | null
+    ) => matrix === null || acceptPreview);
+    const state = setup(undefined, undefined, undefined, { setLayerTransformPreview });
+    const shape = createVectorLiveShape('shape', { kind: 'ellipse', width: 40, height: 40 });
+    shape.transform.tx = 20;
+    shape.transform.ty = 20;
+    const layer = createVectorLayer([shape]);
+    state.document = { ...state.document, layers: [layer], activeLayerId: layer.id };
+    state.controller.activate('element-selection');
+    const openingDocument = state.document;
+
+    expect(state.controller.pointerDown(47, { x: 40, y: 40 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(47, { x: 60, y: 55 })).toBe(true);
+    acceptPreview = false;
+    expect(state.controller.pointerUp(47, { x: 90, y: 75 })).toBe(false);
+
+    expect(state.history).toHaveLength(0);
+    expect(state.document).toBe(openingDocument);
+    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null, null);
+  });
+
   it('keeps a partial element drag out of canonical document publication', () => {
     const setElementTransformPreview = vi.fn((
-      _layers: Parameters<NonNullable<ConstructorParameters<typeof VectorToolSessionController>[0]['setElementTransformPreview']>>[0],
-      _documentOperation: Parameters<NonNullable<ConstructorParameters<typeof VectorToolSessionController>[0]['setElementTransformPreview']>>[1]
+      _layers: readonly VectorLayer[],
+      _documentOperation: AffineMatrix | null
     ) => true);
     const state = setup(undefined, undefined, undefined, {
       setElementTransformPreview
@@ -650,6 +713,32 @@ describe('VectorToolSessionController', () => {
     state.document = createImageDocument('Replacement', 50, 50, 'replacement');
     expect(state.controller.pointerMove(3, { x: 60, y: 50 })).toBe(false);
     expect(state.document.name).toBe('Replacement');
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('cancels renderer-observed vector work when the renderer generation changes', () => {
+    const state = setup();
+    const opening = state.document;
+    state.controller.activate('live-shape');
+    state.controller.pointerDown(4, { x: 10, y: 10 }, { hitRadius: 2 });
+    state.controller.pointerMove(4, { x: 50, y: 40 });
+    expect(state.document).not.toBe(opening);
+
+    state.rendererGeneration += 1;
+    expect(state.controller.pointerUp(4, { x: 60, y: 50 })).toBe(false);
+    expect(state.document).toBe(opening);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('cancels an idle multi-click pen transaction on renderer replacement', () => {
+    const state = setup();
+    state.controller.activate('pen');
+    state.controller.pointerDown(1, { x: 10, y: 10 }, { hitRadius: 3 });
+    state.controller.pointerUp(1, { x: 10, y: 10 });
+
+    state.rendererGeneration += 1;
+    expect(state.controller.penEditingOverlay()).toBeNull();
+    expect(state.controller.pointerDown(2, { x: 20, y: 20 }, { hitRadius: 3 })).toBe(true);
     expect(state.history).toHaveLength(0);
   });
 

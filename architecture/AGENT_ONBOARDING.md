@@ -170,6 +170,19 @@ admitted lease, or rebuild a transformed document per pointer frame. The
 packaged transform smoke is automated proof; owner feel acceptance and the
 remaining non-React overlay gesture extraction are still open.
 
+Vector reset, updated 2026-09-09: read
+[Vector paths and live shapes vertical slice](editor-kernel/VECTOR_PATHS_AND_LIVE_SHAPES_VERTICAL_SLICE.md)
+before changing Pen, point/direct/path selection, live shapes, vector gradients,
+semantic vector transforms or Pixels-mode shape rasterization. One
+`VectorToolSessionController` admits document identity and renderer generation;
+`VectorTransformPreviewBinding` owns retained renderer-only preview and total
+cleanup, while pointer-up is the sole canonical vector-transform stage.
+Renderer replacement cancels every captured gesture and idle multi-click Pen
+transaction. Never stage a document per transform frame or rediscover the
+current renderer during cleanup/rasterize. Packaged debug and instrumented
+vector gates passed; owner feel acceptance and the named Pen-session extraction
+from the no-growth session router remain open.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

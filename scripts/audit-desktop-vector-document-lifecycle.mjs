@@ -5,13 +5,13 @@ import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { prepareVectorSmokeSource } from './desktop-smoke-fixtures.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback = null) => {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 };
-const sourceFile = path.resolve(argument('file') ?? '');
 const cycles = Number.parseInt(argument('cycles', '6'), 10);
 const expectedBackend = 'hybrid';
 const profileFirstClose = argument('profile-first-close', 'false') === 'true';
@@ -19,7 +19,7 @@ const directClick = argument('direct-click', 'true') === 'true';
 const outputDirectory = path.resolve(argument(
   'output', path.join(root, 'tmp', 'quality-audit', 'vector-document-lifecycle')
 ));
-assert.ok(sourceFile, 'Usage: audit-desktop-vector-document-lifecycle.mjs --file <SVG>');
+const sourceFile = await prepareVectorSmokeSource(outputDirectory, argument('file'));
 assert.ok(Number.isInteger(cycles) && cycles >= 3, '--cycles must be at least 3.');
 
 const launch = await resolveDesktopTestLaunch(root);

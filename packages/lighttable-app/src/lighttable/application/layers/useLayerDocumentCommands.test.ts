@@ -72,6 +72,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
 const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
   let documentId = 'test-document';
+  let rendererGeneration = 1;
   let previewDocument: ImageDocument | null = null;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
@@ -95,6 +96,7 @@ const setup = (initialDocument: ImageDocument) => {
   const dependencies: LayerDocumentCommandDependencies = {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
+    getRendererGeneration: () => rendererGeneration,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => documentId,
     get documentMutations() {
@@ -146,6 +148,9 @@ const setup = (initialDocument: ImageDocument) => {
     },
     setDocumentId: (next: string) => {
       documentId = next;
+    },
+    setRendererGeneration: (next: number) => {
+      rendererGeneration = next;
     },
     previewDocument: () => previewDocument,
     documentAdjustments: () => documentAdjustments,
@@ -1481,6 +1486,33 @@ describe('useLayerDocumentCommands', () => {
     });
     expect(state.document().layers[0]?.id).not.toBe(sourceDestinationId);
     expect(state.historyEntries).toHaveLength(1);
+  });
+
+  it('rejects deferred vector rasterization after renderer replacement', () => {
+    const before = createImageDocument('Vector raster handoff', 32, 24, 'asset');
+    const vector = createVectorLayer([
+      createVectorPath('shape', 'Shape', [createSubpath('contour')])
+    ], 'Shape');
+    const preview = {
+      ...before,
+      layers: [...before.layers, vector],
+      activeLayerId: vector.id
+    };
+    const state = setup(before);
+    state.setRendererGeneration(2);
+
+    expect(state.commands.rasterizeVectorCreation({
+      beforeDocument: before,
+      previewDocument: preview,
+      layerId: vector.id,
+      elementId: 'shape',
+      commitWith: vi.fn(() => false)
+    }, 1)).toBe(false);
+
+    expect(state.renderer.mergeLayers).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith(
+      'The shape preview is no longer the active document state.'
+    );
   });
 
   it('merges selected raster pixels above a vector shape into a fresh raster', () => {

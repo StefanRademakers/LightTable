@@ -1,24 +1,26 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { prepareRasterSmokeSource } from './desktop-smoke-fixtures.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'pen-tools-smoke');
+const sourceFile = await prepareRasterSmokeSource(outputDirectory, process.argv[2]);
+const launch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'pen-tools.png');
 const rubberBandScreenshotPath = path.join(outputDirectory, 'pen-rubber-band.png');
 const reportPath = path.join(outputDirectory, 'pen-tools.json');
 
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await mkdir(userDataPath, { recursive: true });
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -32,7 +34,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFile = await waitForDesktopLauncher({ app, page, outputDirectory,
+    sourceFile, pageErrors, label: 'pen-tools' });
+  await openFile.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'pen-tools-smoke');
@@ -41,10 +45,8 @@ try {
   const before = await driver.queryDocument(documentId);
 
   await page.keyboard.press('p');
-  const group = page.locator('.lighttable-toolbox__group').filter({
-    has: page.getByRole('button', { name: 'Show pen tools' })
-  });
-  const master = group.locator(':scope > .lighttable-toolbox__button');
+  const group = page.locator('.ui-toolbar__group[data-tool-group="Pen tools"]');
+  const master = group.locator(':scope > .ui-toolbar__button');
   await master.waitFor({ state: 'visible' });
   if (await master.getAttribute('aria-pressed') !== 'true') {
     throw new Error('P did not activate the Pen tool.');
@@ -58,7 +60,7 @@ try {
   }
 
   await family.getByRole('button', { name: 'Add anchor point' }).click();
-  const rememberedMaster = group.locator(':scope > .lighttable-toolbox__button');
+  const rememberedMaster = group.locator(':scope > .ui-toolbar__button');
   await rememberedMaster.waitFor({ state: 'visible' });
   if (await rememberedMaster.getAttribute('aria-label') !== 'Add anchor point') {
     throw new Error('The selected anchor tool was not shown in the grouped slot.');

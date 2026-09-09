@@ -14,6 +14,7 @@ This status file remains the compact statement of what is actually migrated.
 | rasterize/merge/flatten | no | implemented | complete vertical | packaged automated | yes |
 | masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
+| vector paths and live shapes | renderer-only fallback retained | implemented | complete S05 vertical | packaged automated | partial |
 | text/path text/warp | yes | documented | no | no | no |
 | adjustments/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
@@ -99,6 +100,16 @@ self-fighting and centre-rebound routes. Debug and instrumented packaged
 acceptance passed; manual feel acceptance and extraction of the remaining React
 gesture adapter are explicit follow-ups. See
 [Transform and snapping vertical slice](TRANSFORM_AND_SNAPPING_VERTICAL_SLICE.md).
+
+Vector paths and live shapes are the sixth implemented vertical. Every pointer
+capture binds document identity and renderer generation; Pen lifetime between
+clicks is invalidated on replacement, retained element/layer transforms avoid
+canonical document work per frame, and Pixels-mode rasterization validates the
+same generation at its terminal hand-off. Preview and cleanup are total,
+exception-contained renderer operations. Debug and instrumented packaged
+authoring, Pen, geometry/Pixels, native/PSD and repeated hybrid lifecycle gates
+passed; owner interaction acceptance remains open. See
+[Vector paths and live shapes vertical slice](VECTOR_PATHS_AND_LIVE_SHAPES_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

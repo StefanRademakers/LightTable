@@ -1,22 +1,23 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { prepareRasterSmokeSource } from './desktop-smoke-fixtures.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const output = path.join(root, 'tmp', 'vector-authoring-smoke');
-const launch = await resolveDesktopTestLaunch(root);
+const sourceFile = await prepareRasterSmokeSource(output, process.argv[2]);
+const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const beforeTransformPath = path.join(output, 'before-transform.png');
 const originalPath = path.join(output, 'authored.png');
 const reopenedPath = path.join(output, 'native-reopened.png');
 const differencePath = path.join(output, 'native-difference.png');
 const transformDifferencePath = path.join(output, 'transform-difference.png');
 const reportPath = path.join(output, 'report.json');
-await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
+await mkdir(output, { recursive: true });
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -171,6 +172,10 @@ try {
   await page.mouse.down();
   await page.mouse.move(transformX + transformDx, transformY + transformDy, { steps: 5 });
   await page.mouse.up();
+  // Pointer-up checkpoints the gizmo but deliberately keeps the immutable
+  // transform source alive for further gestures. Enter is the user-visible
+  // terminal commit that publishes the document and its single history entry.
+  await page.keyboard.press('Enter');
   const transformedDocument = await driver.queryDocument(documentId);
   await driver.waitForRenderedDocument(documentId, 60_000);
   const transformedLayers = await driver.queryLayers(documentId) ?? [];

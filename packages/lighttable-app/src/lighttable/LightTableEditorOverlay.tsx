@@ -27,6 +27,7 @@ import { createActionsPanelCallbacks } from './composition/workspace/createActio
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
+import { captureVectorTransformPreviewBinding } from './application/vectors/VectorTransformPreviewBinding';
 import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import {
@@ -951,7 +952,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     command: SemanticAdjustmentCreationCommand
   ) => unknown>(() => null);
   const rasterizeShapeRef = useRef<(
-    transaction: VectorElementCreationTransaction
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
   ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
@@ -4704,6 +4706,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
+    rendererGeneration: rendererSnapshot.generation,
     selection: editorSession.vectorSelection,
     activeTool: editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
@@ -4714,29 +4717,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
     },
-    setLayerTransformPreview: (layer, matrix, documentOperation) => {
-      const engine = engineRef.current;
-      if (!engine) return false;
-      engine.setVectorSelectionPreviewTransform(documentOperation ?? null);
-      return matrix
-        ? engine.updateSemanticLayerTransform(layer, matrix)
-        : engine.cancelSemanticLayerTransform(layer);
-    },
-    setElementTransformPreview: (layers, documentOperation) => {
-      const engine = engineRef.current;
-      if (!engine) return false;
-      engine.setVectorSelectionPreviewTransform(documentOperation);
-      return layers.length > 0
-        ? engine.setVectorContentPreviews(layers)
-        : engine.clearVectorContentPreviews();
-    },
+    captureTransformPreview: () => captureVectorTransformPreviewBinding({
+      getDocument: () => imageDocumentRef.current,
+      getRenderer: () => engineRef.current,
+      getRendererGeneration: () => rendererLifecycle.getSnapshot().generation
+    }),
     requestGradientColorEditor: (endpoint) => {
       setGradientEditorRequest((current) => ({
         revision: (current?.revision ?? 0) + 1,
         endpoint
       }));
     },
-    rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction),
+    rasterizeShape: (transaction, rendererGeneration) => rasterizeShapeRef.current(
+      transaction,
+      rendererGeneration
+    ),
     onLiveShapeCommitted: ({ layerId, element, existingLayerId, layerName }) => {
       replaceLayerSelection(layerId);
       const parameters = observedLiveShapeCreateCommand(element, existingLayerId, layerName);
@@ -5611,6 +5606,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerDocumentCommands = useLayerDocumentCommands({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => workspaceDocumentId,
     getSelectionLease: () => {
@@ -5663,8 +5659,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearCompletedBackgroundRemovalTask();
     }
   }, [backgroundRemovalController.state.phase, clearCompletedBackgroundRemovalTask]);
-  rasterizeShapeRef.current = (transaction) => {
-    return layerDocumentCommands.rasterizeVectorCreation(transaction);
+  rasterizeShapeRef.current = (transaction, rendererGeneration) => {
+    return layerDocumentCommands.rasterizeVectorCreation(transaction, rendererGeneration);
   };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const mergeLayersCommand = useCallback((layerIds: LayerId[]) => {

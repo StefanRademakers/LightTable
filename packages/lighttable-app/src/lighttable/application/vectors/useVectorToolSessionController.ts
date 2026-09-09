@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { ImageDocument, VectorLayer } from '../../editor/document/documentTypes';
-import type { AffineMatrix } from '@lighttable/vector-core';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import type {
   EditorSession,
   ToolId,
@@ -16,9 +15,11 @@ import { VectorToolSessionController, type VectorToolSessionOptions
 import type { VectorElementCreationTransaction } from './VectorDocumentController';
 import { vectorStyleFromToolSettings } from './vectorStylePresentation';
 import type { DocumentMutationController } from '../documents/useDocumentMutationController';
+import type { VectorTransformPreviewBinding } from './VectorTransformPreviewBinding';
 
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
+  readonly rendererGeneration: number;
   readonly selection: VectorEditorSelection;
   readonly activeTool: ToolId;
   readonly foregroundColor: string;
@@ -27,16 +28,11 @@ export interface VectorToolSessionHookOptions {
   readonly style: VectorToolStyleSettings;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
-  readonly setLayerTransformPreview?: (
-    layer: VectorLayer,
-    matrix: AffineMatrix | null,
-    documentOperation?: AffineMatrix | null
+  readonly captureTransformPreview?: () => VectorTransformPreviewBinding | null;
+  readonly rasterizeShape: (
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
   ) => boolean;
-  readonly setElementTransformPreview?: (
-    layers: readonly VectorLayer[],
-    documentOperation: AffineMatrix | null
-  ) => boolean;
-  readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
   readonly onPenPathCommitted?: VectorToolSessionOptions['onPenPathCommitted'];
@@ -53,6 +49,7 @@ export interface VectorToolSessionHookOptions {
  */
 export const useVectorToolSessionController = ({
   document,
+  rendererGeneration,
   selection,
   activeTool,
   foregroundColor,
@@ -61,8 +58,7 @@ export const useVectorToolSessionController = ({
   style,
   documentMutations,
   publishSelection,
-  setLayerTransformPreview,
-  setElementTransformPreview,
+  captureTransformPreview,
   rasterizeShape,
   requestGradientColorEditor,
   onLiveShapeCommitted,
@@ -72,6 +68,7 @@ export const useVectorToolSessionController = ({
 }: VectorToolSessionHookOptions): VectorToolSessionController => {
   const portsRef = useRef({
     document,
+    rendererGeneration,
     selection,
     foregroundColor,
     gradient,
@@ -80,8 +77,7 @@ export const useVectorToolSessionController = ({
     style,
     documentMutations,
     publishSelection,
-    setLayerTransformPreview,
-    setElementTransformPreview,
+    captureTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -91,6 +87,7 @@ export const useVectorToolSessionController = ({
   });
   portsRef.current = {
     document,
+    rendererGeneration,
     selection,
     foregroundColor,
     gradient,
@@ -99,8 +96,7 @@ export const useVectorToolSessionController = ({
     style,
     documentMutations,
     publishSelection,
-    setLayerTransformPreview,
-    setElementTransformPreview,
+    captureTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -113,6 +109,7 @@ export const useVectorToolSessionController = ({
   if (!controllerRef.current) {
     controllerRef.current = new VectorToolSessionController({
       getDocument: () => portsRef.current.document,
+      getRendererGeneration: () => portsRef.current.rendererGeneration,
       documentMutations: {
         begin: (...args) => portsRef.current.documentMutations.begin(...args),
         change: (...args) => portsRef.current.documentMutations.change(...args)
@@ -122,18 +119,16 @@ export const useVectorToolSessionController = ({
         portsRef.current.selection = next;
         portsRef.current.publishSelection(next);
       },
-      setLayerTransformPreview: (layer, matrix, documentOperation) =>
-        portsRef.current.setLayerTransformPreview?.(
-          layer, matrix, documentOperation
-        ) ?? false,
-      setElementTransformPreview: (layers, documentOperation) =>
-        portsRef.current.setElementTransformPreview?.(layers, documentOperation) ?? false
+      captureTransformPreview: () => portsRef.current.captureTransformPreview?.() ?? null
     }, {
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       gradientSettings: () => portsRef.current.gradient,
       requestGradientColorEditor: (endpoint) => portsRef.current.requestGradientColorEditor?.(endpoint),
-      rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction),
+      rasterizeShape: (transaction, generation) => portsRef.current.rasterizeShape(
+        transaction,
+        generation
+      ),
       onLiveShapeCommitted: (result) => portsRef.current.onLiveShapeCommitted?.(result),
       onPenPathCommitted: (result) => portsRef.current.onPenPathCommitted?.(result),
       onPathMutationCommitted: (result) => portsRef.current.onPathMutationCommitted?.(result),
@@ -173,7 +168,7 @@ export const useVectorToolSessionController = ({
           : activation.preset
     );
     controller.activate(activation.mode);
-  }, [activeTool, document?.id, gradient.application, shape.linkedCorners,
+  }, [activeTool, document?.id, rendererGeneration, gradient.application, shape.linkedCorners,
     shape.rectangleCornerRadii, shape.lineStartArrow, shape.lineEndArrow,
     shape.lineArrowWidth, shape.lineArrowLength]);
 

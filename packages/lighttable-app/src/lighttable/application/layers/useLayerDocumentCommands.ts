@@ -136,6 +136,7 @@ export interface LayerCommandRendererPort {
 export interface LayerDocumentCommandDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): LayerCommandRendererPort | null;
+  getRendererGeneration(): number;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
   getSelectionLease?(): LightTableSelectionReadLease | null;
@@ -177,7 +178,10 @@ export interface LayerDocumentCommands {
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
-  rasterizeVectorCreation(transaction: VectorElementCreationTransaction): boolean;
+  rasterizeVectorCreation(
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
+  ): boolean;
   mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
@@ -954,14 +958,18 @@ export const createLayerDocumentCommands = (
       : false;
   };
 
-  const rasterizeVectorCreation = (transaction: VectorElementCreationTransaction) => {
+  const rasterizeVectorCreation = (
+    transaction: VectorElementCreationTransaction,
+    rendererGeneration: number
+  ) => {
     const dependencies = dependenciesRef.current;
     const renderer = dependencies.getRenderer();
     const liveDocument = dependencies.getDocument();
     if (!renderer
       || !liveDocument
       || liveDocument.id !== transaction.beforeDocument.id
-      || liveDocument.revision !== transaction.beforeDocument.revision) {
+      || liveDocument.revision !== transaction.beforeDocument.revision
+      || dependencies.getRendererGeneration() !== rendererGeneration) {
       dependencies.setError('The shape preview is no longer the active document state.');
       return false;
     }

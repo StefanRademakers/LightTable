@@ -39,21 +39,14 @@ import {
   type VectorElementRotationGesture,
   type VectorElementScaleGesture
 } from './vectorElementTransformGesture';
-import { resolveVectorGradientGeometry } from './vectorGradientGeometry';
+import type { VectorTransformPreviewBinding } from './VectorTransformPreviewBinding';
+import { VectorGradientHandleDragController } from './VectorGradientHandleDragController';
 
 export interface VectorElementSelectionDependencies {
   getDocument(): ImageDocument | null;
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
-  setLayerTransformPreview?(
-    layer: VectorLayer,
-    matrix: AffineMatrix | null,
-    documentOperation?: AffineMatrix | null
-  ): boolean;
-  setElementTransformPreview?(
-    layers: readonly VectorLayer[],
-    documentOperation: AffineMatrix | null
-  ): boolean;
+  captureTransformPreview?(): VectorTransformPreviewBinding | null;
 }
 
 export interface VectorElementSelectionPointerOptions {
@@ -73,32 +66,24 @@ interface SelectedElementTransform {
 interface ActiveElementDrag {
   readonly documentId: ImageDocument['id'];
   readonly startDocument: Vec2;
+  lastDocument: Vec2;
   readonly targets: readonly SelectedElementTransform[];
   readonly scale: VectorElementScaleGesture | null;
   readonly rotation: VectorElementRotationGesture | null;
   readonly preserveAspect: boolean;
   readonly layerPreview: {
+    readonly binding: VectorTransformPreviewBinding;
     readonly layer: VectorLayer;
     readonly openingTransform: AffineMatrix;
     matrix: AffineMatrix;
     documentOperation: AffineMatrix;
   } | null;
   readonly elementPreview: {
+    readonly binding: VectorTransformPreviewBinding;
     readonly sourceLayers: readonly VectorLayer[];
     elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[];
     revision: number;
   } | null;
-  moved: boolean;
-}
-
-interface ActiveGradientDrag {
-  readonly documentId: ImageDocument['id'];
-  readonly layerId: LayerId;
-  readonly elementId: string;
-  readonly handle: 'start' | 'end';
-  readonly documentToPaintParent: NonNullable<ReturnType<typeof invertMatrix>>;
-  readonly openingStart: Vec2;
-  readonly openingEnd: Vec2;
   moved: boolean;
 }
 
@@ -125,36 +110,27 @@ const localDelta = (
   return { x: endpoint.x - origin.x, y: endpoint.y - origin.y };
 };
 
-/**
- * Whole-element selection and translation for both paths and live shapes.
- *
- * Geometry remains authoritative: dragging changes only the element transform,
- * never realizes a live shape or bakes path coordinates. A complete gesture is
- * one document transaction regardless of how many selected elements move.
- */
+/** Whole-element vector selection; pointer-up is the sole canonical commit. */
 export class VectorElementSelectionToolController {
   private drag: ActiveElementDrag | null = null;
-  private gradientDrag: ActiveGradientDrag | null = null;
+  private readonly gradientDrag: VectorGradientHandleDragController;
 
   constructor(
     private readonly documents: VectorDocumentController,
     private readonly dependencies: VectorElementSelectionDependencies
-  ) {}
+  ) {
+    this.gradientDrag = new VectorGradientHandleDragController(
+      documents,
+      dependencies.getDocument
+    );
+  }
 
   pointerDown(documentPoint: Vec2, options: VectorElementSelectionPointerOptions) {
     this.cancel();
     const document = this.dependencies.getDocument();
     if (!document) return false;
     const current = cloneVectorEditorSelection(this.dependencies.getSelection());
-    const gradient = this.gradientHandleAt(document, current, documentPoint, options.radius);
-    if (gradient && this.documents.beginElementMutations([gradient])) {
-      this.gradientDrag = {
-        documentId: document.id,
-        ...gradient,
-        moved: false
-      };
-      return true;
-    }
+    if (this.gradientDrag.begin(document, current, documentPoint, options.radius)) return true;
     const currentBounds = vectorElementsDocumentBounds(document, current.elements);
     const currentFrame = currentBounds
       ? buildVectorSelectionFrame(currentBounds, { resourceKey: 'interaction-frame' })
@@ -221,11 +197,19 @@ export class VectorElementSelectionToolController {
   }
 
   pointerMove(documentPoint: Vec2) {
-    if (this.gradientDrag) return this.moveGradientHandle(documentPoint);
+    if (this.gradientDrag.active) return this.gradientDrag.move(documentPoint);
     const drag = this.drag;
     if (!drag || this.dependencies.getDocument()?.id !== drag.documentId) {
       if (drag) this.cancel();
       return false;
+    }
+    if ((drag.layerPreview && !drag.layerPreview.binding.isCurrent())
+      || (drag.elementPreview && !drag.elementPreview.binding.isCurrent())) {
+      this.cancel();
+      return false;
+    }
+    if (documentPoint.x === drag.lastDocument.x && documentPoint.y === drag.lastDocument.y) {
+      return true;
     }
     const documentDelta = {
       x: documentPoint.x - drag.startDocument.x,
@@ -252,16 +236,14 @@ export class VectorElementSelectionToolController {
         documentToParent,
         multiplyMatrices(documentOperation, target.layerToDocument)
       );
-      if (!this.dependencies.setLayerTransformPreview?.(
-        drag.layerPreview.layer, matrix, documentOperation
-      )) {
+      if (!drag.layerPreview.binding.setLayer(drag.layerPreview.layer, matrix, documentOperation)) {
+        this.cancel();
         return false;
       }
       drag.layerPreview.matrix = matrix;
       drag.layerPreview.documentOperation = documentOperation;
-      return this.documents.stageDocumentMutation(
-        (document) => setLayerTransform(document, drag.layerPreview!.layer.id, matrix)
-      );
+      drag.lastDocument = { ...documentPoint };
+      return true;
     }
     const transformTarget = (mapping: SelectedElementTransform) => {
       if (!drag.scale && !drag.rotation) {
@@ -306,16 +288,15 @@ export class VectorElementSelectionToolController {
           return preview;
         })
       }));
-      if (!this.dependencies.setElementTransformPreview?.(previewLayers, documentOperation)) {
+      if (!drag.elementPreview.binding.setElements(previewLayers, documentOperation)) {
+        this.cancel();
         return false;
       }
       drag.elementPreview.elements = elements;
-      return this.documents.stageDocumentMutation((document) => elements.reduce(
-        (next, { layerId, element }) => replaceVectorElement(next, layerId, element),
-        document
-      ));
+      drag.lastDocument = { ...documentPoint };
+      return true;
     }
-    return this.documents.previewElementMutations((target) => {
+    const previewed = this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
         (candidate) => candidate.layerId === target.layerId
           && candidate.elementId === target.elementId
@@ -336,37 +317,54 @@ export class VectorElementSelectionToolController {
         documentOperation
       );
     });
+    if (previewed) drag.lastDocument = { ...documentPoint };
+    return previewed;
   }
 
   pointerUp(documentPoint: Vec2) {
-    if (this.gradientDrag) {
-      const drag = this.gradientDrag;
-      this.moveGradientHandle(documentPoint);
-      this.gradientDrag = null;
-      if (!drag.moved) {
-        this.documents.cancelElementMutation();
-        return false;
-      }
-      return this.documents.commitElementMutation();
-    }
+    if (this.gradientDrag.active) return this.gradientDrag.finish(documentPoint);
     const drag = this.drag;
     if (!drag) return false;
-    this.pointerMove(documentPoint);
-    this.drag = null;
+    const accepted = this.pointerMove(documentPoint);
+    if (!accepted || this.drag !== drag) return false;
     if (drag.layerPreview) {
       if (!drag.moved) {
+        this.drag = null;
         this.documents.cancelDocumentMutation();
         return false;
       }
+      if (!drag.layerPreview.binding.isCurrent()
+        || !this.documents.stageDocumentMutation((document) => setLayerTransform(
+          document,
+          drag.layerPreview!.layer.id,
+          drag.layerPreview!.matrix
+        ))
+        || !drag.layerPreview.binding.isCurrent()) {
+        this.cancel();
+        return false;
+      }
+      this.drag = null;
       return this.documents.commitDocumentMutation();
     }
     if (drag.elementPreview) {
       if (!drag.moved) {
+        this.drag = null;
         this.documents.cancelDocumentMutation();
         return false;
       }
+      if (!drag.elementPreview.binding.isCurrent()
+        || !this.documents.stageDocumentMutation((document) => drag.elementPreview!.elements.reduce(
+          (next, { layerId, element }) => replaceVectorElement(next, layerId, element),
+          document
+        ))
+        || !drag.elementPreview.binding.isCurrent()) {
+        this.cancel();
+        return false;
+      }
+      this.drag = null;
       return this.documents.commitDocumentMutation();
     }
+    this.drag = null;
     if (!drag.moved) {
       this.documents.cancelElementMutation();
       return false;
@@ -375,13 +373,13 @@ export class VectorElementSelectionToolController {
   }
 
   cancel() {
-    const active = this.drag !== null || this.gradientDrag !== null;
+    const active = this.drag !== null || this.gradientDrag.active;
     const optimizedPreview = Boolean(this.drag?.layerPreview || this.drag?.elementPreview);
     this.drag = null;
-    this.gradientDrag = null;
+    const gradientCanceled = this.gradientDrag.cancel();
     return (optimizedPreview
       ? this.documents.cancelDocumentMutation()
-      : this.documents.cancelElementMutation()) || active;
+      : this.documents.cancelElementMutation()) || gradientCanceled || active;
   }
 
   clearSelection() {
@@ -430,24 +428,23 @@ export class VectorElementSelectionToolController {
     const selectsCompleteLayer = selectedLayer?.type === 'vector'
       && selectedLayer.elements.length === selectedElementIds.size
       && selectedLayer.elements.every(({ id }) => selectedElementIds.has(id));
-    // Moving/scaling/rotating every element in one vector layer is exactly a
-    // layer transform. Keep that complete operation on the retained semantic
-    // preview plane, regardless of how many logical SVG objects the layer
-    // contains. Pointer-up remains the sole canonical/history publication and
-    // setLayerTransform carries document-space paints and linked masks with it.
+    // A complete selected layer can stay on the retained layer-preview plane.
+    const previewBinding = this.dependencies.captureTransformPreview?.() ?? null;
+    const boundPreview = previewBinding?.document === document && previewBinding.isCurrent()
+      ? previewBinding
+      : null;
     const canPreviewLayer = selectsCompleteLayer
       && selectedLayer?.type === 'vector'
-      && this.dependencies.setLayerTransformPreview;
+      && boundPreview;
     const layerPreview = canPreviewLayer
       && this.documents.beginDocumentMutation(
         `vector:layer-transform:${selectedLayer.id}`,
         { label: 'Free Transform', type: 'layer.transform' },
-        () => this.dependencies.setLayerTransformPreview?.(selectedLayer, null, null)
+        () => boundPreview.clearLayer(selectedLayer)
       )
-      && this.dependencies.setLayerTransformPreview?.(
-        selectedLayer, selectedLayer.transform, translationMatrix(0, 0)
-      )
+      && boundPreview.setLayer(selectedLayer, selectedLayer.transform, translationMatrix(0, 0))
       ? {
+          binding: boundPreview,
           layer: selectedLayer,
           openingTransform: { ...selectedLayer.transform },
           matrix: { ...selectedLayer.transform },
@@ -460,14 +457,15 @@ export class VectorElementSelectionToolController {
     })).values()].filter((layer): layer is VectorLayer => layer !== null);
     const elementPreview = !layerPreview
       && sourceLayers.length > 0
-      && this.dependencies.setElementTransformPreview
+      && boundPreview
       && this.documents.beginDocumentMutation(
         `vector:element-transform:${targets.map(({ elementId }) => elementId).join(',')}`,
         { label: 'Free Transform', type: 'vector.transform' },
-        () => this.dependencies.setElementTransformPreview?.([], null)
+        () => boundPreview.clearElements()
       )
-      && this.dependencies.setElementTransformPreview?.(sourceLayers, translationMatrix(0, 0))
+      && boundPreview.setElements(sourceLayers, translationMatrix(0, 0))
       ? {
+          binding: boundPreview,
           sourceLayers,
           elements: targets.map(({ layerId, openingElement }) => ({
             layerId,
@@ -477,13 +475,14 @@ export class VectorElementSelectionToolController {
         }
       : null;
     if (canPreviewLayer && !layerPreview) this.documents.cancelDocumentMutation();
-    if (!layerPreview && this.dependencies.setElementTransformPreview && !elementPreview) {
+    if (!layerPreview && boundPreview && !elementPreview) {
       this.documents.cancelDocumentMutation();
     }
     if (!layerPreview && !elementPreview && !this.documents.beginElementMutations(elements)) return true;
     this.drag = {
       documentId: document.id,
       startDocument: { ...documentPoint },
+      lastDocument: { ...documentPoint },
       targets,
       scale: options.scale,
       rotation: options.rotation,
@@ -495,67 +494,4 @@ export class VectorElementSelectionToolController {
     return true;
   }
 
-  private gradientHandleAt(
-    document: ImageDocument,
-    selection: VectorEditorSelection,
-    point: Vec2,
-    radius: number
-  ): Omit<ActiveGradientDrag, 'documentId' | 'moved'> | null {
-    const selected = new Set(selection.elements.map(({ layerId, elementId }) => `${layerId}\0${elementId}`));
-    let closest: (Omit<ActiveGradientDrag, 'documentId' | 'moved'> & { distanceSquared: number }) | null = null;
-    for (const resolved of vectorElementsTopmostFirst(document)) {
-      if (!selected.has(`${resolved.layerId}\0${resolved.elementId}`)) continue;
-      const geometry = resolveVectorGradientGeometry(resolved);
-      if (!geometry) continue;
-      for (const handle of ['start', 'end'] as const) {
-        const target = handle === 'start' ? geometry.startInDocument : geometry.endInDocument;
-        const distanceSquared = (target.x - point.x) ** 2 + (target.y - point.y) ** 2;
-        if (distanceSquared > radius ** 2 || (closest && distanceSquared >= closest.distanceSquared)) continue;
-        closest = {
-          layerId: resolved.layerId,
-          elementId: resolved.elementId,
-          handle,
-          documentToPaintParent: geometry.documentToPaintParent,
-          openingStart: geometry.startInPaintParent,
-          openingEnd: geometry.endInPaintParent,
-          distanceSquared
-        };
-      }
-    }
-    if (!closest) return null;
-    const { distanceSquared: _distanceSquared, ...result } = closest;
-    return result;
-  }
-
-  private moveGradientHandle(documentPoint: Vec2) {
-    const drag = this.gradientDrag;
-    if (!drag || this.dependencies.getDocument()?.id !== drag.documentId) {
-      if (drag) this.cancel();
-      return false;
-    }
-    const position = transformPoint(drag.documentToPaintParent, documentPoint);
-    const start = drag.handle === 'start' ? position : drag.openingStart;
-    const end = drag.handle === 'end' ? position : drag.openingEnd;
-    drag.moved = drag.moved
-      || position.x !== (drag.handle === 'start' ? drag.openingStart.x : drag.openingEnd.x)
-      || position.y !== (drag.handle === 'start' ? drag.openingStart.y : drag.openingEnd.y);
-    return this.documents.previewElementMutations((target) => {
-      if (target.layerId !== drag.layerId || target.elementId !== drag.elementId) return target.openingElement;
-      const fill = target.openingElement.style.fill;
-      if (!fill || !('kind' in fill)) return target.openingElement;
-      const next = cloneVectorElement(target.openingElement);
-      next.style.fill = {
-        ...fill,
-        transform: {
-          ...fill.transform,
-          a: end.x - start.x,
-          b: end.y - start.y,
-          tx: start.x,
-          ty: start.y
-        }
-      };
-      next.styleRevision += 1;
-      return next;
-    });
-  }
 }

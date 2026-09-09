@@ -168,7 +168,7 @@ slice; they are not postponed to the final phase.
 | S02 | Masks, Remove Background and layer-result insertion | `owner` | yes | passed | passed | [ ] | partial (paint -> S03) |
 | S03 | Raster paint and pixel mutation sessions | `owner` | yes | passed | passed | [ ] | yes |
 | S04 | Transform, selected-pixel transform, snapping and guides | `owner` | yes | repaired | passed | [ ] | partial |
-| S05 | Vector paths and live shapes | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S05 | Vector paths and live shapes | `owner` | yes | passed | passed | [ ] | partial |
 | S06 | Text, paragraph/vertical/path text and text conversion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S07 | Warp and experimental Face Warp | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S08 | Adjustment-layer lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -310,18 +310,21 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S05 -- vector paths and live shapes
 
-- [ ] Pen.
-- [ ] Add anchor point.
-- [ ] Delete anchor point.
-- [ ] Convert anchor point.
-- [ ] Path selection.
-- [ ] Direct selection.
-- [ ] Rectangle live shape.
-- [ ] Ellipse live shape.
-- [ ] Triangle live shape.
-- [ ] Line live shape.
-- [ ] Vector Gradient, fill/stroke, masks/clipping and hybrid renderer parity.
-- [ ] Path create/edit/close/transform/undo and rasterize hand-off.
+- [x] Pen.
+- [x] Add anchor point.
+- [x] Delete anchor point.
+- [x] Convert anchor point.
+- [x] Path selection.
+- [x] Direct selection.
+- [x] Rectangle live shape.
+- [x] Ellipse live shape.
+- [x] Triangle live shape.
+- [x] Line live shape.
+- [x] Vector Gradient, fill/stroke, masks/clipping and hybrid renderer parity.
+- [x] Path create/edit/close/transform/undo and rasterize hand-off.
+- [x] Two critic passes, focused proof, deterministic fixtures, debug and
+      instrumented packaged browser acceptance.
+- [ ] Owner manually accepts vector authoring/editing feel on a real document.
 
 ### S06 -- text
 
@@ -449,6 +452,16 @@ document mutation/history ownership and extracted exact-renderer preview lifetim
 to `SmartSelectionPreviewLease`. Before this controller grows again, preparation
 and prompt scheduling must move together behind a model-session port; mechanical
 method splitting is not accepted.
+
+S05 decomposition decision: `VectorToolSessionController.ts` remains above 500
+lines temporarily because it is the single non-React router that serializes tool
+mode, pointer ownership, document identity and renderer-generation admission for
+all vector gestures. S05 moved gradient-handle gesture ownership into
+`VectorGradientHandleDragController` and kept renderer preview ownership in
+`VectorTransformPreviewBinding`; the router retains no geometry or GPU resource
+authority. It may not grow again. The next extraction boundary is a dedicated
+Pen session coordinator containing multi-click resume/connect/finish lifecycle;
+the router will retain only mode dispatch and runtime invalidation.
 
 ## Performance ledger
 
