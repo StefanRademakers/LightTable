@@ -7,9 +7,12 @@ export interface DocumentImageResourceLifecycleOptions {
 }
 
 /**
- * Coordinates replacement and destruction of all GPU resources that belong to
- * one image document. The resource generation is invalidated before teardown,
- * so pending async decodes/readbacks can no longer publish stale results.
+ * Coordinates replacement of the active document's transient presentation
+ * resources. Canonical layer pixels, masks and embedded assets may live in
+ * shared document repositories and deliberately survive this facade teardown;
+ * explicit document close owns their release. The resource generation is
+ * invalidated first, so pending async decodes/readbacks cannot publish stale
+ * results into the next active document.
  */
 export class DocumentImageResourceLifecycle {
   constructor(private readonly options: DocumentImageResourceLifecycleOptions) {}

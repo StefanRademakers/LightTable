@@ -76,6 +76,11 @@ canonical document graph or manufacture history.
 - Restore/refocus performs one bounded viewport re-blit from the retained final
   texture. Committed pixels/resources remain resident; no document-composite
   replay burst is required.
+- A document rebind first invalidates pending renderer work, then releases all
+  active presentation scratch and document-specific interaction projections.
+  This includes the GPU-only smart-selection candidate mask. Shared canonical
+  layer pixels/masks, pattern/LUT assets and history surfaces are not part of
+  that detach and remain available for exact tab return and undo.
 
 ## Evidence
 
@@ -108,6 +113,12 @@ canonical document graph or manufacture history.
   closed stale presentation-generation and first-frame-completion races.
 - `WebGpuEngine.presentation.test.ts` proves suspend re-arms first-frame
   ownership when an in-flight completion is retired.
+- The same focused suite proves document detach clears every pointer-hot overlay
+  family without calling any canonical repository release boundary. Repository
+  tests separately prove exact pixel retention across facade rebind and release
+  only on explicit document close. The critic found the initially omitted
+  smart-selection mask texture; repair 1 releases that texture through
+  `setMask(null)`, and the second review passes with no remaining P0/P1.
 
 ## Structural decision
 
@@ -121,6 +132,7 @@ single-purpose 120-line `useWorkspaceDocumentPresentation.ts`; the editor root
 is 65 lines smaller than before this sub-slice instead of absorbing another
 presentation authority.
 
-## Still open
+## Status
 
-- hidden-document transient resource release without committed-resource loss.
+Complete. The final system-wide undo/redo, route-equivalence, recovery and soak
+matrix remains S13 work rather than view/multi-document ownership work.

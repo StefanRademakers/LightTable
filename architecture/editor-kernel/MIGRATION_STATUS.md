@@ -160,12 +160,14 @@ zoom now retain one pointer plus the exact opening document/setter owner outside
 React; queued frames and terminal gestures cannot cross a tab switch. View,
 Space and middle-button pan are history-free, while exact/fit/stepped/rectangle
 zoom and both temporary zoom chords share the same document-bound publication.
-Panel geometry and first-correct-frame rebind are accepted. Native foreground
-ownership now cancels mutable gestures before suspend, retires stale
-presentation/first-frame generations and resumes through one bounded retained-
-texture viewport re-blit. Packaged minimize/restore, blur/refocus, interrupted-
-marquee and rapid pending-rebind evidence passes. Hidden-document transient-
-resource lifetime remains open. See
+  Panel geometry and first-correct-frame rebind are accepted. Native foreground
+  ownership now cancels mutable gestures before suspend, retires stale
+  presentation/first-frame generations and resumes through one bounded retained-
+  texture viewport re-blit. Rebind explicitly releases presentation scratch and
+  all document-specific interaction projections, while canonical repository and
+  history resources survive until document close. Packaged minimize/restore,
+  blur/refocus, interrupted-marquee, A/B retention and rapid pending-rebind
+  evidence passes. See
 [View and multi-document vertical slice](VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing

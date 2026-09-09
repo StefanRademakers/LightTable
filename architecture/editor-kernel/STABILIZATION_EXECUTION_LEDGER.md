@@ -183,7 +183,7 @@ slice; they are not postponed to the final phase.
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
-| S12 | View, zoom, panels, scopes and multi-document lifecycle | `active` | yes | passed | packaged foreground pass | [ ] | partial |
+| S12 | View, zoom, panels, scopes and multi-document lifecycle | `owner` | yes | passed | packaged lifecycle pass | [x] | partial |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
 
 The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
@@ -520,7 +520,15 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
 - [x] Losing foreground during an active gesture has one documented terminal
       policy: cancel before renderer suspension, with no partial commit or stuck
       pointer owner. Packaged marquee interruption/recovery and history pass.
-- [ ] Hidden documents release transient work without losing committed resources.
+- [x] Hidden documents release transient work without losing committed resources.
+      Rebind now crosses one explicit interaction-presentation detach boundary:
+      selection/paint/smart-selection, vector, text, transform, warp, cursor and
+      guide projections are cleared, including the smart-selection mask texture.
+      Active compositor/effect/selection scratch targets are destroyed after
+      generation invalidation. Shared layer pixels/masks, patterns, LUTs and
+      GPU-backed history remain repository-owned until explicit document close.
+      Focused ownership tests, two critic passes and the packaged A/B pixel,
+      selection, history and foreground lifecycle smoke pass.
 
 ### S13 -- final system matrix
 
@@ -545,7 +553,7 @@ lines plus responsibilities here.
 | `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; adjustment duplication -> S08; clipboard/document geometry -> S11 | S08: 1812 -> 1710; adjustment mask duplication/history coordination extracted to `duplicateAdjustmentLayerCommand` |
 | `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
 | `LayerStyleEditor.tsx` | presentational editor composition | transaction/history authority extracted to S09 session/snapshot route; 1,027-line UI decomposition debt remains | S09 authority extracted; no-growth |
-| `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
+| `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | S12 detach: 4575 -> 4601 lines; one temporary 36-line adapter boundary replaces incomplete scattered field cleanup and names the canonical/transient ownership seam. It may not gain another interaction family; S13 or the next touching slice must move this state bundle behind a dedicated projection owner. |
 | `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | S11 file I/O: Place artifact/terminal policy extracted, 1346 -> 1340 |
 | `useViewportInteractionController.ts` | DOM pointer sampling and coordinate adapter | retained pan gesture and coalesced document-bound frame publication -> S12 application-input owners | S12 pan/zoom authority extracted; explicit generation/capture adapter remains oversized and is no-growth |

@@ -293,8 +293,15 @@ Suspend retires the current presentation and first-frame generation. Restore
 must re-blit the retained final texture and cross a new GPU/compositor attempt
 before exposing canvas or overlays; never mark a surface ready from an older
 double-rAF, force `active: true` in a document projection, or recompute the
-document graph merely to restore the swap chain. Hidden-document transient
-resource release remains the open S12 boundary.
+document graph merely to restore the swap chain. Document rebind must cross
+`WebGpuEngine.clearDocumentInteractionPresentation()` before the next document
+is installed: it clears every document-specific overlay/preview family and the
+GPU-only smart-selection candidate mask. The surrounding image-resource
+teardown releases compositor/effect/selection scratch after generation
+invalidation, but shared layer pixels/masks, patterns, LUTs and history
+resources survive in their document repositories until explicit close. S12 is
+complete; do not reintroduce hidden editor trees or release canonical resources
+as a substitute for this detach boundary.
 
 ### Current Agent/Actions/MCP recovery capsule
 
@@ -468,7 +475,7 @@ Restore these short acceptance chains before resuming breadth:
 - open -> first correct frame -> edit -> save/close for representative desktop
   and web formats.
 
-For the active S12 renderer path, `useWorkspaceDocumentPresentation.ts` is the
+For the completed S12 renderer path, `useWorkspaceDocumentPresentation.ts` is the
 only owner of retained-canvas readiness and delayed document thumbnails. A
 document or renderer-generation change must invalidate presentation in a
 layout effect before paint; do not reintroduce an id-only `ready` flag, a timer

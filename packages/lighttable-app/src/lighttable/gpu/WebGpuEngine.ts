@@ -4532,8 +4532,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
   }
 
   private destroyImageResources() {
-    this.textEditingOverlay = null;
-    this.zoomOverlayDraft = null;
+    this.clearDocumentInteractionPresentation();
     this.documentRenderer?.destroyImageResources();
     this.adjustmentLayerRenderer.reset();
     this.p0FilterRenderer.reset();
@@ -4552,15 +4551,6 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.lensBlurDepthTexture = null;
     this.lensBlurDepthBindGroup = null;
     this.lensBlurDepthNearestBindGroup = null;
-    this.brushCursorOverlay = null;
-    this.penRubberBand = null;
-    this.penEditingOverlay = null;
-    this.faceWarpEditingOverlay = null;
-    this.faceWarpInteractionMode = null;
-    this.transformEditingFrame = null;
-    this.smartGuideEditingFrame = null;
-    this.documentGuideEditingFrame = null;
-    this.documentGridEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
     this.linearSpatialTexture = null;
@@ -4571,5 +4561,41 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.layerEffectRenderer?.destroyImageResources();
     this.waveletDetailRuntime?.destroyImageResources();
     this.imageResources.reset();
+  }
+
+  /**
+   * Detaches pointer-hot and overlay-only state from the active document.
+   *
+   * This boundary deliberately does not release the shared document layer,
+   * pattern or color-lookup repositories. Those resources are canonical (and
+   * may be required by undo); only explicit document close may release them.
+   */
+  private clearDocumentInteractionPresentation() {
+    this.paintInteractionActive = false;
+    this.warpInteractionActive = false;
+    this.pendingTextInteractionTrace = null;
+    this.vectorSelection = createVectorEditorSelection();
+    this.vectorSelectionPreviewTransform = null;
+    this.vectorEditingSceneCache.clear();
+    this.selectionOverlayOperations = [];
+    this.selectionPreviewProjectionActive = false;
+    this.selectionPreviewTranslation = { x: 0, y: 0 };
+    this.selectionOverlayDraft = null;
+    this.selectionOverlayVisible = false;
+    this.selectionPaintOverlayVisible = false;
+    this.selectionAntsAnimator.setSelectionVisible(false);
+    this.smartSelectionOverlayBackend?.setMask(null);
+    this.textEditingOverlay = null;
+    this.textCaretVisible = true;
+    this.zoomOverlayDraft = null;
+    this.brushCursorOverlay = null;
+    this.penRubberBand = null;
+    this.penEditingOverlay = null;
+    this.faceWarpEditingOverlay = null;
+    this.faceWarpInteractionMode = null;
+    this.transformEditingFrame = null;
+    this.smartGuideEditingFrame = null;
+    this.documentGuideEditingFrame = null;
+    this.documentGridEditingFrame = null;
   }
 }
