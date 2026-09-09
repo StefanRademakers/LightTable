@@ -205,6 +205,7 @@ interface ViewportInteractionOptions {
 
 export interface ViewportInteractionController {
   dragging: boolean;
+  cancelActiveGesture(): void;
   onWheel(event: WheelEvent<HTMLDivElement>): void;
   onHorizontalWheel(input: { readonly deltaX: number; readonly deltaY?: number }): void;
   onPointerDown(event: PointerEvent<HTMLDivElement>): void;
@@ -705,8 +706,44 @@ export const useViewportInteractionController = ({
     viewportPresentation.scheduleView({ ...baseView, ...pan });
   };
 
+  const cancelActiveGesture = () => {
+    const pointerId = capturedViewportPointerRef.current
+      ?? selectionContentMoveRef.current?.pointerId
+      ?? zoomDragRef.current?.pointerId
+      ?? null;
+    capturedViewportPointerRef.current = null;
+    stopMarqueeEdgePan(pointerId ?? undefined);
+
+    const contentMove = selectionContentMoveRef.current;
+    if (contentMove && (pointerId === null || contentMove.pointerId === pointerId)) {
+      selectionContentMoveRef.current = null;
+      if (contentMove.ready) selectionContentMove.finish(false);
+    }
+    if (pointerId !== null) {
+      smartSelection.cancelRegion(pointerId);
+      faceWarp.cancel(pointerId);
+      if (zoomDragRef.current?.pointerId === pointerId) {
+        zoomDragRef.current = null;
+        onZoomDraftChangeRef.current(null);
+      }
+      if (textGesture.owns(pointerId)) textGesture.cancel(pointerId);
+      rasterGradient.cancel(pointerId);
+      vector.pointerCancel(pointerId);
+      onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
+      selection.cancelPaint(pointerId);
+      selection.cancel(pointerId);
+      warp.cancel(pointerId);
+      paint.cancel(pointerId);
+    }
+    viewportPresentation.cancel();
+    setEditorSession((current) => current.pointerId === null
+      ? current
+      : { ...current, pointerId: null });
+  };
+
   return {
     dragging: viewportPresentation.panActive,
+    cancelActiveGesture,
     hideBrushCursor,
     onWheel: (event) => {
       if (!metadata) return;

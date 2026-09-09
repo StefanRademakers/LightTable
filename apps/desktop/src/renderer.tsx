@@ -91,6 +91,10 @@ let bootstrapLaunchFilesClaimed = false;
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  presentation: {
+    current: () => window.lightTableDesktop.windowPresentationActive(),
+    subscribe: (listener) => window.lightTableDesktop.onWindowPresentationActive(listener)
+  },
   developer: {
     reloadUi: () => window.location.reload(),
     toggleDeveloperTools: () => { void window.lightTableDesktop.toggleDeveloperTools(); }

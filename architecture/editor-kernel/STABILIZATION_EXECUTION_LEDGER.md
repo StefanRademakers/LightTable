@@ -183,7 +183,7 @@ slice; they are not postponed to the final phase.
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
-| S12 | View, zoom, panels, scopes and multi-document lifecycle | `active` | yes | passed | partial packaged pass | [ ] | partial |
+| S12 | View, zoom, panels, scopes and multi-document lifecycle | `active` | yes | passed | packaged foreground pass | [ ] | partial |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
 
 The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
@@ -513,10 +513,13 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       document/epoch/renderer/generation presents. Five A/B cycles, rapid
       A -> B -> A and close/reopen pass packaged with pixel/layer retention;
       delayed thumbnails share the same owner guards. Final critic: PASS.
-- [ ] Background/minimize/restore preserves committed state and the first correct
-      foreground frame; stale previews do not replay in a burst.
-- [ ] Losing foreground during an active gesture has one documented terminal
-      policy (cancel or resume), with no partial commit or stuck pointer owner.
+- [x] Background/minimize/restore preserves committed state and the first correct
+      foreground frame; stale previews do not replay in a burst. Native host
+      state suspends the renderer, resume re-blits the retained final texture,
+      and presentation/first-frame generations reject pre-suspend completions.
+- [x] Losing foreground during an active gesture has one documented terminal
+      policy: cancel before renderer suspension, with no partial commit or stuck
+      pointer owner. Packaged marquee interruption/recovery and history pass.
 - [ ] Hidden documents release transient work without losing committed resources.
 
 ### S13 -- final system matrix

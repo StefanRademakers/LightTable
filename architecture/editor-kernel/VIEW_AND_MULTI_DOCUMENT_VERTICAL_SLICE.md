@@ -1,6 +1,7 @@
 # View and multi-document vertical slice
 
-Status: active; pan, zoom, layout geometry and first-correct-frame ownership accepted.
+Status: active; pan, zoom, layout geometry, first-correct-frame ownership and
+foreground lifecycle accepted. Hidden-document transient-resource policy remains.
 
 ## Contract
 
@@ -21,6 +22,13 @@ change prepares a pure candidate during render, then atomically commits the new
 owner and clears transients in `useLayoutEffect` before paint/input; callbacks
 and zoom/marquee terminal paths validate that identity again. An old
 gesture is never relabelled with the newly active document.
+
+The desktop host owns native foreground truth. Minimize and blur synchronously
+cancel admitted mutable gestures before renderer suspension. Resume registers a
+new monotonic presentation attempt, re-blits the retained final texture into the
+new swap-chain surface, and exposes canvas/tool projections only after that
+attempt's GPU and compositor boundary completes. It does not recompute the
+canonical document graph or manufacture history.
 
 ## Owners
 
@@ -58,6 +66,16 @@ gesture is never relabelled with the newly active document.
   an old A waiter release the newer A gate or publish B as A's thumbnail.
 - Closing a document disposes its session; reopening the same source creates a
   new session that crosses the same pending-hidden -> presented-visible gate.
+- Native minimize and blur suspend the application renderer and its canonical
+  active-document projection. No background frame is submitted while inactive.
+- Foreground loss cancels an active marquee before suspension; it creates no
+  history entry and the next admitted gesture commits exactly once.
+- Suspend retires pending presentation and first-frame generations. A stale GPU
+  completion or double-rAF cannot expose a restored surface, publish startup
+  timing or consume deferred first-frame initialization.
+- Restore/refocus performs one bounded viewport re-blit from the retained final
+  texture. Committed pixels/resources remain resident; no document-composite
+  replay burst is required.
 
 ## Evidence
 
@@ -82,6 +100,14 @@ gesture is never relabelled with the newly active document.
   layer identities remain exact. Reopen preserves source-equivalent geometry,
   alpha and appearance. The critic found and closed one stale thumbnail-timer
   P1, then passed both the repair and the extraction with no remaining P0/P1.
+- The same packaged smoke now passes native minimize/restore, blur/refocus,
+  interrupted-marquee rollback, post-cancel gesture recovery and immediate
+  minimize/restore while a document-rebind presentation is pending. Telemetry
+  records zero inactive submissions and at most three resume submissions;
+  restored pixels remain source-equivalent. The foreground critic found and
+  closed stale presentation-generation and first-frame-completion races.
+- `WebGpuEngine.presentation.test.ts` proves suspend re-arms first-frame
+  ownership when an in-flight completion is retired.
 
 ## Structural decision
 
@@ -97,5 +123,4 @@ presentation authority.
 
 ## Still open
 
-- background/minimize/restore and foreground-loss terminal policy;
 - hidden-document transient resource release without committed-resource loss.

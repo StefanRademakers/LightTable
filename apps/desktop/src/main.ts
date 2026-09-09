@@ -145,6 +145,13 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 let mainWindow: BrowserWindow | null = null;
+
+const windowPresentationActive = (window: BrowserWindow): boolean => (
+  !window.isMinimized() && (
+    (window.isVisible() && window.isFocused())
+    || (process.env.LIGHTTABLE_AUTOMATION_HEADLESS === '1' && !window.isVisible())
+  )
+);
 let applicationCloseApproved = false;
 let applicationCloseRequestPending = false;
 let applicationCloseRequestKind: 'window' | 'application' | null = null;
@@ -754,6 +761,21 @@ async function createWindow(): Promise<void> {
     }
   });
   mainWindow = window;
+
+  const publishPresentationActive = () => {
+    if (!window.webContents.isDestroyed()) {
+      window.webContents.send(
+        'lighttable:window-presentation-active',
+        windowPresentationActive(window)
+      );
+    }
+  };
+  window.on('show', publishPresentationActive);
+  window.on('hide', publishPresentationActive);
+  window.on('minimize', publishPresentationActive);
+  window.on('restore', publishPresentationActive);
+  window.on('focus', publishPresentationActive);
+  window.on('blur', publishPresentationActive);
 
   window.on('close', (event) => {
     // Playwright closes automation windows directly during teardown. Keep that
@@ -1975,6 +1997,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (typeof enabled !== 'boolean') throw new Error('Invalid fullscreen request.');
     mainWindow?.setFullScreen(enabled);
+  });
+
+  ipcMain.handle('lighttable:window-presentation-active', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window ? windowPresentationActive(window) : false;
   });
 
   ipcMain.handle('lighttable:toggle-developer-tools', (event) => {

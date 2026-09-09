@@ -359,6 +359,7 @@ export class WebGpuEngine {
   private lensBlurDepthNearestBindGroup: GPUBindGroup | null = null;
   private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
+  private firstFrameCompletionGeneration: number | null = null;
   private layerStyleInitialization: Promise<void> | null = null;
   private layerStyleInitializationFailed = false;
   private readonly deviceErrorListener: EventListener;
@@ -497,6 +498,23 @@ export class WebGpuEngine {
   setActive(active: boolean) {
     if (this.destroyed || active === this.active) return;
     this.active = active;
+    if (!active) {
+      // A queue completion or double-rAF already in flight belongs to the
+      // presentation attempt that just became invisible. Retire that attempt
+      // before a resume waiter can be registered; otherwise an old compositor
+      // opportunity could incorrectly certify the new swap-chain frame.
+      const retiredGeneration = this.presentationGeneration;
+      if (this.firstFrameCompletionGeneration === retiredGeneration) {
+        this.firstFramePending = true;
+        this.firstFrameCompletionGeneration = null;
+      }
+      this.presentationGeneration += 1;
+      for (const waiter of this.presentationWaiters) {
+        if (waiter.generation === this.presentationGeneration) continue;
+        this.presentationWaiters.delete(waiter);
+        waiter.resolve();
+      }
+    }
     this.renderScheduler.setPaused(!active);
     this.selectionAntsAnimator.setActive(active);
     this.documentRenderer?.setActive(active);
@@ -507,6 +525,10 @@ export class WebGpuEngine {
       // them while this renderer was suspended, so local clean display state
       // cannot prove that the shared canvases still contain this document.
       this.scopeRuntime.markPresentationDirty();
+      // The swap-chain texture is not a durable presentation surface across
+      // minimize/occlusion. Re-blit the retained final texture without
+      // invalidating or recomputing the document frame graph.
+      this.renderDirty.invalidate('viewport');
       this.requestRender();
     }
   }
@@ -666,6 +688,7 @@ export class WebGpuEngine {
     this.writeOutputSettings();
     this.renderDirty.invalidate('source');
     this.firstFramePending = true;
+    this.firstFrameCompletionGeneration = null;
     this.requestRender();
   }
 
@@ -688,6 +711,7 @@ export class WebGpuEngine {
     this.writeOutputSettings();
     this.renderDirty.invalidate('source');
     this.firstFramePending = true;
+    this.firstFrameCompletionGeneration = null;
     this.requestRender();
   }
 
@@ -3225,6 +3249,7 @@ export class WebGpuEngine {
     this.device.pushErrorScope('validation');
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
+    let renderedViewport = false;
     if (this.renderDirty.correctionRequired) {
       if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordCorrectionFrame();
       // Missing cached handles invalidate their complete downstream chain.
@@ -3617,6 +3642,7 @@ export class WebGpuEngine {
       }
       this.encodeVectorEditingOverlays(encoder, canvasView);
       this.renderDirty.markViewportRendered();
+      renderedViewport = true;
     }
 
     const histogramReadBuffer = this.histogramRuntime?.encode(encoder, {
@@ -3672,26 +3698,41 @@ export class WebGpuEngine {
     this.reportGpuMemoryEstimate();
     const completesFirstFrame = this.firstFramePending && this.startupPresentationArmed;
     const hasPresentationWaiter = this.hasPresentationWaiter(presentationGeneration);
-    if (renderedCorrection && !this.presentationCompletionsPending.has(presentationGeneration)
+    if ((renderedCorrection || renderedViewport)
+      && !this.presentationCompletionsPending.has(presentationGeneration)
       && (completesFirstFrame || hasPresentationWaiter)) {
       this.presentationCompletionsPending.add(presentationGeneration);
-      if (completesFirstFrame) this.firstFramePending = false;
+      if (completesFirstFrame) {
+        this.firstFramePending = false;
+        this.firstFrameCompletionGeneration = presentationGeneration;
+      }
       const startupTimeline = completesFirstFrame ? this.startupTimeline : null;
       void this.device.queue.onSubmittedWorkDone().then(() => {
         if (this.destroyed) return;
-        if (completesFirstFrame && presentationGeneration === this.presentationGeneration) {
+        if (presentationGeneration !== this.presentationGeneration) {
+          this.presentationCompletionsPending.delete(presentationGeneration);
+          return;
+        }
+        if (completesFirstFrame) {
+          this.firstFrameCompletionGeneration = null;
           submittedCallbacks.onFirstFrame?.();
         }
         if (startupTimeline && this.startupTimeline === startupTimeline) {
           startupTimeline.mark('request-animation-frame');
         }
         requestAnimationFrame(() => {
-          if (this.destroyed) return;
+          if (this.destroyed || presentationGeneration !== this.presentationGeneration) {
+            this.presentationCompletionsPending.delete(presentationGeneration);
+            return;
+          }
           // A paint/composite opportunity occurs between animation frames.
           // The second callback is the earliest browser-owned boundary at
           // which the submitted canvas can conservatively be called visible.
           requestAnimationFrame(() => {
-            if (this.destroyed) return;
+            if (this.destroyed || presentationGeneration !== this.presentationGeneration) {
+              this.presentationCompletionsPending.delete(presentationGeneration);
+              return;
+            }
             if (startupTimeline && this.startupTimeline === startupTimeline) {
               startupTimeline.mark('canvas-presentation');
               startupTimeline.mark('first-pixel-visible');
@@ -3701,6 +3742,9 @@ export class WebGpuEngine {
           });
         });
       }, () => {
+        if (this.firstFrameCompletionGeneration === presentationGeneration) {
+          this.firstFrameCompletionGeneration = null;
+        }
         this.resolvePresentationWaiters(presentationGeneration);
         this.presentationCompletionsPending.delete(presentationGeneration);
       });

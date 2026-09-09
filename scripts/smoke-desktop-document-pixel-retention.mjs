@@ -310,6 +310,179 @@ try {
   assertSourceEquivalent('Reopened second document', secondBaseline,
     await previewMetrics(reopenedSecondId, 'png'));
 
+  // The regular automation window is intentionally never shown. Give it a
+  // real foreground transition before exercising native minimize/restore.
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window?.show();
+    window?.focus();
+  });
+  await page.waitForFunction(() => document.hasFocus());
+  await driver.resetRenderTelemetry(reopenedSecondId);
+  await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
+  await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window || window.isMinimized()) return;
+    await new Promise((resolve) => {
+      window.once('minimize', resolve);
+      window.minimize();
+    });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const minimizedState = await page.evaluate((id) => {
+    const documentState = window.__lightTableAutomation?.queryDocument(id);
+    const viewport = document.querySelector('.lighttable-viewport');
+    return {
+      visibility: document.visibilityState,
+      rendererActive: documentState?.renderer?.active,
+      presentationReady: viewport?.getAttribute('data-presentation-ready')
+    };
+  }, reopenedSecondId);
+  if (minimizedState.rendererActive !== false || minimizedState.presentationReady !== 'false') {
+    throw new Error(`Minimize did not suspend presentation: ${JSON.stringify(minimizedState)}`);
+  }
+  const hiddenTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
+  if ((hiddenTelemetry?.submittedFrames ?? 0) !== 0) {
+    throw new Error(`Minimized renderer submitted background frames: ${JSON.stringify(hiddenTelemetry)}`);
+  }
+  const minimizedPresentation = await page.evaluate(() => ({
+    visibility: document.visibilityState,
+    ready: document.querySelector('.lighttable-viewport')
+      ?.getAttribute('data-presentation-ready'),
+    canvasVisibility: getComputedStyle(
+      document.querySelector('.lighttable-viewport__canvas')
+    ).visibility
+  }));
+  await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) return;
+    if (window.isMinimized()) {
+      await new Promise((resolve) => {
+        window.once('restore', resolve);
+        window.restore();
+      });
+    }
+    window?.show();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    window?.focus();
+    window?.webContents.focus();
+  });
+  await page.waitForFunction(() => document.hasFocus());
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryDocument(id)?.renderer?.active === true, reopenedSecondId);
+  await page.waitForFunction(() => document.querySelector('.lighttable-viewport')
+    ?.getAttribute('data-presentation-ready') === 'true');
+  const restorePresentation = await assertPresentationTransition(
+    reopenedSecondId, 'Minimize and restore'
+  );
+  const restoredTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
+  if ((restoredTelemetry?.submittedFrames ?? 0) > 3) {
+    throw new Error(`Restore replayed a stale render burst: ${JSON.stringify(restoredTelemetry)}`);
+  }
+  assertSourceEquivalent('Restored second document', secondBaseline,
+    await previewMetrics(reopenedSecondId, 'png'));
+
+  // Focus loss is a separate Electron lifecycle signal from minimization.
+  // Interrupt a real mutating pointer gesture so foreground loss also proves
+  // terminal rollback rather than only idle renderer suspension.
+  const beforeInterruptedGesture = await driver.queryDocument(reopenedSecondId);
+  await page.keyboard.press('m');
+  const viewportBounds = await page.locator('.lighttable-viewport').boundingBox();
+  if (!viewportBounds) throw new Error('Viewport disappeared before blur interruption proof.');
+  const gestureStart = {
+    x: viewportBounds.x + viewportBounds.width * 0.4,
+    y: viewportBounds.y + viewportBounds.height * 0.4
+  };
+  await page.mouse.move(gestureStart.x, gestureStart.y);
+  await page.mouse.down();
+  await page.mouse.move(gestureStart.x + 90, gestureStart.y + 70, { steps: 4 });
+  await driver.resetRenderTelemetry(reopenedSecondId);
+  await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.blur();
+  });
+  await page.waitForFunction((id) => {
+    const viewport = document.querySelector('.lighttable-viewport');
+    return window.__lightTableAutomation?.queryDocument(id)?.renderer?.active === false
+      && viewport?.getAttribute('data-presentation-ready') === 'false';
+  }, reopenedSecondId);
+  await page.mouse.up();
+  const interruptedGesture = await driver.queryDocument(reopenedSecondId);
+  if (interruptedGesture.history.undoDepth !== beforeInterruptedGesture.history.undoDepth) {
+    throw new Error(`Foreground loss committed the interrupted gesture: ${JSON.stringify({
+      before: beforeInterruptedGesture.history, after: interruptedGesture.history
+    })}`);
+  }
+  const blurredTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
+  if ((blurredTelemetry?.submittedFrames ?? 0) !== 0) {
+    throw new Error(`Blurred renderer submitted background frames: ${JSON.stringify(blurredTelemetry)}`);
+  }
+  await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window?.show();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    window?.focus();
+    window?.webContents.focus();
+  });
+  await page.waitForFunction(() => document.hasFocus());
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryDocument(id)?.renderer?.active === true, reopenedSecondId);
+  await page.waitForFunction(() => document.querySelector('.lighttable-viewport')
+    ?.getAttribute('data-presentation-ready') === 'true');
+  const refocusPresentation = await assertPresentationTransition(
+    reopenedSecondId, 'Blur and refocus'
+  );
+  const refocusedTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
+  if ((refocusedTelemetry?.submittedFrames ?? 0) > 3) {
+    throw new Error(`Refocus replayed a stale render burst: ${JSON.stringify(refocusedTelemetry)}`);
+  }
+  assertSourceEquivalent('Refocused second document', secondBaseline,
+    await previewMetrics(reopenedSecondId, 'png'));
+
+  // The cancellation must release pointer ownership: the next gesture commits
+  // exactly once, and undo restores the pre-interruption history position.
+  await page.mouse.move(gestureStart.x, gestureStart.y);
+  await page.mouse.down();
+  await page.mouse.move(gestureStart.x + 70, gestureStart.y + 55, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction(({ id, depth }) => window.__lightTableAutomation
+    ?.queryDocument(id)?.history.undoDepth === depth + 1, {
+    id: reopenedSecondId,
+    depth: beforeInterruptedGesture.history.undoDepth
+  });
+  await driver.execute(reopenedSecondId, 'history.undo');
+
+  // Switch and minimize immediately, before the newly-bound document's
+  // presentation waiter can conservatively complete. A pre-suspend double-rAF
+  // must never certify the restored swap-chain frame.
+  await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
+  await firstTab.click();
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryWorkspace()?.activeDocumentId === id, firstId);
+  await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) return;
+    await new Promise((resolve) => {
+      window.once('minimize', resolve);
+      window.minimize();
+    });
+    await new Promise((resolve) => {
+      window.once('restore', resolve);
+      window.restore();
+    });
+    window.show();
+    window.focus();
+    window.webContents.focus();
+  });
+  await page.waitForFunction(() => document.hasFocus());
+  await page.waitForFunction(() => document.querySelector('.lighttable-viewport')
+    ?.getAttribute('data-presentation-ready') === 'true');
+  const rapidRestorePresentation = await assertPresentationTransition(
+    firstId, 'Rapid minimize and restore during rebind'
+  );
+  assertRetained('First document after rapid minimize and restore', firstBaseline,
+    await previewMetrics(firstId, 'png'));
+
   if (pageErrors.length > 0) {
     throw new Error(`Renderer errors occurred: ${JSON.stringify(pageErrors)}`);
   }
@@ -328,6 +501,20 @@ try {
     rapidPresentation,
     reopen: { previousDocumentId: secondId, reopenedDocumentId: reopenedSecondId,
       presentation: reopenPresentation },
+    minimizeRestore: {
+      minimizedState,
+      minimizedPresentation,
+      hiddenTelemetry,
+      restorePresentation,
+      restoredTelemetry
+    },
+    blurRefocus: {
+      interruptedGestureUndoDepth: interruptedGesture.history.undoDepth,
+      blurredTelemetry,
+      refocusPresentation,
+      refocusedTelemetry
+    },
+    rapidMinimizeRestore: { presentation: rapidRestorePresentation },
     pageErrors
   };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

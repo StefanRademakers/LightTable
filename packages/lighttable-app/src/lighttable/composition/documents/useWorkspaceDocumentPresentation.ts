@@ -11,6 +11,7 @@ import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpu
 
 interface WorkspaceDocumentPresentationOptions {
   readonly documentId: string;
+  readonly active: boolean;
   readonly rendererGeneration: number;
   readonly rendererLifecycle: DocumentRendererLifecycle;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
@@ -33,6 +34,7 @@ export interface WorkspaceDocumentPresentation {
  */
 export const useWorkspaceDocumentPresentation = ({
   documentId,
+  active,
   rendererGeneration,
   rendererLifecycle,
   rendererRef,
@@ -41,6 +43,8 @@ export const useWorkspaceDocumentPresentation = ({
   const [presentedDocumentId, setPresentedDocumentId] = useState<string | null>(null);
   const currentDocumentIdRef = useRef(documentId);
   currentDocumentIdRef.current = documentId;
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const presentedDocumentIdRef = useRef<string | null>(null);
   const pendingPresentationRef = useRef<{
     readonly documentId: string;
@@ -61,9 +65,7 @@ export const useWorkspaceDocumentPresentation = ({
     }
   }, [publishThumbnail]);
 
-  const publishCompositeRendered = useCallback(() => {
-    // This callback is captured by one renderer generation. The closure-owned
-    // id prevents a late frame from document A claiming document B.
+  const waitForOwnedPresentation = useCallback(() => {
     const ownerDocumentId = documentId;
     const renderer = rendererRef.current;
     const ownerRendererGeneration = rendererLifecycle.getSnapshot().generation;
@@ -73,7 +75,8 @@ export const useWorkspaceDocumentPresentation = ({
         || pendingPresentationRef.current.epoch !== ownerEpoch)) {
       pendingPresentationRef.current = { documentId: ownerDocumentId, epoch: ownerEpoch };
       void renderer.waitForPresentation().then(() => {
-        if (currentDocumentIdRef.current !== ownerDocumentId
+        if (!activeRef.current
+          || currentDocumentIdRef.current !== ownerDocumentId
           || presentationEpochRef.current !== ownerEpoch
           || rendererRef.current !== renderer
           || rendererLifecycle.getSnapshot().generation !== ownerRendererGeneration) return;
@@ -86,18 +89,30 @@ export const useWorkspaceDocumentPresentation = ({
         }
       });
     }
+  }, [documentId, rendererLifecycle, rendererRef]);
+
+  const publishCompositeRendered = useCallback(() => {
+    // This callback is captured by one renderer generation. The closure-owned
+    // id prevents a late frame from document A claiming document B.
+    waitForOwnedPresentation();
+    const ownerDocumentId = documentId;
+    const renderer = rendererRef.current;
+    const ownerRendererGeneration = rendererLifecycle.getSnapshot().generation;
+    const ownerEpoch = presentationEpochRef.current;
     if (!publishThumbnail) return;
     if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
     thumbnailTimerRef.current = window.setTimeout(() => {
       thumbnailTimerRef.current = null;
-      if (currentDocumentIdRef.current !== ownerDocumentId
+      if (!activeRef.current
+        || currentDocumentIdRef.current !== ownerDocumentId
         || presentationEpochRef.current !== ownerEpoch
         || rendererRef.current !== renderer
         || rendererLifecycle.getSnapshot().generation !== ownerRendererGeneration
         || !renderer) return;
       void publishInitialThumbnail(renderer);
     }, 180);
-  }, [documentId, publishInitialThumbnail, publishThumbnail, rendererLifecycle, rendererRef]);
+  }, [documentId, publishInitialThumbnail, publishThumbnail, rendererLifecycle, rendererRef,
+    waitForOwnedPresentation]);
 
   useLayoutEffect(() => {
     presentationEpochRef.current += 1;
@@ -109,7 +124,12 @@ export const useWorkspaceDocumentPresentation = ({
       thumbnailTimerRef.current = null;
     }
     setPresentedDocumentId(null);
-  }, [documentId, rendererGeneration]);
+    // Resume can present an already-composited retained texture without
+    // producing another document-composite callback. Register the exact-frame
+    // waiter before the engine is reactivated so that display-only resume has
+    // the same ownership gate as initial open and document rebind.
+    if (active) waitForOwnedPresentation();
+  }, [active, documentId, rendererGeneration, waitForOwnedPresentation]);
 
   useEffect(() => () => {
     thumbnailGenerationRef.current += 1;

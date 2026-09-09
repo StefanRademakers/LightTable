@@ -297,7 +297,7 @@ export function LightTableStandaloneApp({
       const session = controller.getDocument(documentId);
       if (!session) continue;
       const renderer: DocumentRendererSnapshot = documentId === snapshot.activeDocumentId
-        ? { ...applicationRendererSnapshot, active: true }
+        ? applicationRendererSnapshot
         : {
             status: 'idle',
             generation: applicationRendererSnapshot.generation,

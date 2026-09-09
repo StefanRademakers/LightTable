@@ -281,6 +281,11 @@ export interface LightTableLocalAiService {
   subscribe(listener: (status: LightTableLocalAiModelStatus) => void): () => void;
 }
 
+export interface LightTableHostPresentationService {
+  current(): Promise<boolean>;
+  subscribe(listener: (active: boolean) => void): () => void;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly developer?: {
@@ -302,6 +307,8 @@ export interface LightTableHost {
     read(): Promise<string | null>;
     write(value: string): Promise<void>;
   };
+  /** Native/browser authority for foreground rendering and gesture admission. */
+  readonly presentation?: LightTableHostPresentationService;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   /** Open one or more user-selected files as independent documents. */

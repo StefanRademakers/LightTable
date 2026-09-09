@@ -17,6 +17,7 @@ describe('WebGpuEngine scope presentation ownership', () => {
       selectionAntsAnimator: { setActive: vi.fn() },
       documentRenderer: { setActive: vi.fn() },
       scopeRuntime,
+      renderDirty: { invalidate: vi.fn() },
       requestRender: vi.fn()
     } as unknown as WebGpuEngine;
 

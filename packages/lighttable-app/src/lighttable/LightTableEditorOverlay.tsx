@@ -43,6 +43,7 @@ import {
 } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useWorkspaceDocumentPresentation } from './composition/documents/useWorkspaceDocumentPresentation';
+import { useEditorHostPresentationActivity } from './composition/rendering/useEditorHostPresentationActivity';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
@@ -668,6 +669,7 @@ export interface LightTableEditorOverlayProps {
   };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
   developerService?: import('../platform/LightTableHost').LightTableHost['developer'];
+  hostPresentationService?: import('../platform/LightTableHost').LightTableHost['presentation'];
   genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
   onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
   onGenAiOpenResult?: (job: GenAiGenerationJob) => void | Promise<unknown>;
@@ -744,7 +746,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryPreferences,
   toolPreferences,
   genAiPreferences,
-  releaseService, developerService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
+  releaseService, developerService, hostPresentationService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
@@ -801,6 +803,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => { active = false; unsubscribe(); };
   }, [genAiService, selectedGenAiProviderId, updateGenAiProviderSnapshot]);
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
+  const hostPresentationDeactivateRef = useRef<() => void>(() => undefined);
+  const hostPresentationActive = useEditorHostPresentationActivity(
+    active,
+    hostPresentationService,
+    () => hostPresentationDeactivateRef.current()
+  );
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
   if (!documentSession && !standaloneFontRegistryRef.current) {
     standaloneFontRegistryRef.current = new DocumentFontRegistry({
@@ -814,7 +822,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle
   } = useDocumentRuntimeServices({
     documentId: workspaceDocumentId as DocumentSessionId,
-    active,
+    active: hostPresentationActive,
     history,
     tasks,
     rendererLifecycle: providedRendererLifecycle,
@@ -868,6 +876,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishInitialThumbnail: publishDocumentThumbnail
   } = useWorkspaceDocumentPresentation({
     documentId: workspaceDocumentId,
+    active: hostPresentationActive,
     rendererGeneration: rendererSnapshot.generation,
     rendererLifecycle,
     rendererRef: engineRef,
@@ -4117,8 +4126,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [imageDocument, isolatedMaskLayerId]);
 
   useEffect(() => {
-    engineRef.current?.setActive(active);
-  }, [active]);
+    engineRef.current?.setActive(hostPresentationActive);
+  }, [hostPresentationActive]);
 
   const selectAllContentOwner = selectionSessionController.selectAll;
   const clearCurrentSelectionOwner = selectionSessionController.clear;
@@ -7190,6 +7199,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   transformActiveRef.current = transformSession.isActive;
   repeatTransformRef.current = transformSession.repeat;
   nudgeTransformRef.current = transformSession.nudge;
+  hostPresentationDeactivateRef.current = () => {
+    viewportInteraction.cancelActiveGesture();
+    adjustmentTransactionController.cancel();
+    rasterGradientController.cancel();
+    cancelAutoAlignRef.current();
+    if (transformSession.isActive()) transformSession.cancel();
+  };
   applyFixedTransformRef.current = async (operation) => {
     if (fixedTransformCommandRunningRef.current) return null;
     const before = imageDocumentRef.current;

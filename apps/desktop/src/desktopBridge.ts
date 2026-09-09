@@ -158,6 +158,8 @@ export interface DesktopClipboardImageDimensions {
 
 export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
+  windowPresentationActive(): Promise<boolean>;
+  onWindowPresentationActive(listener: (active: boolean) => void): () => void;
   toggleDeveloperTools(): Promise<void>;
   openFile(): Promise<DesktopFilePayload | null>;
   openFiles(): Promise<readonly DesktopFilePayload[]>;

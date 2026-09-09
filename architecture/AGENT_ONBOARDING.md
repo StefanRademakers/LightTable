@@ -283,6 +283,19 @@ fallbacks or add transaction/history policy to the 1,027-line
 responsibility only. Automated package and critic gates passed; owner
 acceptance remains open.
 
+View/multi-document reset, updated 2026-09-09: read
+[View and multi-document vertical slice](editor-kernel/VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md)
+before changing pan/zoom, workspace geometry, retained-canvas presentation,
+window foreground handling or renderer activity. Electron native window state
+is the desktop foreground authority. Blur/minimize synchronously cancel active
+mutable gestures before renderer suspension; React only projects that state.
+Suspend retires the current presentation and first-frame generation. Restore
+must re-blit the retained final texture and cross a new GPU/compositor attempt
+before exposing canvas or overlays; never mark a surface ready from an older
+double-rAF, force `active: true` in a document projection, or recompute the
+document graph merely to restore the swap chain. Hidden-document transient
+resource release remains the open S12 boundary.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after
