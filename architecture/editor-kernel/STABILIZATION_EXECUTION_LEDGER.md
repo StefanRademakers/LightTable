@@ -474,8 +474,12 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       Canonical document and exact selection publish atomically; all nested
       document-sized masks and selection GPU targets exchange with one retained
       history owner. Instrumented UI/command/undo smokes pass.
-- [ ] Open/Place and save/export for the formats in `formatCapabilities.ts`, with
-      explicit semantic versus flattened behavior.
+- [x] Open/Place and save/export for the formats in `formatCapabilities.ts`, with
+      explicit semantic versus flattened behavior. Exact host terminal results
+      prevent cancel/failure from publishing success; UI Place is one
+      non-recorded transient-artifact command with one history entry. Packaged
+      Place/undo/redo, native save/export, source fallback, OS-open and PDF
+      open/export smokes pass; independent critic accepted after two repairs.
 - [ ] Autosave/recovery, failed decode/export and unsaved-document close.
 - [ ] Generated/AI results use the normal cancellable result-insertion commands.
 
@@ -518,7 +522,7 @@ lines plus responsibilities here.
 | `LayerStyleEditor.tsx` | presentational editor composition | transaction/history authority extracted to S09 session/snapshot route; 1,027-line UI decomposition debt remains | S09 authority extracted; no-growth |
 | `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
 | `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
-| `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | [ ] |
+| `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | S11 file I/O: Place artifact/terminal policy extracted, 1346 -> 1340 |
 
 Rules:
 

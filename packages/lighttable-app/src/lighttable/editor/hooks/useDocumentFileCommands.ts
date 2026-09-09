@@ -37,6 +37,9 @@ import { WasmVipsEncoder } from '../../image-io/WasmVipsEncoder';
 import { nativeBitmapFormat, type NativeBitmapFormatId } from '../../image-io/nativeBitmapFormats';
 import { exportSvgDocument } from '../../application/vectors/svgDocumentCodec';
 import { captureRendererBinding } from '../../application/rendering/rendererBindingToken';
+import {
+  deliverDocumentTaskExport
+} from '../../application/documents/documentExportDelivery';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -71,7 +74,9 @@ export interface DocumentFileCommandsOptions {
     transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
     replaceSource?: { readonly path: string; readonly format: NativeBitmapFormatId }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
-  readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
+  readonly onExportFile?: (
+    file: File
+  ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   readonly getDocumentRevision?: () => number;
   readonly getIsDirty?: () => boolean;
   readonly commitSavedRevision?: (revision: number) => void;
@@ -170,6 +175,11 @@ export const useDocumentFileCommands = (
     }, runtime);
     binding.assertCurrent('Document export');
     return output;
+  }, []);
+
+  const deliverExportFile = useCallback(async (file: File) => {
+    const current = optionsRef.current;
+    await deliverDocumentTaskExport(file, current.onExportFile, downloadOutput);
   }, []);
 
   const save = useCallback(async () => {
@@ -353,14 +363,13 @@ export const useDocumentFileCommands = (
       async (task) => {
         const file = await exportBitmapArtifact(format, task.signal);
         task.throwIfCanceled();
-        if (current.onExportFile) await current.onExportFile(file);
-        else downloadOutput(file);
+        await deliverExportFile(file);
       }
     );
     if (result.status === 'failed') {
       current.setError(result.error.message || `${label} export failed.`);
     }
-  }, [exportBitmapArtifact]);
+  }, [deliverExportFile, exportBitmapArtifact]);
 
   const exportPng = useCallback(() => exportNativeBitmap('png', 'PNG'), [exportNativeBitmap]);
   const exportJpeg = useCallback(() => exportNativeBitmap('jpeg', 'JPEG'), [exportNativeBitmap]);
@@ -409,8 +418,7 @@ export const useDocumentFileCommands = (
         );
         binding.assertCurrent('PSD export');
         task.throwIfCanceled();
-        if (current.onExportFile) await current.onExportFile(exported.file);
-        else downloadOutput(exported.file);
+        await deliverExportFile(exported.file);
         if (exported.warnings.length) {
           console.warn('[PSD export compatibility]', ...exported.warnings);
         }
@@ -419,7 +427,7 @@ export const useDocumentFileCommands = (
     if (result.status === 'failed') {
       current.setError(result.error.message || 'Photoshop export failed.');
     }
-  }, []);
+  }, [deliverExportFile]);
   const exportPsd = useCallback(
     () => exportPsdWithIntent('editable'),
     [exportPsdWithIntent]
@@ -436,11 +444,10 @@ export const useDocumentFileCommands = (
       if (!imageDocument || !current.hasMetadata) throw new Error('LightTable is not ready yet.');
       const file = exportSvgDocument(imageDocument, current.fileNameBase);
       task.throwIfCanceled();
-      if (current.onExportFile) await current.onExportFile(file);
-      else downloadOutput(file);
+      await deliverExportFile(file);
     });
     if (result.status === 'failed') current.setError(result.error.message || 'SVG export failed.');
-  }, []);
+  }, [deliverExportFile]);
 
   const openLocalFile = useCallback(async (
     file: File | null,
@@ -518,12 +525,6 @@ export const useDocumentFileCommands = (
       );
     }
   }, [openLocalFile]);
-
-  const deliverExportFile = useCallback(async (file: File) => {
-    const current = optionsRef.current;
-    if (current.onExportFile) await current.onExportFile(file);
-    else downloadOutput(file);
-  }, []);
 
   return {
     saving,

@@ -89,6 +89,7 @@
     "smoke:desktop:accessibility": "node scripts/smoke-desktop-accessibility.mjs",
     "smoke:desktop:source-save": "node scripts/smoke-desktop-source-save.mjs",
     "smoke:desktop:native-bitmap-save": "node scripts/smoke-desktop-native-bitmap-save.mjs",
+    "smoke:desktop:document-place": "node scripts/smoke-desktop-document-place.mjs",
     "smoke:desktop:native-bitmap-export": "node scripts/smoke-desktop-native-bitmap-export.mjs",
     "smoke:desktop:os-open": "node scripts/smoke-desktop-os-open.mjs",
     "smoke:desktop:accessibility:build": "npm run package:desktop:verify && npm run smoke:desktop:accessibility --",

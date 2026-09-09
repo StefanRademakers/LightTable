@@ -146,7 +146,7 @@ for (const testCase of cases) {
     }
 
     const savedDocumentId = documentId;
-    await page.locator('.lighttable-document-tab--active .lighttable-document-tab__close').click();
+    await page.locator('.ui-document-tabs__tab[data-active] .ui-document-tabs__close').click();
     await page.waitForFunction(() =>
       window.__lightTableAutomation?.queryWorkspace()?.documents.length === 0,
     undefined, { timeout: 30_000 });

@@ -1,7 +1,7 @@
 # Document and clipboard vertical slice
 
-Status: active; S11 clipboard and document-geometry sub-slices accepted on
-2026-09-09.
+Status: active; S11 clipboard, document-geometry and Open/Place/Save/Export
+sub-slices accepted on 2026-09-09.
 
 ## Contract
 
@@ -23,6 +23,11 @@ Status: active; S11 clipboard and document-geometry sub-slices accepted on
 - A document-size change invalidates renderer-internal clipboard textures.
   OS clipboard payloads remain host-owned and Paste still enters through its
   normal command transaction.
+- Open serializes imports through the application document route. Place uses
+  one transient input artifact and one completed semantic command/history unit.
+- Save and Export pin their document/renderer/revision input and require an
+  exact host `committed`, `canceled` or `failed` terminal result. Cancellation
+  is normal; resolved failure is never success.
 
 ## Implemented route
 
@@ -64,6 +69,21 @@ boundary. Its compare-and-swap predicate binds both the exact originating
 document object and selection revision. GPU work stays in the geometry/resize
 services; React only invokes the route and mirrors its low-frequency result.
 
+Open, Place, Save and Export use this terminal route:
+
+```text
+host/open picker -> serialized document import -> bound document session
+host/place picker -> transient artifact -> layer.placeArtifact command
+                  -> one completed mutation/history unit -> artifact release
+save/export       -> pinned document + renderer/revision -> encode
+                  -> exact host committed | canceled | failed result
+```
+
+Browser download fallback is explicitly `unreported`, because no host
+durability acknowledgment exists. UI Place surfaces structured command
+rejections and is excluded from Actions recording: its released transient
+artifact cannot be replayed until a durable artifact-reference contract exists.
+
 ## Critic repairs
 
 1. Added per-format isolation, encoded-before-DIB ordering, case-insensitive
@@ -77,6 +97,11 @@ services; React only invokes the route and mirrors its low-frequency result.
 4. Kept fully off-canvas selection coverage active instead of inferring
    selection semantics from a zero-filled readback. GPU history accounting now
    counts only mask/result/shape textures, not the active boolean.
+5. Centralized host export delivery. Cancel reaches task, PDF and quick-export
+   callers as `AbortError`; failure remains failure instead of false completion.
+6. Extracted UI Place from the standalone host shell. It is non-recordable,
+   surfaces rejection, and retains the artifact if a future implementation
+   unexpectedly returns asynchronous `accepted` instead of `completed`.
 
 No P0 remains. The second critic's stale-launcher P1 and late-parent-popup P2
 were eliminated by removing the parent preflight. A DIB-only provider can still
@@ -102,13 +127,21 @@ in later performance/soak coverage.
   `tmp/document-geometry-smoke/report.json`;
 - packaged 1584x935 -> 792x468 Image Size through UI, Action-equivalent command
   and undo: pass; report: `tmp/image-size-smoke/1/image-size.json`.
+- file-I/O and command regressions: 127 pass across 9 files; focused terminal
+  delivery tests: 12 pass; app typecheck and boundary verification: pass;
+- packaged File > Open > Place: new raster layer, one `Place Embedded` history
+  entry, non-empty preview and exact undo/redo restoration: pass;
+- packaged source save/reopen: PNG, JPEG, WebP and TIFF at 8-bit plus PNG/TIFF
+  at 16-bit: pass; measured save completion 289-354 ms;
+- packaged native bitmap export, layered source-save fallback, cold/warm OS
+  open and two-page PDF open/one-page PDF export: pass.
 
 The repository-wide source-structure audit remains red on its eight previously
-tracked legacy hotspots. This slice adds no net lines to
-`LightTableEditorOverlay.tsx`; compound canonical publication lives in
-`DocumentSession`/`DocumentSelectionStateStore`, while renderer exchange policy
-stays in the two bounded GPU services. The broader hotspot reductions remain
-slice-driven migration work, not a claim completed here.
+tracked legacy hotspots. This file-I/O sub-slice adds no net lines to
+`LightTableEditorOverlay.tsx` and reduces `LightTableStandaloneApp.tsx` by six
+net lines by moving Place lifetime/terminal policy into a bounded application
+service. The broader hotspot reductions remain slice-driven migration work,
+not a claim completed here.
 
 The generic visual browser driver was unavailable with `Transport closed`.
 The packaged Playwright/Electron acceptance is real UI evidence, not a claimed
@@ -116,6 +149,5 @@ manual observation.
 
 ## Remaining S11 work
 
-1. Open/Place and save/export format semantics.
-2. Autosave/recovery, decode/export failure and unsaved close.
-3. Generated/AI result insertion through the normal cancellable command route.
+1. Autosave/recovery, decode/export failure and unsaved close.
+2. Generated/AI result insertion through the normal cancellable command route.

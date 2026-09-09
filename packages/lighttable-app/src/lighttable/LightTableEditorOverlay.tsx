@@ -604,7 +604,7 @@ export interface LightTableEditorOverlayProps {
     transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
     replaceSource?: { readonly path: string; readonly format: NativeBitmapFormatId }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
-  onExportFile?: (file: File) => Promise<unknown> | unknown;
+  onExportFile?: (file: File) => Promise<LightTableSaveResult> | LightTableSaveResult;
   workspaceDocumentId?: string;
   workspaceDocuments?: ReadonlyArray<{
     id: string;
@@ -7572,7 +7572,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
       await deliverExportFile(file);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError(reason instanceof Error ? reason.message : String(reason));
     }
   }, [commandService, deliverExportFile, executeRegisteredCommand, handleExportPng, workspaceDocumentId]);
   quickExportPngRef.current = exportPngThroughCommand;
@@ -7626,7 +7626,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
-      place: () => { finishTextEditingRef.current(); void onRequestPlaceWorkspaceArtifact?.(workspaceDocumentId); },
+      place: () => { finishTextEditingRef.current(); void Promise.resolve(onRequestPlaceWorkspaceArtifact?.(workspaceDocumentId)).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))); },
       importSvg: () => { finishTextEditingRef.current(); svgImportInputRef.current?.click(); },
       recentFiles,
       openRecent: (id) => {

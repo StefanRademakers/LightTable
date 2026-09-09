@@ -70,6 +70,7 @@ import {
 } from '../lighttable/application/rendering/documentRendererLifecycle';
 import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 import { openHostDocuments, waitForDocumentOpeningToSettle } from './openHostDocuments';
+import { executeUiPlaceArtifact } from '../lighttable/application/documents/executeUiPlaceArtifact';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -643,14 +644,7 @@ export function LightTableStandaloneApp({
   }, [host, refreshRecentFiles]);
   const projectHomeActive = Boolean(activeProject && snapshot.documentOrder.length === 0);
   const placeArtifactFile = useCallback(async (documentId: DocumentSessionId, file: File) => {
-    const artifact = commandService.registerInputArtifact(file);
-    return commandService.execute({
-      protocolVersion: 1,
-      requestId: `ui-place-${crypto.randomUUID()}`,
-      command: 'layer.placeArtifact',
-      documentId,
-      parameters: { artifactId: artifact.id }
-    });
+    await executeUiPlaceArtifact(commandService, documentId, file);
   }, [commandService]);
   const activePlaceTargetId = activeWorkspaceDocument?.kind === 'image'
     && activeWorkspaceDocument.session.getSnapshot().lifecycle === 'ready'

@@ -141,6 +141,17 @@ selection may have no in-canvas support after crop/resize and must remain active
 and movable. Surface dimension changes invalidate renderer-internal clipboard
 textures; they do not clear or reinterpret the OS clipboard.
 
+Open/Place/Save/Export reset, updated 2026-09-09: host file delivery has an
+exact `committed | canceled | failed` result. Cancellation is normal and must
+not publish success or an error; resolved failure must never be treated as
+successful I/O. UI Place enters through `executeUiPlaceArtifact` and
+`layer.placeArtifact`, completes one history mutation, then releases its
+transient artifact. It is deliberately excluded from Actions recording because
+that artifact cannot be replayed durably. Do not retain it for playback or
+silently accept an asynchronous `accepted` result; define durable artifact
+ownership first. Multi-file Open remains serialized through the application
+document route.
+
 Layer-finalization reset, updated 2026-09-08: read
 [Layer finalization vertical slice](editor-kernel/LAYER_FINALIZATION_VERTICAL_SLICE.md)
 before changing rasterize, Merge Down/Selected, Flatten Group/Image, their

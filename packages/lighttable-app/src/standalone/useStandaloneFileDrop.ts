@@ -111,7 +111,11 @@ export const useStandaloneFileDrop = (
           : `Opened ${supported.length} supported file${supported.length === 1 ? '' : 's'}; `
             + `${dropped.length - supported.length} unsupported file${dropped.length - supported.length === 1 ? '' : 's'} skipped.`
       );
-      supported.forEach((file) => onOpen(file, 'automatic', modifiers));
+      supported.forEach((file) => {
+        void Promise.resolve(onOpen(file, 'automatic', modifiers)).catch((reason) => {
+          setError(reason instanceof Error ? reason.message : 'The file could not be opened.');
+        });
+      });
       onAccepted?.(supported);
     };
 

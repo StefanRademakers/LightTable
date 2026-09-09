@@ -57,6 +57,9 @@ interface PdfExportPreflightDialogProps {
 const reasons = (messages: readonly { readonly message: string }[]) =>
   messages.map(({ message }) => message).join(' ');
 
+const isExportCanceled = (reason: unknown): boolean =>
+  reason instanceof DOMException && reason.name === 'AbortError';
+
 export const formatPdfFontBytes = (byteLength: number) => byteLength < 1024
   ? `${byteLength} B`
   : `${(byteLength / 1024).toFixed(byteLength < 10 * 1024 ? 1 : 0)} KiB`;
@@ -147,6 +150,10 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     } catch (error) {
       if (generation !== pageExportGenerationRef.current) return;
+      if (isExportCanceled(error)) {
+        setPageExport({ kind: 'idle' });
+        return;
+      }
       setPageExport({
         kind: 'error',
         message: error instanceof Error ? error.message : 'PDF page export failed.'
@@ -166,6 +173,10 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     } catch (error) {
       if (generation !== nativeExportGenerationRef.current) return;
+      if (isExportCanceled(error)) {
+        setNativeExport({ kind: 'idle' });
+        return;
+      }
       setNativeExport({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Native PDF export failed.'
@@ -185,6 +196,10 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     } catch (error) {
       if (generation !== vectorExportGenerationRef.current) return;
+      if (isExportCanceled(error)) {
+        setVectorExport({ kind: 'idle' });
+        return;
+      }
       setVectorExport({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Native vector PDF export failed.'
@@ -204,6 +219,10 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     } catch (error) {
       if (generation !== mixedExportGenerationRef.current) return;
+      if (isExportCanceled(error)) {
+        setMixedExport({ kind: 'idle' });
+        return;
+      }
       setMixedExport({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Native mixed PDF export failed.'
