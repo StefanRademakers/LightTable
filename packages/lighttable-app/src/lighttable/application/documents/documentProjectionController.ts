@@ -80,7 +80,9 @@ export const createDocumentProjectionController = (
     if (publishPresentation) {
       port.publishEditorAdjustments(projection.editorAdjustments, domain);
     }
-    port.publishDocumentAdjustments(projection.documentAdjustments);
+    if (projection.scope === 'document') {
+      port.publishDocumentAdjustments(projection.documentAdjustments);
+    }
     if (projection.document !== port.getDocument()) {
       port.publishDocument(projection.document);
     }

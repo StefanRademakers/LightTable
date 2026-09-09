@@ -99,19 +99,27 @@ test('render readiness does not accept a rendered background document', async ()
   );
 });
 
-test('action recording projection stays read-only through the automation client', async () => {
+test('action recording projection and packaged recording controls stay isolated', async () => {
   const recording = { status: 'recording', steps: [{ command: 'grade.setBasic' }] };
+  const started = [];
+  let stopped = 0;
   const client = new LightTableAutomationClient({
-    evaluate: async (callback) => callback({
-      __lightTableAutomation: { actionRecordingSnapshot: () => recording }
-    })
+    evaluate: async (callback, argument) => callback(argument)
   });
   const previousWindow = globalThis.window;
   globalThis.window = {
-    __lightTableAutomation: { actionRecordingSnapshot: () => recording }
+    __lightTableAutomation: {
+      actionRecordingSnapshot: () => recording,
+      startActionRecording: (name) => started.push(name),
+      stopActionRecording: () => { stopped += 1; }
+    }
   };
   try {
     assert.equal(await client.queryActionRecording(), recording);
+    await client.startActionRecording('Adjustment smoke');
+    await client.stopActionRecording();
+    assert.deepEqual(started, ['Adjustment smoke']);
+    assert.equal(stopped, 1);
   } finally {
     globalThis.window = previousWindow;
   }

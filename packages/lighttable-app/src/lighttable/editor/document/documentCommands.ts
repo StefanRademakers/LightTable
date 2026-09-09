@@ -7,6 +7,7 @@ import {
   createLayerId,
   layerIsLocked,
   type ImageDocument,
+  type AdjustmentLayer,
   type GroupLayer,
   type AttachedAdjustment,
   type LayerId,
@@ -40,6 +41,7 @@ import {
   setAdjustmentStackGradeGroupEnabled,
   setAdjustmentStackOwnerEnabled,
   removeAdjustmentStackOwner,
+  cloneAdjustmentStack,
   type LocalProcessingKind,
   type GradeModuleGroup,
   type AdjustmentStackOwner,
@@ -1273,11 +1275,12 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
   const entry = findLayerNode(document.layers, layerId);
   if (!entry || (entry.node.type !== 'raster'
     && entry.node.type !== 'text'
-    && entry.node.type !== 'vector')) return document;
+    && entry.node.type !== 'vector'
+    && entry.node.type !== 'adjustment')) return document;
   const now = Date.now();
   const source = entry.node;
   const id = createLayerId();
-  const duplicate: RasterLayer | TextLayer | VectorLayer = source.type === 'raster'
+  const duplicate: RasterLayer | TextLayer | VectorLayer | AdjustmentLayer = source.type === 'raster'
     ? {
         ...source,
         id,
@@ -1302,7 +1305,7 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
         text: cloneTextLayerData(source.text),
         styleStack: duplicateLayerStyleStack(source.styleStack),
         mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
-      } : {
+      } : source.type === 'vector' ? {
         ...source,
         id,
         name: `${source.name} copy`,
@@ -1330,6 +1333,17 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
           elements: source.vectorClip.elements.map(cloneVectorElement)
         } : null,
         styleStack: duplicateLayerStyleStack(source.styleStack),
+        mask: source.mask ? {
+          ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0
+        } : null
+      } : {
+        ...source,
+        id,
+        name: `${source.name} copy`,
+        createdAt: now,
+        modifiedAt: now,
+        revision: 0,
+        adjustmentStack: cloneAdjustmentStack(source.adjustmentStack),
         mask: source.mask ? {
           ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0
         } : null

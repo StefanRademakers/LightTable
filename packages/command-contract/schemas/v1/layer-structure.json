@@ -12,7 +12,7 @@
           "layerId": {
             "type": "string",
             "title": "Layer ID",
-            "description": "Stable ID of the raster or text layer to duplicate.",
+            "description": "Stable ID of the layer to duplicate.",
             "minLength": 1,
             "maxLength": 256,
             "x-lighttable-control": "layer-id"

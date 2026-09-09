@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const output = path.join(workspace, 'tmp', 'adjustment-menu-smoke');
@@ -44,6 +45,7 @@ try {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'attached', timeout: 60_000 });
+  const driver = await attachLightTableAutomation(page, 'adjustment-menu');
 
   // Top-level flyouts have one visibility owner. A focused category must not
   // keep its old submenu open when pointer navigation selects a sibling.
@@ -118,7 +120,13 @@ try {
   ));
   if (!isPortal) throw new Error('The adjustment menu is still owned by the Layers panel DOM.');
 
-  for (const label of ['Grade', 'Color and Vibrance', 'Curves', 'Exposure', 'Selective Color']) {
+  const visibleAdjustmentLabels = [
+    'Grade', 'Lens Fx', 'Brightness / Contrast', 'Levels', 'Curves', 'Exposure',
+    'Color and Vibrance', 'Hue / Saturation', 'Color Balance', 'Black & White',
+    'Photo Filter', 'Channel Mixer', 'Color Lookup', 'Selective Color', 'Invert',
+    'Posterize', 'Threshold', 'Gradient Map', 'Clarity and Dehaze'
+  ];
+  for (const label of visibleAdjustmentLabels.filter((value) => value !== 'Lens Fx')) {
     await menu.getByRole('menuitem', { name: `New ${label}${[
       'Grade'
     ].includes(label) ? '' : ' adjustment'} layer`, exact: true })
@@ -257,6 +265,21 @@ try {
     .click();
   await page.getByRole('complementary', { name: 'Grade Layer properties' })
     .waitFor({ state: 'visible' });
+  const workspaceState = await driver.queryWorkspace();
+  const documentId = workspaceState?.activeDocumentId;
+  const gradeLayerId = (await driver.queryDocument(documentId))?.activeLayerId;
+  if (!documentId || !gradeLayerId) throw new Error('Grade lifecycle has no canonical target.');
+  const gradeTarget = { kind: 'layer', layerId: gradeLayerId };
+  const readColorGrading = async () => {
+    const projection = await driver.queryAdjustment(documentId, gradeTarget);
+    if (projection?.status !== 'completed') {
+      throw new Error(`Grade query failed: ${JSON.stringify(projection)}.`);
+    }
+    return projection.stack.modules.find(({ type }) => type === 'lt.color-grading')
+      ?.parameters.find(({ path: parameterPath }) => parameterPath === 'colorGrading')?.value;
+  };
+  const colorGradingBefore = await readColorGrading();
+  await driver.startActionRecording('Grade Color Grading smoke');
   const queryActiveDocument = () => page.evaluate(() => {
     const driver = window.__lightTableAutomation;
     const documentId = driver?.queryWorkspace()?.activeDocumentId;
@@ -326,6 +349,72 @@ try {
     throw new Error('The Color Grading wheel handle remained at its committed position during drag.');
   }
   await page.mouse.up();
+  await driver.stopActionRecording();
+  const recording = await driver.queryActionRecording();
+  const adjustmentSteps = recording?.steps?.filter(
+    ({ command }) => command === 'adjustment.setSnapshot'
+  ) ?? [];
+  if (adjustmentSteps.length !== 1
+    || adjustmentSteps[0]?.parameters?.target?.layerId !== gradeLayerId) {
+    throw new Error(`Grade drag did not record one canonical snapshot: ${JSON.stringify(recording)}.`);
+  }
+  const colorGradingAfter = await readColorGrading();
+  if (JSON.stringify(colorGradingAfter) === JSON.stringify(colorGradingBefore)) {
+    throw new Error('Committed Color Grading state did not change canonically.');
+  }
+  await driver.execute(documentId, 'history.undo');
+  const colorGradingUndone = await readColorGrading();
+  if (JSON.stringify(colorGradingUndone) !== JSON.stringify(colorGradingBefore)) {
+    throw new Error('Color Grading undo did not restore the exact authored baseline.');
+  }
+  await driver.execute(documentId, 'history.redo');
+  const colorGradingRedone = await readColorGrading();
+  if (JSON.stringify(colorGradingRedone) !== JSON.stringify(colorGradingAfter)) {
+    throw new Error('Color Grading redo did not restore the exact authored commit.');
+  }
+  const duplicateResult = await driver.execute(documentId, 'layer.duplicate', {
+    layerId: gradeLayerId
+  });
+  const duplicateLayerId = duplicateResult?.value?.layerId;
+  if (!duplicateLayerId) throw new Error(`Grade duplication returned no layer: ${JSON.stringify(duplicateResult)}.`);
+  const duplicateProjection = await driver.queryAdjustment(
+    documentId, { kind: 'layer', layerId: duplicateLayerId }
+  );
+  if (duplicateProjection?.status !== 'completed'
+    || duplicateProjection.adjustmentKind !== 'grade') {
+    throw new Error(`The duplicated Grade owner is not queryable: ${JSON.stringify(duplicateProjection)}.`);
+  }
+  await driver.execute(documentId, 'history.undo');
+  if ((await driver.queryAdjustment(documentId, { kind: 'layer', layerId: duplicateLayerId }))
+    ?.status !== 'rejected') {
+    throw new Error('Undo retained the duplicated Grade owner.');
+  }
+  await driver.execute(documentId, 'history.redo');
+  if ((await driver.queryAdjustment(documentId, { kind: 'layer', layerId: duplicateLayerId }))
+    ?.status !== 'completed') {
+    throw new Error('Redo did not restore the duplicated Grade owner and mask runtime.');
+  }
+  const visibleAdjustmentKinds = [
+    'grade', 'lens-fx', 'brightness-contrast', 'levels', 'curves', 'exposure',
+    'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
+    'photo-filter', 'channel-mixer', 'color-lookup', 'selective-color', 'invert',
+    'posterize', 'threshold', 'gradient-map', 'clarity-dehaze'
+  ];
+  const catalogResults = [];
+  for (const kind of visibleAdjustmentKinds) {
+    const created = await driver.execute(documentId, 'adjustment.create', {
+      kind, placement: 'adjustment-layer'
+    });
+    const layerId = created?.value?.layerId ?? created?.value?.adjustmentId;
+    const projection = layerId
+      ? await driver.queryAdjustment(documentId, { kind: 'layer', layerId })
+      : null;
+    if (!layerId || projection?.status !== 'completed' || projection.adjustmentKind !== kind) {
+      throw new Error(`Catalog adjustment ${kind} did not create/query canonically: ${JSON.stringify({ created, projection })}.`);
+    }
+    catalogResults.push(kind);
+    await driver.execute(documentId, 'history.undo');
+  }
   await floatingLayers.evaluate((element, display) => { element.style.display = display; }, floatingLayersDisplay);
   const activeSelectionStyles = await page.evaluate(() => {
     const tool = document.querySelector('.ui-toolbar__button[aria-pressed="true"]');
@@ -362,6 +451,13 @@ try {
     curvesLiveDrag: liveCurvePoint,
     gradientMapLiveDrag: liveStopLabel,
     colorGradingLiveDrag: liveWheelPosition,
+    colorGradingTransaction: {
+      recordedCommands: adjustmentSteps.map(({ command }) => command),
+      undoRestoredBaseline: true,
+      redoRestoredCommit: true
+    },
+    gradeDuplication: { maskHistory: true, undoRedo: true },
+    catalogAdjustments: catalogResults,
     gradingDomAfterMove,
     activeSelectionStyles,
     filterFlyouts: Object.keys(expectedFilterFlyouts),

@@ -42,6 +42,7 @@ const pixelEdit = (): ReversiblePixelEdit => ({
 
 const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRendererPort => ({
   duplicateLayerPixels: vi.fn(() => true),
+  copyLayerMask: vi.fn(() => true),
   beginLayerPixelEdit: vi.fn(),
   captureAllPixelEdit: vi.fn(() => 1),
   mergeLayers: vi.fn(() => true),
@@ -757,6 +758,31 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
+  it('duplicates an Adjustment Layer and retains its mask through GPU history', () => {
+    const state = setup(createImageDocument('Adjustment duplicate', 32, 24, 'asset'));
+    expect(state.commands.createAdjustmentLayer()).toBe(true);
+    const sourceId = state.document().activeLayerId!;
+    state.historyEntries.splice(0);
+
+    expect(state.commands.duplicateActiveLayer()).toBe(true);
+
+    const destinationId = state.document().activeLayerId!;
+    const duplicate = findDocumentLayer(state.document(), destinationId);
+    expect(duplicate).toMatchObject({ type: 'adjustment', name: 'Grade copy' });
+    expect(duplicate?.mask?.id).not.toBe(findDocumentLayer(state.document(), sourceId)?.mask?.id);
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(destinationId, 'mask');
+    expect(state.renderer.captureAllPixelEdit).toHaveBeenCalledWith(destinationId, 'mask');
+    expect(state.renderer.copyLayerMask).toHaveBeenCalledWith(sourceId, destinationId);
+    expect(state.historyEntries).toHaveLength(1);
+
+    state.historyEntries[0]!.undo();
+    expect(findDocumentLayer(state.document(), destinationId)).toBeNull();
+    state.historyEntries[0]!.redo();
+    expect(findDocumentLayer(state.document(), destinationId)?.type).toBe('adjustment');
+    expect(vi.mocked(state.renderer.applyPixelHistory).mock.calls.map(([, direction]) => direction))
+      .toEqual(['undo', 'redo']);
+  });
+
   it('rasterizes text through the same fresh-destination transaction as every semantic layer', async () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
@@ -984,19 +1010,21 @@ describe('useLayerDocumentCommands', () => {
       feather: 0,
       pixelRevision: 0
     });
-    // A new Grade Layer is an explicit, neutral owner. It must not silently
-    // steal an unrelated panel value from the previously selected raster layer.
-    expect(state.panelAdjustments().exposureEV).toBe(0);
+    // A new Grade Layer is an explicit, neutral owner. The command changes
+    // only canonical document state; the contextual panel is derived by the
+    // editor projection adapter and is not part of command history.
+    expect(state.panelAdjustments().exposureEV).toBe(1.25);
     expect(state.documentAdjustments().exposureEV).toBe(0);
+    if (grade?.type !== 'adjustment') throw new Error('Expected a Grade layer.');
+    expect(grade.adjustmentStack.modules.every((module) => module.revision === 0)).toBe(true);
     expect(state.historyEntries).toHaveLength(1);
 
     state.historyEntries[0].undo();
     expect(state.document().layers).toHaveLength(1);
-    expect(state.panelAdjustments().exposureEV).toBe(1.25);
 
     state.historyEntries[0].redo();
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
-    expect(state.panelAdjustments().exposureEV).toBe(0);
+    expect(state.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
   });
 
   it('creates a Lens Fx layer with only Lens Fx modules above the active layer', () => {
@@ -1265,7 +1293,7 @@ describe('useLayerDocumentCommands', () => {
     expect(gradientMap).toMatchObject({ enabled: true, reverse: true, interpolation: 'smooth' });
     expect(gradientMap?.colorStops[0]?.color).toEqual({ r: 0.1, g: 0.2, b: 0.3 });
     expect(gradientMap?.opacityStops[0]?.opacity).toBe(0.75);
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledTimes(1);
+    expect(state.historyEntries).toHaveLength(1);
   });
 
   it('attaches independent adjustment nodes without replacing the raster local grade', () => {
@@ -1286,7 +1314,7 @@ describe('useLayerDocumentCommands', () => {
     expect(current.attachedAdjustments?.map(({ adjustmentStack }) =>
       (adjustmentStack.modules[0]?.settings.photoshopAdjustment as { kind?: string } | undefined)?.kind))
       .toEqual(['exposure', 'threshold']);
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledTimes(2);
+    expect(state.historyEntries).toHaveLength(2);
   });
 
   it('merges contiguous tight raster layers into a reversible full-canvas destination', () => {

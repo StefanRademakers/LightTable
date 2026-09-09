@@ -48,15 +48,21 @@ import type { ExportedPsdDocument } from './application/documents/PsdExportClien
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
+import {
+  materializeAdjustmentPresentationSource,
+  resolveAdjustmentPresentation,
+  resolveAdjustmentPresentationSource,
+  type AdjustmentPresentationSource
+} from './application/adjustments/resolveAdjustmentPresentation';
 import { commitColorLookupAssetTransaction } from './application/adjustments/commitColorLookupAssetTransaction';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
 import { executeSemanticGradePatch } from './application/adjustments/executeSemanticGradePatch';
+import { executeSemanticAdjustmentSnapshot } from './application/adjustments/executeSemanticAdjustmentSnapshot';
+import { adjustmentTargetIsPresented } from './application/adjustments/adjustmentTargetIsPresented';
 import { runEditorOperationTransaction } from './application/commands/editorOperationTransaction';
-import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
-import { changedDetailAdjustmentValues } from './application/commands/semanticDetailAdjustmentCommandContract';
 import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
@@ -900,10 +906,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }
   const adjustmentPresentationStore = adjustmentPresentationStoreRef.current;
+  const adjustmentPresentationSourceRef = useRef<AdjustmentPresentationSource | null>(null);
   const publishAdjustmentPresentation = useCallback((
     next: BasicAdjustments,
     domain: AdjustmentPresentationDomain = 'all'
   ) => {
+    adjustmentPresentationSourceRef.current = null;
     adjustmentsRef.current = next;
     adjustmentPresentationStore.publish(next, domain);
   }, [adjustmentPresentationStore]);
@@ -1862,7 +1870,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // event must not commit an interaction that belonged to the old layer.
     resetAdjustmentTransactionRef.current();
     documentProjectionController.applyDocumentSnapshot(document);
-  }, [documentProjectionController]);
+    const source = resolveAdjustmentPresentationSource(
+      document,
+      documentAdjustmentsRef.current,
+      propertiesTargetRef.current
+    );
+    const previousSource = adjustmentPresentationSourceRef.current;
+    if (source && (source.key !== previousSource?.key
+      || source.source !== previousSource.source)) {
+      const presentation = materializeAdjustmentPresentationSource(source);
+      publishAdjustmentPresentation(presentation.adjustments, presentation.domain);
+      adjustmentPresentationSourceRef.current = source;
+    }
+  }, [documentProjectionController, publishAdjustmentPresentation]);
 
   const publishDocumentSelection = useCallback((
     document: ImageDocument,
@@ -3082,12 +3102,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     thumbnailDocumentReadyId
   ]);
 
-  const resolveAdjustmentTargetLayerId = (document: ImageDocument): LayerId | null => {
-    if (propertiesTarget.kind === 'document-processing') return null;
-    if (propertiesTarget.kind === 'attached-processing') {
+  const resolveAdjustmentTargetLayerId = (
+    document: ImageDocument,
+    target: PropertiesInspectorTarget = propertiesTargetRef.current
+  ): LayerId | null => {
+    if (target.kind === 'document-processing') return null;
+    if (target.kind === 'attached-processing') {
       return attachedAdjustmentOwnerId(
-        propertiesTarget.layerId,
-        propertiesTarget.adjustmentId
+        target.layerId,
+        target.adjustmentId
       );
     }
     const active = findDocumentLayer(document, document.activeLayerId);
@@ -3102,6 +3125,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const document = imageDocumentRef.current;
       return document ? resolveAdjustmentTargetLayerId(document) : null;
     },
+    getActiveTargetIdentity: () => {
+      const document = imageDocumentRef.current;
+      if (!document) return null;
+      return JSON.stringify(reconcilePropertiesTarget(
+        document,
+        propertiesTargetRef.current
+      ));
+    },
     getRenderer: () => engineRef.current,
     previewSnapshot: previewAdjustmentSnapshot,
     commitSnapshot: applyAdjustmentSnapshot,
@@ -3110,30 +3141,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     discardPreview: documentProjectionController.discardAdjustmentPreview,
     pushHistoryEntry,
-    onCommitted: ({ before, after, targetLayerId, domain }) => {
-      if (domain !== 'grade' || (targetLayerId && parseAttachedAdjustmentOwnerId(targetLayerId))) {
-        return;
-      }
-      const values = changedBasicAdjustmentValues(before, after);
-      const target = targetLayerId
-        ? { kind: 'layer' as const, layerId: targetLayerId }
-        : { kind: 'document' as const };
-      if (Object.keys(values).length) {
-        commandService?.recordObservedCommand(
-          'grade.setBasic',
-          workspaceDocumentId as DocumentSessionId,
-          { target, values },
-          { target, values, changed: true }
-        );
-        return;
-      }
-      const detailValues = changedDetailAdjustmentValues(before.detail, after.detail);
-      if (!Object.keys(detailValues).length) return;
+    onCommitted: ({ after, targetLayerId, domain }) => {
+      const attached = targetLayerId
+        ? parseAttachedAdjustmentOwnerId(targetLayerId)
+        : null;
+      const target = attached
+        ? { kind: 'attached' as const, layerId: attached.layerId,
+          adjustmentId: attached.adjustmentId }
+        : targetLayerId
+          ? { kind: 'layer' as const, layerId: targetLayerId }
+          : { kind: 'document' as const,
+            owner: domain === 'lens-fx' ? 'lens-fx' as const : 'grade' as const };
       commandService?.recordObservedCommand(
-        'grade.setDetail',
+        'adjustment.setSnapshot',
         workspaceDocumentId as DocumentSessionId,
-        { target, values: detailValues },
-        { target, values: detailValues, changed: true }
+        { target, snapshot: after },
+        { target, changed: true }
       );
     }
   });
@@ -3821,10 +3844,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // Restoring the active presentation is read-only with respect to the
     // document session. Do not route these values through publication helpers:
     // those helpers are reserved for authored edits and write canonical state.
-    const restoredAdjustments = cloneAdjustments(processing.adjustments);
-    documentAdjustmentsRef.current = restoredAdjustments;
-    adjustmentsRef.current = cloneAdjustments(restoredAdjustments);
-    publishAdjustmentPresentation(restoredAdjustments);
+    const restoredDocumentAdjustments = cloneAdjustments(processing.adjustments);
+    documentAdjustmentsRef.current = restoredDocumentAdjustments;
+    const restoredPresentation = resolveAdjustmentPresentation(
+      existingDocument,
+      restoredDocumentAdjustments,
+      propertiesTargetRef.current
+    );
+    if (restoredPresentation) {
+      adjustmentsRef.current = cloneAdjustments(restoredPresentation.adjustments);
+      publishAdjustmentPresentation(
+        restoredPresentation.adjustments,
+        restoredPresentation.domain
+      );
+    }
     const restoredGroupVisibility = { ...processing.groupVisibility };
     groupVisibilityRef.current = restoredGroupVisibility;
     setGroupVisibility(restoredGroupVisibility);
@@ -6490,6 +6523,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
+      executeAdjustmentSnapshot: (command) => {
+        adjustmentTransactionController.end();
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        const currentTarget = propertiesTargetRef.current;
+        const presented = adjustmentTargetIsPresented(command.target, currentTarget);
+        return executeSemanticAdjustmentSnapshot({
+          document,
+          documentAdjustments: documentAdjustmentsRef.current,
+          target: command.target,
+          snapshot: command.snapshot,
+          publish: (snapshot, targetLayerId, domain) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, targetLayerId, domain, presented),
+          pushHistoryEntry
+        });
+      },
       executeRasterInvert: async (command) => {
         await settlePixelInteractionRef.current();
         return layerDocumentCommands.invertLayerColors(
@@ -8004,7 +8053,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : null;
         if (adjustment) {
           publishAdjustmentPresentation(
-            materializeBasicAdjustments(adjustment.adjustmentStack)
+            materializeBasicAdjustments(
+              adjustment.adjustmentStack,
+              undefined,
+              undefined,
+              true
+            )
           );
         }
         showProperties({ kind: 'attached-processing', layerId, adjustmentId });

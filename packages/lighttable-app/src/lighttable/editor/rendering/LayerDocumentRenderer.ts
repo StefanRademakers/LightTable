@@ -403,6 +403,22 @@ export class LayerDocumentRenderer {
     return this.runtime.rasterDocumentOperations.duplicate(sourceId, destinationId);
   }
 
+  copyLayerMask(sourceId: LayerId, destinationId: LayerId) {
+    const source = this.runtime.layerResources.maskTexture(sourceId);
+    const destination = this.runtime.layerResources.maskTexture(destinationId);
+    const document = this.document;
+    if (!source || !destination || !document) return false;
+    const encoder = this.device.createCommandEncoder({ label: 'LightTable duplicate layer mask' });
+    encoder.copyTextureToTexture(
+      { texture: source },
+      { texture: destination },
+      [document.width, document.height]
+    );
+    this.device.queue.submit([encoder.finish()]);
+    this.runtime.renderResources.releaseAfterSubmit();
+    return true;
+  }
+
   async exportDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
     return this.runtime.documentAssets.export(document);
   }

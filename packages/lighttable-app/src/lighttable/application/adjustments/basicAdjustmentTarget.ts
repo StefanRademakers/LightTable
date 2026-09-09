@@ -42,7 +42,8 @@ export const resolveBasicAdjustmentTarget = (
       ? materializeBasicAdjustments(
           layer.adjustmentStack,
           undefined,
-          layer.type === 'adjustment' ? 'adjustment-layer' : 'layer'
+          layer.type === 'adjustment' ? 'adjustment-layer' : 'layer',
+          true
         )
       : createDefaultAdjustments()
   };

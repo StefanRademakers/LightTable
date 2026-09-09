@@ -70,6 +70,7 @@ import { createRemoveLayerMaskCommand } from './removeLayerMaskCommand';
 import { createApplyLayerMaskCommand } from './applyLayerMaskCommand';
 import { createApplyBackgroundRemovalMaskCommand } from './applyBackgroundRemovalMaskCommand';
 import { createAddLayerMaskCommand } from './addLayerMaskCommand';
+import { commitAdjustmentLayerDuplicate } from '../adjustments/duplicateAdjustmentLayerCommand';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -87,6 +88,7 @@ export interface LayerCommandHistoryEntry {
 
 export interface LayerCommandRendererPort {
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): boolean;
+  copyLayerMask(sourceId: LayerId, destinationId: LayerId): boolean;
   beginLayerPixelEdit(layerId: LayerId, channel?: PaintChannel): void;
   captureAllPixelEdit(layerId: LayerId, channel?: PaintChannel): number;
   mergeLayers(
@@ -603,6 +605,21 @@ export const createLayerDocumentCommands = (
           },
           errorMessage: 'The layer pixels could not be duplicated.'
         })) return null;
+      } else if (source?.type === 'adjustment' && source.mask) {
+        const renderer = dependencies.getRenderer();
+        if (!renderer) {
+          transaction.cancel();
+          return null;
+        }
+        const committed = commitAdjustmentLayerDuplicate({
+          transaction,
+          next,
+          sourceId,
+          destinationId,
+          renderer,
+          resolveDependencies: () => dependenciesRef.current
+        });
+        if (!committed) return null;
       } else {
         if (!commitDocumentTransition(transaction, next, description)) return null;
       }
@@ -673,39 +690,6 @@ export const createLayerDocumentCommands = (
     );
     if (!documentTransaction) return false;
     const current = documentTransaction.before;
-    if (isFilterKind(kind)) {
-      const stack = createFilterStack(kind, settings ?? {});
-      const next = createAdjustmentLayer(
-        current,
-        stack,
-        definition.name,
-        aboveLayerId ?? current.activeLayerId ?? undefined,
-        kind
-      );
-      try {
-        if (!commitDocumentTransition(documentTransaction, next, description)) return false;
-      } catch (reason) {
-        documentTransaction.cancel();
-        dependencies.setError(
-          reason instanceof Error ? reason.message : `The ${definition.name} layer could not be created.`
-        );
-        return false;
-      }
-      dependencies.setActiveChannel('pixels');
-      dependencies.setError(null);
-      return true;
-    }
-    const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
-    const currentPanelGrade = dependencies.getPanelAdjustments?.();
-    if (
-      !previousDocumentGrade
-      || !currentPanelGrade
-      || !dependencies.publishDocumentAdjustments
-      || !dependencies.publishPanelAdjustments
-    ) {
-      documentTransaction.cancel();
-      return false;
-    }
 
     // A processing layer starts neutral and owns an explicit module inventory.
     const source = createDefaultAdjustments();
@@ -720,14 +704,12 @@ export const createLayerDocumentCommands = (
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     applyInitialSettings(source, settings);
-    const stack = selectAdjustmentLayerModules(adjustmentStackForScope(
-      createAdjustmentStackFromBasicAdjustments(source),
-      'adjustment-layer'
-    ), kind);
-    const beforeDocumentGrade = cloneAdjustments(previousDocumentGrade);
-    const beforePanelGrade = cloneAdjustments(currentPanelGrade);
-    const clearedDocumentGrade = createDefaultAdjustments();
-    const adjustmentPanelGrade = cloneAdjustments(source);
+    const stack = isFilterKind(kind)
+      ? createFilterStack(kind, settings ?? {})
+      : selectAdjustmentLayerModules(adjustmentStackForScope(
+          createAdjustmentStackFromBasicAdjustments(source),
+          'adjustment-layer'
+        ), kind);
     const next = createAdjustmentLayer(
       current,
       stack,
@@ -736,69 +718,8 @@ export const createLayerDocumentCommands = (
       kind
     );
 
-    const applyProcessingState = (
-      operation: string,
-      documentGrade: BasicAdjustments,
-      document: ImageDocument,
-      panelGrade: BasicAdjustments,
-      rollbackDocumentGrade: BasicAdjustments,
-      rollbackDocument: ImageDocument,
-      rollbackPanelGrade: BasicAdjustments
-    ) => runEditorOperationTransaction({ operation }, (transaction) => {
-      const latest = dependenciesRef.current;
-      transaction.step(
-        'publish document processing state',
-        () => latest.publishDocumentAdjustments?.(documentGrade),
-        () => latest.publishDocumentAdjustments?.(rollbackDocumentGrade)
-      );
-      transaction.step(
-        'publish document snapshot',
-        () => latest.applyDocumentSnapshot(document),
-        () => latest.applyDocumentSnapshot(rollbackDocument)
-      );
-      transaction.step(
-        'publish panel processing state',
-        () => latest.publishPanelAdjustments?.(panelGrade),
-        () => latest.publishPanelAdjustments?.(rollbackPanelGrade)
-      );
-    });
     try {
-      if (!documentTransaction.stage(() => next)
-        || !documentTransaction.commitWith((ownedBefore, ownedAfter) => {
-          runEditorOperationTransaction({ operation: description.label }, (publication) => {
-            publication.step(
-              'publish document processing state',
-              () => dependencies.publishDocumentAdjustments!(clearedDocumentGrade),
-              () => dependencies.publishDocumentAdjustments!(beforeDocumentGrade)
-            );
-            publication.step(
-              'publish document snapshot',
-              () => dependencies.applyDocumentSnapshot(ownedAfter),
-              () => dependencies.applyDocumentSnapshot(ownedBefore)
-            );
-            publication.step(
-              'publish panel processing state',
-              () => dependencies.publishPanelAdjustments!(adjustmentPanelGrade),
-              () => dependencies.publishPanelAdjustments!(beforePanelGrade)
-            );
-            dependencies.pushHistoryEntry({
-              label: description.label,
-              type: description.type,
-              layerIds: ownedAfter.activeLayerId ? [ownedAfter.activeLayerId] : [],
-              undo: () => applyProcessingState(
-                `Undo ${description.label}`,
-                beforeDocumentGrade, ownedBefore, beforePanelGrade,
-                clearedDocumentGrade, ownedAfter, adjustmentPanelGrade
-              ),
-              redo: () => applyProcessingState(
-                `Redo ${description.label}`,
-                clearedDocumentGrade, ownedAfter, adjustmentPanelGrade,
-                beforeDocumentGrade, ownedBefore, beforePanelGrade
-              )
-            });
-          });
-          return true;
-        })) return false;
+      if (!commitDocumentTransition(documentTransaction, next, description)) return false;
     } catch (reason) {
       documentTransaction.cancel();
       dependencies.setError(
@@ -860,31 +781,8 @@ export const createLayerDocumentCommands = (
       documentTransaction.cancel();
       return null;
     }
-    const previousPanelAdjustments = dependencies.getPanelAdjustments?.();
     try {
-      if (!documentTransaction.stage(() => next)
-        || !documentTransaction.commitWith((ownedBefore, ownedAfter) => {
-          runEditorOperationTransaction({ operation: description.label }, (publication) => {
-            publication.step(
-              'publish document snapshot',
-              () => dependencies.applyDocumentSnapshot(ownedAfter),
-              () => dependencies.applyDocumentSnapshot(ownedBefore)
-            );
-            if (dependencies.publishPanelAdjustments) {
-              publication.step(
-                'publish panel processing state',
-                () => dependencies.publishPanelAdjustments!(source),
-                () => {
-                  if (previousPanelAdjustments) {
-                    dependencies.publishPanelAdjustments!(previousPanelAdjustments);
-                  }
-                }
-              );
-            }
-            dependencies.pushDocumentHistory(ownedBefore, ownedAfter, description);
-          });
-          return true;
-        })) return null;
+      if (!commitDocumentTransition(documentTransaction, next, description)) return null;
     } catch (reason) {
       documentTransaction.cancel();
       dependencies.setError(

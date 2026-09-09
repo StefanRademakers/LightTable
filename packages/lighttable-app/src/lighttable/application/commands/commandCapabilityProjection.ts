@@ -58,6 +58,7 @@ export const projectCommandCapabilities = (
     availability('transform.applyFixed', supports('executeFixedTransform', ports.executeFixedTransform)
       && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
     availability('adjustment.create', supports('executeAdjustmentCreation', ports.executeAdjustmentCreation), 'Adjustment creation is unavailable in this host.'),
+    availability('adjustment.setSnapshot', supports('executeAdjustmentSnapshot', ports.executeAdjustmentSnapshot), 'Adjustment editing is unavailable in this host.'),
     availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
     availability('layer.removeBackground', supports('executeBackgroundRemoval', ports.executeBackgroundRemoval), 'Remove Background is unavailable in this host.'),
     availability('layer.autoAlign', supports('executeAutoAlign', ports.executeAutoAlign), 'Auto Align is unavailable in this host.'),

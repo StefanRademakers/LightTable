@@ -176,7 +176,7 @@ const parseLayerSubtarget = (value: string): LayerSubtarget | null => {
 
 export const LAYER_CREATION_OPTIONS = [
   ...adjustmentLayerMenuDefinitionGroups().flatMap((group, groupIndex) =>
-    group.filter((definition) => definition.id !== 'grain').map((definition, definitionIndex) => ({
+    group.map((definition, definitionIndex) => ({
       id: definition.id,
       label: `New ${definition.name}${definition.family === 'photoshop' ? ' adjustment' : ''} layer`,
       menuLabel: definition.menuLabel,

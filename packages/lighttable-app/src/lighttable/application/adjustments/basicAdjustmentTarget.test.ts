@@ -71,4 +71,21 @@ describe('basic adjustment target resolver', () => {
       { allowLocked: true }
     )).toMatchObject({ targetLayerId: locked.activeLayerId });
   });
+
+  it('reads authored values from bypassed Grade modules', () => {
+    const base = createImageDocument('Bypassed Grade', 64, 64, 'grade');
+    const layerId = base.activeLayerId!;
+    const authored = { ...createDefaultAdjustments(), contrast: 37 };
+    const stack = createAdjustmentStackFromBasicAdjustments(authored);
+    stack.modules.forEach((module) => { module.enabled = false; });
+    const document = setRasterLayerAdjustmentStack(base, layerId, stack);
+
+    const resolved = resolveBasicAdjustmentTarget(
+      document,
+      createDefaultAdjustments(),
+      { kind: 'layer', layerId }
+    );
+
+    expect(resolved).toMatchObject({ adjustments: { contrast: 37 } });
+  });
 });

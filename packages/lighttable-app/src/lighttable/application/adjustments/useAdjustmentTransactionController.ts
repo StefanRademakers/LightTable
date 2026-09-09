@@ -22,6 +22,8 @@ export interface AdjustmentTransactionDependencies {
   getDocumentId(): DocumentId | null;
   getAdjustments(): BasicAdjustments;
   getActiveTargetLayerId(): LayerId | null;
+  /** Stable semantic owner identity, including contextual sub-owner/domain. */
+  getActiveTargetIdentity(): string | null;
   getRenderer(): AdjustmentInteractionRendererPort | null;
   previewSnapshot(
     adjustments: BasicAdjustments,
@@ -59,6 +61,7 @@ export interface AdjustmentTransactionController {
 interface ActiveAdjustmentTransaction {
   documentId: DocumentId | null;
   targetLayerId: LayerId | null;
+  targetIdentity: string | null;
   before: BasicAdjustments;
   latest: BasicAdjustments;
   domain: AdjustmentPresentationDomain;
@@ -136,7 +139,8 @@ export const createAdjustmentTransactionController = (
     setInteractiveQuality(false);
     const dependencies = resolveDependencies();
     if (dependencies.getDocumentId() !== completed.documentId
-      || dependencies.getActiveTargetLayerId() !== completed.targetLayerId) {
+      || dependencies.getActiveTargetLayerId() !== completed.targetLayerId
+      || dependencies.getActiveTargetIdentity() !== completed.targetIdentity) {
       if (dependencies.getDocumentId() === completed.documentId) {
         dependencies.restoreStagedSnapshot(cloneAdjustments(completed.before));
       }
@@ -181,9 +185,11 @@ export const createAdjustmentTransactionController = (
       const dependencies = resolveDependencies();
       const documentId = dependencies.getDocumentId();
       const targetLayerId = dependencies.getActiveTargetLayerId();
+      const targetIdentity = dependencies.getActiveTargetIdentity();
       if (transaction) {
         if (transaction.documentId === documentId
-          && transaction.targetLayerId === targetLayerId) return;
+          && transaction.targetLayerId === targetLayerId
+          && transaction.targetIdentity === targetIdentity) return;
         // Pointer capture can be lost when a contextual panel is replaced.
         // A later interaction must never inherit that transaction's owner.
         cancel();
@@ -192,6 +198,7 @@ export const createAdjustmentTransactionController = (
       transaction = {
         documentId,
         targetLayerId,
+        targetIdentity,
         before,
         latest: cloneAdjustments(before),
         domain: 'grade'
@@ -209,6 +216,11 @@ export const createAdjustmentTransactionController = (
       }
       if (transaction
         && dependencies.getActiveTargetLayerId() !== transaction.targetLayerId) {
+        cancel();
+        return false;
+      }
+      if (transaction
+        && dependencies.getActiveTargetIdentity() !== transaction.targetIdentity) {
         cancel();
         return false;
       }

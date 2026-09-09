@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGroupVisibility } from '../adjustments/groupVisibility';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { createDefaultAdjustments } from '../../types';
+import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import {
   buildAdjustmentUniform,
   DETAIL_PAYLOAD_OFFSET
@@ -19,6 +19,9 @@ const createFixture = () => {
   let groupVisibility = createDefaultGroupVisibility();
   const publishRendererDocument = vi.fn();
   const publishRendererAdjustments = vi.fn();
+  const publishDocumentAdjustments = vi.fn((next: BasicAdjustments) => {
+    documentAdjustments = next;
+  });
   const publishEditorAdjustments = vi.fn((next: typeof editorAdjustments) => {
     editorAdjustments = next;
   });
@@ -31,9 +34,7 @@ const createFixture = () => {
       if (next) document = next;
     },
     getDocumentAdjustments: () => documentAdjustments,
-    publishDocumentAdjustments: (next) => {
-      documentAdjustments = next;
-    },
+    publishDocumentAdjustments,
     publishEditorAdjustments,
     stageEditorAdjustments,
     getGroupVisibility: () => groupVisibility,
@@ -51,6 +52,7 @@ const createFixture = () => {
     getGroupVisibility: () => groupVisibility,
     publishRendererDocument,
     publishRendererAdjustments,
+    publishDocumentAdjustments,
     publishEditorAdjustments,
     stageEditorAdjustments
   };
@@ -88,6 +90,7 @@ describe('createDocumentProjectionController', () => {
       adjustmentStack: expect.objectContaining({ modules: expect.any(Array) })
     });
     expect(fixture.getDocumentAdjustments().exposureEV).toBe(0);
+    expect(fixture.publishDocumentAdjustments).not.toHaveBeenCalled();
     expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
     expect(fixture.publishEditorAdjustments).toHaveBeenCalledOnce();
     expect(fixture.stageEditorAdjustments).not.toHaveBeenCalled();

@@ -510,6 +510,28 @@ describe('LightTable document commands', () => {
     expect(merged.layers[0]).toMatchObject({ opacity: 1, blendMode: 'normal', mask: null });
   });
 
+  it('duplicates an Adjustment Layer with independent authored stack and mask identities', () => {
+    const base = createImageDocument('Adjustment duplicate', 100, 50, 'asset');
+    const adjusted = createAdjustmentLayer(
+      base,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Grade'
+    );
+    const source = adjusted.layers.at(-1)!;
+    const duplicated = duplicateLayer(adjusted, source.id);
+    const copy = duplicated.layers.at(-1)!;
+
+    expect(copy).toMatchObject({ type: 'adjustment', name: 'Grade copy' });
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.mask?.id).not.toBe(source.mask?.id);
+    if (source.type !== 'adjustment' || copy.type !== 'adjustment') {
+      throw new Error('Expected Adjustment Layers.');
+    }
+    expect(copy.adjustmentStack).toEqual(source.adjustmentStack);
+    expect(copy.adjustmentStack).not.toBe(source.adjustmentStack);
+    expect(copy.adjustmentStack.modules[0]).not.toBe(source.adjustmentStack.modules[0]);
+  });
+
   it('projects a merged vector-over-raster pair to the raster destination', () => {
     const base = createImageDocument('Image', 100, 50, 'asset');
     const withVector = createVectorLayer(base, [], 'Shape');

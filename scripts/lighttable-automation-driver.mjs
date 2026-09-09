@@ -36,6 +36,15 @@ export class LightTableAutomationClient {
     { documentId, layerId });
   }
 
+  queryAdjustment(documentId, target, expectedDocumentRevision) {
+    return this.page.evaluate(({ documentId, target, expectedDocumentRevision }) =>
+      window.__lightTableAutomation?.queryAdjustment(documentId, {
+        target,
+        ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision })
+      }) ?? null,
+    { documentId, target, expectedDocumentRevision });
+  }
+
   queryText(documentId, layerId) {
     return this.page.evaluate(({ documentId, layerId }) =>
       window.__lightTableAutomation?.queryText(documentId, layerId) ?? null,
@@ -75,6 +84,18 @@ export class LightTableAutomationClient {
   queryActionRecording() {
     return this.page.evaluate(() =>
       window.__lightTableAutomation?.actionRecordingSnapshot?.() ?? null);
+  }
+
+  startActionRecording(name) {
+    return this.page.evaluate((recordingName) => {
+      window.__lightTableAutomation?.startActionRecording?.(recordingName);
+    }, name);
+  }
+
+  stopActionRecording() {
+    return this.page.evaluate(() => {
+      window.__lightTableAutomation?.stopActionRecording?.();
+    });
   }
 
   queryActionPlayback() {

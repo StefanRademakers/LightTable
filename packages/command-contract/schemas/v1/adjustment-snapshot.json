@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "category": "adjustments",
+  "commands": {
+    "adjustment.setSnapshot": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "snapshot"],
+        "properties": {
+          "target": {
+            "title": "Adjustment owner",
+            "oneOf": [
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["kind", "owner"],
+                "properties": {
+                  "kind": { "type": "string", "const": "document" },
+                  "owner": { "type": "string", "enum": ["grade", "lens-fx"] }
+                }
+              },
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["kind", "layerId"],
+                "properties": {
+                  "kind": { "type": "string", "const": "layer" },
+                  "layerId": { "type": "string", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+                }
+              },
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["kind", "layerId", "adjustmentId"],
+                "properties": {
+                  "kind": { "type": "string", "const": "attached" },
+                  "layerId": { "type": "string", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+                  "adjustmentId": { "type": "string", "minLength": 1, "maxLength": 512 }
+                }
+              }
+            ]
+          },
+          "snapshot": {
+            "type": "object",
+            "title": "Complete adjustment snapshot",
+            "x-lighttable-runtime-validation": "complete-adjustment-snapshot-v1",
+            "description": "Opaque complete BasicAdjustments transport. Client schema tooling must pass it through unchanged; the named runtime codec enforces exact keys, canonical numeric ranges, enums and bounded arrays before execution."
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "changed"],
+        "properties": {
+          "target": { "type": "object" },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

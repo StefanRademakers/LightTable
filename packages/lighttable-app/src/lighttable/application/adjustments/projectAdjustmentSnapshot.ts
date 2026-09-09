@@ -78,7 +78,7 @@ export const projectAdjustmentSnapshot = ({
     });
     return {
       editorAdjustments,
-      documentAdjustments: createDefaultAdjustments(),
+      documentAdjustments,
       document: setRasterLayerAttachedAdjustmentStack(
         document,
         layer.id,
@@ -120,7 +120,7 @@ export const projectAdjustmentSnapshot = ({
     });
     return {
       editorAdjustments,
-      documentAdjustments: createDefaultAdjustments(),
+      documentAdjustments,
       document: setAdjustmentLayerStack(document, targetLayerId, {
         id: target.adjustmentStack.id,
         revision: changed
@@ -156,10 +156,9 @@ export const projectAdjustmentSnapshot = ({
       )
     ]
   };
-  const nextDocumentAdjustments = createDefaultAdjustments();
   return {
     editorAdjustments,
-    documentAdjustments: nextDocumentAdjustments,
+    documentAdjustments,
     document: setRasterLayerAdjustmentStack(document, targetLayerId, nextStack),
     scope
   };

@@ -76,6 +76,7 @@ test('current remote rollout remains a strict subset of the application command 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
     'adjustment.create',
+    'adjustment.setSnapshot',
     'file.exportNative',
     'file.exportPng',
     'file.exportBitmap',
@@ -815,6 +816,13 @@ test('adjustment creation schemas preserve exact placement semantics', () => {
   assert.equal(validateJsonSchemaValue(create.result, {
     kind: 'curves', placement: 'adjustment-layer', layerId: 'curves-1'
   }).valid, true);
+});
+
+test('complete adjustment snapshots declare their strict runtime codec instead of a looser nested schema', () => {
+  const snapshot = LIGHTTABLE_COMMAND_SCHEMAS['adjustment.setSnapshot'].input.properties.snapshot;
+  assert.equal(snapshot['x-lighttable-runtime-validation'], 'complete-adjustment-snapshot-v1');
+  assert.equal(snapshot.properties, undefined);
+  assert.match(snapshot.description, /pass it through unchanged/i);
 });
 
 test('Assign Profile is a closed metadata operation and not a pixel conversion', () => {

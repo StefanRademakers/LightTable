@@ -80,6 +80,7 @@ import {
   parseBasicAdjustmentTarget
 } from './semanticBasicAdjustmentCommandContract';
 import { parseSemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
+import { parseSemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
   parseAdjustmentQueryTarget,
@@ -1589,6 +1590,18 @@ export class LightTableCommandService {
           () => this.document(request.documentId)?.document?.revision);
         return result.ok ? { value: result.value } : result;
       }
+      case 'adjustment.setSnapshot': {
+        const command = parseSemanticAdjustmentSnapshotCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeAdjustmentSnapshot) {
+          return { code: 'command-unavailable', message: 'Adjustment editing is unavailable in this host.' };
+        }
+        const result = await this.ports.executeAdjustmentSnapshot(request.documentId, command);
+        if (!result || typeof result !== 'object') {
+          return { code: 'execution-failed', message: 'The adjustment snapshot could not be applied.' };
+        }
+        return { value: result, changed: (result as { changed?: boolean }).changed !== false };
+      }
       case 'raster.invert': {
         const result = await dispatchSemanticRasterInvert(parameters, snapshot.document!,
           this.ports.executeRasterInvert
@@ -1674,10 +1687,11 @@ export class LightTableCommandService {
         if (command.kind === 'duplicate' || command.kind === 'copy-to-new-layer') {
           const layer = findDocumentLayer(snapshot.document!, command.layerId)!;
           if (command.kind === 'copy-to-new-layer' ? layer.type !== 'raster'
-            : layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector') {
+            : layer.type !== 'raster' && layer.type !== 'text'
+              && layer.type !== 'vector' && layer.type !== 'adjustment') {
             return { code: 'command-unavailable', message: command.kind === 'copy-to-new-layer'
               ? 'Layer via Copy requires a raster source layer.'
-              : 'Only raster, text and vector layers can currently be duplicated.' };
+              : 'Only raster, text, vector and adjustment layers can currently be duplicated.' };
           }
         }
         if (command.kind === 'delete'
@@ -2029,6 +2043,10 @@ export interface LightTableAutomationDriver {
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   /** Read-only diagnostic projection of the visible Actions recorder. */
   actionRecordingSnapshot?(): ActionRecordingSnapshot;
+  /** Internal packaged-test seam; intentionally absent from MCP command projection. */
+  startActionRecording?(name?: string): void;
+  /** Internal packaged-test seam; intentionally absent from MCP command projection. */
+  stopActionRecording?(): void;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   queryStartupTimeline?(documentId: DocumentSessionId): DocumentStartupTimelineSnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;

@@ -4,6 +4,7 @@ import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
+import type { SemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
 import type { SemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
@@ -182,6 +183,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeAdjustmentCreation']>>[0]) {
     const execute = this.resolve(documentId).executeAdjustmentCreation;
     if (!execute) throw new Error('Adjustment creation is unavailable in the target document.');
+    return execute(command);
+  }
+  executeAdjustmentSnapshot(documentId: DocumentSessionId,
+    command: SemanticAdjustmentSnapshotCommand) {
+    const execute = this.resolve(documentId).executeAdjustmentSnapshot;
+    if (!execute) throw new Error('Adjustment snapshot commands are unavailable in the target document.');
     return execute(command);
   }
   executeRasterInvert(documentId: DocumentSessionId,

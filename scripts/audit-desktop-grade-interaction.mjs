@@ -109,10 +109,9 @@ try {
   });
 
   const exercise = async ({ groupLabel, sliderLabel, expectedStage }) => {
-    const group = gradePanel.locator('.lighttable-group').filter({
-      has: page.getByRole('button', { name: groupLabel, exact: true })
-    });
-    const groupToggle = group.getByRole('button', { name: groupLabel, exact: true });
+    const groupToggle = gradePanel.locator('button.ui-panel-section__toggle')
+      .filter({ hasText: new RegExp(`^${groupLabel}$`) });
+    const group = groupToggle.locator('xpath=ancestor::section[contains(@class,"ui-panel-section")]');
     if (await groupToggle.getAttribute('aria-expanded') === 'false') await groupToggle.click();
     const visibilitySwitch = group.getByRole('switch');
     if (await visibilitySwitch.getAttribute('aria-checked') === 'false') await visibilitySwitch.click();
@@ -196,7 +195,7 @@ try {
       throw new Error(`${sliderLabel} exceeded the bounded interaction cadence at ${result.publishHz.toFixed(1)} Hz.`);
     }
 
-    const reset = group.getByRole('button', { name: `Reset ${groupLabel} adjustments`, exact: true });
+    const reset = group.getByRole('button', { name: `Reset ${groupLabel}`, exact: true });
     await reset.click();
     await page.waitForTimeout(250);
   };

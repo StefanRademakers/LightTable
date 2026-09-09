@@ -17,6 +17,7 @@ const setup = () => {
   let documentId = firstDocument.id;
   let adjustments = createDefaultAdjustments();
   let targetLayerId = firstDocument.activeLayerId;
+  let targetIdentity = `layer:${targetLayerId}:grade`;
   const history: AdjustmentHistoryEntry[] = [];
   const renderer = {
     setScopeInteractionActive: vi.fn(),
@@ -45,6 +46,7 @@ const setup = () => {
     getDocumentId: () => documentId,
     getAdjustments: () => adjustments,
     getActiveTargetLayerId: () => targetLayerId,
+    getActiveTargetIdentity: () => targetIdentity,
     getRenderer: () => renderer,
     previewSnapshot,
     commitSnapshot,
@@ -65,7 +67,11 @@ const setup = () => {
     history,
     get adjustments() { return adjustments; },
     switchDocument: () => { documentId = secondDocument.id; },
-    switchTarget: () => { targetLayerId = secondDocument.activeLayerId; }
+    switchTarget: () => {
+      targetLayerId = secondDocument.activeLayerId;
+      targetIdentity = `layer:${targetLayerId}:grade`;
+    },
+    switchSubOwner: () => { targetIdentity = `layer:${targetLayerId}:lens-fx`; }
   };
 };
 
@@ -186,5 +192,20 @@ describe('adjustment transaction controller', () => {
     expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
     expect(state.previewSnapshot).not.toHaveBeenCalled();
     expect(state.commitSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('does not let equal layer IDs hide a contextual owner switch', () => {
+    const state = setup();
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
+    state.switchSubOwner();
+
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, contrast: 20 }), 'lens-fx');
+    state.controller.end();
+
+    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
+    expect(state.history).toHaveLength(1);
+    expect(state.commitSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
   });
 });

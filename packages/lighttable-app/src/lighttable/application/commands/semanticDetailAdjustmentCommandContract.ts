@@ -1,4 +1,5 @@
 import type { DetailAdjustments } from '../../detail';
+import { DETAIL_ADJUSTMENT_RANGES } from '../adjustments/adjustmentValueConstraints';
 import {
   parseBasicAdjustmentTarget,
   type BasicAdjustmentTarget
@@ -6,21 +7,7 @@ import {
 
 export type DetailAdjustmentKey = keyof DetailAdjustments;
 
-export const DETAIL_ADJUSTMENT_RANGES: Readonly<Record<
-  DetailAdjustmentKey,
-  { readonly min: number; readonly max: number }
->> = Object.freeze({
-  sharpeningAmount: { min: 0, max: 150 },
-  sharpeningRadius: { min: 0.5, max: 3 },
-  sharpeningDetail: { min: 0, max: 100 },
-  sharpeningMasking: { min: 0, max: 100 },
-  luminanceNoiseReduction: { min: 0, max: 100 },
-  luminanceDetail: { min: 0, max: 100 },
-  luminanceContrast: { min: 0, max: 100 },
-  colorNoiseReduction: { min: 0, max: 100 },
-  colorDetail: { min: 0, max: 100 },
-  colorSmoothness: { min: 0, max: 100 }
-});
+export { DETAIL_ADJUSTMENT_RANGES } from '../adjustments/adjustmentValueConstraints';
 
 export interface SemanticDetailAdjustmentCommand {
   readonly target: BasicAdjustmentTarget;

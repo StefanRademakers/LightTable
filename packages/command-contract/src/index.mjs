@@ -11,6 +11,8 @@ import { createCommandBatchSchema } from './batch-schema.mjs';
 
 import adjustmentCreationCommandSchemas from '../schemas/v1/adjustment-creation.json' with { type: 'json' };
 
+import adjustmentSnapshotCommandSchemas from '../schemas/v1/adjustment-snapshot.json' with { type: 'json' };
+
 import artifactCommandSchemas from '../schemas/v1/artifact.json' with { type: 'json' };
 
 import autoAlignCommandSchemas from '../schemas/v1/auto-align.json' with { type: 'json' };
@@ -106,6 +108,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'layer.setTransform',
   'transform.applyFixed',
   'adjustment.create',
+  'adjustment.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',
@@ -174,6 +177,7 @@ export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
 const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(adjustmentCreationCommandSchemas),
+  ...schemaModuleCommands(adjustmentSnapshotCommandSchemas),
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(autoAlignCommandSchemas),
   ...schemaModuleCommands(documentColorCommandSchemas),
@@ -243,6 +247,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'layer.setTransform',
   'transform.applyFixed',
   'adjustment.create',
+  'adjustment.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',
@@ -316,6 +321,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'layer.setTransform',
   'transform.applyFixed',
   'adjustment.create',
+  'adjustment.setSnapshot',
   'raster.invert',
   'layer.rasterize',
   'text.convertToShape',

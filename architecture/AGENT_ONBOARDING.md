@@ -207,6 +207,32 @@ Warp authoring starts behind a bounded application controller. Owner feel
 acceptance is open, and no more text policy may enter the 9k-line overlay before
 its post-hit adapter is extracted.
 
+Warp reset, updated 2026-09-09: read
+[Warp vertical slice](editor-kernel/WARP_VERTICAL_SLICE.md) before changing
+raster Warp, imported Text Warp or experimental Face Warp. One renderer-bound
+lease owns the immutable source and transient previews; an accepted gesture
+rebuilds from that source and publishes one canonical/history transition.
+Never use a committed preview as the next source or add Text Warp authoring to
+the text overlay as an incidental extension. Raster and Face Warp packaged
+gates passed; owner feel acceptance remains open.
+
+Adjustment reset, updated 2026-09-09: read
+[Adjustment-layer vertical slice](editor-kernel/ADJUSTMENT_LAYER_VERTICAL_SLICE.md)
+before changing Adjustment Layers, attached adjustments or their Properties
+panels. `ImageDocument.layers` owns layer-local stacks and
+`DocumentSession.processing.adjustments` independently owns document-wide
+processing. Panels and renderer pipelines are projections, not history truth.
+Every gesture locks one exact contextual sub-owner and ends as one strict,
+complete `adjustment.setSnapshot`; creation and masked duplication use the
+shared document/pixel-history routes. Do not restore panel mirrors, publish the
+same edit through multiple owners, route filter-only nodes through this generic
+snapshot command, or treat specialized kinds as generic stack replacement.
+Grain is a Lens-Fx sub-owner and not a standalone creation item; hidden legacy
+Vibrance stays readable without a duplicate menu item. Automated packaged and
+critic gates passed. Owner acceptance remains open, and S13 must define durable
+quarantine/retry ownership when both history publication and GPU compensation
+fail.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

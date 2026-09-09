@@ -207,7 +207,8 @@ export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] 
   },
   {
     id: 'grain', name: 'Grain', menuLabel: 'Grain',
-    iconName: 'layer_adjustment.png', family: 'photoshop', moduleTypes: ['lt.grain']
+    iconName: 'layer_adjustment.png', family: 'photoshop', moduleTypes: ['lt.grain'],
+    creationVisible: false
   }
 ] as const;
 

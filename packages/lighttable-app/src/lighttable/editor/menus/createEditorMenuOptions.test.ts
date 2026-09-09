@@ -163,7 +163,7 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.applyDocumentGeometry).not.toHaveBeenCalled();
   });
 
-  it('exposes the complete current adjustment catalog with Photoshop shortcuts', () => {
+  it('exposes the complete standalone adjustment catalog with Photoshop shortcuts', () => {
     const menuCommands = commands();
     const image = createEditorMenuOptions('image', state(), labels, menuCommands);
     const adjustments = image.find(({ value }) => value === 'image-adjustments')?.children;
@@ -187,7 +187,7 @@ describe('createEditorMenuOptions', () => {
       'Color and Vibrance...', 'Hue / Saturation...', 'Color Balance...',
       'Black & White...', 'Photo Filter...', 'Channel Mixer...', 'Color Lookup...',
       'Invert...', 'Posterize...', 'Threshold...', 'Gradient Map...', 'Selective Color...',
-      'Clarity and Dehaze...', 'Grain...'
+      'Clarity and Dehaze...'
     ]);
     expect(adjustments?.filter(({ separatorBefore }) => separatorBefore).map(({ value }) => value))
       .toEqual([

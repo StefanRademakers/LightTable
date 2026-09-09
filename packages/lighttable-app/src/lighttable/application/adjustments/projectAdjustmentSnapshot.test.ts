@@ -47,7 +47,7 @@ describe('adjustment snapshot projection', () => {
     expect(result.documentAdjustments.exposureEV).toBe(1.5);
   });
 
-  it('stores Grade and Lens Fx on the raster owner and clears hidden document effects', () => {
+  it('stores Grade and Lens Fx on the raster owner without changing document processing', () => {
     const document = createImageDocument('Image', 64, 48, 'image');
     const rasterId = document.activeLayerId;
     if (!rasterId) throw new Error('Expected an active raster layer.');
@@ -65,7 +65,8 @@ describe('adjustment snapshot projection', () => {
     });
     expect(result.scope).toBe('layer');
     expect(result.documentAdjustments.exposureEV).toBe(0);
-    expect(result.documentAdjustments.effects.grain.enabled).toBe(false);
+    expect(result.documentAdjustments.effects.grain.enabled).toBe(true);
+    expect(result.documentAdjustments).toBe(documentAdjustments);
     const projected = result.document
       ? findDocumentLayer(result.document, rasterId)
       : null;
@@ -160,7 +161,8 @@ describe('adjustment snapshot projection', () => {
       documentAdjustments
     });
     expect(result.scope).toBe('adjustment-layer');
-    expect(result.documentAdjustments.effects.grain.enabled).toBe(false);
+    expect(result.documentAdjustments.effects.grain.enabled).toBe(true);
+    expect(result.documentAdjustments.effects.grain.amount).toBe(1.55);
     expect(result.documentAdjustments.contrast).toBe(0);
     if (!result.document) throw new Error('Expected a projected document.');
     const projected = findDocumentLayer(result.document, adjustmentId);

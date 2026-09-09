@@ -16,8 +16,9 @@ This status file remains the compact statement of what is actually migrated.
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
 | vector paths and live shapes | renderer-only fallback retained | implemented | complete S05 vertical | packaged automated | partial |
 | text/path text | overlay adapter retained | implemented | complete S06 vertical | packaged automated | partial |
-| warp | yes | documented | no | no | no |
-| adjustments/effects/filters | yes | documented | no | no | no |
+| warp | compatibility paths retained | implemented | complete S07 raster/Face Warp vertical | packaged automated | partial |
+| adjustment layers | compatibility paths retained | implemented | complete S08 lifecycle | packaged automated | partial |
+| layer styles/effects/filters | yes | documented | no | no | no |
 | open/render/save/recovery | yes | documented | no | no | no |
 | Action/MCP equivalence | yes | documented | no | no | no |
 
@@ -122,6 +123,24 @@ Text Warp remains S07, owner feel acceptance is open, and the accepted
 overlay-local activation adapter must be extracted before adding more text
 policy. See
 [Text and Path Text vertical slice](TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md).
+
+Warp is the eighth implemented vertical. A renderer-bound lease retains the
+immutable source across repeated Warp interactions; pointer previews remain
+transient and each accepted gesture rebuilds from the canonical source rather
+than repeatedly rasterizing the previous preview. Raster Warp and the hidden
+experimental Face Warp route have packaged lifecycle and performance evidence.
+Imported Text Warp remains renderable canonical data, but authoring it is not a
+current product surface. See [Warp vertical slice](WARP_VERTICAL_SLICE.md).
+
+Adjustment Layers are the ninth implemented vertical. The document owns layer
+and attached adjustment stacks, while the Properties panel and renderer are
+derived projections. Gesture targets are locked to one exact sub-owner and one
+strict complete `adjustment.setSnapshot` command records the terminal change.
+Creation, edit/cancel, exact undo/redo, masked duplication, Action recording,
+catalog coverage and 4K packaged interaction passed. The final critic reported
+no P0/P1; owner visual/feel acceptance and the S13 double-failure resource soak
+remain open. See
+[Adjustment-layer vertical slice](ADJUSTMENT_LAYER_VERTICAL_SLICE.md).
 
 ## Structural baseline still failing
 

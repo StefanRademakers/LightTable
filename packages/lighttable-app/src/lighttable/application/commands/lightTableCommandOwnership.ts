@@ -34,6 +34,7 @@ const MOUNTED_DOCUMENT_COMMAND_PORTS = {
   'layer.setTransform': 'executeLayerCommand',
   'transform.applyFixed': 'executeFixedTransform',
   'adjustment.create': 'executeAdjustmentCreation',
+  'adjustment.setSnapshot': 'executeAdjustmentSnapshot',
   'raster.invert': 'executeRasterInvert',
   'layer.rasterize': 'executeLayerRasterize',
   'text.convertToShape': 'executeTextToShape',

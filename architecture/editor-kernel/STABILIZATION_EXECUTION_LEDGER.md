@@ -179,7 +179,7 @@ slice; they are not postponed to the final phase.
 | S05 | Vector paths and live shapes | `owner` | yes | passed | passed | [ ] | partial |
 | S06 | Text, paragraph/vertical/path text and text conversion | `owner` | yes | passed | passed | [ ] | partial (warp -> S07) |
 | S07 | Warp and experimental Face Warp | `owner` | yes | passed | passed | [ ] | partial (Text Warp authoring absent) |
-| S08 | Adjustment-layer lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S08 | Adjustment-layer lifecycle | `owner` | yes | passed | passed | [ ] | partial |
 | S09 | Layer styles/effects lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S10 | Filters P0, P1 and P2 by release tier | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -376,13 +376,32 @@ First prove the common lifecycle: create, select, edit preview, commit/cancel,
 mask/clipping, reorder, duplicate, enable, delete, rasterize/merge, undo/redo,
 save/open and renderer rebind. Then check every catalog entry:
 
-- [ ] Grade; Lens Fx.
-- [ ] Brightness / Contrast; Levels; Curves; Exposure.
-- [ ] Color and Vibrance; Hue / Saturation; Color Balance; Black & White.
-- [ ] Photo Filter; Channel Mixer; Color Lookup; Selective Color.
-- [ ] Invert; Posterize; Threshold; Gradient Map.
-- [ ] Clarity and Dehaze; Grain.
-- [ ] Hidden legacy `Vibrance` identity remains readable without a duplicate UI.
+- [x] Ownership map and single-route contract recorded in
+      `ADJUSTMENT_LAYER_VERTICAL_SLICE.md`.
+- [x] Adjustment Layer and attached creation no longer stores panel mirrors in
+      history or uses a second multi-publication lifecycle.
+- [x] Layer-local edits preserve independent document-wide processing.
+- [x] Contextual panel state is re-derived from the canonical owner after
+      generic document publication, including undo/redo owner changes.
+- [x] Two bounded critic repair passes completed; ownership locking, disabled
+      state, rebind, sidecar publication, presentation caching and Lens-Fx GPU
+      retention are accepted.
+- [x] Bounded follow-up cycle closed document-owner isolation,
+      specialized-kind preservation, complete transport validation/schema and
+      masked duplication; the fresh critic verdict contains no P0/P1.
+- [x] Packaged lifecycle, Action, undo/redo, masked duplication and 4K
+      interaction/resource evidence recorded.
+- [ ] Owner manually accepts adjustment interaction and visual output.
+
+- [x] Grade; Lens Fx.
+- [x] Brightness / Contrast; Levels; Curves; Exposure.
+- [x] Color and Vibrance; Hue / Saturation; Color Balance; Black & White.
+- [x] Photo Filter; Channel Mixer; Color Lookup; Selective Color.
+- [x] Invert; Posterize; Threshold; Gradient Map.
+- [x] Clarity and Dehaze.
+- [x] Grain remains a queryable Lens-Fx sub-owner and is deliberately not a
+      standalone creation item.
+- [x] Hidden legacy `Vibrance` identity remains readable without a duplicate UI.
 
 ### S09 -- layer styles/effects
 
@@ -453,7 +472,7 @@ lines plus responsibilities here.
 | --- | --- | --- | --- |
 | `useSelectionSessionController.ts` | React/input adapter | terminal command, mask/resource and history coordination -> S00 kernel/adapters | [ ] |
 | `SmartSelectionToolController.ts` | model-neutral inference and gesture session | preview renderer lifetime -> `SmartSelectionPreviewLease`; terminal document mutation/history -> S00 kernel adapter | S00B-3 |
-| `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; clipboard/document geometry -> S11 | S02: 1970 -> 1804; four mask owners extracted |
+| `useLayerDocumentCommands.ts` | thin command adapter/composition | finalization -> S01; masks/tasks -> S02; adjustment duplication -> S08; clipboard/document geometry -> S11 | S08: 1812 -> 1710; adjustment mask duplication/history coordination extracted to `duplicateAdjustmentLayerCommand` |
 | `useTransformSessionController.ts` | pointer/key sampling | snap session, transform transaction and commit/history -> S04 | [ ] |
 | `LayerStyleEditor.tsx` | presentational editor composition | preview transaction and style mutation service -> S09 | [ ] |
 | `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |

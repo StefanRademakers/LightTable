@@ -15,6 +15,11 @@ import { createDefaultLensDistortionSettings } from './effects/lensDistortion/se
 import { createDefaultLensBlurSettings, LENS_BLUR_QUALITIES } from './effects/lensBlur/settings';
 import { createDefaultVignetteSettings } from './effects/vignette/settings';
 import { createDefaultGradeLook } from './gradeLook';
+import {
+  clonePhotoshopAdjustment,
+  isPhotoshopAdjustmentKind,
+  type PhotoshopAdjustmentSettings
+} from './photoshopAdjustments';
 
 export interface LightTableRecipe {
   sourceFileKey: string;
@@ -27,6 +32,24 @@ export interface LightTableRecipe {
 const isObject = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 );
+
+const jsonEquivalent = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right)
+      && left.length === right.length
+      && left.every((entry, index) => jsonEquivalent(entry, right[index]));
+  }
+  if (isObject(left) || isObject(right)) {
+    if (!isObject(left) || !isObject(right)) return false;
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    return leftKeys.length === rightKeys.length
+      && leftKeys.every((key, index) => key === rightKeys[index]
+        && jsonEquivalent(left[key], right[key]));
+  }
+  return false;
+};
 
 const parseEffectSettings = <Settings extends object>(raw: unknown, defaults: Settings) => {
   if (!isObject(raw)) return null;
@@ -195,6 +218,11 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
 
   const rawCurves = value.curves;
   if (isObject(rawCurves)) {
+    if (rawCurves.interpolation === 'monotone'
+      || rawCurves.interpolation === 'photoshop-natural') {
+      settings.curves.interpolation = rawCurves.interpolation;
+      recognizedSettings += 1;
+    }
     CURVE_CHANNELS.forEach((channel) => {
       const points = rawCurves[channel];
       if (Array.isArray(points) && points.length >= 2 && points.length <= 32 && points.every((point) => (
@@ -232,6 +260,26 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
       && typeof stop.opacity === 'number' && Number.isFinite(stop.opacity))) {
     settings.gradientMap = structuredClone(rawGradientMap) as unknown as NonNullable<BasicAdjustments['gradientMap']>;
     recognizedSettings += 1;
+  }
+
+  const rawPhotoshopAdjustment = value.photoshopAdjustment;
+  if (isObject(rawPhotoshopAdjustment)
+    && isPhotoshopAdjustmentKind(rawPhotoshopAdjustment.kind)) {
+    try {
+      const parsed = clonePhotoshopAdjustment(
+        rawPhotoshopAdjustment as unknown as PhotoshopAdjustmentSettings
+      );
+      // The clone normalizes legacy/incomplete data. A complete command or
+      // layered-document snapshot must round-trip exactly before it can
+      // become canonical state.
+      if (jsonEquivalent(parsed, rawPhotoshopAdjustment)) {
+        settings.photoshopAdjustment = parsed;
+        recognizedSettings += 1;
+      }
+    } catch {
+      // Invalid nested Photoshop-shaped values are rejected by the complete
+      // snapshot comparison performed by their caller.
+    }
   }
 
   const rawEffects = value.effects;

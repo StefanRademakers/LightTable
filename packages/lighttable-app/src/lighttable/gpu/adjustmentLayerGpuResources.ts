@@ -57,18 +57,21 @@ export interface AdjustmentLayerGpuDependencies {
 
 export function collectAdjustmentLayerIds(nodes: readonly LayerNode[]): Set<LayerId> {
   const ids = new Set<LayerId>();
+  const usesAdjustmentRenderer = (stack: NonNullable<AdjustmentLayer['adjustmentStack']>) =>
+    adjustmentStackOwnerIsEnabled(stack, 'grade')
+    || adjustmentStackOwnerIsEnabled(stack, 'lens-fx');
   const visit = (entries: readonly LayerNode[]) => {
     for (const node of entries) {
       if (
         (node.type === 'adjustment' || node.type === 'raster')
         && node.adjustmentStack
-        && adjustmentStackOwnerIsEnabled(node.adjustmentStack, 'grade')
+        && usesAdjustmentRenderer(node.adjustmentStack)
       ) ids.add(node.id);
       if (node.type === 'raster') {
         for (const adjustment of node.attachedAdjustments ?? []) {
           if (!adjustment.enabled) continue;
           const owner = attachedAdjustmentProcessingOwner(node, adjustment);
-          if (adjustmentStackOwnerIsEnabled(owner.adjustmentStack!, 'grade')) ids.add(owner.id);
+          if (usesAdjustmentRenderer(owner.adjustmentStack!)) ids.add(owner.id);
         }
       } else if (node.type === 'group') visit(node.children);
     }

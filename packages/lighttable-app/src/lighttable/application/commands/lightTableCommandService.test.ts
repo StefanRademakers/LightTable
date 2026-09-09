@@ -2048,6 +2048,34 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('validates, records and replays a complete attached adjustment snapshot', async () => {
+    const executeAdjustmentSnapshot = vi.fn(async (_documentId, command) => ({
+      target: command.target, changed: true
+    }));
+    const state = setup({ executeAdjustmentSnapshot });
+    const snapshot = createDefaultAdjustments();
+    snapshot.photoshopAdjustment.kind = 'levels';
+    snapshot.photoshopAdjustment.levels.rgb.input = [8, 1.15, 242];
+    const parameters = {
+      target: { kind: 'attached' as const, layerId: 'photo', adjustmentId: 'levels' },
+      snapshot
+    };
+    state.service.startActionRecording('Adjust attached Levels');
+    await expect(state.service.execute(request(
+      'adjustment.setSnapshot', state.session.id, parameters
+    ))).resolves.toMatchObject({ status: 'completed', value: { changed: true } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'adjustment.setSnapshot', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeAdjustmentSnapshot).toHaveBeenCalledTimes(2);
+    await expect(state.service.execute(request('adjustment.setSnapshot', state.session.id, {
+      target: parameters.target, snapshot: { exposureEV: 1 }
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates, records and replays one final Detail patch', async () => {
     const executeDetailAdjustmentCommand = vi.fn(async () => ({
       target: { kind: 'document' },

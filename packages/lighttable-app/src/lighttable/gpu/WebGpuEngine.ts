@@ -2165,6 +2165,12 @@ export class WebGpuEngine {
     return changed;
   }
 
+  copyLayerMask(sourceId: LayerId, destinationId: LayerId) {
+    const changed = this.documentRenderer?.copyLayerMask(sourceId, destinationId) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   mergeLayerDown(document: ImageDocument, topId: LayerId, bottomId: LayerId) {
     const changed = this.documentRenderer?.mergeLayerDown(
       document,

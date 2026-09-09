@@ -139,3 +139,39 @@ describe('layer document asset loading', () => {
     );
   });
 });
+
+describe('layer mask duplication', () => {
+  it('copies a document-sized node mask and releases submitted temporaries', () => {
+    const source = {} as GPUTexture;
+    const destination = {} as GPUTexture;
+    const copyTextureToTexture = vi.fn();
+    const finish = vi.fn(() => ({}) as GPUCommandBuffer);
+    const submit = vi.fn();
+    const releaseAfterSubmit = vi.fn();
+    const renderer = Object.create(LayerDocumentRenderer.prototype) as {
+      device: GPUDevice;
+      document: ReturnType<typeof createImageDocument>;
+      runtime: {
+        layerResources: { maskTexture(id: string): GPUTexture | null };
+        renderResources: { releaseAfterSubmit(): void };
+      };
+      copyLayerMask: LayerDocumentRenderer['copyLayerMask'];
+    };
+    renderer.device = {
+      createCommandEncoder: vi.fn(() => ({ copyTextureToTexture, finish })),
+      queue: { submit }
+    } as unknown as GPUDevice;
+    renderer.document = createImageDocument('Mask copy', 320, 180, 'source');
+    renderer.runtime = {
+      layerResources: { maskTexture: (id) => id === 'source' ? source : destination },
+      renderResources: { releaseAfterSubmit }
+    };
+
+    expect(renderer.copyLayerMask('source' as never, 'destination' as never)).toBe(true);
+    expect(copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: source }, { texture: destination }, [320, 180]
+    );
+    expect(submit).toHaveBeenCalledOnce();
+    expect(releaseAfterSubmit).toHaveBeenCalledOnce();
+  });
+});
