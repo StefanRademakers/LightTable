@@ -45,6 +45,25 @@ const assertRetained = (label, baseline, current) => {
   }
 };
 
+const assertSourceEquivalent = (label, baseline, current) => {
+  if (current.alpha === 0 || current.opaque === 0 || current.rgb === 0
+    || current.width !== baseline.width || current.height !== baseline.height) {
+    throw new Error(`${label} source geometry/coverage changed: ${JSON.stringify({ baseline, current })}`);
+  }
+  const alphaDelta = Math.abs(current.alpha - baseline.alpha) / Math.max(1, baseline.alpha);
+  const opaqueDelta = Math.abs(current.opaque - baseline.opaque) / Math.max(1, baseline.opaque);
+  const rgbDelta = Math.abs(current.rgb - baseline.rgb) / Math.max(1, baseline.rgb);
+  // A close/reopen performs a new browser/native image decode, unlike a tab
+  // rebind. Color-profile and resampling implementations may round slightly;
+  // source identity still requires near-identical coverage and a tight
+  // aggregate color bound.
+  if (alphaDelta > 0.001 || opaqueDelta > 0.001 || rgbDelta > 0.05) {
+    throw new Error(`${label} source appearance changed: ${JSON.stringify({
+      baseline, current, alphaDelta, opaqueDelta, rgbDelta
+    })}`);
+  }
+};
+
 const mimeTypeFor = (file) => ({
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -121,6 +140,52 @@ try {
   const secondBaseline = await previewMetrics(secondId, 'png');
   const secondLayerIds = (await driver.queryLayers(secondId)).map((layer) => layer.id);
 
+  await page.evaluate(() => {
+    const events = [];
+    const record = () => {
+      const viewport = document.querySelector('.lighttable-viewport');
+      const workspace = window.__lightTableAutomation?.queryWorkspace();
+      if (!(viewport instanceof HTMLElement) || !workspace?.activeDocumentId) return;
+      const next = {
+        documentId: workspace.activeDocumentId,
+        ready: viewport.dataset.presentationReady === 'true',
+        busy: viewport.getAttribute('aria-busy'),
+        canvasVisibility: getComputedStyle(
+          viewport.querySelector('.lighttable-viewport__canvas')
+        ).visibility
+      };
+      const previous = events.at(-1);
+      if (!previous || previous.documentId !== next.documentId || previous.ready !== next.ready
+        || previous.canvasVisibility !== next.canvasVisibility) events.push(next);
+    };
+    const observer = new MutationObserver(record);
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['aria-selected', 'aria-busy', 'class', 'data-presentation-ready']
+    });
+    window.__lightTablePresentationProbe = {
+      clear: () => { events.length = 0; },
+      read: () => [...events],
+      record
+    };
+    record();
+  });
+
+  const assertPresentationTransition = async (documentId, label) => {
+    const events = await page.evaluate(() => window.__lightTablePresentationProbe?.read() ?? []);
+    const owned = events.filter((event) => event.documentId === documentId);
+    const pending = owned.find((event) => !event.ready);
+    const presented = owned.findLast((event) => event.ready);
+    if (!pending || pending.canvasVisibility !== 'hidden' || pending.busy !== 'true') {
+      throw new Error(`${label} exposed a retained frame before presentation: ${JSON.stringify(events)}`);
+    }
+    if (!presented || presented.canvasVisibility !== 'visible' || presented.busy !== 'false') {
+      throw new Error(`${label} did not publish its presented frame: ${JSON.stringify(events)}`);
+    }
+    return owned;
+  };
+
   // A document-addressed semantic mutation must not use tab activation as its
   // transport. Keep the second document visible while editing the first, then
   // prove canonical state/revision/history changed only on the requested ID.
@@ -157,11 +222,18 @@ try {
     await (cycle % 2 === 0 ? genAiWorkspace : gradingWorkspace).click();
     await page.keyboard.press(cycle % 2 === 0 ? 'p' : 'b');
     await photoWorkspace.click();
+    await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
     await firstTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, firstId);
     await driver.waitForRenderedDocument(firstId, 30_000);
-    const firstCurrent = await previewMetrics(firstId, cycle % 2 === 0 ? 'webp' : 'png');
+    // Retention is a document-state assertion, so compare the same lossless
+    // encoding on both sides. WebP validity belongs to the export codec smoke;
+    // a lossy encode is not evidence that inactive document pixels changed.
+    const firstCurrent = await previewMetrics(firstId, 'png');
+    const firstPresentation = await assertPresentationTransition(
+      firstId, `First document after cycle ${cycle + 1}`
+    );
     assertRetained(`First document after cycle ${cycle + 1}`, firstBaseline, firstCurrent);
     const firstCurrentLayerIds = (await driver.queryLayers(firstId)).map((layer) => layer.id);
     if (JSON.stringify(firstCurrentLayerIds) !== JSON.stringify(firstLayerIds)) {
@@ -170,18 +242,73 @@ try {
 
     await photoWorkspace.click();
     await page.keyboard.press(cycle % 2 === 0 ? 'm' : 'p');
+    await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
     await secondTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, secondId);
     await driver.waitForRenderedDocument(secondId, 30_000);
-    const secondCurrent = await previewMetrics(secondId, cycle % 2 === 0 ? 'webp' : 'png');
+    const secondCurrent = await previewMetrics(secondId, 'png');
+    const secondPresentation = await assertPresentationTransition(
+      secondId, `Second document after cycle ${cycle + 1}`
+    );
     assertRetained(`Second document after cycle ${cycle + 1}`, secondBaseline, secondCurrent);
     const secondCurrentLayerIds = (await driver.queryLayers(secondId)).map((layer) => layer.id);
     if (JSON.stringify(secondCurrentLayerIds) !== JSON.stringify(secondLayerIds)) {
       throw new Error(`Second document layer identity changed: ${JSON.stringify({ secondLayerIds, secondCurrentLayerIds })}`);
     }
-    cycles.push({ cycle: cycle + 1, first: firstCurrent, second: secondCurrent });
+    cycles.push({
+      cycle: cycle + 1,
+      first: firstCurrent,
+      second: secondCurrent,
+      firstPresentation,
+      secondPresentation
+    });
   }
+
+  // Do not let every switch settle: A -> B -> A used to let an old A waiter
+  // clear the newer A pending marker because pending ownership was only an id.
+  await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
+  await firstTab.click();
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryWorkspace()?.activeDocumentId === id, firstId);
+  await secondTab.click();
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryWorkspace()?.activeDocumentId === id, secondId);
+  await firstTab.click();
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryWorkspace()?.activeDocumentId === id, firstId);
+  await driver.waitForRenderedDocument(firstId, 30_000);
+  const rapidPresentation = await assertPresentationTransition(
+    firstId, 'Rapid A to B to A switch'
+  );
+  assertRetained('First document after rapid switch', firstBaseline,
+    await previewMetrics(firstId, 'png'));
+
+  // Closing disposes the old document session. Reopening the same artifact
+  // must still cross the pending gate before a newly owned frame is exposed.
+  await secondTab.click();
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryWorkspace()?.activeDocumentId === id, secondId);
+  await driver.waitForRenderedDocument(secondId, 30_000);
+  await page.keyboard.press('Control+W');
+  await page.waitForFunction((id) => {
+    const workspace = window.__lightTableAutomation?.queryWorkspace();
+    return workspace?.activeDocumentId !== id
+      && !workspace?.documents.some((document) => document.id === id);
+  }, secondId);
+  await page.evaluate(() => window.__lightTablePresentationProbe?.clear());
+  await driver.executeWorkspace('file.openArtifact', { artifactId: secondArtifact.id });
+  const reopenedSecondId = (await driver.queryWorkspace()).activeDocumentId;
+  if (!reopenedSecondId || reopenedSecondId === secondId || reopenedSecondId === firstId) {
+    throw new Error(`The closed artifact did not reopen as a new session: ${reopenedSecondId}`);
+  }
+  await driver.waitForDocument(reopenedSecondId, 60_000);
+  await driver.waitForRenderedDocument(reopenedSecondId, 30_000);
+  const reopenPresentation = await assertPresentationTransition(
+    reopenedSecondId, 'Closed document reopen'
+  );
+  assertSourceEquivalent('Reopened second document', secondBaseline,
+    await previewMetrics(reopenedSecondId, 'png'));
 
   if (pageErrors.length > 0) {
     throw new Error(`Renderer errors occurred: ${JSON.stringify(pageErrors)}`);
@@ -198,6 +325,9 @@ try {
       undoDepth: inactiveAfter.history.undoDepth
     },
     cycles,
+    rapidPresentation,
+    reopen: { previousDocumentId: secondId, reopenedDocumentId: reopenedSecondId,
+      presentation: reopenPresentation },
     pageErrors
   };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

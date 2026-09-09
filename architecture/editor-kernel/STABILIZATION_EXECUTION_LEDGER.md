@@ -183,7 +183,7 @@ slice; they are not postponed to the final phase.
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
-| S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S12 | View, zoom, panels, scopes and multi-document lifecycle | `active` | yes | passed | partial packaged pass | [ ] | partial |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
 
 The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
@@ -508,7 +508,11 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       edge zones use the measured `.lighttable-viewport`; a packaged smoke
       copies the same exact 80x60 document selection in Photo Edit, Grading and
       ruler-visible layouts. Screen-mode/floating-resize gates and critic pass.
-- [ ] Tab switch, close/reopen and renderer rebind show the correct first frame.
+- [x] Tab switch, close/reopen and renderer rebind show the correct first frame.
+      A layout-effect gate hides retained pixels and projections until the exact
+      document/epoch/renderer/generation presents. Five A/B cycles, rapid
+      A -> B -> A and close/reopen pass packaged with pixel/layer retention;
+      delayed thumbnails share the same owner guards. Final critic: PASS.
 - [ ] Background/minimize/restore preserves committed state and the first correct
       foreground frame; stale previews do not replay in a burst.
 - [ ] Losing foreground during an active gesture has one documented terminal
@@ -542,6 +546,7 @@ lines plus responsibilities here.
 | `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | S11 file I/O: Place artifact/terminal policy extracted, 1346 -> 1340 |
 | `useViewportInteractionController.ts` | DOM pointer sampling and coordinate adapter | retained pan gesture and coalesced document-bound frame publication -> S12 application-input owners | S12 pan/zoom authority extracted; explicit generation/capture adapter remains oversized and is no-growth |
+| `LightTableEditorOverlay.tsx` | editor composition root | retained-canvas first-frame and thumbnail publication -> S12 document-presentation owner | `useWorkspaceDocumentPresentation.ts` extracted; 9583 -> 9518 lines |
 
 Rules:
 

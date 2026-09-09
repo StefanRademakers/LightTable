@@ -46,6 +46,8 @@ export interface DocumentViewportSurfaceProps {
   scale: number;
   viewportSize: { width: number; height: number };
   transformState: TransformSessionState | null;
+  /** True only after this document generation has presented into the canvas. */
+  presentationReady?: boolean;
   loading: boolean;
   unavailable: boolean;
   onWheel: React.WheelEventHandler<HTMLDivElement>;
@@ -114,6 +116,7 @@ export const DocumentViewportSurface: React.FC<
   scale,
   viewportSize,
   transformState,
+  presentationReady = true,
   loading,
   unavailable,
   onWheel,
@@ -171,19 +174,21 @@ export const DocumentViewportSurface: React.FC<
       if (focused.matches('input, textarea, select, [contenteditable="true"]'))
         focused.blur();
     }
-    onPointerDown(event);
+    if (presentationReady) onPointerDown(event);
   };
   return (
     <div
       ref={viewportRef}
-      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${zoomOutActive ? " lighttable-viewport--zoom-out" : ""}${preciseBrushCursor ? " lighttable-viewport--precise-brush" : ""}${eyedropperActive ? " lighttable-viewport--eyedropper" : ""}${dragging ? " lighttable-viewport--dragging" : ""}${focusPickerActive ? " lighttable-viewport--focus-picker" : ""}`}
-      onWheel={onWheel}
+      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${presentationReady ? "" : " lighttable-viewport--presentation-pending"}${zoomOutActive ? " lighttable-viewport--zoom-out" : ""}${preciseBrushCursor ? " lighttable-viewport--precise-brush" : ""}${eyedropperActive ? " lighttable-viewport--eyedropper" : ""}${dragging ? " lighttable-viewport--dragging" : ""}${focusPickerActive ? " lighttable-viewport--focus-picker" : ""}`}
+      aria-busy={!presentationReady || loading}
+      data-presentation-ready={presentationReady ? "true" : "false"}
+      onWheel={presentationReady ? onWheel : undefined}
       onPointerDown={beginViewportPointer}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-      onPointerLeave={onPointerLeave}
-      onContextMenu={onContextMenu}
+      onPointerMove={presentationReady ? onPointerMove : undefined}
+      onPointerUp={presentationReady ? onPointerUp : undefined}
+      onPointerCancel={presentationReady ? onPointerCancel : undefined}
+      onPointerLeave={presentationReady ? onPointerLeave : undefined}
+      onContextMenu={presentationReady ? onContextMenu : undefined}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
       {cropBounds && onCropChange && onCropCommit && onCropCancel ? (
@@ -269,12 +274,12 @@ export const DocumentViewportSurface: React.FC<
           onViewportPan={onTransformViewportPan}
         />
       ) : null}
-      {loading ? (
+      {loading || !presentationReady ? (
         <div className="lighttable-viewport__message">
           Loading image and WebGPU pipeline...
         </div>
       ) : null}
-      {!loading && unavailable ? (
+      {!loading && presentationReady && unavailable ? (
         <div className="lighttable-viewport__message">
           LightTable is unavailable for this image.
         </div>

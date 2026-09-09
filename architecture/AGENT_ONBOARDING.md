@@ -455,6 +455,12 @@ Restore these short acceptance chains before resuming breadth:
 - open -> first correct frame -> edit -> save/close for representative desktop
   and web formats.
 
+For the active S12 renderer path, `useWorkspaceDocumentPresentation.ts` is the
+only owner of retained-canvas readiness and delayed document thumbnails. A
+document or renderer-generation change must invalidate presentation in a
+layout effect before paint; do not reintroduce an id-only `ready` flag, a timer
+that reads the latest renderer, or a second gate in `LightTableEditorOverlay`.
+
 ### Renderer/editor subsystem recovery capsule
 
 When the recovered work concerns rendering, SVG, document startup, canvas

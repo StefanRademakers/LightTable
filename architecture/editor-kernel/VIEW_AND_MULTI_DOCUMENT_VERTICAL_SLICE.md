@@ -1,6 +1,6 @@
 # View and multi-document vertical slice
 
-Status: active; pan and zoom accepted, remaining S12 presentation lifecycle open.
+Status: active; pan, zoom, layout geometry and first-correct-frame ownership accepted.
 
 ## Contract
 
@@ -49,6 +49,15 @@ gesture is never relabelled with the newly active document.
   `.lighttable-viewport`, never the window or workspace. The same exact 80x60
   document-space marquee copies at `{x:100,y:120}` under floating Layers,
   docked Scopes/Properties and visible rulers/tool options.
+- A tab switch or renderer generation invalidates the retained canvas in a
+  layout effect before paint. Canvas, selection and tool projections remain
+  hidden and input-inert until that exact document/renderer generation has
+  presented.
+- Presentation waiters and delayed thumbnails carry document id, presentation
+  epoch, renderer object and renderer generation. Rapid A -> B -> A cannot let
+  an old A waiter release the newer A gate or publish B as A's thumbnail.
+- Closing a document disposes its session; reopening the same source creates a
+  new session that crosses the same pending-hidden -> presented-visible gate.
 
 ## Evidence
 
@@ -67,6 +76,12 @@ gesture is never relabelled with the newly active document.
   across 1312 px Photo Edit and 1012 px Grading viewports plus visible rulers.
   Screen-mode and floating-panel-resize smokes pass; focused edge-zone tests
   prove local viewport offsets after dock changes. Independent critic: PASS.
+- `smoke-desktop-document-pixel-retention.mjs` passes five packaged A/B cycles,
+  a rapid unsettled A -> B -> A switch and close/reopen. Every activation first
+  records `pending + hidden` and then `ready + visible`; same-session pixels and
+  layer identities remain exact. Reopen preserves source-equivalent geometry,
+  alpha and appearance. The critic found and closed one stale thumbnail-timer
+  P1, then passed both the repair and the extraction with no remaining P0/P1.
 
 ## Structural decision
 
@@ -75,11 +90,12 @@ This sub-slice moves retained pan state and coalesced pan/zoom frame publication
 to two single-purpose application-input owners. The hook's textual diff grows
 because it adds explicit capture and generation checks, but it loses those two
 authorities; new behavior must extend the owners, not add another hook-local
-scheduler or drag ref. The next S12 extraction is panel/pasteboard geometry and
-edge-zone projection.
+scheduler or drag ref. First-frame and thumbnail ownership now live in the
+single-purpose 120-line `useWorkspaceDocumentPresentation.ts`; the editor root
+is 65 lines smaller than before this sub-slice instead of absorbing another
+presentation authority.
 
 ## Still open
 
-- first-correct-frame behavior on tab switch, close/reopen and renderer rebind;
 - background/minimize/restore and foreground-loss terminal policy;
 - hidden-document transient resource release without committed-resource loss.

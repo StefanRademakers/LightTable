@@ -42,6 +42,7 @@ import {
   type DocumentMutationTransaction
 } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
+import { useWorkspaceDocumentPresentation } from './composition/documents/useWorkspaceDocumentPresentation';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
@@ -830,9 +831,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle.getSnapshot
   );
   const [rendererRecoverySequence, setRendererRecoverySequence] = useState(0);
-  const [presentedWorkspaceDocumentId, setPresentedWorkspaceDocumentId] = useState<string | null>(null);
-  const presentedWorkspaceDocumentIdRef = useRef<string | null>(null);
-  const pendingWorkspacePresentationRef = useRef<string | null>(null);
   const recoveredFailureGenerationRef = useRef<number | null>(null);
   const consecutiveDeviceLossRecoveriesRef = useRef(0);
   const replaceRendererOnNextOpenRef = useRef(false);
@@ -864,49 +862,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const globalGradeStrengthRef = useRef(globalGradeStrength);
   const globalGradeStrengthGestureRef = useRef<number | null>(null);
-  const thumbnailTimerRef = useRef<number | null>(null);
-  const thumbnailGenerationRef = useRef(0);
-  const publishDocumentThumbnail = useCallback(async (renderer: DocumentRendererPort) => {
-    if (!onDocumentThumbnailChange) return;
-    const generation = ++thumbnailGenerationRef.current;
-    try {
-      const thumbnail = await renderer.exportThumbnailPng(256);
-      if (generation === thumbnailGenerationRef.current) {
-        onDocumentThumbnailChange(thumbnail);
-      }
-    } catch {
-      // Thumbnail publication is best-effort and must never fail document open.
-    }
-  }, [onDocumentThumbnailChange]);
-  const publishCompositeRendered = useCallback(() => {
-    const workspaceId = workspaceDocumentIdRef.current;
-    const renderer = engineRef.current;
-    if (renderer && presentedWorkspaceDocumentIdRef.current !== workspaceId
-      && pendingWorkspacePresentationRef.current !== workspaceId) {
-      pendingWorkspacePresentationRef.current = workspaceId;
-      void renderer.waitForPresentation().then(() => {
-        if (workspaceDocumentIdRef.current !== workspaceId) return;
-        presentedWorkspaceDocumentIdRef.current = workspaceId;
-        setPresentedWorkspaceDocumentId(workspaceId);
-      }, () => undefined).finally(() => {
-        if (pendingWorkspacePresentationRef.current === workspaceId) {
-          pendingWorkspacePresentationRef.current = null;
-        }
-      });
-    }
-    if (!onDocumentThumbnailChange) return;
-    if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
-    thumbnailTimerRef.current = window.setTimeout(() => {
-      thumbnailTimerRef.current = null;
-      const renderer = engineRef.current;
-      if (!renderer) return;
-      void publishDocumentThumbnail(renderer);
-    }, 180);
-  }, [onDocumentThumbnailChange, publishDocumentThumbnail]);
-  useEffect(() => () => {
-    thumbnailGenerationRef.current += 1;
-    if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
-  }, []);
+  const {
+    presentedDocumentId: presentedWorkspaceDocumentId,
+    publishCompositeRendered,
+    publishInitialThumbnail: publishDocumentThumbnail
+  } = useWorkspaceDocumentPresentation({
+    documentId: workspaceDocumentId,
+    rendererGeneration: rendererSnapshot.generation,
+    rendererLifecycle,
+    rendererRef: engineRef,
+    publishThumbnail: onDocumentThumbnailChange
+  });
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const adjustmentPresentationStoreRef = useRef<AdjustmentPresentationStore | null>(null);
   if (!adjustmentPresentationStoreRef.current) {
@@ -8662,6 +8628,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         scale: activeScale,
         viewportSize,
         transformState: temporarySelectionMoveActive ? null : transformState,
+        presentationReady: presentedWorkspaceDocumentId === workspaceDocumentId
+          && rendererSnapshot.status === 'ready',
         loading,
         unavailable: Boolean(error && !metadata),
         inputBridge: textEditing.status === 'editing' ? (

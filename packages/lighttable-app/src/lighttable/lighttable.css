@@ -1165,6 +1165,13 @@
   background: var(--lt-surface-workspace);
 }
 
+/* A retained canvas may still contain the previous document between a tab
+ * commit and the next renderer presentation. Keep every document projection
+ * hidden until the owning generation has reached its presentation boundary. */
+.lighttable-viewport--presentation-pending > :not(.lighttable-viewport__message) {
+  visibility: hidden;
+}
+
 .lighttable-layout-guides {
   position: absolute;
   inset: 0;
