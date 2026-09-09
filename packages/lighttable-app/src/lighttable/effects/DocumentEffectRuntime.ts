@@ -231,6 +231,20 @@ export class DocumentEffectRuntime {
     return true;
   }
 
+  canonicalizeWarpField(instanceId: string): boolean {
+    const node = this.nodesByInstanceId.get(instanceId);
+    return node?.type === 'lt.warp'
+      ? node.effect.canonicalizeWarpField?.() === true
+      : false;
+  }
+
+  setWarpPreviewActive(instanceId: string, active: boolean): boolean {
+    const node = this.nodesByInstanceId.get(instanceId);
+    if (node?.type !== 'lt.warp' || !node.effect.setInteractivePreviewActive) return false;
+    node.effect.setInteractivePreviewActive(active);
+    return true;
+  }
+
   get hasDepth(): boolean {
     return this.orderedNodes.some((node) => node.effect.hasDepth === true);
   }

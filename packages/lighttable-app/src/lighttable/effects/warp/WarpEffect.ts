@@ -7,7 +7,7 @@ import {
   WARP_RENDER_WGSL
 } from './shaders';
 import {
-  planWarpFieldUpdate,
+  planWarpProjectionUpdate,
   type WarpFieldUpdateKind
 } from './warpFieldUpdatePlan';
 import { createWarpGpuStamps, packWarpGpuStamps } from './warpStrokeSampling';
@@ -41,6 +41,8 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   private totalStampCount = 0;
   private fieldDirty = true;
   private pendingFieldUpdate: WarpFieldUpdateKind = 'rebuild';
+  private incrementalField = false;
+  private interactivePreviewActive = false;
   private committedStamps: Float32Array<ArrayBufferLike> = new Float32Array();
   private desiredStamps: Float32Array<ArrayBufferLike> = new Float32Array();
   private debugView: WarpDebugView = 'result';
@@ -126,7 +128,11 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   setSettings(settings: WarpNodeSettings): void {
     this.settings = structuredClone(settings);
     const nextStamps = packWarpGpuStamps(createWarpGpuStamps(settings.strokes));
-    const update = planWarpFieldUpdate(this.committedStamps, nextStamps);
+    const update = planWarpProjectionUpdate(
+      this.committedStamps,
+      nextStamps,
+      this.interactivePreviewActive
+    );
     this.desiredStamps = nextStamps;
     this.totalStampCount = nextStamps.length / 8;
     if (update.kind === 'none') {
@@ -158,6 +164,22 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     if (view === 'displacement' && this.totalStampCount > 0) {
       void this.debugPipeline.ensure();
     }
+  }
+
+  setInteractivePreviewActive(active: boolean): void {
+    this.interactivePreviewActive = active;
+  }
+
+  canonicalizeWarpField(): boolean {
+    if (this.totalStampCount === 0
+      || (!this.incrementalField && this.pendingFieldUpdate !== 'append')) return false;
+    this.replaceStampBuffer(this.desiredStamps);
+    this.pendingStampCount = this.totalStampCount;
+    this.pendingFieldUpdate = 'rebuild';
+    this.fieldDirty = true;
+    this.committedStamps = new Float32Array();
+    this.writeSettings();
+    return true;
   }
 
   resize(width: number, height: number): void {
@@ -216,6 +238,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
       pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
       pass.end();
       this.activeDisplacementIndex = outputIndex;
+      this.incrementalField = this.pendingFieldUpdate === 'append';
       this.committedStamps = this.desiredStamps.slice();
       this.pendingFieldUpdate = 'none';
       this.fieldDirty = false;
@@ -261,6 +284,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   destroyImageResources(): void {
     this.releaseImageTextures();
     this.committedStamps = new Float32Array();
+    this.incrementalField = false;
     if (this.totalStampCount > 0) {
       this.replaceStampBuffer(this.desiredStamps);
       this.pendingStampCount = this.totalStampCount;

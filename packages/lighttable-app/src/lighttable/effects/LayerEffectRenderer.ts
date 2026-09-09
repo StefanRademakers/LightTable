@@ -40,6 +40,11 @@ export class LayerEffectRenderer {
   private height = 0;
   private warpDebugView: WarpDebugView = 'result';
   private warpDebugLayerId: string | null = null;
+  private readonly pendingCanonicalWarp = new Map<
+    string,
+    { readonly moduleId: string; readonly moduleRevision: number }
+  >();
+  private interactiveWarp: { readonly layerId: string; readonly moduleId: string } | null = null;
   private depthMap: DepthAnalysisResult | null = null;
 
   constructor(
@@ -84,6 +89,23 @@ export class LayerEffectRenderer {
       );
     });
     return true;
+  }
+
+  requestCanonicalWarpProjection(
+    layerId: string,
+    moduleId: string,
+    moduleRevision: number
+  ): void {
+    this.pendingCanonicalWarp.set(layerId, { moduleId, moduleRevision });
+  }
+
+  setWarpPreviewLease(layerId: string, moduleId: string, active: boolean): void {
+    const previous = this.interactiveWarp;
+    if (previous) {
+      this.runtimes.get(previous.layerId)?.setWarpPreviewActive(previous.moduleId, false);
+    }
+    this.interactiveWarp = active ? { layerId, moduleId } : null;
+    if (active) this.runtimes.get(layerId)?.setWarpPreviewActive(moduleId, true);
   }
 
   encodeSourceGeometry(
@@ -142,6 +164,19 @@ export class LayerEffectRenderer {
     } else {
       runtime.setAdjustmentStack(layer.adjustmentStack);
     }
+    const interactive = this.interactiveWarp;
+    if (interactive?.layerId === layer.id) {
+      runtime.setWarpPreviewActive(interactive.moduleId, true);
+    }
+    const pendingCanonical = this.pendingCanonicalWarp.get(layer.id);
+    const projectedModule = pendingCanonical
+      ? layer.adjustmentStack.modules.find(({ id }) => id === pendingCanonical.moduleId)
+      : null;
+    if (pendingCanonical && projectedModule
+      && projectedModule.revision === pendingCanonical.moduleRevision) {
+      runtime.canonicalizeWarpField(pendingCanonical.moduleId);
+      this.pendingCanonicalWarp.delete(layer.id);
+    }
     runtime.setWarpDebugVisualization(
       this.warpDebugView === 'displacement'
         && layer.id === this.warpDebugLayerId
@@ -156,6 +191,8 @@ export class LayerEffectRenderer {
       if (ownerIds.has(id)) continue;
       runtime.destroy();
       this.runtimes.delete(id);
+      this.pendingCanonicalWarp.delete(id);
+      if (this.interactiveWarp?.layerId === id) this.interactiveWarp = null;
     }
   }
 
@@ -185,11 +222,15 @@ export class LayerEffectRenderer {
   destroyImageResources(): void {
     this.runtimes.forEach((runtime) => runtime.destroyImageResources());
     this.depthMap = null;
+    this.pendingCanonicalWarp.clear();
+    this.interactiveWarp = null;
   }
 
   destroy(): void {
     this.runtimes.forEach((runtime) => runtime.destroy());
     this.runtimes.clear();
     this.depthMap = null;
+    this.pendingCanonicalWarp.clear();
+    this.interactiveWarp = null;
   }
 }

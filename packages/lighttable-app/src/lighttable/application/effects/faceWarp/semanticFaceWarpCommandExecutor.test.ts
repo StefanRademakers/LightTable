@@ -20,12 +20,14 @@ import { executeSemanticFaceWarpCommand } from './semanticFaceWarpCommandExecuto
 const documentWithFaceWarp = () => {
   let document = createRasterLayer(createImageDocument('Portrait', 128, 128, 'fixture'));
   const layerId = document.activeLayerId!;
+  const sourceLayer = document.layers.find(({ id }) => id === layerId)!;
+  if (sourceLayer.type !== 'raster') throw new Error('Face Warp fixture is not raster.');
   const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
     x: index % 26, y: Math.floor(index / 26), z: 0
   }));
   const point = mesh[0]!;
   const instance = createFaceWarpModuleInstance('face-warp', {
-    version: 2, opacity: 1, sourceRevision: 1,
+    version: 2, opacity: 1, sourceRevision: sourceLayer.pixelRevision,
     detector: { id: 'fixture', version: '1' },
     topology: { id: MEDIAPIPE_FACE_TOPOLOGY_ID, vertexCount: MEDIAPIPE_FACE_VERTEX_COUNT,
       triangleIndices: MEDIAPIPE_FACE_TRIANGLE_INDICES,
@@ -65,5 +67,19 @@ describe('semantic Face Warp command executor', () => {
     expect(pushHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
       label: 'Face Warp', type: 'face-warp.operation', layerIds: [fixture.layerId]
     }));
+  });
+
+  it('rejects a mesh after the detected pixel source changes', () => {
+    const fixture = documentWithFaceWarp();
+    const source = fixture.document.layers.find(({ id }) => id === fixture.layerId)!;
+    let current = {
+      ...fixture.document,
+      layers: [{ ...source, pixelRevision: source.type === 'raster' ? source.pixelRevision + 1 : 1 }]
+    };
+    const changeDocument = vi.fn();
+    expect(() => executeSemanticFaceWarpCommand({ layerId: fixture.layerId, operation: {
+      kind: 'set-semantic', faceId: 'face-1', target: 'both', change: { smile: 0.2 }
+    } }, { getDocument: () => current, changeDocument })).toThrow(/pixels changed/i);
+    expect(changeDocument).not.toHaveBeenCalled();
   });
 });

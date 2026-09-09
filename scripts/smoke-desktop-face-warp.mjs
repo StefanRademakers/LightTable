@@ -226,17 +226,8 @@ try {
   await page.getByRole('button', { name: 'Accept mesh' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
-  const brushControl = page.locator('label.lighttable-adjustment').filter({ hasText: /^Brush/ })
-    .locator('input[type="range"]');
-  await brushControl.focus();
-  await brushControl.press('Home');
-  for (let value = 8; value < brushSize; value += 1) await brushControl.press('ArrowRight');
-  await page.waitForFunction((expected) => {
-    const controls = [...document.querySelectorAll('label.lighttable-adjustment')];
-    const brush = controls.find((control) => control.textContent?.trim().startsWith('Brush'));
-    const visible = Number.parseFloat(brush?.querySelector('output')?.textContent ?? 'NaN');
-    return Number.isFinite(visible) && Math.abs(visible - expected) <= 6;
-  }, brushSize);
+  const brushControl = page.getByRole('slider', { name: 'Brush', exact: true });
+  await brushControl.fill(String(brushSize));
   const appliedBrushSize = Number(await brushControl.inputValue());
   if (Math.abs(appliedBrushSize - brushSize) > 6) {
     throw new Error(`Face Warp brush size did not apply closely enough: ${appliedBrushSize} versus ${brushSize}`);
@@ -397,8 +388,8 @@ try {
     throw new Error('Face Warp changed during idle after repeated edits.');
   }
   await page.getByRole('radio', { name: 'Adjust', exact: true }).click();
-  const amountControl = page.locator('label.lighttable-adjustment').filter({ hasText: /^Amount/ })
-    .locator('input[type="range"]');
+  const amountControl = page.getByRole('region', { name: 'Tool settings' })
+    .getByRole('slider', { name: 'Amount', exact: true });
   const beforeSemantic = await driver.queryDocument(documentId);
   const semanticSourceBytes = await canvas.screenshot();
   const amountBounds = await amountControl.boundingBox();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planWarpFieldUpdate } from './warpFieldUpdatePlan';
+import { planWarpFieldUpdate, planWarpProjectionUpdate } from './warpFieldUpdatePlan';
 
 describe('planWarpFieldUpdate', () => {
   it('does nothing when the committed recipe is unchanged', () => {
@@ -42,5 +42,18 @@ describe('planWarpFieldUpdate', () => {
     expect(
       planWarpFieldUpdate(new Float32Array([1, 2, 3, 4, 5, 6, 7, 0]), new Float32Array()).kind
     ).toBe('rebuild');
+  });
+
+  it('allows prefix append only under an explicit interactive preview lease', () => {
+    const committed = new Float32Array([1, 2, 3, 4, 5, 6, 7, 0]);
+    const desired = new Float32Array([
+      ...committed,
+      8, 9, 10, 11, 12, 13, 14, 0
+    ]);
+
+    expect(planWarpProjectionUpdate(committed, desired, true).kind).toBe('append');
+    const canonical = planWarpProjectionUpdate(committed, desired, false);
+    expect(canonical.kind).toBe('rebuild');
+    expect(canonical.upload).toEqual(desired);
   });
 });

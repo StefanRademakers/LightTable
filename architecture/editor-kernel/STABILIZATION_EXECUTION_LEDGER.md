@@ -56,6 +56,12 @@ serializable committed state  renderer/WebGPU/UI projections
 - UI, shortcut, Action and MCP entry points must reach the same semantic handler.
 - A user operation is completely legacy or completely kernel-owned. A mixed
   preview/commit/history/resource path is a release blocker.
+- Every retained legacy fallback is quarantined compatibility code, not an
+  extension point. Agents may not add behavior, entry points or consumers to
+  it, nor use it as precedent for a new implementation. A fallback may change
+  only to remove it after its owner gate or to fix an explicitly reproduced
+  blocker while preserving complete route isolation; record either change in
+  the owning slice.
 - Failure, document switch, supersession and unmount all have explicit terminal
   behavior. Stale asynchronous work cannot publish into a newer generation.
 - Pointer hot paths do not write React/document/history state, perform GPU
@@ -86,6 +92,8 @@ Copy this checklist beneath a slice-specific work note. Do not skip a stage.
 - [ ] Implement preview, commit, cancel, undo, redo, failure rollback, document
       rebind and resource disposal as one lifecycle.
 - [ ] Keep the legacy fallback isolated until acceptance; never interleave it.
+- [ ] Verify the diff neither extends nor creates a caller of a quarantined
+      fallback; name every fallback removed or deliberately retained.
 - [ ] Add focused contract, lifecycle, generation/failure and projection tests.
 - [ ] Add Action/MCP equivalence tests for any externally reachable command.
 
@@ -170,7 +178,7 @@ slice; they are not postponed to the final phase.
 | S04 | Transform, selected-pixel transform, snapping and guides | `owner` | yes | repaired | passed | [ ] | partial |
 | S05 | Vector paths and live shapes | `owner` | yes | passed | passed | [ ] | partial |
 | S06 | Text, paragraph/vertical/path text and text conversion | `owner` | yes | passed | passed | [ ] | partial (warp -> S07) |
-| S07 | Warp and experimental Face Warp | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S07 | Warp and experimental Face Warp | `owner` | yes | passed | passed | [ ] | partial (Text Warp authoring absent) |
 | S08 | Adjustment-layer lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S09 | Layer styles/effects lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S10 | Filters P0, P1 and P2 by release tier | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -350,10 +358,17 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S07 -- warp
 
-- [ ] Warp for raster and supported shape/text has one immutable source per session.
-- [ ] Preview cannot switch between old and new generations while dragging.
-- [ ] Commit/cancel/repeat/undo and resource cleanup are deterministic.
-- [ ] Face Warp stays experimental until its separate accuracy/performance gate.
+- [x] Raster Warp has one immutable source and stable module identity per session.
+- [x] Preview cannot switch between old and new generations while dragging.
+- [x] Commit/cancel/repeat/two-stroke undo-redo and resource cleanup are deterministic.
+- [x] UI, Actions and MCP persist the same bounded semantic Warp command.
+- [x] Incremental field updates require an exact renderer-owned preview lease;
+      all document/history projections rebuild canonically.
+- [x] Face Warp stays production-hidden and passed its debug-packaged native
+      WebGPU detection/sculpt/semantic/undo/performance gate.
+- [x] Imported Text Warp remains canonical and rendered; no nonexistent
+      authoring surface was synthesized during feature freeze.
+- [ ] Owner manually accepts raster Warp and experimental Face Warp feel.
 
 ### S08 -- adjustment layers
 

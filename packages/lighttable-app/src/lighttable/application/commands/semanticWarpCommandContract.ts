@@ -1,6 +1,7 @@
 import type { LayerId } from '../../editor/document/documentTypes';
-import type { WarpBrushMode, WarpBrushSettingsSnapshot, WarpInputSample,
-  WarpStroke } from '../../effects/warp/warpTypes';
+import { EXECUTABLE_WARP_MODES, MAX_WARP_STROKE_SAMPLES,
+  type WarpBrushMode, type WarpBrushSettingsSnapshot, type WarpInputSample,
+  type WarpStroke } from '../../effects/warp/warpTypes';
 
 export interface SemanticWarpStrokeCommand {
   readonly layerId: LayerId;
@@ -11,10 +12,7 @@ export interface SemanticWarpStrokeCommand {
   readonly durationMs: number;
 }
 
-const MODES = new Set<WarpBrushMode>([
-  'push', 'twirl-cw', 'twirl-ccw', 'pinch', 'bloat', 'smooth',
-  'reconstruct', 'freeze', 'thaw'
-]);
+const MODES = new Set<WarpBrushMode>(EXECUTABLE_WARP_MODES);
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
@@ -43,11 +41,12 @@ export const parseSemanticWarpStrokeCommand = (
 ): SemanticWarpStrokeCommand | { readonly message: string } => {
   if (!record(value) || typeof value.layerId !== 'string' || !value.layerId
     || !MODES.has(value.mode as WarpBrushMode) || !validSettings(value.settings)
-    || !Array.isArray(value.samples) || value.samples.length < 1 || value.samples.length > 4096
+    || !Array.isArray(value.samples) || value.samples.length < 1
+    || value.samples.length > MAX_WARP_STROKE_SAMPLES
     || !value.samples.every(validSample)
     || !finite(value.startedAtMs, 0, Number.MAX_SAFE_INTEGER)
     || !finite(value.durationMs, 0, 3_600_000)) {
-    return { message: 'Warp stroke requires a target, valid mode/settings and 1-4096 bounded layer-source samples.' };
+    return { message: `Warp stroke requires a target, executable mode/settings and 1-${MAX_WARP_STROKE_SAMPLES} bounded layer-source samples.` };
   }
   let bytes = Number.POSITIVE_INFINITY;
   try { bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength; } catch { /* rejected below */ }

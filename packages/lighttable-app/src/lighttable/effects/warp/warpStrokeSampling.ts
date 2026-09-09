@@ -1,4 +1,4 @@
-import type { WarpBrushMode, WarpStroke } from './warpTypes';
+import { isExecutableWarpMode, type WarpBrushMode, type WarpStroke } from './warpTypes';
 
 export interface WarpGpuStamp {
   readonly centerPx: readonly [number, number];
@@ -21,14 +21,6 @@ const modeIndex = (mode: WarpBrushMode): number => ({
   thaw: 8
 })[mode];
 
-const executableModes = new Set<WarpBrushMode>([
-  'push',
-  'twirl-cw',
-  'twirl-ccw',
-  'pinch',
-  'bloat'
-]);
-
 const length = (x: number, y: number) => Math.hypot(x, y);
 
 /**
@@ -41,7 +33,7 @@ export const createWarpGpuStamps = (
 ): readonly WarpGpuStamp[] => {
   const stamps: WarpGpuStamp[] = [];
   for (const stroke of strokes) {
-    if (!executableModes.has(stroke.mode)) {
+    if (!isExecutableWarpMode(stroke.mode)) {
       throw new Error(`Warp mode "${stroke.mode}" has no GPU executor yet.`);
     }
     const radiusPx = Math.max(0.5, stroke.settings.diameterPx * 0.5);

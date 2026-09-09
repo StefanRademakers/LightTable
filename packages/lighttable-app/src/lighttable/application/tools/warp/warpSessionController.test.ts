@@ -8,6 +8,7 @@ import {
 import { createDefaultAdjustments } from '../../../types';
 import {
   findWarpModuleInstance,
+  MAX_INTERACTIVE_WARP_SAMPLES,
   readWarpNodeSettings
 } from '../../../effects/warp/warpTypes';
 import { createWarpSessionController } from './warpSessionController';
@@ -50,6 +51,12 @@ const harness = () => {
   let projectedDocument = document;
   const history: Array<{ undo(): void; redo(): void }> = [];
   let id = 0;
+  let interactionCurrent = true;
+  const interactionBinding = {
+    isCurrent: vi.fn(() => interactionCurrent),
+    setActive: vi.fn(),
+    requestCanonicalProjection: vi.fn(() => interactionCurrent)
+  };
   const getDocument = () => document;
   const previewDocumentSnapshot = vi.fn((next: ImageDocument) => {
       projectedDocument = next;
@@ -77,7 +84,7 @@ const harness = () => {
     applyDocumentSnapshot,
     pushHistoryEntry,
     setError: vi.fn(),
-    setInteractionActive: vi.fn(),
+    acquireInteractionBinding: vi.fn(() => interactionBinding),
     onStrokeCommitted: vi.fn(),
     createId: vi.fn((kind: string) => `${kind}-${++id}`)
   };
@@ -94,11 +101,31 @@ const harness = () => {
     set document(next) {
       document = next;
       projectedDocument = next;
-    }
+    },
+    set interactionCurrent(current: boolean) {
+      interactionCurrent = current;
+    },
+    interactionBinding
   };
 };
 
 describe('Warp session controller', () => {
+  it('rejects declared modes that have no GPU executor before opening history', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 7,
+      mode: 'smooth',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(false);
+    expect(controller.active).toBe(false);
+    expect(state.dependencies.setError).toHaveBeenCalledWith(
+      'Warp mode "smooth" is not available yet.'
+    );
+    expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
   it('authors transformed input in layer-source pixels and commits one history entry', () => {
     const state = harness();
     const controller = createWarpSessionController(() => state.dependencies);
@@ -114,7 +141,9 @@ describe('Warp session controller', () => {
     expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
     expect(controller.finish(7, 40)).toBe(true);
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
-    expect(state.dependencies.setInteractionActive.mock.calls).toEqual([[true], [false]]);
+    expect(state.interactionBinding.setActive.mock.calls).toEqual([
+      [true, expect.any(String)], [false, expect.any(String)]
+    ]);
 
     const layer = findRasterLayer(
       state.projectedDocument,
@@ -123,7 +152,8 @@ describe('Warp session controller', () => {
     expect(state.dependencies.onStrokeCommitted).toHaveBeenCalledTimes(1);
     expect(state.dependencies.onStrokeCommitted).toHaveBeenCalledWith(
       layer.id,
-      expect.objectContaining({ mode: 'push', samples: expect.any(Array) })
+      expect.objectContaining({ mode: 'push', samples: expect.any(Array) }),
+      expect.objectContaining({ layerId: layer.id, mode: 'push', samples: expect.any(Array) })
     );
     const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
     expect(settings.strokes).toHaveLength(1);
@@ -144,6 +174,38 @@ describe('Warp session controller', () => {
     expect(findWarpModuleInstance(
       findRasterLayer(state.document, state.document.activeLayerId)?.adjustmentStack
     )).not.toBeNull();
+  });
+
+  it('decimates long UI strokes into the exact Action and MCP boundary', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 7, mode: 'push', settings: brush, point: point(80, 40, 10)
+    })).toBe(true);
+    expect(controller.moveMany(7, Array.from({ length: 6_000 }, (_, index) => (
+      point(81 + index * 0.1, 40 + Math.sin(index / 20), 11 + index)
+    )))).toBe(true);
+    expect(controller.finish(7, 7_000)).toBe(true);
+    const [, stroke, command] = state.dependencies.onStrokeCommitted.mock.calls[0]!;
+    expect(stroke.samples.length).toBeLessThanOrEqual(MAX_INTERACTIVE_WARP_SAMPLES);
+    expect(command.samples).toEqual(stroke.samples);
+    expect(new TextEncoder().encode(JSON.stringify(command)).byteLength)
+      .toBeLessThanOrEqual(240 * 1024);
+    for (let index = 1; index < stroke.samples.length; index += 1) {
+      const previous = stroke.samples[index - 1].positionPx;
+      const current = stroke.samples[index];
+      expect(current.deltaPx[0]).toBeCloseTo(current.positionPx[0] - previous[0], 8);
+      expect(current.deltaPx[1]).toBeCloseTo(current.positionPx[1] - previous[1], 8);
+    }
+    const totalDelta = stroke.samples.reduce((sum: number[], sample: {
+      deltaPx: readonly [number, number]
+    }) => [
+      sum[0] + sample.deltaPx[0], sum[1] + sample.deltaPx[1]
+    ], [0, 0]);
+    const first = stroke.samples[0].positionPx;
+    const last = stroke.samples.at(-1).positionPx;
+    expect(totalDelta[0]).toBeCloseTo(last[0] - first[0], 8);
+    expect(totalDelta[1]).toBeCloseTo(last[1] - first[1], 8);
   });
 
   it('smooths Warp input in source space and catches up exactly on commit', () => {
@@ -211,7 +273,7 @@ describe('Warp session controller', () => {
     expect(controller.cancel(2)).toBe(true);
     expect(state.dependencies.onStrokeCommitted).not.toHaveBeenCalled();
     expect(state.document).toBe(before);
-    expect(state.dependencies.setInteractionActive).toHaveBeenLastCalledWith(false);
+    expect(state.interactionBinding.setActive).toHaveBeenLastCalledWith(false, expect.any(String));
 
     expect(controller.begin({
       pointerId: 3,
@@ -236,6 +298,69 @@ describe('Warp session controller', () => {
     state.document = createImageDocument('Other', 10, 10, 'other');
     expect(controller.move(4, point(60, 60, 20))).toBe(false);
     expect(controller.active).toBe(false);
+    expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
+  it('retains one stack, module and renderer binding throughout a new Warp gesture', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 14,
+      mode: 'push',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    const initialLayer = findRasterLayer(
+      state.projectedDocument,
+      state.projectedDocument.activeLayerId
+    )!;
+    const stackId = initialLayer.adjustmentStack!.id;
+    const moduleId = findWarpModuleInstance(initialLayer.adjustmentStack)!.id;
+    const initialModuleRevision = findWarpModuleInstance(initialLayer.adjustmentStack)!.revision;
+    const initialStackRevision = initialLayer.adjustmentStack!.revision;
+
+    expect(controller.move(14, point(60, 60, 20))).toBe(true);
+    expect(controller.move(14, point(40, 80, 30))).toBe(true);
+    const finalPreviewLayer = findRasterLayer(
+      state.projectedDocument,
+      state.projectedDocument.activeLayerId
+    )!;
+    expect(finalPreviewLayer.adjustmentStack!.id).toBe(stackId);
+    const finalPreviewModule = findWarpModuleInstance(finalPreviewLayer.adjustmentStack)!;
+    expect(finalPreviewModule.id).toBe(moduleId);
+    expect(finalPreviewModule.revision).toBeGreaterThan(initialModuleRevision);
+    expect(finalPreviewLayer.adjustmentStack!.revision).toBeGreaterThan(initialStackRevision);
+    expect(state.dependencies.createId.mock.calls.filter(([kind]) => kind === 'stack').length)
+      .toBeLessThanOrEqual(1);
+    expect(state.dependencies.createId.mock.calls.filter(([kind]) => kind === 'module')).toHaveLength(1);
+    expect(state.dependencies.acquireInteractionBinding).toHaveBeenCalledOnce();
+    expect(controller.finish(14, 40)).toBe(true);
+    const committedLayer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    expect(committedLayer.adjustmentStack!.id).toBe(stackId);
+    const committedModule = findWarpModuleInstance(committedLayer.adjustmentStack)!;
+    expect(committedModule.id).toBe(moduleId);
+    expect(committedModule.revision).toBeGreaterThan(finalPreviewModule.revision);
+    expect(state.interactionBinding.requestCanonicalProjection)
+      .toHaveBeenCalledExactlyOnceWith(moduleId, committedModule.revision);
+    expect(state.dependencies.createId.mock.calls.filter(([kind]) => kind === 'module')).toHaveLength(1);
+  });
+
+  it('cancels through the opening renderer binding when that renderer is replaced', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 15,
+      mode: 'push',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    state.interactionCurrent = false;
+    expect(controller.move(15, point(60, 60, 20))).toBe(false);
+    expect(controller.active).toBe(false);
+    expect(state.interactionBinding.setActive.mock.calls).toEqual([
+      [true, expect.any(String)], [false, expect.any(String)]
+    ]);
+    expect(state.interactionBinding.requestCanonicalProjection).not.toHaveBeenCalled();
     expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
   });
 

@@ -52,3 +52,19 @@ export const planWarpFieldUpdate = (
     upload: desired.slice()
   };
 };
+
+/**
+ * Incremental accumulation is a renderer-owned preview optimization, never a
+ * document/history projection rule. Canonical projections rebuild from the
+ * complete recipe even when the new recipe happens to extend a GPU prefix.
+ */
+export const planWarpProjectionUpdate = (
+  committed: Float32Array,
+  desired: Float32Array,
+  interactivePreviewActive: boolean
+): WarpFieldUpdatePlan => {
+  const planned = planWarpFieldUpdate(committed, desired);
+  return planned.kind === 'append' && !interactivePreviewActive
+    ? { kind: 'rebuild', upload: desired.slice() }
+    : planned;
+};

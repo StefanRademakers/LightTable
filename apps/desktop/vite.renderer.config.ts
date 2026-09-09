@@ -23,7 +23,8 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false'),
-    'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false')
+    'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_EXPERIMENTAL_TOOLS': JSON.stringify(debugBuild ? 'true' : 'false')
   },
   // Keep the Electron renderer on the same first-party source/HMR graph as
   // the web host. CSS edits in @lighttable/app then update without restarting

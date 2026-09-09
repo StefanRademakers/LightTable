@@ -13,6 +13,23 @@ export type WarpBrushMode =
   | 'freeze'
   | 'thaw';
 
+export const EXECUTABLE_WARP_MODES = [
+  'push', 'twirl-cw', 'twirl-ccw', 'pinch', 'bloat'
+] as const satisfies readonly WarpBrushMode[];
+
+export const isExecutableWarpMode = (mode: WarpBrushMode): boolean => (
+  (EXECUTABLE_WARP_MODES as readonly WarpBrushMode[]).includes(mode)
+);
+
+/** Shared UI/Action/MCP boundary; pointer input is deterministically decimated to stay below it. */
+export const MAX_WARP_STROKE_SAMPLES = 4_096;
+
+/**
+ * Interactive samples include worst-case JSON numbers and repeated field names.
+ * This cap keeps every UI-authored stroke below the 240 KiB semantic boundary.
+ */
+export const MAX_INTERACTIVE_WARP_SAMPLES = 768;
+
 export type WarpBorderMode = 'transparent' | 'clamp' | 'mirror' | 'extend-edge';
 export type WarpDebugView = 'result' | 'displacement';
 
@@ -137,11 +154,15 @@ export const removeWarpNodeFromStack = (
 
 export const setWarpNodeSettings = (
   stack: AdjustmentStack,
-  settings: WarpNodeSettings
+  settings: WarpNodeSettings,
+  moduleId = findWarpModuleInstance(stack)?.id
 ): AdjustmentStack => {
+  if (!moduleId) throw new Error(`Stack ${stack.id} has no ${WARP_NODE_TYPE} node.`);
   let found = false;
   const modules = stack.modules.map((instance) => {
-    if (instance.type !== WARP_NODE_TYPE) return structuredClone(instance);
+    if (instance.id !== moduleId || instance.type !== WARP_NODE_TYPE) {
+      return structuredClone(instance);
+    }
     found = true;
     return {
       ...structuredClone(instance),
@@ -151,7 +172,7 @@ export const setWarpNodeSettings = (
     };
   });
   if (!found) {
-    throw new Error(`Stack ${stack.id} has no ${WARP_NODE_TYPE} node.`);
+    throw new Error(`Stack ${stack.id} has no ${WARP_NODE_TYPE} node ${moduleId}.`);
   }
   return {
     ...structuredClone(stack),

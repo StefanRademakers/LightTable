@@ -44,7 +44,7 @@
         "required": ["layerId", "mode", "settings", "samples", "startedAtMs", "durationMs"],
         "properties": {
           "layerId": { "$ref": "#/$defs/layerId" },
-          "mode": { "type": "string", "enum": ["push", "twirl-cw", "twirl-ccw", "pinch", "bloat", "smooth", "reconstruct", "freeze", "thaw"] },
+          "mode": { "type": "string", "enum": ["push", "twirl-cw", "twirl-ccw", "pinch", "bloat"] },
           "settings": { "$ref": "#/$defs/settings" },
           "samples": { "type": "array", "minItems": 1, "maxItems": 4096, "items": { "$ref": "#/$defs/sample" } },
           "startedAtMs": { "type": "number", "minimum": 0, "maximum": 9007199254740991 },

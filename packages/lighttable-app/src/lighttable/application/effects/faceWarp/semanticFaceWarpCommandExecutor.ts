@@ -1,11 +1,7 @@
 import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
-import { layerIsLocked } from '../../../editor/document/documentTypes';
 import { setRasterLayerAdjustmentStack } from '../../../editor/document/documentCommands';
-import { findRasterLayer } from '../../../editor/document/layerTree';
 import { applyFaceWarpOperation } from '../../../effects/faceWarp/faceWarpOperations';
 import {
-  findFaceWarpModuleInstance,
-  readFaceWarpNodeSettings,
   setFaceWarpNodeSettings
 } from '../../../effects/faceWarp/faceWarpTypes';
 import type { SemanticFaceWarpCommand } from '../../commands/semanticFaceWarpCommandContract';
@@ -13,6 +9,7 @@ import type {
   DocumentMutationController,
   DocumentMutationDescription
 } from '../../documents/useDocumentMutationController';
+import { resolveFaceWarpEligibility } from './faceWarpEligibility';
 
 export interface SemanticFaceWarpCommandDependencies {
   getDocument(): ImageDocument | null;
@@ -32,16 +29,16 @@ export const applySemanticFaceWarpCommandToDocument = (
   document: ImageDocument,
   command: SemanticFaceWarpCommand
 ): ImageDocument => {
-  const layer = findRasterLayer(document, command.layerId as LayerId);
-  if (!layer || layerIsLocked(layer) || !layer.adjustmentStack) return document;
-  const instance = findFaceWarpModuleInstance(layer.adjustmentStack);
-  if (!instance) return document;
-  const current = readFaceWarpNodeSettings(instance);
+  const eligibility = resolveFaceWarpEligibility(document, command.layerId as LayerId);
+  if (!eligibility.ok || !eligibility.layer.adjustmentStack) return document;
+  const { layer, settings: current } = eligibility;
+  const stack = layer.adjustmentStack;
+  if (!stack) return document;
   const next = applyFaceWarpOperation(current, command.operation);
   return next === current ? document : setRasterLayerAdjustmentStack(
     document,
     layer.id,
-    setFaceWarpNodeSettings(layer.adjustmentStack, next)
+    setFaceWarpNodeSettings(stack, next)
   );
 };
 
@@ -49,8 +46,11 @@ export const executeSemanticFaceWarpCommand = (
   command: SemanticFaceWarpCommand,
   dependencies: SemanticFaceWarpCommandDependencies
 ): { readonly layerId: string; readonly faceId: string; readonly operation: string } | null => {
-  if (!dependencies.getDocument()) throw new Error('The target document is unavailable.');
+  const document = dependencies.getDocument();
+  if (!document) throw new Error('The target document is unavailable.');
   const layerId = command.layerId as LayerId;
+  const eligibility = resolveFaceWarpEligibility(document, layerId);
+  if (!eligibility.ok) throw new Error(eligibility.reason);
   const result = {
     layerId: command.layerId,
     faceId: command.operation.faceId,

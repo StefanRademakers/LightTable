@@ -87,7 +87,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onResetColors
 }) => {
   const items: Array<ToolbarTool<ToolId> | ToolbarGroup<ToolId>> = [];
-  for (const tool of toolbarToolDefinitions(import.meta.env.DEV)) {
+  const experimentalTools = import.meta.env.DEV
+    || import.meta.env.VITE_LIGHTTABLE_EXPERIMENTAL_TOOLS === 'true';
+  for (const tool of toolbarToolDefinitions(experimentalTools)) {
     if (documentKind !== 'image') {
       if (documentKind === 'video' && (tool.id === 'view' || tool.id === 'zoom')) {
         items.push({ ...toolbarTool(tool), onDoubleClick: tool.id === 'zoom' ? onZoomActual : undefined });

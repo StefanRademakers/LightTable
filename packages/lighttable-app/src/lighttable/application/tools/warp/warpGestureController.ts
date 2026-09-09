@@ -4,6 +4,7 @@ import type {
   WarpInputSample,
   WarpStroke
 } from '../../../effects/warp/warpTypes';
+import { MAX_INTERACTIVE_WARP_SAMPLES } from '../../../effects/warp/warpTypes';
 import { StrokeSmoother } from '../../../editor/tools/brush/strokeSmoother';
 
 export interface WarpGesturePoint {
@@ -39,6 +40,28 @@ const sample = (
   tilt: [point.tiltX ?? 0, point.tiltY ?? 0],
   timeMs: point.timeMs
 });
+
+/** Retains a bounded polyline and recomputes accumulated deltas between retained points. */
+export const decimateWarpInputSamples = (
+  samples: readonly WarpInputSample[]
+): WarpInputSample[] => {
+  if (samples.length < 3) return samples.map((current) => structuredClone(current));
+  const retained = samples.filter((_, index) => (
+    index === 0 || index === samples.length - 1 || index % 2 === 0
+  ));
+  return retained.map((current, index) => {
+    const previous = retained[index - 1];
+    return {
+      ...structuredClone(current),
+      deltaPx: previous
+        ? [
+          current.positionPx[0] - previous.positionPx[0],
+          current.positionPx[1] - previous.positionPx[1]
+        ]
+        : [0, 0]
+    };
+  });
+};
 
 /**
  * Pointer-owned Warp authoring primitive.
@@ -95,6 +118,9 @@ export class WarpGestureController {
       const deltaX = filteredPoint.x - this.previousPoint.x;
       const deltaY = filteredPoint.y - this.previousPoint.y;
       if (Math.hypot(deltaX, deltaY) < 0.01) continue;
+      if (this.samples.length >= MAX_INTERACTIVE_WARP_SAMPLES) {
+        this.samples = decimateWarpInputSamples(this.samples);
+      }
       this.samples.push(sample(filteredPoint, this.previousPoint));
       this.previousPoint = { ...filteredPoint };
     }
@@ -106,6 +132,9 @@ export class WarpGestureController {
       return null;
     }
     const point = { ...this.previousPoint, timeMs };
+    if (this.samples.length >= MAX_INTERACTIVE_WARP_SAMPLES) {
+      this.samples = decimateWarpInputSamples(this.samples);
+    }
     this.samples.push(sample(point, this.previousPoint));
     this.previousPoint = point;
     return this.snapshot(timeMs);
@@ -118,6 +147,9 @@ export class WarpGestureController {
         point.x - this.previousPoint.x,
         point.y - this.previousPoint.y
       ) < 0.01) continue;
+      if (this.samples.length >= MAX_INTERACTIVE_WARP_SAMPLES) {
+        this.samples = decimateWarpInputSamples(this.samples);
+      }
       this.samples.push(sample({ ...point, timeMs }, this.previousPoint));
       this.previousPoint = { ...point, timeMs };
     }

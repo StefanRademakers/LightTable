@@ -1,7 +1,7 @@
-import type { ImageDocument } from '../../editor/document/documentTypes';
+import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import { findRasterLayer } from '../../editor/document/layerTree';
-import type { WarpStroke } from '../../effects/warp/warpTypes';
+import { findWarpModuleInstance, type WarpStroke } from '../../effects/warp/warpTypes';
 import { applyWarpStrokeToDocument } from '../tools/warp/warpDocumentOperation';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 
@@ -10,6 +10,11 @@ export interface SemanticWarpCommandDependencies {
   applyDocument(document: ImageDocument): void;
   recordHistory(before: ImageDocument, after: ImageDocument): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
+  requestCanonicalProjection?(
+    layerId: LayerId,
+    moduleId: string,
+    moduleRevision: number
+  ): boolean;
 }
 
 export const executeSemanticWarpStrokeCommand = (
@@ -28,6 +33,17 @@ export const executeSemanticWarpStrokeCommand = (
     startedAtMs: command.startedAtMs, durationMs: command.durationMs
   };
   const after = applyWarpStrokeToDocument(before, layer.id, stroke, dependencies);
+  const terminalModule = findWarpModuleInstance(
+    findRasterLayer(after, layer.id)?.adjustmentStack
+  );
+  if (!terminalModule) throw new Error('The Warp terminal recipe is missing.');
+  if (dependencies.requestCanonicalProjection?.(
+    layer.id,
+    terminalModule.id,
+    terminalModule.revision
+  ) === false) {
+    throw new Error('The Warp renderer could not bind the terminal recipe.');
+  }
   dependencies.applyDocument(after);
   dependencies.recordHistory(before, after);
   return { layerId: layer.id, strokeId: stroke.id, sampleCount: stroke.samples.length };

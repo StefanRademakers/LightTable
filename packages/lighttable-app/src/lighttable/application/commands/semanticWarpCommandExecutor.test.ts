@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findRasterLayer } from '../../editor/document/layerTree';
-import { findWarpModuleInstance, readWarpNodeSettings } from '../../effects/warp/warpTypes';
+import { findWarpModuleInstance, MAX_WARP_STROKE_SAMPLES,
+  readWarpNodeSettings } from '../../effects/warp/warpTypes';
 import { parseSemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { executeSemanticWarpStrokeCommand } from './semanticWarpCommandExecutor';
 import { projectWarpQuery } from './warpQueryProjection';
@@ -23,15 +24,23 @@ describe('semantic Warp stroke command', () => {
     let document = createImageDocument('Warp command', 200, 100, 'source');
     const layer = findRasterLayer(document, document.activeLayerId)!;
     const history = vi.fn(); let id = 0;
+    const requestCanonicalProjection = vi.fn(() => true);
     const result = executeSemanticWarpStrokeCommand(command(layer.id), {
       getDocument: () => document,
       applyDocument: (next) => { document = next; },
       recordHistory: history,
-      createId: (kind) => `${kind}-${++id}`
+      createId: (kind) => `${kind}-${++id}`,
+      requestCanonicalProjection
     });
     expect(result).toEqual({ layerId: layer.id, strokeId: 'stroke-1', sampleCount: 2 });
     expect(history).toHaveBeenCalledOnce();
     const updated = findRasterLayer(document, layer.id)!;
+    const terminalModule = findWarpModuleInstance(updated.adjustmentStack)!;
+    expect(requestCanonicalProjection).toHaveBeenCalledExactlyOnceWith(
+      layer.id,
+      terminalModule.id,
+      terminalModule.revision
+    );
     const settings = readWarpNodeSettings(findWarpModuleInstance(updated.adjustmentStack)!);
     expect(settings.strokes[0]).toMatchObject({ id: 'stroke-1', mode: 'push',
       samples: [{ positionPx: [10, 20] }, { positionPx: [11, 21] }] });
@@ -42,7 +51,10 @@ describe('semantic Warp stroke command', () => {
     const layer = findRasterLayer(document, document.activeLayerId)!;
     expect(parseSemanticWarpStrokeCommand({ ...command(layer.id), mode: 'unknown' }))
       .toHaveProperty('message');
-    expect(parseSemanticWarpStrokeCommand(command(layer.id, 4097))).toHaveProperty('message');
+    expect(parseSemanticWarpStrokeCommand(command(layer.id, MAX_WARP_STROKE_SAMPLES + 1)))
+      .toHaveProperty('message');
+    expect(parseSemanticWarpStrokeCommand({ ...command(layer.id), mode: 'smooth' }))
+      .toHaveProperty('message');
     expect(parseSemanticWarpStrokeCommand({ ...command(layer.id, 1),
       layerId: 'x'.repeat(241 * 1024) })).toHaveProperty('message');
     expect(parseSemanticWarpStrokeCommand({
@@ -83,6 +95,23 @@ describe('semantic Warp stroke command', () => {
       getDocument: () => document, applyDocument: (next) => { document = next; },
       recordHistory: history, createId: (kind) => kind
     })).toThrow(/Unlock/);
+    expect(history).not.toHaveBeenCalled();
+  });
+
+  it('fails before document and history publication when terminal projection is unavailable', () => {
+    const document = createImageDocument('Warp command', 200, 100, 'source');
+    const layer = findRasterLayer(document, document.activeLayerId)!;
+    const applyDocument = vi.fn();
+    const history = vi.fn();
+
+    expect(() => executeSemanticWarpStrokeCommand(command(layer.id), {
+      getDocument: () => document,
+      applyDocument,
+      recordHistory: history,
+      createId: (kind) => kind,
+      requestCanonicalProjection: () => false
+    })).toThrow(/terminal recipe/);
+    expect(applyDocument).not.toHaveBeenCalled();
     expect(history).not.toHaveBeenCalled();
   });
 });

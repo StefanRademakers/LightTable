@@ -998,11 +998,17 @@ export class WebGpuEngine {
       this.requestRender();
     }
   }
-  setWarpInteractionActive(active: boolean) {
+  setWarpInteractionActive(active: boolean, layerId: LayerId, moduleId: string) {
     if (this.warpInteractionActive === active) return;
     this.warpInteractionActive = active;
+    this.layerEffectRenderer?.setWarpPreviewLease(layerId, moduleId, active);
     this.syncInteractiveRenderCadence();
     if (!active) this.requestRender();
+  }
+  requestCanonicalWarpProjection(layerId: LayerId, moduleId: string, moduleRevision: number) {
+    this.layerEffectRenderer?.requestCanonicalWarpProjection(layerId, moduleId, moduleRevision);
+    this.renderDirty.invalidate('document');
+    this.requestRender();
   }
   beginLayerPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
     this.documentRenderer?.beginPixelEdit(layerId, channel);

@@ -5,7 +5,8 @@ import {
   addWarpNodeToStack,
   createDefaultWarpNodeSettings,
   createWarpModuleInstance,
-  readWarpNodeSettings
+  readWarpNodeSettings,
+  setWarpNodeSettings
 } from './warpTypes';
 
 describe('Warp node document model', () => {
@@ -30,4 +31,25 @@ describe('Warp node document model', () => {
       settings: { version: 99, strokes: [] }
     })).toThrow('Invalid lt.warp settings');
   });
+
+  it('updates only the addressed Warp node when a stack contains repeated types', () => {
+    const first = createWarpModuleInstance('warp-first');
+    const second = createWarpModuleInstance('warp-second');
+    const stack = {
+      id: 'stack',
+      revision: 3,
+      modules: [first, second]
+    };
+    const settings = {
+      ...createDefaultWarpNodeSettings(),
+      borderMode: 'mirror' as const
+    };
+
+    const next = setWarpNodeSettings(stack, settings, second.id);
+
+    expect(next.modules[0]).toEqual(first);
+    expect(readWarpNodeSettings(next.modules[1]!)).toEqual(settings);
+    expect(next.modules[1]!.revision).toBe(second.revision + 1);
+  });
+
 });

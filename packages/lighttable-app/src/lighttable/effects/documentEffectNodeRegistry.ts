@@ -37,12 +37,15 @@ export interface DocumentGpuEffect {
   setDepthMap?(depth: DepthAnalysisResult): void;
   /** Returns true only when this gesture changes the effect's rendered quality. */
   setInteractionActive?(active: boolean): boolean;
+  setInteractivePreviewActive?(active: boolean): void;
   /** Preferred render cadence while this active effect is upstream-dirty. */
   interactionFrameIntervalMs?(): number;
   setDepthVisualization?(visible: boolean): void;
   /** Presentation-only normalized depth owned by this effect, when available. */
   readonly depthPresentationTexture?: GPUTexture | null;
   setWarpDebugVisualization?(view: WarpDebugView): void;
+  /** Replaces an incrementally accumulated Warp field with its canonical recipe projection. */
+  canonicalizeWarpField?(): boolean;
   readonly hasDepth?: boolean;
 }
 

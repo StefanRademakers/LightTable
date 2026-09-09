@@ -138,6 +138,28 @@ describe('DocumentEffectRuntime', () => {
     effects.forEach((item) => expect(item.setInteractionActive).toHaveBeenCalledWith(true));
   });
 
+  it('forwards canonical Warp projection without treating renderer state as document state', () => {
+    const warp = createWarpModuleInstance('warp-instance');
+    const stack: AdjustmentStack = { id: 'stack', revision: 1, modules: [warp] };
+    const warpEffect = effect('warp', 'source-geometry');
+    warpEffect.canonicalizeWarpField = vi.fn(() => true);
+    const registry = new DocumentEffectNodeRegistry([{
+      type: 'lt.warp',
+      stage: 'source-geometry',
+      create: () => warpEffect,
+      update: vi.fn()
+    }]);
+    const runtime = DocumentEffectRuntime.createFromStack({
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      vertexModule: {} as GPUShaderModule,
+      callbacks: {}
+    }, stack, 'layer', registry);
+
+    expect(runtime.canonicalizeWarpField(warp.id)).toBe(true);
+    expect(warpEffect.canonicalizeWarpField).toHaveBeenCalledOnce();
+  });
+
   it('applies the slowest requested cadence only during an active gesture', () => {
     const { runtime, effects } = createRuntime();
     effects[0]!.interactionFrameIntervalMs = () => 16;

@@ -13,11 +13,18 @@ import {
   transformPoint
 } from '../../../editor/tools/transform/affine';
 import {
+  findWarpModuleInstance,
+  isExecutableWarpMode,
   removeWarpNodeFromStack,
   type WarpBrushMode,
   type WarpBrushSettingsSnapshot,
   type WarpStroke
 } from '../../../effects/warp/warpTypes';
+import {
+  parseSemanticWarpStrokeCommand,
+  semanticWarpStrokeFromCommitted,
+  type SemanticWarpStrokeCommand
+} from '../../commands/semanticWarpCommandContract';
 import { applyWarpStrokeToDocument } from './warpDocumentOperation';
 import {
   WarpGestureController,
@@ -41,8 +48,18 @@ export interface WarpSessionDependencies {
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   setError(message: string | null): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
-  setInteractionActive?(active: boolean): void;
-  onStrokeCommitted?(layerId: LayerId, stroke: WarpStroke): void;
+  acquireInteractionBinding?(layerId: LayerId): WarpInteractionBinding | null;
+  onStrokeCommitted?(
+    layerId: LayerId,
+    stroke: WarpStroke,
+    command: SemanticWarpStrokeCommand
+  ): void;
+}
+
+export interface WarpInteractionBinding {
+  isCurrent(): boolean;
+  setActive(active: boolean, moduleId: string): void;
+  requestCanonicalProjection(moduleId: string, moduleRevision: number): boolean;
 }
 
 export interface BeginWarpSession {
@@ -69,6 +86,13 @@ interface ActiveWarpSession {
   readonly documentId: ImageDocument['id'];
   readonly layerId: RasterLayer['id'];
   readonly transaction: DocumentMutationTransaction;
+  readonly dependencies: WarpSessionDependencies;
+  readonly interactionBinding: WarpInteractionBinding | null;
+  /** Stable stack/module identity used to replace this gesture's stroke. */
+  readonly recipeBase: ImageDocument;
+  readonly moduleId: string;
+  nextModuleRevision: number;
+  nextStackRevision: number;
 }
 
 const documentWithoutWarp = (
@@ -128,7 +152,16 @@ export const createWarpSessionController = (
     document: ImageDocument;
     layer: RasterLayer;
   } | null => {
-    const dependencies = resolveDependencies();
+    const dependencies = active?.dependencies;
+    if (!dependencies) return null;
+    try {
+      if (active?.interactionBinding?.isCurrent() === false) return null;
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'Warp renderer validation failed.'
+      );
+      return null;
+    }
     const document = dependencies.getDocument();
     if (!active?.transaction.active || !document || document.id !== active.documentId) return null;
     const layer = findRasterLayer(active.transaction.current, active.layerId);
@@ -138,13 +171,25 @@ export const createWarpSessionController = (
   const publishStroke = (stroke: WarpStroke): boolean => {
     const target = currentTarget();
     if (!target) return false;
-    const previewDocument = applyWarpStrokeToDocument(
-      active!.transaction.before,
-      target.layer.id,
-      stroke,
-      target.dependencies
-    );
-    return active!.transaction.change(() => previewDocument);
+    try {
+      const previewDocument = applyWarpStrokeToDocument(
+        active!.recipeBase,
+        target.layer.id,
+        stroke,
+        target.dependencies,
+        {
+          moduleId: active!.moduleId,
+          moduleRevision: active!.nextModuleRevision++,
+          stackRevision: active!.nextStackRevision++
+        }
+      );
+      return active!.transaction.change(() => previewDocument);
+    } catch (reason) {
+      target.dependencies.setError(
+        reason instanceof Error ? reason.message : 'Warp preview failed.'
+      );
+      return false;
+    }
   };
 
   const scheduleStroke = (stroke: WarpStroke): boolean => {
@@ -159,11 +204,20 @@ export const createWarpSessionController = (
   };
 
   const closeInteraction = () => {
+    const interactionBinding = active?.interactionBinding ?? null;
+    const dependencies = active?.dependencies ?? null;
+    const moduleId = active?.moduleId ?? null;
     holdScheduler.stop();
     previewScheduler.cancel();
     gesture.reset();
     active = null;
-    resolveDependencies().setInteractionActive?.(false);
+    try {
+      if (moduleId) interactionBinding?.setActive(false, moduleId);
+    } catch (reason) {
+      dependencies?.setError(
+        reason instanceof Error ? reason.message : 'Warp renderer cleanup failed.'
+      );
+    }
   };
 
   const moveMany = (pointerId: number, points: readonly WarpGesturePoint[]): boolean => {
@@ -195,6 +249,10 @@ export const createWarpSessionController = (
         dependencies.setError('Select an editable raster layer before warping.');
         return false;
       }
+      if (!isExecutableWarpMode(request.mode)) {
+        dependencies.setError(`Warp mode "${request.mode}" is not available yet.`);
+        return false;
+      }
       if (layerIsLocked(layer, 'pixels') || layerIsLocked(layer, 'position')) {
         dependencies.setError('Unlock the active layer before warping.');
         return false;
@@ -210,20 +268,64 @@ export const createWarpSessionController = (
         closeInteraction
       );
       if (!transaction) return false;
-      active = {
-        documentId: document.id,
-        layerId: layer.id,
-        transaction
-      };
-      dependencies.setInteractionActive?.(true);
-      const stroke = gesture.begin({
-        pointerId: request.pointerId,
-        strokeId: dependencies.createId('stroke'),
-        mode: request.mode,
-        settings: request.settings,
-        point: sourcePoint
-      });
-      if (!stroke || !publishStroke(stroke)) {
+      try {
+        const stroke = gesture.begin({
+          pointerId: request.pointerId,
+          strokeId: dependencies.createId('stroke'),
+          mode: request.mode,
+          settings: request.settings,
+          point: sourcePoint
+        });
+        if (!stroke) {
+          transaction.cancel();
+          return false;
+        }
+        const interactionBinding = dependencies.acquireInteractionBinding?.(layer.id) ?? null;
+        if (dependencies.acquireInteractionBinding && !interactionBinding) {
+          gesture.reset();
+          transaction.cancel();
+          dependencies.setError('The Warp renderer is unavailable.');
+          return false;
+        }
+        const recipeBase = applyWarpStrokeToDocument(
+          transaction.before,
+          layer.id,
+          stroke,
+          dependencies
+        );
+        const recipeModule = findWarpModuleInstance(
+          findRasterLayer(recipeBase, layer.id)?.adjustmentStack
+        );
+        const recipeStack = findRasterLayer(recipeBase, layer.id)?.adjustmentStack;
+        if (!recipeModule || !recipeStack) {
+          throw new Error('The Warp recipe could not be created.');
+        }
+        active = {
+          documentId: document.id,
+          layerId: layer.id,
+          transaction,
+          dependencies,
+          interactionBinding,
+          recipeBase,
+          moduleId: recipeModule.id,
+          nextModuleRevision: recipeModule.revision + 1,
+          nextStackRevision: recipeStack.revision + 1
+        };
+        interactionBinding?.setActive(true, recipeModule.id);
+        if (!transaction.change(() => recipeBase)) {
+          transaction.cancel();
+          return false;
+        }
+      } catch (reason) {
+        if (active?.transaction === transaction) active.transaction.cancel();
+        else {
+          gesture.reset();
+          transaction.cancel();
+        }
+        dependencies.setError(reason instanceof Error ? reason.message : 'Warp could not start.');
+        return false;
+      }
+      if (!active) {
         transaction.cancel();
         return false;
       }
@@ -247,14 +349,49 @@ export const createWarpSessionController = (
         session.transaction.cancel();
         return true;
       }
+      const command = parseSemanticWarpStrokeCommand(
+        semanticWarpStrokeFromCommitted(session.layerId, stroke)
+      );
+      if ('message' in command) {
+        session.dependencies.setError(command.message);
+        session.transaction.cancel();
+        return false;
+      }
       previewScheduler.cancel();
       if (!publishStroke(stroke)) {
         session.transaction.cancel();
         return false;
       }
-      const dependencies = resolveDependencies();
+      try {
+        const terminalModule = findWarpModuleInstance(
+          findRasterLayer(session.transaction.current, session.layerId)?.adjustmentStack
+        );
+        if (!terminalModule
+          || session.interactionBinding?.requestCanonicalProjection(
+            terminalModule.id,
+            terminalModule.revision
+          ) === false) {
+          throw new Error('The Warp renderer could not bind the terminal recipe.');
+        }
+      } catch (reason) {
+        session.dependencies.setError(
+          reason instanceof Error ? reason.message : 'Warp terminal projection failed.'
+        );
+        session.transaction.cancel();
+        return false;
+      }
       if (!session.transaction.commit()) return false;
-      dependencies.onStrokeCommitted?.(session.layerId, structuredClone(stroke));
+      try {
+        session.dependencies.onStrokeCommitted?.(
+          session.layerId,
+          structuredClone(stroke),
+          command
+        );
+      } catch (reason) {
+        session.dependencies.setError(
+          reason instanceof Error ? reason.message : 'Warp command observation failed.'
+        );
+      }
       return true;
     },
     cancel: (pointerId) => {

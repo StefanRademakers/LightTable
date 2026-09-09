@@ -77,6 +77,11 @@ The continuation rules are strict:
   vector, text, filter or WebGPU implementations.
 - No legacy route is removed until one explicit artist-visible vertical passes
   canonical state, pixels, layers, history, cleanup and real-app validation.
+- A retained legacy fallback is quarantined compatibility debt, not a valid
+  place to add features or a pattern to copy. Do not add callers, commands or
+  behavior to one. Change it only when the ledger explicitly removes it after
+  owner acceptance, or when the owner explicitly asks for a reproduced blocker
+  to be repaired without mixing it into the kernel route.
 - A passing unit suite does not advance the migration ledger's real-app column.
 - Large files are reduced only as a migrated slice removes a named authority;
   mechanical file splitting is not an architectural milestone.
@@ -194,9 +199,13 @@ revision, document, tool, renderer, source identity and repeat the exact hit.
 Path Text first targets the native contour under the pointer and records stable
 path ids. Never interpret pending layout as empty content, retain a stale layout
 under a current key, or observe a Pen result through a later React projection.
-Packaged Type and Path Text/Actions gates passed. Text Warp remains S07, owner
-feel acceptance is open, and no more text policy may enter the 9k-line overlay
-before its post-hit adapter is extracted.
+Packaged Type and Path Text/Actions gates passed. Imported Text Warp remains a
+canonical document/rendering feature, but there is no user-facing Text Warp
+authoring control. Do not mistake removed/dead overlay callbacks for an
+extension point or invent that feature during stabilization. Any future Text
+Warp authoring starts behind a bounded application controller. Owner feel
+acceptance is open, and no more text policy may enter the 9k-line overlay before
+its post-hit adapter is extracted.
 
 ### Current Agent/Actions/MCP recovery capsule
 
