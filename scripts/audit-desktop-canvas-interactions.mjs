@@ -153,7 +153,7 @@ try {
   const selectFamilyTool = async (name) => {
     const lasso = name.startsWith('Free selection') || name.startsWith('Polygonal selection');
     const family = lasso ? 'Lasso tools' : 'Marquee tools';
-    await page.getByRole('button', { name: `Show ${family.toLowerCase()}` }).click();
+    await page.locator(`[data-tool-group="${family}"] > .ui-toolbar__button`).click();
     const button = page.getByRole('toolbar', { name: family })
       .getByRole('button', { name, exact: true });
     await button.click();

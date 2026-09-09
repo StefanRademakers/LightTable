@@ -92,6 +92,18 @@ checkpoint-required failure state; LightTable must not present an empty
 replacement as recovery. `audit-desktop-device-loss.mjs` exercises both
 policies against a packaged application.
 
+WebGPU error scopes are device-global stack state. Any scope that remains open
+across an asynchronous boundary must run through the per-device transaction in
+`@lighttable/webgpu-runtime`; app, renderer and text clients may not coordinate
+separate locks around the same `GPUDevice`. Synchronous scopes are permitted
+only when every matching pop occurs before the next `await`.
+
+Canceling an open task prevents publication but does not mean its decoder or
+hydrate promise has settled. A renderer cannot be reused while an earlier open
+promise is still unwinding. Renderer retirement clears both the internal owner
+and the external presentation slot before destruction, including allocation or
+hydrate failure.
+
 ## Test ladder
 
 Support diagnostics follow the local-only, bounded and centrally redacted

@@ -701,6 +701,15 @@ maximum indirection; it is reusable ownership with desktop-class latency.
   semantic, undoable commit.
 - Optional resources are lazy, revision-keyed, cancellable and explicitly
   disposed. Device loss and late async completion must be safe.
+- WebGPU error scopes are stack state shared by every client of one device. If
+  a scope spans an `await`, use the per-device transaction from
+  `@lighttable/webgpu-runtime`; never add a package-local mutex or raw async
+  push/pop pair. Direct push/pop is allowed only when the full pair is
+  synchronous.
+- Task cancellation rejects stale publication but does not settle outstanding
+  decode/hydrate work. Do not reuse its renderer until the promise has actually
+  settled. Retire a renderer through one path that clears internal and external
+  presentation ownership before destroying resources.
 - A generic package is valuable only when it preserves these properties and
   has a real consumer. Do not replace a direct fast path with abstraction churn.
 

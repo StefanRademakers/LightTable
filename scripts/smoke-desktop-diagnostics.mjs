@@ -9,7 +9,7 @@ const launch = await resolveDesktopTestLaunch(root);
 const outputDirectory = path.join(root, 'tmp', 'diagnostic-smoke');
 const testFiles = path.resolve(root, '..', 'LightTableTestFiles');
 const fixtures = [
-  { kind: 'png', file: path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'area_closed.png') },
+  { kind: 'png', file: path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png') },
   { kind: 'psd', file: path.join(testFiles, 'RandomFiles', 'TextTest.psd') },
   { kind: 'pdf', file: path.join(testFiles, 'PDFJSGIT', 'examples', 'learning', 'helloworld.pdf') }
 ];
@@ -94,7 +94,7 @@ for (const fixture of fixtures) {
       throw new Error(`${fixture.kind}: opted-out filename leaked into the bundle.`);
     }
     if (pageErrors.length) throw new Error(`${fixture.kind}: ${pageErrors.join('; ')}`);
-    const summary = await window.locator('.lighttable-debug-panel__diagnostics').first().locator('summary').textContent();
+    const summary = await window.getByRole('button', { name: /^Redacted preview \(/ }).textContent();
     const collectionMs = Number(summary?.match(/\(([\d.]+) ms\)/)?.[1] ?? Number.NaN);
     if (!Number.isFinite(collectionMs) || collectionMs > 25) {
       throw new Error(`${fixture.kind}: collection cost ${collectionMs} ms exceeds the 25 ms interaction budget.`);

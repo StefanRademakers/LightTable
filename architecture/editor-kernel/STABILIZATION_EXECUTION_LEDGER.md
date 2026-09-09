@@ -1,6 +1,6 @@
 # LightTable stabilization execution ledger
 
-Status: **active feature-freeze plan**. Updated 2026-09-08.
+Status: **active feature-freeze plan**. Updated 2026-09-10.
 
 This is the single ordered, checkable execution ledger for stabilizing the
 artist-visible editor. It does not replace the kernel contracts or the broader
@@ -184,7 +184,7 @@ slice; they are not postponed to the final phase.
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `owner` | yes | passed | packaged lifecycle pass | [x] | partial |
-| S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
+| S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `owner` | yes | passed | packaged passed | [ ] | n/a |
 
 The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
 and effect inventories come from `adjustmentLayerCatalog.ts`,
@@ -534,11 +534,30 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
 
 This is a cross-domain proof, not the first time these properties are tested.
 
-- [ ] Long mixed-operation undo/redo chains across all completed slices.
-- [ ] Equivalent UI, shortcut, Actions and MCP command results and errors.
-- [ ] GPU device loss/recovery, allocation failure and document-close cleanup.
-- [ ] Multi-document memory and repeated-operation soak.
-- [ ] Full boundary, source audit, typecheck, tests, web build and packaged desktop.
+- [x] Mixed vector/text/style/layer history is unwound and replayed to the exact
+      opening/final semantic state through UI, Actions and MCP; the domain
+      matrices from S00--S12 cover the remaining completed slice-specific
+      undo/redo chains.
+- [x] Equivalent UI, shortcut, Actions and MCP command results and failures are
+      proved for the bounded native workflow. History change detection uses the
+      history state identity rather than an unrelated document revision.
+- [x] Reconstructable SVG device loss rebuilds automatically with an identical
+      preview hash and active Vello presentation. Raster PNG loss retains the
+      canonical layer/revision and fails closed as checkpoint-required.
+- [x] Device-global asynchronous WebGPU error scopes are serialized by the
+      shared `@lighttable/webgpu-runtime` transaction. Partial initialization,
+      allocation failure, canceled hydrate overlap and renderer retirement have
+      exact cleanup tests and passed two critic repair loops with no P0/P1.
+- [x] Packaged close/reopen preserves exact document pixels and presentation
+      ownership. A six-iteration two-document soak found no suspicious JS, DOM,
+      listener or GPU growth and no unchanged-background render submissions.
+- [x] The bounded release-CI soak passed five document classes plus canvas,
+      selection/transform, Type, Layer Styles, save/export, PSD roundtrip and
+      privacy diagnostics. This is explicitly not a twelve-hour or multi-device
+      hardware qualification.
+- [x] Full boundary, source-structure audit, workspace typecheck/tests, web build
+      and instrumented packaged desktop gate passed on the final source state.
+- [ ] Owner performs the final manual interaction pass before feature unfreeze.
 
 ## Large-file reduction ledger
 
@@ -558,6 +577,7 @@ lines plus responsibilities here.
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | S11 file I/O: Place artifact/terminal policy extracted, 1346 -> 1340 |
 | `useViewportInteractionController.ts` | DOM pointer sampling and coordinate adapter | retained pan gesture and coalesced document-bound frame publication -> S12 application-input owners | S12 pan/zoom authority extracted; explicit generation/capture adapter remains oversized and is no-growth |
 | `LightTableEditorOverlay.tsx` | editor composition root | retained-canvas first-frame and thumbnail publication -> S12 document-presentation owner | `useWorkspaceDocumentPresentation.ts` extracted; 9583 -> 9518 lines |
+| `WebGpuEngine.ts` and async GPU clients | renderer facade plus domain clients | device-global async error-scope ordering -> shared runtime transaction | S13: the 72-line `@lighttable/webgpu-runtime` owner now serializes push/operation/pop across app and text GPU clients. `WebGpuEngine.ts` remains 4615 lines and no new interaction family moved into it; facade decomposition remains debt. |
 
 Rules:
 
