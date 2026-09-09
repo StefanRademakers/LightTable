@@ -37,6 +37,13 @@ export interface LiveShapeToolSnapshot {
   gestureActive: boolean;
 }
 
+export interface LiveShapeToolCommit {
+  readonly layerId: LayerId;
+  readonly layerName: string;
+  readonly shape: VectorLiveShape;
+  readonly existingLayerId?: LayerId;
+}
+
 export interface LiveShapeDragOptions {
   /** Constrain rectangular shapes to equal sides and lines to 45-degree steps. */
   preserveAspect?: boolean;
@@ -317,15 +324,32 @@ export class LiveShapeToolController {
   }
 
   pointerUp(position: Vec2, options: LiveShapeDragUpdateOptions = {}) {
-    if (!this.start) return false;
+    return Boolean(this.pointerUpWithCommit(position, options));
+  }
+
+  /**
+   * Commits and returns the exact canonical payload owned by the gesture.
+   * Hosts must not re-read React's document projection immediately after the
+   * commit: publication of that projection may legitimately happen later.
+   */
+  pointerUpWithCommit(
+    position: Vec2,
+    options: LiveShapeDragUpdateOptions = {}
+  ): LiveShapeToolCommit | null {
+    if (!this.start) return null;
     this.pointerMove(position, options);
     if (!this.shape) {
       this.reset();
-      return false;
+      return null;
     }
-    const committed = this.documents.commitElementCreation();
+    const committed = this.documents.commitElementCreationWithResult();
     this.reset();
-    return committed;
+    return committed?.element.type === 'live-shape' ? {
+      layerId: committed.layerId,
+      layerName: committed.layerName,
+      shape: cloneVectorLiveShape(committed.element),
+      ...(committed.existingLayerId ? { existingLayerId: committed.existingLayerId } : {})
+    } : null;
   }
 
   pointerUpForRaster(

@@ -11,7 +11,10 @@ import {
   createVectorLayer,
   type VectorLayer
 } from '../../editor/document/documentTypes';
-import { setActiveLayer } from '../../editor/document/documentCommands';
+import {
+  createVectorLayer as appendVectorLayer,
+  setActiveLayer
+} from '../../editor/document/documentCommands';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
@@ -332,6 +335,27 @@ describe('VectorToolSessionController', () => {
       layerName: 'Existing shapes'
     }));
     expect(state.document.layers).toHaveLength(1);
+  });
+
+  it('reports the layer chosen when the threshold starts the transaction, not pointer-down state', () => {
+    const onLiveShapeCommitted = vi.fn();
+    const state = setup(undefined, onLiveShapeCommitted);
+    const first = createVectorLayer([], 'Pointer-down target');
+    state.document = { ...state.document, layers: [first], activeLayerId: first.id };
+    state.controller.activate('live-shape');
+    state.controller.pointerDown(15, { x: 10, y: 10 }, { hitRadius: 2 });
+
+    const secondDocument = appendVectorLayer(state.document, [], 'Threshold target');
+    const secondId = secondDocument.activeLayerId!;
+    state.document = secondDocument;
+    state.controller.pointerMove(15, { x: 60, y: 40 });
+    expect(state.controller.pointerUp(15, { x: 60, y: 40 })).toBe(true);
+
+    expect(onLiveShapeCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: secondId,
+      existingLayerId: secondId,
+      layerName: 'Threshold target'
+    }));
   });
 
   it('selects and translates a live shape without converting its geometry', () => {

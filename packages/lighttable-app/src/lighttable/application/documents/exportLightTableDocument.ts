@@ -20,6 +20,7 @@ import {
 import type { BasicAdjustments } from '../../types';
 
 export interface DocumentExportRenderer {
+  synchronizeDocumentForExport(document: ImageDocument): void;
   exportPng(): Promise<Blob>;
   exportRgba8?(): Promise<{
     readonly pixels: Uint8Array | Uint8ClampedArray;
@@ -105,6 +106,10 @@ export const exportLightTableDocument = async ({
   preservedSourceAssets,
   fontAssets = []
 }: ExportLightTableDocumentOptions, runtime: ExportLightTableRuntimeOptions = {}): Promise<ExportedLightTableDocument> => {
+  // Actions and MCP may save in the same event turn as a semantic mutation.
+  // Materialize that exact canonical revision without treating React paint or
+  // visible presentation as a command/resource fence.
+  renderer.synchronizeDocumentForExport(document);
   const preview = runtime.lightweightPreview
     ? await lightweightPreview()
     : await renderer.exportPng();

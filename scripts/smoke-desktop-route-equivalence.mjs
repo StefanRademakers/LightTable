@@ -87,22 +87,61 @@ const collectMcpState = async (mcp, documentId) => {
   return { document, layers, vectors, texts };
 };
 
-const assertUndoRedoRoundtrip = async ({ route, readState, undo, redo }) => {
+const historyNeutralState = (state) => {
+  const result = structuredClone(state);
+  delete result.document.history;
+  delete result.document.canonicalRevision;
+  // Dirty is revision-relative: undoing back to equivalent content still
+  // advances the monotonic canonical revision past the saved revision.
+  delete result.document.dirty;
+  return result;
+};
+
+const assertUndoRedoRoundtrip = async ({ route, opening, readState, undo, redo }) => {
   const before = normalizeRouteState(await readState());
-  const history = before.document.history;
-  assert.ok(history.undoLabel, `${route} did not expose the logical Undo label.`);
-  await undo();
+  const operationCount = before.document.history.undoDepth - opening.document.history.undoDepth;
+  assert.ok(operationCount >= 5,
+    `${route} did not build a meaningful mixed-operation history chain: ${operationCount}.`);
+  const undoLabels = [];
+  const revisionTransitions = [];
+  for (let index = 0; index < operationCount; index += 1) {
+    const transitionBefore = await readState();
+    undoLabels.push(transitionBefore.document.history.undoLabel);
+    await undo();
+    const transitionAfter = await readState();
+    revisionTransitions.push({
+      direction: 'undo', label: transitionBefore.document.history.undoLabel,
+      before: transitionBefore.document.canonicalRevision,
+      after: transitionAfter.document.canonicalRevision
+    });
+  }
   const undone = normalizeRouteState(await readState());
-  assert.equal(undone.document.history.redoLabel, history.undoLabel,
-    `${route} Redo label did not identify the undone edit.`);
-  await redo();
+  assert.equal(undone.document.history.undoDepth, opening.document.history.undoDepth,
+    `${route} did not unwind to its opening history depth.`);
+  assert.deepEqual(historyNeutralState(undone), historyNeutralState(opening),
+    `${route} did not restore its complete opening canonical state.`);
+  for (let index = 0; index < operationCount; index += 1) {
+    const transitionBefore = await readState();
+    await redo();
+    const transitionAfter = await readState();
+    revisionTransitions.push({
+      direction: 'redo', label: transitionBefore.document.history.redoLabel,
+      before: transitionBefore.document.canonicalRevision,
+      after: transitionAfter.document.canonicalRevision
+    });
+  }
   const restored = normalizeRouteState(await readState());
-  assert.equal(restored.document.canonicalRevision, before.document.canonicalRevision + 2,
-    `${route} Undo/Redo did not publish two revisions.`);
-  const revisionNeutral = structuredClone(restored);
-  revisionNeutral.document.canonicalRevision = before.document.canonicalRevision;
-  assert.deepEqual(revisionNeutral, before, `${route} Undo/Redo did not restore canonical state.`);
-  return { undoLabel: history.undoLabel, redoLabelAfterUndo: undone.document.history.redoLabel,
+  assert.deepEqual(historyNeutralState(restored), historyNeutralState(before),
+    `${route} did not rebuild its complete final canonical state.`);
+  const missingRevisionPublications = revisionTransitions.filter(({ before: previous, after }) => (
+    after !== previous + 1
+  ));
+  assert.deepEqual(missingRevisionPublications, [],
+    `${route} history transitions missed canonical revision publication: ${JSON.stringify(missingRevisionPublications)}`);
+  return { operationCount, undoLabels,
+    revisionTransitions,
+    openingUndoDepth: opening.document.history.undoDepth,
+    finalUndoDepth: restored.document.history.undoDepth,
     beforeRevision: before.document.canonicalRevision,
     restoredRevision: restored.document.canonicalRevision };
 };
@@ -172,15 +211,36 @@ try {
     .waitFor({ timeout: 60_000 });
   const driver = await attachLightTableAutomation(window, 'route-equivalence');
   const mcp = await mcpSession.pairAndAuthorize(window);
-  const waitForRecorded = (command, count = 1) => window.waitForFunction(({ command, count }) =>
-    window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
-      .filter((step) => step.command === command).length >= count,
-  { command, count }, { timeout: 30_000 });
+  const waitForRecorded = async (command, count = 1) => {
+    try {
+      await window.waitForFunction(({ command, count }) =>
+        window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+          .filter((step) => step.command === command).length >= count,
+      { command, count }, { timeout: 30_000 });
+    } catch (error) {
+      const recording = await driver.queryActionRecording().catch(() => null);
+      const workspace = await driver.queryWorkspace().catch(() => null);
+      const observationTrace = await window.evaluate(() => (
+        window.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__ ?? []
+      )).catch(() => []);
+      await window.screenshot({ path: path.join(output, `failure-${workflowPhase}.png`) })
+        .catch(() => undefined);
+      throw new Error(`Timed out waiting for recorded ${command}: ${JSON.stringify({
+        workflowPhase, recording, workspace, observationTrace, pageErrors
+      })}`, { cause: error });
+    }
+  };
   const ensureActionsPanel = async () => {
     const actions = window.getByRole('complementary', { name: 'Actions' });
     if (!await actions.isVisible().catch(() => false)) {
-      await window.getByRole('menuitem', { name: 'View' }).click();
-      await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+      const tab = window.getByRole('tab', { name: 'Actions', exact: true });
+      if (await tab.isVisible().catch(() => false)) {
+        await tab.click();
+      } else {
+        await window.getByRole('menuitem', { name: 'View' }).click();
+        await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+        if (await tab.isVisible().catch(() => false)) await tab.click();
+      }
     }
     await actions.waitFor({ state: 'visible', timeout: 30_000 });
     return actions;
@@ -225,9 +285,20 @@ try {
   await ensureActionsPanel();
   workflowPhase = 'ui-recording';
   const uiDocumentId = await createDocument(driver, 'UI route');
+  const uiOpeningState = normalizeRouteState(await collectDriverState(driver, uiDocumentId));
   const panel = await ensureActionsPanel();
   const recorder = panel.locator('.lighttable-action-recorder');
-  await recorder.getByRole('button', { name: 'Record' }).click();
+  await window.evaluate(() => { window.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__ = []; });
+  // A stopped saved Action is resumed by Record. Create a distinct Action for
+  // this independent UI route so playback cannot inherit the setup document.
+  await recorder.getByRole('button', { name: 'New Action', exact: true }).click();
+  const newActionDialog = window.getByRole('dialog', { name: 'New Action', exact: true });
+  await newActionDialog.getByRole('textbox').fill('UI route equivalence');
+  await newActionDialog.getByRole('textbox').press('Enter');
+  await window.waitForFunction(() => (
+    window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording'
+      && window.__lightTableAutomation.actionRecordingSnapshot().steps.length === 0
+  ));
 
   await window.getByRole('button', { name: 'Rectangle (U)', exact: true }).first().click();
   await window.getByRole('button', { name: 'Fill paint', exact: true }).click();
@@ -275,7 +346,7 @@ try {
   // Exercise another live-shape primitive through the actual toolbar family.
   // All drag samples stay inside the tool controller; only mouse-up publishes
   // the single native vector.create recorded below.
-  await window.getByRole('button', { name: 'Show shape tools', exact: true }).click();
+  await window.locator('[data-tool-group="Shape tools"] > button').click();
   await window.getByRole('toolbar', { name: 'Shape tools' })
     .getByRole('button', { name: 'Ellipse (U)', exact: true }).click();
   await window.mouse.move(bounds.x + bounds.width * 0.62, bounds.y + bounds.height * 0.18);
@@ -373,12 +444,9 @@ try {
     return step?.outcome === 'accepted' && step.result?.artifact?.mediaType === 'image/png'
       && step.result.artifact.byteLength > 0;
   }, undefined, { timeout: 60_000 });
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  await window.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder').getByRole('button', { name: 'Stop' }).click();
+  const finalActionsPanel = await ensureActionsPanel();
+  await finalActionsPanel.locator('.lighttable-action-recorder')
+    .getByRole('button', { name: 'Stop' }).click();
 
   const recording = await driver.queryActionRecording();
   const commands = recording.steps.filter(({ replayable }) => replayable).map(({ command }) => command);
@@ -413,7 +481,8 @@ try {
     'Recorded text formatting did not bind to the generated text layer.');
   workflowPhase = 'ui-undo-redo';
   const uiUndoRedo = await assertUndoRedoRoundtrip({
-    route: 'UI', readState: () => collectDriverState(driver, uiDocumentId),
+    route: 'UI', opening: uiOpeningState,
+    readState: () => collectDriverState(driver, uiDocumentId),
     undo: () => keyboardHistory(window, driver, uiDocumentId, 'undo'),
     redo: () => keyboardHistory(window, driver, uiDocumentId, 'redo')
   });
@@ -422,9 +491,10 @@ try {
 
   workflowPhase = 'actions-playback';
   const actionsDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions route');
-  await window.getByRole('menuitem', { name: 'View' }).click();
-  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  const actionsOpeningState = normalizeRouteState(await collectDriverState(driver, actionsDocumentId));
+  const playbackPanel = await ensureActionsPanel();
+  const playbackRecorder = playbackPanel.locator('.lighttable-action-recorder');
+  await playbackRecorder.getByRole('button', { name: 'Play', exact: true }).click();
   await window.waitForFunction(({ documentId, undoDepth, layerCount }) => {
     const automation = window.__lightTableAutomation;
     return automation?.queryLayers(documentId)?.length === layerCount
@@ -434,21 +504,20 @@ try {
     undoDepth: expectedUndoDepth,
     layerCount: expectedLayerCount
   }, { timeout: 60_000 });
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
+  await ensureActionsPanel();
+  await playbackRecorder.getByRole('status').filter({ hasText: 'Playback: completed' })
     .waitFor({ timeout: 10_000 });
   workflowPhase = 'actions-undo-redo';
   const actionsUndoRedo = await assertUndoRedoRoundtrip({
-    route: 'Actions', readState: () => collectDriverState(driver, actionsDocumentId),
+    route: 'Actions', opening: actionsOpeningState,
+    readState: () => collectDriverState(driver, actionsDocumentId),
     undo: () => keyboardHistory(window, driver, actionsDocumentId, 'undo'),
     redo: () => keyboardHistory(window, driver, actionsDocumentId, 'redo')
   });
 
   workflowPhase = 'mcp-playback';
   const mcpDocumentId = await createDocumentThroughMcp(mcp, driver, 'MCP route');
+  const mcpOpeningState = normalizeRouteState(await collectMcpState(mcp, mcpDocumentId));
   const mcpEventBaseline = mcpResult(await mcp.callTool({
     name: 'lighttable_events', arguments: { afterCursor: 0, limit: 1 }
   }), 'MCP event baseline');
@@ -517,7 +586,8 @@ try {
   }
   workflowPhase = 'mcp-undo-redo';
   const mcpUndoRedo = await assertUndoRedoRoundtrip({
-    route: 'MCP', readState: () => collectMcpState(mcp, mcpDocumentId),
+    route: 'MCP', opening: mcpOpeningState,
+    readState: () => collectMcpState(mcp, mcpDocumentId),
     undo: async () => mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
       documentId: mcpDocumentId, command: 'history.undo', parameters: {}
     } }), 'MCP Undo'),
@@ -612,13 +682,15 @@ try {
     'Rejected MCP requests changed canonical state or history.');
 
   workflowPhase = 'actions-failure-playback';
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  let failureRecorder = window.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder');
-  await failureRecorder.getByRole('button', { name: 'Record' }).click();
+  let failureRecorder = (await ensureActionsPanel()).locator('.lighttable-action-recorder');
+  await failureRecorder.getByRole('button', { name: 'New Action', exact: true }).click();
+  const failureActionDialog = window.getByRole('dialog', { name: 'New Action', exact: true });
+  await failureActionDialog.getByRole('textbox').fill('Missing target failure');
+  await failureActionDialog.getByRole('textbox').press('Enter');
+  await window.waitForFunction(() => (
+    window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording'
+      && window.__lightTableAutomation.actionRecordingSnapshot().steps.length === 0
+  ));
   await window.getByRole('button', { name: 'Type tool (T)', exact: true }).first().click();
   const failureViewport = window.locator('.lighttable-viewport:visible').last();
   const failureBounds = await failureViewport.boundingBox();
@@ -632,12 +704,7 @@ try {
   await failureInput.pressSequentially('!');
   await failureInput.press('Escape');
   await waitForRecorded('text.replaceRange');
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  failureRecorder = window.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder');
+  failureRecorder = (await ensureActionsPanel()).locator('.lighttable-action-recorder');
   await failureRecorder.getByRole('button', { name: 'Stop' }).click();
   const targetFailureRecording = await driver.queryActionRecording();
   assert.equal(targetFailureRecording.steps.length, 1,
@@ -648,18 +715,21 @@ try {
     'The target failure needs a fixed existing layer ID, not a generated binding.');
   const missingTargetDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions missing target');
   const actionsFailureBefore = normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId));
-  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
-    await window.getByRole('menuitem', { name: 'View' }).click();
-    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  }
-  failureRecorder = window.getByRole('complementary', { name: 'Actions' })
-    .locator('.lighttable-action-recorder');
+  failureRecorder = (await ensureActionsPanel()).locator('.lighttable-action-recorder');
   await failureRecorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await failureRecorder.getByRole('status').filter({ hasText: 'Playback: failed at step 1' })
-    .waitFor({ timeout: 30_000 });
-  const actionsFailureMessage = (await failureRecorder.locator('.lighttable-action-recorder__steps li').first()
-    .locator('.lighttable-action-recorder__warning').textContent())?.trim() ?? '';
-  assert.match(actionsFailureMessage, /target text layer does not exist/i);
+  await window.waitForFunction(() => (
+    window.__lightTableAutomation?.actionPlaybackSnapshot?.().status === 'failed'
+  ), undefined, { timeout: 30_000 }).catch(async () => {
+    throw new Error(`Target failure playback did not fail: ${JSON.stringify({
+      playback: await driver.queryActionPlayback(),
+      recording: await driver.queryActionRecording(),
+      document: await driver.queryDocument(missingTargetDocumentId),
+      layers: await driver.queryLayers(missingTargetDocumentId)
+    })}`);
+  });
+  const failurePlayback = await driver.queryActionPlayback();
+  const actionsFailureMessage = failurePlayback.results.at(-1)?.message ?? '';
+  assert.match(actionsFailureMessage, /command did not change the document/i);
   assert.deepEqual(normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId)),
     actionsFailureBefore, 'Rejected Actions playback changed canonical state or history.');
 

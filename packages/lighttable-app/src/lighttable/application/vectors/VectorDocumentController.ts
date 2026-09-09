@@ -73,6 +73,8 @@ interface ActiveElementMutation {
 interface ActiveElementCreation {
   layerId: LayerId;
   elementId: string;
+  layerName: string;
+  existingLayerId?: LayerId;
   transaction: DocumentMutationTransaction;
 }
 
@@ -124,6 +126,13 @@ export interface VectorElementCreationPlacement<TElement extends VectorElement =
   documentToElement: AffineMatrix;
   /** Rebase used to persist subsequent document-space previews in the layer. */
   documentToLayer: AffineMatrix;
+}
+
+export interface VectorElementCreationCommit<TElement extends VectorElement = VectorElement> {
+  readonly layerId: LayerId;
+  readonly layerName: string;
+  readonly element: TElement;
+  readonly existingLayerId?: LayerId;
 }
 
 export interface VectorElementCreationOptions {
@@ -327,6 +336,8 @@ export class VectorDocumentController {
     this.activeCreation = {
       layerId,
       elementId: element.id,
+      layerName: canAppendToActive ? activeLayer.name : name,
+      ...(canAppendToActive ? { existingLayerId: activeLayer.id } : {}),
       transaction
     };
     if (!transaction.change(() => previewDocument)) {
@@ -367,10 +378,28 @@ export class VectorDocumentController {
   }
 
   commitElementCreation() {
+    return Boolean(this.commitElementCreationWithResult());
+  }
+
+  commitElementCreationWithResult(): VectorElementCreationCommit | null {
     const active = this.activeCreation;
-    if (!active) return false;
+    if (!active) return null;
     this.activeCreation = null;
-    return active.transaction.commit();
+    const layer = findDocumentLayer(active.transaction.current, active.layerId);
+    const element = layer?.type === 'vector'
+      ? layer.elements.find(({ id }) => id === active.elementId)
+      : null;
+    if (!element) {
+      active.transaction.cancel();
+      return null;
+    }
+    const result: VectorElementCreationCommit = {
+      layerId: active.layerId,
+      layerName: active.layerName,
+      element: cloneVectorElement(element),
+      ...(active.existingLayerId ? { existingLayerId: active.existingLayerId } : {})
+    };
+    return active.transaction.commit() ? result : null;
   }
 
   /** Releases a complete preview so a host can atomically bake it to pixels. */

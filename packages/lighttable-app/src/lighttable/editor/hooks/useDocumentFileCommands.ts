@@ -161,6 +161,11 @@ export const useDocumentFileCommands = (
     if (!imageDocument || !current.effectiveSourceFileKey) {
       throw new Error('The LightTable document is not ready yet.');
     }
+    const fontAssets = await current.getFontAssets();
+    // Font materialization may yield while the shared renderer is rebound to
+    // another tab. Refuse stale ownership before synchronizeDocumentForExport
+    // can mutate that renderer; retain the final assertion for async readback.
+    binding.assertCurrent('Document export');
     const output = await exportLightTableDocument({
       document: imageDocument,
       renderer,
@@ -172,7 +177,7 @@ export const useDocumentFileCommands = (
         current.getEffectiveLayeredAdjustments(imageDocument),
       globalGradeStrength: current.getGlobalGradeStrength?.() ?? 100,
       preservedSourceAssets: current.getPreservedSourceAssets(),
-      fontAssets: await current.getFontAssets()
+      fontAssets
     }, runtime);
     binding.assertCurrent('Document export');
     return output;

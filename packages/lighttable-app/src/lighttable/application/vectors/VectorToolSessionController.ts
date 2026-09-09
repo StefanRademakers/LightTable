@@ -103,7 +103,6 @@ interface CapturedPointer {
   readonly documentId: ImageDocument['id'];
   readonly rendererGeneration: number;
   readonly rasterize?: boolean;
-  readonly existingVectorLayerId?: LayerId;
 }
 
 /**
@@ -304,19 +303,12 @@ export class VectorToolSessionController {
       if (!result.capture) return true;
     }
 
-    const activeDocument = this.dependencies.getDocument();
-    const existingVectorTarget = this.activeMode === 'live-shape' && activeDocument
-      ? findDocumentLayer(activeDocument, activeDocument.activeLayerId)
-      : null;
     this.capturedPointer = {
       id: pointerId,
       mode: this.activeMode,
       documentId,
       rendererGeneration,
-      rasterize: this.activeMode === 'live-shape' && options.rasterize,
-      ...(existingVectorTarget?.type === 'vector'
-        && !layerIsLocked(existingVectorTarget, 'pixels')
-        ? { existingVectorLayerId: existingVectorTarget.id } : {})
+      rasterize: this.activeMode === 'live-shape' && options.rasterize
     };
     return true;
   }
@@ -364,25 +356,17 @@ export class VectorToolSessionController {
           () => this.rasterizeShape?.(transaction, capture.rendererGeneration) ?? false
         );
       }
-      const opening = this.liveShape.snapshot();
-      const committed = this.liveShape.pointerUp(documentPoint, options);
-      if (committed && opening.layerId && opening.shape) {
-        const currentDocument = this.dependencies.getDocument();
-        const layer = currentDocument
-          ? findDocumentLayer(currentDocument, opening.layerId)
-          : null;
-        const element = layer?.type === 'vector'
-          ? layer.elements.find(({ id }) => id === opening.shape!.id)
-          : null;
-        if (layer?.type === 'vector' && element?.type === 'live-shape') this.onLiveShapeCommitted?.({
-          layerId: opening.layerId,
-          element: cloneVectorElement(element) as VectorLiveShape,
-          layerName: layer.name,
-          ...(capture.existingVectorLayerId
-            ? { existingLayerId: capture.existingVectorLayerId } : {})
+      const committed = this.liveShape.pointerUpWithCommit(documentPoint, options);
+      if (committed) {
+        this.onLiveShapeCommitted?.({
+          layerId: committed.layerId,
+          element: cloneVectorElement(committed.shape) as VectorLiveShape,
+          layerName: committed.layerName,
+          ...(committed.existingLayerId
+            ? { existingLayerId: committed.existingLayerId } : {})
         });
       }
-      return committed;
+      return Boolean(committed);
     }
     if (capture.mode === 'gradient') return this.gradient.pointerUp(
       documentPoint,

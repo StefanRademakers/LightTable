@@ -147,6 +147,25 @@ describe('resolveLiveShapeDrag', () => {
 });
 
 describe('LiveShapeToolController', () => {
+  it('returns the exact committed payload without requiring a host projection reread', () => {
+    const state = setup();
+    const tool = new LiveShapeToolController(state.documents, { kind: 'rectangle' }, { ids: state.ids });
+
+    expect(tool.pointerDown({ x: 10, y: 15 })).toBe(true);
+    expect(tool.pointerMove({ x: 30, y: 35 })).toBe(true);
+    const committed = tool.pointerUpWithCommit({ x: 80, y: 55 });
+
+    expect(committed).toMatchObject({
+      layerId: state.document.activeLayerId,
+      shape: {
+        id: 'live-shape-1',
+        geometry: { kind: 'rectangle', width: 70, height: 40 },
+        transform: { tx: 10, ty: 15 }
+      }
+    });
+    expect(state.history).toHaveLength(1);
+  });
+
   it('coalesces a complete drag into one document history entry', () => {
     const state = setup();
     const opening = state.document;

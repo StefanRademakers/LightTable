@@ -15,6 +15,7 @@ import {
 } from './exportLightTableDocument';
 
 const rendererFixture = (): DocumentExportRenderer => ({
+  synchronizeDocumentForExport: vi.fn(),
   exportPng: vi.fn(async () => new Blob(['preview'], { type: 'image/png' })),
   exportLayerAssets: vi.fn(async () => [] as DocumentAssetBlob[]),
   getAdjustmentStack: vi.fn(() =>
@@ -52,8 +53,9 @@ describe('LightTable document export policy', () => {
   it('does not request layer assets for a flat export', async () => {
     const renderer = rendererFixture();
     const settings = createDefaultAdjustments();
+    const document = createImageDocument('Flat', 16, 9, 'asset');
     const output = await exportLightTableDocument({
-      document: createImageDocument('Flat', 16, 9, 'asset'),
+      document,
       renderer,
       recipeSourceKey: 'source-key',
       fileNameBase: 'source.jpg',
@@ -66,6 +68,9 @@ describe('LightTable document export policy', () => {
     expect(output.file.name).toBe('source-lighttable.png');
     expect(output.recipe.documentFormat).toBeUndefined();
     expect(renderer.exportLayerAssets).not.toHaveBeenCalled();
+    expect(renderer.synchronizeDocumentForExport).toHaveBeenCalledWith(document);
+    expect(vi.mocked(renderer.synchronizeDocumentForExport).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(renderer.exportPng).mock.invocationCallOrder[0]!);
   });
 
   it('forces a native authored boundary for duplicating a plain one-layer image', async () => {
@@ -113,6 +118,7 @@ describe('LightTable document export policy', () => {
 
       expect(created).toEqual([{ width: 1, height: 1 }]);
       expect(renderer.exportPng).not.toHaveBeenCalled();
+      expect(renderer.synchronizeDocumentForExport).toHaveBeenCalledWith(document);
       await expect(parseLayeredDocumentFile(output.file)).resolves.toMatchObject({
         previewKind: 'placeholder'
       });

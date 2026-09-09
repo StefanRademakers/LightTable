@@ -152,6 +152,32 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('uses history ownership, not coincident document revision values, for Undo publication', async () => {
+    const state = setup();
+    const before = state.session.getSnapshot().document!;
+    const after = { ...before, name: 'Coalesced text snapshot' };
+    state.session.setDocument(after);
+    state.session.history.record({
+      id: 'same-revision-history',
+      type: 'text.typing',
+      label: 'Edit text',
+      documentId: state.session.id,
+      affectsDocument: true,
+      undo: () => state.session.setDocument(before),
+      redo: () => state.session.setDocument(after)
+    });
+    vi.mocked(state.ports.undo).mockImplementation(() => state.session.history.undo());
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+
+    await expect(state.service.execute(request('history.undo', state.session.id)))
+      .resolves.toMatchObject({
+        status: 'completed',
+        value: { changed: true, documentChanged: true },
+        revisions: { document: revision + 1 }
+      });
+    expect(state.session.getSnapshot().document?.name).toBe(before.name);
+  });
+
   it('rejects new commands while an application transition barrier is held', async () => {
     const state = setup();
     const barrier = state.service.acquireExecutionBarrier('Application close is pending.');

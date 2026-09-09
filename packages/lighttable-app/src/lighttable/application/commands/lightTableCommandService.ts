@@ -1948,10 +1948,13 @@ export class LightTableCommandService {
             message: direction === 'undo' ? 'There is nothing to undo.' : 'There is nothing to redo.'
           };
         }
-        const beforeRevision = snapshot.document!.revision;
+        // Document snapshots may legitimately reuse an internal revision
+        // value when a coalesced editor transaction restores an older object.
+        // History alone owns whether the transition affects canonical state.
+        const beforeStateId = snapshot.history.currentStateId;
         const completed = await this.ports[direction](request.documentId);
         if (!completed) return { code: 'execution-failed', message: `${direction} did not complete.` };
-        const documentChanged = this.document(request.documentId)?.document?.revision !== beforeRevision;
+        const documentChanged = this.document(request.documentId)?.history.currentStateId !== beforeStateId;
         return { value: { changed: true, documentChanged }, changed: documentChanged };
       }
     }
