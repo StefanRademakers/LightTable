@@ -1,7 +1,12 @@
-import type { GenAiFieldDefinition, GenAiWorkflowDefinition } from '@lighttable/genai-core';
+import type {
+  GenAiEditorDeliveryTarget,
+  GenAiFieldDefinition,
+  GenAiWorkflowDefinition
+} from '@lighttable/genai-core';
 
 export interface GenAiDocumentContext {
   readonly id: string;
+  readonly revision: number;
   readonly width: number;
   readonly height: number;
 }
@@ -13,6 +18,17 @@ export const genAiDocumentContextKey = (
 ): string | undefined => context && validDimension(context.width) && validDimension(context.height)
   ? `${context.id}:${context.width}x${context.height}`
   : undefined;
+
+export const genAiEditorDeliveryTarget = (
+  projectId: string,
+  context: GenAiDocumentContext | undefined,
+  behavior: GenAiEditorDeliveryTarget['behavior']
+): GenAiEditorDeliveryTarget | undefined => context ? {
+  projectId,
+  documentId: context.id,
+  sourceRevision: context.revision,
+  behavior
+} : undefined;
 
 const parseAspectRatio = (value: string): number | undefined => {
   const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*[:/x]\s*(\d+(?:\.\d+)?)$/iu);

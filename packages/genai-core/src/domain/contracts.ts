@@ -163,6 +163,14 @@ export interface GenAiSelectionInput {
   readonly featherRadiusPx?: number;
 }
 
+/** Host-private delivery provenance. Provider adapters must not serialize it. */
+export interface GenAiEditorDeliveryTarget {
+  readonly projectId: string;
+  readonly documentId: string;
+  readonly sourceRevision: number;
+  readonly behavior: 'place-edit' | 'open-new';
+}
+
 export interface GenAiGenerationRequest {
   readonly providerId: GenAiProviderId;
   readonly modelId: GenAiModelId;
@@ -173,6 +181,7 @@ export interface GenAiGenerationRequest {
   readonly intent?: GenAiGenerationIntent;
   readonly baseImageAssetId?: GenAiAssetId;
   readonly selection?: GenAiSelectionInput;
+  readonly editorDelivery?: GenAiEditorDeliveryTarget;
   /** Human-readable prompt retained exactly as edited. */
   readonly prompt: string;
   /** Provider-position prompt after stable asset tokens are resolved. */

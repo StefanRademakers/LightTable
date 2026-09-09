@@ -28,7 +28,7 @@ const upsertJob = (
 export const useGenAiJobsController = (
   service: LightTableGenAiService | undefined,
   projectId?: string,
-  onSucceeded?: (job: GenAiGenerationJob) => void,
+  onSucceeded?: (job: GenAiGenerationJob) => void | Promise<unknown>,
   refreshKey?: unknown
 ): GenAiJobsSnapshot => {
   const [jobs, setJobs] = React.useState<readonly GenAiGenerationJob[]>([]);
@@ -53,7 +53,11 @@ export const useGenAiJobsController = (
     const unsubscribe = service.subscribeJobs(projectId, (job) => {
       if (!active) return;
       setJobs((current) => upsertJob(current, job));
-      if (deliveryTracker.current.claim(job)) onSucceededRef.current?.(job);
+      if (deliveryTracker.current.claim(job)) {
+        void Promise.resolve(onSucceededRef.current?.(job)).catch((reason) => {
+          if (active) setError(reason instanceof Error ? reason.message : String(reason));
+        });
+      }
     });
     void service.listJobs(projectId).then((snapshot) => {
       if (active) {

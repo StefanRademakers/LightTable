@@ -1,5 +1,9 @@
 import type { LightTableHost } from '../platform/LightTableHost';
-import type { DocumentSession } from '../lighttable/application/documents/documentSession';
+
+interface OpeningDocumentSession {
+  getSnapshot(): { readonly lifecycle: string };
+  subscribe(listener: () => void): () => void;
+}
 
 /**
  * File > Open prefers the host's multi-document picker while retaining the
@@ -17,7 +21,7 @@ export const openHostDocuments = async (host: LightTableHost): Promise<readonly 
  * newly active session publish before opening the next one; otherwise React
  * mounts only the final tab and earlier sessions remain permanently opening.
  */
-export const waitForDocumentOpeningToSettle = (session: DocumentSession): Promise<void> => {
+export const waitForDocumentOpeningToSettle = (session: OpeningDocumentSession): Promise<void> => {
   if (session.getSnapshot().lifecycle !== 'opening') return Promise.resolve();
   return new Promise((resolve) => {
     const unsubscribe = session.subscribe(() => {

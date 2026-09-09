@@ -599,6 +599,15 @@ reports:
   admission through host handoff. Never start Save/Export directly around the
   document task registry, delete recovery without `throughRevision`, or update
   a session-backed React document ref before `DocumentSession` accepts it.
+- Generated-result delivery is document lifecycle, not panel state. A submitted
+  job persists `editorDelivery` provenance (project, document, source revision
+  and behavior); provider adapters never serialize it. Automatic delivery must
+  fail closed before asset loading unless the current project matches, and a
+  `place-edit` must also match the exact document. Placement crosses the normal
+  `layer.placeArtifact` command boundary; Open waits for terminal decode.
+  Legacy/no-provenance jobs and stale completions remain durable in History and
+  may be opened only through the explicit user action. Do not infer a delivery
+  target from whichever project or document happens to be active on completion.
 
 Archived Task 303 is a dated backend bake-off; completed Task 309 and current
 code supersede its former "current backend by default" decision. Read its

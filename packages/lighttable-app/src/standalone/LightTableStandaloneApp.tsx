@@ -1454,7 +1454,17 @@ export function LightTableStandaloneApp({
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenStyleGuide={onOpenStyleGuide}
           preferences={preferences}
-          onOpen={(file, decodeMode) => openWorkspaceFileSafely(file, decodeMode)}
+          onOpen={async (file, decodeMode) => {
+            const opened = await openWorkspaceFileSafely(file, decodeMode);
+            if (!opened.ok) {
+              throw new Error(`The generated result could not be opened: ${opened.error.code}.`);
+            }
+            await waitForDocumentOpeningToSettle(opened.value);
+            const state = opened.value.getSnapshot();
+            if (state.lifecycle !== 'ready') {
+              throw new Error(state.lifecycleError ?? 'The generated result could not be decoded.');
+            }
+          }}
           onRecoveryResolved={resolveRecovery}
           onDocumentThumbnailChange={publishDocumentThumbnail}
           onRegisterRecoveryFlush={registerRecoveryFlush}

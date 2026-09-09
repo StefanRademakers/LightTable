@@ -8,6 +8,7 @@ import type {
 import {
   applyGenAiImageCreateDefaults,
   applyGenAiOutputSizeDefault,
+  genAiEditorDeliveryTarget,
   matchGenAiValuesToDocument
 } from './genAiDocumentDefaults';
 
@@ -29,20 +30,29 @@ const workflow = {
 } as GenAiWorkflowDefinition;
 
 describe('GenAI document defaults', () => {
+  it('pins generated-result delivery to its submitting project, document and revision', () => {
+    expect(genAiEditorDeliveryTarget(
+      'project-a',
+      { id: 'document-a', revision: 7, width: 1920, height: 1080 },
+      'place-edit'
+    )).toEqual({
+      projectId: 'project-a', documentId: 'document-a', sourceRevision: 7, behavior: 'place-edit'
+    });
+  });
   it('matches a 1920 by 1080 edit to 16:9 and the covering 2K tier', () => {
-    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'a', width: 1920, height: 1080 }))
+    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'a', revision: 1, width: 1920, height: 1080 }))
       .toMatchObject({ ratio: '16:9', size: '2K' });
   });
 
   it('matches portrait documents and caps oversized canvases at the largest provider tier', () => {
-    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'b', width: 1080, height: 1920 }))
+    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'b', revision: 1, width: 1080, height: 1920 }))
       .toMatchObject({ ratio: '9:16', size: '2K' });
-    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'c', width: 8000, height: 4000 }))
+    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'c', revision: 1, width: 8000, height: 4000 }))
       .toMatchObject({ ratio: '16:9', size: '4K' });
   });
 
   it('never automatically drops a small edit document to 1K when 2K is available', () => {
-    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'small', width: 512, height: 512 }))
+    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'small', revision: 1, width: 512, height: 512 }))
       .toMatchObject({ ratio: '1:1', size: '2K' });
   });
 
@@ -72,7 +82,7 @@ describe('GenAI document defaults', () => {
 
   it('keeps document matching out of image-create mode', () => {
     const create = { ...workflow, mode: 'text2image' } as GenAiWorkflowDefinition;
-    expect(matchGenAiValuesToDocument(create, { ratio: '1:1' }, { id: 'a', width: 1920, height: 1080 }))
+    expect(matchGenAiValuesToDocument(create, { ratio: '1:1' }, { id: 'a', revision: 1, width: 1920, height: 1080 }))
       .toEqual({ ratio: '1:1' });
   });
 });

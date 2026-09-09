@@ -44,10 +44,11 @@ try {
   }
   await sourceTab.waitFor({ timeout: 30_000 });
 
-  await window.locator('.shots-app-menu__button:visible').filter({ hasText: /^File$/ }).click();
-  await window.locator('.context-menu:visible').getByRole('menuitem', { name: 'New Project...' }).click();
+  const visibleEditor = window.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)');
+  await visibleEditor.getByRole('menuitem', { name: 'File', exact: true }).click();
+  await window.locator('.ui-menu:visible').first().getByRole('menuitem', { name: 'New Project...' }).click();
   const dialog = window.getByRole('dialog', { name: 'Create project' });
-  await dialog.getByRole('button', { name: 'Choose...' }).click();
+  await dialog.getByRole('button', { name: /^Choose/u }).click();
   await dialog.getByRole('button', { name: 'Create' }).click();
 
   const deadline = Date.now() + 10_000;
@@ -58,28 +59,23 @@ try {
   }
   if (!project) throw new Error('New project did not become active.');
 
-  const assetEvent = window.evaluate((projectId) => new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      unsubscribe();
-      reject(new Error('Timed out waiting for the project asset catalog event.'));
-    }, 15_000);
-    const unsubscribe = window.lightTableDesktop.onGenAiProjectAssetsChanged((changedProjectId) => {
-      if (changedProjectId !== projectId) return;
-      window.clearTimeout(timeout);
-      unsubscribe();
-      resolve(changedProjectId);
-    });
-  }), project.id);
-
   const indexedPath = path.join(project.rootPath, 'Characters', 'reference-lighttable.png');
   await copyFile(source, indexedPath);
-  await assetEvent;
-
-  const assets = await window.evaluate(
-    async (projectId) => (await window.lightTableDesktop.loadGenAiProjectAssetCatalog(projectId)).assets,
+  await window.evaluate(
+    async (projectId) => window.lightTableDesktop.refreshGenAiProjectAssets(projectId),
     project.id
   );
-  const reference = assets.find((asset) => asset.label === 'reference-lighttable.png');
+  const catalogDeadline = Date.now() + 15_000;
+  let assets = [];
+  let reference;
+  while (!reference && Date.now() < catalogDeadline) {
+    assets = await window.evaluate(
+      async (projectId) => (await window.lightTableDesktop.loadGenAiProjectAssetCatalog(projectId)).assets,
+      project.id
+    );
+    reference = assets.find((asset) => asset.label === 'reference-lighttable.png');
+    if (!reference) await window.waitForTimeout(100);
+  }
   if (!reference) throw new Error(`Indexed project image was not exposed to GenAI: ${JSON.stringify(assets)}`);
   if ('path' in reference || 'rootPath' in reference) {
     throw new Error('The renderer-facing GenAI asset leaked a filesystem path.');

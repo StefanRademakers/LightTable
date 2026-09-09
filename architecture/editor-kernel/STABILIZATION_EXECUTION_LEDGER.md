@@ -182,7 +182,7 @@ slice; they are not postponed to the final phase.
 | S08 | Adjustment-layer lifecycle | `owner` | yes | passed | passed | [ ] | partial |
 | S09 | Layer styles/effects lifecycle | `owner` | yes | passed | passed | [ ] | yes |
 | S10 | Filters P0, P1 and P2 by release tier | `owner` | yes | repaired | P0 baseline passed | [ ] | partial |
-| S11 | Document geometry, clipboard, open/place/save/export/recovery | `active` | complete except generated-result insertion | repaired | packaged passed | [x] | partial |
+| S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `queued` | [ ] | [ ] | [ ] | [ ] | n/a |
 
@@ -485,7 +485,13 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       revision-bounded cleanup and retained command/session/history/task close
       admission pass focused, packaged crash-recovery and close-during-save
       evidence. Independent critic accepted after two additional P1 repairs.
-- [ ] Generated/AI results use the normal cancellable result-insertion commands.
+- [x] Generated/AI results use the normal cancellable result-insertion command.
+      Submission persists project/document/revision/behavior provenance;
+      automatic delivery fails closed across project/document switches before
+      loading bytes, image edits use `layer.placeArtifact`, and create/explicit
+      Open waits for terminal document decode. Focused delivery/GenAI/command
+      regressions pass, the packaged project-asset boundary passes, and the
+      independent critic reports no remaining P0/P1.
 
 ### S12 -- view and multi-document presentation
 

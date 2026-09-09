@@ -18,7 +18,7 @@ export interface ProjectAssetBrowserProps {
   readonly error?: string;
   readonly previews?: Readonly<Record<string, string>>;
   readonly onRequestPreview?: (assetId: GenAiAssetId) => void;
-  readonly onOpenResult?: (job: GenAiGenerationJob) => void;
+  readonly onOpenResult?: (job: GenAiGenerationJob) => void | Promise<unknown>;
   readonly onOpenAsset?: (asset: GenAiAssetReference) => void;
   /** Restores persisted generation settings into the editor; it never submits. */
   readonly onRecreate?: (job: GenAiGenerationJob) => void;
@@ -249,7 +249,8 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
   };
   const menuOptions: Array<MenuOption<string>> = menu ? [
     { value: 'open', label: 'Open', disabled: !menu.asset || (!onOpenAsset && !onOpenResult), onClick: () => {
-      if (menu.job && onOpenResult) onOpenResult(menu.job); else if (menu.asset) onOpenAsset?.(menu.asset);
+      if (menu.job && onOpenResult) void run(() => onOpenResult(menu.job!));
+      else if (menu.asset) void run(() => onOpenAsset?.(menu.asset!));
     } },
     { value: 'reveal', label: 'Open file location', disabled: !menu.asset || !onRevealAsset,
       onClick: () => { if (menu.asset) void run(() => onRevealAsset!(menu.asset!)); } },

@@ -21,6 +21,7 @@ import {
   applyGenAiImageCreateDefaults,
   applyGenAiOutputSizeDefault,
   genAiDocumentContextKey,
+  genAiEditorDeliveryTarget,
   matchGenAiValuesToDocument,
   type GenAiDocumentContext
 } from './genAiDocumentDefaults';
@@ -475,6 +476,11 @@ export const useGenAiSetupController = (
         providerPrompt: resolvedMentions.providerPrompt,
         kind: video ? 'video' : 'image',
         operation: video ? 'video.create' : workflow.mode === 'image2image' ? 'image.edit' : 'image.create',
+        editorDelivery: genAiEditorDeliveryTarget(
+          projectId,
+          documentContextRef.current,
+          !video && workflow.mode === 'image2image' ? 'place-edit' : 'open-new'
+        ),
         promptBindings: resolvedMentions.bindings,
         output: {
           ...(typeof aspectRatio === 'string' ? { aspectRatio } : {}),

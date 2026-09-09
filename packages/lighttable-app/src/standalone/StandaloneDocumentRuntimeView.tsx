@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   LightTableEditorOverlay,
   type EditorScreenMode
@@ -28,7 +28,7 @@ import type { EditorApplicationSession } from '../lighttable/application/workspa
 import type { DocumentTaskRegistry } from '../lighttable/application/tasks/documentTaskRegistry';
 import type { DocumentRendererLifecycle } from '../lighttable/application/rendering/documentRendererLifecycle';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
-import { isImageEditGeneration } from '../genai/application/generationDelivery';
+import { deliverGeneratedResult } from '../genai/application/deliverGeneratedResult';
 import { VideoDocumentSurface, type VideoViewportHandle } from './VideoDocumentSurface';
 import { VideoControlsPanel } from './VideoControlsPanel';
 
@@ -79,7 +79,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onOpen: (
     file: File,
     decodeMode?: StandaloneDecodeMode
-  ) => Promise<unknown>;
+  ) => Promise<void>;
   readonly onRecoveryResolved: (recoveryId: string) => Promise<boolean>;
   readonly onDocumentThumbnailChange: (documentId: DocumentSessionId, thumbnail: Blob) => void;
   readonly onRegisterRecoveryFlush: (
@@ -141,6 +141,14 @@ export function StandaloneDocumentRuntimeView({
   const video = document.kind === 'video' ? document.session.getSnapshot() : null;
   const videoViewportRef = useRef<VideoViewportHandle>(null);
   const [videoZoomPercent, setVideoZoomPercent] = useState(100);
+  const generatedDeliveryCurrentRef = useRef(active);
+  const generatedDeliveryScope = `${String(id)}:${activeProject?.id ?? ''}`;
+  const generatedDeliveryScopeRef = useRef(generatedDeliveryScope);
+  generatedDeliveryCurrentRef.current = active;
+  generatedDeliveryScopeRef.current = generatedDeliveryScope;
+  useEffect(() => () => {
+    generatedDeliveryCurrentRef.current = false;
+  }, [id]);
   const videoViewControls = document.kind === 'video' ? {
     zoomPercent: videoZoomPercent,
     onZoomPreset: (percent: number) => videoViewportRef.current?.setZoomPercent(percent),
@@ -150,37 +158,31 @@ export function StandaloneDocumentRuntimeView({
   } : undefined;
 
   const importGeneratedResult = useCallback(async (job: GenAiGenerationJob, forceOpen = false) => {
-    const result = job.results[0];
-    if (!result || !activeProject || !host.genAi) return;
-    const payload = await host.genAi.loadProjectAsset(activeProject.id, result.assetId);
-    if (!payload) return;
-    const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType });
-    const imageEdit = document.kind === 'image'
-      && !result.mediaType.startsWith('video/')
-      && isImageEditGeneration(job);
-    if (forceOpen || !imageEdit) {
-      await onOpen(file);
-      return;
-    }
-    if (document.kind !== 'image') {
-      await onOpen(file);
-      return;
-    }
-    const artifact = commandService.registerInputArtifact(file);
-    await commandService.execute({
-      protocolVersion: 1,
-      requestId: `genai-place-${crypto.randomUUID()}`,
-      command: 'layer.placeArtifact',
+    if (!activeProject || !host.genAi) return false;
+    const admittedScope = generatedDeliveryScope;
+    return deliverGeneratedResult({
+      job,
+      projectId: activeProject.id,
+      service: host.genAi,
+      tasks: document.kind === 'image' ? document.session.tasks : applicationEditorTasks,
+      commandDriver: commandService,
       documentId: id,
-      parameters: { artifactId: artifact.id }
+      documentIsImage: document.kind === 'image',
+      forceOpen,
+      isCurrent: () => generatedDeliveryCurrentRef.current
+        && generatedDeliveryScopeRef.current === admittedScope,
+      openDocument: onOpen
     });
-  }, [activeProject, commandService, document.kind, host.genAi, id, onOpen]);
-  const handleGeneratedResult = useCallback((job: GenAiGenerationJob) => {
-    void importGeneratedResult(job);
-  }, [importGeneratedResult]);
-  const handleOpenGeneratedResult = useCallback((job: GenAiGenerationJob) => {
-    void importGeneratedResult(job, true);
-  }, [importGeneratedResult]);
+  }, [activeProject, applicationEditorTasks, commandService, document, generatedDeliveryScope,
+    host.genAi, id, onOpen]);
+  const handleGeneratedResult = useCallback(
+    (job: GenAiGenerationJob) => importGeneratedResult(job),
+    [importGeneratedResult]
+  );
+  const handleOpenGeneratedResult = useCallback(
+    (job: GenAiGenerationJob) => importGeneratedResult(job, true),
+    [importGeneratedResult]
+  );
   const handleOpenGenAiAsset = useCallback(async (asset: import('@lighttable/genai-core').GenAiAssetReference) => {
     if (!activeProject || !host.genAi) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);

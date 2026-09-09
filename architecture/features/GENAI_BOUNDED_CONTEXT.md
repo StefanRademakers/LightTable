@@ -1,7 +1,7 @@
 # GenAI bounded context
 
 Status: **implemented provider boundary with project-backed image and video generation**,
-updated 2026-08-18.
+updated 2026-09-09.
 
 ## Decision
 
@@ -80,8 +80,17 @@ provider client or unrestricted filesystem capability.
   `aiHistory` location (default `AI/History`) before editor mutation.
 - Video output is retained in AI History as MP4 or WebM and is not opened as an
   image document. Reveal remains available while a video workspace is deferred.
-- Image-edit results are then placed as the top layer of the active document.
-- Image-create results are then opened as a new document.
+- Every submitted job persists host-private editor-delivery provenance: project,
+  source document, source revision and `place-edit`/`open-new` behavior. Provider
+  adapters must not serialize this metadata.
+- Image-edit results are placed as the top layer only when the completion still
+  addresses that exact project and document. Image-create results open only
+  while their original project remains active. Automatic delivery without
+  provenance, or after a project/document switch, fails closed before asset
+  loading; the durable result remains available through explicit History Open.
+- Placement uses the normal transient-artifact `layer.placeArtifact` command
+  and its history owner. Open waits for the new document's terminal decode
+  state; neither route may report success for a rejected or failed terminal.
 - Remote completion, durable local storage and editor placement are distinct
   stages. A placement/open failure must not discard or resubmit a paid render.
 

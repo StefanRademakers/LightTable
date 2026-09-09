@@ -1,7 +1,7 @@
 # Document and clipboard vertical slice
 
-Status: active; S11 clipboard, document-geometry, Open/Place/Save/Export and
-recovery/close sub-slices accepted on 2026-09-09.
+Status: accepted; S11 clipboard, document-geometry, Open/Place/Save/Export,
+recovery/close and generated-result delivery accepted on 2026-09-09.
 
 ## Contract
 
@@ -129,6 +129,14 @@ new Save/Export/analysis work is refused while close admission is retained.
    removal; cleanup failure keeps the document open and reports the cause.
 9. Added retained command/session/history/task admission for tab and application
    close. Session publication now precedes local React-ref advancement.
+10. Persisted generated-result delivery provenance at submission and separated
+    durable provider completion from cancellable editor delivery. Automatic
+    completion fails closed across project/document changes before reading the
+    asset; explicit History Open remains available for durable results.
+11. Routed image-edit output through the existing transient-artifact
+    `layer.placeArtifact` command and made create/explicit Open await terminal
+    document decode. Promise failures now reach the GenAI job/history UI instead
+    of becoming false success or an unhandled rejection.
 
 No P0 remains. The second critic's stale-launcher P1 and late-parent-popup P2
 were eliminated by removing the parent preflight. A DIB-only provider can still
@@ -171,6 +179,13 @@ in later performance/soak coverage.
   afterward: pass;
 - independent architecture critic: PASS after the task-admission and
   session-first React-ref repair; no remaining concrete P0/P1/P2 in this slice.
+- generated-result/GenAI/Place/task/open regressions: 176 pass across 14 files;
+  app and web TypeScript checks and boundary verification pass;
+- instrumented desktop package and packaged GenAI project-asset refresh: pass;
+- generated-result architecture critic: PASS after two repair rounds. The first
+  required persisted submission provenance and terminal Open/error handling;
+  the second closed the automatic `open-new` project-switch race. No remaining
+  P0/P1 was found.
 
 The repository-wide source-structure audit remains red on its previously
 tracked legacy hotspots. Recovery transition, tab-close and application-close
@@ -183,6 +198,10 @@ The generic visual browser driver was unavailable with `Transport closed`.
 The packaged Playwright/Electron acceptance is real UI evidence, not a claimed
 manual observation.
 
-## Remaining S11 work
+## S11 acceptance boundary
 
-1. Generated/AI result insertion through the normal cancellable command route.
+S11 has no remaining implementation item. Provider-paid submission itself is
+not exercised by the packaged smoke because it requires an external account;
+the packaged gate proves the durable project-asset boundary, while focused
+tests prove automatic/explicit delivery admission, cancellation, command
+ownership, wrong-project/document rejection and failed Open terminals.

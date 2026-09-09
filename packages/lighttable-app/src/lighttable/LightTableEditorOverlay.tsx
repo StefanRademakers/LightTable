@@ -669,7 +669,7 @@ export interface LightTableEditorOverlayProps {
   developerService?: import('../platform/LightTableHost').LightTableHost['developer'];
   genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
   onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
-  onGenAiOpenResult?: (job: GenAiGenerationJob) => void;
+  onGenAiOpenResult?: (job: GenAiGenerationJob) => void | Promise<unknown>;
   onGenAiOpenAsset?: (asset: import('@lighttable/genai-core').GenAiAssetReference) => void;
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
@@ -1267,9 +1267,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const activeGenAiProjectId = activeProject?.id;
   const genAiDocumentContext = React.useMemo(() => imageDocument ? ({
     id: String(workspaceDocumentId),
+    revision: documentSession?.getSnapshot().documentRevision ?? imageDocument.revision,
     width: imageDocument.width,
     height: imageDocument.height
-  }) : undefined, [imageDocument?.height, imageDocument?.width, workspaceDocumentId]);
+  }) : undefined, [documentSession, imageDocument?.height, imageDocument?.revision,
+    imageDocument?.width, workspaceDocumentId]);
   const genAiSetup = useGenAiSetupController(
     genAiService,
     genAiProvider,
