@@ -45,6 +45,10 @@ gesture is never relabelled with the newly active document.
   activates document B before move/up. Neither viewport changes.
 - Pointer-up flushes the last admitted pan coordinates instead of losing the
   final sub-frame movement.
+- Document projection and the 32 px edge zones are anchored to the measured
+  `.lighttable-viewport`, never the window or workspace. The same exact 80x60
+  document-space marquee copies at `{x:100,y:120}` under floating Layers,
+  docked Scopes/Properties and visible rulers/tool options.
 
 ## Evidence
 
@@ -59,6 +63,10 @@ gesture is never relabelled with the newly active document.
   remaining P0/P1. The post-extraction critic caught render-time cancellation
   and a later passive-effect race; both were removed and its final verdict is
   PASS with no remaining P0/P1.
+- `smoke-desktop-viewport-layout.mjs` passes packaged marquee/copy projection
+  across 1312 px Photo Edit and 1012 px Grading viewports plus visible rulers.
+  Screen-mode and floating-panel-resize smokes pass; focused edge-zone tests
+  prove local viewport offsets after dock changes. Independent critic: PASS.
 
 ## Structural decision
 
@@ -72,7 +80,6 @@ edge-zone projection.
 
 ## Still open
 
-- panel, floating palette, scopes, ruler and tool-options geometry invariance;
 - first-correct-frame behavior on tab switch, close/reopen and renderer rebind;
 - background/minimize/restore and foreground-loss terminal policy;
 - hidden-document transient resource release without committed-resource loss.

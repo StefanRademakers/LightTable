@@ -503,8 +503,11 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       Wheel, exact/fit/stepped/rectangle and temporary in/out routes pass the
       packaged two-document smoke. Alt+Space owns its full chord over the
       selected tool's Alt behavior. See `VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md`.
-- [ ] Side panels, floating layer panel, tool options, scopes and rulers do not
-      alter document coordinates or edge zones.
+- [x] Side panels, floating layer panel, tool options, scopes and rulers do not
+      alter document coordinates or edge zones. Pointer projection and 32 px
+      edge zones use the measured `.lighttable-viewport`; a packaged smoke
+      copies the same exact 80x60 document selection in Photo Edit, Grading and
+      ruler-visible layouts. Screen-mode/floating-resize gates and critic pass.
 - [ ] Tab switch, close/reopen and renderer rebind show the correct first frame.
 - [ ] Background/minimize/restore preserves committed state and the first correct
       foreground frame; stale previews do not replay in a burst.

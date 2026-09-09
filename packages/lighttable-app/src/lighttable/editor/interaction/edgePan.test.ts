@@ -21,4 +21,11 @@ describe('edgePan', () => {
       elapsedMs: 32
     })).toEqual({ x: -1, y: -2 });
   });
+
+  it('anchors the 32 px edge zone to the measured viewport, not the window or panels', () => {
+    expect(edgePanVelocity(16, 0, 400)).toBe(450);
+    expect(edgePanVelocity(354, 338, 1012)).toBe(450);
+    expect(edgePanVelocity(1334, 338, 1012)).toBe(-450);
+    expect(edgePanVelocity(800, 338, 1012)).toBe(0);
+  });
 });
