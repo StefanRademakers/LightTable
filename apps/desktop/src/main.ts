@@ -68,6 +68,7 @@ import { isNativeBitmapFormatId } from '@lighttable/app/bitmap-formats';
 import { BoundedLruCache } from './boundedLruCache';
 import { readResponseBytesBounded } from './boundedResponse';
 import { readBoundedJsonFile } from './boundedJsonFile';
+import { readClipboardImageDimensions } from './clipboardImageDimensions';
 import { AgentAccessBridge } from './agentAccessBridge';
 import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore';
 import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
@@ -2572,6 +2573,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:clipboard-read-image-dimensions', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const dimensions = readClipboardImageDimensions({
+      availableFormats: () => clipboard.availableFormats(),
+      readBuffer: (format) => clipboard.readBuffer(format)
+    });
+    if (dimensions) return dimensions;
+    // Some clipboard providers expose only an Electron-native bitmap. Keep
+    // compatibility for those providers, but do not pay this decode cost for
+    // standard PNG/WebP/GIF/DIB clipboard payloads.
     const image = clipboard.readImage();
     if (image.isEmpty()) return null;
     const { width, height } = image.getSize();

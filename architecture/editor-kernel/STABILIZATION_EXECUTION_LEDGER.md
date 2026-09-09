@@ -451,22 +451,25 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
       passed with exact per-filter export replay and no page/console errors.
 - [ ] Locked filters remain visible in a disabled/read-only Properties view (P2).
 
-- [ ] P0: Gaussian Blur, Motion Blur, Surface Blur, Displace, Median, Reduce
+- [x] P0: Gaussian Blur, Motion Blur, Surface Blur, Displace, Median, Reduce
       Noise, Smart Sharpen, Unsharp Mask, High Pass, Maximum, Minimum, Offset.
-- [ ] P1: Box Blur, Radial Blur, Field Blur, Iris Blur, Tilt-Shift, Wave, Ripple,
+- [x] P1: Box Blur, Radial Blur, Field Blur, Iris Blur, Tilt-Shift, Wave, Ripple,
       Twirl, Spherize, Polar Coordinates, Dust & Scratches, Despeckle, Mosaic,
       Color Halftone, Clouds, Lens Flare, Find Edges, Emboss.
-- [ ] P2: Shape Blur, Smart Blur, Path Blur, Spin Blur, Pinch, Shear, Glass,
+- [x] P2: Shape Blur, Smart Blur, Path Blur, Spin Blur, Pinch, Shear, Glass,
       Crystallize, Mezzotint, Pointillize, Difference Clouds, Fibers, Oil Paint,
       Glowing Edges, Diffuse, Solarize, Custom, Cutout, Plastic Wrap,
       Poster Edges, Watercolor, Photocopy, Halftone Pattern, Stamp, Torn Edges,
       Texturizer.
-- [ ] Common filter preview/commit/cancel, masks, stacking, reorder, rasterize,
+- [x] Common filter preview/commit/cancel, masks, stacking, reorder, rasterize,
       merge, save/open, undo/redo and GPU resource reuse.
 
 ### S11 -- document and file lifecycle
 
-- [ ] New document and instant clipboard-dimension probe; Paste/Copy/Copy Merged.
+- [x] New document and instant clipboard-dimension probe; Paste/Copy/Copy Merged.
+      See `DOCUMENT_AND_CLIPBOARD_VERTICAL_SLICE.md`: the packaged Ctrl+N route
+      populated and created the exact clipboard canvas in 59.7 ms; packaged
+      Copy/Copy Merged/Paste equivalence also passes.
 - [ ] Resize image, canvas size, crop and rotate with layers/masks/selection.
 - [ ] Open/Place and save/export for the formats in `formatCapabilities.ts`, with
       explicit semantic versus flattened behavior.

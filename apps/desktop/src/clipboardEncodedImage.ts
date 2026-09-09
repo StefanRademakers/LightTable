@@ -9,6 +9,11 @@ export interface PreferredClipboardImage {
   readonly sourceFormat: string;
 }
 
+export interface EncodedClipboardImageDimensions {
+  readonly width: number;
+  readonly height: number;
+}
+
 const MAX_CLIPBOARD_IMAGE_BYTES = 512 * 1024 * 1024;
 
 const startsWith = (bytes: Uint8Array, signature: readonly number[]) =>
@@ -38,7 +43,7 @@ export const encodedClipboardImageType = (
   return null;
 };
 
-const encodedFormatPriority = (format: string) => {
+export const encodedClipboardImageFormatPriority = (format: string) => {
   const normalized = format.toLowerCase();
   if (normalized.includes('png')) return 0;
   if (normalized.includes('webp')) return 1;
@@ -47,12 +52,51 @@ const encodedFormatPriority = (format: string) => {
   return null;
 };
 
+const validDimensions = (width: number, height: number) =>
+  Number.isSafeInteger(width) && Number.isSafeInteger(height) && width > 0 && height > 0
+    ? { width, height }
+    : null;
+
+/** Reads dimensions from a supported encoded container without decoding pixels. */
+export const encodedClipboardImageDimensions = (
+  bytes: Uint8Array
+): EncodedClipboardImageDimensions | null => {
+  const mediaType = encodedClipboardImageType(bytes);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (mediaType === 'image/png' && bytes.byteLength >= 24
+    && new TextDecoder('ascii').decode(bytes.subarray(12, 16)) === 'IHDR') {
+    return validDimensions(view.getUint32(16), view.getUint32(20));
+  }
+  if (mediaType === 'image/gif' && bytes.byteLength >= 10) {
+    return validDimensions(view.getUint16(6, true), view.getUint16(8, true));
+  }
+  if (mediaType !== 'image/webp' || bytes.byteLength < 30) return null;
+  const chunk = new TextDecoder('ascii').decode(bytes.subarray(12, 16));
+  if (chunk === 'VP8X') {
+    return validDimensions(
+      1 + view.getUint8(24) + (view.getUint8(25) << 8) + (view.getUint8(26) << 16),
+      1 + view.getUint8(27) + (view.getUint8(28) << 8) + (view.getUint8(29) << 16)
+    );
+  }
+  if (chunk === 'VP8L' && bytes[20] === 0x2f) {
+    const packed = view.getUint32(21, true);
+    return validDimensions((packed & 0x3fff) + 1, ((packed >>> 14) & 0x3fff) + 1);
+  }
+  if (chunk === 'VP8 ' && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+    return validDimensions(
+      view.getUint16(26, true) & 0x3fff,
+      view.getUint16(28, true) & 0x3fff
+    );
+  }
+  return null;
+};
+
 /** Reads only named encoded-image formats; proprietary clipboard payloads stay untouched. */
 export const readPreferredEncodedClipboardImage = (
   source: ClipboardEncodedImageSource
 ): PreferredClipboardImage | null => {
   const candidates = source.availableFormats()
-    .map((format) => ({ format, priority: encodedFormatPriority(format) }))
+    .map((format) => ({ format, priority: encodedClipboardImageFormatPriority(format) }))
     .filter((candidate): candidate is { format: string; priority: number } =>
       candidate.priority !== null)
     .sort((left, right) => left.priority - right.priority);

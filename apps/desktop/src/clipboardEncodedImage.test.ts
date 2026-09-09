@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  encodedClipboardImageDimensions,
   encodedClipboardImageType,
   readPreferredEncodedClipboardImage
 } from './clipboardEncodedImage';
 
 describe('encoded clipboard images', () => {
+  it('reads PNG dimensions only from a valid IHDR header', () => {
+    const bytes = new Uint8Array(24);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    bytes.set(new TextEncoder().encode('IHDR'), 12);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(16, 6144);
+    view.setUint32(20, 4096);
+    expect(encodedClipboardImageDimensions(bytes)).toEqual({ width: 6144, height: 4096 });
+    bytes.set(new TextEncoder().encode('NOPE'), 12);
+    expect(encodedClipboardImageDimensions(bytes)).toBeNull();
+  });
   it('recognizes alpha-capable browser image containers by signature', () => {
     expect(encodedClipboardImageType(Uint8Array.from([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a

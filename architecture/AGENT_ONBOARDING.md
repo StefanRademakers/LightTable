@@ -119,6 +119,17 @@ UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
 owner visual acceptance: keep the complete legacy fallback until the owner has
 confirmed the contour and pointer feel in a manual run.
 
+Document/clipboard reset, updated 2026-09-09: read
+[Document and clipboard vertical slice](editor-kernel/DOCUMENT_AND_CLIPBOARD_VERTICAL_SLICE.md)
+before changing Ctrl+N, clipboard dimensions, Copy, Copy Merged or Paste.
+Clipboard probing is host I/O and dialog-session state, not document/history or
+renderer state. `NewDocumentDialog` is the sole probe owner. Never restore a
+parent clipboard-dimension cache: it can outlive the clipboard contents and
+recreate wrong-size documents. Desktop dimension reads must prefer encoded
+containers over DIB, isolate broken advertised formats and decode no pixels on
+the normal path. Manual width/height edits always beat late probe results and a
+pending probe cannot submit provisional defaults.
+
 Layer-finalization reset, updated 2026-09-08: read
 [Layer finalization vertical slice](editor-kernel/LAYER_FINALIZATION_VERTICAL_SLICE.md)
 before changing rasterize, Merge Down/Selected, Flatten Group/Image, their

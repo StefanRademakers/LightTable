@@ -1,9 +1,6 @@
 import { Button, Dialog, TextInput, NumberField } from '@lighttable/ui';
 import { useEffect, useRef, useState } from 'react';
-import type {
-  LightTableClipboardImageDimensions,
-  LightTableImageClipboard
-} from '../platform/LightTableImageClipboard';
+import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 
 
 import { Select } from '@lighttable/ui';
@@ -17,7 +14,6 @@ import {
 interface NewDocumentDialogProps {
   readonly open: boolean;
   readonly clipboard?: LightTableImageClipboard;
-  readonly initialDimensions?: LightTableClipboardImageDimensions | null;
   readonly creating: boolean;
   readonly onCancel: () => void;
   readonly onCreate: (options: LightTableCreateDocumentOptions) => void;
@@ -53,7 +49,6 @@ const readClipboardDimensions = async (
 export function NewDocumentDialog({
   open,
   clipboard,
-  initialDimensions,
   creating,
   onCancel,
   onCreate,
@@ -67,36 +62,46 @@ export function NewDocumentDialog({
   const [profile, setProfile] = useState<'srgb' | 'adobe-rgb-1998'>('srgb');
   const [backgroundKind, setBackgroundKind] = useState<'transparent' | 'solid'>('transparent');
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
+  const [clipboardDimensionsPending, setClipboardDimensionsPending] = useState(false);
+  const dimensionsEditedRef = useRef({ width: false, height: false });
   const requestRef = useRef(0);
   const modal = presentation === 'dialog';
 
   useEffect(() => {
     if (!open) return;
     const request = ++requestRef.current;
-    setWidth(initialDimensions?.width ?? DEFAULT_WIDTH);
-    setHeight(initialDimensions?.height ?? DEFAULT_HEIGHT);
+    setWidth(DEFAULT_WIDTH);
+    setHeight(DEFAULT_HEIGHT);
     setName('Untitled');
     setResolutionPpi(72);
     setBitDepth(8);
     setProfile('srgb');
     setBackgroundKind('transparent');
     setBackgroundColor('#ffffff');
-    if (initialDimensions) return () => {
-      requestRef.current += 1;
-    };
+    dimensionsEditedRef.current = { width: false, height: false };
+    if (!clipboard) {
+      setClipboardDimensionsPending(false);
+      return () => {
+        requestRef.current += 1;
+      };
+    }
+    setClipboardDimensionsPending(true);
     void readClipboardDimensions(clipboard)
       .then((dimensions) => {
         if (request !== requestRef.current || !dimensions) return;
-        setWidth(dimensions.width);
-        setHeight(dimensions.height);
+        if (!dimensionsEditedRef.current.width) setWidth(dimensions.width);
+        if (!dimensionsEditedRef.current.height) setHeight(dimensions.height);
       })
       // Clipboard access can be denied or unsupported. New document remains
       // fully usable with stable defaults in that case.
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (request === requestRef.current) setClipboardDimensionsPending(false);
+      });
     return () => {
       requestRef.current += 1;
     };
-  }, [clipboard, initialDimensions, open]);
+  }, [clipboard, open]);
 
   if (!open) return null;
   const normalizedWidth = Math.round(width);
@@ -112,7 +117,7 @@ export function NewDocumentDialog({
     && Number.isFinite(resolutionPpi) && resolutionPpi >= 1 && resolutionPpi <= 2400;
 
   const submit = () => {
-    if (optionsValid && !creating) {
+    if (optionsValid && !creating && !clipboardDimensionsPending) {
       onCreate({
         name: name.trim(), width: normalizedWidth, height: normalizedHeight,
         resolutionPpi, bitDepth, profile,
@@ -136,7 +141,13 @@ export function NewDocumentDialog({
               min="1"
               max={MAX_DIMENSION}
               value={width}
-              onValueChange={setWidth} onEmpty={() => setWidth(NaN)}
+              onValueChange={(value) => {
+                dimensionsEditedRef.current.width = true;
+                setWidth(value);
+              }} onEmpty={() => {
+                dimensionsEditedRef.current.width = true;
+                setWidth(NaN);
+              }}
             />
           </label>
           <label>
@@ -146,7 +157,13 @@ export function NewDocumentDialog({
               min="1"
               max={MAX_DIMENSION}
               value={height}
-              onValueChange={setHeight} onEmpty={() => setHeight(NaN)}
+              onValueChange={(value) => {
+                dimensionsEditedRef.current.height = true;
+                setHeight(value);
+              }} onEmpty={() => {
+                dimensionsEditedRef.current.height = true;
+                setHeight(NaN);
+              }}
             />
           </label>
           <label>
@@ -192,7 +209,8 @@ export function NewDocumentDialog({
       onSubmit={(event) => { event.preventDefault(); submit(); }}
       footer={<>
         <Button tabIndex={0} onClick={onCancel} disabled={creating}>Cancel</Button>
-        <Button tabIndex={0} type="submit" disabled={!optionsValid || creating}>
+        <Button tabIndex={0} type="submit"
+          disabled={!optionsValid || creating || clipboardDimensionsPending}>
           {creating ? 'Creating…' : 'Create'}
         </Button>
       </>}>
@@ -204,7 +222,8 @@ export function NewDocumentDialog({
       aria-label="New document" onSubmit={(event) => { event.preventDefault(); submit(); }}>
       {content}
       <div className="modal__footer">
-          <Button tabIndex={modal ? 0 : -1} type="submit" disabled={!optionsValid || creating}>
+          <Button tabIndex={modal ? 0 : -1} type="submit"
+            disabled={!optionsValid || creating || clipboardDimensionsPending}>
             {creating ? 'Creating…' : 'Create'}
           </Button>
       </div>

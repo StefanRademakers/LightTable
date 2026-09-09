@@ -436,10 +436,6 @@ export function LightTableStandaloneApp({
   const [launcherPage, setLauncherPage] = useState<LauncherPage>('recent-files');
   const launcherFileInputRef = useRef<HTMLInputElement>(null);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
-  const [newDocumentClipboardSize, setNewDocumentClipboardSize] = useState<{
-    readonly width: number;
-    readonly height: number;
-  } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
@@ -933,19 +929,8 @@ export function LightTableStandaloneApp({
   }, [commandService, createDocument, host]);
 
   const requestNewDocument = useCallback(() => {
-    const readDimensions = host.clipboard?.readDimensions;
-    if (!readDimensions) {
-      setNewDocumentClipboardSize(null);
-      setNewDialogOpen(true);
-      return;
-    }
-    void readDimensions()
-      .catch(() => null)
-      .then((dimensions) => {
-        setNewDocumentClipboardSize(dimensions);
-        setNewDialogOpen(true);
-      });
-  }, [host.clipboard]);
+    setNewDialogOpen(true);
+  }, []);
 
   const requestPlaceArtifact = useCallback(async (documentId: DocumentSessionId) => {
     const file = await (host.openFile?.() ?? pickBrowserPlacedImage());
@@ -1165,8 +1150,7 @@ export function LightTableStandaloneApp({
         }}
         onRevealProject={() => void host.projects?.reveal(activeProject)}
       />)}
-      <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard}
-        initialDimensions={newDocumentClipboardSize} creating={creating}
+      <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard} creating={creating}
         onCancel={() => setNewDialogOpen(false)} onCreate={(size) => void createDocument(size)} />
       {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
         location={projectLocation} error={projectError}
@@ -1385,7 +1369,6 @@ export function LightTableStandaloneApp({
       <NewDocumentDialog
         open={newDialogOpen}
         clipboard={host.clipboard}
-        initialDimensions={newDocumentClipboardSize}
         creating={creating}
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
