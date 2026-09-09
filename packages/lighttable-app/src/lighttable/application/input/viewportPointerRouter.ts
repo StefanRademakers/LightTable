@@ -24,6 +24,21 @@ export type ViewportPointerMoveIntent =
   | 'ignore';
 
 export type ViewportPointerEndIntent = 'selection' | 'warp' | 'paint' | 'pan';
+export type ViewportModifierPointerIntent = 'temporary-zoom' | 'color-pick' | 'continue';
+
+/**
+ * Resolves modifier-driven tools before the selected tool gets a pointer.
+ * A temporary tool owns the complete chord: Alt is part of Zoom Out while
+ * Alt+click remains a color picker only when no temporary Zoom is active.
+ */
+export const resolveViewportModifierPointerIntent = (context: {
+  readonly temporaryTool: ToolId | null;
+  readonly eyedropperActive: boolean;
+}): ViewportModifierPointerIntent => {
+  if (context.temporaryTool === 'zoom') return 'temporary-zoom';
+  if (context.eyedropperActive) return 'color-pick';
+  return 'continue';
+};
 
 export interface ViewportPointerDownContext {
   activeTool: ToolId;

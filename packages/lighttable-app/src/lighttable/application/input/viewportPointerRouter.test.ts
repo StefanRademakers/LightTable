@@ -2,12 +2,29 @@ import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../../editor/session/editorSession';
 import {
   capturedGestureUsesUnboundedDocumentPoint,
+  resolveViewportModifierPointerIntent,
   resolveViewportPointerDownIntent,
   resolveViewportPointerEndIntent,
   resolveViewportPointerMoveIntent,
   type ViewportPointerDownContext,
   type ViewportPointerMoveContext
 } from './viewportPointerRouter';
+
+describe('resolveViewportModifierPointerIntent', () => {
+  it('gives a temporary Zoom Out chord precedence over Alt color picking', () => {
+    expect(resolveViewportModifierPointerIntent({
+      temporaryTool: 'zoom',
+      eyedropperActive: true
+    })).toBe('temporary-zoom');
+  });
+
+  it('keeps ordinary Alt color picking when no temporary Zoom owns the chord', () => {
+    expect(resolveViewportModifierPointerIntent({
+      temporaryTool: null,
+      eyedropperActive: true
+    })).toBe('color-pick');
+  });
+});
 
 const down = (
   patch: Partial<ViewportPointerDownContext> = {}

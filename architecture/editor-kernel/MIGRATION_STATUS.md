@@ -155,6 +155,14 @@ found no P0/P1; packaged interaction, subtarget and PSD roundtrip gates pass.
 Owner visual/feel acceptance and S13 resource-failure soak remain open. See
 [Layer Style vertical slice](LAYER_STYLE_VERTICAL_SLICE.md).
 
+View and multi-document presentation is the active twelfth vertical. Pan and
+zoom now retain one pointer plus the exact opening document/setter owner outside
+React; queued frames and terminal gestures cannot cross a tab switch. View,
+Space and middle-button pan are history-free, while exact/fit/stepped/rectangle
+zoom and both temporary zoom chords share the same document-bound publication.
+Panel geometry, first-correct-frame rebind, foreground loss and hidden-document
+resource lifetime remain open. See [View and multi-document vertical slice](VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md).
+
 ## Structural baseline still failing
 
 The 2026-09-09 source-structure audit is not green. It reports responsibility

@@ -495,9 +495,14 @@ Each tier is its own sub-slice and cannot inherit acceptance from another tier.
 
 ### S12 -- view and multi-document presentation
 
-- [ ] Move canvas, including middle-button/modifier conflicts.
-- [ ] Zoom, including wheel/middle-button/modifier conflicts and
+- [x] Move canvas, including middle-button/modifier conflicts. One retained
+      document-bound owner covers View/Space/middle pan; pointer-up is exact,
+      history-free, and a Ctrl+Tab mid-gesture cannot affect either document.
+- [x] Zoom, including wheel/middle-button/modifier conflicts and
       stable 100% document zoom.
+      Wheel, exact/fit/stepped/rectangle and temporary in/out routes pass the
+      packaged two-document smoke. Alt+Space owns its full chord over the
+      selected tool's Alt behavior. See `VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md`.
 - [ ] Side panels, floating layer panel, tool options, scopes and rulers do not
       alter document coordinates or edge zones.
 - [ ] Tab switch, close/reopen and renderer rebind show the correct first frame.
@@ -533,6 +538,7 @@ lines plus responsibilities here.
 | `WebGpuEngine.ts` | stable renderer facade | domain projection/resource coordinators -> relevant slice adapters | [ ] |
 | `LightTableEditorOverlay.tsx` | composition/wiring only | feature orchestration -> per-domain hooks/adapters | S02: 9153 -> 9147; mask dispatch/task bridge extracted |
 | `LightTableStandaloneApp.tsx` | host shell/composition | command registration, document lifecycle and persistence -> S11/S12 | S11 file I/O: Place artifact/terminal policy extracted, 1346 -> 1340 |
+| `useViewportInteractionController.ts` | DOM pointer sampling and coordinate adapter | retained pan gesture and coalesced document-bound frame publication -> S12 application-input owners | S12 pan/zoom authority extracted; explicit generation/capture adapter remains oversized and is no-growth |
 
 Rules:
 

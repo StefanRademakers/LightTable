@@ -1,12 +1,17 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   type Dispatch,
   type PointerEvent,
   type SetStateAction,
   type WheelEvent
 } from 'react';
-import { LatestFrameValueScheduler } from '../../application/input/latestFrameValueScheduler';
+import {
+  ViewportPresentationController,
+  type ViewportFrameOwner
+} from '../../application/input/ViewportPresentationController';
+import type { ViewportPanInitiator } from '../../application/input/ViewportPanGestureOwner';
 import { PointerClickCounter } from '../../application/input/pointerClickCounter';
 import { coalescedPointerSamples } from '../../application/input/coalescedPointerSamples';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
@@ -18,6 +23,7 @@ import type { SelectionSessionController } from '../../application/tools/selecti
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
 import {
   capturedGestureUsesUnboundedDocumentPoint,
+  resolveViewportModifierPointerIntent,
   resolveViewportPointerDownIntent,
   resolveViewportPointerEndIntent,
   resolveViewportPointerMoveIntent
@@ -49,7 +55,6 @@ import {
   localToDocumentPointer,
   normalizePointerPressure,
   panViewFromWheel,
-  panViewFromGesture,
   pointInsideRect,
   resolveWheelPanDeltas,
   zoomViewAtPoint,
@@ -94,6 +99,7 @@ interface MarqueeEdgePanState {
   readonly marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean };
   readonly constrainTranslation: boolean;
   lastFrameMs: number;
+  readonly owner: ViewportFrameOwner;
 }
 
 interface ViewportInteractionOptions {
@@ -263,13 +269,14 @@ export const useViewportInteractionController = ({
 }: ViewportInteractionOptions): ViewportInteractionController => {
   const effectiveTool = temporaryTools.effectiveTool(editorSession.activeTool);
   const temporaryPan = temporaryTools.activeTool === 'view';
-  const dragRef = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-    panX: number;
-    panY: number;
-  } | null>(null);
+  const viewportPresentationRef = useRef<ViewportPresentationController | null>(null);
+  viewportPresentationRef.current ??= new ViewportPresentationController(
+    document?.id ?? null,
+    setView
+  );
+  const viewportPresentation = viewportPresentationRef.current;
+  const viewportFrameOwner = viewportPresentation.prepare(document?.id ?? null, setView);
+  const capturedViewportPointerRef = useRef<number | null>(null);
   const zoomDragRef = useRef<{
     pointerId: number;
     startLocal: { x: number; y: number };
@@ -277,6 +284,7 @@ export const useViewportInteractionController = ({
     startDocument: { x: number; y: number };
     currentDocument: { x: number; y: number };
     zoomOut: boolean;
+    owner: ViewportFrameOwner;
   } | null>(null);
   const selectionContentMoveRef = useRef<{
     pointerId: number;
@@ -296,8 +304,6 @@ export const useViewportInteractionController = ({
   const lastBrushPointRef = useRef<BrushPoint | null>(null);
   const textClickCounterRef = useRef<PointerClickCounter | null>(null);
   textClickCounterRef.current ??= new PointerClickCounter();
-  const setViewRef = useRef(setView);
-  setViewRef.current = setView;
   const onBrushCursorChangeRef = useRef(onBrushCursorChange);
   onBrushCursorChangeRef.current = onBrushCursorChange;
   const onZoomDraftChangeRef = useRef(onZoomDraftChange);
@@ -311,22 +317,6 @@ export const useViewportInteractionController = ({
   useEffect(() => {
     if (effectiveTool !== 'vector-pen') onPenEditingOverlayChangeRef.current(null);
   }, [effectiveTool]);
-  const panFrameRef = useRef<LatestFrameValueScheduler<{
-    panX: number;
-    panY: number;
-  }> | null>(null);
-  const zoomFrameRef = useRef<LatestFrameValueScheduler<LightTableViewState> | null>(null);
-  if (!panFrameRef.current) {
-    panFrameRef.current = new LatestFrameValueScheduler((pan) => {
-      setViewRef.current((current) => ({ ...current, ...pan }));
-    });
-  }
-  if (!zoomFrameRef.current) {
-    zoomFrameRef.current = new LatestFrameValueScheduler((nextView) => {
-      setViewRef.current(nextView);
-    });
-  }
-
   const stopMarqueeEdgePan = (pointerId?: number) => {
     if (pointerId !== undefined && marqueeEdgePanRef.current?.pointerId !== pointerId) return;
     if (marqueeEdgePanFrameRef.current !== null) {
@@ -340,6 +330,10 @@ export const useViewportInteractionController = ({
     marqueeEdgePanFrameRef.current = null;
     const state = marqueeEdgePanRef.current;
     if (!state) return;
+    if (!viewportPresentation.isCurrent(state.owner)) {
+      stopMarqueeEdgePan(state.pointerId);
+      return;
+    }
 
     const elapsedMs = Math.min(Math.max(frameMs - state.lastFrameMs, 0), 32);
     state.lastFrameMs = frameMs;
@@ -388,7 +382,7 @@ export const useViewportInteractionController = ({
       x: state.point.x - deltaX / Math.max(state.scale, 1e-6),
       y: state.point.y - deltaY / Math.max(state.scale, 1e-6)
     };
-    setViewRef.current((current) => ({
+    state.owner.setView((current) => ({
       ...current,
       panX: current.panX + deltaX,
       panY: current.panY + deltaY
@@ -454,7 +448,8 @@ export const useViewportInteractionController = ({
       repositionDraft: temporaryPan,
       ...(marqueeModifiers ? { marqueeModifiers } : {}),
       constrainTranslation: event.shiftKey,
-      lastFrameMs: performance.now()
+      lastFrameMs: performance.now(),
+      owner: viewportFrameOwner
     };
     if (marqueeEdgePanFrameRef.current === null) {
       setZoomMode('custom');
@@ -462,13 +457,16 @@ export const useViewportInteractionController = ({
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // A workspace tab can replace the document-owned setter without
-    // unmounting this hook. Never let queued viewport input cross that boundary.
-    panFrameRef.current?.cancel();
-    zoomFrameRef.current?.cancel();
+    // unmounting this hook. Commit and clear every transient owner before the
+    // browser can paint or admit input for the newly active document.
+    viewportPresentation.commit(viewportFrameOwner);
+    capturedViewportPointerRef.current = null;
+    zoomDragRef.current = null;
+    onZoomDraftChangeRef.current(null);
     stopMarqueeEdgePan();
-  }, [setView]);
+  }, [viewportFrameOwner, viewportPresentation]);
 
   useEffect(() => {
     textClickCounterRef.current?.reset();
@@ -476,10 +474,8 @@ export const useViewportInteractionController = ({
 
   useEffect(() => () => {
     stopMarqueeEdgePan();
-    panFrameRef.current?.dispose();
-    panFrameRef.current = null;
-    zoomFrameRef.current?.dispose();
-    zoomFrameRef.current = null;
+    viewportPresentation.dispose();
+    viewportPresentationRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -638,9 +634,18 @@ export const useViewportInteractionController = ({
     });
   };
 
-  const beginPan = (event: PointerEvent<HTMLDivElement>, forcePan = false) => {
-    if (event.button !== 0 || !metadata) return;
-    if (!forcePan && focusPickerActive) {
+  const captureViewportPointer = (event: PointerEvent<HTMLDivElement>) => {
+    capturedViewportPointerRef.current = event.pointerId;
+    const viewport = event.currentTarget;
+    viewport.setPointerCapture(event.pointerId);
+  };
+
+  const beginPan = (
+    event: PointerEvent<HTMLDivElement>,
+    initiator: ViewportPanInitiator,
+    competingGesture = false
+  ) => {
+    if (initiator === 'view-tool' && focusPickerActive) {
       const bounds = event.currentTarget.getBoundingClientRect();
       const point = {
         x: (event.clientX - bounds.left - imageRect.x) / Math.max(imageRect.width, 1),
@@ -653,33 +658,30 @@ export const useViewportInteractionController = ({
       event.preventDefault();
       return;
     }
-    dragRef.current = {
+    if (!viewportPresentation.beginPan({
       pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      panX: view.panX,
-      panY: view.panY
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
+      button: event.button,
+      buttons: event.buttons,
+      initiator,
+      point: { x: event.clientX, y: event.clientY },
+      view,
+      hasDocumentMetadata: Boolean(metadata),
+      competingGesture
+    })) return;
+    setZoomMode('custom');
+    captureViewportPointer(event);
+    event.preventDefault();
   };
 
   const movePan = (event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const pan = panViewFromGesture({
-      origin: { x: drag.x, y: drag.y },
-      current: { x: event.clientX, y: event.clientY },
-      initialView: { panX: drag.panX, panY: drag.panY }
-    });
-    panFrameRef.current?.schedule(pan);
+    viewportPresentation.movePan(event.pointerId, { x: event.clientX, y: event.clientY });
   };
 
   const endPan = (event: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    // Pointer-up can arrive before the scheduled display frame. Commit the
-    // newest coordinates so persisted per-document viewport state is exact.
-    panFrameRef.current?.flush();
-    dragRef.current = null;
+    viewportPresentation.finishPan(
+      event.pointerId,
+      { x: event.clientX, y: event.clientY }
+    );
   };
 
   const scheduleWheelPan = (deltaX: number, deltaY: number, deltaMode: number) => {
@@ -688,7 +690,7 @@ export const useViewportInteractionController = ({
       ? 16
       : deltaMode === 2 ? viewportSize.height : 1;
     setZoomMode('custom');
-    const pendingView = zoomFrameRef.current?.pending();
+    const pendingView = viewportPresentation.pendingView();
     const baseView = pendingView ?? {
       scale: activeScale,
       panX: view.panX,
@@ -700,11 +702,11 @@ export const useViewportInteractionController = ({
       deltaY,
       deltaMultiplier
     });
-    zoomFrameRef.current?.schedule({ ...baseView, ...pan });
+    viewportPresentation.scheduleView({ ...baseView, ...pan });
   };
 
   return {
-    dragging: Boolean(dragRef.current),
+    dragging: viewportPresentation.panActive,
     hideBrushCursor,
     onWheel: (event) => {
       if (!metadata) return;
@@ -729,7 +731,7 @@ export const useViewportInteractionController = ({
         { x: bounds.left, y: bounds.top }
       );
       setZoomMode('custom');
-      const pendingView = zoomFrameRef.current?.pending();
+      const pendingView = viewportPresentation.pendingView();
       const nextView = zoomViewAtPoint({
         cursor,
         viewport: viewportSize,
@@ -738,7 +740,7 @@ export const useViewportInteractionController = ({
         minScale,
         maxScale
       });
-      zoomFrameRef.current?.schedule(nextView);
+      viewportPresentation.scheduleView(nextView);
     },
     onHorizontalWheel: ({ deltaX, deltaY = 0 }) => {
       if (zoomWithScrollWheel || !Number.isFinite(deltaX) || deltaX === 0) return;
@@ -751,10 +753,28 @@ export const useViewportInteractionController = ({
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
       const point = documentPoint(event, bounds);
+      const capturedPointer = capturedViewportPointerRef.current;
+      if (capturedPointer !== null && capturedPointer !== event.pointerId) {
+        event.preventDefault();
+        return;
+      }
+      // Middle-button canvas pan is a viewport gesture, independent from the
+      // selected editing tool and its Shift/Alt/Ctrl meanings.
+      if (event.button === 1) {
+        // A secondary button may arrive on the same physical pointer while its
+        // primary tool gesture is captured. Never create a second owner.
+        beginPan(event, 'middle-button', capturedPointer !== null);
+        event.preventDefault();
+        return;
+      }
       // A temporary picker is a modal canvas interaction. It must win over
       // the selected editor tool (notably Zoom), otherwise the picker button
       // appears active while the next canvas click still runs that tool.
-      if (eyedropperActive && !temporaryPan && point && event.button === 0) {
+      const modifierIntent = resolveViewportModifierPointerIntent({
+        temporaryTool: temporaryTools.activeTool,
+        eyedropperActive
+      });
+      if (modifierIntent === 'color-pick' && !temporaryPan && point && event.button === 0) {
         if (!editingBlocked) onColorPickRef.current(point);
         event.preventDefault();
         return;
@@ -784,9 +804,10 @@ export const useViewportInteractionController = ({
           currentLocal: cursor,
           startDocument: point,
           currentDocument: point,
-          zoomOut: temporaryZoomOut || event.altKey
+          zoomOut: temporaryZoomOut || event.altKey,
+          owner: viewportFrameOwner
         };
-        event.currentTarget.setPointerCapture(event.pointerId);
+        captureViewportPointer(event);
         event.preventDefault();
         return;
       }
@@ -812,7 +833,7 @@ export const useViewportInteractionController = ({
           ended: null as boolean | null
         };
         selectionContentMoveRef.current = gesture;
-        event.currentTarget.setPointerCapture(event.pointerId);
+        captureViewportPointer(event);
         void selectionContentMove.begin(event.altKey).then((ready) => {
           if (selectionContentMoveRef.current !== gesture) {
             if (ready) selectionContentMove.finish(false);
@@ -876,7 +897,7 @@ export const useViewportInteractionController = ({
         && !temporaryPan
       ) {
         if (rasterGradient.begin(event.pointerId, point)) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
@@ -909,7 +930,7 @@ export const useViewportInteractionController = ({
         });
         onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
         if (handled) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
@@ -921,7 +942,7 @@ export const useViewportInteractionController = ({
         : null;
       if (activeTool === 'face-warp' && point && event.button === 0 && !temporaryPan) {
         if (faceWarp.begin(event.pointerId, point)) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
         }
         event.preventDefault();
         return;
@@ -941,8 +962,7 @@ export const useViewportInteractionController = ({
       });
 
       if (intent === 'temporary-pan') {
-        beginPan(event, true);
-        event.preventDefault();
+        beginPan(event, 'temporary-tool');
         return;
       }
       if (intent === 'transform-pick' && point) {
@@ -965,7 +985,7 @@ export const useViewportInteractionController = ({
           editorSession.selectionPaintBrush
         )) {
           setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
@@ -987,7 +1007,7 @@ export const useViewportInteractionController = ({
           point,
           selectionCombineMode
         )) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
@@ -1081,7 +1101,7 @@ export const useViewportInteractionController = ({
               }
             : undefined
         )) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
@@ -1108,7 +1128,7 @@ export const useViewportInteractionController = ({
             clickCount,
             event.shiftKey
           )) {
-            event.currentTarget.setPointerCapture(event.pointerId);
+            captureViewportPointer(event);
           }
           event.preventDefault();
           return;
@@ -1121,7 +1141,7 @@ export const useViewportInteractionController = ({
             clickCount,
             event.shiftKey
           )) {
-            event.currentTarget.setPointerCapture(event.pointerId);
+            captureViewportPointer(event);
           } else {
             onPointTextCreate({ x: point.x, y: point.y }, clickCount, event.shiftKey);
           }
@@ -1135,7 +1155,7 @@ export const useViewportInteractionController = ({
           clickCount,
           event.shiftKey
         )) {
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
         } else {
           onPointTextCreate({ x: point.x, y: point.y }, clickCount, event.shiftKey);
         }
@@ -1175,13 +1195,13 @@ export const useViewportInteractionController = ({
         });
         if (started) {
           setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
-          event.currentTarget.setPointerCapture(event.pointerId);
+          captureViewportPointer(event);
           event.preventDefault();
         }
         return;
       }
       if (intent === 'view') {
-        beginPan(event);
+        beginPan(event, 'view-tool');
         return;
       }
       if (intent !== 'paint' || !point || !paintTarget || !document) return;
@@ -1265,7 +1285,7 @@ export const useViewportInteractionController = ({
       if (started) {
         if (paintPoint !== point) paint.move(event.pointerId, point);
         setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
-        event.currentTarget.setPointerCapture(event.pointerId);
+        captureViewportPointer(event);
         event.preventDefault();
       }
     },
@@ -1276,6 +1296,11 @@ export const useViewportInteractionController = ({
       updateBrushCursor(event, bounds);
       const zoomDrag = zoomDragRef.current;
       if (zoomDrag?.pointerId === event.pointerId && metadata) {
+        if (!viewportPresentation.isCurrent(zoomDrag.owner)) {
+          zoomDragRef.current = null;
+          onZoomDraftChangeRef.current(null);
+          return;
+        }
         const local = clientToLocalPoint(
           { x: event.clientX, y: event.clientY },
           { x: bounds.left, y: bounds.top }
@@ -1381,7 +1406,7 @@ export const useViewportInteractionController = ({
       const intent = resolveViewportPointerMoveIntent({
         activeTool: effectiveTool,
         temporaryPan,
-        panGestureMatches: dragRef.current?.pointerId === event.pointerId,
+        panGestureMatches: viewportPresentation.ownsPan(event.pointerId),
         selectionGestureMatches: selection.owns(event.pointerId),
         warpGestureMatches: warp.owns(event.pointerId),
         paintGestureMatches: paint.owns(event.pointerId),
@@ -1416,6 +1441,9 @@ export const useViewportInteractionController = ({
       }
     },
     onPointerUp: (event) => {
+      if (capturedViewportPointerRef.current === event.pointerId) {
+        capturedViewportPointerRef.current = null;
+      }
       stopMarqueeEdgePan(event.pointerId);
       const contentMove = selectionContentMoveRef.current;
       if (contentMove?.pointerId === event.pointerId) {
@@ -1439,6 +1467,10 @@ export const useViewportInteractionController = ({
       if (zoomDrag?.pointerId === event.pointerId) {
         zoomDragRef.current = null;
         onZoomDraftChangeRef.current(null);
+        if (!viewportPresentation.isCurrent(zoomDrag.owner)) {
+          event.preventDefault();
+          return;
+        }
         const width = Math.abs(zoomDrag.currentLocal.x - zoomDrag.startLocal.x);
         const height = Math.abs(zoomDrag.currentLocal.y - zoomDrag.startLocal.y);
         setZoomMode('custom');
@@ -1447,14 +1479,14 @@ export const useViewportInteractionController = ({
             activeScale * 100,
             zoomDrag.zoomOut ? -1 : 1
           );
-          setView(zoomViewToScaleAtPoint({
+          zoomDrag.owner.setView(zoomViewToScaleAtPoint({
             cursor: zoomDrag.startLocal,
             viewport: viewportSize,
             view: { scale: activeScale, panX: view.panX, panY: view.panY },
             scale: zoomPercentToScale(nextPercent)
           }));
         } else {
-          setView(zoomViewToViewportRect({
+          zoomDrag.owner.setView(zoomViewToViewportRect({
             rect: {
               x: Math.min(zoomDrag.startLocal.x, zoomDrag.currentLocal.x),
               y: Math.min(zoomDrag.startLocal.y, zoomDrag.currentLocal.y),
@@ -1536,6 +1568,9 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      if (capturedViewportPointerRef.current === event.pointerId) {
+        capturedViewportPointerRef.current = null;
+      }
       stopMarqueeEdgePan(event.pointerId);
       const contentMove = selectionContentMoveRef.current;
       if (contentMove?.pointerId === event.pointerId) {

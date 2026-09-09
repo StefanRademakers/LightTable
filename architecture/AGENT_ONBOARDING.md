@@ -608,6 +608,16 @@ reports:
   Legacy/no-provenance jobs and stale completions remain durable in History and
   may be opened only through the explicit user action. Do not infer a delivery
   target from whichever project or document happens to be active on completion.
+- Viewport state is per-document presentation, never document history. Retained
+  pan and coalesced pan/zoom frames live in `ViewportPresentationController` and
+  carry the exact opening document/setter owner. During a tab change, render may
+  only prepare a candidate owner; one `useLayoutEffect` commits it and clears all
+  transient pointer/zoom/edge-pan work before paint or new input. Never mutate
+  or cancel the committed viewport owner during render, relabel an old gesture
+  with the current document, or add another hook-local RAF scheduler. Temporary
+  modifier tools own their full chord: Alt+Space Zoom Out precedes an active
+  Brush/Gradient Alt-eyedropper. See
+  [View and multi-document vertical slice](editor-kernel/VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md).
 
 Archived Task 303 is a dated backend bake-off; completed Task 309 and current
 code supersede its former "current backend by default" decision. Read its
