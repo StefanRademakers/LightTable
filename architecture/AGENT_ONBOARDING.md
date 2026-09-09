@@ -155,6 +155,21 @@ fill/gradient/invert resources; React and the kernel do not own shader work.
 The packaged smoke is automated proof, while owner paint-feel acceptance on a
 large document remains open.
 
+Transform reset, updated 2026-09-09: read
+[Transform and snapping vertical slice](editor-kernel/TRANSFORM_AND_SNAPPING_VERTICAL_SLICE.md)
+before changing Free Transform, selected-pixel movement, multi-layer/mask
+transforms, snapping, smart guides or transform edge-pan. Admission binds one
+document, concrete renderer generation, selection revision, immutable source
+and snap snapshot. Pointer-up checkpoints the gizmo only; terminal Enter/tool
+exit publishes once. `TransformPublicationOwner` owns terminal results and
+durable compensation, `BoundSelectionPublication` spans async mask restore and
+canonical CAS under one binding, and `AuxiliaryTransformSessionOwner` owns
+group/mask preview lifetime. Never rediscover the current renderer inside
+cleanup/history, publish against the current selection revision instead of the
+admitted lease, or rebuild a transformed document per pointer frame. The
+packaged transform smoke is automated proof; owner feel acceptance and the
+remaining non-React overlay gesture extraction are still open.
+
 ### Current Agent/Actions/MCP recovery capsule
 
 When the recovered work concerns Agent Access, Actions or MCP, read these after

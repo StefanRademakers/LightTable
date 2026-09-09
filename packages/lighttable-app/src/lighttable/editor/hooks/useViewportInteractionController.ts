@@ -65,6 +65,7 @@ import type { VectorToolSessionController } from '../../application/vectors/Vect
 import type { RasterGradientCommandController } from '../../application/tools/gradient/RasterGradientCommandController';
 import { isVectorEditorTool } from '../tools/vectorToolCatalog';
 import { routeFreehandPointerMove } from './routeFreehandPointerMove';
+import { clampEdgePanDelta, edgePanVelocity } from '../interaction/edgePan';
 
 interface ViewportSize {
   width: number;
@@ -94,37 +95,6 @@ interface MarqueeEdgePanState {
   readonly constrainTranslation: boolean;
   lastFrameMs: number;
 }
-
-const MARQUEE_EDGE_PAN_ZONE_PX = 32;
-const MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND = 900;
-
-const edgePanVelocity = (position: number, start: number, size: number): number => {
-  const local = position - start;
-  if (local < MARQUEE_EDGE_PAN_ZONE_PX) {
-    return Math.min(1, (MARQUEE_EDGE_PAN_ZONE_PX - local) / MARQUEE_EDGE_PAN_ZONE_PX)
-      * MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND;
-  }
-  if (local > size - MARQUEE_EDGE_PAN_ZONE_PX) {
-    return -Math.min(
-      1,
-      (local - (size - MARQUEE_EDGE_PAN_ZONE_PX)) / MARQUEE_EDGE_PAN_ZONE_PX
-    ) * MARQUEE_EDGE_PAN_MAX_SPEED_PX_PER_SECOND;
-  }
-  return 0;
-};
-
-const clampEdgePanDelta = (
-  delta: number,
-  imageStart: number,
-  imageSize: number,
-  viewportSize: number
-): number => {
-  if (delta > 0) return Math.min(delta, Math.max(0, -imageStart));
-  if (delta < 0) {
-    return Math.max(delta, Math.min(0, viewportSize - imageStart - imageSize));
-  }
-  return 0;
-};
 
 interface ViewportInteractionOptions {
   metadata: LightTableImageMetadata | null;

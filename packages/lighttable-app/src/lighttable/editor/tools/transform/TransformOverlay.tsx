@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { Rect } from '../../document/documentTypes';
 import {
   aroundPoint,
@@ -11,7 +11,7 @@ import {
 } from './affine';
 import type { AffineMatrix, TransformHandle, TransformQuad, TransformSessionState } from './transformTypes';
 import { transformCornerRotationTargets } from './transformEditingFrame';
-import type { SnapFeature, SnapMatch } from '../../../application/tools/snapping/snapEngine';
+import type { SnapFeature, SnapGrid, SnapMatch } from '../../../application/tools/snapping/snapEngine';
 import { snapAffineTranslation, snapProjectiveTranslation } from './snapTransformTranslation';
 import {
   appendTransformFrameOperation,
@@ -20,6 +20,7 @@ import {
   type TransformFrameMode,
   type TransformSessionFrame
 } from './transformSessionFrame';
+import { edgePanFrameDelta } from '../../interaction/edgePan';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -28,8 +29,8 @@ interface TransformOverlayProps {
   scale: number;
   width: number;
   height: number;
-  onChange: (matrix: AffineMatrix) => void;
-  onProjectiveChange: (quad: TransformQuad) => void;
+  onChange: (matrix: AffineMatrix, matches: readonly SnapMatch[]) => boolean;
+  onProjectiveChange: (quad: TransformQuad, matches: readonly SnapMatch[]) => boolean;
   onCommitGesture: () => void;
   onDuplicateChange: (duplicate: boolean) => void;
   frameMode?: TransformFrameMode;
@@ -38,7 +39,9 @@ interface TransformOverlayProps {
   /** Builds immutable snap geometry once at gesture start, never per pointer move. */
   getSnapTargets?: () => readonly SnapFeature[];
   snapEnabled?: boolean;
+  snapGrid?: SnapGrid | null;
   onSnapMatches?: (matches: readonly SnapMatch[]) => void;
+  onViewportPan?: (deltaX: number, deltaY: number) => void;
 }
 
 interface DragState {
@@ -53,9 +56,19 @@ interface DragState {
   pivot: TransformPoint;
   angle: number;
   projectiveQuad: TransformQuad | null;
+  projectiveActive: boolean;
   projectiveCorner: number | null;
   snapTargets: readonly SnapFeature[];
   snapMatches: readonly SnapMatch[];
+  snapGrid: SnapGrid | null;
+  clientX: number;
+  clientY: number;
+  viewportBounds: { left: number; top: number; width: number; height: number };
+  imageRect: Rect;
+  shiftKey: boolean;
+  altKey: boolean;
+  primaryKey: boolean;
+  lastFrameMs: number;
   changed: boolean;
 }
 
@@ -106,18 +119,23 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   onPickLayer,
   getSnapTargets = () => [],
   snapEnabled = true,
-  onSnapMatches
+  snapGrid = null,
+  onSnapMatches,
+  onViewportPan
 }) => {
   const dragRef = useRef<DragState | null>(null);
+  const edgePanFrameRef = useRef<number | null>(null);
   const scheduleAffine = (matrix: AffineMatrix, matches: readonly SnapMatch[] = []) => {
     // The renderer already coalesces dirty presentation to the next frame.
     // Another rAF here adds a complete frame of avoidable input latency.
-    onSnapMatches?.(matches);
-    onChange(matrix);
+    const accepted = onChange(matrix, matches);
+    if (!accepted) onSnapMatches?.([]);
+    return accepted;
   };
   const scheduleProjective = (quad: TransformQuad, matches: readonly SnapMatch[] = []) => {
-    onSnapMatches?.(matches);
-    onProjectiveChange(quad);
+    const accepted = onProjectiveChange(quad, matches);
+    if (!accepted) onSnapMatches?.([]);
+    return accepted;
   };
   const toScreen = (point: TransformPoint) => ({
     x: imageRect.x + point.x * scale,
@@ -205,9 +223,24 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         { ...geometry.corners[2] },
         { ...geometry.corners[3] }
       ],
+      projectiveActive: Boolean(state.projectiveQuad),
       projectiveCorner,
       snapTargets: getSnapTargets(),
       snapMatches: [],
+      snapGrid: snapGrid ? { ...snapGrid } : null,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      viewportBounds: {
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      },
+      imageRect: { ...imageRect },
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      primaryKey: event.ctrlKey || event.metaKey,
+      lastFrameMs: performance.now(),
       changed: false
     };
     onSnapMatches?.([]);
@@ -216,17 +249,13 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     event.stopPropagation();
   };
 
-  const move = (event: React.PointerEvent<SVGSVGElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const current = toDocument(event);
+  const moveDrag = (drag: DragState, current: TransformPoint) => {
     if (drag.projectiveCorner !== null && drag.projectiveQuad) {
       const next = drag.projectiveQuad.map((point, index) => (
         index === drag.projectiveCorner ? current : { ...point }
       )) as unknown as TransformQuad;
-      drag.changed = true;
-      scheduleProjective(next);
-    } else if (state.projectiveQuad && drag.handle === 'body' && drag.projectiveQuad) {
+      drag.changed = scheduleProjective(next) || drag.changed;
+    } else if (drag.projectiveActive && drag.handle === 'body' && drag.projectiveQuad) {
       const dx = current.x - drag.start.x;
       const dy = current.y - drag.start.y;
       const snapped = snapProjectiveTranslation(
@@ -235,11 +264,12 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         drag.snapTargets,
         scale,
         snapEnabled,
-        drag.snapMatches
+        drag.snapMatches,
+        drag.snapGrid
       );
-      drag.snapMatches = snapped.matches;
-      drag.changed = true;
-      scheduleProjective(snapped.value, snapped.matches);
+      const accepted = scheduleProjective(snapped.value, snapped.matches);
+      drag.snapMatches = accepted ? snapped.matches : [];
+      drag.changed = accepted || drag.changed;
     } else if (drag.handle === 'body') {
       const snapped = snapAffineTranslation(
         drag.sourcePoints,
@@ -248,20 +278,20 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         drag.snapTargets,
         scale,
         snapEnabled,
-        drag.snapMatches
+        drag.snapMatches,
+        drag.snapGrid
       );
-      drag.snapMatches = snapped.matches;
-      drag.changed = true;
-      scheduleAffine(snapped.value, snapped.matches);
+      const accepted = scheduleAffine(snapped.value, snapped.matches);
+      drag.snapMatches = accepted ? snapped.matches : [];
+      drag.changed = accepted || drag.changed;
     } else if (drag.handle === 'rotate' && !state.projectiveQuad) {
       const angle = Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x);
       let delta = angle - drag.angle;
-      if (event.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
-      drag.changed = true;
-      scheduleAffine(multiplyMatrices(
+      if (drag.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
+      drag.changed = scheduleAffine(multiplyMatrices(
         aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix
-      ));
-    } else if (!state.projectiveQuad) {
+      )) || drag.changed;
+    } else if (!drag.projectiveActive) {
       const local = pointInTransformFrame(drag.matrix, drag.frameMatrix, current);
       if (!local) return;
       const horizontal = !['north', 'south'].includes(drag.handle);
@@ -269,7 +299,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       const denominatorX = drag.handlePoint.x - drag.anchor.x;
       const denominatorY = drag.handlePoint.y - drag.anchor.y;
       const sideHandle = ['north', 'east', 'south', 'west'].includes(drag.handle);
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && sideHandle) {
+      if (drag.primaryKey && drag.shiftKey && sideHandle) {
         const horizontalSide = drag.handle === 'north' || drag.handle === 'south';
         const shear = horizontalSide
           ? {
@@ -282,36 +312,116 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
               b: Math.max(-10, Math.min(10, (local.y - drag.handlePoint.y) / Math.max(1e-6, Math.abs(denominatorX)))),
               c: 0, d: 1, tx: 0, ty: 0
             };
-        drag.changed = true;
         const next = appendTransformFrameOperation(
           drag.matrix,
           drag.frameMatrix,
           aroundPoint(shear, drag.anchor)
         );
-        if (next) scheduleAffine(next);
-        event.preventDefault();
-        event.stopPropagation();
+        if (next) drag.changed = scheduleAffine(next) || drag.changed;
         return;
       }
       let scaleX = horizontal && Math.abs(denominatorX) > 1e-6 ? (local.x - drag.anchor.x) / denominatorX : 1;
       let scaleY = vertical && Math.abs(denominatorY) > 1e-6 ? (local.y - drag.anchor.y) / denominatorY : 1;
       // Photoshop's current Free Transform keeps corner proportions by
       // default; Shift explicitly opts into independent axes.
-      if (!event.shiftKey && horizontal && vertical) {
+      if (!drag.shiftKey && horizontal && vertical) {
         const uniform = Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
         scaleX = uniform;
         scaleY = uniform;
       }
       scaleX = Math.abs(scaleX) < 0.01 ? Math.sign(scaleX || 1) * 0.01 : scaleX;
       scaleY = Math.abs(scaleY) < 0.01 ? Math.sign(scaleY || 1) * 0.01 : scaleY;
-      drag.changed = true;
       const next = appendTransformFrameOperation(
         drag.matrix,
         drag.frameMatrix,
         aroundPoint(scaleMatrix(scaleX, scaleY), drag.anchor)
       );
-      if (next) scheduleAffine(next);
+      if (next) drag.changed = scheduleAffine(next) || drag.changed;
     }
+  };
+
+  const stopEdgePan = () => {
+    if (edgePanFrameRef.current !== null) {
+      cancelAnimationFrame(edgePanFrameRef.current);
+      edgePanFrameRef.current = null;
+    }
+  };
+
+  const runEdgePanFrame = (frameMs: number) => {
+    edgePanFrameRef.current = null;
+    const drag = dragRef.current;
+    if (!drag || !onViewportPan) return;
+    const elapsedMs = frameMs - drag.lastFrameMs;
+    drag.lastFrameMs = frameMs;
+    const delta = edgePanFrameDelta({
+      clientX: drag.clientX,
+      clientY: drag.clientY,
+      viewportLeft: drag.viewportBounds.left,
+      viewportTop: drag.viewportBounds.top,
+      viewportWidth: drag.viewportBounds.width,
+      viewportHeight: drag.viewportBounds.height,
+      imageX: drag.imageRect.x,
+      imageY: drag.imageRect.y,
+      imageWidth: drag.imageRect.width,
+      imageHeight: drag.imageRect.height,
+      elapsedMs
+    });
+    if (delta.x === 0 && delta.y === 0) return;
+    drag.imageRect = {
+      ...drag.imageRect,
+      x: drag.imageRect.x + delta.x,
+      y: drag.imageRect.y + delta.y
+    };
+    onViewportPan(delta.x, delta.y);
+    moveDrag(drag, {
+      x: (drag.clientX - drag.viewportBounds.left - drag.imageRect.x)
+        / Math.max(scale, 1e-6),
+      y: (drag.clientY - drag.viewportBounds.top - drag.imageRect.y)
+        / Math.max(scale, 1e-6)
+    });
+    edgePanFrameRef.current = requestAnimationFrame(runEdgePanFrame);
+  };
+
+  const updateEdgePan = (drag: DragState) => {
+    if (!onViewportPan) return;
+    const delta = edgePanFrameDelta({
+      clientX: drag.clientX,
+      clientY: drag.clientY,
+      viewportLeft: drag.viewportBounds.left,
+      viewportTop: drag.viewportBounds.top,
+      viewportWidth: drag.viewportBounds.width,
+      viewportHeight: drag.viewportBounds.height,
+      imageX: drag.imageRect.x,
+      imageY: drag.imageRect.y,
+      imageWidth: drag.imageRect.width,
+      imageHeight: drag.imageRect.height,
+      elapsedMs: 1
+    });
+    if (delta.x === 0 && delta.y === 0) {
+      stopEdgePan();
+      return;
+    }
+    if (edgePanFrameRef.current === null) {
+      drag.lastFrameMs = performance.now();
+      edgePanFrameRef.current = requestAnimationFrame(runEdgePanFrame);
+    }
+  };
+
+  const move = (event: React.PointerEvent<SVGSVGElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    drag.clientX = event.clientX;
+    drag.clientY = event.clientY;
+    drag.shiftKey = event.shiftKey;
+    drag.altKey = event.altKey;
+    drag.primaryKey = event.ctrlKey || event.metaKey;
+    moveDrag(drag, {
+      x: (event.clientX - drag.viewportBounds.left - drag.imageRect.x)
+        / Math.max(scale, 1e-6),
+      y: (event.clientY - drag.viewportBounds.top - drag.imageRect.y)
+        / Math.max(scale, 1e-6)
+    });
+    updateEdgePan(drag);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -319,6 +429,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (drag?.pointerId !== event.pointerId) return;
+    stopEdgePan();
     if (!drag.changed && drag.handle === 'body' && onPickLayer) {
       const point = toDocument(event);
       const movedPixels = Math.hypot(point.x - drag.start.x, point.y - drag.start.y) * scale;
@@ -334,6 +445,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     // shortcut, or switching tools confirms the complete transform session.
     if (drag.changed) onCommitGesture();
   };
+
+  useEffect(() => () => stopEdgePan(), []);
 
   const screenCorners = geometry.corners.map(toScreen);
   const rotation = toScreen(geometry.rotation);

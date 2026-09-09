@@ -167,7 +167,7 @@ slice; they are not postponed to the final phase.
 | S01 | Layer capabilities, rasterize, merge and flatten | `owner` | yes | passed | passed | [ ] | yes |
 | S02 | Masks, Remove Background and layer-result insertion | `owner` | yes | passed | passed | [ ] | partial (paint -> S03) |
 | S03 | Raster paint and pixel mutation sessions | `owner` | yes | passed | passed | [ ] | yes |
-| S04 | Transform, selected-pixel transform, snapping and guides | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
+| S04 | Transform, selected-pixel transform, snapping and guides | `owner` | yes | repaired | passed | [ ] | partial |
 | S05 | Vector paths and live shapes | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S06 | Text, paragraph/vertical/path text and text conversion | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
 | S07 | Warp and experimental Face Warp | `queued` | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -293,13 +293,20 @@ This is next because later tools need one trustworthy way to finalize content.
 
 ### S04 -- transform and snapping
 
-- [ ] Transform for raster, text, vector, shape, group and supported masks.
-- [ ] Selected-pixel transform keeps an immutable source until terminal commit.
-- [ ] Move, scale, rotate, skew and supported projective modes.
-- [ ] Snap candidates exclude self; one latched target with hysteresis prevents
+- [x] Transform for raster, text, vector, shape, group and supported masks.
+- [x] Selected-pixel transform keeps an immutable source until terminal commit.
+- [x] Move, scale, rotate, skew and supported projective modes.
+- [x] Snap candidates exclude self; one latched target with hysteresis prevents
       corner fighting, guide flicker and return-to-previous-state jumps.
-- [ ] Repeated transforms in one tool session never recursively rasterize previews.
-- [ ] Auto-pan, document bounds, cancel, undo/redo and multi-document rebind.
+- [x] Repeated transforms in one tool session never recursively rasterize previews.
+- [x] Auto-pan, document bounds, cancel, undo/redo and multi-document rebind.
+- [x] Opening renderer generation and selection revision remain bound through
+      async selection restore, terminal CAS, history and compensation.
+- [x] Group/mask lifetime moved to a non-React owner; group pointer previews use
+      scene terms captured once at admission.
+- [x] Two read-only critic passes and debug/instrumented packaged acceptance.
+- [ ] Owner manually accepts transform/snapping feel on a large real document.
+- [ ] Extract the remaining overlay gesture state machine before adding behavior.
 
 ### S05 -- vector paths and live shapes
 

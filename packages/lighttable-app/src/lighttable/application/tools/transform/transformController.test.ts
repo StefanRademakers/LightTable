@@ -238,8 +238,8 @@ describe('TransformController', () => {
     ], destination);
 
     const result = controller.finish(document, [], true);
-    expect(result.kind).toBe('selection');
-    if (result.kind === 'selection') {
+    expect(result.kind).toBe('raster-layer');
+    if (result.kind === 'raster-layer') {
       const afterLayer = result.afterDocument.layers[0] as RasterLayer;
       expect(afterLayer.transform).toEqual(identityMatrix());
       expect(afterLayer.pixelRevision).toBe(1);
@@ -275,5 +275,18 @@ describe('TransformController', () => {
     controller.update(identityMatrix());
     expect(controller.finish(document, [], true)).toEqual({ kind: 'unchanged' });
     expect(port.cancelLayerTransform).toHaveBeenCalledOnce();
+  });
+
+  it('abandons a destroyed renderer generation without addressing its replacement', async () => {
+    const document = createImageDocument('Transform', 320, 180, 'asset');
+    const port = renderer();
+    const controller = new TransformController(port);
+    await controller.begin(document, []);
+
+    controller.abandonRendererGeneration();
+
+    expect(controller.state).toBeNull();
+    expect(port.cancelLayerTransform).not.toHaveBeenCalled();
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
   });
 });

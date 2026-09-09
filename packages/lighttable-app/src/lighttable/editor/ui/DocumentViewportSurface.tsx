@@ -18,6 +18,7 @@ import type {
 import type { ToolId } from "../session/editorSession";
 import type {
   SnapFeature,
+  SnapGrid,
   SnapMatch,
 } from "../../application/tools/snapping/snapEngine";
 import { LayoutGuideInteractionLayer } from "./LayoutGuideInteractionLayer";
@@ -54,16 +55,18 @@ export interface DocumentViewportSurfaceProps {
   onPointerCancel: React.PointerEventHandler<HTMLDivElement>;
   onPointerLeave: React.PointerEventHandler<HTMLDivElement>;
   onContextMenu: React.MouseEventHandler<HTMLDivElement>;
-  onTransformChange: (matrix: AffineMatrix) => void;
-  onTransformProjectiveChange: (quad: TransformQuad) => void;
+  onTransformChange: (matrix: AffineMatrix, matches: readonly SnapMatch[]) => boolean;
+  onTransformProjectiveChange: (quad: TransformQuad, matches: readonly SnapMatch[]) => boolean;
   onTransformCommitGesture: () => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
   onTransformPick: (point: { x: number; y: number }, extend: boolean) => void;
   getTransformSnapTargets?: () => readonly SnapFeature[];
   transformSnapEnabled?: boolean;
+  transformSnapGrid?: SnapGrid | null;
   transformFrameMode?: TransformFrameMode;
   transformFrameOverride?: TransformSessionFrame | null;
   onTransformSnapMatches?: (matches: readonly SnapMatch[]) => void;
+  onTransformViewportPan?: (deltaX: number, deltaY: number) => void;
   documentGuides?: readonly DocumentGuide[];
   rulersVisible?: boolean;
   guidesVisible?: boolean;
@@ -127,9 +130,11 @@ export const DocumentViewportSurface: React.FC<
   onTransformPick,
   getTransformSnapTargets,
   transformSnapEnabled,
+  transformSnapGrid,
   transformFrameMode,
   transformFrameOverride,
   onTransformSnapMatches,
+  onTransformViewportPan,
   documentGuides = [],
   rulersVisible = false,
   guidesVisible = false,
@@ -257,9 +262,11 @@ export const DocumentViewportSurface: React.FC<
           onPickLayer={onTransformPick}
           getSnapTargets={getTransformSnapTargets}
           snapEnabled={transformSnapEnabled}
+          snapGrid={transformSnapGrid}
           frameMode={transformFrameMode}
           frameOverride={transformFrameOverride}
           onSnapMatches={onTransformSnapMatches}
+          onViewportPan={onTransformViewportPan}
         />
       ) : null}
       {loading ? (

@@ -146,6 +146,14 @@ export class TransformController {
     this.launchRevision += 1;
   }
 
+  /** Drops JS ownership after the concrete renderer generation was destroyed. */
+  abandonRendererGeneration(): void {
+    this.launchRevision += 1;
+    this.activeState = null;
+    this.activeSemanticLayer = null;
+    this.activeRasterLayerBake = false;
+  }
+
   async begin(
     document: ImageDocument,
     selection: SelectionOperation[]
@@ -364,7 +372,7 @@ export class TransformController {
         ? quadBounds(state.projectiveQuad)
         : transformedBounds(state.matrix, state.supportBounds)
     );
-    if (state.sourceKind === 'layer' && bakeRasterLayer) {
+    if (state.sourceKind === 'layer' && (bakeRasterLayer || state.projectiveQuad)) {
       const afterDocument = setRasterLayerDocumentSurface(
         markLayerPixelsChanged(document, state.layerId, dirtyBounds),
         state.layerId,

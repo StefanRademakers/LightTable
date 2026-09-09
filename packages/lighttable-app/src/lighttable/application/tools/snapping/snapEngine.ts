@@ -28,15 +28,22 @@ export interface SnapMatch {
   deltaScreen: number;
 }
 
+/** Immutable analytical grid captured at gesture admission. */
+export interface SnapGrid {
+  spacing: number;
+  originX: number;
+  originY: number;
+}
+
 export interface SnapRequest {
   movingBounds: SnapRect;
   targets: readonly SnapFeature[];
   zoom: number;
   enabled?: boolean;
-  bypass?: boolean;
   toleranceScreenPx?: number;
   retainedMatches?: readonly SnapMatch[];
   releaseToleranceScreenPx?: number;
+  grid?: SnapGrid | null;
 }
 
 export interface SnapResult {
@@ -80,13 +87,28 @@ const retainedAxisMatch = (
     && feature.role === retained.target.role
     && feature.sourceId === retained.target.sourceId
     && (feature.sourceId !== undefined || feature.position === retained.target.position)
-  ));
+  )) ?? (retained.target.source === 'grid' ? retained.target : undefined);
   if (!moving || !target) return null;
   const deltaDocument = target.position - moving.position;
   const deltaScreen = deltaDocument * zoom;
   return Math.abs(deltaScreen) <= releaseToleranceScreenPx
     ? { axis, moving, target, deltaDocument, deltaScreen }
     : null;
+};
+
+const analyticalGridTargets = (
+  bounds: SnapRect,
+  grid: SnapGrid | null | undefined
+): SnapFeature[] => {
+  if (!grid) return [];
+  const spacing = Math.max(1e-6, Math.abs(grid.spacing));
+  return (['x', 'y'] as const).flatMap((axis) => {
+    const origin = axis === 'x' ? grid.originX : grid.originY;
+    return axisFeatures(bounds, axis, 'selection', 'moving').map((moving) => {
+      const position = origin + Math.round((moving.position - origin) / spacing) * spacing;
+      return snapLineFeature(axis, position, 'grid', `${axis}:${position}`);
+    });
+  });
 };
 
 export const snapFeaturesForRect = (
@@ -128,6 +150,27 @@ const chooseAxisMatch = (
 ): SnapMatch | null => {
   const moving = axisFeatures(movingBounds, axis, 'selection', 'moving');
   let best: SnapMatch | null = null;
+  const sourceRank: Record<SnapSource, number> = {
+    guide: 0, canvas: 1, layer: 2, grid: 3, selection: 4
+  };
+  const roleRank: Record<SnapRole, number> = { line: 0, min: 1, center: 2, max: 3 };
+  const precedes = (candidate: SnapMatch, current: SnapMatch) => {
+    const distance = Math.abs(candidate.deltaScreen) - Math.abs(current.deltaScreen);
+    if (Math.abs(distance) > 1e-9) return distance < 0;
+    const candidateSameRole = candidate.moving.role === candidate.target.role ? 0 : 1;
+    const currentSameRole = current.moving.role === current.target.role ? 0 : 1;
+    if (candidateSameRole !== currentSameRole) return candidateSameRole < currentSameRole;
+    const source = sourceRank[candidate.target.source] - sourceRank[current.target.source];
+    if (source !== 0) return source < 0;
+    if (candidate.target.position !== current.target.position) {
+      return candidate.target.position < current.target.position;
+    }
+    const sourceId = (candidate.target.sourceId ?? '').localeCompare(current.target.sourceId ?? '');
+    if (sourceId !== 0) return sourceId < 0;
+    const movingRole = roleRank[candidate.moving.role] - roleRank[current.moving.role];
+    if (movingRole !== 0) return movingRole < 0;
+    return roleRank[candidate.target.role] < roleRank[current.target.role];
+  };
   for (const movingFeature of moving) {
     for (const target of targets) {
       if (target.axis !== axis || !Number.isFinite(target.position)) continue;
@@ -135,14 +178,14 @@ const chooseAxisMatch = (
       const deltaScreen = deltaDocument * zoom;
       if (Math.abs(deltaScreen) > toleranceScreenPx) continue;
       const candidate = { axis, moving: movingFeature, target, deltaDocument, deltaScreen };
-      if (!best || Math.abs(deltaScreen) < Math.abs(best.deltaScreen)) best = candidate;
+      if (!best || precedes(candidate, best)) best = candidate;
     }
   }
   return best;
 };
 
 export const solveSnap = (request: SnapRequest): SnapResult => {
-  if (request.enabled === false || request.bypass) {
+  if (request.enabled === false) {
     return { offsetX: 0, offsetY: 0, snappedX: false, snappedY: false, matches: [] };
   }
   const zoom = Math.max(1e-6, Math.abs(request.zoom));
@@ -152,12 +195,15 @@ export const solveSnap = (request: SnapRequest): SnapResult => {
     request.releaseToleranceScreenPx ?? SNAP_RELEASE_TOLERANCE_SCREEN_PX
   );
   const retained = request.retainedMatches ?? [];
+  const targets = request.grid
+    ? [...request.targets, ...analyticalGridTargets(request.movingBounds, request.grid)]
+    : request.targets;
   const x = retainedAxisMatch(
-    'x', request.movingBounds, request.targets, retained, zoom, releaseTolerance
-  ) ?? chooseAxisMatch('x', request.movingBounds, request.targets, zoom, tolerance);
+    'x', request.movingBounds, targets, retained, zoom, releaseTolerance
+  ) ?? chooseAxisMatch('x', request.movingBounds, targets, zoom, tolerance);
   const y = retainedAxisMatch(
-    'y', request.movingBounds, request.targets, retained, zoom, releaseTolerance
-  ) ?? chooseAxisMatch('y', request.movingBounds, request.targets, zoom, tolerance);
+    'y', request.movingBounds, targets, retained, zoom, releaseTolerance
+  ) ?? chooseAxisMatch('y', request.movingBounds, targets, zoom, tolerance);
   return {
     offsetX: x?.deltaDocument ?? 0,
     offsetY: y?.deltaDocument ?? 0,

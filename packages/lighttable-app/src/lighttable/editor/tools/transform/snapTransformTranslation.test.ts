@@ -48,6 +48,22 @@ describe('transform body snapping', () => {
     expect(result.value.ty).toBeCloseTo(-4.62);
   });
 
+  it('snaps to grid lines far outside the gesture-start neighborhood', () => {
+    const result = snapAffineTranslation(
+      square,
+      identityMatrix(),
+      { x: 997, y: 1496 },
+      [],
+      1,
+      true,
+      [],
+      { spacing: 100, originX: 0, originY: 0 }
+    );
+    expect(result.value.tx).toBe(995);
+    expect(result.value.ty).toBe(1495);
+    expect(result.matches.map(({ target }) => target.position)).toEqual([1000, 1500]);
+  });
+
   it('retains a projective snap target until the release threshold is crossed', () => {
     const snapped = snapProjectiveTranslation(
       square,

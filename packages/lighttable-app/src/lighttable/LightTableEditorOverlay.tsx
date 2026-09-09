@@ -365,6 +365,7 @@ import type {
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
+import { publishBoundSelection } from './application/tools/transform/BoundSelectionPublication';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
@@ -1881,22 +1882,61 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const publishDocumentSelection = useCallback((
     document: ImageDocument,
     selection: readonly SelectionOperation[],
-    selectionMaskSnapshot: SelectionMaskSnapshot
+    selectionMaskSnapshot: SelectionMaskSnapshot,
+    expectedSelectionRevision?: number,
+    bindingIsCurrent: () => boolean = () => true
   ) => {
+    const supportBounds = selectionMaskSnapshot.active
+      ? selectionOperationsSupportBounds([...selection], {
+          x: 0, y: 0, width: document.width, height: document.height
+        })
+      : null;
     const publish = () => {
-      applyDocumentSnapshot(document);
-      editorSessionRef.current = {
-        ...editorSessionRef.current,
-        pointerId: null,
-        selection: [...selection],
-        selectionMaskSnapshot
-      };
-      setEditorSession((current) => ({
-        ...current,
-        pointerId: null,
-        selection: [...selection],
-        selectionMaskSnapshot
-      }));
+      if (documentSession) {
+        const store = new DocumentSelectionStateStore(documentSession);
+        const lease = store.acquire(documentSession.getSnapshot().documentRevision);
+        if ((expectedSelectionRevision !== undefined
+          && Number(lease.selection.revision) !== expectedSelectionRevision)
+          || !bindingIsCurrent()) {
+          throw new Error('The selection publication lease is no longer current.');
+        }
+        const committed = store.compareAndSwap(lease.selection.revision, {
+          ...lease.selection,
+          revision: (Number(lease.selection.revision) + 1) as typeof lease.selection.revision,
+          active: selectionMaskSnapshot.active,
+          coverage: selectionMaskSnapshot,
+          supportBounds,
+          provenance: [...selection]
+        });
+        if (!committed) throw new Error('The selection changed during compound publication.');
+        if (!bindingIsCurrent()) {
+          throw new Error('The renderer changed during compound publication.');
+        }
+        applyDocumentSnapshot(document);
+        editorSessionRef.current = {
+          ...editorSessionRef.current,
+          pointerId: null,
+          selection: [...selection],
+          selectionMaskSnapshot,
+          selectionRevision: editorSessionRef.current.selectionRevision + 1,
+          selectionSupportBounds: supportBounds
+        };
+      } else {
+        if ((expectedSelectionRevision !== undefined
+          && editorSessionRef.current.selectionRevision !== expectedSelectionRevision)
+          || !bindingIsCurrent()) {
+          throw new Error('The selection publication lease is no longer current.');
+        }
+        applyDocumentSnapshot(document);
+        setEditorSession((current) => ({
+          ...current,
+          pointerId: null,
+          selection: [...selection],
+          selectionMaskSnapshot,
+          selectionRevision: current.selectionRevision + 1,
+          selectionSupportBounds: supportBounds
+        }));
+      }
     };
     if (documentSession) documentSession.runPublication(publish);
     else publish();
@@ -6780,29 +6820,57 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activationRevision: transformActivationRevision,
     selection: editorSession.selection,
     getSelection: () => editorSessionRef.current.selection,
+    getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
+      ?? editorSessionRef.current.selectionRevision,
     getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
+    rendererGeneration: rendererSnapshot.generation,
     documentMutations: documentMutationController,
     applyDocumentSnapshot,
-    applyDocumentAndSelection: async (document, selection, selectionMaskSnapshot) => {
-      const renderer = engineRef.current;
-      if (!renderer || !await renderer.restoreSelectionSnapshot(selectionMaskSnapshot)) {
-        throw new Error('The exact selection state could not be restored.');
-      }
-      publishDocumentSelection(document, selection, selectionMaskSnapshot);
+    applyDocumentAndSelection: async (document, selection, selectionMaskSnapshot, binding) => {
+      const rendererDocumentBindingIsCurrent = () => engineRef.current === binding.renderer
+        && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration
+        && imageDocumentRef.current === binding.expectedDocument;
+      const bindingIsCurrent = () => rendererDocumentBindingIsCurrent()
+        && (documentSession?.getSnapshot().editor.selectionRevision
+          ?? editorSessionRef.current.selectionRevision) === binding.expectedSelectionRevision
+        && editorSessionRef.current.selectionMaskSnapshot === binding.expectedSelectionMask;
+      await publishBoundSelection({
+        renderer: binding.renderer,
+        beforeMask: binding.expectedSelectionMask,
+        afterMask: selectionMaskSnapshot,
+        bindingIsCurrent,
+        rendererIsAddressable: () => engineRef.current === binding.renderer
+          && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration,
+        publish: () => publishDocumentSelection(
+          document,
+          selection,
+          selectionMaskSnapshot,
+          binding.expectedSelectionRevision,
+          rendererDocumentBindingIsCurrent
+        )
+      });
     },
     pushHistoryEntry,
     setError,
     setStatus: setGradeStatus,
     transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
     onLayerTransformCommitted: (layerId, transform) => {
-      if (!fixedTransformCommandRunningRef.current) commandService?.recordObservedCommand(
-        'layer.setTransform',
-        workspaceDocumentId as DocumentSessionId,
-        { layerId, transform },
-        { layerId, transform }
-      );
+      if (!fixedTransformCommandRunningRef.current) {
+        if (commandService) commandService.recordObservedCommand(
+          'layer.setTransform', workspaceDocumentId as DocumentSessionId,
+          { layerId, transform }, { layerId, transform }
+        );
+        else documentSession?.markChanged();
+      }
+    },
+    onRasterTransformCommitted: () => {
+      if (!fixedTransformCommandRunningRef.current) documentSession?.markChanged();
+    },
+    onAuxiliaryTransformCommitted: () => {
+      if (!fixedTransformCommandRunningRef.current) documentSession?.markChanged();
     }
   });
   beginSelectionContentMoveRef.current = (duplicate) =>
@@ -6842,10 +6910,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         includeCanvas: snap.targets.documentBounds,
         includeLayers: snap.targets.layers,
         includeGuides: snap.targets.guides,
-        includeGrid: snap.targets.grid && snap.gridVisible,
-        gridSpacing: snap.gridSpacing / Math.max(1, snap.gridSubdivisions),
-        gridOriginX: snap.gridOriginX,
-        gridOriginY: snap.gridOriginY,
         movingBounds: transformFrame?.bounds
       })
       : [];
@@ -6913,16 +6977,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible,
     toolPreferences?.preserveTransformLocalAxes, transformSession.frameOverride]);
-  const updateTransformMatrix = useCallback((matrix: AffineMatrix) => {
-    publishTransientTransformFrame(transformSession.update(matrix));
+  const updateTransformMatrix = useCallback((matrix: AffineMatrix, matches: readonly SnapMatch[]) => {
+    const next = transformSession.update(matrix);
+    transformSnapMatchesRef.current = next ? matches : [];
+    publishTransientTransformFrame(next);
+    if (!next) engineRef.current?.setSmartGuideEditingFrame(null);
+    return next !== null;
   }, [publishTransientTransformFrame, transformSession.update]);
-  const updateTransformProjective = useCallback((quad: TransformQuad) => {
-    publishTransientTransformFrame(transformSession.updateProjective(quad));
+  const updateTransformProjective = useCallback((quad: TransformQuad, matches: readonly SnapMatch[]) => {
+    const next = transformSession.updateProjective(quad);
+    transformSnapMatchesRef.current = next ? matches : [];
+    publishTransientTransformFrame(next);
+    if (!next) engineRef.current?.setSmartGuideEditingFrame(null);
+    return next !== null;
   }, [publishTransientTransformFrame, transformSession.updateProjective]);
   const publishTransformSnapMatches = useCallback((matches: readonly SnapMatch[]) => {
     transformSnapMatchesRef.current = matches;
     if (matches.length === 0) engineRef.current?.setSmartGuideEditingFrame(null);
   }, []);
+  const panTransformViewport = useCallback((deltaX: number, deltaY: number) => {
+    setZoomMode('custom');
+    setView((current) => ({
+      ...current,
+      panX: current.panX + deltaX,
+      panY: current.panY + deltaY
+    }));
+  }, [setView, setZoomMode]);
   commitTransformRef.current = transformSession.commit;
   commitTransformPendingRef.current = transformSession.commitPending;
   settlePixelInteractionRef.current = async () => {
@@ -8447,9 +8527,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onTransformPick: pickTransformAtPoint,
         getTransformSnapTargets,
         transformSnapEnabled: editorSession.snap.enabled,
+        transformSnapGrid: editorSession.snap.targets.grid && editorSession.snap.gridVisible ? {
+          spacing: editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
+          originX: editorSession.snap.gridOriginX,
+          originY: editorSession.snap.gridOriginY
+        } : null,
         transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
         transformFrameOverride: transformSession.frameOverride,
         onTransformSnapMatches: publishTransformSnapMatches,
+        onTransformViewportPan: panTransformViewport,
         documentGuides: effectiveDocumentGuides,
         rulersVisible: editorSession.snap.rulersVisible,
         guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,

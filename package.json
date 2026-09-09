@@ -196,6 +196,7 @@
     "smoke:desktop:tool-context-menu:build": "npm run package:desktop:verify && npm run smoke:desktop:tool-context-menu --",
     "smoke:desktop:brush-ux": "node scripts/smoke-desktop-brush-ux.mjs",
     "smoke:desktop:raster-paint-kernel": "node scripts/smoke-desktop-raster-paint-kernel.mjs",
+    "smoke:desktop:transform-kernel": "node scripts/smoke-desktop-transform-kernel.mjs",
     "smoke:desktop:brush-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:brush-ux --",
     "smoke:desktop:fill-ux": "node scripts/smoke-desktop-fill-ux.mjs",
     "smoke:desktop:fill-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:fill-ux --",

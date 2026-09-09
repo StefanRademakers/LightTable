@@ -3,6 +3,7 @@ import type { AffineMatrix, TransformQuad } from './transformTypes';
 import {
   solveSnap,
   type SnapFeature,
+  type SnapGrid,
   type SnapMatch,
   type SnapRect
 } from '../../../application/tools/snapping/snapEngine';
@@ -43,7 +44,8 @@ export const snapAffineTranslation = (
   targets: readonly SnapFeature[],
   zoom: number,
   enabled: boolean,
-  retainedMatches: readonly SnapMatch[] = []
+  retainedMatches: readonly SnapMatch[] = [],
+  grid: SnapGrid | null = null
 ): SnappedTransformTranslation<AffineMatrix> => {
   const proposed = multiplyMatrices(translationMatrix(delta.x, delta.y), startMatrix);
   const snap = solveSnap({
@@ -51,7 +53,8 @@ export const snapAffineTranslation = (
     targets,
     zoom,
     enabled,
-    retainedMatches
+    retainedMatches,
+    grid
   });
   const resolved = multiplyMatrices(translationMatrix(snap.offsetX, snap.offsetY), proposed);
   return {
@@ -70,7 +73,8 @@ export const snapProjectiveTranslation = (
   targets: readonly SnapFeature[],
   zoom: number,
   enabled: boolean,
-  retainedMatches: readonly SnapMatch[] = []
+  retainedMatches: readonly SnapMatch[] = [],
+  grid: SnapGrid | null = null
 ): SnappedTransformTranslation<TransformQuad> => {
   const proposed = source.map((point) => ({
     x: point.x + delta.x,
@@ -81,7 +85,8 @@ export const snapProjectiveTranslation = (
     targets,
     zoom,
     enabled,
-    retainedMatches
+    retainedMatches,
+    grid
   });
   return {
     value: proposed.map((point) => ({

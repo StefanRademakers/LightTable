@@ -101,3 +101,43 @@ export const transformLayerGroupInDocumentSpace = (
   }
   return next;
 };
+
+export interface TransformGroupPreviewSource {
+  readonly layer: LayerNode;
+  readonly documentToParent: AffineMatrix;
+  readonly localToDocument: AffineMatrix;
+}
+
+/** Captures the immutable scene terms needed by every pointer-rate group preview. */
+export const captureTransformGroupPreviewSources = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[]
+): readonly TransformGroupPreviewSource[] => {
+  const scene = buildSceneTransformIndex(document);
+  const byId = new Map(walkLayerTree(document.layers).map(({ node }) => [node.id, node]));
+  return topLevelTransformLayerIds(document, layerIds).flatMap((layerId) => {
+    const layer = byId.get(layerId);
+    const resolved = scene.get(layerId);
+    if (!layer || !resolved) return [];
+    const parentToDocument = resolved.parentId
+      ? scene.get(resolved.parentId)?.localToDocument
+      : { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
+    const documentToParent = parentToDocument ? invertMatrix(parentToDocument) : null;
+    return documentToParent ? [{
+      layer,
+      documentToParent,
+      localToDocument: resolved.localToDocument
+    }] : [];
+  });
+};
+
+export const projectTransformGroupPreviews = (
+  sources: readonly TransformGroupPreviewSource[],
+  delta: AffineMatrix
+): readonly { readonly layer: LayerNode; readonly matrix: AffineMatrix }[] => sources.map((source) => ({
+  layer: source.layer,
+  matrix: multiplyMatrices(
+    source.documentToParent,
+    multiplyMatrices(delta, source.localToDocument)
+  )
+}));

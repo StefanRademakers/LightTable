@@ -50,15 +50,32 @@ describe('snapEngine', () => {
     expect(result.matches).toHaveLength(2);
   });
 
+  it('resolves equal-distance targets independently of input order', () => {
+    const first = snapLineFeature('x', 8, 'grid', 'grid-8');
+    const second = snapLineFeature('x', 12, 'guide', 'guide-12');
+    const request = { movingBounds: { x: 10, y: 20, width: 20, height: 20 }, zoom: 1 };
+    const forward = solveSnap({ ...request, targets: [first, second] });
+    const reverse = solveSnap({ ...request, targets: [second, first] });
+    expect(forward.matches[0]?.target).toEqual(second);
+    expect(reverse.matches[0]?.target).toEqual(second);
+  });
+
   it('keeps the perceived tolerance invariant across zoom levels', () => {
     expect(solveSnap({ movingBounds: moving, targets: [snapLineFeature('x', 18, 'guide')], zoom: 1 }).snappedX).toBe(true);
     expect(solveSnap({ movingBounds: moving, targets: [snapLineFeature('x', 12, 'guide')], zoom: 4 }).snappedX).toBe(true);
     expect(solveSnap({ movingBounds: moving, targets: [snapLineFeature('x', 12.01, 'guide')], zoom: 4 }).snappedX).toBe(false);
   });
 
-  it('supports temporary bypass without changing settings', () => {
-    const result = solveSnap({ movingBounds: moving, targets: [snapLineFeature('x', 10, 'guide')], zoom: 1, bypass: true });
-    expect(result).toEqual({ offsetX: 0, offsetY: 0, snappedX: false, snappedY: false, matches: [] });
+  it('solves an immutable grid analytically after a long drag', () => {
+    const result = solveSnap({
+      movingBounds: { x: 997, y: 1496, width: 20, height: 20 },
+      targets: [],
+      grid: { spacing: 100, originX: 0, originY: 0 },
+      zoom: 1
+    });
+    expect(result.offsetX).toBe(3);
+    expect(result.offsetY).toBe(4);
+    expect(result.matches.map(({ target }) => target.source)).toEqual(['grid', 'grid']);
   });
 
   it('uses document edges but not centers for strict canvas snapping', () => {

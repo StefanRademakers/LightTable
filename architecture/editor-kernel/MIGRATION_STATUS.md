@@ -10,7 +10,7 @@ This status file remains the compact statement of what is actually migrated.
 | --- | --- | --- | --- | --- | --- |
 | shared identities and lifecycle | n/a | partial | n/a | n/a | n/a |
 | selection/marquee vertical | fallback retained outside migrated routes | implemented | shape/move/nudge/paint/Magic Wand/Object Selection/rebind | packaged automated | partial |
-| transform and snapping | yes | documented | no | no | no |
+| transform and snapping | gesture adapter retained | implemented | complete vertical | packaged automated | partial |
 | rasterize/merge/flatten | no | implemented | complete vertical | packaged automated | yes |
 | masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
@@ -87,13 +87,28 @@ now live in `RasterPixelCommandService`, leaving continuous stroke work in
 manual paint-feel acceptance remains open. See
 [Raster paint vertical slice](RASTER_PAINT_VERTICAL_SLICE.md).
 
+Transform and snapping are the fifth implemented vertical. One renderer-bound
+session retains immutable source pixels across repeated pointer gestures;
+terminal publication carries the admitted document, renderer generation and
+selection revision through async restore, CAS, history and compensation.
+Group and mask previews live in `AuxiliaryTransformSessionOwner`, with group
+scene terms captured once rather than rebuilding documents per pointer frame.
+Deterministic per-axis snap latches, analytical long-distance grid snapping,
+accepted-frame smart guides and shared bounded edge-pan remove the earlier
+self-fighting and centre-rebound routes. Debug and instrumented packaged
+acceptance passed; manual feel acceptance and extraction of the remaining React
+gesture adapter are explicit follow-ups. See
+[Transform and snapping vertical slice](TRANSFORM_AND_SNAPPING_VERTICAL_SLICE.md).
+
 ## Structural baseline still failing
 
 The 2026-09-08 source-structure audit is not green. It reports responsibility
 growth in `useLayerDocumentCommands.ts`, `useSelectionSessionController.ts`,
-`LayerStyleEditor.tsx`, `LightTableEditorOverlay.tsx` and
-`LightTableStandaloneApp.tsx`, plus an unreviewed 1,260-line
-`useTransformSessionController.ts`. These are existing legacy concentration
-risks, not failures introduced by the kernel package. Do not “fix” this by only
+`LayerStyleEditor.tsx`, `WebGpuEngine.ts`, `LightTableEditorOverlay.tsx` and
+`LightTableStandaloneApp.tsx`, plus a still-red 1,002-line
+`useTransformSessionController.ts`. These are legacy concentration risks, not
+failures introduced by the kernel package. The transform hook has lost terminal
+publication plus group/mask GPU ownership since its 1,164-line S04 baseline,
+but its remaining gesture coordination is still tracked debt. Do not “fix” this by only
 raising the baseline. Each relevant hotspot must lose a named responsibility as
 its vertical slice migrates.
