@@ -189,6 +189,7 @@ export interface ReversibleGpuImageResize {
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
+  disposeAfterOwnershipLoss(): void;
 }
 
 export interface ImageResizeGpuServiceOptions {
@@ -206,7 +207,8 @@ export class ImageResizeGpuService {
       byteSize: 0,
       setAfterSelectionActive: () => undefined,
       apply: () => undefined,
-      dispose: () => undefined
+      dispose: () => undefined,
+      disposeAfterOwnershipLoss: () => undefined
     };
     const bundle = pipelineBundle(this.options.device);
     const encoder = this.options.device.createCommandEncoder({ label: 'LightTable Image Size' });
@@ -412,6 +414,16 @@ export class ImageResizeGpuService {
           // preceding GPU work is complete instead of relying on timing.
           releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
             destroyUniqueTextures(detachedTextures);
+          });
+        },
+        disposeAfterOwnershipLoss: () => {
+          const live = this.collectLiveTextures(pendingExchanges, pendingMaskExchanges);
+          const transientSet = new Set(transients);
+          const detachedCreated = createdTextures.filter((texture) => (
+            !transientSet.has(texture) && !live.has(texture)
+          ));
+          releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+            destroyUniqueTextures(detachedCreated);
           });
         }
       };

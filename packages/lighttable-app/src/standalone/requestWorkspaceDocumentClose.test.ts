@@ -6,18 +6,22 @@ import { DocumentSession } from '../lighttable/application/documents/documentSes
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 
 const documentId = 'document-a' as DocumentSessionId;
+const closed = (activeDocumentId: DocumentSessionId | null = null) => ({
+  ok: true as const,
+  value: { activeDocumentId }
+});
 
 describe('requestWorkspaceDocumentClose', () => {
   it('closes a clean document without confirmation', async () => {
     const confirmDiscardChanges = vi.fn();
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
 
     await expect(requestWorkspaceDocumentClose({
       documentId,
       documents: [{ id: documentId, title: 'Clean', dirty: false }],
       host: { confirmDiscardChanges },
       close
-    })).resolves.toBe(true);
+    })).resolves.toEqual({ status: 'closed', activeDocumentId: null });
 
     expect(confirmDiscardChanges).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith(documentId, false);
@@ -25,14 +29,14 @@ describe('requestWorkspaceDocumentClose', () => {
 
   it('keeps a dirty document open when discard is rejected', async () => {
     const confirmDiscardChanges = vi.fn(async () => false);
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
 
     await expect(requestWorkspaceDocumentClose({
       documentId,
       documents: [{ id: documentId, title: 'Dirty', dirty: true }],
       host: { confirmDiscardChanges },
       close
-    })).resolves.toBe(false);
+    })).resolves.toEqual({ status: 'retained' });
 
     expect(confirmDiscardChanges).toHaveBeenCalledWith('Dirty');
     expect(close).not.toHaveBeenCalled();
@@ -40,7 +44,7 @@ describe('requestWorkspaceDocumentClose', () => {
 
   it('closes a dirty document with explicit discard permission', async () => {
     const confirmDiscardChanges = vi.fn(async () => true);
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed('document-b' as DocumentSessionId));
     const discardRecovery = vi.fn(async () => undefined);
 
     await expect(requestWorkspaceDocumentClose({
@@ -49,7 +53,10 @@ describe('requestWorkspaceDocumentClose', () => {
       host: { confirmDiscardChanges },
       discardRecovery,
       close
-    })).resolves.toBe(true);
+    })).resolves.toEqual({
+      status: 'closed',
+      activeDocumentId: 'document-b'
+    });
 
     expect(close).toHaveBeenCalledWith(documentId, true);
     expect(discardRecovery).toHaveBeenCalledOnce();
@@ -67,7 +74,7 @@ describe('requestWorkspaceDocumentClose', () => {
       expect(() => session.markChanged()).toThrow(/close is pending/i);
       return true;
     });
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
 
     await expect(requestWorkspaceDocumentClose({
       documentId,
@@ -76,7 +83,7 @@ describe('requestWorkspaceDocumentClose', () => {
       documentSession: session,
       discardRecovery,
       close
-    })).resolves.toBe(true);
+    })).resolves.toEqual({ status: 'closed', activeDocumentId: null });
 
     expect(discardRecovery).toHaveBeenCalledWith(1);
     expect(close).toHaveBeenCalledWith(documentId, true);
@@ -84,7 +91,7 @@ describe('requestWorkspaceDocumentClose', () => {
   });
 
   it('keeps the dirty document open when recovery cleanup fails', async () => {
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
     const onRecoveryCleanupFailed = vi.fn();
 
     await expect(requestWorkspaceDocumentClose({
@@ -94,7 +101,7 @@ describe('requestWorkspaceDocumentClose', () => {
       discardRecovery: async () => { throw new Error('Recovery disk is unavailable.'); },
       onRecoveryCleanupFailed,
       close
-    })).resolves.toBe(false);
+    })).resolves.toEqual({ status: 'retained' });
 
     expect(close).not.toHaveBeenCalled();
     expect(onRecoveryCleanupFailed).toHaveBeenCalledWith(
@@ -115,7 +122,7 @@ describe('requestWorkspaceDocumentClose', () => {
       await gate;
       session.markSaved();
     });
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
 
     const closing = requestWorkspaceDocumentClose({
       documentId,
@@ -128,7 +135,7 @@ describe('requestWorkspaceDocumentClose', () => {
 
     finishSave();
     await save;
-    await expect(closing).resolves.toBe(true);
+    await expect(closing).resolves.toEqual({ status: 'closed', activeDocumentId: null });
     expect(close).toHaveBeenCalledWith(documentId, false);
     session.dispose();
   });
@@ -148,7 +155,7 @@ describe('requestWorkspaceDocumentClose', () => {
       session.markChanged();
     });
     const confirmDiscardChanges = vi.fn(async () => false);
-    const close = vi.fn(() => ({ ok: true as const }));
+    const close = vi.fn(() => closed());
 
     const closing = requestWorkspaceDocumentClose({
       documentId,
@@ -160,7 +167,7 @@ describe('requestWorkspaceDocumentClose', () => {
     finishSave();
     await save;
 
-    await expect(closing).resolves.toBe(false);
+    await expect(closing).resolves.toEqual({ status: 'retained' });
     expect(confirmDiscardChanges).toHaveBeenCalledWith('Saving');
     expect(close).not.toHaveBeenCalled();
     session.dispose();

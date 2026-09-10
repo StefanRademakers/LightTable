@@ -119,7 +119,7 @@ but cannot inherit another item's acceptance.
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | accepted | [x] | [x] | [x] | [x] |
 | C09 | Adjustment layers and attached adjustments | accepted | [x] | [x] | [x] | [x] |
 | C10 | Layer styles/effects and filter lifecycle | accepted | [x] | [x] | [x] | [x] |
-| C11 | Document geometry, I/O, recovery and view lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
+| C11 | Document geometry, I/O, recovery and view lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C12 | Shared history, command routing, Actions and MCP equivalence | queued | [ ] | [ ] | [ ] | [ ] |
 | C13 | WebGPU/render projection, device loss and resource lifetime | queued | [ ] | [ ] | [ ] | [ ] |
 | C14 | Integration-root decomposition, docs purge and final proof | queued | [ ] | [ ] | [ ] | [ ] |
@@ -496,6 +496,43 @@ but cannot inherit another item's acceptance.
    and interaction controls moved to a named component; the obsolete 173-line
    command owner was removed. Remaining integration-root decomposition is C14.
 7. **Next** -- C11 Document geometry, I/O, recovery and view lifecycle.
+
+## C11 acceptance record -- 2026-09-11
+
+1. **Done** -- Image Size and document geometry now fail closed without an
+   exact `DocumentSession`, renderer generation and publication admission.
+   Selection restoration, GPU mutation, terminal canonical publication and
+   history recording run under one exclusive document owner. No-op geometry
+   reports `changed: false` and no longer dirties the document.
+2. **Lifecycle and resources** -- document transitions are serialized; failed
+   opens use a dedicated discard path that never flushes an unusable renderer.
+   Workspace close publishes the exact surviving owner before recovery cleanup.
+   Renderer replacement retires only operation-created textures that are not
+   attached to the live stores. Save, history, tasks, geometry and close cannot
+   publish through one another's admission window.
+3. **Desktop close** -- tab close, native window close and application quit hold
+   command, transition and document admissions through confirmation and recovery
+   cleanup. Desktop close uses the native host confirmation; cancel preserves
+   both the open document and its recovery record, while discard removes the
+   exact admitted recovery revision before the host closes.
+4. **Proof** -- app typecheck; command-contract and MCP contract suites; focused
+   document-publication, geometry, recovery and workspace-close suites; boundary
+   verification; instrumented desktop package. Packaged geometry, Image Size,
+   20-cycle mixed image/video switching, recovery, viewport layout, tab-close
+   during save, native window discard, application discard and application
+   cancel smokes all passed. Multi-document presentation measured 27-43 ms after
+   warmup, with zero DOM-node or event-listener tail growth.
+5. **Critic** -- successive reviews rejected stale active-owner projection,
+   renderer-generation rollback, false dirty no-ops, failed-open flushing,
+   selection/geometry publication races, history-reservation bypass and missing
+   task exclusion. Repairs introduced token-aware publication/history/task
+   barriers and ownership-loss cleanup. Final independent verdict: **ACCEPT**,
+   no C11 P0/P1.
+6. **Harness correction** -- the multi-document smoke used obsolete pre-UI-kit
+   tab and toolbar selectors. It now addresses the actual WAI-ARIA tab role and
+   canonical UI-kit classes; diagnostic workspace state proves documents remain
+   canonical while the harness resolves presentation controls.
+7. **Next** -- C12 Shared history, command routing, Actions and MCP equivalence.
 
 ## Slice-specific acceptance
 

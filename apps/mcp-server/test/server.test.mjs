@@ -143,7 +143,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(geometryCatalog.structuredContent.commands[0].contract.status, 'complete');
   assert.equal(geometryCatalog.structuredContent.commands[0].contract.input.oneOf.length, 4);
   assert.deepEqual(geometryCatalog.structuredContent.commands[0].contract.result.required,
-    ['operation', 'width', 'height']);
+    ['operation', 'changed', 'width', 'height']);
   const svgImportCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'vector.importSvg'
   } });

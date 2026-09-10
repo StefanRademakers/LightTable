@@ -198,10 +198,10 @@ test('document size and geometry schemas expose only bounded final operations', 
       cropOverlay: true }
   ]) assert.equal(validateJsonSchemaValue(geometry.input, invalid).valid, false, JSON.stringify(invalid));
   assert.equal(validateJsonSchemaValue(resize.result, {
-    width: 1200, height: 800, resolutionPpi: 144
+    changed: true, width: 1200, height: 800, resolutionPpi: 144
   }).valid, true);
   assert.equal(validateJsonSchemaValue(geometry.result, {
-    operation: 'rotate', width: 800, height: 1200
+    operation: 'rotate', changed: true, width: 800, height: 1200
   }).valid, true);
 });
 

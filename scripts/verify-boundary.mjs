@@ -727,6 +727,48 @@ function verifyStyleAndFilterCutover(relativePath, source) {
   }
 }
 
+function verifyDocumentLifecycleCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
+    const fallbackCommands = [
+      'document.resizeImage', 'document.applyGeometry', 'view.setZoom'
+    ];
+    for (const command of fallbackCommands) {
+      if (source.includes(`if (!executeRegisteredCommand('${command}'`)) {
+        failures.push(`${relativePath}: ${command} must fail closed through its required command route`);
+      }
+    }
+    if (!source.includes('Image Size requires an admitted document session.')
+      || !source.includes('Document geometry requires an admitted document session.')) {
+      failures.push(`${relativePath}: document-wide geometry must fail closed without a document-session admission owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/documentGeometry/commitDocumentSurfaceMutation.ts')
+    && (!source.includes('readonly acquirePublicationAdmission: () =>')
+      || source.includes('readonly acquirePublicationAdmission?:'))) {
+    failures.push(`${relativePath}: document-surface mutation must require shared publication admission`);
+  }
+  if (normalizedPath.endsWith('/application/documents/documentSession.ts')
+    && !source.includes('this.history.acquirePublicationBarrier()')) {
+    failures.push(`${relativePath}: document publication admission must own foreign history exclusion`);
+  }
+  if (normalizedPath.endsWith('/standalone/DocumentRecoveryTransitionGate.ts')
+    && (!source.includes('private transitionTail: Promise<void>')
+      || !source.includes('await previous;')
+      || !source.includes('releaseTurn();')
+      || !source.includes('runFailedOpenDiscard<Result>'))) {
+    failures.push(`${relativePath}: document transitions must serialize recovery flush and terminal publication`);
+  }
+  if (normalizedPath.endsWith('/standalone/LightTableStandaloneApp.tsx')
+    && !source.includes('void recoveryTransitions.runTransition(async () => {\n      const outcome = await requestWorkspaceDocumentClose')) {
+    failures.push(`${relativePath}: document close must run inside the recovery transition owner`);
+  }
+  if (normalizedPath.endsWith('/standalone/LightTableStandaloneApp.tsx')
+    && !source.includes('recoveryTransitions.runFailedOpenDiscard(async () => {')) {
+    failures.push(`${relativePath}: failed document opens must use the non-checkpointing discard transition`);
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -749,6 +791,7 @@ async function scan(relativeDirectory) {
       verifyWarpCutover(relativePath, source);
       verifyAdjustmentCutover(relativePath, source);
       verifyStyleAndFilterCutover(relativePath, source);
+      verifyDocumentLifecycleCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

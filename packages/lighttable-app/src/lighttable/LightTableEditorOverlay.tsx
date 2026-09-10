@@ -2398,12 +2398,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const commitImageSize = async (request: ImageSizeRequest, reportError = true) => {
     await finishOpenHistoryTransactions();
+    if (!documentSession) {
+      const reason = new Error('Image Size requires an admitted document session.');
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return false;
+    }
     const renderer = engineRef.current;
     if (!renderer) {
       const reason = new Error('The document renderer is unavailable.');
       if (!reportError) throw reason;
       setError(reason.message);
-      return;
+      return false;
     }
     const history = { type: 'document.image-size', label: 'Image Size' } as const;
     const transaction = documentMutationController.begin(
@@ -2416,9 +2422,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const reason = new Error('Image Size could not acquire the active document.');
       if (!reportError) throw reason;
       setError(reason.message);
-      return;
+      return false;
     }
     const before = transaction.before;
+    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
     const selectionIdentity = editorSessionRef.current.selection;
     const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
     const beforeSelection = [...selectionIdentity];
@@ -2428,7 +2435,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (after === before) {
         transaction.cancel();
         editorDialogs.closeImageSize();
-        return;
+        return false;
       }
       const afterSelection = plan.targetWidth === plan.sourceWidth
         && plan.targetHeight === plan.sourceHeight
@@ -2443,10 +2450,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         afterSelection,
         beforeSelectionMask: selectionMaskIdentity,
         history,
+        acquirePublicationAdmission: () => documentSession.acquirePublicationAdmission(
+          'Image Size is preparing a document-wide publication.'
+        ),
         originIsCurrent: () => imageDocumentRef.current === before
           && engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === rendererGeneration
           && editorSessionRef.current.selection === selectionIdentity
           && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
+        runtimeIsCurrent: () => engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === rendererGeneration,
         captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
         restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
         createRuntimeMutation: () => renderer.resizeImagePixels(
@@ -2462,20 +2475,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editorDialogs.closeImageSize();
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
+      return true;
     } catch (reason) {
       transaction.cancel();
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
+      return false;
     }
   };
   const commitDocumentGeometry = async (request: DocumentGeometryRequest, reportError = true) => {
     await finishOpenHistoryTransactions();
+    if (!documentSession) {
+      const reason = new Error('Document geometry requires an admitted document session.');
+      if (!reportError) throw reason;
+      setError(reason.message);
+      return false;
+    }
     const renderer = engineRef.current;
     if (!renderer) {
       const reason = new Error('The document renderer is unavailable.');
       if (!reportError) throw reason;
       setError(reason.message);
-      return;
+      return false;
     }
     const history = {
       type: `document.${request.operation}`,
@@ -2493,9 +2514,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const reason = new Error(`${history.label} could not acquire the active document.`);
       if (!reportError) throw reason;
       setError(reason.message);
-      return;
+      return false;
     }
     const before = transaction.before;
+    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
     const selectionIdentity = editorSessionRef.current.selection;
     const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
     const beforeSelection = [...selectionIdentity];
@@ -2507,7 +2529,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         && matrix.tx === 0 && matrix.ty === 0) {
         transaction.cancel();
         editorDialogs.closeCanvasSize();
-        return;
+        return false;
       }
       const after = projectDocumentGeometry(before, plan);
       const afterSelection = projectSelectionGeometry(beforeSelection, plan);
@@ -2518,10 +2540,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         afterSelection,
         beforeSelectionMask: selectionMaskIdentity,
         history,
+        acquirePublicationAdmission: () => documentSession.acquirePublicationAdmission(
+          `${history.label} is preparing a document-wide publication.`
+        ),
         originIsCurrent: () => imageDocumentRef.current === before
           && engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === rendererGeneration
           && editorSessionRef.current.selection === selectionIdentity
           && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
+        runtimeIsCurrent: () => engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === rendererGeneration,
         captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
         restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
         createRuntimeMutation: () => renderer.applyDocumentGeometryPixels(before, plan),
@@ -2533,17 +2561,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editorDialogs.closeCanvasSize();
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
+      return true;
     } catch (reason) {
       transaction.cancel();
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
+      return false;
     }
   };
   const runImageSizeCommand = (request: ImageSizeRequest) => {
-    if (!executeRegisteredCommand('document.resizeImage', request)) void commitImageSize(request);
+    void executeRegisteredCommand('document.resizeImage', request);
   };
   const runDocumentGeometryCommand = (request: DocumentGeometryRequest) => {
-    if (!executeRegisteredCommand('document.applyGeometry', request)) void commitDocumentGeometry(request);
+    void executeRegisteredCommand('document.applyGeometry', request);
   };
   const beginCrop = async () => {
     await finishOpenHistoryTransactions();
@@ -4076,16 +4106,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }));
   }, [presentViewportImmediately, setViewport]);
   const setExactZoom = useCallback((percent: number) => {
-    if (!executeRegisteredCommand('view.setZoom', { mode: 'custom', percent })) {
-      applyExactZoom(percent);
-    }
-  }, [applyExactZoom, executeRegisteredCommand]);
+    void executeRegisteredCommand('view.setZoom', { mode: 'custom', percent });
+  }, [executeRegisteredCommand]);
   const fitZoom = useCallback(() => {
-    if (!executeRegisteredCommand('view.setZoom', { mode: 'fit' })) applyFitZoom();
-  }, [applyFitZoom, executeRegisteredCommand]);
+    void executeRegisteredCommand('view.setZoom', { mode: 'fit' });
+  }, [executeRegisteredCommand]);
   const actualZoom = useCallback(() => {
-    if (!executeRegisteredCommand('view.setZoom', { mode: '100' })) applyActualZoom();
-  }, [applyActualZoom, executeRegisteredCommand]);
+    void executeRegisteredCommand('view.setZoom', { mode: '100' });
+  }, [executeRegisteredCommand]);
 
   useEditorKeyboardController({
     enabled: open && active,

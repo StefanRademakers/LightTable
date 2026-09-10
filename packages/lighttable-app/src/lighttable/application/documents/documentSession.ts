@@ -99,6 +99,11 @@ export interface DocumentSessionSnapshot {
 
 export type DocumentSessionListener = () => void;
 
+export interface DocumentPublicationAdmission {
+  run<Result>(operation: () => Result): Result;
+  release(): void;
+}
+
 export interface CreateDocumentSessionOptions {
   readonly id: DocumentSessionId;
   readonly source: DocumentSourceDescriptor;
@@ -184,6 +189,8 @@ export class DocumentSession {
   private publicationDepth = 0;
   private publicationPending = false;
   private readonly mutationBarriers = new Map<symbol, string>();
+  private publicationAdmission: { readonly token: symbol; readonly reason: string } | null = null;
+  private activePublicationToken: symbol | null = null;
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
@@ -268,6 +275,7 @@ export class DocumentSession {
 
   acquireMutationAdmission(reason: string): DocumentMutationAdmission {
     this.assertEditable();
+    if (this.publicationAdmission) throw new Error(this.publicationAdmission.reason);
     if (this.snapshot.tasks.activeTaskIds.length > 0 || this.snapshot.history.busy) {
       throw new Error(`Document session ${this.id} still has active work.`);
     }
@@ -301,7 +309,49 @@ export class DocumentSession {
   isAcceptingMutations(): boolean {
     return this.snapshot.lifecycle === 'ready'
       && this.mutationBarriers.size === 0
+      && this.publicationAdmission === null
       && !this.snapshot.history.busy;
+  }
+
+  /**
+   * Owns an asynchronous prepare/commit interval whose terminal publication
+   * must not interleave with another document or editor-state publication.
+   */
+  acquirePublicationAdmission(reason: string): DocumentPublicationAdmission {
+    this.assertEditable();
+    if (this.publicationAdmission) throw new Error(this.publicationAdmission.reason);
+    const blockedReason = this.mutationBarriers.values().next().value;
+    if (blockedReason) throw new Error(blockedReason);
+    if (this.snapshot.tasks.activeTaskIds.length > 0 || this.snapshot.history.busy) {
+      throw new Error(`Document session ${this.id} still has active work.`);
+    }
+    const token = Symbol('document-publication-admission');
+    this.publicationAdmission = { token, reason };
+    let historyBarrier: ReturnType<DocumentCommandHistory['acquirePublicationBarrier']> | null = null;
+    let taskBarrier: ReturnType<DocumentTaskRegistry['acquireAdmissionBarrier']> | null = null;
+    try {
+      historyBarrier = this.history.acquirePublicationBarrier();
+      taskBarrier = this.tasks.acquireAdmissionBarrier(reason);
+    } catch (error) {
+      taskBarrier?.release();
+      historyBarrier?.release();
+      this.publicationAdmission = null;
+      throw error;
+    }
+    let released = false;
+    return {
+      run: <Result>(operation: () => Result) => {
+        if (released) throw new Error('Document publication admission was already released.');
+        return historyBarrier!.run(() => this.runAdmittedPublication(token, operation));
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        taskBarrier!.release();
+        if (this.publicationAdmission?.token === token) this.publicationAdmission = null;
+        historyBarrier!.release();
+      }
+    };
   }
 
   /**
@@ -311,12 +361,25 @@ export class DocumentSession {
    * such as a new document paired with the previous source metadata.
    */
   runPublication<Result>(operation: () => Result): Result {
+    return this.runAdmittedPublication(this.activePublicationToken, operation);
+  }
+
+  private runAdmittedPublication<Result>(
+    token: symbol | null,
+    operation: () => Result
+  ): Result {
     this.assertUsable();
+    if (this.publicationAdmission && this.publicationAdmission.token !== token) {
+      throw new Error(this.publicationAdmission.reason);
+    }
+    const previousToken = this.activePublicationToken;
+    this.activePublicationToken = token;
     this.publicationDepth += 1;
     try {
       return operation();
     } finally {
       this.publicationDepth -= 1;
+      this.activePublicationToken = previousToken;
       if (this.publicationDepth === 0 && this.publicationPending) {
         this.publicationPending = false;
         this.emit();
@@ -495,6 +558,8 @@ export class DocumentSession {
       }
     };
     this.mutationBarriers.clear();
+    this.publicationAdmission = null;
+    this.activePublicationToken = null;
     const cleanupErrors: unknown[] = [];
     const cleanup = (operation: () => void) => {
       try { operation(); } catch (reason) { cleanupErrors.push(reason); }
@@ -543,5 +608,9 @@ export class DocumentSession {
     }
     const blockedReason = this.mutationBarriers.values().next().value;
     if (blockedReason) throw new Error(blockedReason);
+    if (this.publicationAdmission
+      && this.activePublicationToken !== this.publicationAdmission.token) {
+      throw new Error(this.publicationAdmission.reason);
+    }
   }
 }

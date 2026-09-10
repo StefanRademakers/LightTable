@@ -165,7 +165,7 @@ try {
     throw new Error(`${label} did not present the blue image pixels: ${JSON.stringify(lastSample)}`);
   };
   const activateDocumentTab = async (title) => {
-    const tab = page.getByRole('button', { name: title, exact: true });
+    const tab = page.getByRole('tab', { name: title, exact: true });
     await tab.waitFor({ state: 'attached', timeout: 30_000 });
     // Activate through the tab's normal click handler without requiring a
     // pointer hit. Floating user panels may legitimately overlap the tab strip;
@@ -173,8 +173,22 @@ try {
     await tab.evaluate((element) => element.click());
   };
   const activateImageDocumentTab = async () => {
-    const tab = page.getByRole('button', { name: 'image.png', exact: true });
-    await tab.waitFor({ state: 'attached', timeout: 30_000 });
+    const tab = page.getByRole('tab', { name: 'image.png', exact: true });
+    try {
+      await tab.waitFor({ state: 'attached', timeout: 30_000 });
+    } catch (reason) {
+      const [workspace, tabs, body] = await Promise.all([
+        driver.queryWorkspace(),
+        page.locator('.ui-document-tabs__tab').allInnerTexts(),
+        page.locator('body').innerText()
+      ]);
+      throw new Error(`Image document tab was not retained: ${JSON.stringify({
+        workspace,
+        tabs,
+        failures,
+        body: body.slice(-2_000)
+      })}`, { cause: reason });
+    }
     return tab.evaluate((element) => new Promise((resolve, reject) => {
       const startedAt = performance.now();
       element.click();
@@ -331,7 +345,7 @@ try {
   if (initial?.documents?.map(({ kind }) => kind).join(',') !== 'image,video') {
     throw new Error(`Unexpected typed workspace: ${JSON.stringify(initial?.documents)}`);
   }
-  const videoToolButtons = page.locator('[aria-label="Video tools"] .lighttable-toolbox__button');
+  const videoToolButtons = page.locator('[aria-label="Video tools"] .ui-toolbar__button');
   if (await videoToolButtons.count() !== 2
     || await page.getByRole('button', { name: 'Move canvas (H)', exact: true }).count() !== 1
     || await page.getByRole('button', { name: 'Zoom (Z)', exact: true }).count() !== 1) {
@@ -561,7 +575,7 @@ try {
     window.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: transfer }));
     window.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
   }, { bytes: droppedBytes.toString('base64'), name: path.basename(droppedVideoFile) });
-  await page.getByRole('button', { name: 'dropped.webm', exact: true }).waitFor({
+  await page.getByRole('tab', { name: 'dropped.webm', exact: true }).waitFor({
     state: 'visible', timeout: 30_000
   });
   await video.waitFor({ state: 'visible', timeout: 30_000 });
@@ -576,7 +590,7 @@ try {
   if (failures.length > 0) throw new Error(failures.join(' | '));
   const openedDocuments = dropped.documents.map(({ title, kind }) => ({ title, kind }));
   const closeActiveDocument = async (expectedCount) => {
-    await page.locator('.lighttable-document-tab--active .lighttable-document-tab__close').click();
+    await page.locator('.ui-document-tabs__tab[data-active] .ui-document-tabs__close').click();
     await page.waitForFunction((count) =>
       window.__lightTableAutomation?.queryWorkspace()?.documents.length === count,
     expectedCount, { timeout: 30_000 });

@@ -101,6 +101,7 @@ export interface ReversibleGpuDocumentGeometry {
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
+  disposeAfterOwnershipLoss(): void;
 }
 export interface DocumentGeometryGpuServiceOptions {
   readonly device: GPUDevice;
@@ -249,6 +250,13 @@ export class DocumentGeometryGpuService {
           }
           releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
             destroyUniqueTextures(detached);
+          });
+        },
+        disposeAfterOwnershipLoss: () => {
+          const live = this.collectLiveTextures(pending);
+          const detachedCreated = createdTextures.filter((texture) => !live.has(texture));
+          releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+            destroyUniqueTextures(detachedCreated);
           });
         }
       };

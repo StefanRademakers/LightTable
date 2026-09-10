@@ -327,6 +327,19 @@ export function LightTableStandaloneApp({
       });
     };
   }, [applicationEditorTasks, applicationRendererLifecycle]);
+  const discardFailedWorkspaceOpen = useCallback(async (documentId: DocumentSessionId) => {
+    await recoveryTransitions.runFailedOpenDiscard(async () => {
+      const failedSession = controller.getDocument(documentId);
+      const failedRevision = failedSession?.getSnapshot().documentRevision;
+      const closed = closeWorkspaceDocument(documentId, true);
+      if (!closed.ok) {
+        throw new Error(`The failed document could not be removed: ${closed.error.code}.`);
+      }
+      recoveryTransitions.setActiveDocument(closed.value.activeDocumentId);
+      recoveryTransitions.noteCommittedTransition();
+      await discardDocumentRecovery(host.recovery, documentId, undefined, failedRevision);
+    });
+  }, [closeWorkspaceDocument, controller, host.recovery, recoveryTransitions]);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
       openArtifact: async (file) => {
@@ -358,7 +371,7 @@ export function LightTableStandaloneApp({
         try {
           await waitForReadyDocument(opened.value);
         } catch (reason) {
-          controller.close(opened.value.id, { discardChanges: true });
+          await discardFailedWorkspaceOpen(opened.value.id);
           throw reason;
         }
         return opened.value.id;
@@ -382,13 +395,13 @@ export function LightTableStandaloneApp({
         try {
           await waitForReadyDocument(opened.value);
         } catch (reason) {
-          controller.close(opened.value.id, { discardChanges: true });
+          await discardFailedWorkspaceOpen(opened.value.id);
           throw reason;
         }
         return opened.value.id;
       }
     }, undefined, host.actionLibrary),
-    [commandPorts, controller, openDocument, openDuplicatedDocument, openWorkspaceFileSafely, recoveryTransitions]
+    [commandPorts, controller, discardFailedWorkspaceOpen, openDocument, openDuplicatedDocument, openWorkspaceFileSafely, recoveryTransitions]
   );
   useEffect(() => {
     commandService.setTypedWorkspaceProjection({
@@ -1096,27 +1109,34 @@ export function LightTableStandaloneApp({
       ? document.runtime.recovery?.recoveryId
       : undefined;
     pendingDocumentClosesRef.current.add(id);
-    void requestWorkspaceDocumentClose({
-      documentId: id,
-      documents,
-      host: { confirmDiscardChanges },
-      documentSession: document?.kind === 'image' ? document.session : null,
-      discardRecovery: (throughRevision) => discardDocumentRecovery(
-        host.recovery,
-        id,
-        recoveryId,
-        throughRevision
-      ),
-      onRecoveryCleanupFailed: (error) => {
-        console.warn('[Recovery] Explicit discard cleanup failed.', error);
-        setRecoveryError(`Document stayed open because recovery cleanup failed: ${error.message}`);
-      },
-      close: closeWorkspaceDocument
-    }).then((closed) => {
-      if (closed) {
+    void recoveryTransitions.runTransition(async () => {
+      const outcome = await requestWorkspaceDocumentClose({
+        documentId: id,
+        documents,
+        host: { confirmDiscardChanges },
+        documentSession: document?.kind === 'image' ? document.session : null,
+        discardRecovery: (throughRevision) => discardDocumentRecovery(
+          host.recovery,
+          id,
+          recoveryId,
+          throughRevision
+        ),
+        onRecoveryCleanupFailed: (error) => {
+          console.warn('[Recovery] Explicit discard cleanup failed.', error);
+          setRecoveryError(`Document stayed open because recovery cleanup failed: ${error.message}`);
+        },
+        close: closeWorkspaceDocument
+      });
+      if (outcome.status === 'closed') {
+        recoveryTransitions.setActiveDocument(outcome.activeDocumentId);
         recoveryTransitions.noteCommittedTransition();
         if (recoveryId) clearRecoveryAttempt(recoveryId);
       }
+      return outcome;
+    }).catch((reason: unknown) => {
+      setRecoveryError(`Document close was stopped because recovery failed: ${
+        reason instanceof Error ? reason.message : String(reason)
+      }`);
     }).finally(() => pendingDocumentClosesRef.current.delete(id));
   }, [closeWorkspaceDocument, confirmDiscardChanges, documents, host.recovery, recoveryTransitions]);
 
@@ -1130,7 +1150,7 @@ export function LightTableStandaloneApp({
       getTransitionRevision: () => recoveryTransitions.getRevision(),
       getCanonicalImageIds: () => controller.getSnapshot().documentOrder,
       getCanonicalSession: (id) => controller.getDocument(id),
-      confirmDiscardChanges,
+      confirmDiscardChanges: host.confirmDiscardChanges ?? confirmDiscardChanges,
       recovery: host.recovery,
       clearRecoveryAttempt,
       reportError: (message, reason) => {
@@ -1147,7 +1167,7 @@ export function LightTableStandaloneApp({
       applicationCloseInProgressRef.current = false;
     };
     return true;
-  }, [commandService, confirmDiscardChanges, controller, documents, host.recovery, recoveryTransitions]);
+  }, [commandService, confirmDiscardChanges, controller, documents, host.confirmDiscardChanges, host.recovery, recoveryTransitions]);
 
   const exitApplication = useCallback(async (): Promise<boolean> => {
     if (!host.closeApplication || !await prepareApplicationClose()) return false;

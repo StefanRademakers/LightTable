@@ -65,6 +65,10 @@ export interface DocumentHistoryAdmissionBarrier {
   release(): void;
 }
 
+export interface DocumentHistoryPublicationBarrier extends DocumentHistoryAdmissionBarrier {
+  run<Result>(operation: () => Result): Result;
+}
+
 export type DocumentCommandHistoryListener = (
   snapshot: DocumentCommandHistorySnapshot
 ) => void;
@@ -93,6 +97,7 @@ export class DocumentCommandHistory {
   private activeReservation: { readonly token: symbol; readonly generation: number } | null = null;
   private busy = false;
   private readonly admissionBarriers = new Set<symbol>();
+  private activeAdmissionToken: symbol | null = null;
   private generation = 0;
   private nextStateId = 1;
   private currentStateId = 0;
@@ -279,6 +284,33 @@ export class DocumentCommandHistory {
     } };
   }
 
+  /** Blocks foreign history work while allowing one admitted terminal publish. */
+  acquirePublicationBarrier(): DocumentHistoryPublicationBarrier {
+    if (this.busy) throw new Error(`Document history ${this.documentId} is busy.`);
+    const token = Symbol('history-publication-barrier');
+    this.admissionBarriers.add(token);
+    this.publish();
+    let released = false;
+    return {
+      run: <Result>(operation: () => Result) => {
+        if (released) throw new Error('Document history publication barrier was already released.');
+        const previous = this.activeAdmissionToken;
+        this.activeAdmissionToken = token;
+        try {
+          return operation();
+        } finally {
+          this.activeAdmissionToken = previous;
+        }
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        this.admissionBarriers.delete(token);
+        this.publish();
+      }
+    };
+  }
+
   clear(options: { preserveDirtyState?: boolean } = {}): void {
     this.assertAdmission();
     const wasDirty = this.snapshot.dirty;
@@ -298,6 +330,7 @@ export class DocumentCommandHistory {
 
   dispose(): void {
     this.admissionBarriers.clear();
+    this.activeAdmissionToken = null;
     this.clear();
     this.listeners.clear();
   }
@@ -323,7 +356,8 @@ export class DocumentCommandHistory {
   }
 
   private assertAdmission(): void {
-    if (this.admissionBarriers.size > 0) {
+    if (this.admissionBarriers.size > 0
+      && (!this.activeAdmissionToken || !this.admissionBarriers.has(this.activeAdmissionToken))) {
       throw new Error(`Document history ${this.documentId} is not accepting mutations.`);
     }
   }

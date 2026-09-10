@@ -8,6 +8,7 @@ export class DocumentRecoveryTransitionGate {
   private activationRequest = 0;
   private inFlight = 0;
   private revision = 0;
+  private transitionTail: Promise<void> = Promise.resolve();
   private readonly idleWaiters = new Set<() => void>();
 
   setActiveDocument(documentId: DocumentSessionId | null): void {
@@ -39,13 +40,34 @@ export class DocumentRecoveryTransitionGate {
   }
 
   async runTransition<Result>(operation: () => Promise<Result> | Result): Promise<Result> {
+    return this.enqueueTransition(true, operation);
+  }
+
+  /**
+   * Serializes terminal cleanup for a document that never became ready.
+   * Its journal is deliberately not flushed: recovery export may depend on
+   * the failed renderer that this transition exists to retire.
+   */
+  async runFailedOpenDiscard<Result>(operation: () => Promise<Result> | Result): Promise<Result> {
+    return this.enqueueTransition(false, operation);
+  }
+
+  private async enqueueTransition<Result>(
+    flushActive: boolean,
+    operation: () => Promise<Result> | Result
+  ): Promise<Result> {
     const blockedReason = this.barriers.values().next().value;
     if (blockedReason) throw new Error(blockedReason);
+    const previous = this.transitionTail;
+    let releaseTurn!: () => void;
+    this.transitionTail = new Promise<void>((resolve) => { releaseTurn = resolve; });
     this.inFlight += 1;
+    await previous;
     try {
-      await this.flushActiveJournal();
+      if (flushActive) await this.flushActiveJournal();
       return await operation();
     } finally {
+      releaseTurn();
       this.inFlight -= 1;
       if (this.inFlight === 0) {
         for (const resolve of this.idleWaiters) resolve();

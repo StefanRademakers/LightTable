@@ -1243,10 +1243,11 @@ export class LightTableCommandService {
         return this.reject(value.requestId, 'command-unavailable', 'Image Size is unavailable in this host.', snapshot);
       }
       try {
-        await this.ports.resizeImage(documentRequest.documentId, resize);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        const changed = await this.ports.resizeImage(documentRequest.documentId, resize);
+        if (changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         const committed = this.document(documentRequest.documentId)?.document;
         return { requestId: value.requestId, status: 'completed', value: {
+          changed,
           width: committed?.width ?? resize.width,
           height: committed?.height ?? resize.height,
           resolutionPpi: committed?.resolutionPpi ?? resize.resolutionPpi
@@ -1265,11 +1266,12 @@ export class LightTableCommandService {
         return this.reject(value.requestId, 'command-unavailable', 'Document geometry is unavailable in this host.', snapshot);
       }
       try {
-        await this.ports.applyDocumentGeometry(documentRequest.documentId, geometry);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        const changed = await this.ports.applyDocumentGeometry(documentRequest.documentId, geometry);
+        if (changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         const committed = this.document(documentRequest.documentId)?.document;
         return { requestId: value.requestId, status: 'completed', value: {
           operation: geometry.operation,
+          changed,
           width: committed?.width ?? snapshot.document!.width,
           height: committed?.height ?? snapshot.document!.height
         },

@@ -33,8 +33,18 @@ import {
 import type { Result } from '../lighttable/application/shared/result';
 import type { WorkspaceError } from '../lighttable/application/workspace/workspaceSession';
 import { releaseExternalMediaSource, sourceByteLengthFor } from './externalMediaSource';
+import { nextActiveDocumentAfterClose } from './workspaceDocumentCloseProjection';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
+
+interface TypedWorkspaceState {
+  readonly order: readonly DocumentSessionId[];
+  readonly activeId: DocumentSessionId | null;
+  readonly videos: ReadonlyMap<DocumentSessionId, {
+    readonly file: File;
+    readonly session: VideoDocumentSession;
+  }>;
+}
 
 /**
  * Owns the host-neutral workspace controller for the standalone web and
@@ -67,17 +77,23 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     controller.getSnapshot,
     controller.getSnapshot
   );
-  const [typedState, setTypedState] = useState<{
-    readonly order: readonly DocumentSessionId[];
-    readonly activeId: DocumentSessionId | null;
-    readonly videos: ReadonlyMap<DocumentSessionId, {
-      readonly file: File;
-      readonly session: VideoDocumentSession;
-    }>;
-  }>({ order: [], activeId: null, videos: new Map() });
+  const [typedState, setTypedState] = useState<TypedWorkspaceState>({
+    order: [], activeId: null, videos: new Map()
+  });
+  const typedStateRef = useRef(typedState);
   const videosRef = useRef(typedState.videos);
+  typedStateRef.current = typedState;
   const videoRegistryLeaseRef = useRef(0);
   videosRef.current = typedState.videos;
+  const publishTypedState = useCallback((
+    update: (current: TypedWorkspaceState) => TypedWorkspaceState
+  ) => {
+    const next = update(typedStateRef.current);
+    typedStateRef.current = next;
+    videosRef.current = next.videos;
+    setTypedState(next);
+    return next;
+  }, []);
   const [videoProjectionVersion, setVideoProjectionVersion] = useState(0);
   useEffect(() => {
     const unsubscribe = [...typedState.videos.values()].map(({ session }) => {
@@ -115,12 +131,12 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
   }, []);
 
   const publishOpenedImage = useCallback((id: DocumentSessionId) => {
-    setTypedState((current) => ({
+    publishTypedState((current) => ({
       ...current,
       order: current.order.includes(id) ? current.order : [...current.order, id],
       activeId: id
     }));
-  }, []);
+  }, [publishTypedState]);
 
   const openDocument = useCallback((
     file: File,
@@ -163,7 +179,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       return openDocument(file, decodeMode);
     }
     const sourceId = standaloneSourceIdentity(file, decodeMode);
-    const duplicate = [...typedState.videos.entries()].find(([, value]) =>
+    const duplicate = [...typedStateRef.current.videos.entries()].find(([, value]) =>
       value.session.getSnapshot().source.id === sourceId
     );
     if (duplicate) {
@@ -172,7 +188,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       // immediately; the retained document keeps its original source alive.
       releaseExternalMediaSource(file);
       controller.deactivate();
-      setTypedState((current) => ({ ...current, activeId: duplicate[0] }));
+      publishTypedState((current) => ({ ...current, activeId: duplicate[0] }));
       return { ok: false, error: { code: 'duplicate-source', sourceId } };
     }
     const id = `video-session-${crypto.randomUUID()}` as DocumentSessionId;
@@ -187,13 +203,13 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       }
     });
     controller.deactivate();
-    setTypedState((current) => {
+    publishTypedState((current) => {
       const videos = new Map(current.videos);
       videos.set(id, { file, session });
       return { order: [...current.order, id], activeId: id, videos };
     });
     return { ok: true, value: session };
-  }, [controller, openDocument, typedState.videos]);
+  }, [controller, openDocument, publishTypedState]);
 
   const openRecoveredDocument = useCallback((
     file: File,
@@ -252,50 +268,47 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     id: DocumentSessionId,
     discardChanges = false
   ) => {
-    const video = typedState.videos.get(id);
+    const currentState = typedStateRef.current;
+    const video = currentState.videos.get(id);
     if (video) {
       video.session.beginClose();
       try { video.session.dispose(); } finally { releaseExternalMediaSource(video.file); }
-      setTypedState((current) => {
-        const index = current.order.indexOf(id);
+      const next = publishTypedState((current) => {
         const order = current.order.filter((candidate) => candidate !== id);
         const videos = new Map(current.videos);
         videos.delete(id);
-        const activeId = current.activeId === id
-          ? order[Math.min(Math.max(index, 0), order.length - 1)] ?? null
-          : current.activeId;
+        const activeId = nextActiveDocumentAfterClose(current.order, current.activeId, id);
         if (activeId && !videos.has(activeId)) controller.activate(activeId);
         else if (!activeId || videos.has(activeId)) controller.deactivate();
         return { order, activeId, videos };
       });
-      return { ok: true, value: undefined } as const;
+      return { ok: true, value: { activeDocumentId: next.activeId } } as const;
     }
     const closed = controller.close(id, { discardChanges });
     if (closed.ok) {
-      setTypedState((current) => {
-        const index = current.order.indexOf(id);
+      const next = publishTypedState((current) => {
         const order = current.order.filter((candidate) => candidate !== id);
-        const activeId = current.activeId === id
-          ? order[Math.min(Math.max(index, 0), order.length - 1)] ?? null
-          : current.activeId;
+        const activeId = nextActiveDocumentAfterClose(current.order, current.activeId, id);
         if (activeId && !current.videos.has(activeId)) controller.activate(activeId);
         else if (!activeId || current.videos.has(activeId)) controller.deactivate();
         return { ...current, order, activeId };
       });
+      return { ok: true, value: { activeDocumentId: next.activeId } } as const;
     }
     return closed;
-  }, [controller, typedState.videos]);
+  }, [controller, publishTypedState]);
   const activateDocument = useCallback(
     (id: DocumentSessionId) => {
-      if (!typedState.order.includes(id)) {
+      const current = typedStateRef.current;
+      if (!current.order.includes(id)) {
         return { ok: false, error: { code: 'document-not-found', documentId: id } } as const;
       }
-      if (typedState.videos.has(id)) controller.deactivate();
+      if (current.videos.has(id)) controller.deactivate();
       else controller.activate(id);
-      setTypedState((current) => ({ ...current, activeId: id }));
+      publishTypedState((state) => ({ ...state, activeId: id }));
       return { ok: true, value: undefined } as const;
     },
-    [controller, typedState.order, typedState.videos]
+    [controller, publishTypedState]
   );
 
   const imageDocuments = useMemo(

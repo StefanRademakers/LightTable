@@ -4,6 +4,7 @@ import { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnaps
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { EditorHistoryEntry } from '../commands/useDocumentHistoryController';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
+import { DocumentSession, type DocumentSessionId } from '../documents/documentSession';
 import { commitDocumentSurfaceMutation } from './commitDocumentSurfaceMutation';
 
 const documentSnapshot = (revision: number, width: number, height: number) => ({
@@ -13,14 +14,32 @@ const documentSnapshot = (revision: number, width: number, height: number) => ({
   height
 }) as ImageDocument;
 
-const setup = (rejectHistory = false, selectionActive = false) => {
+const setup = (
+  rejectHistory = false,
+  selectionActive = false,
+  capturePause?: {
+    readonly acquireAdmission: () => {
+      run<Result>(operation: () => Result): Result;
+      release(): void;
+    };
+    readonly started: () => void;
+    readonly wait: Promise<void>;
+    readonly pushHistoryEntry?: (entry: EditorHistoryEntry) => void;
+  }
+) => {
   const before = documentSnapshot(0, 100, 80);
   const after = documentSnapshot(1, 200, 160);
   let currentDocument = before;
   let surfaceDocument = before;
   let runtimeState: 'before' | 'after' = 'before';
+  let originCurrent = true;
+  let runtimeCurrent = true;
+  let loseOriginAfterRestore = false;
+  let loseRuntimeDuringCapture = false;
   const historyEntries: EditorHistoryEntry[] = [];
   const dispose = vi.fn();
+  const disposeAfterOwnershipLoss = vi.fn();
+  const apply = vi.fn((state: 'before' | 'after') => { runtimeState = state; });
   const controller = createDocumentMutationController(() => ({
     getDocument: () => currentDocument,
     applySnapshot: (document) => { currentDocument = document; },
@@ -47,22 +66,42 @@ const setup = (rejectHistory = false, selectionActive = false) => {
     afterSelection: selection,
     beforeSelectionMask: beforeMask,
     history: { type: 'document.image-size', label: 'Image Size' },
-    originIsCurrent: () => currentDocument === before,
-    captureSelectionSnapshot: async () => afterMask,
-    restoreSelectionSnapshot: async () => true,
+    acquirePublicationAdmission: capturePause?.acquireAdmission ?? (() => ({
+      run: <Result>(operation: () => Result) => operation(),
+      release: () => undefined
+    })),
+    originIsCurrent: () => originCurrent && currentDocument === before,
+    runtimeIsCurrent: () => runtimeCurrent,
+    captureSelectionSnapshot: async () => {
+      if (capturePause) {
+        capturePause.started();
+        await capturePause.wait;
+      }
+      if (loseRuntimeDuringCapture) {
+        originCurrent = false;
+        runtimeCurrent = false;
+      }
+      return afterMask;
+    },
+    restoreSelectionSnapshot: async () => {
+      if (loseOriginAfterRestore) originCurrent = false;
+      return true;
+    },
     createRuntimeMutation: () => {
       runtimeState = 'after';
       return {
         byteSize: 512,
         setAfterSelectionActive,
-        apply: (state) => { runtimeState = state; },
-        dispose
+        apply,
+        dispose,
+        disposeAfterOwnershipLoss
       };
     },
     resizeDocumentSurface: (document) => { surfaceDocument = document; },
     publishDocumentSelection: (document) => { currentDocument = document; },
     pushHistoryEntry: (entry) => {
       if (rejectHistory) throw new Error('History rejected the entry.');
+      capturePause?.pushHistoryEntry?.(entry);
       historyEntries.push(entry);
     }
   });
@@ -71,11 +110,15 @@ const setup = (rejectHistory = false, selectionActive = false) => {
     after,
     commit,
     dispose,
+    disposeAfterOwnershipLoss,
+    apply,
     setAfterSelectionActive,
     historyEntries,
     get currentDocument() { return currentDocument; },
     get surfaceDocument() { return surfaceDocument; },
-    get runtimeState() { return runtimeState; }
+    get runtimeState() { return runtimeState; },
+    loseOriginOnRestore() { loseOriginAfterRestore = true; },
+    loseRendererDuringCapture() { loseRuntimeDuringCapture = true; }
   };
 };
 
@@ -122,5 +165,66 @@ describe('commitDocumentSurfaceMutation', () => {
     expect(state.surfaceDocument).toBe(state.before);
     expect(state.runtimeState).toBe('before');
     expect(state.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('revalidates ownership after asynchronous selection restore and before the first GPU write', async () => {
+    const state = setup();
+    state.loseOriginOnRestore();
+
+    await expect(state.commit()).rejects.toThrow(/lost its document or selection ownership/i);
+    expect(state.apply).not.toHaveBeenCalled();
+    expect(state.surfaceDocument).toBe(state.before);
+    expect(state.dispose).not.toHaveBeenCalled();
+    expect(state.disposeAfterOwnershipLoss).not.toHaveBeenCalled();
+  });
+
+  it('retires detached prepared resources without addressing a replacement renderer generation', async () => {
+    const state = setup();
+    state.loseRendererDuringCapture();
+
+    await expect(state.commit()).rejects.toThrow(/lost its document or selection ownership/i);
+    expect(state.apply).not.toHaveBeenCalled();
+    expect(state.dispose).not.toHaveBeenCalled();
+    expect(state.disposeAfterOwnershipLoss).toHaveBeenCalledOnce();
+    expect(state.currentDocument).toBe(state.before);
+  });
+
+  it('holds document publication admission while the final GPU selection capture is pending', async () => {
+    const session = new DocumentSession({
+      id: 'geometry-document' as DocumentSessionId,
+      source: { id: 'geometry-source', name: 'geometry.png', mediaType: 'image/png' }
+    });
+    session.setReady();
+    let markCaptureStarted!: () => void;
+    const captureStarted = new Promise<void>((resolve) => { markCaptureStarted = resolve; });
+    let resumeCapture!: () => void;
+    const captureWait = new Promise<void>((resolve) => { resumeCapture = resolve; });
+    const state = setup(false, false, {
+      acquireAdmission: () => session.acquirePublicationAdmission('Image Size is pending.'),
+      started: markCaptureStarted,
+      wait: captureWait,
+      pushHistoryEntry: (entry) => session.history.record({
+        id: 'geometry-history',
+        type: entry.type ?? 'document.image-size',
+        label: entry.label ?? 'Image Size',
+        documentId: session.id,
+        undo: entry.undo,
+        redo: entry.redo,
+        dispose: entry.dispose
+      })
+    });
+
+    const committing = state.commit();
+    await captureStarted;
+    expect(() => session.runPublication(() => session.setTitle('Raced selection publication')))
+      .toThrow('Image Size is pending.');
+    resumeCapture();
+    await expect(committing).resolves.toBe(true);
+    expect(state.currentDocument).toBe(state.after);
+    expect(state.surfaceDocument).toBe(state.after);
+    expect(state.runtimeState).toBe('after');
+    expect(session.history.getSnapshot().undoDepth).toBe(1);
+    expect(session.isAcceptingMutations()).toBe(true);
+    session.dispose();
   });
 });

@@ -295,8 +295,8 @@ export interface LightTableCommandPorts {
   supportsPort?(documentId: DocumentSessionId, port: string): boolean;
   /** Reports whether the concrete owner can execute a complete semantic command. */
   supportsCommand?(documentId: DocumentSessionId, command: LightTableCommandId): boolean;
-  resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): void | Promise<void>;
-  applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): void | Promise<void>;
+  resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): boolean | Promise<boolean>;
+  applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(documentId: DocumentSessionId,
     command: SemanticAssignProfileCommand): SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
@@ -381,8 +381,8 @@ export interface DocumentLightTableCommandPorts {
   supportsPort?(port: string): boolean;
   /** Overrides command availability when one port handles mixed renderer requirements. */
   supportsCommand?(command: LightTableCommandId): boolean;
-  resizeImage?(request: ImageSizeRequest): void | Promise<void>;
-  applyDocumentGeometry?(request: DocumentGeometryRequest): void | Promise<void>;
+  resizeImage?(request: ImageSizeRequest): boolean | Promise<boolean>;
+  applyDocumentGeometry?(request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(command: SemanticAssignProfileCommand):
     SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(viewport: DocumentViewport): void | Promise<void>;

@@ -1268,6 +1268,7 @@ describe('LightTableCommandService registry', () => {
     vi.mocked(state.ports.resizeImage!).mockImplementation((_documentId, resize) => {
       state.session.setDocument({ ...state.session.getSnapshot().document!,
         width: resize.width, height: resize.height, resolutionPpi: resize.resolutionPpi });
+      return true;
     });
     const parameters = {
       width: 40, height: 30, resolutionPpi: 300, resample: true,
@@ -1284,9 +1285,10 @@ describe('LightTableCommandService registry', () => {
   it('routes canonical document geometry through the mounted document port', async () => {
     const state = setup();
     vi.mocked(state.ports.applyDocumentGeometry!).mockImplementation((_documentId, geometry) => {
-      if (geometry.operation !== 'canvas-size') return;
+      if (geometry.operation !== 'canvas-size') return false;
       state.session.setDocument({ ...state.session.getSnapshot().document!,
         width: geometry.width, height: geometry.height });
+      return true;
     });
     const parameters = { operation: 'canvas-size', width: 100, height: 90, anchorX: 0.5, anchorY: 1 };
     const result = await state.service.execute(request('document.applyGeometry', state.session.id, parameters));
@@ -1296,6 +1298,17 @@ describe('LightTableCommandService registry', () => {
       height: state.session.getSnapshot().document!.height
     } });
     expect(state.ports.applyDocumentGeometry).toHaveBeenCalledWith(state.session.id, parameters);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('reports a no-op geometry command without dirtying the document session', async () => {
+    const state = setup();
+    vi.mocked(state.ports.applyDocumentGeometry!).mockResolvedValue(false);
+    const result = await state.service.execute(request('document.applyGeometry', state.session.id, {
+      operation: 'canvas-size', width: 64, height: 64, anchorX: 0.5, anchorY: 0.5
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: { changed: false } });
+    expect(state.session.getSnapshot().dirty).toBe(false);
     state.service.dispose(); state.workspace.dispose();
   });
 

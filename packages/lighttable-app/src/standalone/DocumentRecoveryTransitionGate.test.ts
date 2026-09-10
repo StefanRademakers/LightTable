@@ -38,6 +38,39 @@ describe('DocumentRecoveryTransitionGate', () => {
     expect(activate).toHaveBeenCalledWith(id('c'));
   });
 
+  it('serializes admitted transitions and flushes the exact active owner before each', async () => {
+    const gate = new DocumentRecoveryTransitionGate();
+    const order: string[] = [];
+    let finishFirst!: () => void;
+    let firstStarted!: () => void;
+    const firstPending = new Promise<void>((resolve) => { finishFirst = resolve; });
+    const started = new Promise<void>((resolve) => { firstStarted = resolve; });
+    gate.setActiveDocument(id('a'));
+    gate.register(id('a'), async () => { order.push('flush'); });
+    const first = gate.runTransition(async () => {
+      order.push('first-start');
+      firstStarted();
+      await firstPending;
+      order.push('first-end');
+    });
+    const second = gate.runTransition(() => { order.push('second'); });
+    await started;
+    expect(order).toEqual(['flush', 'first-start']);
+    finishFirst();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['flush', 'first-start', 'first-end', 'flush', 'second']);
+  });
+
+  it('serializes failed-open discard without flushing the unusable active renderer', async () => {
+    const gate = new DocumentRecoveryTransitionGate();
+    const flush = vi.fn(async () => { throw new Error('Renderer recovery is unavailable.'); });
+    gate.setActiveDocument(id('failed'));
+    gate.register(id('failed'), flush);
+
+    await expect(gate.runFailedOpenDiscard(() => 'discarded')).resolves.toBe('discarded');
+    expect(flush).not.toHaveBeenCalled();
+  });
+
   it('blocks transitions while application close owns admission', async () => {
     const gate = new DocumentRecoveryTransitionGate();
     gate.setActiveDocument(id('a'));

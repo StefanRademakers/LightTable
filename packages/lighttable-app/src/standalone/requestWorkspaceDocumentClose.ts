@@ -20,8 +20,17 @@ interface RequestWorkspaceDocumentCloseOptions {
   readonly close: (
     id: DocumentSessionId,
     discardChanges: boolean
-  ) => { readonly ok: boolean };
+  ) => { readonly ok: false } | {
+    readonly ok: true;
+    readonly value: { readonly activeDocumentId: DocumentSessionId | null };
+  };
 }
+
+export type WorkspaceDocumentCloseOutcome =
+  | { readonly status: 'closed'; readonly activeDocumentId: DocumentSessionId | null }
+  | { readonly status: 'retained' };
+
+const retained = (): WorkspaceDocumentCloseOutcome => ({ status: 'retained' });
 
 export const waitForRunningDocumentSave = (
   session: DocumentSession
@@ -56,13 +65,13 @@ export const requestWorkspaceDocumentClose = async ({
   discardRecovery,
   onRecoveryCleanupFailed,
   close
-}: RequestWorkspaceDocumentCloseOptions): Promise<boolean> => {
+}: RequestWorkspaceDocumentCloseOptions): Promise<WorkspaceDocumentCloseOutcome> => {
   const document = documents.find((candidate) => candidate.id === documentId);
-  if (!document) return false;
+  if (!document) return retained();
 
   if (documentSession) {
     const saveStatus = await waitForRunningDocumentSave(documentSession);
-    if (saveStatus && saveStatus !== 'completed') return false;
+    if (saveStatus && saveStatus !== 'completed') return retained();
   }
 
   let admission: ReturnType<DocumentSession['acquireMutationAdmission']> | null = null;
@@ -70,26 +79,29 @@ export const requestWorkspaceDocumentClose = async ({
     admission = documentSession?.acquireMutationAdmission('Document close is pending.') ?? null;
   } catch (reason) {
     onRecoveryCleanupFailed?.(reason instanceof Error ? reason : new Error(String(reason)));
-    return false;
+    return retained();
   }
   const dirty = admission?.dirty ?? document.dirty;
 
   try {
     if (dirty && !await host.confirmDiscardChanges(document.title)) {
-      return false;
+      return retained();
     }
     if (dirty && discardRecovery) await discardRecovery(admission?.revision ?? 0);
     if (admission) {
       const current = documentSession!.getSnapshot();
       if (current.documentRevision !== admission.revision
         || current.dirty !== admission.dirty
-        || current.tasks.activeTaskIds.length > 0) return false;
+        || current.tasks.activeTaskIds.length > 0) return retained();
     }
-    return close(documentId, dirty).ok;
+    const closed = close(documentId, dirty);
+    return closed.ok
+      ? { status: 'closed', activeDocumentId: closed.value.activeDocumentId }
+      : retained();
   } catch (reason) {
     const error = reason instanceof Error ? reason : new Error(String(reason));
     onRecoveryCleanupFailed?.(error);
-    return false;
+    return retained();
   } finally {
     admission?.release();
   }

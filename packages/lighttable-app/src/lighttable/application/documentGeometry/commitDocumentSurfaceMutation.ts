@@ -10,6 +10,8 @@ export interface ReversibleDocumentSurfaceMutation {
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
+  /** Releases only resources no longer attached to any live renderer owner. */
+  disposeAfterOwnershipLoss(): void;
 }
 
 export interface CommitDocumentSurfaceMutationInput {
@@ -22,7 +24,12 @@ export interface CommitDocumentSurfaceMutationInput {
     readonly type: string;
     readonly label: string;
   };
+  readonly acquirePublicationAdmission: () => {
+    run<Result>(operation: () => Result): Result;
+    release(): void;
+  };
   originIsCurrent(): boolean;
+  runtimeIsCurrent(): boolean;
   captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
   restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
   createRuntimeMutation(before: ImageDocument): ReversibleDocumentSurfaceMutation;
@@ -101,14 +108,15 @@ export const commitDocumentSurfaceMutation = async (
     if (rollbackComplete || historyOwnsRuntime) return;
     rollbackComplete = true;
     const failures: unknown[] = [];
-    if (runtimeMutation) {
+    const runtimeIsCurrent = input.runtimeIsCurrent();
+    if (runtimeMutation && runtimeIsCurrent) {
       try {
         runtimeMutation.apply('before');
       } catch (reason) {
         failures.push(reason);
       }
     }
-    if (surfaceMayBeAfter) {
+    if (surfaceMayBeAfter && runtimeIsCurrent) {
       try {
         input.resizeDocumentSurface(transaction.before);
       } catch (reason) {
@@ -117,7 +125,8 @@ export const commitDocumentSurfaceMutation = async (
     }
     if (runtimeMutation) {
       try {
-        runtimeMutation.dispose();
+        if (runtimeIsCurrent) runtimeMutation.dispose();
+        else runtimeMutation.disposeAfterOwnershipLoss();
       } catch (reason) {
         failures.push(reason);
       }
@@ -132,6 +141,8 @@ export const commitDocumentSurfaceMutation = async (
 
   try {
     const committed = await transaction.commitWithAsync(async (before, after) => {
+      const publicationAdmission = input.acquirePublicationAdmission();
+      try {
       const exactBeforeSelectionMask = input.beforeSelectionMask
         ?? await input.captureSelectionSnapshot();
       if (!input.originIsCurrent()) {
@@ -139,6 +150,9 @@ export const commitDocumentSurfaceMutation = async (
       }
       if (!await input.restoreSelectionSnapshot(exactBeforeSelectionMask)) {
         throw new Error(`The exact selection state could not be prepared for ${input.history.label}.`);
+      }
+      if (!input.originIsCurrent()) {
+        throw new Error(`${input.history.label} lost its document or selection ownership.`);
       }
 
       runtimeMutation = input.createRuntimeMutation(before);
@@ -169,38 +183,41 @@ export const commitDocumentSurfaceMutation = async (
       };
       const mutation = runtimeMutation;
 
-      runEditorOperationTransaction(
-        { operation: `${input.history.label} commit` },
-        (operation) => {
-          operation.adopt('prepared GPU and document surface state', rollbackPreparedRuntime);
-          operation.step(
-            'canonical document and selection state',
-            () => input.publishDocumentSelection(
-              afterState.document,
-              afterState.selection,
-              afterState.selectionMask
-            ),
-            () => input.publishDocumentSelection(
-              beforeState.document,
-              beforeState.selection,
-              beforeState.selectionMask
-            )
-          );
-          input.pushHistoryEntry({
-            type: input.history.type,
-            label: input.history.label,
-            documentMutation: true,
-            byteSize: beforeState.selectionMask.byteSize
-              + afterState.selectionMask.byteSize
-              + (mutation.byteSize ?? 0),
-            undo: () => applyHistoryState(input, mutation, beforeState, afterState),
-            redo: () => applyHistoryState(input, mutation, afterState, beforeState),
-            dispose: () => mutation.dispose()
-          });
-        }
-      );
+      publicationAdmission.run(() => runEditorOperationTransaction(
+          { operation: `${input.history.label} commit` },
+          (operation) => {
+            operation.adopt('prepared GPU and document surface state', rollbackPreparedRuntime);
+            operation.step(
+              'canonical document and selection state',
+              () => input.publishDocumentSelection(
+                afterState.document,
+                afterState.selection,
+                afterState.selectionMask
+              ),
+              () => input.publishDocumentSelection(
+                beforeState.document,
+                beforeState.selection,
+                beforeState.selectionMask
+              )
+            );
+            input.pushHistoryEntry({
+              type: input.history.type,
+              label: input.history.label,
+              documentMutation: true,
+              byteSize: beforeState.selectionMask.byteSize
+                + afterState.selectionMask.byteSize
+                + (mutation.byteSize ?? 0),
+              undo: () => applyHistoryState(input, mutation, beforeState, afterState),
+              redo: () => applyHistoryState(input, mutation, afterState, beforeState),
+              dispose: () => mutation.dispose()
+            });
+          }
+        ));
       historyOwnsRuntime = true;
       return true;
+      } finally {
+        publicationAdmission.release();
+      }
     });
     if (!committed) rollbackPreparedRuntime();
     return committed;
