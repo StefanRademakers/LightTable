@@ -9,9 +9,11 @@ import { canonicalSubpathsFromSemantic, type SemanticVectorCommand,
   type SemanticVectorPrimitive, type SemanticVectorStylePatch } from '../commands/semanticVectorCommandContract';
 
 export interface SemanticVectorCommandDependencies {
-  getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  changeDocument(
+    change: (document: ImageDocument) => ImageDocument,
+    recordHistory?: boolean,
+    description?: { readonly label: string; readonly type: string; readonly layerIds?: readonly LayerId[] }
+  ): boolean;
 }
 
 const nextId = (kind: string) => `${kind}-${crypto.randomUUID()}`;
@@ -103,33 +105,39 @@ const updateElement = (
 export const executeSemanticVectorCommand = (
   command: SemanticVectorCommand, dependencies: SemanticVectorCommandDependencies
 ): { readonly layerId: LayerId; readonly elementId: string } | null => {
-  const before = dependencies.getDocument();
-  if (!before) return null;
-  let after = before; let layerId = 'layerId' in command ? command.layerId as LayerId : null;
+  let layerId = 'layerId' in command ? command.layerId as LayerId : null;
   let elementId = 'elementId' in command ? command.elementId : '';
-  if (command.kind === 'create') {
-    const element = createElement(command); elementId = element.id;
-    const target = command.layerId ? findDocumentLayer(before, command.layerId as LayerId) : null;
-    if (command.layerId && (target?.type !== 'vector' || layerIsLocked(target, 'pixels'))) {
-      throw new Error('The requested vector target is unavailable or locked.');
+  const changed = dependencies.changeDocument((before) => {
+    let after = before;
+    if (command.kind === 'create') {
+      const element = createElement(command); elementId = element.id;
+      const target = command.layerId ? findDocumentLayer(before, command.layerId as LayerId) : null;
+      if (command.layerId && (target?.type !== 'vector' || layerIsLocked(target, 'pixels'))) {
+        throw new Error('The requested vector target is unavailable or locked.');
+      }
+      after = target?.type === 'vector' ? appendVectorElement(before, target.id, element)
+        : createVectorLayer(before, [element], command.layerName ?? command.name ?? 'Shape', undefined,
+          command.layerRole ?? 'artwork', {
+            opacity: command.layerOpacity ?? 1,
+            blendMode: command.layerBlendMode ?? 'normal'
+          });
+      layerId = target?.type === 'vector' ? target.id : after.activeLayerId;
+    } else {
+      const layer = findDocumentLayer(before, command.layerId as LayerId);
+      if (layer?.type !== 'vector' || layerIsLocked(layer, 'pixels')) {
+        throw new Error('The vector layer is unavailable or locked.');
+      }
+      const element = layer.elements.find(({ id }) => id === command.elementId);
+      if (!element) throw new Error('The vector element no longer exists.');
+      after = command.kind === 'remove' ? deleteVectorElements(before, layer.id, [element.id])
+        : replaceVectorElement(before, layer.id, updateElement(element, command));
     }
-    after = target?.type === 'vector' ? appendVectorElement(before, target.id, element)
-      : createVectorLayer(before, [element], command.layerName ?? command.name ?? 'Shape', undefined,
-        command.layerRole ?? 'artwork', {
-          opacity: command.layerOpacity ?? 1,
-          blendMode: command.layerBlendMode ?? 'normal'
-        });
-    layerId = target?.type === 'vector' ? target.id : after.activeLayerId;
-  } else {
-    const layer = findDocumentLayer(before, command.layerId as LayerId);
-    if (layer?.type !== 'vector' || layerIsLocked(layer, 'pixels')) throw new Error('The vector layer is unavailable or locked.');
-    const element = layer.elements.find(({ id }) => id === command.elementId);
-    if (!element) throw new Error('The vector element no longer exists.');
-    after = command.kind === 'remove' ? deleteVectorElements(before, layer.id, [element.id])
-      : replaceVectorElement(before, layer.id, updateElement(element, command));
-  }
-  if (after === before || !layerId) return null;
-  dependencies.applyDocument(after);
-  dependencies.recordHistory(before, after);
-  return { layerId, elementId };
+    return after;
+  }, true, {
+    label: command.kind === 'create' ? 'New Shape Layer'
+      : command.kind === 'remove' ? 'Delete Shape' : 'Edit Shape',
+    type: `vector.${command.kind}`,
+    ...(layerId ? { layerIds: [layerId] } : {})
+  });
+  return changed && layerId ? { layerId, elementId } : null;
 };

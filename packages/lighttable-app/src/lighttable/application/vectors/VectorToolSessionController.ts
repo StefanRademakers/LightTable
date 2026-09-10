@@ -62,7 +62,8 @@ export interface VectorToolSessionDependencies extends VectorDocumentControllerD
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
   getRendererGeneration(): number;
-  captureTransformPreview?(): VectorTransformPreviewBinding | null;
+  captureTransformPreview(): VectorTransformPreviewBinding | null;
+  reportError(message: string): void;
 }
 
 export interface VectorToolSessionOptions {
@@ -72,7 +73,7 @@ export interface VectorToolSessionOptions {
   gradientSettings?: () => GradientToolSettingsSnapshot;
   layerName?: string;
   pathName?: string;
-  rasterizeShape?: (
+  rasterizeShape: (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
   ) => Promise<boolean>;
@@ -128,12 +129,12 @@ export class VectorToolSessionController {
   private documentId: ImageDocument['id'] | null;
   private rendererGeneration: number;
   private disposed = false;
-  private readonly rasterizeShape?: VectorToolSessionOptions['rasterizeShape'];
+  private readonly rasterizeShape: VectorToolSessionOptions['rasterizeShape'];
   private readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
 
   constructor(
     private readonly dependencies: VectorToolSessionDependencies,
-    options: VectorToolSessionOptions = {}
+    options: VectorToolSessionOptions
   ) {
     this.rasterizeShape = options.rasterizeShape;
     this.onLiveShapeCommitted = options.onLiveShapeCommitted;
@@ -141,7 +142,12 @@ export class VectorToolSessionController {
     this.rendererGeneration = dependencies.getRendererGeneration();
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(
-      this.documents, dependencies, options.onPathMutationCommitted
+      this.documents, dependencies,
+      options.onPathMutationCommitted
+        ? (result) => this.notifyAfterCommit(
+            () => options.onPathMutationCommitted!(result), 'path edit'
+          )
+        : undefined
     );
     this.elementSelection = new VectorElementSelectionToolController(this.documents, dependencies);
     this.pen = new PenToolController(this.documents, {
@@ -150,6 +156,10 @@ export class VectorToolSessionController {
       layerName: options.layerName,
       pathName: options.pathName,
       onCommitted: options.onPenPathCommitted
+        ? (result) => this.notifyAfterCommit(
+            () => options.onPenPathCommitted!(result), 'Pen path'
+          )
+        : undefined
     });
     this.liveShape = new LiveShapeToolController(
       this.documents,
@@ -174,6 +184,10 @@ export class VectorToolSessionController {
       options.requestGradientColorEditor,
       undefined,
       options.onGradientCommitted
+        ? (result) => this.notifyAfterCommit(
+            () => options.onGradientCommitted!(result), 'gradient edit'
+          )
+        : undefined
     );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
@@ -183,6 +197,10 @@ export class VectorToolSessionController {
       this.selectionCommands,
       dependencies,
       options.onPathMutationCommitted
+        ? (result) => this.notifyAfterCommit(
+            () => options.onPathMutationCommitted!(result), 'path edit'
+          )
+        : undefined
     );
   }
 
@@ -352,19 +370,17 @@ export class VectorToolSessionController {
       if (options.rasterize || capture.rasterize) {
         const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
         if (!transaction) return false;
-        return this.rasterizeShape
-          ? this.rasterizeShape(transaction, capture.rendererGeneration)
-          : false;
+        return this.rasterizeShape(transaction, capture.rendererGeneration);
       }
       const committed = this.liveShape.pointerUpWithCommit(documentPoint, options);
       if (committed) {
-        this.onLiveShapeCommitted?.({
+        this.notifyAfterCommit(() => this.onLiveShapeCommitted?.({
           layerId: committed.layerId,
           element: cloneVectorElement(committed.shape) as VectorLiveShape,
           layerName: committed.layerName,
           ...(committed.existingLayerId
             ? { existingLayerId: committed.existingLayerId } : {})
-        });
+        }), 'live shape');
       }
       return Boolean(committed);
     }
@@ -637,6 +653,16 @@ export class VectorToolSessionController {
 
   private assertAvailable() {
     return !this.disposed;
+  }
+
+  private notifyAfterCommit(notify: () => void, operation: string) {
+    try {
+      notify();
+    } catch {
+      this.dependencies.reportError(
+        `The ${operation} was committed, but its command notification failed.`
+      );
+    }
   }
 
   private tryResumePenPath(documentPoint: Vec2, radius: number) {

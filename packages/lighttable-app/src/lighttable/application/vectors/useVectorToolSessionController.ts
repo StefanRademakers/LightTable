@@ -28,7 +28,8 @@ export interface VectorToolSessionHookOptions {
   readonly style: VectorToolStyleSettings;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
-  readonly captureTransformPreview?: () => VectorTransformPreviewBinding | null;
+  readonly captureTransformPreview: () => VectorTransformPreviewBinding | null;
+  readonly reportError: (message: string) => void;
   readonly rasterizeShape: (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
@@ -59,6 +60,7 @@ export const useVectorToolSessionController = ({
   documentMutations,
   publishSelection,
   captureTransformPreview,
+  reportError,
   rasterizeShape,
   requestGradientColorEditor,
   onLiveShapeCommitted,
@@ -78,6 +80,7 @@ export const useVectorToolSessionController = ({
     documentMutations,
     publishSelection,
     captureTransformPreview,
+    reportError,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -97,6 +100,7 @@ export const useVectorToolSessionController = ({
     documentMutations,
     publishSelection,
     captureTransformPreview,
+    reportError,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -119,7 +123,8 @@ export const useVectorToolSessionController = ({
         portsRef.current.selection = next;
         portsRef.current.publishSelection(next);
       },
-      captureTransformPreview: () => portsRef.current.captureTransformPreview?.() ?? null
+      captureTransformPreview: () => portsRef.current.captureTransformPreview(),
+      reportError: (message) => portsRef.current.reportError(message)
     }, {
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),

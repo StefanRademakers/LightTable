@@ -114,7 +114,7 @@ but cannot inherit another item's acceptance.
 | C03 | Layer masks, mask edits and Remove Background result insertion | accepted | [x] | [x] | [x] | [x] |
 | C04 | Raster paint, fill/gradient and clipboard pixel consumers | accepted | [x] | [x] | [x] | [x] |
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | accepted | [x] | [x] | [x] | [x] |
-| C06 | Vector paths, Pen, live shapes and vector gradients | queued | [ ] | [ ] | [ ] | [ ] |
+| C06 | Vector paths, Pen, live shapes and vector gradients | accepted | [x] | [x] | [x] | [x] |
 | C07 | Text, Path Text, layout/editing and semantic text transform | queued | [ ] | [ ] | [ ] | [ ] |
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | queued | [ ] | [ ] | [ ] | [ ] |
 | C09 | Adjustment layers and attached adjustments | queued | [ ] | [ ] | [ ] | [ ] |
@@ -331,6 +331,47 @@ but cannot inherit another item's acceptance.
    cut-over would have mixed
    bulk relocation with correctness proof.
 7. **Next** -- C06 vector paths, Pen, live shapes and vector gradients.
+
+## C06 acceptance record -- 2026-09-10
+
+1. **Done** -- vector UI, Actions and MCP now enter the shared
+   `DocumentMutationController.change` admission instead of publishing through
+   a vector-only document/history pair. Path-selection transforms capture one
+   immutable element set and one renderer generation, update only a retained
+   element preview while dragging, and stage the exact elements once on
+   pointer-up. Live shapes, Pen and vector gradients observe accepted commits
+   without making post-commit observer failures look like rejected canonical
+   work. Shape Pixels mode requires the C02 transactional rasterize hand-off.
+2. **Deleted** -- `semanticVectorCommandExecutor`'s direct
+   `applyDocument`/`recordHistory` publisher, optional Pixels-mode rasterization,
+   optional transform preview, and the context-dependent complete-layer versus
+   per-element path-selection routes. A missing or stale renderer binding now
+   fails closed; it cannot switch to per-frame document mutation. Boundary
+   verification rejects return of these seams.
+3. **Ownership** -- `VectorElementSelectionToolController.ts` reduced from 477
+   to 380 lines and is now one element-transform gesture owner.
+   `VectorTransformPreviewBinding` lost its complete-layer shortcut and owns
+   only generation-bound retained element presentation and cleanup. The
+   remaining vector session router keeps its recorded no-growth/extraction
+   boundary; this slice did not replace the removed branches with a new broad
+   facade.
+4. **Proof** -- 27 focused vector/rendering/PSD/PDF/command files and 235 tests;
+   app typecheck; boundary verification; instrumented desktop package; packaged
+   vector-authoring, Pen-tools and shape-geometry smokes. Chrome reached the web
+   launcher without runtime errors, but its web-only document admission kept
+   Create disabled, so only the desktoppackage counts as renderer/tool-route
+   acceptance. No source/preview fallback was used by those packaged smokes.
+5. **Critic** -- the independent review found no C06 P0/P1 and returned
+   **ACCEPT** without a repair round. It confirmed the shared mutation route,
+   one retained element-preview route, fail-closed renderer binding, required
+   rasterization hand-off, non-fatal post-commit diagnostics and complete
+   document/renderer cancellation.
+6. **Allowed/non-blocking** -- removing the complete-layer shortcut makes a
+   select-all transform O(N) in the element count. A later optimization may
+   reduce presentation work only; canonical commit semantics must remain the
+   same element transaction. Owner feel acceptance remains separate from the
+   automated gate.
+7. **Next** -- C07 text, Path Text, layout/editing and semantic text transform.
 
 ## Slice-specific acceptance
 

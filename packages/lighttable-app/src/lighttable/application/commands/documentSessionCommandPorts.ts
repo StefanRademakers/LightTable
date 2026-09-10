@@ -129,7 +129,9 @@ export const createDocumentSessionCommandPorts = (
       getTextSettings: () => applicationSession.getSnapshot().text,
       getForegroundColor: () => applicationSession.getSnapshot().brush.color
     }),
-    executeVectorCommand: (command) => executeSemanticVectorCommand(command, semanticDependencies),
+    executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
+      changeDocument: mutation.change
+    }),
     executeSvgImport: (command) => executeSvgImport(command, semanticDependencies),
     executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
       ...semanticDependencies,

@@ -6,8 +6,6 @@ import type {
 
 export interface VectorTransformPreviewRenderer {
   setVectorSelectionPreviewTransform(matrix: AffineMatrix | null): void;
-  updateSemanticLayerTransform(layer: VectorLayer, matrix: AffineMatrix): boolean;
-  cancelSemanticLayerTransform(layer: VectorLayer): boolean;
   setVectorContentPreviews(layers: readonly VectorLayer[]): boolean;
   clearVectorContentPreviews(): boolean;
 }
@@ -16,8 +14,6 @@ export interface VectorTransformPreviewBinding {
   readonly document: ImageDocument;
   readonly rendererGeneration: number;
   isCurrent(): boolean;
-  setLayer(layer: VectorLayer, matrix: AffineMatrix, documentOperation: AffineMatrix): boolean;
-  clearLayer(layer: VectorLayer): boolean;
   setElements(layers: readonly VectorLayer[], documentOperation: AffineMatrix): boolean;
   clearElements(): boolean;
 }
@@ -45,22 +41,6 @@ export const captureVectorTransformPreviewBinding = <Renderer extends VectorTran
   const rendererIsCurrent = () => source.getRenderer() === renderer
     && source.getRendererGeneration() === rendererGeneration;
   const isCurrent = () => rendererIsCurrent() && source.getDocument() === document;
-  const clearLayer = (layer: VectorLayer) => {
-    if (!rendererIsCurrent()) return false;
-    let selectionCleared = true;
-    let semanticCleared = true;
-    try {
-      renderer.setVectorSelectionPreviewTransform(null);
-    } catch {
-      selectionCleared = false;
-    }
-    try {
-      semanticCleared = renderer.cancelSemanticLayerTransform(layer);
-    } catch {
-      semanticCleared = false;
-    }
-    return selectionCleared && semanticCleared;
-  };
   const clearElements = () => {
     if (!rendererIsCurrent()) return false;
     let selectionCleared = true;
@@ -81,18 +61,6 @@ export const captureVectorTransformPreviewBinding = <Renderer extends VectorTran
     document,
     rendererGeneration,
     isCurrent,
-    setLayer: (layer, matrix, documentOperation) => {
-      if (!isCurrent()) return false;
-      try {
-        renderer.setVectorSelectionPreviewTransform(documentOperation);
-        if (renderer.updateSemanticLayerTransform(layer, matrix)) return true;
-      } catch {
-        // The preview is an all-or-nothing lease. Best-effort cleanup below.
-      }
-      clearLayer(layer);
-      return false;
-    },
-    clearLayer,
     setElements: (layers, documentOperation) => {
       if (!isCurrent()) return false;
       try {

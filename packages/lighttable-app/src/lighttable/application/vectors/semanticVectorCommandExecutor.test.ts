@@ -12,8 +12,16 @@ import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observe
 const harness = () => {
   let document = createImageDocument('Vectors', 640, 480, 'fixture');
   const history = vi.fn();
-  const dependencies = { getDocument: () => document,
-    applyDocument: (next: typeof document) => { document = next; }, recordHistory: history };
+  const dependencies = {
+    changeDocument: (change: (current: typeof document) => typeof document) => {
+      const before = document;
+      const next = change(before);
+      if (next === before) return false;
+      document = next;
+      history(before, next);
+      return true;
+    }
+  };
   return { dependencies, history, document: () => document };
 };
 

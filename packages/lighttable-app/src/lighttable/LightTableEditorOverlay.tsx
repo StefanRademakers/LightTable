@@ -4736,6 +4736,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       getRenderer: () => engineRef.current,
       getRendererGeneration: () => rendererLifecycle.getSnapshot().generation
     }),
+    reportError: setError,
     requestGradientColorEditor: (endpoint) => {
       setGradientEditorRequest((current) => ({
         revision: (current?.revision ?? 0) + 1,
@@ -6312,7 +6313,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         return result;
       },
-      executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
+        changeDocument: documentMutationController.change
+      }),
       executeSvgImport: (command) => executeSvgImport(command, {
         getDocument: () => imageDocumentRef.current,
         applyDocument: applyDocumentSnapshot,

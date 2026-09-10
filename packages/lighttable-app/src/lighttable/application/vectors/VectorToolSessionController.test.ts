@@ -43,12 +43,7 @@ const setup = (
   ) => Promise<boolean>,
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
   onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
-  preview?: {
-    setLayerTransformPreview?: (
-      layer: VectorLayer,
-      matrix: AffineMatrix | null,
-      documentOperation: AffineMatrix | null
-    ) => boolean;
+  preview?: false | {
     setElementTransformPreview?: (
       layers: readonly VectorLayer[],
       documentOperation: AffineMatrix | null
@@ -60,33 +55,38 @@ const setup = (
   );
   let selection: VectorEditorSelection = createVectorEditorSelection();
   let rendererGeneration = 1;
+  const reportError = vi.fn();
   const controller = new VectorToolSessionController({
     ...host.dependencies,
     getRendererGeneration: () => rendererGeneration,
     getSelection: () => selection,
     setSelection: (next) => { selection = next; },
-    ...(preview ? {
-      captureTransformPreview: () => {
+    reportError,
+    captureTransformPreview: () => {
+        if (preview === false) return null;
         const openingDocument = host.dependencies.getDocument();
         if (!openingDocument) return null;
+        const openingGeneration = rendererGeneration;
         return {
           document: openingDocument,
-          rendererGeneration: 1,
-          isCurrent: () => host.dependencies.getDocument() === openingDocument,
-          setLayer: (layer: VectorLayer, matrix: AffineMatrix, operation: AffineMatrix) =>
-            preview.setLayerTransformPreview?.(layer, matrix, operation) ?? false,
-          clearLayer: (layer: VectorLayer) =>
-            preview.setLayerTransformPreview?.(layer, null, null) ?? false,
+          rendererGeneration: openingGeneration,
+          isCurrent: () => host.dependencies.getDocument() === openingDocument
+            && rendererGeneration === openingGeneration,
           setElements: (layers: readonly VectorLayer[], operation: AffineMatrix) =>
-            preview.setElementTransformPreview?.(layers, operation) ?? false,
-          clearElements: () => preview.setElementTransformPreview?.([], null) ?? false
+            preview?.setElementTransformPreview?.(layers, operation) ?? true,
+          clearElements: () => preview?.setElementTransformPreview?.([], null) ?? true
         };
       }
-    } : {})
-  }, { ids: ids(), rasterizeShape, onLiveShapeCommitted, onPathMutationCommitted });
+  }, {
+    ids: ids(),
+    rasterizeShape: rasterizeShape ?? (async (transaction) => transaction.commitWith(() => false)),
+    onLiveShapeCommitted,
+    onPathMutationCommitted
+  });
   return {
     controller,
     history: host.history,
+    reportError,
     get document() { return host.document; },
     set document(next) { host.replaceDocument(next); },
     get selection() { return selection; },
@@ -293,6 +293,19 @@ describe('VectorToolSessionController', () => {
     });
   });
 
+  it('keeps an accepted vector commit successful when command observation throws', () => {
+    const state = setup(undefined, () => { throw new Error('observer failed'); });
+    state.controller.activate('live-shape');
+    state.controller.pointerDown(19, { x: 10, y: 10 }, { hitRadius: 2 });
+    state.controller.pointerMove(19, { x: 50, y: 40 });
+
+    expect(() => state.controller.pointerUp(19, { x: 50, y: 40 })).not.toThrow();
+    expect(state.history).toHaveLength(1);
+    expect(state.reportError).toHaveBeenCalledWith(
+      'The live shape was committed, but its command notification failed.'
+    );
+  });
+
   it('hands Pixels-mode live shapes to one deferred raster transaction', async () => {
     const rasterizeShape = vi.fn(async (
       _transaction: VectorElementCreationTransaction,
@@ -388,14 +401,34 @@ describe('VectorToolSessionController', () => {
       type: 'live-shape',
       geometry: shape.geometry,
       transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 25 },
-      transformRevision: 2
+      transformRevision: 1
     });
   });
 
-  it('keeps a single-object vector drag out of canonical document publication', () => {
-    const setLayerTransformPreview = vi.fn(() => true);
+  it('fails closed when the retained element-preview binding is unavailable', () => {
+    const state = setup(undefined, undefined, undefined, false);
+    const shape = createVectorLiveShape('shape', { kind: 'ellipse', width: 40, height: 40 });
+    shape.transform.tx = 20;
+    shape.transform.ty = 20;
+    const layer = createVectorLayer([shape]);
+    state.document = { ...state.document, layers: [layer], activeLayerId: layer.id };
+    state.controller.activate('element-selection');
+    const opening = state.document;
+
+    expect(state.controller.pointerDown(43, { x: 40, y: 40 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(43, { x: 80, y: 70 })).toBe(false);
+    expect(state.controller.pointerUp(43, { x: 80, y: 70 })).toBe(false);
+    expect(state.document).toBe(opening);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('keeps a single-object vector drag on the retained element preview', () => {
+    const setElementTransformPreview = vi.fn((
+      _layers: readonly VectorLayer[],
+      _documentOperation: AffineMatrix | null
+    ) => true);
     const state = setup(undefined, undefined, undefined, {
-      setLayerTransformPreview
+      setElementTransformPreview
     });
     const shape = createVectorLiveShape('shape', {
       kind: 'ellipse', width: 40, height: 40
@@ -411,23 +444,25 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.pointerMove(44, { x: 80, y: 70 })).toBe(true);
     expect(state.controller.pointerMove(44, { x: 100, y: 80 })).toBe(true);
     expect(state.document).toBe(openingDocument);
-    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(
-      layer,
-      expect.objectContaining({ tx: 60, ty: 40 }),
-      expect.objectContaining({ tx: 60, ty: 40 })
-    );
+    const previewLayer = setElementTransformPreview.mock.calls.at(-1)?.[0][0];
+    expect(previewLayer?.elements[0]?.transform).toMatchObject({ tx: 80, ty: 60 });
 
     expect(state.controller.pointerUp(44, { x: 100, y: 80 })).toBe(true);
-    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null, null);
+    expect(setElementTransformPreview).toHaveBeenLastCalledWith([], null);
     expect(state.history).toHaveLength(1);
-    expect(findDocumentLayer(state.document, layer.id)?.transform)
-      .toMatchObject({ tx: 60, ty: 40 });
+    const committed = findDocumentLayer(state.document, layer.id);
+    expect(committed?.transform).toMatchObject({ tx: 0, ty: 0 });
+    expect(committed?.type === 'vector' ? committed.elements[0]?.transform : null)
+      .toMatchObject({ tx: 80, ty: 60 });
   });
 
-  it('keeps a complete multi-object layer drag on the retained layer preview', () => {
-    const setLayerTransformPreview = vi.fn(() => true);
+  it('keeps a complete multi-object drag on the same retained element route', () => {
+    const setElementTransformPreview = vi.fn((
+      _layers: readonly VectorLayer[],
+      _documentOperation: AffineMatrix | null
+    ) => true);
     const state = setup(undefined, undefined, undefined, {
-      setLayerTransformPreview
+      setElementTransformPreview
     });
     const first = createVectorLiveShape('first', {
       kind: 'rectangle', width: 20, height: 20,
@@ -450,24 +485,26 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.pointerMove(45, { x: 50, y: 45 })).toBe(true);
 
     expect(state.document).toBe(openingDocument);
-    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(
-      layer,
-      expect.objectContaining({ tx: 20, ty: 15 }),
-      expect.objectContaining({ tx: 20, ty: 15 })
-    );
+    const previewLayer = setElementTransformPreview.mock.calls.at(-1)?.[0][0];
+    expect(previewLayer?.elements.map(({ transform }) => ({
+      tx: transform.tx, ty: transform.ty
+    }))).toEqual([{ tx: 40, ty: 35 }, { tx: 100, ty: 35 }]);
     expect(state.controller.pointerUp(45, { x: 50, y: 45 })).toBe(true);
     expect(state.history).toHaveLength(1);
-    expect(findDocumentLayer(state.document, layer.id)?.transform)
-      .toMatchObject({ tx: 20, ty: 15 });
+    const committed = findDocumentLayer(state.document, layer.id);
+    expect(committed?.transform).toMatchObject({ tx: 0, ty: 0 });
+    expect(committed?.type === 'vector'
+      ? committed.elements.map(({ transform }) => ({ tx: transform.tx, ty: transform.ty }))
+      : []).toEqual([{ tx: 40, ty: 35 }, { tx: 100, ty: 35 }]);
   });
 
-  it('cancels instead of committing an intermediate layer preview when the final frame fails', () => {
+  it('cancels instead of committing an intermediate element preview when the final frame fails', () => {
     let acceptPreview = true;
-    const setLayerTransformPreview = vi.fn((
-      _layer: VectorLayer,
-      matrix: AffineMatrix | null
-    ) => matrix === null || acceptPreview);
-    const state = setup(undefined, undefined, undefined, { setLayerTransformPreview });
+    const setElementTransformPreview = vi.fn((
+      _layers: readonly VectorLayer[],
+      operation: AffineMatrix | null
+    ) => operation === null || acceptPreview);
+    const state = setup(undefined, undefined, undefined, { setElementTransformPreview });
     const shape = createVectorLiveShape('shape', { kind: 'ellipse', width: 40, height: 40 });
     shape.transform.tx = 20;
     shape.transform.ty = 20;
@@ -483,7 +520,7 @@ describe('VectorToolSessionController', () => {
 
     expect(state.history).toHaveLength(0);
     expect(state.document).toBe(openingDocument);
-    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null, null);
+    expect(setElementTransformPreview).toHaveBeenLastCalledWith([], null);
   });
 
   it('keeps a partial element drag out of canonical document publication', () => {

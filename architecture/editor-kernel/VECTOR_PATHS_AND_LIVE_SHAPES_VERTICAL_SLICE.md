@@ -1,6 +1,6 @@
 # Vector paths and live shapes vertical slice
 
-Status: **implemented; packaged acceptance passed; owner acceptance pending**.
+Status: **C06 kernel cut-over accepted; owner feel acceptance pending**.
 Baseline: `23e7c299`.
 
 This note bounds S05. It covers Pen, Add/Delete/Convert Anchor Point, Path
@@ -154,3 +154,22 @@ successful intermediate frame.
   reports the previously tracked legacy hotspots; S05 reduced element-selection
   ownership below 500 lines and records a no-growth/extraction decision for its
   remaining vector session router rather than weakening that audit.
+
+## C06 cut-over closure -- 2026-09-10
+
+- UI, Actions and MCP semantic vector commands share
+  `DocumentMutationController.change`; the former executor-owned
+  document/history publisher no longer exists.
+- Path Selection has one renderer-retained element-preview route and stages one
+  exact element transaction at pointer-up. It no longer chooses layer versus
+  element commit semantics according to preview availability.
+- Missing or stale preview capture fails closed. Pixels-mode shape creation has
+  a required C02 rasterization hand-off. Post-commit UI/Action observation is
+  diagnostic and cannot negate an already accepted canonical mutation.
+- Current focused proof is 27 files / 235 tests plus typecheck and boundary
+  verification. The instrumented package and vector-authoring, Pen-tools and
+  shape-geometry desktop smokes passed. Independent critic verdict: **ACCEPT**,
+  no P0/P1.
+- `VectorElementSelectionToolController.ts` reduced from 477 to 380 lines. A
+  select-all preview is intentionally O(N); any future fast path must remain a
+  presentation optimization and preserve the single element commit route.

@@ -213,18 +213,24 @@ admitted lease, or rebuild a transformed document per pointer frame. The
 packaged transform smoke is automated proof; owner feel acceptance and the
 remaining non-React overlay gesture extraction are still open.
 
-Vector reset, updated 2026-09-09: read
+Vector reset, updated 2026-09-10: read
 [Vector paths and live shapes vertical slice](editor-kernel/VECTOR_PATHS_AND_LIVE_SHAPES_VERTICAL_SLICE.md)
 before changing Pen, point/direct/path selection, live shapes, vector gradients,
 semantic vector transforms or Pixels-mode shape rasterization. One
 `VectorToolSessionController` admits document identity and renderer generation;
-`VectorTransformPreviewBinding` owns retained renderer-only preview and total
-cleanup, while pointer-up is the sole canonical vector-transform stage.
+`VectorTransformPreviewBinding` owns retained element-only renderer preview and
+total cleanup, while pointer-up is the sole canonical vector-transform stage.
 Renderer replacement cancels every captured gesture and idle multi-click Pen
 transaction. Never stage a document per transform frame or rediscover the
-current renderer during cleanup/rasterize. Packaged debug and instrumented
-vector gates passed; owner feel acceptance and the named Pen-session extraction
-from the no-growth session router remain open.
+current renderer during cleanup/rasterize. Never restore the deleted
+complete-layer preview/commit shortcut: select-all may optimize presentation,
+but it must still commit through the same exact element transaction. Semantic
+vector UI, Actions and MCP enter `DocumentMutationController.change`; do not
+reintroduce executor-owned `applyDocument`/`recordHistory` ports. Pixels-mode
+rasterization and transform-preview capture are required and fail closed when
+unavailable. Packaged instrumented vector gates passed; owner feel acceptance
+and the named Pen-session extraction from the no-growth session router remain
+open.
 
 Text reset, updated 2026-09-09: read
 [Text and Path Text vertical slice](editor-kernel/TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md)

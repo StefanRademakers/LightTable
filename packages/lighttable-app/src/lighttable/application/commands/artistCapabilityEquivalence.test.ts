@@ -119,16 +119,22 @@ const createHarness = () => {
   };
   const applyVector = (command: Parameters<typeof executeSemanticVectorCommand>[0]) => (
     executeSemanticVectorCommand(command, {
-      getDocument: () => session.getSnapshot().document,
-      applyDocument: (document) => session.setDocument(document),
-      recordHistory: (before, after) => session.history.record({
-        id: `equivalence-history-${++historySequence}`,
-        type: `vector.${command.kind}`,
-        label: command.kind,
-        documentId: session.id,
-        undo: () => session.setDocument(before),
-        redo: () => session.setDocument(after)
-      })
+      changeDocument: (change) => {
+        const before = session.getSnapshot().document;
+        if (!before) return false;
+        const after = change(before);
+        if (after === before) return false;
+        session.setDocument(after);
+        session.history.record({
+          id: `equivalence-history-${++historySequence}`,
+          type: `vector.${command.kind}`,
+          label: command.kind,
+          documentId: session.id,
+          undo: () => session.setDocument(before),
+          redo: () => session.setDocument(after)
+        });
+        return true;
+      }
     })
   );
   const applyBasicAdjustment = (command: SemanticBasicAdjustmentCommand) => {

@@ -56,14 +56,14 @@ describe('VectorTransformPreviewBinding', () => {
     expect(renderer.clearVectorContentPreviews).toHaveBeenCalledOnce();
   });
 
-  it('rolls back both layer-preview legs when semantic publication throws', () => {
+  it('rolls back both element-preview legs when content publication throws', () => {
     const document = createImageDocument('Vector', 64, 64, 'source');
     const layer = createVectorLayer([]);
     const renderer = {
       setVectorSelectionPreviewTransform: vi.fn(),
-      updateSemanticLayerTransform: vi.fn(() => { throw new Error('device lost'); }),
+      updateSemanticLayerTransform: vi.fn(() => true),
       cancelSemanticLayerTransform: vi.fn(() => true),
-      setVectorContentPreviews: vi.fn(() => true),
+      setVectorContentPreviews: vi.fn(() => { throw new Error('device lost'); }),
       clearVectorContentPreviews: vi.fn(() => true)
     };
     const binding = captureVectorTransformPreviewBinding({
@@ -72,13 +72,12 @@ describe('VectorTransformPreviewBinding', () => {
       getRendererGeneration: () => 2
     });
 
-    expect(binding?.setLayer(
-      layer,
-      { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 5 },
+    expect(binding?.setElements(
+      [layer],
       { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 5 }
     )).toBe(false);
     expect(renderer.setVectorSelectionPreviewTransform).toHaveBeenLastCalledWith(null);
-    expect(renderer.cancelSemanticLayerTransform).toHaveBeenCalledWith(layer);
+    expect(renderer.clearVectorContentPreviews).toHaveBeenCalledOnce();
   });
 
   it('attempts every cleanup leg and contains cleanup exceptions', () => {

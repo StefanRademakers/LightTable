@@ -68,6 +68,14 @@ export const executeAtomicCommandBatch = async (
   const results = new Map<string, unknown>();
   const local = { getDocument: () => current, applyDocument: (document: ImageDocument) => { current = document; },
     recordHistory: () => undefined };
+  const localVector = {
+    changeDocument: (change: (document: ImageDocument) => ImageDocument) => {
+      const next = change(current);
+      if (next === current) return false;
+      current = next;
+      return true;
+    }
+  };
   try { for (const [index, operation] of batch.operations.entries()) {
     if (signal.aborted) throw new DOMException('The batch was canceled.', 'AbortError');
     const parameters = resolveReferences(operation.parameters, results);
@@ -89,7 +97,7 @@ export const executeAtomicCommandBatch = async (
     } else if (operation.command.startsWith('vector.')) {
       const parsed = parseSemanticVectorCommand(semanticKind(operation) as 'create' | 'update' | 'remove', parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
-      result = executeSemanticVectorCommand(parsed, local);
+      result = executeSemanticVectorCommand(parsed, localVector);
     } else if (operation.command.startsWith('layer.effect.') && operation.command !== 'layer.effect.setEnabled') {
       const parsed = parseSemanticLayerStyleCommand(semanticKind(operation) as 'add' | 'update' | 'remove' | 'move', parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);

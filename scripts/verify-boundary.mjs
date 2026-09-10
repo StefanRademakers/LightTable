@@ -477,6 +477,37 @@ function verifyTransformCutover(relativePath, source) {
   }
 }
 
+function verifyVectorCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/vectors/semanticVectorCommandExecutor.ts')) {
+    if (!source.includes('changeDocument(')
+      || /\b(?:applyDocument|recordHistory)\s*\(/.test(source)) {
+      failures.push(`${relativePath}: semantic vector commands must use the shared document mutation route`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/vectors/VectorToolSessionController.ts')) {
+    if (/\brasterizeShape\?:/.test(source)
+      || /this\.rasterizeShape\s*\?/.test(source)) {
+      failures.push(`${relativePath}: Pixels-mode live shapes must require the C02 rasterization hand-off`);
+    }
+    if (/\bcaptureTransformPreview\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: vector transform preview ownership must be required`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/vectors/VectorElementSelectionToolController.ts')) {
+    if (source.includes('layerPreview')
+      || source.includes('beginElementMutations(')
+      || source.includes('previewElementMutations(')) {
+      failures.push(`${relativePath}: element transforms must use one retained element-preview route`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/vectors/VectorTransformPreviewBinding.ts')) {
+    if (/\b(?:setLayer|clearLayer)\s*\(/.test(source)) {
+      failures.push(`${relativePath}: path-selection preview must not switch to layer-transform semantics`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -494,6 +525,7 @@ async function scan(relativeDirectory) {
       verifyLayerFinalizationCutover(relativePath, source);
       verifyLayerMaskCutover(relativePath, source);
       verifyTransformCutover(relativePath, source);
+      verifyVectorCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);
