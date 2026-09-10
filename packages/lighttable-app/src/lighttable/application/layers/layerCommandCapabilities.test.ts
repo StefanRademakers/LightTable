@@ -11,7 +11,7 @@ import {
 } from '../../editor/document/documentCommands';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../../types';
-import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { addLayerStyleFixture } from '../../editor/styles/layerStyleTestFixtures';
 import { createFilterStack } from '../../processing/filter';
 import {
   createImageDocument,
@@ -80,7 +80,7 @@ describe('queryLayerCommandCapabilities', () => {
     const masked = addLayerMask(plain, plain.activeLayerId!);
     expect(queryLayerCommandCapabilities(masked).canRasterizeActiveLayer).toBe(true);
 
-    const styled = addLayerStyle(plain, plain.activeLayerId!, 'drop-shadow');
+    const styled = addLayerStyleFixture(plain, plain.activeLayerId!, 'drop-shadow');
     expect(queryLayerCommandCapabilities(styled).canRasterizeActiveLayer).toBe(true);
   });
 

@@ -11,7 +11,7 @@ export interface GradientValue { colorStops: GradientColorStop[]; opacityStops: 
 export interface GradientColorFieldProps {
   value: GradientColor;
   onChange: (value: GradientColor) => void;
-  onInteractionStart: () => LocalInteractionSession;
+  onInteractionStart: () => LocalInteractionSession | false;
   onInteractionEnd: (session: LocalInteractionSession) => void;
   onInteractionCancel: (session: LocalInteractionSession) => void;
 }
@@ -23,7 +23,7 @@ export interface GradientEditorProps {
   publishIntervalMs?: number | 'animation-frame';
   tabIndex?: number;
   renderColorField?: (props: GradientColorFieldProps) => React.ReactNode;
-  onInteractionStart?: () => InteractionHandle;
+  onInteractionStart?: () => InteractionHandle | false;
   onInteractionEnd?: (handle: InteractionHandle) => void;
   onInteractionCancel?: (handle: InteractionHandle) => void;
 }
@@ -61,11 +61,13 @@ export const GradientEditor = ({
   const publish = (patch: Partial<GradientValue>) => {
     const discrete = !interaction.active.current;
     const session = discrete ? beginInteraction() : null;
+    if (discrete && !session) return;
     interaction.update({ ...interaction.latest.current, ...patch });
     if (discrete) endInteraction(session);
   };
   const runDiscrete = (command: () => void) => {
     const session = beginInteraction();
+    if (!session) return;
     command();
     endInteraction(session);
   };
@@ -138,7 +140,9 @@ export const GradientEditor = ({
       event.stopPropagation();
       event.currentTarget.focus({ preventScroll: true });
       if (interaction.active.current) return;
-      pointerSessionsRef.current.set(event.pointerId, beginInteraction());
+      const session = beginInteraction();
+      if (!session) return;
+      pointerSessionsRef.current.set(event.pointerId, session);
       select(id);
       event.currentTarget.setPointerCapture(event.pointerId);
       update(id, { position: pointerPosition(event) });
@@ -184,7 +188,9 @@ export const GradientEditor = ({
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
         if (!keyboardSessionsRef.current.has(gestureKey) && !interaction.active.current) {
-          keyboardSessionsRef.current.set(gestureKey, beginInteraction());
+          const session = beginInteraction();
+          if (!session) return;
+          keyboardSessionsRef.current.set(gestureKey, session);
         }
         const stops = update === updateColor ? interaction.latest.current.colorStops : interaction.latest.current.opacityStops;
         const stop = stops.find(stop => stop.id === id);
@@ -215,7 +221,9 @@ export const GradientEditor = ({
         event.stopPropagation();
         event.currentTarget.focus({ preventScroll: true });
         if (interaction.active.current) return;
-        pointerSessionsRef.current.set(event.pointerId, beginInteraction());
+        const session = beginInteraction();
+        if (!session) return;
+        pointerSessionsRef.current.set(event.pointerId, session);
         event.currentTarget.setPointerCapture(event.pointerId);
         move(event);
       },
@@ -249,7 +257,9 @@ export const GradientEditor = ({
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
         if (!keyboardSessionsRef.current.has(gestureKey) && !interaction.active.current) {
-          keyboardSessionsRef.current.set(gestureKey, beginInteraction());
+          const session = beginInteraction();
+          if (!session) return;
+          keyboardSessionsRef.current.set(gestureKey, session);
         }
         const stops = update === updateColor ? interaction.latest.current.colorStops : interaction.latest.current.opacityStops;
         const stop = stops.find(stop => stop.id === leftId);
@@ -282,7 +292,7 @@ export const GradientEditor = ({
             format={value => `${Math.round(value)}%`} tabIndex={tabIndex}
             transparency trackBackground={`linear-gradient(to right, transparent, ${colorHex(sampleColor(presentedValue.colorStops, selectedOpacity.position))})`}
             onChange={opacity => updateOpacity(selectedOpacity.id, { opacity: opacity / 100 })}
-            onInteractionStart={beginInteraction}
+            onInteractionStart={() => beginInteraction() ?? false}
             onInteractionEnd={(session) => endInteraction(session as LocalInteractionSession)}
             onInteractionCancel={(session) => cancelInteraction(session as LocalInteractionSession)} />
         </div>
@@ -402,7 +412,7 @@ export const GradientEditor = ({
           {renderColorField ? renderColorField({
             value: selectedColor.color,
             onChange: color => updateColor(selectedColor.id, { color }),
-            onInteractionStart: beginInteraction, onInteractionEnd: endInteraction,
+            onInteractionStart: () => beginInteraction() ?? false, onInteractionEnd: endInteraction,
             onInteractionCancel: cancelInteraction
           }) : <label className="ui-gradient-editor__color-field">Color
             <input type="color" aria-label="Gradient stop color" tabIndex={tabIndex} value={colorHex(selectedColor.color)}
@@ -416,6 +426,7 @@ export const GradientEditor = ({
                 if (!colorInputSessionRef.current) {
                   colorInputSessionRef.current = beginInteraction();
                 }
+                if (!colorInputSessionRef.current) return;
                 const hex = event.currentTarget.value;
                 updateColor(selectedColor.id, { color: {
                   r: parseInt(hex.slice(1, 3), 16) / 255, g: parseInt(hex.slice(3, 5), 16) / 255,

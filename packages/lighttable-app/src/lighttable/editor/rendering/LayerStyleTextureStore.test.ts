@@ -51,6 +51,33 @@ describe('LayerStyleTextureStore', () => {
     expect(cached?.texture.destroy).toHaveBeenCalledOnce();
   });
 
+  it('submit-fences every cache owned by a removed layer', () => {
+    const retired: GPUTexture[] = [];
+    const store = new LayerStyleTextureStore({
+      ...options(),
+      retireTexture: (target) => retired.push(target)
+    });
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+    const source = texture();
+    store.writeCache(
+      encoder, layerId, 'final', 'Text', source, { x: 0, y: 0, width: 10, height: 8 }
+    );
+    const final = store.latest(layerId)!;
+    const bevel = store.writeBevelGeometry(
+      encoder, layerId, 'bevel', 'geometry', source,
+      { x: 0, y: 0, width: 10, height: 8 }, 'half'
+    );
+    const field = store.writeEffectField(
+      encoder, layerId, 'shadow', 'field', source, { x: 0, y: 0, width: 10, height: 8 }
+    );
+
+    store.syncOwners(new Set());
+
+    expect(retired).toEqual([final.texture, bevel.texture, field.texture]);
+    expect(final.texture.destroy).not.toHaveBeenCalled();
+    expect(store.estimatedTextureBytes(10, 8)).toBe(0);
+  });
+
   it('reuses and releases radius-scaled blur work textures', () => {
     const storeOptions = options();
     const store = new LayerStyleTextureStore(storeOptions);

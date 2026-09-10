@@ -68,7 +68,7 @@ import {
   rasterLayersForComposite,
   siblingLayers
 } from './layerTree';
-import { addLayerStyle } from '../styles/layerStyleCommands';
+import { addLayerStyleFixture } from '../styles/layerStyleTestFixtures';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 
@@ -988,7 +988,7 @@ describe('LightTable document commands', () => {
   it('clears baked Layer Style metadata after merge and flatten commands', () => {
     const base = createRasterLayer(createImageDocument('Image', 100, 50, 'asset'), 'Styled');
     const styledId = base.layers[1].id;
-    const styled = addLayerStyle(base, styledId, 'drop-shadow');
+    const styled = addLayerStyleFixture(base, styledId, 'drop-shadow');
     expect(findRasterLayer(styled, styledId)?.styleStack.effects).toHaveLength(1);
 
     const merged = mergeLayerDown(styled, styledId);

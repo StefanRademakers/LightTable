@@ -42,7 +42,7 @@ export const PanelColorSwatch = <T extends PanelColor>({
   value: T;
   inline?: boolean;
   onChange: (color: T, handle: object | void) => void;
-  onInteractionStart?: () => object | void;
+  onInteractionStart?: () => object | false | void;
   onInteractionCommit?: (handle: object | void) => void;
   onInteractionCancel?: (handle: object | void) => void;
 }) => {
@@ -70,7 +70,7 @@ export const PanelNumberSlider: React.FC<{
   suffix?: string;
   resetValue?: number;
   onChange: (value: number, handle: object | void) => void;
-  onInteractionStart?: () => object | void;
+  onInteractionStart?: () => object | false | void;
   onInteractionEnd?: (handle: object | void) => void;
   onInteractionCancel?: (handle: object | void) => void;
 }> = ({
@@ -82,6 +82,7 @@ export const PanelNumberSlider: React.FC<{
     format={(current) => `${step < 1 ? current.toFixed(2) : Math.round(current)}${suffix}`}
     onChange={onChange} onReset={() => {
       const handle = onInteractionStart?.();
+      if (handle === false) return;
       onChange(resetValue, handle);
       onInteractionEnd?.(handle);
     }}

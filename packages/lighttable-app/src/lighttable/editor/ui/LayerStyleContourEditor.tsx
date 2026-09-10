@@ -33,19 +33,20 @@ const toGraphPoint = (event: React.PointerEvent<SVGSVGElement>) => {
 
 export const LayerStyleContourEditor: React.FC<{
   value: LayerStyleContour;
-  onChange: (value: LayerStyleContour) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onChange: (value: LayerStyleContour, handle: object | void) => void;
+  onInteractionStart?: () => object | false | void;
+  onInteractionEnd?: (handle: object | void) => void;
+  onInteractionCancel?: (handle: object | void) => void;
 }> = ({ value, onChange, onInteractionStart, onInteractionEnd, onInteractionCancel }) => {
   const dragIndexRef = useRef<number | null>(null);
+  const interactionHandleRef = useRef<object | void>(undefined);
   const points = useMemo(() => normalizePoints(value.points), [value.points]);
   const path = points.map((point, index) =>
     `${index === 0 ? 'M' : 'L'} ${graphX(point.position).toFixed(2)} ${graphY(point.value).toFixed(2)}`
   ).join(' ');
 
   const publish = (next: LayerStyleContourPoint[]) => {
-    onChange({ points: normalizePoints(next) });
+    onChange({ points: normalizePoints(next) }, interactionHandleRef.current);
   };
 
   const addPoint = (event: React.PointerEvent<SVGRectElement>) => {
@@ -62,7 +63,12 @@ export const LayerStyleContourEditor: React.FC<{
     dragIndexRef.current = next.findIndex((candidate) =>
       Math.abs(candidate.position - point.position) < 1e-5
     );
-    onInteractionStart?.();
+    const handle = onInteractionStart?.();
+    if (handle === false) {
+      dragIndexRef.current = null;
+      return;
+    }
+    interactionHandleRef.current = handle;
     svg.setPointerCapture(event.pointerId);
     publish(next);
   };
@@ -72,7 +78,12 @@ export const LayerStyleContourEditor: React.FC<{
     event.preventDefault();
     event.stopPropagation();
     dragIndexRef.current = index;
-    onInteractionStart?.();
+    const handle = onInteractionStart?.();
+    if (handle === false) {
+      dragIndexRef.current = null;
+      return;
+    }
+    interactionHandleRef.current = handle;
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
 
@@ -96,7 +107,9 @@ export const LayerStyleContourEditor: React.FC<{
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    onInteractionEnd?.();
+    const handle = interactionHandleRef.current;
+    interactionHandleRef.current = undefined;
+    onInteractionEnd?.(handle);
   };
 
   const cancelDrag = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -105,16 +118,21 @@ export const LayerStyleContourEditor: React.FC<{
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    onInteractionCancel?.();
+    const handle = interactionHandleRef.current;
+    interactionHandleRef.current = undefined;
+    onInteractionCancel?.(handle);
   };
 
   const removePoint = (event: React.MouseEvent<SVGCircleElement>, index: number) => {
     if (index === 0 || index === points.length - 1) return;
     event.preventDefault();
     event.stopPropagation();
-    onInteractionStart?.();
+    const handle = onInteractionStart?.();
+    if (handle === false) return;
+    interactionHandleRef.current = handle;
     publish(points.filter((_, pointIndex) => pointIndex !== index));
-    onInteractionEnd?.();
+    interactionHandleRef.current = undefined;
+    onInteractionEnd?.(handle);
   };
 
   return (

@@ -1,7 +1,5 @@
-import { AngleControl as BaseAngleField, Checkbox, PanelSection, IconButton, MaskIcon,
-  PanelSectionHeader, Button, SelectField as BaseSelectField,
-  SwitchControl as BaseSwitchControl } from '@lighttable/ui';
-import { ButtonBase } from '../../../ui/ButtonBase';
+import { PanelSection, IconButton, MaskIcon,
+  PanelSectionHeader, Button } from '@lighttable/ui';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { Select } from '@lighttable/ui';
@@ -19,166 +17,29 @@ import type {
   LayerStyleKind,
   LayerStyleStack
 } from '../styles/layerStyleTypes';
-import { LayerStyleContourEditor as BaseLayerStyleContourEditor } from './LayerStyleContourEditor';
-import { LayerStyleGradientEditor as BaseLayerStyleGradientEditor } from './LayerStyleGradientEditor';
+import type { LayerStyleInteractionAdmission } from '../../application/styles/useLayerStyleEditorController';
 import {
-  PanelCheckboxField as BaseToggleField,
-  PanelColorSwatch as BaseColorSwatch,
-  PanelNumberSlider as BaseNumberSlider
-} from '../../../ui/PanelControls';
+  AngleField,
+  ColorSwatch,
+  LayerStyleContourEditor,
+  LayerStyleGradientEditor,
+  LayerStyleInteractionContext,
+  NumberSlider,
+  SelectField,
+  SwitchControl,
+  ToggleField,
+  type LayerStyleInteractionCallbacks
+} from './LayerStyleInteractionControls';
 
 interface LayerStyleEditorProps {
-  mode?: 'dialog' | 'panel';
-  layerName: string;
   initialStack: LayerStyleStack;
   initialEffectId?: LayerStyleId;
   previewIntervalMs?: number;
-  onPreview: (stack: LayerStyleStack) => void;
-  onInteractionStart?: () => void;
-  onInteractionCommit?: () => void;
-  onInteractionCancel?: () => void;
-  onCancel?: () => void;
-  onCommit?: () => void;
+  onPreview: (stack: LayerStyleStack, admission: LayerStyleInteractionAdmission) => void;
+  onInteractionStart?: () => LayerStyleInteractionAdmission;
+  onInteractionCommit?: (admission: LayerStyleInteractionAdmission) => void;
+  onInteractionCancel?: (admission: LayerStyleInteractionAdmission) => void;
 }
-
-interface LayerStyleInteractionCallbacks {
-  start(): void;
-  finish(): void;
-  cancel(): void;
-}
-
-const LayerStyleInteractionContext = React.createContext<LayerStyleInteractionCallbacks | null>(null);
-
-const useLayerStyleInteraction = () => React.useContext(LayerStyleInteractionContext);
-
-const NumberSlider: React.FC<React.ComponentProps<typeof BaseNumberSlider>> = (props) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseNumberSlider {...props}
-    onInteractionStart={() => {
-      props.onInteractionStart?.();
-      interaction?.start();
-    }}
-    onInteractionEnd={() => {
-      props.onInteractionEnd?.();
-      interaction?.finish();
-    }}
-    onInteractionCancel={() => {
-      props.onInteractionCancel?.();
-      interaction?.cancel();
-    }} />;
-};
-
-const ToggleField: React.FC<React.ComponentProps<typeof BaseToggleField>> = ({ onChange, ...props }) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseToggleField {...props} onChange={(checked) => {
-    interaction?.start();
-    onChange(checked);
-    interaction?.finish();
-  }} />;
-};
-
-const SelectField: React.FC<React.ComponentProps<typeof BaseSelectField>> = ({ onChange, ...props }) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseSelectField {...props} onChange={(value) => {
-    interaction?.start();
-    onChange(value);
-    interaction?.finish();
-  }} />;
-};
-
-const SwitchControl: React.FC<React.ComponentProps<typeof BaseSwitchControl>> = ({
-  onCheckedChange,
-  ...props
-}) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseSwitchControl {...props} onCheckedChange={(checked) => {
-    interaction?.start();
-    onCheckedChange(checked);
-    interaction?.finish();
-  }} />;
-};
-
-const ColorSwatch = <T extends React.ComponentProps<typeof BaseColorSwatch>['value']>(
-  props: React.ComponentProps<typeof BaseColorSwatch<T>>
-) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseColorSwatch {...props}
-    onInteractionStart={() => {
-      props.onInteractionStart?.();
-      interaction?.start();
-    }}
-    onInteractionCommit={() => {
-      props.onInteractionCommit?.();
-      interaction?.finish();
-    }}
-    onInteractionCancel={() => {
-      props.onInteractionCancel?.();
-      interaction?.cancel();
-    }} />;
-};
-
-const AngleField: React.FC<React.ComponentProps<typeof BaseAngleField>> = (props) => {
-  const interaction = useLayerStyleInteraction();
-  const continuousRef = React.useRef(false);
-  return <BaseAngleField {...props}
-    onChange={(value) => {
-      if (continuousRef.current) {
-        props.onChange(value);
-        return;
-      }
-      interaction?.start();
-      props.onChange(value);
-      interaction?.finish();
-    }}
-    onInteractionStart={() => {
-      continuousRef.current = true;
-      props.onInteractionStart?.();
-      interaction?.start();
-    }}
-    onInteractionEnd={() => {
-      continuousRef.current = false;
-      props.onInteractionEnd?.();
-      interaction?.finish();
-    }} />;
-};
-
-const LayerStyleGradientEditor: React.FC<React.ComponentProps<typeof BaseLayerStyleGradientEditor>> = (
-  props
-) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseLayerStyleGradientEditor {...props}
-    onInteractionStart={() => {
-      props.onInteractionStart?.();
-      interaction?.start();
-    }}
-    onInteractionEnd={() => {
-      props.onInteractionEnd?.();
-      interaction?.finish();
-    }}
-    onInteractionCancel={() => {
-      props.onInteractionCancel?.();
-      interaction?.cancel();
-    }} />;
-};
-
-const LayerStyleContourEditor: React.FC<React.ComponentProps<typeof BaseLayerStyleContourEditor>> = (
-  props
-) => {
-  const interaction = useLayerStyleInteraction();
-  return <BaseLayerStyleContourEditor {...props}
-    onInteractionStart={() => {
-      props.onInteractionStart?.();
-      interaction?.start();
-    }}
-    onInteractionEnd={() => {
-      props.onInteractionEnd?.();
-      interaction?.finish();
-    }}
-    onInteractionCancel={() => {
-      props.onInteractionCancel?.();
-      interaction?.cancel();
-    }} />;
-};
 
 const STYLE_KINDS = Object.keys(layerStyleKindLabels) as LayerStyleKind[];
 
@@ -658,17 +519,13 @@ const EffectControls: React.FC<{
 };
 
 export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
-  mode = 'dialog',
-  layerName,
   initialStack,
   initialEffectId,
   previewIntervalMs = LAYER_STYLE_PREVIEW_INTERVAL_MS,
   onPreview,
   onInteractionStart,
   onInteractionCommit,
-  onInteractionCancel,
-  onCancel,
-  onCommit
+  onInteractionCancel
 }) => {
   const [draft, setDraft] = React.useState(() => cloneLayerStyleStack(initialStack));
   const draftRef = React.useRef(draft);
@@ -688,16 +545,13 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     onInteractionCancel
   };
   const interactionActiveRef = React.useRef(false);
+  const interactionHandleRef = React.useRef<LayerStyleInteractionAdmission | null>(null);
   const interactionBeforeRef = React.useRef<LayerStyleStack | null>(null);
-  const [selectedId, setSelectedId] = React.useState<LayerStyleId | null>(
-    initialEffectId ?? initialStack.effects.at(-1)?.id ?? null
-  );
   const [expandedIds, setExpandedIds] = React.useState<Set<LayerStyleId>>(() => {
     const first = initialEffectId ?? initialStack.effects.at(-1)?.id;
     return new Set(first ? [first] : []);
   });
   const [newKind, setNewKind] = React.useState<LayerStyleKind>('drop-shadow');
-  const selected = draft.effects.find((effect) => effect.id === selectedId) ?? null;
 
   const cancelScheduledPreview = React.useCallback(() => {
     if (previewTimerRef.current === null) return;
@@ -708,9 +562,10 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   const publishLatestPreview = React.useCallback(() => {
     cancelScheduledPreview();
     const next = latestPreviewRef.current;
-    if (!next) return;
+    const admission = interactionHandleRef.current;
+    if (!next || !admission) return;
     latestPreviewRef.current = null;
-    onPreviewRef.current(next);
+    onPreviewRef.current(next, admission);
   }, [cancelScheduledPreview]);
 
   const schedulePreview = React.useCallback(() => {
@@ -726,7 +581,6 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
 
   React.useEffect(() => {
     if (initialEffectId && draft.effects.some((effect) => effect.id === initialEffectId)) {
-      setSelectedId(initialEffectId);
       setExpandedIds((current) => new Set(current).add(initialEffectId));
     }
   // The requested row changes only when the Layers panel opens a specific
@@ -741,38 +595,45 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     if (interactionActiveRef.current) {
       interactionActiveRef.current = false;
       interactionBeforeRef.current = null;
-      interactionCallbacksRef.current.onInteractionCancel?.();
+      const handle = interactionHandleRef.current;
+      interactionHandleRef.current = null;
+      if (handle) interactionCallbacksRef.current.onInteractionCancel?.(handle);
     }
     publishedRevisionRef.current = initialStack.revision;
     const next = cloneLayerStyleStack(initialStack);
     draftRef.current = next;
     setDraft(next);
-    setSelectedId((current) => (
-      current && next.effects.some((effect) => effect.id === current)
-        ? current
-        : next.effects.at(-1)?.id ?? null
-    ));
   }, [cancelScheduledPreview, initialStack]);
 
   const startInteraction = React.useCallback(() => {
-    if (interactionActiveRef.current) return;
+    if (interactionActiveRef.current && interactionHandleRef.current) {
+      return { status: 'rejected' as const };
+    }
     interactionActiveRef.current = true;
     interactionBeforeRef.current = draftRef.current;
-    interactionCallbacksRef.current.onInteractionStart?.();
+    const handle = interactionCallbacksRef.current.onInteractionStart?.()
+      ?? { status: 'rejected' as const };
+    interactionHandleRef.current = handle;
+    if (handle.status === 'rejected') {
+      interactionActiveRef.current = false;
+      interactionBeforeRef.current = null;
+    }
+    return handle;
   }, []);
 
-  const finishInteraction = React.useCallback(() => {
-    if (!interactionActiveRef.current) return;
+  const finishInteraction = React.useCallback((handle: LayerStyleInteractionAdmission) => {
+    if (!interactionActiveRef.current || interactionHandleRef.current !== handle) return;
     publishLatestPreview();
     interactionActiveRef.current = false;
     interactionBeforeRef.current = null;
-    interactionCallbacksRef.current.onInteractionCommit?.();
+    interactionHandleRef.current = null;
+    interactionCallbacksRef.current.onInteractionCommit?.(handle);
   }, [publishLatestPreview]);
 
-  const cancelInteraction = React.useCallback((restoreDraft = true) => {
+  const cancelInteraction = React.useCallback((handle: LayerStyleInteractionAdmission | null, restoreDraft = true) => {
     cancelScheduledPreview();
     latestPreviewRef.current = null;
-    if (!interactionActiveRef.current) return;
+    if (!interactionActiveRef.current || interactionHandleRef.current !== handle) return;
     interactionActiveRef.current = false;
     const before = interactionBeforeRef.current;
     interactionBeforeRef.current = null;
@@ -781,29 +642,19 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       publishedRevisionRef.current = before.revision;
       setDraft(before);
     }
-    interactionCallbacksRef.current.onInteractionCancel?.();
+    interactionHandleRef.current = null;
+    if (handle) interactionCallbacksRef.current.onInteractionCancel?.(handle);
   }, [cancelScheduledPreview]);
 
   const interactionCallbacks = React.useMemo<LayerStyleInteractionCallbacks>(() => ({
     start: startInteraction,
     finish: finishInteraction,
-    cancel: cancelInteraction
+    cancel: (handle) => cancelInteraction(handle)
   }), [cancelInteraction, finishInteraction, startInteraction]);
 
   React.useEffect(() => () => {
-    cancelInteraction(false);
+    cancelInteraction(interactionHandleRef.current, false);
   }, [cancelInteraction]);
-
-  const cancelDialog = () => {
-    cancelScheduledPreview();
-    latestPreviewRef.current = null;
-    onCancel?.();
-  };
-
-  const commitDialog = () => {
-    publishLatestPreview();
-    onCommit?.();
-  };
 
   const updateDraft = (updater: (current: LayerStyleStack) => LayerStyleStack) => {
     const current = draftRef.current;
@@ -814,11 +665,6 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     latestPreviewRef.current = next;
     setDraft(next);
     schedulePreview();
-  };
-
-  const patchSelected = (patch: Partial<LayerStyleInstance>) => {
-    if (!selectedId) return;
-    patchEffect(selectedId, patch);
   };
 
   const patchEffect = (effectId: LayerStyleId, patch: Partial<LayerStyleInstance>) => {
@@ -869,20 +715,16 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       effects: [...current.effects, effect],
       revision: current.revision + 1
     }));
-    setSelectedId(effect.id);
     setExpandedIds((current) => new Set(current).add(effect.id));
   };
 
   const removeEffect = (effectId: LayerStyleId) => {
-    const index = draft.effects.findIndex((effect) => effect.id === effectId);
-    if (index < 0) return;
-    const nextId = draft.effects[index - 1]?.id ?? draft.effects[index + 1]?.id ?? null;
+    if (!draft.effects.some((effect) => effect.id === effectId)) return;
     updateDraft((current) => ({
       ...current,
       effects: current.effects.filter((effect) => effect.id !== effectId),
       revision: current.revision + 1
     }));
-    if (selectedId === effectId) setSelectedId(nextId);
     setExpandedIds((current) => {
       const next = new Set(current);
       next.delete(effectId);
@@ -890,26 +732,14 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     });
   };
 
-  const moveSelected = (direction: -1 | 1) => {
-    if (!selectedId) return;
-    updateDraft((current) => {
-      const index = current.effects.findIndex((effect) => effect.id === selectedId);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.effects.length) return current;
-      const effects = [...current.effects];
-      [effects[index], effects[target]] = [effects[target], effects[index]];
-      return { ...current, effects, revision: current.revision + 1 };
-    });
-  };
-
   const performDiscreteEdit = (edit: () => void) => {
-    startInteraction();
+    const handle = startInteraction();
+    if (handle.status === 'rejected') return;
     edit();
-    finishInteraction();
+    finishInteraction(handle);
   };
 
-  if (mode === 'panel') {
-    return (
+  return (
       <LayerStyleInteractionContext.Provider value={interactionCallbacks}>
       <div
         className="lighttable-style-editor lighttable-style-editor--panel lighttable-style-editor--groups"
@@ -966,111 +796,5 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
         </div>
       </div>
       </LayerStyleInteractionContext.Provider>
-    );
-  }
-
-  return (
-    <div
-      className="lighttable-style-editor"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Layer Style"
-    >
-      <header>
-        <div>
-          <strong>Layer Style</strong>
-          <span>{layerName}</span>
-        </div>
-        <ButtonBase type="button" onClick={cancelDialog} aria-label="Close Layer Style editor">×</ButtonBase>
-      </header>
-      <div className="lighttable-style-editor__body">
-        <aside>
-          <label className="lighttable-style-stack-toggle">
-            <Checkbox tabIndex={0} checked={draft.enabled}
-              onChange={(event) => updateDraft((current) => ({
-                ...current,
-                enabled: event.currentTarget.checked,
-                revision: current.revision + 1
-              }))} />
-            <span>Effects</span>
-          </label>
-          <div className="lighttable-style-editor__effect-list">
-            {[...draft.effects].reverse().map((effect) => (
-              <div
-                key={effect.id}
-                className={effect.id === selectedId ? 'lighttable-style-editor__effect--active' : ''}
-              >
-                <Checkbox
-                  tabIndex={0}
-                  checked={effect.enabled}
-                  aria-label={`${effect.enabled ? 'Disable' : 'Enable'} ${effect.name}`}
-                  onChange={(event) => {
-                    const enabled = event.currentTarget.checked;
-                    updateDraft((current) => ({
-                      ...current,
-                      effects: current.effects.map((candidate) => candidate.id === effect.id
-                        ? { ...candidate, enabled }
-                        : candidate),
-                      revision: current.revision + 1
-                    }));
-                  }}
-                />
-                <ButtonBase type="button" onClick={() => setSelectedId(effect.id)}>
-                  {effect.name}
-                </ButtonBase>
-                <ButtonBase
-                  type="button"
-                  className="lighttable-style-editor__effect-remove"
-                  aria-label={`Remove ${effect.name}`}
-                  title={`Remove ${effect.name}`}
-                  onClick={() => removeEffect(effect.id)}
-                >×</ButtonBase>
-              </div>
-            ))}
-          </div>
-          <div className="lighttable-style-editor__add">
-            <Select value={newKind} onValueChange={(nextValue) => setNewKind(nextValue as LayerStyleKind)}>
-              {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
-            </Select>
-            <Button tabIndex={0} type="button" onClick={addStyle}>Add</Button>
-          </div>
-        </aside>
-        <main>
-          {selected ? (
-            <>
-              <div className="lighttable-style-editor__effect-heading">
-                <h3>{selected.name}</h3>
-                <div>
-                  <ButtonBase type="button" onClick={() => moveSelected(1)}
-                    disabled={draft.effects.at(-1)?.id === selectedId}
-                    title="Move effect up">↑</ButtonBase>
-                  <ButtonBase type="button" onClick={() => moveSelected(-1)}
-                    disabled={draft.effects[0]?.id === selectedId}
-                    title="Move effect down">↓</ButtonBase>
-                </div>
-              </div>
-              <EffectControls effect={selected} patch={patchSelected} />
-            </>
-          ) : (
-            <div className="lighttable-style-editor__empty">
-              Add an effect to start styling this layer.
-            </div>
-          )}
-        </main>
-      </div>
-      <footer>
-        <div className="lighttable-style-editor__scale">
-          <NumberSlider label="Scale effects" value={draft.scale * 100} min={1} max={1000}
-            suffix="%" resetValue={100}
-            onChange={(scale) => updateDraft((current) => ({
-              ...current,
-              scale: scale / 100,
-              revision: current.revision + 1
-            }))} />
-        </div>
-        <Button tabIndex={0} type="button" onClick={cancelDialog}>Cancel</Button>
-        <Button tabIndex={0} type="button" onClick={commitDialog}>OK</Button>
-      </footer>
-    </div>
   );
 };

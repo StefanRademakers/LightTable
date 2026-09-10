@@ -142,6 +142,36 @@ describe('executeAtomicCommandBatch', () => {
       result.results[1]!.value).valid).toBe(true);
   });
 
+  it('routes Layer Style add and toggles through the semantic owner in one batch', async () => {
+    const state = fixture();
+    const result = await executeAtomicCommandBatch(batch([
+      { operationId: 'shadow', command: 'layer.effect.add', parameters: {
+        layerId: state.layerId,
+        effectKind: 'drop-shadow',
+        settings: { distance: 12, size: 8 }
+      } },
+      { operationId: 'disable-shadow', command: 'layer.effect.setEnabled', parameters: {
+        layerId: state.layerId,
+        effectId: { resultOf: 'shadow', field: 'effectId' },
+        enabled: false
+      } },
+      { operationId: 'disable-stack', command: 'layer.style.setEnabled', parameters: {
+        layerId: state.layerId,
+        enabled: false
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined);
+
+    const layer = findDocumentLayer(state.document, state.layerId)!;
+    expect(layer.styleStack.enabled).toBe(false);
+    expect(layer.styleStack.effects).toHaveLength(1);
+    expect(layer.styleStack.effects[0]).toMatchObject({ enabled: false, distance: 12, size: 8 });
+    expect(result.results.map(({ operationId }) => operationId)).toEqual([
+      'shadow', 'disable-shadow', 'disable-stack'
+    ]);
+    expect(state.publish).toHaveBeenCalledOnce();
+    expect(state.record).toHaveBeenCalledOnce();
+  });
+
   it('returns the same move and clipping result shape as direct execution', async () => {
     const state = fixture();
     const result = await executeAtomicCommandBatch(batch([

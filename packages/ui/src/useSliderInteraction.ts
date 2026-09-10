@@ -8,7 +8,7 @@ export interface LocalInteractionSession {
 /** Local feedback is immediate; only the consumer's preview is rate limited. */
 export function useSliderInteraction<T>(value: T, options: {
   onChange: (value: T, handle: InteractionHandle) => void;
-  onInteractionStart?: () => InteractionHandle;
+  onInteractionStart?: () => InteractionHandle | false;
   onInteractionEnd?: (handle: InteractionHandle) => void;
   onInteractionCancel?: (handle: InteractionHandle) => void;
   publishIntervalMs?: number | 'animation-frame';
@@ -40,10 +40,12 @@ export function useSliderInteraction<T>(value: T, options: {
   };
   const begin = () => {
     if (active.current) return session.current!;
+    const handle = callbacks.current.onInteractionStart?.();
+    if (handle === false) return null;
     active.current = true;
     baseline.current = latest.current;
     setInteracting(true);
-    session.current = { handle: callbacks.current.onInteractionStart?.() };
+    session.current = { handle };
     return session.current;
   };
   const update = (next: T) => {

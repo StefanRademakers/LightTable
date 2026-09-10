@@ -16,8 +16,6 @@ describe('LayerStyleEditor', () => {
     initialStack.effects = [createDefaultLayerStyle('drop-shadow')];
     const markup = renderToStaticMarkup(
       <LayerStyleEditor
-        mode="panel"
-        layerName="Shape"
         initialStack={initialStack}
         onPreview={vi.fn()}
       />
@@ -59,8 +57,6 @@ describe('LayerStyleEditor', () => {
     initialStack.effects = [createDefaultLayerStyle('inner-shadow')];
     const markup = renderToStaticMarkup(
       <LayerStyleEditor
-        mode="panel"
-        layerName="Shape"
         initialStack={initialStack}
         onPreview={vi.fn()}
       />
@@ -84,7 +80,7 @@ describe('LayerStyleEditor', () => {
     const initialStack = createDefaultLayerStyleStack();
     initialStack.effects = [createDefaultLayerStyle('stroke')];
     const markup = renderToStaticMarkup(
-      <LayerStyleEditor mode="panel" layerName="Shape" initialStack={initialStack}
+      <LayerStyleEditor initialStack={initialStack}
         onPreview={vi.fn()} />
     );
 
@@ -105,7 +101,7 @@ describe('LayerStyleEditor', () => {
       const initialStack = createDefaultLayerStyleStack();
       initialStack.effects = [createDefaultLayerStyle(kind)];
       const markup = renderToStaticMarkup(
-        <LayerStyleEditor mode="panel" layerName="Shape" initialStack={initialStack}
+        <LayerStyleEditor initialStack={initialStack}
           onPreview={vi.fn()} />
       );
 

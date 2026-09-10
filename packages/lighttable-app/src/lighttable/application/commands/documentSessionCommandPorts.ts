@@ -1,4 +1,5 @@
 import type { EditorApplicationSession } from '../workspace/editorApplicationSession';
+import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import type { DocumentSession } from '../documents/documentSession';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
 import {
@@ -16,14 +17,16 @@ import {
   setLayersVisibility,
   setLayerTransform
 } from '../../editor/document/documentCommands';
-import { siblingLayers } from '../../editor/document/layerTree';
-import { setLayerStyleStackEnabled } from '../../editor/styles/layerStyleCommands';
+import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { createDocumentHistoryController } from './useDocumentHistoryController';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { executeSemanticTextCommand } from '../text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 import { executeSvgImport, exportSvgDocument } from '../vectors/svgDocumentCodec';
 import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCommandExecutor';
+import { executeSemanticLayerStyleSnapshot } from '../styles/executeSemanticLayerStyleSnapshot';
+import { executeSemanticFilterSnapshot } from '../filters/executeSemanticFilterSnapshot';
+import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import { executeSemanticWarpStrokeCommand } from './semanticWarpCommandExecutor';
 import { executeSemanticFaceWarpCommand } from '../effects/faceWarp/semanticFaceWarpCommandExecutor';
 import { executeAtomicCommandBatch } from './atomicCommandBatchExecutor';
@@ -44,6 +47,7 @@ const CANONICAL_PORTS = new Set<string>([
   'setLayerFillOpacity', 'setLayerStyleEnabled', 'setLayerEffectEnabled',
   'executeTextCommand', 'executeVectorCommand', 'executeSvgImport',
   'executeWarpStrokeCommand', 'executeLayerStyleCommand', 'executeFaceWarpCommand',
+  'executeLayerStyleSnapshot', 'executeFilterSnapshot',
   'executeLayerCommand', 'executeAtomicBatch', 'exportSvgArtifact'
 ]);
 
@@ -52,6 +56,7 @@ const CANONICAL_COMMANDS = new Set<LightTableCommandId>([
   'layer.setBlendMode', 'layer.setClipping', 'layer.setTransform', 'layer.setLock',
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity',
   'layer.style.setEnabled', 'layer.style.update', 'layer.effect.setEnabled',
+  'layer.style.setSnapshot', 'filter.setSnapshot',
   'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
   'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove', 'vector.importSvg',
@@ -118,7 +123,15 @@ export const createDocumentSessionCommandPorts = (
       change((document) => setLayerFillOpacity(document, layerId, opacity));
     },
     setLayerStyleEnabled: (layerId, enabled) => {
-      change((document) => setLayerStyleStackEnabled(document, layerId, enabled));
+      const document = session.getSnapshot().document;
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      if (!layer || !layerSupportsLayerStyles(layer)) {
+        throw new Error('The layer cannot own Layer Styles.');
+      }
+      executeSemanticLayerStyleSnapshot({
+        layerId,
+        snapshot: { ...layerStyleSnapshot(layer.styleStack), enabled }
+      }, { changeDocument: mutation.change });
     },
     setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
       { kind: 'toggle', layerId, effectId, enabled }, { changeDocument: mutation.change }
@@ -144,6 +157,12 @@ export const createDocumentSessionCommandPorts = (
     executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(
       command, { changeDocument: mutation.change }
     ),
+    executeLayerStyleSnapshot: (command) => executeSemanticLayerStyleSnapshot(command, {
+      changeDocument: mutation.change
+    }),
+    executeFilterSnapshot: (command) => executeSemanticFilterSnapshot(command, {
+      changeDocument: mutation.change
+    }),
     executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(
       command, {
         getDocument: semanticDependencies.getDocument,

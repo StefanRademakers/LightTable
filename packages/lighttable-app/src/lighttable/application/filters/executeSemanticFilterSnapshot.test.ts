@@ -70,6 +70,15 @@ describe('semantic filter snapshot executor', () => {
     expect(state.history).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects non-finite settings at the terminal semantic boundary', () => {
+    const state = harness();
+    expect(() => executeSemanticFilterSnapshot({
+      target: { kind: 'layer', layerId: state.layerId },
+      snapshot: { kind: 'gaussian-blur', enabled: true, settings: { radius: Number.NaN } }
+    }, state.dependencies)).toThrow(/canonical bounds/i);
+    expect(state.history).not.toHaveBeenCalled();
+  });
+
   it('rejects a missing Displace map and accepts a raster in the same document', () => {
     const state = harness();
     state.dependencies.changeDocument((document) => createAdjustmentLayer(

@@ -46,7 +46,7 @@ export interface ColorSwatchFieldProps {
   readonly disabled?: boolean;
   readonly tabIndex?: number;
   readonly onChange: (value: string, handle: object | void) => void;
-  readonly onInteractionStart?: () => object | void;
+  readonly onInteractionStart?: () => object | false | void;
   readonly onInteractionCommit?: (handle: object | void) => void;
   readonly onInteractionCancel?: (handle: object | void) => void;
 }
@@ -145,6 +145,7 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
     // while another control can become active. Commit it synchronously only
     // after a color was actually returned.
     const handle = onInteractionStart?.();
+    if (handle === false) return;
     onChange(sampled, handle);
     onInteractionCommit?.(handle);
   };
@@ -158,7 +159,9 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
     if (presentedOpen) close(true);
     else {
       openingValueRef.current = value;
-      pickerHandleRef.current = onInteractionStart?.();
+      const handle = onInteractionStart?.();
+      if (handle === false) return;
+      pickerHandleRef.current = handle;
       setOpen(true);
     }
   };

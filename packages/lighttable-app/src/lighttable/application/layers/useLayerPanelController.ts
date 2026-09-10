@@ -92,9 +92,9 @@ export interface LayerPanelControllerDependencies {
   setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
   removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
   clearStyles(layerId: LayerId): void;
-  finishStyleEditing?(): void;
+  finishStyleEditing(): void;
   finishProcessingEditing?(): void;
-  setAttachedFilterEnabled?(layerId: LayerId, adjustmentId: string, enabled: boolean): boolean;
+  setAttachedFilterEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): boolean;
   prepareActiveLayerChange?(layerId: LayerId): void | Promise<void>;
   finishTextEditing?(): void;
 }
@@ -416,7 +416,7 @@ export const createLayerPanelController = (
         ? (layer.attachedAdjustments ?? []).find(({ id }) => id === adjustmentId)
         : null;
       if (adjustment && isFilterKind(adjustment.adjustmentKind)) {
-        dependencies.setAttachedFilterEnabled?.(layerId, adjustmentId, enabled);
+        dependencies.setAttachedFilterEnabled(layerId, adjustmentId, enabled);
         return;
       }
       mutate((current) => setRasterLayerAttachedAdjustmentEnabled(
@@ -433,12 +433,12 @@ export const createLayerPanelController = (
       resolveDependencies().setStyleEnabled(layerId, effectId, enabled),
     removeStyle: (layerId, effectId) => {
       const dependencies = resolveDependencies();
-      dependencies.finishStyleEditing?.();
+      dependencies.finishStyleEditing();
       dependencies.removeStyle(layerId, effectId);
     },
     clearStyles: (layerId) => {
       const dependencies = resolveDependencies();
-      dependencies.finishStyleEditing?.();
+      dependencies.finishStyleEditing();
       dependencies.clearStyles(layerId);
     },
   };

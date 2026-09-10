@@ -65,6 +65,7 @@ export class LayerStyleTextureStore {
   private readonly cache = new Map<LayerId, CachedStyleTexture>();
   private readonly bevelGeometryCache = new Map<string, CachedBevelGeometry>();
   private readonly effectFieldCache = new Map<string, CachedEffectField>();
+  private readonly persistentOwners = new Set<LayerId>();
 
   constructor(private readonly options: LayerStyleTextureStoreOptions) {}
 
@@ -206,6 +207,7 @@ export class LayerStyleTextureStore {
     bounds: Rect,
     precision: CachedBevelGeometry['precision']
   ) {
+    this.persistentOwners.add(layerId);
     const cacheId = `${layerId}:${effectId}`;
     let destination = this.bevelGeometryCache.get(cacheId);
     if (
@@ -253,6 +255,7 @@ export class LayerStyleTextureStore {
     source: GPUTexture,
     bounds: Rect
   ) {
+    this.persistentOwners.add(layerId);
     const cacheId = `${layerId}:${effectId}`;
     let destination = this.effectFieldCache.get(cacheId);
     if (
@@ -287,6 +290,7 @@ export class LayerStyleTextureStore {
     source: GPUTexture,
     bounds: Rect
   ) {
+    this.persistentOwners.add(layerId);
     let destination = this.cache.get(layerId);
     if (
       !destination
@@ -332,6 +336,14 @@ export class LayerStyleTextureStore {
       this.retire(field.texture);
       this.effectFieldCache.delete(key);
     }
+    this.persistentOwners.delete(layerId);
+  }
+
+  /** Retires every derived cache whose canonical presentation owner disappeared. */
+  syncOwners(activeOwners: ReadonlySet<LayerId>) {
+    for (const layerId of [...this.persistentOwners]) {
+      if (!activeOwners.has(layerId)) this.invalidate(layerId);
+    }
   }
 
   releaseCache() {
@@ -341,6 +353,7 @@ export class LayerStyleTextureStore {
     this.bevelGeometryCache.clear();
     this.effectFieldCache.forEach(({ texture }) => this.retire(texture));
     this.effectFieldCache.clear();
+    this.persistentOwners.clear();
   }
 
   releaseWorkTextures() {

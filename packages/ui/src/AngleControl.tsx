@@ -4,6 +4,13 @@ import { NumberField } from './NumberField';
 const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
 const PUBLISH_INTERVAL_MS = 33;
 
+export const admitAnglePointerInteraction = (
+  start?: () => object | false | void
+): { readonly handle: object | void } | null => {
+  const handle = start?.();
+  return handle === false ? null : { handle };
+};
+
 export interface AngleControlProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
   label: string;
   value: number;
@@ -11,15 +18,19 @@ export interface AngleControlProps extends Omit<HTMLAttributes<HTMLDivElement>, 
   disabled?: boolean;
   tabIndex?: number;
   onChange: (value: number) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
+  onInteractionStart?: () => object | false | void;
+  onInteractionEnd?: (handle: object | void) => void;
+  onInteractionCancel?: (handle: object | void) => void;
 }
 
 /** Pointer, keyboard and numeric angle input with throttled live publication. */
 export function AngleControl({ label, value, resetValue = 0, disabled = false, tabIndex = -1,
-  onChange, onInteractionStart, onInteractionEnd, className = '', ...props }: AngleControlProps) {
+  onChange, onInteractionStart, onInteractionEnd, onInteractionCancel,
+  className = '', ...props }: AngleControlProps) {
   const dial = useRef<HTMLDivElement | null>(null);
   const pointerId = useRef<number | null>(null);
+  const interactionHandle = useRef<object | void>(undefined);
+  const openingValue = useRef(normalizeAngle(value));
   const [displayValue, setDisplayValue] = useState(() => normalizeAngle(value));
   const latestValue = useRef(displayValue);
   const publishedValue = useRef(displayValue);
@@ -61,8 +72,22 @@ export function AngleControl({ label, value, resetValue = 0, disabled = false, t
     if (pointerId.current !== currentPointerId) return;
     pointerId.current = null;
     publishLatestValue(true);
-    onInteractionEnd?.();
+    const handle = interactionHandle.current;
+    interactionHandle.current = undefined;
+    onInteractionEnd?.(handle);
   }, [onInteractionEnd, publishLatestValue]);
+  const cancelPointerInteraction = useCallback((currentPointerId: number) => {
+    if (pointerId.current !== currentPointerId) return;
+    pointerId.current = null;
+    cancelScheduledPublish();
+    const restored = openingValue.current;
+    latestValue.current = restored;
+    publishedValue.current = restored;
+    setDisplayValue(restored);
+    const handle = interactionHandle.current;
+    interactionHandle.current = undefined;
+    onInteractionCancel?.(handle);
+  }, [cancelScheduledPublish, onInteractionCancel]);
   useEffect(() => {
     if (pointerId.current !== null) return;
     const next = normalizeAngle(value);
@@ -87,15 +112,18 @@ export function AngleControl({ label, value, resetValue = 0, disabled = false, t
       aria-valuenow={Math.round(normalized)} aria-valuetext={`${Math.round(normalized)} degrees`}
       onPointerDown={event => {
         if (disabled || event.button !== 0) return;
+        openingValue.current = normalizeAngle(value);
+        const admission = admitAnglePointerInteraction(onInteractionStart);
+        if (!admission) return;
         pointerId.current = event.pointerId;
-        onInteractionStart?.();
+        interactionHandle.current = admission.handle;
         event.currentTarget.setPointerCapture(event.pointerId);
         updateFromPointer(event.clientX, event.clientY);
       }}
       onPointerMove={event => { if (pointerId.current === event.pointerId) updateFromPointer(event.clientX, event.clientY); }}
       onPointerUp={event => finishPointerInteraction(event.pointerId)}
-      onPointerCancel={event => finishPointerInteraction(event.pointerId)}
-      onLostPointerCapture={event => finishPointerInteraction(event.pointerId)}
+      onPointerCancel={event => cancelPointerInteraction(event.pointerId)}
+      onLostPointerCapture={event => cancelPointerInteraction(event.pointerId)}
       onDoubleClick={() => { if (!disabled) onChange(normalizeAngle(resetValue)); }}
       onKeyDown={event => {
         if (disabled) return;

@@ -1,5 +1,5 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import type { FilterSnapshot } from './completeFilterSnapshot';
+import { parseCompleteFilterSnapshot, type FilterSnapshot } from './completeFilterSnapshot';
 import {
   applyFilterSnapshot,
   resolveFilterSnapshotOwner,
@@ -15,12 +15,14 @@ export const executeSemanticFilterSnapshot = (
   command: { readonly target: FilterSnapshotTarget; readonly snapshot: FilterSnapshot },
   dependencies: SemanticFilterSnapshotDependencies
 ): { readonly target: FilterSnapshotTarget; readonly changed: boolean } => {
+  const snapshot = parseCompleteFilterSnapshot(command.snapshot);
+  if (!snapshot) throw new Error('The filter snapshot is outside its canonical bounds.');
   let resolved = false;
   const changed = dependencies.changeDocument((document) => {
     const owner = resolveFilterSnapshotOwner(document, command.target);
     if (!owner) throw new Error('The filter owner does not exist or is locked.');
     resolved = true;
-    return applyFilterSnapshot(document, command.target, command.snapshot);
+    return applyFilterSnapshot(document, command.target, snapshot);
   });
   if (!resolved) throw new Error('The filter owner could not be resolved.');
   return { target: command.target, changed };

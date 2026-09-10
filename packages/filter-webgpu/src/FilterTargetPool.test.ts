@@ -7,7 +7,10 @@ describe('FilterTargetPool', () => {
   });
 
   it('reuses three document-sized targets and never returns an excluded texture', () => {
-    const textures = Array.from({ length: 6 }, (_, index) => ({ index, destroy: vi.fn() }));
+    const destroy = Array.from({ length: 6 }, () => vi.fn());
+    const textures = destroy.map((destroyTexture, index) => ({
+      index, destroy: destroyTexture
+    }));
     const device = { createTexture: vi.fn(() => textures.shift()!) } as unknown as GPUDevice;
     const pool = new FilterTargetPool(device);
     pool.configure(100, 50);
@@ -21,6 +24,10 @@ describe('FilterTargetPool', () => {
     pool.configure(100, 50);
     expect(device.createTexture).toHaveBeenCalledTimes(3);
     expect(pool.estimatedTextureBytes()).toBe(100 * 50 * 8 * 3);
+    pool.destroy();
+    expect(destroy.slice(0, 3).every((destroyTexture) => destroyTexture.mock.calls.length === 1))
+      .toBe(true);
+    expect(pool.estimatedTextureBytes()).toBe(0);
   });
 
   it('lets one-pass filters retain only the target count they require', () => {

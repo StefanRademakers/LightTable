@@ -118,7 +118,7 @@ but cannot inherit another item's acceptance.
 | C07 | Text, Path Text, layout/editing and semantic text transform | accepted | [x] | [x] | [x] | [x] |
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | accepted | [x] | [x] | [x] | [x] |
 | C09 | Adjustment layers and attached adjustments | accepted | [x] | [x] | [x] | [x] |
-| C10 | Layer styles/effects and filter lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
+| C10 | Layer styles/effects and filter lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
 | C12 | Shared history, command routing, Actions and MCP equivalence | queued | [ ] | [ ] | [ ] | [ ] |
 | C13 | WebGPU/render projection, device loss and resource lifetime | queued | [ ] | [ ] | [ ] | [ ] |
@@ -462,6 +462,40 @@ but cannot inherit another item's acceptance.
    stale terminal and stale live-change ownership. All were repaired. Final
    independent verdict: **ACCEPT**, no C09 P0/P1.
 6. **Next** -- C10 Layer styles/effects and filter lifecycle.
+
+## C10 acceptance record -- 2026-09-10
+
+1. **Done** -- Layer Style and attached-filter gestures now acquire one opaque,
+   exact admission handle before local mutation. Preview, commit and cancel are
+   bound to the opening document, target and renderer generation. Concurrent
+   controls fail closed without sharing or stealing the active lease; stale
+   samples and terminal callbacks are inert.
+2. **Exclusive route** -- complete style and filter snapshots publish through
+   their semantic application owners and required document-session ports. The
+   former low-level `editor/styles/layerStyleCommands.ts` publisher and the
+   nonfunctional dialog-mode editor were deleted. Boundary verification rejects
+   restoration of the removed publisher or production use of test fixtures.
+3. **Resources and performance** -- style textures and filter targets have
+   explicit owner identities and submit-fenced retirement. Inactive document
+   owners are reconciled and released. Pointer-rate edits remain disposable
+   renderer projections: a packaged 120-event Layer Style gesture submitted 22
+   frames at 17.3 Hz, created one recorded semantic command and produced no long
+   tasks, page errors or console errors.
+4. **Proof** -- UI/app typechecks and boundary audit; full workspace tests,
+   including 592 app files / 3,755 app tests and 56 packaged filter kinds;
+   instrumented desktop package; packaged Layer Style interaction, four-effect
+   lifecycle, six-cycle style-cache lifecycle and all-filter cleanup audits.
+   Every packaged audit completed without page or console errors.
+5. **Critic** -- round one rejected duplicate publishers, missing cache cleanup,
+   optional panel ports and ambiguous admission. Round two rejected incomplete
+   pointer-cancel ownership, command parity and retained dialog/facade routes.
+   The final review found one shared-handle overlap race; the second control now
+   receives a distinct rejection while the first remains sole owner. Final
+   independent verdict: **ACCEPT**, no C10 P0/P1.
+6. **Hotspot delta** -- `LayerStyleEditor.tsx` reduced from 1,128 to 800 lines
+   and interaction controls moved to a named component; the obsolete 173-line
+   command owner was removed. Remaining integration-root decomposition is C14.
+7. **Next** -- C11 Document geometry, I/O, recovery and view lifecycle.
 
 ## Slice-specific acceptance
 

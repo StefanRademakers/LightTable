@@ -286,6 +286,10 @@ export class LayerStyleRenderer {
     this.textures.invalidate(layerId);
   }
 
+  syncOwners(activeOwners: ReadonlySet<LayerId>) {
+    this.textures.syncOwners(activeOwners);
+  }
+
   releaseTargets() {
     this.textures.releaseWorkTextures();
   }

@@ -62,9 +62,10 @@ describe('LayerStylesPanel', () => {
     const styles = controller();
     const stack = createDefaultLayerStyleStack();
 
-    previewLayerStyleFromPanel(styles, 'layer' as never, stack);
+    const admission = { status: 'admitted' as const, handle: { sequence: 1 } };
+    previewLayerStyleFromPanel(styles, 'layer' as never, stack, admission);
 
     expect(styles.open).toHaveBeenCalledWith('layer');
-    expect(styles.preview).toHaveBeenCalledWith(stack);
+    expect(styles.preview).toHaveBeenCalledWith(stack, admission);
   });
 });

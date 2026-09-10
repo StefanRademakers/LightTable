@@ -43,12 +43,13 @@ describe('filter interaction session', () => {
   it('keeps preview disposable and commits exactly one history checkpoint', () => {
     const state = setup();
     const target = { kind: 'layer' as const, layerId: state.layerId };
+    const handle = state.session.begin(target)!;
     expect(state.session.preview(target, {
       kind: 'gaussian-blur', enabled: true, settings: { radius: 24 }
-    })).toBe(true);
+    }, handle)).toBe(true);
     expect(state.session.preview(target, {
       kind: 'gaussian-blur', enabled: true, settings: { radius: 48 }
-    })).toBe(true);
+    }, handle)).toBe(true);
     const committedLayer = findDocumentLayer(state.document(), state.layerId);
     expect(committedLayer?.type === 'adjustment'
       ? committedLayer.adjustmentStack.modules[0].settings
@@ -62,7 +63,7 @@ describe('filter interaction session', () => {
       : null).toBe((committedLayer?.type === 'adjustment'
       ? committedLayer.adjustmentStack.revision
       : 0) + 2);
-    expect(state.session.commit()).toBe(true);
+    expect(state.session.commit(handle)).toBe(true);
     const finalLayer = findDocumentLayer(state.document(), state.layerId);
     expect(finalLayer?.type === 'adjustment'
       ? finalLayer.adjustmentStack.revision
@@ -75,13 +76,62 @@ describe('filter interaction session', () => {
 
   it('cancels without history when renderer generation changes', () => {
     const state = setup();
-    expect(state.session.preview({ kind: 'layer', layerId: state.layerId }, {
+    const target = { kind: 'layer' as const, layerId: state.layerId };
+    const handle = state.session.begin(target)!;
+    expect(state.session.preview(target, {
       kind: 'gaussian-blur', enabled: true, settings: { radius: 48 }
-    })).toBe(true);
+    }, handle)).toBe(true);
     state.rebind();
     expect(state.session.reconcileBinding()).toBe(false);
     expect(state.session.active).toBe(false);
     expect(state.history).not.toHaveBeenCalled();
     expect(state.checkpoint).not.toHaveBeenCalled();
+  });
+
+  it('cancels the old owner when the Properties binding switches targets', () => {
+    const state = setup();
+    const target = { kind: 'layer' as const, layerId: state.layerId };
+    const handle = state.session.begin(target)!;
+    expect(state.session.preview(target, {
+      kind: 'gaussian-blur', enabled: true, settings: { radius: 31 }
+    }, handle)).toBe(true);
+
+    expect(state.session.reconcileBinding({
+      kind: 'layer', layerId: 'another-filter-layer' as typeof state.layerId
+    })).toBe(false);
+    expect(state.session.active).toBe(false);
+    expect(state.preview()).toBeNull();
+    expect(state.session.commit(handle)).toBe(false);
+    expect(state.history).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale samples and terminal callbacks from an older filter gesture', () => {
+    const state = setup();
+    const target = { kind: 'layer' as const, layerId: state.layerId };
+    const first = state.session.begin(target)!;
+    state.session.cancel(first);
+    const second = state.session.begin(target)!;
+    const snapshot = { kind: 'gaussian-blur' as const, enabled: true, settings: { radius: 33 } };
+
+    expect(state.session.preview(target, snapshot, first)).toBe(false);
+    expect(state.session.commit(first)).toBe(false);
+    expect(state.session.cancel(first)).toBe(false);
+    expect(state.session.preview(target, snapshot, second)).toBe(true);
+    expect(state.session.commit(second)).toBe(true);
+    expect(state.history).toHaveBeenCalledOnce();
+  });
+
+  it('cancels the disposable projection when terminal validation fails', () => {
+    const state = setup();
+    const target = { kind: 'layer' as const, layerId: state.layerId };
+    const handle = state.session.begin(target)!;
+    expect(state.session.preview(target, {
+      kind: 'gaussian-blur', enabled: true, settings: { radius: Number.NaN }
+    }, handle)).toBe(true);
+
+    expect(() => state.session.commit(handle)).toThrow(/canonical bounds/i);
+    expect(state.session.active).toBe(false);
+    expect(state.preview()).toBeNull();
+    expect(state.history).not.toHaveBeenCalled();
   });
 });

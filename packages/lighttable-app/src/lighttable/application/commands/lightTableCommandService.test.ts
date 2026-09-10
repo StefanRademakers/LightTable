@@ -8,7 +8,7 @@ import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { defaultFilterSettings } from '@lighttable/filter-core';
 import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
-import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { addLayerStyleFixture } from '../../editor/styles/layerStyleTestFixtures';
 import { createDefaultLayerStyleStack } from '../../editor/styles/layerStyleDefaults';
 import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import { createDefaultAdjustments } from '../../types';
@@ -2329,7 +2329,9 @@ describe('LightTableCommandService registry', () => {
   it('queries and toggles effect bypass through bounded document ports', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;
-    state.session.setDocument(addLayerStyle(state.session.getSnapshot().document!, layerId, 'drop-shadow'));
+    state.session.setDocument(addLayerStyleFixture(
+      state.session.getSnapshot().document!, layerId, 'drop-shadow'
+    ));
     const effect = state.session.getSnapshot().document!.layers
       .find(({ id }) => id === layerId)!.styleStack.effects[0]!;
 

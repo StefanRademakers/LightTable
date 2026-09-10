@@ -13,12 +13,20 @@ import type {
   DocumentMutationController
 } from '../documents/useDocumentMutationController';
 import {
+  admittedInteraction,
+  rejectedInteraction,
+  type InteractionAdmission
+} from '../interactions/interactionAdmission';
+import {
   createLayerStyleInteractionSession,
+  type LayerStyleInteractionHandle,
   type LayerStyleEditorRequest,
   type LayerStyleInteractionPort
 } from './layerStyleInteractionSession';
 
 export type { LayerStyleEditorRequest, LayerStyleInteractionPort } from './layerStyleInteractionSession';
+export type { LayerStyleInteractionHandle } from './layerStyleInteractionSession';
+export type LayerStyleInteractionAdmission = InteractionAdmission<LayerStyleInteractionHandle>;
 
 export interface LayerStyleEditorDependencies {
   activeDocument: ImageDocument | null;
@@ -33,10 +41,10 @@ export interface LayerStyleEditorController {
   request: LayerStyleEditorRequest | null;
   draftGeneration: number;
   open(layerId: LayerId, effectId?: LayerStyleId): void;
-  beginInteraction(): void;
-  preview(stack: LayerStyleStack): void;
-  commitInteraction(): void;
-  cancelInteraction(): void;
+  beginInteraction(): LayerStyleInteractionAdmission;
+  preview(stack: LayerStyleStack, admission: LayerStyleInteractionAdmission): void;
+  commitInteraction(admission: LayerStyleInteractionAdmission): void;
+  cancelInteraction(admission: LayerStyleInteractionAdmission): void;
   cancel(): void;
   commit(): void;
 }
@@ -95,21 +103,32 @@ export const useLayerStyleEditorController = (
   }));
 
   const discardInteraction = useCallback(() => {
-    interactionRef.current?.cancel();
+    interactionRef.current?.cancelActive();
   }, []);
 
   const beginInteraction = useCallback(() => {
+    // A concurrent control must fail closed without remounting the draft that
+    // belongs to the gesture which already owns the document lease.
+    if (interactionRef.current?.active) {
+      return rejectedInteraction<LayerStyleInteractionHandle>();
+    }
     const currentRequest = requestRef.current;
-    if (currentRequest) interactionRef.current?.begin(currentRequest);
+    const handle = currentRequest ? interactionRef.current?.begin(currentRequest) ?? null : null;
+    if (handle) return admittedInteraction(handle);
+    // The editor owns a local immutable draft. A rejected document lease must
+    // remount that draft from canonical state instead of leaving a convincing
+    // but uncommitted value visible in the panel.
+    setDraftGeneration((current) => current + 1);
+    return rejectedInteraction<LayerStyleInteractionHandle>();
   }, []);
 
-  const commitInteraction = useCallback(() => {
-    interactionRef.current?.commit();
+  const commitInteraction = useCallback((admission: LayerStyleInteractionAdmission) => {
+    if (admission.status === 'admitted') interactionRef.current?.commit(admission.handle);
   }, []);
 
-  const cancelInteraction = useCallback(() => {
-    discardInteraction();
-  }, [discardInteraction]);
+  const cancelInteraction = useCallback((admission: LayerStyleInteractionAdmission) => {
+    if (admission.status === 'admitted') interactionRef.current?.cancel(admission.handle);
+  }, []);
 
   const open = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
     const current = dependenciesRef.current.getDocument();
@@ -125,9 +144,11 @@ export const useLayerStyleEditorController = (
     setRequest({ layerId, effectId, before: current });
   }, [discardInteraction, setRequest]);
 
-  const preview = useCallback((stack: LayerStyleStack) => {
+  const preview = useCallback((stack: LayerStyleStack, admission: LayerStyleInteractionAdmission) => {
     const currentRequest = requestRef.current;
-    if (currentRequest) interactionRef.current?.preview(currentRequest, stack);
+    if (currentRequest && admission.status === 'admitted') interactionRef.current?.preview(
+      currentRequest, stack, admission.handle
+    );
   }, []);
 
   const cancel = useCallback(() => {
@@ -136,9 +157,9 @@ export const useLayerStyleEditorController = (
   }, [discardInteraction, setRequest]);
 
   const commit = useCallback(() => {
-    commitInteraction();
+    interactionRef.current?.commitActive();
     setRequest(null);
-  }, [commitInteraction, setRequest]);
+  }, [setRequest]);
 
   useEffect(() => {
     const currentRequest = requestRef.current;

@@ -1,5 +1,8 @@
 import React from 'react';
-import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
+import type {
+  LayerStyleEditorController,
+  LayerStyleInteractionAdmission
+} from '../../application/styles/useLayerStyleEditorController';
 import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { findDocumentLayer, walkLayerTree } from '../document/layerTree';
 import { layerSupportsLayerStyles } from '../document/documentTypes';
@@ -21,10 +24,11 @@ export const layerStyleEditorInstanceKey = (
 export const previewLayerStyleFromPanel = (
   controller: LayerStyleEditorController,
   layerId: LayerId,
-  stack: LayerStyleStack
+  stack: LayerStyleStack,
+  handle: LayerStyleInteractionAdmission
 ) => {
   if (controller.request?.layerId !== layerId) controller.open(layerId);
-  controller.preview(stack);
+  controller.preview(stack, handle);
 };
 
 /** Contextual, dockable layer-effects inspector for the active layer. */
@@ -66,21 +70,19 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
     <aside className="lighttable-panel lighttable-layer-styles-panel" aria-label="Layer effects">
       <LayerStyleEditor
         key={layerStyleEditorInstanceKey(document!.id, target.id, controller.draftGeneration)}
-        mode="panel"
-        layerName={target.name}
         initialStack={target.styleStack}
         previewIntervalMs={previewIntervalMs}
         initialEffectId={request?.layerId === target.id ? request.effectId : undefined}
-        onPreview={(stack) => {
+        onPreview={(stack, handle) => {
           // Merely mounting or revealing the persistent Effects tab must not
           // start a document transaction. Open it lazily on the first authored
           // change so unrelated tool gestures cannot be absorbed into style
           // history while the panel sits in the background.
-          previewLayerStyleFromPanel(controller, target.id, stack);
+          previewLayerStyleFromPanel(controller, target.id, stack, handle);
         }}
         onInteractionStart={() => {
           if (controller.request?.layerId !== target.id) controller.open(target.id);
-          controller.beginInteraction();
+          return controller.beginInteraction();
         }}
         onInteractionCommit={controller.commitInteraction}
         onInteractionCancel={controller.cancelInteraction}

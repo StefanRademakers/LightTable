@@ -6,6 +6,7 @@ import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { SwitchControl } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type {
+  FilterInteractionAdmission,
   P0FilterCommands,
   P0FilterPresentation
 } from '../../application/filters/useP0FilterController';
@@ -54,17 +55,23 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
                 value={Number(valueAtPath(settings, control.key))} min={control.min} max={control.max}
                 step={control.step} format={(value) => formatted(value, control.unit)}
                 resetValue={Number(valueAtPath(defaults, control.key))} disabled={!model.enabled}
-                onChange={(value) => commands.updateSetting(control.key, value)}
+                onChange={(value, handle) => commands.updateSetting(
+                  control.key, value, handle as FilterInteractionAdmission
+                )}
                 onReset={commands.reset} onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment} />
+                onInteractionEnd={(handle) => commands.endAdjustment(
+                  handle as FilterInteractionAdmission
+                )}
+                onInteractionCancel={(handle) => commands.cancelAdjustment(
+                  handle as FilterInteractionAdmission
+                )} />
             ) : control.type === 'select' ? (
               <PanelSelectField key={control.key} label={control.label}
                 value={String(valueAtPath(settings, control.key))} options={control.options}
                 onChange={(value) => {
-                  commands.beginAdjustment();
-                  commands.updateSetting(control.key, value);
-                  commands.endAdjustment();
+                  const handle = commands.beginAdjustment();
+                  commands.updateSetting(control.key, value, handle);
+                  commands.endAdjustment(handle);
                 }} />
             ) : (
               <PanelSelectField key={control.key} label={control.label}
@@ -74,9 +81,9 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
                   ...model.rasterSources
                 ]}
                 onChange={(value) => {
-                  commands.beginAdjustment();
-                  commands.updateSetting(control.key, value || null);
-                  commands.endAdjustment();
+                  const handle = commands.beginAdjustment();
+                  commands.updateSetting(control.key, value || null, handle);
+                  commands.endAdjustment(handle);
                 }} />
             ))}
           </div>

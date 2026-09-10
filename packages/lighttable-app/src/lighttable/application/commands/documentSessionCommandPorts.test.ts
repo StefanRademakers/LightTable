@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer } from '../../editor/document/documentCommands';
+import { createAdjustmentLayer, createRasterLayer } from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { EditorApplicationSession } from '../workspace/editorApplicationSession';
 import { WorkspaceSession } from '../workspace/workspaceSession';
@@ -8,6 +8,10 @@ import { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 import { LightTableCommandService } from './lightTableCommandService';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
 import { canReadInactiveFlatRaster } from './inactiveFlatRasterArtifacts';
+import { findDocumentLayer } from '../../editor/document/layerTree';
+import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
+import { filterSnapshot } from '../filters/completeFilterSnapshot';
+import { createFilterStack } from '../../processing/filter';
 import { LIGHTTABLE_COMMAND_IDS } from '@lighttable/command-contract';
 import {
   MOUNTED_DOCUMENT_COMMANDS,
@@ -106,6 +110,48 @@ describe('document-lifetime command ownership', () => {
     expect(workspace.getSnapshot().activeDocumentId).toBe(activeBefore);
 
     service.dispose();
+    workspace.dispose();
+  });
+
+  it('executes complete style and filter snapshots for an inactive document', () => {
+    const workspace = new WorkspaceSession({ createId: () => 'document-effects' as never });
+    const opened = workspace.open({
+      source: { id: 'source-effects', name: 'Effects.psd', mediaType: 'image/vnd.adobe.photoshop' }
+    });
+    if (!opened.ok) throw new Error('The effects fixture did not open.');
+    let document = createImageDocument('Effects', 80, 60, 'source-effects');
+    const styledLayerId = document.activeLayerId!;
+    document = createAdjustmentLayer(
+      document,
+      createFilterStack('gaussian-blur'),
+      'Gaussian Blur',
+      styledLayerId,
+      'gaussian-blur'
+    );
+    const filterLayerId = document.activeLayerId!;
+    opened.value.setDocument(document);
+    opened.value.setReady();
+    const ports = createDocumentSessionCommandPorts(opened.value, new EditorApplicationSession());
+    const styledLayer = findDocumentLayer(document, styledLayerId)!;
+
+    expect(ports.supportsCommand?.('layer.style.setSnapshot')).toBe(true);
+    expect(ports.supportsCommand?.('filter.setSnapshot')).toBe(true);
+    ports.executeLayerStyleSnapshot?.({
+      layerId: styledLayerId,
+      snapshot: { ...layerStyleSnapshot(styledLayer.styleStack), enabled: false }
+    });
+    ports.executeFilterSnapshot?.({
+      target: { kind: 'layer', layerId: filterLayerId },
+      snapshot: filterSnapshot('gaussian-blur', true, { radius: 22 })
+    });
+
+    expect(findDocumentLayer(opened.value.getSnapshot().document!, styledLayerId)?.styleStack.enabled)
+      .toBe(false);
+    const filterLayer = findDocumentLayer(opened.value.getSnapshot().document!, filterLayerId);
+    expect(filterLayer?.type === 'adjustment'
+      ? filterLayer.adjustmentStack.modules[0]?.settings
+      : null).toMatchObject({ radius: 22 });
+    expect(opened.value.getSnapshot().history.undoDepth).toBe(2);
     workspace.dispose();
   });
 

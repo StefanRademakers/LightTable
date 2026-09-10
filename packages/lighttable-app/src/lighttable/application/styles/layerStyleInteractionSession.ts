@@ -1,13 +1,14 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { setLayerStyleStack } from '../../editor/styles/layerStyleCommands';
 import type { LayerStyleId, LayerStyleStack } from '../../editor/styles/layerStyleTypes';
 import type {
   DocumentMutationController,
   DocumentMutationCloseReason,
   DocumentMutationTransaction
 } from '../documents/useDocumentMutationController';
+import { applyLayerStyleSnapshot, projectLayerStylePreview } from './layerStyleSnapshotOwner';
+import { layerStyleSnapshot } from './completeLayerStyleSnapshot';
 
 export interface LayerStyleInteractionPort {
   setLayerStyleInteractionActive(active: boolean, layerId?: LayerId): void;
@@ -29,10 +30,17 @@ export interface LayerStyleInteractionSessionDependencies {
 }
 
 interface ActiveLayerStyleInteraction {
+  readonly handle: LayerStyleInteractionHandle;
   readonly request: LayerStyleEditorRequest;
   readonly renderer: LayerStyleInteractionPort | null;
   readonly rendererGeneration: number;
   readonly transaction: DocumentMutationTransaction;
+  desiredStack: LayerStyleStack;
+  previewGeneration: number;
+}
+
+export interface LayerStyleInteractionHandle {
+  readonly sequence: number;
 }
 
 const sameTarget = (left: LayerStyleEditorRequest, right: LayerStyleEditorRequest) => (
@@ -43,10 +51,13 @@ const sameTarget = (left: LayerStyleEditorRequest, right: LayerStyleEditorReques
 
 export interface LayerStyleInteractionSession {
   readonly active: boolean;
-  begin(request: LayerStyleEditorRequest): boolean;
-  preview(request: LayerStyleEditorRequest, stack: LayerStyleStack): boolean;
-  commit(): boolean;
-  cancel(): boolean;
+  begin(request: LayerStyleEditorRequest): LayerStyleInteractionHandle | null;
+  preview(request: LayerStyleEditorRequest, stack: LayerStyleStack,
+    handle: LayerStyleInteractionHandle | void): boolean;
+  commit(handle: LayerStyleInteractionHandle | void): boolean;
+  commitActive(): boolean;
+  cancel(handle: LayerStyleInteractionHandle | void): boolean;
+  cancelActive(): boolean;
   reconcileBinding(): boolean;
 }
 
@@ -55,6 +66,7 @@ export const createLayerStyleInteractionSession = (
   resolveDependencies: () => LayerStyleInteractionSessionDependencies
 ): LayerStyleInteractionSession => {
   let active: ActiveLayerStyleInteraction | null = null;
+  let sequence = 0;
 
   const leaveRenderer = (interaction: ActiveLayerStyleInteraction) => {
     interaction.renderer?.setLayerStyleInteractionActive(false, interaction.request.layerId);
@@ -80,7 +92,7 @@ export const createLayerStyleInteractionSession = (
       && interaction.transaction.active);
   };
 
-  const cancel = () => {
+  const cancelActive = () => {
     const interaction = active;
     if (!interaction) return false;
     try {
@@ -91,8 +103,10 @@ export const createLayerStyleInteractionSession = (
   };
 
   const begin = (request: LayerStyleEditorRequest) => {
-    if (active && sameTarget(active.request, request) && liveOwner(active)) return true;
-    cancel();
+    // A pointer gesture exclusively owns its admission handle. Sharing that
+    // handle with a second control lets the first pointerup commit while the
+    // second control continues publishing an unowned local draft.
+    if (active) return null;
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
     const layer = document && document.id === request.before.id
@@ -100,9 +114,9 @@ export const createLayerStyleInteractionSession = (
       : null;
     if (!document || !layer || !layerSupportsLayerStyles(layer) || layer.locks.all
       || (request.effectId
-        && !layer.styleStack.effects.some(({ id }) => id === request.effectId))) return false;
+        && !layer.styleStack.effects.some(({ id }) => id === request.effectId))) return null;
     const renderer = dependencies.getRenderer();
-    if (!renderer) return false;
+    if (!renderer) return null;
     const rendererGeneration = dependencies.getRendererGeneration();
     let interaction: ActiveLayerStyleInteraction | null = null;
     const transaction = dependencies.documentMutations.begin(
@@ -114,59 +128,91 @@ export const createLayerStyleInteractionSession = (
       },
       'cancel'
     );
-    if (!transaction) return false;
-    interaction = { request, renderer, rendererGeneration, transaction };
+    if (!transaction) return null;
+    const handle = { sequence: ++sequence };
+    interaction = {
+      handle, request, renderer, rendererGeneration, transaction,
+      desiredStack: layer.styleStack,
+      previewGeneration: 0
+    };
     active = interaction;
     try {
       renderer?.setLayerStyleInteractionActive(true, request.layerId);
     } catch (error) {
-      cancel();
+      cancelActive();
       throw error;
     }
-    return true;
+    return handle;
+  };
+
+  const commitActive = () => {
+    const interaction = active;
+    if (!interaction) return false;
+    if (!liveOwner(interaction)) {
+      cancelActive();
+      return false;
+    }
+    try {
+      interaction.transaction.stage(() => applyLayerStyleSnapshot(
+        interaction.transaction.before,
+        interaction.request.layerId,
+        layerStyleSnapshot(interaction.desiredStack)
+      ));
+    } catch (error) {
+      cancelActive();
+      throw error;
+    }
+    const before = interaction.transaction.before;
+    const after = interaction.transaction.current;
+    try {
+      const changed = interaction.transaction.commit();
+      if (changed) {
+        resolveDependencies().onCheckpoint?.(
+          before, after, interaction.request.layerId
+        );
+      }
+      return changed;
+    } finally {
+      close(interaction);
+    }
   };
 
   return {
     get active() { return active !== null; },
     begin,
-    preview: (request, stack) => {
-      if (!active || !sameTarget(active.request, request)) {
-        if (!begin(request)) return false;
-      }
+    preview: (request, stack, handle) => {
       const interaction = active;
-      if (!interaction || !liveOwner(interaction)) {
-        cancel();
-        return false;
-      }
-      return interaction.transaction.change((current) => (
-        setLayerStyleStack(current, interaction.request.layerId, stack)
-      ));
-    },
-    commit: () => {
-      const interaction = active;
-      if (!interaction) return false;
+      if (!interaction || interaction.handle !== handle
+        || !sameTarget(interaction.request, request)) return false;
       if (!liveOwner(interaction)) {
-        cancel();
+        cancelActive();
         return false;
       }
-      const before = interaction.transaction.before;
-      const after = interaction.transaction.current;
+      interaction.desiredStack = stack;
+      interaction.previewGeneration += 1;
       try {
-        const changed = interaction.transaction.commit();
-        if (changed) {
-          resolveDependencies().onCheckpoint?.(
-            before, after, interaction.request.layerId
-          );
-        }
-        return changed;
-      } finally {
-        close(interaction);
+        return interaction.transaction.change(() => projectLayerStylePreview(
+          interaction.transaction.before,
+          interaction.request.layerId,
+          stack,
+          interaction.previewGeneration
+        ));
+      } catch (error) {
+        cancelActive();
+        throw error;
       }
     },
-    cancel,
+    commit: (handle) => {
+      const interaction = active;
+      if (!interaction || interaction.handle !== handle) return false;
+      return commitActive();
+    },
+    commitActive,
+    cancel: (handle) => active?.handle === handle ? cancelActive() : false,
+    cancelActive,
     reconcileBinding: () => {
       if (!active || liveOwner(active)) return true;
-      cancel();
+      cancelActive();
       return false;
     }
   };

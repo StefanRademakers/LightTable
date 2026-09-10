@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { Rect } from "../document/documentTypes";
+import type { FilterInteractionAdmission } from "../../application/filters/useP0FilterController";
 
 export interface FilterCenterPoint {
   readonly x: number;
@@ -15,16 +16,17 @@ interface FilterCenterOverlayProps {
   readonly documentWidth: number;
   readonly documentHeight: number;
   readonly interactive?: boolean;
-  readonly onChange: (center: FilterCenterPoint) => void;
-  readonly onInteractionStart: () => void;
-  readonly onInteractionEnd: () => void;
-  readonly onInteractionCancel: () => void;
+  readonly onChange: (center: FilterCenterPoint, admission: FilterInteractionAdmission) => void;
+  readonly onInteractionStart: () => FilterInteractionAdmission;
+  readonly onInteractionEnd: (admission: FilterInteractionAdmission) => void;
+  readonly onInteractionCancel: (admission: FilterInteractionAdmission) => void;
 }
 
 interface DragState {
   readonly pointerId: number;
   readonly capture: SVGCircleElement;
   changed: boolean;
+  readonly admission: FilterInteractionAdmission;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -57,16 +59,30 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
     if (!dragRef.current) setDragCenter(null);
   }, [center.x, center.y]);
 
+  const cancelActiveDrag = useCallback(() => {
+    const drag = dragRef.current;
+    if (!drag) return false;
+    dragRef.current = null;
+    if (drag.capture.hasPointerCapture(drag.pointerId)) {
+      drag.capture.releasePointerCapture(drag.pointerId);
+    }
+    setDragCenter(null);
+    onInteractionCancel(drag.admission);
+    return true;
+  }, [onInteractionCancel]);
+
   const begin: React.PointerEventHandler<SVGCircleElement> = (event) => {
     if (!interactive || event.button !== 0) return;
+    const admission = onInteractionStart();
+    if (admission.status === 'rejected') return;
     dragRef.current = {
       pointerId: event.pointerId,
       capture: event.currentTarget,
       changed: false,
+      admission,
     };
     setDragCenter(center);
     event.currentTarget.setPointerCapture(event.pointerId);
-    onInteractionStart();
     event.preventDefault();
     event.stopPropagation();
   };
@@ -85,7 +101,7 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
     };
     drag.changed = true;
     setDragCenter(next);
-    onChange(next);
+    onChange(next, drag.admission);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -98,7 +114,7 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
       drag.capture.releasePointerCapture(event.pointerId);
     }
     setDragCenter(null);
-    onInteractionEnd();
+    onInteractionEnd(drag.admission);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -106,22 +122,16 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
   const cancel: React.PointerEventHandler<SVGSVGElement> = (event) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    if (drag.capture.hasPointerCapture(event.pointerId)) {
-      drag.capture.releasePointerCapture(event.pointerId);
-    }
-    setDragCenter(null);
-    onInteractionCancel();
+    cancelActiveDrag();
     event.preventDefault();
     event.stopPropagation();
   };
 
   useEffect(() => {
     if (interactive || !dragRef.current) return;
-    dragRef.current = null;
-    setDragCenter(null);
-    onInteractionCancel();
-  }, [interactive, onInteractionCancel]);
+    cancelActiveDrag();
+  }, [interactive, cancelActiveDrag]);
+  useEffect(() => () => { cancelActiveDrag(); }, [cancelActiveDrag]);
 
   return (
     <svg
@@ -132,6 +142,7 @@ export const FilterCenterOverlay: React.FC<FilterCenterOverlayProps> = ({
       onPointerMove={move}
       onPointerUp={end}
       onPointerCancel={cancel}
+      onLostPointerCapture={cancel}
       aria-label="Filter center controls"
     >
       <line

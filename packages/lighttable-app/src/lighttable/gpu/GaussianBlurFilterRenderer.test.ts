@@ -75,14 +75,16 @@ describe('GaussianBlurFilterRenderer', () => {
       documentMutations: mutations
     }));
     const target = { kind: 'layer' as const, layerId };
+    const handle = session.begin(target);
+    if (!handle) throw new Error('filter interaction was not admitted');
     expect(session.preview(target, {
       kind: 'gaussian-blur', enabled: true, settings: { radius: 12 }
-    })).toBe(true);
+    }, handle)).toBe(true);
     expect(session.preview(target, {
       kind: 'gaussian-blur', enabled: true, settings: { radius: 24 }
-    })).toBe(true);
+    }, handle)).toBe(true);
     expect(test.writeBuffer).toHaveBeenCalledTimes(4);
-    expect(session.commit()).toBe(true);
+    expect(session.commit(handle)).toBe(true);
     expect(test.writeBuffer).toHaveBeenCalledTimes(6);
     const entry = history[0];
     if (!entry) throw new Error('filter history missing');

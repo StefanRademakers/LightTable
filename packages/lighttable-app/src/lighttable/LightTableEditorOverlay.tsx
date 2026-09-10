@@ -8418,8 +8418,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onCropCommit: commitCrop,
         onCropCancel: cancelCrop,
         filterCenter: activeFilterCenter,
-        onFilterCenterChange: (center) => {
-          p0FilterController.commands.updateSetting('center', center);
+        onFilterCenterChange: (center, handle) => {
+          p0FilterController.commands.updateSetting(
+            'center', center, handle as ReturnType<typeof p0FilterController.commands.beginAdjustment>
+          );
         },
         onFilterCenterInteractionStart: p0FilterController.commands.beginAdjustment,
         onFilterCenterInteractionEnd: p0FilterController.commands.endAdjustment,

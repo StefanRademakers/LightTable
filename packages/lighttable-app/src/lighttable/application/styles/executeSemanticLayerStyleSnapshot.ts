@@ -1,13 +1,10 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { setLayerStyleStack } from '../../editor/styles/layerStyleCommands';
 import {
-  layerStyleSnapshot,
-  layerStyleSnapshotsEqual,
-  materializeLayerStyleSnapshot,
   type LayerStyleSnapshot
 } from './completeLayerStyleSnapshot';
+import { applyLayerStyleSnapshot } from './layerStyleSnapshotOwner';
 
 export interface SemanticLayerStyleSnapshotDependencies {
   changeDocument(change: (document: ImageDocument) => ImageDocument): boolean;
@@ -26,10 +23,7 @@ export const executeSemanticLayerStyleSnapshot = (
     }
     if (layer.locks.all) throw new Error('The layer is locked against Layer Style edits.');
     resolvedLayerId = layer.id;
-    if (layerStyleSnapshotsEqual(layerStyleSnapshot(layer.styleStack), command.snapshot)) return document;
-    return setLayerStyleStack(document, layer.id, materializeLayerStyleSnapshot(
-      command.snapshot, layer.styleStack.revision + 1
-    ));
+    return applyLayerStyleSnapshot(document, layer.id, command.snapshot);
   });
   if (!resolvedLayerId) throw new Error('The Layer Style owner could not be resolved.');
   return { layerId: resolvedLayerId, changed };

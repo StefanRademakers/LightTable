@@ -43,7 +43,10 @@ import {
 import { translationMatrix } from '../tools/transform/affine';
 import { findDocumentLayer, findRasterLayer, walkRasterLayers } from '../document/layerTree';
 import { buildLayeredDocumentFile, parseLayeredDocumentFile } from './layeredDocumentFormat';
-import { addLayerStyle, updateLayerStyle } from '../styles/layerStyleCommands';
+import {
+  addLayerStyleFixture,
+  updateLayerStyleFixture
+} from '../styles/layerStyleTestFixtures';
 import { fingerprintFontBytes } from '../../text/fonts/DocumentFontRegistry';
 import {
   addWarpNodeToStack,
@@ -614,9 +617,9 @@ describe('LightTable layered PNG format', () => {
   it('keeps a PNG preview and restores layer metadata and binary assets', async () => {
     let document = createRasterLayer(createImageDocument('Test', 64, 32, 'source'));
     const styledLayerId = document.activeLayerId!;
-    document = addLayerStyle(document, styledLayerId, 'drop-shadow');
+    document = addLayerStyleFixture(document, styledLayerId, 'drop-shadow');
     const shadowId = findDocumentLayer(document, styledLayerId)!.styleStack.effects[0].id;
-    document = updateLayerStyle(document, styledLayerId, shadowId, (effect) => ({
+    document = updateLayerStyleFixture(document, styledLayerId, shadowId, (effect) => ({
       ...effect,
       opacity: 0.42
     }));

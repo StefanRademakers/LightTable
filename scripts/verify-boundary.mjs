@@ -119,6 +119,7 @@ const rendererFacadeImports = new Set([
   './LayerThumbnailService',
   './RasterDocumentOperations',
   './SelectionShapeProjectionService',
+  './layerStyleRuntimeOwners',
   './createLayerDocumentRendererRuntime',
   './renderContract'
 ]);
@@ -664,6 +665,68 @@ function verifyAdjustmentCutover(relativePath, source) {
   }
 }
 
+function verifyStyleAndFilterCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.endsWith('.test.ts') && !normalizedPath.endsWith('.test.tsx')
+    && source.includes('layerStyleTestFixtures')) {
+    failures.push(`${relativePath}: test-only Layer Style writers cannot enter production routes`);
+  }
+  if (source.includes('layerStyleDocumentWriter')
+    && !normalizedPath.endsWith('/application/styles/layerStyleSnapshotOwner.ts')
+    && !normalizedPath.endsWith('/editor/styles/layerStyleTestFixtures.ts')) {
+    failures.push(`${relativePath}: only the canonical snapshot owner may import the low-level Layer Style writer`);
+  }
+  if (normalizedPath.endsWith('/application/styles/layerStyleInteractionSession.ts')) {
+    if (!source.includes('readonly handle: LayerStyleInteractionHandle')
+      || !source.includes('interaction.handle !== handle')
+      || !source.includes('dependencies.getRenderer() === interaction.renderer')
+      || !source.includes('dependencies.getRendererGeneration() === interaction.rendererGeneration')
+      || !source.includes("dependencies.documentMutations.begin(")) {
+      failures.push(`${relativePath}: Layer Style gestures must retain exact UI, document and renderer ownership`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/filters/filterInteractionSession.ts')) {
+    if (!source.includes('readonly handle: FilterInteractionHandle')
+      || !source.includes('interaction.handle !== handle')
+      || !source.includes('dependencies.getRenderer() === interaction.renderer')
+      || !source.includes('dependencies.getRendererGeneration() === interaction.rendererGeneration')
+      || !source.includes('applyFilterPreviewSnapshot(')) {
+      failures.push(`${relativePath}: filter gestures must retain exact UI, document and renderer ownership`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/commands/atomicCommandBatchExecutor.ts')
+    || normalizedPath.endsWith('/application/commands/documentSessionCommandPorts.ts')) {
+    if (source.includes("from '../../editor/styles/layerStyleCommands'")) {
+      failures.push(`${relativePath}: command origins must use the semantic Layer Style owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/styles/semanticLayerStyleCommandExecutor.ts')
+    && source.includes("from '../../editor/styles/layerStyleCommands'")) {
+    failures.push(`${relativePath}: semantic Layer Style commands must publish through the snapshot owner`);
+  }
+  if (normalizedPath.endsWith('/application/layers/useLayerPanelController.ts')
+    && (/finishStyleEditing\?\s*\(/.test(source)
+      || /setAttachedFilterEnabled\?\s*\(/.test(source))) {
+    failures.push(`${relativePath}: kernel lifecycle ports must be required and fail closed`);
+  }
+  if (normalizedPath.endsWith('/application/commands/documentSessionCommandPorts.ts')
+    && (!source.includes("'executeLayerStyleSnapshot'")
+      || !source.includes("'executeFilterSnapshot'")
+      || !source.includes("'layer.style.setSnapshot'")
+      || !source.includes("'filter.setSnapshot'"))) {
+    failures.push(`${relativePath}: inactive documents must retain complete style/filter command parity`);
+  }
+  if (normalizedPath.endsWith('/editor/panels/LayerStylesPanel.tsx')
+    && (!source.includes('controller.preview(stack, handle)')
+      || !source.includes('return controller.beginInteraction()'))) {
+    failures.push(`${relativePath}: Layer Style controls must preserve their admitted interaction handle`);
+  }
+  if (normalizedPath.endsWith('/editor/ui/LayerStyleEditor.tsx')
+    && (source.includes("mode?: 'dialog'") || source.includes('role="dialog"'))) {
+    failures.push(`${relativePath}: the retired non-admitted Layer Style dialog must not return`);
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -685,6 +748,7 @@ async function scan(relativeDirectory) {
       verifyTextCutover(relativePath, source);
       verifyWarpCutover(relativePath, source);
       verifyAdjustmentCutover(relativePath, source);
+      verifyStyleAndFilterCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

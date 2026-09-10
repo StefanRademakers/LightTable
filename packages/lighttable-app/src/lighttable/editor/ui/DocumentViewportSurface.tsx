@@ -27,6 +27,7 @@ import {
   FilterCenterOverlay,
   type FilterCenterPoint,
 } from "../filters/FilterCenterOverlay";
+import type { FilterInteractionAdmission } from "../../application/filters/useP0FilterController";
 
 export interface DocumentViewportSurfaceProps {
   viewportRef: React.RefObject<HTMLDivElement | null>;
@@ -83,10 +84,10 @@ export interface DocumentViewportSurfaceProps {
   onCropCommit?: () => void;
   onCropCancel?: () => void;
   filterCenter?: FilterCenterPoint | null;
-  onFilterCenterChange?: (center: FilterCenterPoint) => void;
-  onFilterCenterInteractionStart?: () => void;
-  onFilterCenterInteractionEnd?: () => void;
-  onFilterCenterInteractionCancel?: () => void;
+  onFilterCenterChange?: (center: FilterCenterPoint, admission: FilterInteractionAdmission) => void;
+  onFilterCenterInteractionStart?: () => FilterInteractionAdmission;
+  onFilterCenterInteractionEnd?: (admission: FilterInteractionAdmission) => void;
+  onFilterCenterInteractionCancel?: (admission: FilterInteractionAdmission) => void;
 }
 
 /**

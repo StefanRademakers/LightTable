@@ -1,4 +1,4 @@
-import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import { layerSupportsLayerStyles, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import {
   LIGHTTABLE_COMMAND_SCHEMAS,
   formatSchemaValidationIssues,
@@ -7,8 +7,6 @@ import {
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { moveLayer, renameLayer, setLayerBlendMode, setLayerClipping, setLayerFillOpacity,
   setLayersLock, setLayersVisibility } from '../../editor/document/documentCommands';
-import { setLayerStyleEnabled, setLayerStyleStackEnabled } from '../../editor/styles/layerStyleCommands';
-import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry';
 import type { TextToolSettings } from '../../editor/session/editorSession';
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
@@ -18,6 +16,8 @@ import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { executeSemanticTextCommand } from '../text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCommandExecutor';
+import { executeSemanticLayerStyleSnapshot } from '../styles/executeSemanticLayerStyleSnapshot';
+import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import type { AtomicCommandBatch, AtomicBatchOperation } from './atomicCommandBatchContract';
 import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 
@@ -40,7 +40,9 @@ const semanticTextKind = (command: AtomicBatchOperation['command']) => {
   } as const;
   return kinds[command as keyof typeof kinds];
 };
-const semanticKind = (operation: AtomicBatchOperation) => operation.command.split('.').at(-1)!;
+const semanticKind = (operation: AtomicBatchOperation) => operation.command === 'layer.effect.setEnabled'
+  ? 'toggle'
+  : operation.command.split('.').at(-1)!;
 const resolveReferences = (value: unknown, results: ReadonlyMap<string, unknown>): unknown => {
   if (Array.isArray(value)) return value.map((entry) => resolveReferences(entry, results));
   if (!record(value)) return value;
@@ -105,8 +107,10 @@ export const executeAtomicCommandBatch = async (
       const parsed = parseSemanticVectorCommand(semanticKind(operation) as 'create' | 'update' | 'remove', parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
       result = executeSemanticVectorCommand(parsed, localVector);
-    } else if (operation.command.startsWith('layer.effect.') && operation.command !== 'layer.effect.setEnabled') {
-      const parsed = parseSemanticLayerStyleCommand(semanticKind(operation) as 'add' | 'update' | 'remove' | 'move', parameters);
+    } else if (operation.command.startsWith('layer.effect.')) {
+      const parsed = parseSemanticLayerStyleCommand(
+        semanticKind(operation) as 'add' | 'update' | 'remove' | 'move' | 'toggle', parameters
+      );
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
       result = executeSemanticLayerStyleCommand(parsed, {
         changeDocument: (change) => {
@@ -180,13 +184,22 @@ export const executeAtomicCommandBatch = async (
         current = setLayerFillOpacity(current, layerId, opacity);
         result = { layerId, opacity };
       } else if (operation.command === 'layer.style.setEnabled') {
-        current = setLayerStyleStackEnabled(current, layerId, Boolean(parameters.enabled));
+        const layer = findDocumentLayer(current, layerId);
+        if (!layer || !layerSupportsLayerStyles(layer)) {
+          throw new Error(`${operation.operationId}: the layer cannot own Layer Styles.`);
+        }
+        executeSemanticLayerStyleSnapshot({
+          layerId,
+          snapshot: { ...layerStyleSnapshot(layer.styleStack), enabled: Boolean(parameters.enabled) }
+        }, { changeDocument: (change) => {
+          const next = change(current);
+          if (next === current) return false;
+          current = next;
+          return true;
+        } });
         result = { layerId, enabled: Boolean(parameters.enabled) };
       } else {
-        const effectId = String(parameters.effectId ?? '');
-        if (!effectId) throw new Error(`${operation.operationId}: effectId is required.`);
-        current = setLayerStyleEnabled(current, layerId, effectId as LayerStyleId, Boolean(parameters.enabled));
-        result = { layerId, effectId, enabled: Boolean(parameters.enabled) };
+        throw new Error(`${operation.operationId}: the command is not atomic-batch compatible.`);
       }
     }
     if (!result) throw new Error(`${operation.operationId}: the command did not change the document.`);

@@ -22,7 +22,7 @@ export interface SliderProps {
   resetModifierActive?: boolean;
   onChange: (value: number, handle?: InteractionHandle) => void;
   onReset?: () => void;
-  onInteractionStart?: () => InteractionHandle;
+  onInteractionStart?: () => InteractionHandle | false;
   onInteractionEnd?: (handle: InteractionHandle) => void;
   onInteractionCancel?: (handle: InteractionHandle) => void;
 }
@@ -54,6 +54,7 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
   const reset = () => {
     if (disabled) return;
     const session = interaction.begin();
+    if (!session) return;
     if (onReset) onReset();
     else interaction.update(resetValue);
     interaction.end(session);
@@ -100,8 +101,10 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
         if (event.button !== 0 || !event.isPrimary || pointer.current !== null) return;
         event.preventDefault();
         event.currentTarget.focus({ preventScroll: true });
+        const session = interaction.begin();
+        if (!session) return;
         pointer.current = event.pointerId;
-        pointerSession.current = interaction.begin();
+        pointerSession.current = session;
         event.currentTarget.setPointerCapture(event.pointerId);
         move(event.currentTarget, event.clientX);
       }}
@@ -113,8 +116,10 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
         if (!sliderEditKeys.has(event.key)) return;
         event.preventDefault();
         if (!keyboard.current) {
+          const session = interaction.begin();
+          if (!session) return;
           keyboard.current = true;
-          keyboardSession.current = interaction.begin();
+          keyboardSession.current = session;
         }
         const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'PageDown' ? -1 : 1;
         const delta = step * direction * (event.key.startsWith('Page') ? 10 : 1);
@@ -126,6 +131,7 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
         if (pointer.current !== null) return;
         const discrete = !keyboard.current;
         const session = discrete ? interaction.begin() : null;
+        if (discrete && !session) return;
         interaction.update(Number(event.currentTarget.value));
         if (discrete) interaction.end(session);
       }} onDragStart={event => event.preventDefault()} />

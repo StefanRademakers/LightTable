@@ -14,12 +14,21 @@ import { filterSnapshot } from './completeFilterSnapshot';
 import { executeSemanticFilterSnapshot } from './executeSemanticFilterSnapshot';
 import {
   createFilterInteractionSession,
+  type FilterInteractionHandle,
   type FilterInteractionSession
 } from './filterInteractionSession';
 import {
   resolveFilterSnapshotOwner,
   type FilterSnapshotTarget
 } from './filterSnapshotOwner';
+import {
+  admittedHandle,
+  admittedInteraction,
+  rejectedInteraction,
+  type InteractionAdmission
+} from '../interactions/interactionAdmission';
+
+export type FilterInteractionAdmission = InteractionAdmission<FilterInteractionHandle>;
 
 export interface P0FilterPresentation {
   readonly kind: FilterKind;
@@ -30,10 +39,11 @@ export interface P0FilterPresentation {
 }
 
 export interface P0FilterCommands {
-  readonly beginAdjustment: () => void;
-  readonly endAdjustment: () => void;
-  readonly cancelAdjustment: () => void;
-  readonly updateSetting: (key: string, value: unknown) => void;
+  readonly beginAdjustment: () => FilterInteractionAdmission;
+  readonly endAdjustment: (admission: FilterInteractionAdmission) => void;
+  readonly cancelAdjustment: (admission: FilterInteractionAdmission) => void;
+  readonly updateSetting: (key: string, value: unknown,
+    admission: FilterInteractionAdmission) => void;
   readonly reset: () => void;
   readonly toggleEnabled: () => void;
 }
@@ -131,36 +141,47 @@ export const useP0FilterController = ({
     ? resolveFilterSnapshotOwner(document, resolvedTarget)
     : null;
 
-  const cancelAdjustment = useCallback(() => { session.cancel(); }, [session]);
-  const endAdjustment = useCallback(() => { session.commit(); }, [session]);
+  const cancelAdjustment = useCallback((admission: FilterInteractionAdmission) => {
+    const handle = admittedHandle(admission);
+    if (handle) session.cancel(handle);
+  }, [session]);
+  const endAdjustment = useCallback((admission: FilterInteractionAdmission) => {
+    const handle = admittedHandle(admission);
+    if (handle) session.commit(handle);
+  }, [session]);
   const resolvedTargetKey = resolvedTarget?.kind === 'attached'
     ? `${resolvedTarget.kind}:${resolvedTarget.layerId}:${resolvedTarget.adjustmentId}`
     : resolvedTarget ? `${resolvedTarget.kind}:${resolvedTarget.layerId}` : null;
   useEffect(() => {
-    session.reconcileBinding();
-    return () => { session.cancel(); };
+    session.reconcileBinding(resolvedTarget);
   }, [session, document?.id, document?.revision, rendererGeneration, resolvedTargetKey]);
+  useEffect(() => () => { session.cancelActive(); }, [session]);
 
   const currentTarget = useCallback(() => (
     resolveTarget(dependenciesRef.current.getDocument(), targetRef.current)
   ), []);
 
-  const updateSetting = useCallback((key: string, value: unknown) => {
+  const updateSetting = useCallback((key: string, value: unknown,
+    admission: FilterInteractionAdmission) => {
     const commandTarget = currentTarget();
     if (!commandTarget) return;
-    const current = session.currentSnapshot(commandTarget);
+    const handle = admittedHandle(admission);
+    if (!handle) return;
+    const current = session.currentSnapshot(commandTarget, handle);
     if (!current) return;
     const settings = normalizeFilterSettings(current.kind, {
       ...current.settings,
       ...settingPatch(current.settings, key, value)
     });
-    session.preview(commandTarget, filterSnapshot(current.kind, current.enabled, settings));
+    session.preview(
+      commandTarget, filterSnapshot(current.kind, current.enabled, settings), handle
+    );
   }, [currentTarget, session]);
 
   const commitSnapshot = useCallback((createSnapshot: (
     owner: NonNullable<ReturnType<typeof resolveFilterSnapshotOwner>>
   ) => ReturnType<typeof filterSnapshot>) => {
-    session.cancel();
+    session.cancelActive();
     const dependencies = dependenciesRef.current;
     const before = dependencies.getDocument();
     const commandTarget = currentTarget();
@@ -191,7 +212,10 @@ export const useP0FilterController = ({
   return { model, commands: {
     beginAdjustment: () => {
       const commandTarget = currentTarget();
-      if (commandTarget) session.begin(commandTarget);
+      const handle = commandTarget ? session.begin(commandTarget) : null;
+      return handle
+        ? admittedInteraction(handle)
+        : rejectedInteraction<FilterInteractionHandle>();
     },
     endAdjustment,
     cancelAdjustment,

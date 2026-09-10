@@ -51,6 +51,7 @@ import type {
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
 import type { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 import type { SelectionProjectionStage } from './SelectionShapeProjectionService';
+import { activeLayerStyleRuntimeOwners } from './layerStyleRuntimeOwners';
 
 interface SelectionPaintPreviewRecord {
   readonly stage: SelectionProjectionStage;
@@ -167,6 +168,7 @@ export class LayerDocumentRenderer {
     // All cached runtimes are released when the image/editor is destroyed.
     this.runtime.layerRuntimeCoordinator.sync(document);
     this.runtime.textLayerCoordinator.sync(document);
+    this.runtime.layerStyleRenderer.syncOwners(activeLayerStyleRuntimeOwners(document));
   }
 
   resizeSurface(width: number, height: number) {

@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { createRasterLayer } from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { addLayerStyleFixture } from '../../editor/styles/layerStyleTestFixtures';
 import { reconcileLayerStyleEditorRequest } from './useLayerStyleEditorController';
 
 describe('Layer Style editor request reconciliation', () => {
   it('normalizes a removed child target to the surviving stack owner', () => {
     let document = createRasterLayer(createImageDocument('Styles', 64, 64, 'source'));
     const layerId = document.activeLayerId!;
-    document = addLayerStyle(document, layerId, 'drop-shadow');
+    document = addLayerStyleFixture(document, layerId, 'drop-shadow');
     const effectId = findDocumentLayer(document, layerId)!.styleStack.effects[0].id;
     const request = { layerId, effectId, before: document };
     const withoutEffect = {

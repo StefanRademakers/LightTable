@@ -2,7 +2,6 @@ import type { ImageDocument, LayerId } from '../../editor/document/documentTypes
 import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { cloneLayerStyleStack, createDefaultLayerStyle } from '../../editor/styles/layerStyleDefaults';
-import { setLayerStyleStack } from '../../editor/styles/layerStyleCommands';
 import { parseLayerStyleInstance } from '../../editor/styles/layerStyleValidation';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import { layerStyleSettingsMatchKind, mergeLayerStyleSettings,
@@ -10,9 +9,9 @@ import { layerStyleSettingsMatchKind, mergeLayerStyleSettings,
 import {
   layerStyleSnapshot,
   layerStyleSnapshotsEqual,
-  materializeLayerStyleSnapshot,
   parseCompleteLayerStyleSnapshot
 } from './completeLayerStyleSnapshot';
+import { applyLayerStyleSnapshot } from './layerStyleSnapshotOwner';
 
 export interface SemanticLayerStyleCommandDependencies {
   changeDocument(change: (document: ImageDocument) => ImageDocument): boolean;
@@ -51,12 +50,9 @@ export function executeSemanticLayerStyleCommand(
       }
       result = { layerId: layer.id, settings: structuredClone(command.settings) };
       if (layerStyleSnapshotsEqual(openingSnapshot, layerStyleSnapshot(stack))) return before;
-      stack.revision += 1;
       const validated = parseCompleteLayerStyleSnapshot(layerStyleSnapshot(stack));
       if (!validated) throw new Error('The Layer Style stack is outside its canonical bounds.');
-      return setLayerStyleStack(before, layer.id, materializeLayerStyleSnapshot(
-        validated, stack.revision
-      ));
+      return applyLayerStyleSnapshot(before, layer.id, validated);
     }
     let effectId: LayerStyleId;
     if (command.kind === 'add') {
@@ -87,13 +83,10 @@ export function executeSemanticLayerStyleCommand(
       }
     }
     if (layerStyleSnapshotsEqual(openingSnapshot, layerStyleSnapshot(stack))) return before;
-    stack.revision += 1;
     result = { layerId: layer.id, effectId };
     const validated = parseCompleteLayerStyleSnapshot(layerStyleSnapshot(stack));
     if (!validated) throw new Error('The Layer Style stack is outside its canonical bounds.');
-    return setLayerStyleStack(before, layer.id, materializeLayerStyleSnapshot(
-      validated, stack.revision
-    ));
+    return applyLayerStyleSnapshot(before, layer.id, validated);
   });
   return changed ? result : null;
 }
