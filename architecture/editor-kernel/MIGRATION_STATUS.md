@@ -1,6 +1,13 @@
 # Editor kernel migration status
 
-Updated: 2026-09-09.
+Updated: 2026-09-10.
+
+This table is a historical snapshot of the incremental migration and is not an
+instruction to retain any fallback. The active transition authority is
+[Editor-kernel cut-over and codebase cleanup](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md).
+Every `fallback retained`, `adapter retained` or `compatibility retained` entry
+below is now deletion work, not an accepted steady state. This file will be
+removed after the final state has been consolidated into the kernel contracts.
 
 The ordered, checkable work queue and the mandatory critic/repair/real-app loop
 live in the [stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md).

@@ -18,6 +18,7 @@ packages/genai-local     Host-neutral local-provider protocol and contracts
 packages/genai-openart   OpenArt adapter, schema normalization and provider fixtures
 packages/filter-core     Serializable full-frame filter definitions, controls and settings
 packages/filter-webgpu   Reusable linear-RGBA16F GPU filter cores and scratch-target ownership
+packages/webgpu-runtime  Shared device-global WebGPU transaction and failure-scope ownership
 packages/paint-core      Host-neutral paint gesture and dab contracts
 packages/paint-scene     Validated renderer-neutral retained scene/fragment contract
 packages/paint-scene-adapters Canonical vector/PDF projections with explicit capability loss
@@ -72,12 +73,13 @@ document model, workspace model or reversible command descriptions. Hosts may
 provide capabilities, but the editor must not import host state, routes, S3
 details or Electron APIs.
 
-`@lighttable/editor-kernel` is a target control-plane boundary being introduced
-beside the current editor. It may coordinate document-scoped commands,
+`@lighttable/editor-kernel` is the control-plane boundary being cut over across
+the current editor. It coordinates document-scoped commands,
 transactions, history/resource ownership and render invalidation through ports,
 but it may not import React, host APIs or concrete WebGPU types. No workflow is
-kernel-owned merely because this package exists; current migration evidence is
-tracked in [Editor kernel migration status](editor-kernel/MIGRATION_STATUS.md).
+exclusively kernel-owned merely because this package exists; current cut-over
+evidence is tracked in
+[Editor-kernel cut-over and codebase cleanup](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md).
 
 ## Ownership boundaries
 

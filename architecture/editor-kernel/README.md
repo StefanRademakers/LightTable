@@ -1,8 +1,8 @@
 # Editor kernel migration
 
-Status: **target foundation**, introduced 2026-09-08. The contracts exist in
-`@lighttable/editor-kernel`; no existing editor workflow is kernel-owned until
-the migration ledger says so.
+Status: **active production cut-over**, introduced 2026-09-08 and entering
+fallback removal on 2026-09-10. The cut-over ledger is the authority for whether
+an existing editor workflow is exclusively kernel-owned.
 
 The kernel is the future semantic control plane for an edit. It coordinates a
 document-scoped transaction from validated command through preview, commit or
@@ -50,11 +50,14 @@ document/history   renderer/WebGPU/UI
 5. [Resource lifetime](RESOURCE_LIFETIME.md)
 6. [Render projection](RENDER_PROJECTION.md)
 7. [Layer capabilities](LAYER_CAPABILITIES.md)
-8. [Migration playbook](MIGRATION_PLAYBOOK.md)
-9. [Migration status](MIGRATION_STATUS.md)
-10. [Stabilization execution ledger](STABILIZATION_EXECUTION_LEDGER.md)
-11. [Selection vertical slice](SELECTION_VERTICAL_SLICE.md)
-12. [Layer finalization vertical slice](LAYER_FINALIZATION_VERTICAL_SLICE.md)
+8. [Cut-over and codebase cleanup](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
+9. The relevant vertical-slice contract, beginning with
+   [Selection](SELECTION_VERTICAL_SLICE.md) and
+   [Layer finalization](LAYER_FINALIZATION_VERTICAL_SLICE.md).
+
+`MIGRATION_PLAYBOOK.md`, `MIGRATION_STATUS.md` and
+`STABILIZATION_EXECUTION_LEDGER.md` are superseded evidence records. They must
+not be used as extension guidance and are scheduled for deletion in C14.
 
 ## Package-shape rule
 

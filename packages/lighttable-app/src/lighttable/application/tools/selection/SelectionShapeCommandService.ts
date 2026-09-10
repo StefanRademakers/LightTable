@@ -14,6 +14,7 @@ import type { SelectionOperation } from '../../../editor/selection/selectionType
 import type {
   SelectionPaintProjectionIntent,
   SelectionMagicWandProjectionIntent,
+  SelectionOperationProjectionIntent,
   SelectionRasterMaskProjectionIntent,
   SelectionRasterizationProjectionIntent,
   SelectionShapeProjectionIntent,
@@ -58,6 +59,13 @@ export interface SelectionProjectionCommandPort {
     document: DocumentAddress,
     baseline: LightTableCommittedSelection,
     intent: SelectionMagicWandProjectionIntent,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
+  prepareSelectionOperationProjection(
+    document: DocumentAddress,
+    baseline: LightTableCommittedSelection,
+    intent: SelectionOperationProjectionIntent,
     transactionId: TransactionId,
     signal: AbortSignal,
   ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>>;
@@ -131,6 +139,20 @@ export class SelectionShapeCommandService {
       intent,
       (renderer, document, baseline, nextIntent, id, nextSignal) =>
         renderer.prepareSelectionMagicWandProjection(
+          document, baseline, nextIntent, id, nextSignal,
+        ),
+      signal,
+    );
+  }
+
+  async executeOperation(
+    intent: SelectionOperationProjectionIntent,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<boolean> {
+    return this.executePrepared(
+      intent,
+      (renderer, document, baseline, nextIntent, id, nextSignal) =>
+        renderer.prepareSelectionOperationProjection(
           document, baseline, nextIntent, id, nextSignal,
         ),
       signal,
@@ -226,17 +248,29 @@ export class SelectionShapeCommandService {
     change: SelectionHistoryChange<SelectionMaskSnapshot, SelectionOperation>,
   ) {
     const final = change.after.provenance.at(-1);
-    const type = final?.source?.kind === 'selection-paint'
+    const cleared = change.before.active && !change.after.active;
+    const type = cleared ? 'selection.clear'
+      : final?.source?.kind === 'selection-paint'
       ? 'selection.paint'
       : final?.source?.kind === 'magic-wand' ? 'selection.magic-wand'
       : final?.source?.kind === 'object-selection' ? 'selection.object'
+      : final?.source?.kind === 'similar' ? 'selection.similar'
       : final?.mode === 'transform' ? 'selection.transform'
         : `selection.${final?.mode ?? 'replace'}`;
-    const label = final?.source?.kind === 'selection-paint'
+    const label = cleared ? 'Clear Selection'
+      : final?.source?.kind === 'selection-paint'
       ? 'Selection Brush'
       : final?.source?.kind === 'magic-wand' ? 'Magic Wand'
       : final?.source?.kind === 'object-selection' ? 'Object Selection'
-      : final?.mode === 'transform' ? 'Transform Selection' : 'Make Selection';
+      : final?.source?.kind === 'similar' ? 'Select Similar'
+      : final?.mode === 'transform' ? 'Transform Selection'
+      : final?.mode === 'invert' ? 'Invert Selection'
+      : final?.mode === 'feather' ? 'Feather Selection'
+      : final?.mode === 'border' ? 'Border Selection'
+      : final?.mode === 'smooth' ? 'Smooth Selection'
+      : final?.mode === 'expand' ? 'Expand Selection'
+      : final?.mode === 'contract' ? 'Contract Selection'
+      : 'Make Selection';
     return this.session.history.reserve({
       id: String(change.transactionId),
       type,
@@ -264,19 +298,31 @@ export class SelectionShapeCommandService {
       throw new Error('The selection presentation changed while restoring history.');
     }
     const projected = this.withOverlayProjection(prepared, renderer, baseline.provenance);
-    const activation = projected.activate();
-    try {
-      const published = this.session.runPublication(() => this.state.compareAndSwap(
-        prepared.baselineRevision, prepared.result,
-      ));
+    let activation: ReturnType<typeof projected.activate> | null = null;
+    this.session.runPublication(() => {
+      const published = this.state.compareAndSwap(
+        projected.baselineRevision, projected.result,
+      );
       if (!published) {
+        projected.dispose();
         throw new Error('The selection changed while history was restoring it.');
       }
-      activation.accept();
-    } catch (reason) {
-      try { activation.rollback(); } catch { /* retain original failure */ }
-      throw reason;
-    }
+      try {
+        activation = projected.activate();
+      } catch (reason) {
+        const restored = this.state.compareAndSwap(projected.result.revision, baseline);
+        projected.dispose();
+        if (!restored) {
+          throw new Error('Selection history could not restore its canonical baseline.', {
+            cause: reason,
+          });
+        }
+        throw reason;
+      }
+    });
+    // Canonical state and presentation now agree. Acceptance only releases the
+    // superseded GPU targets and is specified as non-throwing.
+    try { activation!.accept(); } catch { /* projection violated its cleanup contract */ }
   }
 
   private withOverlayProjection(

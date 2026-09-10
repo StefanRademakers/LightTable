@@ -16,6 +16,13 @@ const store = () => new SelectionTextureStore({
   createSelectionTexture: texture,
   createClipboardTexture: texture,
 });
+const coverage = (bounds: { x: number; y: number; width: number; height: number }) => {
+  const values = new Uint16Array(100 * 80);
+  for (let y = bounds.y; y < bounds.y + bounds.height; y += 1) {
+    values.fill(0x3c00, y * 100 + bounds.x, y * 100 + bounds.x + bounds.width);
+  }
+  return SelectionMaskSnapshot.fromRaw(100, 80, values);
+};
 const document = {
   sessionId: 'document-1' as DocumentSessionId,
   revision: 7,
@@ -48,6 +55,7 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        applyOperation: () => true,
         transform: () => true,
         paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
@@ -97,11 +105,10 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: vi.fn(() => true),
         apply: vi.fn(() => true),
+        applyOperation: vi.fn(() => true),
         transform: vi.fn(() => true),
         paint: vi.fn(() => true),
-        capture: vi.fn(async () => SelectionMaskSnapshot.fromRaw(
-          100, 80, new Uint16Array(100 * 80).fill(0x3c00)
-        )),
+        capture: vi.fn(async () => coverage({ x: 10, y: 12, width: 30, height: 20 })),
         measure: vi.fn(async () => ({
           coreBounds: { x: 10, y: 12, width: 30, height: 20 },
           supportBounds: { x: 10, y: 12, width: 30, height: 20 },
@@ -150,11 +157,10 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        applyOperation: () => true,
         transform: () => true,
         paint: () => true,
-        capture: async () => SelectionMaskSnapshot.fromRaw(
-          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
-        ),
+        capture: async () => coverage({ x: 20, y: 16, width: 12, height: 10 }),
         measure: async () => ({
           coreBounds: { x: 10, y: 12, width: 30, height: 20 },
           supportBounds: { x: 10, y: 12, width: 30, height: 20 },
@@ -202,6 +208,7 @@ describe('SelectionShapeProjectionService', () => {
       textures: staged,
       restore: vi.fn(() => true),
       apply: vi.fn(() => true),
+      applyOperation: vi.fn(() => true),
       transform: vi.fn(() => true),
       paint: vi.fn(() => true),
       capture: vi.fn(async () => {
@@ -240,12 +247,11 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore,
         apply: () => true,
+        applyOperation: () => true,
         transform: () => true,
         paint: () => true,
         magicWand: applyMagicWand,
-        capture: async () => SelectionMaskSnapshot.fromRaw(
-          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
-        ),
+        capture: async () => coverage({ x: 20, y: 16, width: 12, height: 10 }),
         measure: async () => ({
           coreBounds: { x: 20, y: 16, width: 12, height: 10 },
           supportBounds: { x: 20, y: 16, width: 12, height: 10 },
@@ -297,6 +303,63 @@ describe('SelectionShapeProjectionService', () => {
     committed.destroy();
   });
 
+  it('derives a generic operation from exact baseline coverage without replaying provenance', async () => {
+    const committed = store();
+    const staged = store();
+    const restore = vi.fn(() => true);
+    const applyOperation = vi.fn(() => true);
+    const service = new SelectionShapeProjectionService({
+      committedTextures: committed,
+      createStage: () => ({
+        textures: staged,
+        restore,
+        apply: () => true,
+        applyOperation,
+        transform: () => true,
+        paint: () => true,
+        capture: async () => coverage({ x: 4, y: 6, width: 70, height: 50 }),
+        measure: async () => ({
+          coreBounds: { x: 4, y: 6, width: 70, height: 50 },
+          supportBounds: { x: 4, y: 6, width: 70, height: 50 },
+          peakCoverage: 1,
+        }),
+        dispose: () => staged.destroy(),
+      }),
+    });
+    const baseline = {
+      documentSessionId: document.sessionId,
+      revision: 8 as SelectionRevision,
+      canvas: { width: 100, height: 80 },
+      active: true,
+      coverage: SelectionMaskSnapshot.fromRaw(
+        100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+      ),
+      supportBounds: { x: 10, y: 12, width: 30, height: 20 },
+      provenance: [rectangle],
+    };
+    const invert: SelectionOperation = {
+      mode: 'invert',
+      shape: rectangle.shape,
+    };
+
+    const result = await service.prepareOperation(
+      document, baseline, { operation: invert }, undefined,
+      'operation-invert' as TransactionId, new AbortController().signal,
+    );
+
+    expect(restore).toHaveBeenCalledOnce();
+    expect(restore).toHaveBeenCalledWith(baseline.coverage);
+    expect(applyOperation).toHaveBeenCalledWith(invert, undefined);
+    expect(result.result).toMatchObject({
+      revision: 9,
+      active: true,
+      provenance: [rectangle, invert],
+      supportBounds: { x: 4, y: 6, width: 70, height: 50 },
+    });
+    result.dispose();
+    service.dispose();
+  });
+
   it('normalizes an empty subtract result to one inactive committed value', async () => {
     const committed = store();
     committed.ensureTargets();
@@ -307,6 +370,7 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        applyOperation: () => true,
         transform: () => true,
         paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
@@ -348,6 +412,7 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: () => true,
         apply: () => true,
+        applyOperation: () => true,
         transform: () => true,
         paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
@@ -391,12 +456,13 @@ describe('SelectionShapeProjectionService', () => {
         textures: staged,
         restore: (snapshot: SelectionMaskSnapshot) => { restored.push(snapshot); return true; },
         apply: () => true,
+        applyOperation: () => true,
         transform: (matrix: { tx: number; ty: number }) => {
           transforms.push({ tx: matrix.tx, ty: matrix.ty }); return true;
         },
         paint: () => true,
         capture: async () => SelectionMaskSnapshot.fromRaw(
-          100, 80, new Uint16Array(100 * 80).fill(0x3c00),
+          100, 80, new Uint16Array(100 * 80),
         ),
         measure: async () => null,
         dispose: () => staged.destroy(),

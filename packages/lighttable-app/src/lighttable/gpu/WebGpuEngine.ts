@@ -1415,45 +1415,6 @@ export class WebGpuEngine {
       && this.imageDocument?.id === documentId;
   }
 
-  private async setSelectionNow(
-    renderer: LayerDocumentRenderer,
-    documentId: string,
-    shape: SelectionShape,
-    mode: SelectionMode,
-    featherRadius = 0,
-    antiAlias = false
-  ) {
-    if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
-    this.device.pushErrorScope('validation');
-    const changed = renderer.setSelection(
-      shape,
-      mode,
-      featherRadius,
-      antiAlias
-    );
-    const validationError = await this.device.popErrorScope();
-    if (validationError) {
-      this.callbacks.onDeviceLost?.(`LightTable selection validation failed: ${validationError.message}`);
-      return false;
-    }
-    return this.selectionOwnerIsCurrent(renderer, documentId) && changed;
-  }
-
-  setSelection(
-    shape: SelectionShape,
-    mode: SelectionMode,
-    featherRadius = 0,
-    antiAlias = false
-  ) {
-    const renderer = this.documentRenderer;
-    const documentId = this.imageDocument?.id ?? null;
-    const task = this.selectionQueue.then(() => renderer && documentId
-      ? this.setSelectionNow(renderer, documentId, shape, mode, featherRadius, antiAlias)
-      : false);
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
   pickTopLayerAtPoint(
     layerIds: readonly LayerId[],
     point: SelectionPoint,
@@ -1466,215 +1427,7 @@ export class WebGpuEngine {
     );
   }
 
-  private async applyMagicWandNow(
-    document: ImageDocument,
-    renderer: LayerDocumentRenderer,
-    operation: SelectionOperation
-  ) {
-    const source = operation.source;
-    if (
-      source?.kind !== 'magic-wand'
-      || !this.selectionOwnerIsCurrent(renderer, document.id)
-    ) {
-      return false;
-    }
-    if (
-      source.documentRevision !== document.revision
-      || !findDocumentLayer(document, source.layerId)
-    ) return false;
-    // Tool activation normally finishes this work while the pointer travels
-    // to the canvas. Awaiting the same isolated promise closes the fast-click
-    // race without compiling a second pipeline set or touching document state.
-    await renderer.prepareMagicWandTool();
-    if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
-    const traceTarget = (
-      globalThis as typeof globalThis & {
-        __LIGHTTABLE_MAGIC_WAND_TRACE__?: Array<{
-          encodeMs: number;
-          gpuCompleteMs: number;
-          width: number;
-          height: number;
-          contiguous: boolean;
-          sampleAllLayers: boolean;
-          mode: SelectionCombineMode;
-        }>;
-      }
-    ).__LIGHTTABLE_MAGIC_WAND_TRACE__;
-    const traceStartedAt = traceTarget ? performance.now() : 0;
-    let changed = false;
-    if (source.options.sampleAllLayers) {
-      this.settleInteractiveRenderQuality();
-      this.renderScheduler.flush();
-      await this.device.queue.onSubmittedWorkDone();
-      if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
-      const composite = this.imageResources.finalTexture;
-      this.device.pushErrorScope('validation');
-      changed = Boolean(composite) && renderer.applyMagicWandToTexture(
-        composite!, source.point, source.options, operation.mode as SelectionCombineMode
-      );
-    } else {
-      this.device.pushErrorScope('validation');
-      changed = renderer.applyMagicWandToActiveLayer(
-        document,
-        source.layerId,
-        source.point,
-        source.options,
-        operation.mode as SelectionCombineMode
-      );
-    }
-    const encodedAt = traceTarget ? performance.now() : 0;
-    const validationError = await this.device.popErrorScope();
-    if (validationError) {
-      this.callbacks.onDeviceLost?.(`LightTable Magic Wand validation failed: ${validationError.message}`);
-      return false;
-    }
-    if (traceTarget && changed) {
-      await this.device.queue.onSubmittedWorkDone();
-      traceTarget.push({
-        encodeMs: encodedAt - traceStartedAt,
-        gpuCompleteMs: performance.now() - traceStartedAt,
-        width: document.width,
-        height: document.height,
-        contiguous: source.options.contiguous,
-        sampleAllLayers: source.options.sampleAllLayers,
-        mode: operation.mode as SelectionCombineMode
-      });
-    }
-    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
-  }
 
-  private async applyRasterSelectionNow(
-    document: ImageDocument,
-    renderer: LayerDocumentRenderer,
-    operation: SelectionOperation
-  ) {
-    const source = operation.source;
-    if (source?.kind !== 'raster-mask'
-      || !this.selectionOwnerIsCurrent(renderer, document.id)
-      || source.documentRevision !== document.revision) return false;
-    this.device.pushErrorScope('validation');
-    const changed = renderer.applyRasterSelectionMask(
-      source.mask,
-      operation.mode as SelectionCombineMode
-    );
-    const validationError = await this.device.popErrorScope();
-    if (validationError) {
-      this.callbacks.onDeviceLost?.(`LightTable raster selection validation failed: ${validationError.message}`);
-      return false;
-    }
-    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
-  }
-
-  private async applySelectSimilarNow(
-    document: ImageDocument,
-    renderer: LayerDocumentRenderer,
-    operation: SelectionOperation
-  ) {
-    const source = operation.source;
-    if (source?.kind !== 'similar'
-      || !this.selectionOwnerIsCurrent(renderer, document.id)
-      || source.documentRevision !== document.revision
-      || !findDocumentLayer(document, source.layerId)) return false;
-    let changed = false;
-    if (source.options.sampleAllLayers) {
-      this.settleInteractiveRenderQuality();
-      this.renderScheduler.flush();
-      await this.device.queue.onSubmittedWorkDone();
-      if (!this.selectionOwnerIsCurrent(renderer, document.id)) return false;
-      this.device.pushErrorScope('validation');
-      changed = Boolean(this.imageResources.finalTexture)
-        && renderer.applySelectSimilarToTexture(
-          this.imageResources.finalTexture!,
-          source.options
-        );
-    } else {
-      this.device.pushErrorScope('validation');
-      changed = renderer.applySelectSimilarToActiveLayer(
-        document,
-        source.layerId,
-        source.options
-      );
-    }
-    const validationError = await this.device.popErrorScope();
-    if (validationError) {
-      this.callbacks.onDeviceLost?.(`LightTable Select Similar validation failed: ${validationError.message}`);
-      return false;
-    }
-    return this.selectionOwnerIsCurrent(renderer, document.id) && changed;
-  }
-
-  applyMagicWand(operation: SelectionOperation) {
-    const renderer = this.documentRenderer;
-    const document = this.imageDocument;
-    const task = this.selectionQueue.then(() => renderer && document
-      ? this.applyMagicWandNow(document, renderer, operation)
-      : false);
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
-  applyRasterSelection(operation: SelectionOperation) {
-    const renderer = this.documentRenderer;
-    const document = this.imageDocument;
-    const task = this.selectionQueue.then(() => renderer && document
-      ? this.applyRasterSelectionNow(document, renderer, operation)
-      : false);
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
-  applySelectSimilar(operation: SelectionOperation) {
-    const renderer = this.documentRenderer;
-    const document = this.imageDocument;
-    const task = this.selectionQueue.then(() => renderer && document
-      ? this.applySelectSimilarNow(document, renderer, operation)
-      : false);
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
-  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
-    const renderer = this.documentRenderer;
-    const documentId = this.imageDocument?.id ?? null;
-    const task = this.selectionQueue.then(async () => {
-      // Pointer moves are queued, while zoom/document transitions can replace
-      // the renderer before a queued move is encoded. Never submit work against
-      // a stale selection texture store.
-      if (
-        this.destroyed
-        || !renderer
-        || this.documentRenderer !== renderer
-        || (this.imageDocument?.id ?? null) !== documentId
-      ) return false;
-      this.device.pushErrorScope('validation');
-      let scopeOpen = true;
-      try {
-        const changed = renderer.transformSelection(matrix);
-        const validationError = await this.device.popErrorScope();
-        scopeOpen = false;
-        if (validationError) {
-          this.callbacks.onDeviceLost?.(
-            `LightTable selection transform validation failed: ${validationError.message}`
-          );
-          return false;
-        }
-        if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
-        if (changed) {
-          this.renderDirty.invalidate('viewport');
-          this.requestRender();
-        }
-        return changed;
-      } finally {
-        if (scopeOpen) await this.device.popErrorScope().catch(() => null);
-      }
-    });
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
-  clearSelection() {
-    return this.replaceSelection([]);
-  }
 
   captureSelectionSnapshot() {
     const renderer = this.documentRenderer;
@@ -1817,171 +1570,88 @@ export class WebGpuEngine {
     });
   }
 
-  replaceSelection(operations: SelectionOperation[]) {
-    const renderer = this.documentRenderer;
-    const document = this.imageDocument;
-    const documentId = document?.id ?? null;
-    const task = this.selectionQueue.then(async () => {
-      if (
-        this.destroyed
-        || !renderer
-        || !document
-        || this.documentRenderer !== renderer
-        || this.imageDocument?.id !== documentId
-      ) return false;
-      const before = await renderer.captureSelectionSnapshot();
-      if (!this.selectionOwnerIsCurrent(renderer, documentId)) return false;
-      const replay = async () => {
-        renderer.clearSelection();
-        for (const operation of operations) {
-          if (operation.source?.kind === 'layer-mask') {
-            const layer = findDocumentLayer(document, operation.source.layerId);
-            if (
-              !layer?.mask
-              || layer.mask.pixelRevision !== operation.source.pixelRevision
-              || !renderer.loadLayerMaskAsSelection(layer.id)
-            ) return false;
-          } else if (operation.source?.kind === 'layer-transparency') {
-            const layer = findDocumentLayer(document, operation.source.layerId);
-            const contentRevision = layer?.type === 'raster'
-              ? `raster:${layer.pixelRevision}`
-              : layer?.type === 'text' || layer?.type === 'vector'
-                ? `semantic:${layer.revision}`
-                : null;
-            if (
-              !layer
-              || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')
-              || contentRevision !== operation.source.contentRevision
-              || !await renderer.loadLayerTransparencyAsSelection(document, layer)
-              || !this.selectionOwnerIsCurrent(renderer, documentId)
-            ) return false;
-          } else if (operation.source?.kind === 'composite-channel') {
-            if (
-              document.revision !== operation.source.documentRevision
-              || !this.imageResources.finalTexture
-            ) return false;
-            // The final reconstructed texture is the canonical source for a
-            // Channels-panel selection. Flush pending correction work before
-            // reading it so the selection never observes a stale grade frame.
-            this.settleInteractiveRenderQuality();
-            this.renderScheduler.flush();
-            await this.device.queue.onSubmittedWorkDone();
-            if (
-              !this.selectionOwnerIsCurrent(renderer, documentId)
-              || !this.imageResources.finalTexture
-              || !renderer.loadCompositeChannelAsSelection(
-                this.imageResources.finalTexture,
-                operation.source.channel
-              )
-            ) return false;
-          } else if (operation.source?.kind === 'magic-wand') {
-            if (!await this.applyMagicWandNow(document, renderer, operation)) return false;
-          } else if (operation.source?.kind === 'similar') {
-            if (!await this.applySelectSimilarNow(document, renderer, operation)) return false;
-          } else if (operation.source?.kind === 'raster-mask') {
-            if (!await this.applyRasterSelectionNow(document, renderer, operation)) return false;
-          } else if (operation.source?.kind === 'selection-paint') {
-            if (!renderer.paintSelectionDabs(
-              operation.source.dabs,
-              operation.source.hardness,
-              operation.source.opacity,
-              operation.mode === 'subtract' ? 'subtract' : 'add'
-            )) return false;
-          } else if (operation.mode === 'feather') {
-            if (!renderer.featherSelection(
-              operation.amount ?? 0,
-              operation.applyAtCanvasBounds === true
-            )) return false;
-          } else if (operation.mode === 'border') {
-            if (!renderer.borderSelection(operation.amount ?? 0)) return false;
-          } else if (operation.mode === 'smooth') {
-            if (!renderer.smoothSelection(
-              operation.amount ?? 0,
-              operation.applyAtCanvasBounds === true
-            )) return false;
-          } else if (operation.mode === 'expand' || operation.mode === 'contract') {
-            if (!renderer.modifySelectionMorphology(
-              operation.mode,
-              operation.amount ?? 0,
-              operation.applyAtCanvasBounds === true
-            )) return false;
-          } else if (operation.mode === 'transform') {
-            if (!operation.transform || !renderer.transformSelection(operation.transform)) {
-              return false;
-            }
-          } else if (!await ((operation.amount ?? 0) > 0 || operation.antiAlias
-            ? this.setSelectionNow(
-                renderer,
-                documentId,
-                operation.shape,
-                operation.mode,
-                operation.amount ?? 0,
-                operation.antiAlias ?? false
-              )
-            : this.setSelectionNow(renderer, documentId, operation.shape, operation.mode))) {
-            return false;
-          }
-        }
-        return true;
-      };
-      try {
-        const succeeded = await replay();
-        if (
-          !succeeded
-          || this.documentRenderer !== renderer
-          || (this.imageDocument?.id ?? null) !== documentId
-        ) {
-          if (this.selectionOwnerIsCurrent(renderer, documentId)) {
-            renderer.restoreSelectionSnapshot(before);
-          }
-          return false;
-        }
-        this.renderDirty.invalidate('viewport');
-        this.requestRender();
-        return true;
-      } catch (reason) {
-        if (this.selectionOwnerIsCurrent(renderer, documentId)) {
-          renderer.restoreSelectionSnapshot(before);
-          this.renderDirty.invalidate('viewport');
-          this.requestRender();
-        }
-        throw reason;
-      }
-    });
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
-  }
-
-  paintSelectionDabs(
-    dabs: BrushDab[],
-    hardness: number,
-    opacity: number,
-    mode: 'add' | 'subtract'
+  prepareSelectionOperationProjection(
+    documentAddress: Parameters<LayerDocumentRenderer['prepareSelectionOperationProjection']>[0],
+    baseline: Parameters<LayerDocumentRenderer['prepareSelectionOperationProjection']>[1],
+    intent: Parameters<LayerDocumentRenderer['prepareSelectionOperationProjection']>[2],
+    transactionId: Parameters<LayerDocumentRenderer['prepareSelectionOperationProjection']>[4],
+    signal: Parameters<LayerDocumentRenderer['prepareSelectionOperationProjection']>[5],
   ) {
-    const renderer = this.documentRenderer;
-    const documentId = this.imageDocument?.id ?? null;
-    const task = this.selectionQueue.then(() => {
-      if (
-        this.destroyed
-        || !renderer
-        || this.documentRenderer !== renderer
-        || (this.imageDocument?.id ?? null) !== documentId
-      ) return false;
-      const changed = renderer.paintSelectionDabs(dabs, hardness, opacity, mode);
-      if (changed) {
-        this.renderDirty.invalidate('viewport');
-        this.requestRender();
+    return this.prepareSelectionProjection('operation', async (renderer) => {
+      const document = this.imageDocument;
+      if (!document || document.revision !== documentAddress.revision) {
+        throw new Error('The selection operation document is no longer current.');
       }
-      return changed;
+      const operation = intent.operation;
+      const operationSource = operation?.source;
+      let source: GPUTexture | undefined;
+      let releaseTransient = false;
+      if (operationSource?.kind === 'layer-mask') {
+        const layer = findDocumentLayer(document, operationSource.layerId);
+        if (!layer?.mask || layer.mask.pixelRevision !== operationSource.pixelRevision) {
+          throw new Error('The selected layer mask is no longer current.');
+        }
+        source = renderer.selectionMaskSource(layer.id) ?? undefined;
+      } else if (operationSource?.kind === 'layer-transparency') {
+        const layer = findDocumentLayer(document, operationSource.layerId);
+        const contentRevision = layer?.type === 'raster'
+          ? `raster:${layer.pixelRevision}`
+          : layer?.type === 'text' || layer?.type === 'vector'
+            ? `semantic:${layer.revision}` : null;
+        if (!layer || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')
+          || contentRevision !== operationSource.contentRevision) {
+          throw new Error('The selected layer transparency is no longer current.');
+        }
+        source = await renderer.createLayerTransparencySelectionSource(document, layer);
+        releaseTransient = true;
+      } else if (operationSource?.kind === 'similar') {
+        const layer = findDocumentLayer(document, operationSource.layerId);
+        if (!layer || operationSource.documentRevision !== document.revision) {
+          throw new Error('The Select Similar source is no longer current.');
+        }
+        if (operationSource.options.sampleAllLayers) {
+          this.settleInteractiveRenderQuality();
+          this.renderScheduler.flush();
+          await this.device.queue.onSubmittedWorkDone();
+          source = this.imageResources.finalTexture ?? undefined;
+        } else {
+          source = renderer.createMagicWandSourceForActiveLayer(document, layer.id) ?? undefined;
+          releaseTransient = true;
+        }
+      } else if (operationSource?.kind === 'composite-channel') {
+        if (operationSource.documentRevision !== document.revision) {
+          throw new Error('The selected composite channel is no longer current.');
+        }
+        this.settleInteractiveRenderQuality();
+        this.renderScheduler.flush();
+        await this.device.queue.onSubmittedWorkDone();
+        source = this.imageResources.finalTexture ?? undefined;
+      }
+      signal.throwIfAborted();
+      if (operationSource && (
+        operationSource.kind === 'layer-mask'
+        || operationSource.kind === 'layer-transparency'
+        || operationSource.kind === 'similar'
+        || operationSource.kind === 'composite-channel'
+      ) && !source) {
+        throw new Error('The selection operation source could not be prepared.');
+      }
+      try {
+        return await renderer.prepareSelectionOperationProjection(
+          documentAddress, baseline, intent, source, transactionId, signal,
+        );
+      } finally {
+        if (releaseTransient) renderer.releaseSubmittedResources();
+      }
     });
-    this.selectionQueue = task.then(() => undefined, () => undefined);
-    return task;
   }
 
-  beginSelectionPaintPreview() {
+
+
+  beginSelectionPaintPreview(baseline: SelectionMaskSnapshot) {
     const renderer = this.documentRenderer;
     const documentId = this.imageDocument?.id ?? null;
-    const lease = renderer?.beginSelectionPaintPreview();
+    const lease = renderer?.beginSelectionPaintPreview(baseline);
     if (!renderer || !lease) return null;
     const enqueue = <Result>(
       operation: () => Result | Promise<Result>,
@@ -2020,7 +1690,13 @@ export class WebGpuEngine {
       ),
       // The concrete lease closes over the exact LayerDocumentRenderer/store;
       // it never resolves through this.documentRenderer after a tab switch.
-      release: lease.release,
+      release: () => {
+        lease.release();
+        if (this.selectionOwnerIsCurrent(renderer, documentId)) {
+          this.renderDirty.invalidate('viewport');
+          this.requestRender();
+        }
+      },
     };
   }
 

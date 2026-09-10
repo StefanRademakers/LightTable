@@ -51,4 +51,33 @@ describe('SelectionMaskSnapshot', () => {
     expect(compressed.contains(2, 1)).toBe(true);
     expect(compressed.contains(-1, 0)).toBe(false);
   });
+
+  it('measures support and half-peak core bounds from raw half-float coverage', () => {
+    const values = new Uint16Array(12);
+    values[5] = 0x3400;
+    values[6] = 0x3c00;
+    values[9] = 0x3800;
+    const snapshot = SelectionMaskSnapshot.fromRaw(4, 3, values);
+
+    expect(snapshot.measureBounds()).toEqual({
+      supportBounds: { x: 1, y: 1, width: 2, height: 2 },
+      coreBounds: { x: 1, y: 1, width: 2, height: 2 },
+      peakCoverage: 1,
+    });
+  });
+
+  it('measures compressed coverage without decoding and treats zero coverage as empty', () => {
+    const values = new Uint16Array(16);
+    values.fill(0x3c00, 10, 13);
+    const compressed = SelectionMaskSnapshot.fromRaw(8, 2, values);
+    const empty = SelectionMaskSnapshot.fromRaw(8, 2, new Uint16Array(16));
+
+    expect(compressed.encoding).toBe('rle-r16float');
+    expect(compressed.measureBounds()).toEqual({
+      supportBounds: { x: 2, y: 1, width: 3, height: 1 },
+      coreBounds: { x: 2, y: 1, width: 3, height: 1 },
+      peakCoverage: 1,
+    });
+    expect(empty.measureBounds()).toBeNull();
+  });
 });

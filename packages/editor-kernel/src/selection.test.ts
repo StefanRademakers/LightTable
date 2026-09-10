@@ -95,10 +95,10 @@ describe('SelectionMutationCoordinator', () => {
     });
     expect(result).toEqual({ ok: true, selection: after });
     expect(current).toBe(after);
-    expect(events).toEqual(['reserve', 'activate', 'state', 'history', 'accept']);
+    expect(events).toEqual(['reserve', 'state', 'activate', 'history', 'accept']);
   });
 
-  it('rolls the renderer back and cancels history on a revision conflict', async () => {
+  it('never activates the renderer and cancels history on a revision conflict', async () => {
     const events: string[] = [];
     const coordinator = new SelectionMutationCoordinator<string, string, string>({
       state: { read: () => baseline, compareAndSwap: () => false },
@@ -106,7 +106,7 @@ describe('SelectionMutationCoordinator', () => {
         prepare: async () => ({ transactionId: 'transaction-2' as TransactionId,
           baselineRevision: baseline.revision, result: after,
           activate: () => ({ accept: () => events.push('accept'),
-            rollback: () => events.push('rollback') }), dispose: () => undefined }),
+            rollback: () => events.push('rollback') }), dispose: () => events.push('dispose') }),
         presentPreview: () => undefined, clearPreview: () => undefined,
       },
       history: { reserve: () => ({ commit: () => true,
@@ -118,7 +118,41 @@ describe('SelectionMutationCoordinator', () => {
       transactionId: 'transaction-2' as TransactionId, signal: new AbortController().signal,
     });
     expect(result).toMatchObject({ ok: false, reason: 'conflict' });
-    expect(events).toEqual(['rollback', 'cancel']);
+    expect(events).toEqual(['dispose', 'cancel']);
+  });
+
+  it('restores canonical state when projection activation fails after CAS', async () => {
+    let current = baseline;
+    const events: string[] = [];
+    const coordinator = new SelectionMutationCoordinator<string, string, string>({
+      state: {
+        read: () => current,
+        compareAndSwap: (expected, next) => {
+          events.push(next === after ? 'state-after' : 'state-before');
+          if (current.revision !== expected) return false;
+          current = next;
+          return true;
+        },
+      },
+      projection: {
+        prepare: async () => ({ transactionId: 'transaction-activation' as TransactionId,
+          baselineRevision: baseline.revision, result: after,
+          activate: () => { events.push('activate'); throw new Error('activation failed'); },
+          dispose: () => events.push('dispose') }),
+        presentPreview: () => undefined, clearPreview: () => undefined,
+      },
+      history: { reserve: () => ({ commit: () => true,
+        cancel: () => events.push('cancel') }) },
+      publication: { run: (operation) => operation() },
+    });
+    const result = await coordinator.execute({
+      target: { sessionId: documentSessionId, revision: 0 as never }, intent: 'rectangle',
+      transactionId: 'transaction-activation' as TransactionId,
+      signal: new AbortController().signal,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'prepare-failed' });
+    expect(current).toBe(baseline);
+    expect(events).toEqual(['state-after', 'activate', 'state-before', 'dispose', 'cancel']);
   });
 
   it('keeps published state and history when terminal acceptance cleanup misbehaves', async () => {

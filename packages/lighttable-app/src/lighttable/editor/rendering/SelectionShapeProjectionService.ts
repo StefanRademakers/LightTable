@@ -63,13 +63,19 @@ export interface SelectionMagicWandProjectionIntent {
   readonly provenance: SelectionOperation;
 }
 
-interface SelectionProjectionStage {
+/** One incremental operation applied to exact committed coverage; null clears it. */
+export interface SelectionOperationProjectionIntent {
+  readonly operation: SelectionOperation | null;
+}
+
+export interface SelectionProjectionStage {
   readonly textures: SelectionTextureStore;
   restore(snapshot: SelectionMaskSnapshot): boolean;
   apply(intent: SelectionRasterizationProjectionIntent): boolean;
   transform(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): boolean;
   paint(intent: SelectionPaintProjectionIntent): boolean;
   magicWand?(source: GPUTexture, intent: SelectionMagicWandProjectionIntent): boolean;
+  applyOperation(operation: SelectionOperation | null, source?: GPUTexture): boolean;
   capture(): Promise<SelectionMaskSnapshot>;
   measure(): Promise<SelectionCoverageBounds | null>;
   dispose(): void;
@@ -223,8 +229,7 @@ export class SelectionShapeProjectionService {
       }
       const capturedCoverage = await stage.capture();
       if (signal.aborted) throw new DOMException('Selection preparation was cancelled.', 'AbortError');
-      const measured = await stage.measure();
-      if (signal.aborted) throw new DOMException('Selection preparation was cancelled.', 'AbortError');
+      const measured = capturedCoverage.measureBounds();
       // Subtract/intersect may legitimately remove the final covered pixel.
       // Normalize that result to the same inactive value every consumer uses.
       const coverage = measured
@@ -283,8 +288,7 @@ export class SelectionShapeProjectionService {
       }
       const capturedCoverage = await stage.capture();
       if (signal.aborted) throw new DOMException('Magic Wand was cancelled.', 'AbortError');
-      const measured = await stage.measure();
-      if (signal.aborted) throw new DOMException('Magic Wand was cancelled.', 'AbortError');
+      const measured = capturedCoverage.measureBounds();
       const coverage = measured
         ? capturedCoverage
         : SelectionMaskSnapshot.inactive(baseline.canvas.width, baseline.canvas.height);
@@ -338,8 +342,7 @@ export class SelectionShapeProjectionService {
       }
       const captured = await stage.capture();
       if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
-      const measured = target.active ? await stage.measure() : null;
-      if (signal.aborted) throw new DOMException('Selection restore was cancelled.', 'AbortError');
+      const measured = target.active ? captured.measureBounds() : null;
       if (target.active && !measured && target.supportBounds !== null) {
         throw new Error('The restored selection has no measurable coverage.');
       }
@@ -397,8 +400,7 @@ export class SelectionShapeProjectionService {
       }
       const captured = await stage.capture();
       if (signal.aborted) throw new DOMException('Selection translation was cancelled.', 'AbortError');
-      const measured = await stage.measure();
-      if (signal.aborted) throw new DOMException('Selection translation was cancelled.', 'AbortError');
+      const measured = captured.measureBounds();
       const result: SelectionState = {
         documentSessionId: document.sessionId,
         revision: (baseline.revision + 1) as SelectionRevision,
@@ -440,8 +442,7 @@ export class SelectionShapeProjectionService {
       }
       const capturedCoverage = await stage.capture();
       if (signal.aborted) throw new DOMException('Selection paint was cancelled.', 'AbortError');
-      const measured = await stage.measure();
-      if (signal.aborted) throw new DOMException('Selection paint was cancelled.', 'AbortError');
+      const measured = capturedCoverage.measureBounds();
       const coverage = measured
         ? capturedCoverage
         : SelectionMaskSnapshot.inactive(baseline.canvas.width, baseline.canvas.height);
@@ -454,6 +455,58 @@ export class SelectionShapeProjectionService {
         coverage,
         supportBounds: measured?.supportBounds ?? null,
         provenance: measured ? [...baseline.provenance, intent.provenance] : [],
+      };
+      return new PreparedShapeProjection(
+        transactionId, baseline.revision, result,
+        this.options.committedTextures, stage, recycle,
+      );
+    } catch (reason) {
+      recycle(stage, stage.textures.detachState());
+      throw reason;
+    }
+  }
+
+  async prepareOperation(
+    document: DocumentAddress,
+    baseline: SelectionState,
+    intent: SelectionOperationProjectionIntent,
+    source: GPUTexture | undefined,
+    transactionId: TransactionId,
+    signal: AbortSignal,
+  ): Promise<PreparedSelectionProjection<SelectionMaskSnapshot, SelectionOperation>> {
+    if (baseline.documentSessionId !== document.sessionId) {
+      throw new Error('The selection operation belongs to another document session.');
+    }
+    if (signal.aborted) throw new DOMException('Selection operation was cancelled.', 'AbortError');
+    const stage = this.createStage(baseline.canvas.width, baseline.canvas.height);
+    const recycle = (nextStage: SelectionProjectionStage, state: SelectionTargetState) => this.recycle(
+      baseline.canvas.width, baseline.canvas.height, nextStage, state,
+    );
+    try {
+      stage.textures.ensureTargets();
+      if (!stage.restore(baseline.coverage) || !stage.applyOperation(intent.operation, source)) {
+        throw new Error('The selection operation could not be staged.');
+      }
+      const capturedCoverage = await stage.capture();
+      if (signal.aborted) throw new DOMException('Selection operation was cancelled.', 'AbortError');
+      const measured = capturedCoverage.measureBounds();
+      const coverage = measured
+        ? capturedCoverage
+        : SelectionMaskSnapshot.inactive(baseline.canvas.width, baseline.canvas.height);
+      stage.textures.active = measured !== null;
+      const operation = intent.operation;
+      const provenance = !measured || !operation ? []
+        : operation.mode === 'replace'
+          ? [operation]
+          : [...baseline.provenance, operation];
+      const result: SelectionState = {
+        documentSessionId: document.sessionId,
+        revision: (baseline.revision + 1) as SelectionRevision,
+        canvas: { ...baseline.canvas },
+        active: measured !== null,
+        coverage,
+        supportBounds: measured?.supportBounds ?? null,
+        provenance,
       };
       return new PreparedShapeProjection(
         transactionId, baseline.revision, result,

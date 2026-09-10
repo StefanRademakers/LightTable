@@ -645,12 +645,12 @@ export interface LightTableEditorOverlayProps {
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   history?: DocumentCommandHistory;
-  tasks?: DocumentTaskRegistry;
+  tasks: DocumentTaskRegistry;
   rendererLifecycle?: DocumentRendererLifecycle;
   documentSession?: DocumentSession;
   applicationEditorSession?: EditorApplicationSession;
-  commandService?: LightTableCommandService;
-  commandPorts?: LightTableCommandPortRegistry;
+  commandService: LightTableCommandService;
+  commandPorts: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
   recoveryPreferences?: { readonly enabled: boolean; readonly intervalMs: number };
@@ -2954,23 +2954,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setEditorSession((current) => ({ ...current, pointerId }));
     },
     publishDraft: setSelectionDraft,
-    pushHistoryEntry,
     setError,
-    commitShape: selectionShapeCommandService
-      ? (command) => selectionShapeCommandService.execute(command)
-      : undefined,
-    commitTranslation: selectionShapeCommandService
-      ? (command) => selectionShapeCommandService.executeTranslation(command)
-      : undefined,
-    commitPaint: selectionShapeCommandService
-      ? (command) => selectionShapeCommandService.executePaint(command)
-      : undefined,
-    commitMagicWand: selectionShapeCommandService
-      ? (command, signal) => selectionShapeCommandService.executeMagicWand(command, signal)
-      : undefined,
+    commitShape: (command) => selectionShapeCommandService
+      ? selectionShapeCommandService.execute(command) : Promise.resolve(false),
+    commitTranslation: (command) => selectionShapeCommandService
+      ? selectionShapeCommandService.executeTranslation(command) : Promise.resolve(false),
+    commitPaint: (command) => selectionShapeCommandService
+      ? selectionShapeCommandService.executePaint(command) : Promise.resolve(false),
+    commitMagicWand: (command, signal) => selectionShapeCommandService
+      ? selectionShapeCommandService.executeMagicWand(command, signal) : Promise.resolve(false),
+    commitOperation: (command) => selectionShapeCommandService
+      ? selectionShapeCommandService.executeOperation(command) : Promise.resolve(false),
     commitRasterMask: (command, signal) => selectionShapeCommandService
-      ? selectionShapeCommandService.executeRasterMask(command, signal)
-      : Promise.resolve(false),
+      ? selectionShapeCommandService.executeRasterMask(command, signal) : Promise.resolve(false),
     getSnapContext: (movingBounds) => {
       const document = imageDocumentRef.current;
       const snap = editorSessionRef.current.snap;
@@ -3895,97 +3891,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const restoreDocumentSelectionState = useCallback(async (
     renderer: DocumentRendererPort
   ) => {
-    const documentEditor = documentSession?.getSnapshot().editor
-      ?? documentEditorStateFrom(editorSessionRef.current);
-    const exactMask = documentEditor.selectionMaskSnapshot;
-    if (exactMask && documentSession && selectionShapeCommandService) {
-      if (!await selectionShapeCommandService.projectCurrent(renderer)) {
-        throw new Error('The canonical document selection could not be projected.');
-      }
-      return;
+    if (!documentSession || !selectionShapeCommandService) {
+      throw new Error('The canonical selection owner is unavailable for this image document.');
     }
-    if (exactMask) {
-      if (!await renderer.restoreSelectionSnapshot(exactMask)) {
-        throw new Error('The document selection could not be restored.');
-      }
-      const coverage = exactMask.active ? await renderer.measureSelectionBounds() : null;
-      if (exactMask.active && !coverage) {
-        if (!await renderer.clearSelection()) {
-          throw new Error('The empty document selection could not be normalized.');
-        }
-        const inactive = imageDocumentRef.current
-          ? SelectionMaskSnapshot.inactive(
-              imageDocumentRef.current.width, imageDocumentRef.current.height,
-            )
-          : null;
-        if (inactive && documentSession) {
-          documentSession.updateEditor((current) => ({
-            ...current,
-            selection: [],
-            selectionMaskSnapshot: inactive,
-            selectionRevision: current.selectionRevision + 1,
-            selectionSupportBounds: null,
-          }));
-        }
-        renderer.setCommittedSelectionProjection([]);
-        return;
-      }
-      const normalizedSelection = exactMask.active ? documentEditor.selection : [];
-      const normalizedInactive = !exactMask.active && documentEditor.selection.length > 0;
-      if (documentSession) {
-        documentSession.updateEditor((current) => ({
-          ...current,
-          selection: [...normalizedSelection],
-          selectionRevision: normalizedInactive
-            ? current.selectionRevision + 1
-            : current.selectionRevision,
-          selectionSupportBounds: coverage?.supportBounds ?? null,
-        }));
-      } else setEditorSession((current) => ({
-        ...current,
-        selection: [...normalizedSelection],
-        selectionRevision: normalizedInactive
-          ? current.selectionRevision + 1
-          : current.selectionRevision,
-        selectionSupportBounds: coverage?.supportBounds ?? null,
-      }));
-      renderer.setCommittedSelectionProjection(normalizedSelection);
-      return;
+    if (!await selectionShapeCommandService.projectCurrent(renderer)) {
+      throw new Error('The canonical document selection could not be projected.');
     }
-
-    if (documentEditor.selection.length === 0) {
-      if (!await renderer.clearSelection()) {
-        throw new Error('The previous document selection could not be cleared.');
-      }
-      renderer.setCommittedSelectionProjection([]);
-      return;
-    }
-
-    if (!await renderer.replaceSelection([...documentEditor.selection])) {
-      throw new Error('The document selection could not be rebuilt.');
-    }
-    const capturedMask = await renderer.captureSelectionSnapshot();
-    const coverage = capturedMask.active ? await renderer.measureSelectionBounds() : null;
-    if (capturedMask.active && !coverage) {
-      throw new Error('The rebuilt document selection has no measurable coverage.');
-    }
-    renderer.setCommittedSelectionProjection(documentEditor.selection);
-    if (documentSession) {
-      documentSession.updateEditor((current) => ({
-        ...current,
-        selectionMaskSnapshot: capturedMask,
-        selectionRevision: current.selectionRevision + 1,
-        selectionSupportBounds: coverage?.supportBounds ?? null,
-      }));
-    } else {
-      setEditorSession((current) => ({
-        ...current,
-        selectionMaskSnapshot: capturedMask,
-        selectionRevision: current.selectionRevision + 1,
-        selectionSupportBounds: coverage?.supportBounds ?? null,
-      }));
-    }
-  }, [documentSession, selectionShapeCommandService, setEditorSession]);
+  }, [documentSession, selectionShapeCommandService]);
 
   const documentLifecycleController = useEditorDocumentLifecycleController({
     enabled: open && workspaceDocumentKind === 'image',

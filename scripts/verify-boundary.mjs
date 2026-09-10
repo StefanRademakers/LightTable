@@ -118,6 +118,7 @@ const rendererFacadeImports = new Set([
   '../../application/documentGeometry/documentGeometryModel',
   './LayerThumbnailService',
   './RasterDocumentOperations',
+  './SelectionShapeProjectionService',
   './createLayerDocumentRendererRuntime',
   './renderContract'
 ]);
@@ -252,6 +253,27 @@ function verifyVectorWebGpuBoundary(relativePath, source) {
   }
 }
 
+function verifySelectionKernelCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  const forbiddenPublicMutations = /^(?:  )(?:setSelection|replaceSelection|clearSelection|applyMagicWand|applySelectSimilar|applyRasterSelection|transformSelection|paintSelectionDabs)\s*\(/m;
+  if (normalizedPath === 'packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts'
+    && forbiddenPublicMutations.test(source)) {
+    failures.push(`${relativePath}: committed selection mutation must enter through the kernel projection port`);
+  }
+  if (normalizedPath === 'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts'
+    && forbiddenPublicMutations.test(source)) {
+    failures.push(`${relativePath}: renderer facade must not expose direct committed selection mutation`);
+  }
+  if (normalizedPath === 'packages/lighttable-app/src/lighttable/application/tools/selection/selectionSessionPorts.ts') {
+    if (/\bpushHistoryEntry\b/.test(source)) {
+      failures.push(`${relativePath}: selection gestures must not own history publication`);
+    }
+    if (/\bcommit(?:Shape|Translation|Paint|MagicWand|Operation|RasterMask)\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: committed selection ports must be required and fail closed`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -263,7 +285,8 @@ async function scan(relativeDirectory) {
     if (!sourceExtensions.has(path.extname(entry.name))) continue;
 
     const source = await readFile(relativePath, 'utf8');
-    verifyRendererFacadeImports(relativePath, source);
+      verifyRendererFacadeImports(relativePath, source);
+      verifySelectionKernelCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

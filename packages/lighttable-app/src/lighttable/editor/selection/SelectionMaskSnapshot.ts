@@ -1,3 +1,6 @@
+import type { Rect } from '../document/documentTypes';
+import type { SelectionCoverageBounds } from './selectionCoverage';
+
 const SNAPSHOT_OVERHEAD_BYTES = 32;
 
 export type SelectionMaskSnapshotEncoding = 'raw-r16float' | 'rle-r16float';
@@ -119,7 +122,68 @@ export class SelectionMaskSnapshot {
     }
     return false;
   }
+
+  /** Derives exact support/core bounds from the captured CPU mask without another GPU readback. */
+  measureBounds(): SelectionCoverageBounds | null {
+    if (!this.active) return null;
+    let peak = 0;
+    this.forEachValue((value) => {
+      const coverage = halfFloatToNumber(value);
+      if (Number.isFinite(coverage)) peak = Math.max(peak, coverage);
+    });
+    if (peak <= 0) return null;
+    const scan = (threshold: number): Rect | null => {
+      let minX = this.width;
+      let minY = this.height;
+      let maxX = -1;
+      let maxY = -1;
+      this.forEachValue((value, index) => {
+        const coverage = halfFloatToNumber(value);
+        if (!Number.isFinite(coverage) || coverage < threshold) return;
+        const x = index % this.width;
+        const y = Math.floor(index / this.width);
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      });
+      return maxX < minX || maxY < minY ? null : {
+        x: minX,
+        y: minY,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1,
+      };
+    };
+    const supportBounds = scan(Number.MIN_VALUE);
+    const coreBounds = scan(peak * 0.5);
+    return supportBounds && coreBounds
+      ? { supportBounds, coreBounds, peakCoverage: peak }
+      : null;
+  }
+
+  private forEachValue(visit: (value: number, index: number) => void): void {
+    if (this.#raw) {
+      this.#raw.forEach(visit);
+      return;
+    }
+    if (!this.#runs) return;
+    let index = 0;
+    for (const run of this.#runs) {
+      const value = run >>> 16;
+      const length = (run & 0xffff) + 1;
+      for (let offset = 0; offset < length; offset += 1) visit(value, index++);
+    }
+  }
 }
+
+const halfFloatToNumber = (word: number): number => {
+  const sign = (word & 0x8000) ? -1 : 1;
+  const exponent = (word >>> 10) & 0x1f;
+  const fraction = word & 0x03ff;
+  if (exponent === 0) return sign * fraction * 2 ** -24;
+  if (exponent === 0x1f) return fraction ? Number.NaN : sign * Number.POSITIVE_INFINITY;
+  return sign * (1 + fraction / 0x400) * 2 ** (exponent - 15);
+};
 
 const assertDimensions = (width: number, height: number) => {
   if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {

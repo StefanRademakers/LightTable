@@ -1,938 +1,275 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createImageDocument,
-  type ImageDocument
-} from '../../../editor/document/documentTypes';
 import { addLayerMask } from '../../../editor/document/documentCommands';
-import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
-import type { SelectionShape } from '../../../editor/selection/selectionTypes';
+import { createImageDocument, type ImageDocument } from '../../../editor/document/documentTypes';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
-import {
-  createSelectionSessionController,
-  type SelectionHistoryEntry,
-  type SelectionSessionDependencies
-} from './useSelectionSessionController';
+import type { RasterSelectionMask, SelectionOperation, SelectionShape } from '../../../editor/selection/selectionTypes';
+import { createSelectionSessionController, type SelectionSessionDependencies } from './useSelectionSessionController';
 
 const document = createImageDocument('Selection', 100, 80, 'selection');
+const fullCoverage = () => SelectionMaskSnapshot.fromRaw(
+  document.width, document.height,
+  new Uint16Array(document.width * document.height).fill(0x3c00),
+);
 
 const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   let activeDocument: ImageDocument | null = document;
   let selection: SelectionOperation[] = [];
   let pointerId: number | null = null;
   let draft: SelectionShape | null = null;
-  let draftPublications = 0;
-  let selectionPublications = 0;
   let selectionMaskSnapshot = SelectionMaskSnapshot.inactive(document.width, document.height);
-  const history: SelectionHistoryEntry[] = [];
-  const paintSelectionDabs = vi.fn(async () => true);
-  const captureSelectionSnapshot = vi.fn(async () => selectionMaskSnapshot);
-  const measureSelectionBounds = vi.fn(async () => selectionMaskSnapshot.active ? ({
-    coreBounds: { x: 0, y: 0, width: document.width, height: document.height },
-    supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
-    peakCoverage: 1,
-  }) : null);
   const restoreSelectionSnapshot = vi.fn(async (snapshot: SelectionMaskSnapshot) => {
     selectionMaskSnapshot = snapshot;
     return true;
   });
   const preview = {
-    paintSelectionDabs,
-    captureSelectionSnapshot,
-    measureSelectionBounds,
+    paintSelectionDabs: vi.fn(async () => true),
     restoreSelectionSnapshot,
+    captureSelectionSnapshot: vi.fn(async () => selectionMaskSnapshot),
+    measureSelectionBounds: vi.fn(async () => selectionMaskSnapshot.active ? ({
+      coreBounds: { x: 0, y: 0, width: document.width, height: document.height },
+      supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
+      peakCoverage: 1,
+    }) : null),
     release: vi.fn(),
   };
   const renderer = {
     setSelectionPreviewProjection: vi.fn(),
     setCommittedSelectionProjection: vi.fn(),
-    replaceSelection: vi.fn(async () => true),
-    setSelection: vi.fn(async () => true),
-    clearSelection: vi.fn(async () => true),
-    captureSelectionSnapshot,
-    measureSelectionBounds,
-    restoreSelectionSnapshot,
-    transformSelection: vi.fn(async () => true),
-    applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
-    applySelectSimilar: vi.fn(async (_operation: SelectionOperation) => true),
-    applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true),
-    paintSelectionDabs,
     beginSelectionPaintPreview: vi.fn(() => preview),
   };
+  const commitShape = vi.fn(async ({ mode, provenance }: Parameters<SelectionSessionDependencies['commitShape']>[0]) => {
+    selection = mode === 'replace' ? [provenance] : [...selection, provenance];
+    selectionMaskSnapshot = fullCoverage();
+    return true;
+  });
+  const commitTranslation = vi.fn(async ({ provenance }: Parameters<SelectionSessionDependencies['commitTranslation']>[0]) => {
+    selection = [...selection, provenance];
+    return true;
+  });
+  const commitPaint = vi.fn(async ({ provenance }: Parameters<SelectionSessionDependencies['commitPaint']>[0]) => {
+    selection = [...selection, provenance];
+    selectionMaskSnapshot = fullCoverage();
+    return true;
+  });
+  const commitMagicWand = vi.fn(async ({ mode, provenance }: Parameters<SelectionSessionDependencies['commitMagicWand']>[0]) => {
+    selection = mode === 'replace' ? [provenance] : [...selection, provenance];
+    selectionMaskSnapshot = fullCoverage();
+    return true;
+  });
+  const commitOperation = vi.fn(async ({ operation }: Parameters<SelectionSessionDependencies['commitOperation']>[0]) => {
+    selection = operation === null ? []
+      : operation.mode === 'replace' ? [operation] : [...selection, operation];
+    selectionMaskSnapshot = operation === null
+      ? SelectionMaskSnapshot.inactive(document.width, document.height) : fullCoverage();
+    return true;
+  });
+  const commitRasterMask = vi.fn(async () => true);
+  const setError = vi.fn();
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
     getRenderer: () => renderer,
     getSelection: () => selection,
     getSelectionMaskSnapshot: () => selectionMaskSnapshot,
+    getSelectionSupportBounds: () => selectionMaskSnapshot.active
+      ? { x: 0, y: 0, width: document.width, height: document.height } : null,
     publishSelection: (next, nextPointerId, nextMask) => {
-      selectionPublications += 1;
       selection = next;
       pointerId = nextPointerId;
       if (nextMask !== undefined) selectionMaskSnapshot = nextMask;
     },
-    publishPointer: (nextPointerId) => {
-      pointerId = nextPointerId;
-    },
-    publishDraft: (next) => {
-      draft = next;
-      draftPublications += 1;
-    },
-    pushHistoryEntry: (entry) => history.push(entry),
-    setError: vi.fn(),
-    commitRasterMask: vi.fn(async () => true),
-    ...overrides
+    publishPointer: (nextPointerId) => { pointerId = nextPointerId; },
+    publishDraft: (next) => { draft = next; },
+    setError,
+    commitShape,
+    commitTranslation,
+    commitPaint,
+    commitMagicWand,
+    commitOperation,
+    commitRasterMask,
+    ...overrides,
   };
   const controller = createSelectionSessionController(() => dependencies);
   return {
-    controller,
-    renderer,
-    preview,
-    history,
+    controller, renderer, preview,
+    commitShape, commitTranslation, commitPaint, commitMagicWand, commitOperation,
+    commitRasterMask, setError,
     get selection() { return selection; },
     get pointerId() { return pointerId; },
     get draft() { return draft; },
-    get draftPublications() { return draftPublications; },
-    get selectionPublications() { return selectionPublications; },
-    switchDocument: (next: ImageDocument | null) => {
-      activeDocument = next;
-    }
+    switchDocument: (next: ImageDocument | null) => { activeDocument = next; },
   };
 };
 
-describe('selection session controller', () => {
-  it('applies all, invert and clear through one selection-only owner', async () => {
+describe('selection session controller kernel boundary', () => {
+  it('routes Select All, Invert and Clear through the generic kernel operation port', async () => {
     const state = setup();
     expect(await state.controller.applyState('all')).toBe(true);
-    expect(state.selection).toHaveLength(1);
     expect(await state.controller.applyState('invert')).toBe(true);
-    expect(state.selection.at(-1)?.mode).toBe('invert');
     expect(await state.controller.applyState('clear')).toBe(true);
-    expect(state.selection).toEqual([]);
-    expect(state.renderer.replaceSelection).toHaveBeenCalledTimes(3);
-    expect(state.history).toHaveLength(3);
-    expect(state.history.every(({ documentMutation }) => documentMutation === false)).toBe(true);
-
-    await state.history.at(-1)?.undo();
-    expect(state.selection.at(-1)?.mode).toBe('invert');
-    await state.history.at(-1)?.redo();
+    expect(state.commitOperation).toHaveBeenCalledTimes(3);
+    expect(state.commitOperation.mock.calls[0]![0].operation).toMatchObject({ mode: 'replace' });
+    expect(state.commitOperation.mock.calls[1]![0].operation).toMatchObject({ mode: 'invert' });
+    expect(state.commitOperation.mock.calls[2]![0].operation).toBeNull();
     expect(state.selection).toEqual([]);
   });
 
-  it('restores the effective mask without publishing a rejected selection commit', async () => {
-    const pushHistoryEntry = vi.fn(() => {
-      throw new Error('History rejected the selection.');
-    });
-    const state = setup({ pushHistoryEntry });
-
+  it('fails closed when a generic committed operation is rejected', async () => {
+    const commitOperation = vi.fn(async () => false);
+    const state = setup({ commitOperation });
     await expect(state.controller.applyState('all')).resolves.toBe(false);
-
-    expect(pushHistoryEntry).toHaveBeenCalledOnce();
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
     expect(state.selection).toEqual([]);
-    expect(state.pointerId).toBeNull();
+    expect(state.setError).toHaveBeenLastCalledWith('The complete canvas could not be selected.');
   });
 
-  it('returns the asynchronous feather commit and records selection-only history', async () => {
+  it('routes direct and dragged rectangle selections through commitShape', async () => {
     const state = setup();
-    await state.controller.applyState('all');
-
-    await expect(state.controller.feather(18)).resolves.toBe(true);
-
-    expect(state.selection.at(-1)).toMatchObject({ mode: 'feather', amount: 18 });
-    expect(state.renderer.replaceSelection).toHaveBeenLastCalledWith(
-      expect.arrayContaining([expect.objectContaining({ mode: 'feather', amount: 18 })])
-    );
-    expect(state.history.at(-1)?.documentMutation).toBe(false);
-  });
-
-  it('adds Select Similar through the raster selection owner and labels its history', async () => {
-    const state = setup();
-    expect(await state.controller.selectSimilar(document.activeLayerId!, {
-      tolerance: 20, antiAlias: true, sampleAllLayers: false
-    })).toBe(false);
-    await state.controller.applyState('all');
-
-    await expect(state.controller.selectSimilar(document.activeLayerId!, {
-      tolerance: 20, antiAlias: true, sampleAllLayers: false
-    })).resolves.toBe(true);
-
-    expect(state.renderer.applySelectSimilar).toHaveBeenCalledOnce();
-    expect(state.selection.at(-1)?.source).toMatchObject({
-      kind: 'similar', layerId: document.activeLayerId,
-      options: { tolerance: 20, antiAlias: true, sampleAllLayers: false }
-    });
-    expect(state.history.at(-1)).toMatchObject({
-      label: 'Select Similar', type: 'selection.similar', documentMutation: false
-    });
-  });
-
-  it('applies one final semantic shape without replaying pointer samples', async () => {
-    const state = setup();
-    expect(await state.controller.applyShape(
-      { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] },
-      'replace',
-      3,
-      true
-    )).toBe(true);
-    expect(state.renderer.setSelection).toHaveBeenCalledOnce();
-    expect(state.renderer.setSelection).toHaveBeenCalledWith(
-      { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] },
-      'replace',
-      3,
-      true
-    );
-    expect(state.selection).toEqual([{
-      mode: 'replace', amount: 3, antiAlias: true,
-      shape: { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] }
-    }]);
-    expect(state.history).toHaveLength(1);
-    expect(state.history[0].documentMutation).toBe(false);
-  });
-
-  it('routes command and pointer shape commits exclusively through the kernel port', async () => {
-    const commitShape = vi.fn(async () => true);
-    const onShapeCommitted = vi.fn();
-    const state = setup({ commitShape, onShapeCommitted });
     const shape: SelectionShape = {
-      kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }],
+      kind: 'rectangle', points: [{ x: 10, y: 12 }, { x: 40, y: 42 }],
     };
-
-    expect(await state.controller.applyShape(shape, 'replace', 3, true)).toBe(true);
-    expect(state.controller.begin(27, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
-    expect(state.controller.move(27, { x: 40, y: 50 })).toBe(true);
-    expect(state.controller.finish(27)).toBe(true);
-    await state.controller.settle();
-
-    expect(commitShape).toHaveBeenCalledTimes(2);
-    expect(commitShape).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      shape, mode: 'replace', featherRadius: 3, antiAlias: true,
-      provenance: expect.objectContaining({ mode: 'replace', shape }),
-    }));
-    expect(state.renderer.setSelection).not.toHaveBeenCalled();
-    expect(state.history).toHaveLength(0);
-    expect(onShapeCommitted).toHaveBeenCalledOnce();
-  });
-
-  it('publishes one pointer gesture and one selection-only history entry', async () => {
-    const onShapeCommitted = vi.fn();
-    const state = setup({ onShapeCommitted });
-    expect(state.controller.begin(7, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
-    expect(state.pointerId).toBe(7);
-    expect(state.controller.move(7, { x: 40, y: 50 })).toBe(true);
+    await expect(state.controller.applyShape(shape, 'replace', 3, true)).resolves.toBe(true);
+    expect(state.controller.begin(7, 'select-rectangle', { x: 2, y: 4 }, 'add')).toBe(true);
+    expect(state.controller.move(7, { x: 22, y: 28 })).toBe(true);
     expect(state.controller.finish(7)).toBe(true);
     await state.controller.settle();
-    expect(state.renderer.setSelection).toHaveBeenCalledOnce();
-    expect(state.selection).toHaveLength(1);
-    expect(state.history).toHaveLength(1);
-    expect(state.history[0].documentMutation).toBe(false);
+    expect(state.commitShape).toHaveBeenCalledTimes(2);
+    expect(state.commitShape.mock.calls[0]![0]).toMatchObject({
+      mode: 'replace', featherRadius: 3, antiAlias: true,
+    });
+    expect(state.commitShape.mock.calls[1]![0]).toMatchObject({ mode: 'add' });
     expect(state.pointerId).toBeNull();
     expect(state.draft).toBeNull();
-    expect(onShapeCommitted).toHaveBeenCalledOnce();
-    expect(onShapeCommitted).toHaveBeenCalledWith({
-      mode: 'replace',
-      shape: { kind: 'rectangle', points: [{ x: 10, y: 10 }, { x: 40, y: 50 }] },
-      featherRadius: 0,
-      antiAlias: false
-    });
   });
 
-  it('does not report command-driven shape playback as a new UI commit', async () => {
-    const onShapeCommitted = vi.fn();
-    const state = setup({ onShapeCommitted });
-    expect(await state.controller.applyShape(
-      { kind: 'rectangle', points: [{ x: 1, y: 2 }, { x: 20, y: 30 }] },
-      'replace', 0, false
-    )).toBe(true);
-    expect(onShapeCommitted).not.toHaveBeenCalled();
-  });
-
-  it('feathers only the newly rasterized marquee before combining it', async () => {
+  it('keeps translation as preview state and commits one cumulative kernel translation', async () => {
     const state = setup();
-    expect(state.controller.begin(
-      17,
-      'select-ellipse',
-      { x: 10, y: 10 },
-      'add',
-      undefined,
-      0,
-      48,
-      { style: 'fixed', width: 30, height: 20, featherRadius: 8 }
-    )).toBe(true);
-    expect(state.controller.finish(17)).toBe(true);
-    await state.controller.settle();
-    expect(state.renderer.setSelection).toHaveBeenCalledWith({
-      kind: 'ellipse',
-      points: [{ x: 10, y: 10 }, { x: 40, y: 30 }]
-    }, 'add', 8, false);
-    expect(state.selection).toEqual([{
-      mode: 'add',
-      amount: 8,
-      shape: {
-        kind: 'ellipse',
-        points: [{ x: 10, y: 10 }, { x: 40, y: 30 }]
-      }
-    }]);
-    expect(state.history).toHaveLength(1);
-  });
-
-  it('commits captured lasso feather and anti-alias as one replayable source', async () => {
-    const state = setup();
-    expect(state.controller.begin(
-      18,
-      'select-free',
-      { x: 0, y: 0 },
-      'replace',
-      undefined,
-      0,
-      48,
-      undefined,
-      { featherRadius: 5, antiAlias: true }
-    )).toBe(true);
-    state.controller.moveMany(18, [
-      { x: 20, y: 0 },
-      { x: 20, y: 20 },
-      { x: 0, y: 20 }
-    ]);
-    expect(state.controller.finish(18)).toBe(true);
-    await state.controller.settle();
-    expect(state.renderer.setSelection).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'free' }),
-      'replace',
-      5,
-      true
-    );
-    expect(state.selection).toHaveLength(1);
-    expect(state.selection[0]).toMatchObject({
-      mode: 'replace',
-      amount: 5,
-      antiAlias: true,
-      shape: { kind: 'free' }
-    });
-    expect(state.history).toHaveLength(1);
-  });
-
-  it('publishes one draft for a coalesced free-selection batch', () => {
-    const state = setup();
-    expect(state.controller.begin(9, 'select-free', { x: 0, y: 0 }, 'replace')).toBe(true);
-    const initialDraft = state.draftPublications;
-    expect(state.controller.moveMany(9, [
-      { x: 3, y: 0 },
-      { x: 6, y: 1 },
-      { x: 9, y: 2 }
-    ])).toBe(true);
-    expect(state.draftPublications).toBe(initialDraft + 1);
-    expect(state.draft?.points).toHaveLength(4);
-  });
-
-  it('uses the configured strip thickness against the current document bounds', async () => {
-    const state = setup();
-    expect(state.controller.begin(
-      8,
-      'select-horizontal',
-      { x: 50, y: 20 },
-      'replace',
-      5
-    )).toBe(true);
-    expect(state.draft).toEqual({
-      kind: 'rectangle',
-      points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
-    });
-    expect(state.controller.finish(8)).toBe(true);
-    await state.controller.settle();
-    expect(state.renderer.setSelection).toHaveBeenCalledWith({
-      kind: 'rectangle',
-      points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
-    }, 'replace', 0, false);
-  });
-
-  it('moves a selection outline without touching layer pixels', async () => {
-    const state = setup();
-    state.controller.selectAll();
-    await state.controller.settle();
-    const historyBefore = state.history.length;
-
-    state.controller.translate(10, -1);
-    await state.controller.settle();
-
-    expect(state.renderer.transformSelection).toHaveBeenCalledWith({
-      a: 1, b: 0, c: 0, d: 1, tx: 10, ty: -1
-    });
-    expect(state.selection.at(-1)).toMatchObject({
-      mode: 'transform',
-      transform: { tx: 10, ty: -1 }
-    });
-    expect(state.history).toHaveLength(historyBefore + 1);
-  });
-
-  it('serializes rapid selection nudges without losing operation state', async () => {
-    const state = setup();
-    state.controller.selectAll();
-    await state.controller.settle();
-
-    state.controller.translate(0, -10);
-    state.controller.translate(0, -10);
-    state.controller.translate(0, -10);
-    await state.controller.settle();
-
-    expect(state.renderer.transformSelection).toHaveBeenCalledTimes(3);
-    expect(state.selection.slice(-3).map(({ transform }) => transform?.ty)).toEqual([
-      -10, -10, -10
-    ]);
-  });
-
-  it('keeps drag preview renderer-only and commits one cumulative kernel translation', async () => {
-    const commitTranslation = vi.fn(async () => true);
-    const state = setup({ commitTranslation });
     await state.controller.applyState('all');
-    const publicationsBeforeDrag = state.selectionPublications;
-
-    expect(state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
-    expect(state.controller.move(2, { x: -15, y: 24 })).toBe(true);
-    expect(state.controller.move(2, { x: 35, y: 24 })).toBe(true);
-    expect(state.controller.finish(2)).toBe(true);
-    await state.controller.settle();
-
-    expect(state.renderer.transformSelection).not.toHaveBeenCalled();
+    expect(state.controller.begin(3, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
+    expect(state.controller.move(3, { x: 25, y: 27 })).toBe(true);
     expect(state.renderer.setSelectionPreviewProjection).toHaveBeenLastCalledWith(
-      expect.any(Array),
-      { x: 15, y: 4 },
+      expect.any(Array), { x: 5, y: 7 },
     );
-    expect(commitTranslation).toHaveBeenCalledOnce();
-    expect(commitTranslation).toHaveBeenCalledWith(expect.objectContaining({ x: 15, y: 4 }));
-    expect(state.pointerId).toBeNull();
-    expect(state.selectionPublications).toBe(publicationsBeforeDrag);
+    expect(state.controller.finish(3)).toBe(true);
+    await state.controller.settle();
+    expect(state.commitTranslation).toHaveBeenCalledOnce();
+    expect(state.commitTranslation.mock.calls[0]![0]).toMatchObject({ x: 5, y: 7 });
   });
 
-  it('uses exact committed mask coverage and measured bounds for painted-selection drag', () => {
-    const words = new Uint16Array(document.width * document.height);
-    words[20 * document.width + 70] = 0x3c00;
-    const mask = SelectionMaskSnapshot.fromRaw(document.width, document.height, words);
-    const painted: SelectionOperation = {
-      mode: 'add',
-      source: { kind: 'selection-paint', dabs: [], hardness: 1, opacity: 1 },
-      shape: { kind: 'rectangle', points: [{ x: 0, y: 0 }, { x: 100, y: 80 }] },
-    };
-    const state = setup({
-      getSelection: () => [painted],
-      getSelectionMaskSnapshot: () => mask,
-      getSelectionSupportBounds: () => ({ x: 70, y: 20, width: 1, height: 1 }),
-    });
-
-    expect(state.controller.contains({ x: 70, y: 20 })).toBe(true);
-    expect(state.controller.contains({ x: 20, y: 20 })).toBe(false);
-    expect(state.controller.begin(
-      8, 'select-rectangle', { x: 70, y: 20 }, 'replace'
-    )).toBe(true);
-  });
-
-  it('drags inside a geometric selection as one selection-only history edit', async () => {
+  it('cancels translation without publishing a committed mutation', async () => {
     const state = setup();
-    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
-    state.controller.move(1, { x: 40, y: 40 });
-    state.controller.finish(1);
-    await state.controller.settle();
-    const historyBefore = state.history.length;
-
-    expect(state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
-    expect(state.controller.move(2, { x: 27, y: 24 })).toBe(true);
-    expect(state.controller.finish(2)).toBe(true);
-    await state.controller.settle();
-
-    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
-      a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 4
-    });
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
-    expect(state.renderer.restoreSelectionSnapshot.mock.invocationCallOrder.at(-1)!).toBeLessThan(
-      state.renderer.transformSelection.mock.invocationCallOrder.at(-1)!
-    );
-    expect(state.selection.at(-1)?.transform).toMatchObject({ tx: 7, ty: 4 });
-    expect(state.history).toHaveLength(historyBefore + 1);
+    await state.controller.applyState('all');
+    state.controller.begin(4, 'select-rectangle', { x: 20, y: 20 }, 'replace');
+    state.controller.move(4, { x: 35, y: 30 });
+    expect(state.controller.cancel(4)).toBe(true);
+    expect(state.commitTranslation).not.toHaveBeenCalled();
+    expect(state.renderer.setCommittedSelectionProjection).toHaveBeenCalledOnce();
   });
 
-  it('restores the selection outline when a drag commit is rejected', async () => {
-    let commitCount = 0;
+  it('routes edge operations through the generic committed operation port', async () => {
+    const state = setup();
+    await state.controller.applyState('all');
+    await expect(state.controller.feather(4)).resolves.toBe(true);
+    await expect(state.controller.border(2)).resolves.toBe(true);
+    await expect(state.controller.smooth(3, false)).resolves.toBe(true);
+    await expect(state.controller.morphology('expand', 5, true)).resolves.toBe(true);
+    expect(state.commitOperation.mock.calls.slice(1).map(([command]) => command.operation?.mode))
+      .toEqual(['feather', 'border', 'smooth', 'expand']);
+  });
+
+  it('uses exact active coverage instead of semantic provenance for capabilities', async () => {
+    const exact = fullCoverage();
     const state = setup({
-      pushHistoryEntry: () => {
-        commitCount += 1;
-        if (commitCount === 2) throw new Error('History rejected the selection drag.');
-      }
-    });
-    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
-    state.controller.move(1, { x: 40, y: 40 });
-    state.controller.finish(1);
-    await state.controller.settle();
-
-    state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace');
-    state.controller.move(2, { x: 27, y: 24 });
-    state.controller.finish(2);
-    await state.controller.settle();
-
-    expect(state.selection).toHaveLength(1);
-    expect(state.selection[0]?.transform).toBeUndefined();
-    expect(state.pointerId).toBeNull();
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
-  });
-
-  it('restores the baseline when a selection brush commit is rejected', async () => {
-    const state = setup({
-      pushHistoryEntry: () => {
-        throw new Error('History rejected the selection brush stroke.');
-      }
-    });
-
-    expect(state.controller.beginPaint(4, { x: 12, y: 14, pressure: 1 }, 'add', {
-      size: 24,
-      hardness: 0.5,
-      opacity: 1,
-      smooth: 0
-    })).toBe(true);
-    expect(state.controller.finishPaint(4)).toBe(true);
-    await state.controller.settle();
-
-    expect(state.selection).toEqual([]);
-    expect(state.pointerId).toBeNull();
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
-  });
-
-  it('restores selection-paint preview before one kernel terminal commit', async () => {
-    const commitPaint = vi.fn(async () => true);
-    const state = setup({ commitPaint });
-
-    expect(state.controller.beginPaint(4, { x: 12, y: 14, pressure: 1 }, 'add', {
-      size: 24, hardness: 0.5, opacity: 1, smooth: 0,
-    })).toBe(true);
-    expect(state.controller.finishPaint(4)).toBe(true);
-    await state.controller.settle();
-
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
-    expect(state.renderer.beginSelectionPaintPreview).toHaveBeenCalledOnce();
-    expect(state.preview.release).toHaveBeenCalledOnce();
-    expect(commitPaint).toHaveBeenCalledOnce();
-    expect(state.preview.release.mock.invocationCallOrder[0]).toBeLessThan(
-      commitPaint.mock.invocationCallOrder[0]
-    );
-    expect(commitPaint).toHaveBeenCalledWith(expect.objectContaining({
-      mode: 'add', hardness: 0.5, opacity: 1,
-      provenance: expect.objectContaining({ source: expect.objectContaining({ kind: 'selection-paint' }) }),
-    }));
-    expect(state.history).toHaveLength(0);
-  });
-
-  it('does not restore stale gesture state after the kernel rejects paint', async () => {
-    const commitPaint = vi.fn(async () => false);
-    const state = setup({ commitPaint });
-
-    expect(state.controller.beginPaint(8, { x: 18, y: 16, pressure: 1 }, 'add', {
-      size: 20, hardness: 0.7, opacity: 1, smooth: 0,
-    })).toBe(true);
-    expect(state.controller.finishPaint(8)).toBe(true);
-    await state.controller.settle();
-
-    // The first restore ends preview. Kernel rejection owns rollback from then
-    // on, so the controller may not publish or restore its older baseline.
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledOnce();
-    expect(state.preview.release).toHaveBeenCalledOnce();
-    expect(commitPaint).toHaveBeenCalledOnce();
-  });
-
-  it('snaps a dragged selection from its retained bounds', async () => {
-    const feedback = vi.fn();
-    const state = setup({
-      getSnapContext: () => ({
-        enabled: true,
-        zoom: 1,
-        targets: [{ axis: 'x', position: 40, source: 'guide', role: 'line' }]
+      getSelection: () => [],
+      getSelectionMaskSnapshot: () => exact,
+      getSelectionSupportBounds: () => ({
+        x: 0, y: 0, width: document.width, height: document.height,
       }),
-      publishSnapFeedback: feedback
     });
-    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
-    state.controller.move(1, { x: 30, y: 30 });
-    state.controller.finish(1);
+    expect(state.controller.contains({ x: 20, y: 20 })).toBe(true);
+    expect(state.controller.begin(31, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
+    state.controller.move(31, { x: 24, y: 25 });
+    state.controller.finish(31);
     await state.controller.settle();
-
-    state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace');
-    state.controller.move(2, { x: 27, y: 20 });
-    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
-      a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0
-    });
-    expect(feedback).toHaveBeenLastCalledWith(expect.arrayContaining([
-      expect.objectContaining({ axis: 'x' })
-    ]), expect.objectContaining({ x: 20 }));
-    state.controller.cancel(2);
+    expect(state.commitTranslation).toHaveBeenCalledOnce();
+    await expect(state.controller.feather(2)).resolves.toBe(true);
+    await expect(state.controller.applyState('clear')).resolves.toBe(true);
   });
 
-  it('snaps a newly drawn rectangular marquee endpoint to guides', () => {
-    const feedback = vi.fn();
-    const state = setup({
-      getSnapContext: () => ({
-        enabled: true,
-        zoom: 2,
-        targets: [
-          { axis: 'x', position: 40, source: 'guide', role: 'line' },
-          { axis: 'y', position: 55, source: 'guide', role: 'line' }
-        ]
-      }),
-      publishSnapFeedback: feedback
-    });
-
-    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
-    state.controller.move(1, { x: 37, y: 52 });
-
-    expect(state.draft).toEqual({
-      kind: 'rectangle',
-      points: [{ x: 10, y: 10 }, { x: 40, y: 55 }]
-    });
-    expect(feedback).toHaveBeenLastCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ axis: 'x', deltaScreen: 6 }),
-        expect.objectContaining({ axis: 'y', deltaScreen: 6 })
-      ]),
-      { x: 10, y: 10, width: 30, height: 45 }
-    );
-  });
-
-  it('limits row and column marquee snapping to their movable axis', () => {
-    const state = setup({
-      getSnapContext: () => ({
-        enabled: true,
-        zoom: 1,
-        targets: [
-          { axis: 'x', position: 52, source: 'guide', role: 'line' },
-          { axis: 'y', position: 22, source: 'guide', role: 'line' }
-        ]
-      })
-    });
-
-    state.controller.begin(1, 'select-horizontal', { x: 50, y: 10 }, 'replace', 1);
-    state.controller.move(1, { x: 50, y: 20 });
-    expect(state.draft?.points).toEqual([{ x: 0, y: 22 }, { x: 100, y: 23 }]);
-  });
-
-  it('does not publish an async result after switching documents', async () => {
-    let resolveSelection!: (applied: boolean) => void;
-    const state = setup();
-    state.renderer.setSelection.mockImplementation(
-      () => new Promise<boolean>((resolve) => { resolveSelection = resolve; })
-    );
-    state.controller.begin(3, 'select-rectangle', { x: 1, y: 1 }, 'replace');
-    state.controller.move(3, { x: 20, y: 20 });
-    state.controller.finish(3);
-    state.switchDocument(createImageDocument('Other', 100, 80, 'other'));
-    resolveSelection(true);
-    await state.controller.settle();
-    expect(state.selection).toHaveLength(0);
-    expect(state.history).toHaveLength(0);
-  });
-
-  it('restores command-driven selection through history', async () => {
-    const state = setup();
-    state.controller.selectAll();
-    await state.controller.settle();
-    expect(state.selection).toHaveLength(1);
-    expect(state.history).toHaveLength(1);
-    await state.history[0].undo();
-    expect(state.selection).toHaveLength(0);
-    await state.history[0].redo();
-    expect(state.selection).toHaveLength(1);
-  });
-
-  it('loads a layer mask as a raster-backed selection', async () => {
-    const state = setup();
+  it('routes layer and composite sources through generic operations', async () => {
     const masked = addLayerMask(document, document.activeLayerId!);
-    state.switchDocument(masked);
-
-    state.controller.selectLayerMask(masked.activeLayerId!);
+    const state = setup({ getDocument: () => masked });
+    await expect(state.controller.selectLayerMask(masked.activeLayerId!)).resolves.toBe(true);
+    state.controller.selectLayerTransparency(masked.activeLayerId!);
+    state.controller.selectCompositeChannel('composite');
     await state.controller.settle();
-
-    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
-      expect.objectContaining({
-        mode: 'replace',
-        source: expect.objectContaining({
-          kind: 'layer-mask',
-          layerId: masked.activeLayerId
-        })
-      })
-    ]);
-    expect(state.selection[0]?.source?.kind).toBe('layer-mask');
-    expect(state.history).toHaveLength(1);
+    expect(state.commitOperation.mock.calls.map(([command]) => command.operation?.source?.kind))
+      .toEqual(['layer-mask', 'layer-transparency', 'composite-channel']);
   });
 
-  it('loads raster layer transparency as a replayable selection source', async () => {
+  it('routes Magic Wand and Select Similar through committed kernel ports', async () => {
     const state = setup();
-
-    state.controller.selectLayerTransparency(document.activeLayerId!);
-    await state.controller.settle();
-
-    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
-      expect.objectContaining({
-        mode: 'replace',
-        source: expect.objectContaining({
-          kind: 'layer-transparency',
-          layerId: document.activeLayerId,
-          contentRevision: expect.any(String)
-        })
-      })
-    ]);
-    expect(state.selection[0]?.source?.kind).toBe('layer-transparency');
-    expect(state.history).toHaveLength(1);
-  });
-
-  it('keeps a polygon draft across clicks and commits it near the origin', async () => {
-    const state = setup();
-    expect(state.controller.polygonClick(
-      { x: 10, y: 10 },
-      5,
-      'replace'
-    )).toBe(true);
-    state.controller.polygonMove({ x: 40, y: 10 });
-    state.controller.polygonClick(
-      { x: 40, y: 10 },
-      5,
-      'replace'
-    );
-    state.controller.polygonClick(
-      { x: 40, y: 40 },
-      5,
-      'replace'
-    );
-    expect(state.controller.polygonActive).toBe(true);
-    state.controller.polygonClick(
-      { x: 12, y: 12 },
-      5,
-      'replace'
-    );
-    await state.controller.settle();
-    expect(state.renderer.setSelection).toHaveBeenCalledWith(
-      {
-        kind: 'polygon',
-        points: [
-          { x: 10, y: 10 },
-          { x: 40, y: 10 },
-          { x: 40, y: 40 }
-        ]
-      },
-      'replace',
-      0,
-      false
-    );
-    expect(state.selection).toHaveLength(1);
-    expect(state.history).toHaveLength(1);
-    expect(state.controller.polygonActive).toBe(false);
-  });
-
-  it('commits one replayable Magic Wand operation through shared selection history', async () => {
-    const onMagicWandCommitted = vi.fn();
-    const state = setup({ onMagicWandCommitted });
-    const pointerPoint = { x: 12.5, y: 8.25, pressure: 0.7 };
-    expect(state.controller.magicWand(
-      pointerPoint,
-      'replace',
-      { sampleSize: 5, tolerance: 20, antiAlias: true, contiguous: true, sampleAllLayers: false }
-    )).toBe(true);
-    await state.controller.settle();
-
-    expect(state.renderer.applyMagicWand).toHaveBeenCalledOnce();
-    const operation = state.renderer.applyMagicWand.mock.calls[0]![0];
-    expect(operation).toMatchObject({
-      mode: 'replace',
-      source: {
-        kind: 'magic-wand',
-        point: { x: 12.5, y: 8.25 },
-        options: { sampleSize: 5, tolerance: 20, contiguous: true }
-      }
-    });
-    expect(state.selection).toEqual([operation]);
-    expect(state.history).toHaveLength(1);
-    expect(onMagicWandCommitted).toHaveBeenCalledWith({
-      kind: 'magic-wand',
-      layerId: document.activeLayerId,
-      point: { x: 12.5, y: 8.25 },
-      mode: 'replace',
-      options: { sampleSize: 5, tolerance: 20, antiAlias: true,
-        contiguous: true, sampleAllLayers: false }
-    });
-
-    await state.history[0]!.undo();
-    await state.history[0]!.redo();
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(2);
-  });
-
-  it('routes Magic Wand exclusively through the kernel port and aborts stale work', async () => {
-    let release!: (applied: boolean) => void;
-    let signal: AbortSignal | null = null;
-    const commitMagicWand = vi.fn((_command, nextSignal: AbortSignal) => {
-      signal = nextSignal;
-      return new Promise<boolean>((resolve) => { release = resolve; });
-    });
-    const onMagicWandCommitted = vi.fn();
-    const state = setup({ commitMagicWand, onMagicWandCommitted });
     const options = {
-      sampleSize: 3 as const, tolerance: 12, antiAlias: true,
+      sampleSize: 3 as const, tolerance: 20, antiAlias: true,
       contiguous: true, sampleAllLayers: false,
     };
-
-    expect(state.controller.magicWand({ x: 16, y: 24 }, 'replace', options)).toBe(true);
-    await vi.waitFor(() => expect(commitMagicWand).toHaveBeenCalledOnce());
-    expect(commitMagicWand).toHaveBeenCalledWith(expect.objectContaining({
-      layerId: document.activeLayerId,
-      point: { x: 16, y: 24 },
-      mode: 'replace',
-      options,
-      provenance: expect.objectContaining({
-        mode: 'replace', source: expect.objectContaining({ kind: 'magic-wand' }),
-      }),
-    }), expect.any(AbortSignal));
-    expect(state.renderer.applyMagicWand).not.toHaveBeenCalled();
-    expect(state.renderer.captureSelectionSnapshot).not.toHaveBeenCalled();
-    expect(state.history).toHaveLength(0);
-
-    state.controller.reset();
-    expect((signal as unknown as AbortSignal).aborted).toBe(true);
-    release(true);
-    await state.controller.settle();
-
-    expect(onMagicWandCommitted).not.toHaveBeenCalled();
-    expect(state.renderer.restoreSelectionSnapshot).not.toHaveBeenCalled();
-    expect(state.selection).toEqual([]);
-    expect(state.history).toEqual([]);
-  });
-
-  it('awaits direct Magic Wand execution without publishing a second UI observation', async () => {
-    const onMagicWandCommitted = vi.fn();
-    const state = setup({ onMagicWandCommitted });
     await expect(state.controller.applyMagicWand(
-      document.activeLayerId!,
-      { x: 16, y: 24 },
-      'add',
-      { sampleSize: 3, tolerance: 12, antiAlias: false,
-        contiguous: false, sampleAllLayers: true }
+      document.activeLayerId!, { x: 12, y: 14 }, 'replace', options,
     )).resolves.toBe(true);
-    expect(state.selection).toHaveLength(1);
-    expect(state.history).toHaveLength(1);
-    expect(onMagicWandCommitted).not.toHaveBeenCalled();
-    await expect(state.controller.applyMagicWand(
-      'missing-layer' as never,
-      { x: 1, y: 1 },
-      'replace',
-      { sampleSize: 1, tolerance: 20, antiAlias: true,
-        contiguous: true, sampleAllLayers: false }
-    )).resolves.toBe(false);
+    await expect(state.controller.selectSimilar(document.activeLayerId!, {
+      tolerance: 18, antiAlias: true, sampleAllLayers: false,
+    })).resolves.toBe(true);
+    expect(state.commitMagicWand).toHaveBeenCalledOnce();
+    expect(state.commitOperation.mock.calls[0]![0].operation?.source?.kind).toBe('similar');
   });
 
-  it('routes an inferred raster mask through the required kernel owner', async () => {
+  it('routes valid raster masks through commitRasterMask and rejects invalid dimensions', async () => {
     const state = setup();
-    const mask = {
-      width: document.width,
-      height: document.height,
-      data: new Uint8Array(document.width * document.height)
+    const valid: RasterSelectionMask = {
+      width: document.width, height: document.height,
+      data: new Uint8Array(document.width * document.height),
     };
-    mask.data[12] = 255;
-    await expect(state.controller.rasterMask(mask, 'replace')).resolves.toBe(true);
-
-    expect(state.renderer.applyRasterSelection).not.toHaveBeenCalled();
-    expect(state.history).toEqual([]);
+    await expect(state.controller.rasterMask(valid, 'replace')).resolves.toBe(true);
+    await expect(state.controller.rasterMask({ ...valid, width: 99 }, 'replace')).resolves.toBe(false);
+    expect(state.commitRasterMask).toHaveBeenCalledOnce();
   });
 
-  it('routes an inferred raster mask exclusively through the kernel port', async () => {
-    const commitRasterMask = vi.fn(async () => true);
-    const state = setup({ commitRasterMask });
-    const mask = {
-      width: document.width,
-      height: document.height,
-      data: new Uint8Array(document.width * document.height).fill(255),
-    };
+  it('uses an isolated paint preview and commits after restoring its exact baseline', async () => {
+    const state = setup();
+    await state.controller.applyState('all');
+    expect(state.controller.beginPaint(8, { x: 12, y: 14, pressure: 1 }, 'add', {
+      size: 20, hardness: 0.8, opacity: 0.7, smooth: 0.4,
+    })).toBe(true);
+    expect(state.controller.movePaint(8, [{ x: 18, y: 20, pressure: 1 }])).toBe(true);
+    expect(state.controller.finishPaint(8)).toBe(true);
+    await state.controller.settle();
+    expect(state.preview.paintSelectionDabs).toHaveBeenCalled();
+    expect(state.preview.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(state.preview.release).toHaveBeenCalledOnce();
+    expect(state.commitPaint).toHaveBeenCalledOnce();
+  });
 
-    await expect(state.controller.rasterMask(mask, 'add')).resolves.toBe(true);
-
-    expect(commitRasterMask).toHaveBeenCalledWith(expect.objectContaining({
-      mask,
-      mode: 'add',
-      provenance: expect.objectContaining({
-        mode: 'add', source: expect.objectContaining({ kind: 'object-selection' }),
+  it('fails closed when exact paint preview ownership is unavailable', () => {
+    const state = setup({
+      getSelectionMaskSnapshot: () => fullCoverage(),
+      getRenderer: () => ({
+        setSelectionPreviewProjection: vi.fn(),
+        setCommittedSelectionProjection: vi.fn(),
+        beginSelectionPaintPreview: () => null,
       }),
-    }), expect.any(AbortSignal));
-    expect(state.renderer.applyRasterSelection).not.toHaveBeenCalled();
-    expect(state.renderer.captureSelectionSnapshot).not.toHaveBeenCalled();
-    expect(state.history).toEqual([]);
+    });
+    expect(state.controller.beginPaint(9, { x: 2, y: 2, pressure: 1 }, 'add', {
+      size: 10, hardness: 1, opacity: 1, smooth: 0,
+    })).toBe(false);
+    expect(state.commitPaint).not.toHaveBeenCalled();
+    expect(state.setError).toHaveBeenLastCalledWith('The selection paint preview is unavailable.');
   });
 
-  it('rejects a queued inferred mask after the document revision changes', async () => {
-    let releaseFirst!: (value: boolean) => void;
-    const commitRasterMask = vi.fn()
-      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { releaseFirst = resolve; }))
-      .mockResolvedValueOnce(true);
-    const state = setup({ commitRasterMask });
-    const mask = {
-      width: document.width,
-      height: document.height,
-      data: new Uint8Array(document.width * document.height).fill(255),
-    };
-
-    const first = state.controller.rasterMask(mask, 'replace');
-    await vi.waitFor(() => expect(commitRasterMask).toHaveBeenCalledOnce());
-    const queued = state.controller.rasterMask(mask, 'add');
+  it('does not let a gesture commit after the document snapshot changes', async () => {
+    const state = setup();
+    state.controller.begin(11, 'select-rectangle', { x: 1, y: 1 }, 'replace');
+    state.controller.move(11, { x: 20, y: 20 });
     state.switchDocument({ ...document, revision: document.revision + 1 });
-    releaseFirst(true);
-
-    await expect(first).resolves.toBe(true);
-    await expect(queued).resolves.toBe(false);
-    expect(commitRasterMask).toHaveBeenCalledOnce();
-  });
-
-  it('publishes each accepted Magic Wand result while preserving queued add operations', async () => {
-    const state = setup();
-    let resolveFirst!: (applied: boolean) => void;
-    let resolveSecond!: (applied: boolean) => void;
-    state.renderer.applyMagicWand
-      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveFirst = resolve; }))
-      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveSecond = resolve; }));
-    const options = {
-      sampleSize: 1 as const,
-      tolerance: 20,
-      antiAlias: true,
-      contiguous: true,
-      sampleAllLayers: false
-    };
-
-    state.controller.magicWand({ x: 10, y: 10 }, 'replace', options);
-    state.controller.magicWand({ x: 20, y: 20 }, 'add', options);
-    resolveFirst(true);
-    await vi.waitFor(() => {
-      expect(state.renderer.applyMagicWand).toHaveBeenCalledTimes(2);
-    });
-    expect(state.selection).toHaveLength(1);
-    expect(state.selection[0]?.source?.kind === 'magic-wand'
-      ? state.selection[0].source.point
-      : null).toEqual({ x: 10, y: 10 });
-    resolveSecond(true);
+    state.controller.finish(11);
     await state.controller.settle();
-
-    expect(state.selection).toHaveLength(2);
-    expect(state.selection.map((operation) => operation.source?.kind === 'magic-wand'
-      ? operation.source.point
-      : null)).toEqual([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
-    expect(state.history).toHaveLength(2);
-  });
-
-  it('invalidates and restores the selection when Magic Wand work is cancelled', async () => {
-    const state = setup();
-    let resolveWand!: (applied: boolean) => void;
-    state.renderer.applyMagicWand.mockImplementationOnce(
-      () => new Promise<boolean>((resolve) => { resolveWand = resolve; })
-    );
-    state.controller.magicWand({ x: 10, y: 10 }, 'replace', {
-      sampleSize: 1,
-      tolerance: 20,
-      antiAlias: true,
-      contiguous: true,
-      sampleAllLayers: false
-    });
-
-    state.controller.reset();
-    resolveWand(true);
-    await state.controller.settle();
-
-    expect(state.renderer.restoreSelectionSnapshot).toHaveBeenCalled();
-    expect(state.selection).toEqual([]);
-    expect(state.history).toEqual([]);
+    expect(state.commitShape).not.toHaveBeenCalled();
   });
 });

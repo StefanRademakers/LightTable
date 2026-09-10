@@ -61,27 +61,27 @@ before editing. Check
 [Migration status](editor-kernel/MIGRATION_STATUS.md) to distinguish target,
 partial and proven behavior.
 Use the
-[stabilization execution ledger](editor-kernel/STABILIZATION_EXECUTION_LEDGER.md)
-for work order and completion gates. Do not invent a parallel checklist or skip
-its independent critic, maximum two repair loops, packaged real-app proof and
-owner-acceptance gate.
+[kernel cut-over and codebase cleanup plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
+for work order and completion gates. The earlier incremental migration ledger
+is superseded and may not justify keeping a fallback. Do not invent a parallel
+checklist or skip its independent critic, maximum two repair loops and packaged
+real-app proof.
 
 The continuation rules are strict:
 
 - React remains UI and low-frequency projection only; it is not canonical edit
   authority.
-- A semantic operation uses either its complete legacy route or its complete
-  kernel route. Never split preview, commit, history or cleanup across both.
+- Every migrated semantic operation uses only its complete kernel route. During
+  cut-over, never split preview, commit, history or cleanup across owners.
 - Existing algorithms stay in their domain packages. The kernel coordinates
   identity, transaction, ownership and invalidation; it does not absorb paint,
   vector, text, filter or WebGPU implementations.
-- No legacy route is removed until one explicit artist-visible vertical passes
-  canonical state, pixels, layers, history, cleanup and real-app validation.
-- A retained legacy fallback is quarantined compatibility debt, not a valid
-  place to add features or a pattern to copy. Do not add callers, commands or
-  behavior to one. Change it only when the ledger explicitly removes it after
-  owner acceptance, or when the owner explicitly asks for a reproduced blocker
-  to be repaired without mixing it into the kernel route.
+- Migration fallbacks are deletion work. Remove their implementations, callers,
+  optional ports, tests, comments and instructions as each cut-over item passes
+  focused automated/packaged proof and independent review. Unsupported behavior
+  fails closed; it never invokes the old owner.
+- An intentional renderer, format or font degradation may remain only when it
+  is explicitly classified and cannot publish document or history state.
 - A passing unit suite does not advance the migration ledger's real-app column.
 - Large files are reduced only as a migrated slice removes a named authority;
   mechanical file splitting is not an architectural milestone.
@@ -116,8 +116,9 @@ only after exact baseline restore and then transfers rollback ownership to the
 kernel; the controller must never restore stale state after that handoff.
 `smoke:desktop:pixel-clipboard` additionally proves
 UI/Actions/MCP pixel-copy equivalence. This advances real-app automation, not
-owner visual acceptance: keep the complete legacy fallback until the owner has
-confirmed the contour and pointer feel in a manual run.
+owner visual acceptance. The active cut-over plan requires removal of the
+legacy selection route before the next manual product run so its result is
+unambiguous.
 
 Document/clipboard reset, updated 2026-09-09: read
 [Document and clipboard vertical slice](editor-kernel/DOCUMENT_AND_CLIPBOARD_VERTICAL_SLICE.md)

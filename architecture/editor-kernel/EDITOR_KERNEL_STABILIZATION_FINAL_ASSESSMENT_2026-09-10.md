@@ -4,14 +4,16 @@ Date: 2026-09-10
 
 Comparison baseline: `LIGHTTABLE_WHOLE_PRODUCT_ARCHITECTURE_SALVAGE_AUDIT_2026-09-06.md` at `cce15c7c`
 
-Assessment scope: the complete S00--S13 stabilization ledger and the current packaged Windows build
+Assessment scope: S00--S13 and the current packaged Windows build; S14 integration-root decomposition remains open
 
-Status: engineering stabilization complete; final owner interaction acceptance and broader release qualification remain open
+Status: behavior/lifecycle stabilization is at owner acceptance; the planned monster-file reduction is not complete
 
 ## Verdict
 
-The decision to rescue LightTable through a new, document-scoped kernel and a
-vertical-slice migration was the right decision. The September 6 audit's main
+The evidence supports continuing the rescue through the document-scoped kernel
+and vertical-slice migration. It does not yet close the complete stabilization
+plan because the promised integration-root decomposition remains open. The
+September 6 audit's
 claim was that LightTable had useful specialist engines but an unreliable
 integration core with several independently publishing authorities. The current
 implementation no longer relies on one broad rewrite or on tests around isolated
@@ -19,11 +21,12 @@ functions: each migrated artist operation now has a named admission, preview,
 commit/cancel, history, renderer/resource and cleanup route.
 
 That is enough evidence to reject the earlier **fail-state** diagnosis for the
-architecture. It is not enough to call LightTable finished, bug-free,
+migrated behavior/lifecycle architecture. It is not enough to call the wider
+architecture finished, bug-free,
 Photoshop-compatible or commercially releasable. All tool/processing slices are
-at the owner gate, not beyond it. The correct next decision is a focused manual
-acceptance run on this exact build; feature development stays frozen until that
-run succeeds.
+at the owner gate, not beyond it, and the large integration roots remain an
+active maintainability risk. Feature development stays frozen until S14 and the
+focused manual acceptance run both succeed.
 
 ## What changed at system level
 
@@ -173,12 +176,14 @@ release engineering.
 
 ## Decision
 
-Continue with this kernel architecture. Do not rebuild LightTable from scratch,
-and do not resume broad feature work yet. First perform the owner acceptance
-pass and record every failure against the owning slice. If that pass confirms
-the current behavior, remove the corresponding quarantined fallbacks in small
-milestones and retain the same command/transaction/resource contracts.
+Continue with this kernel architecture, but do not describe the complete plan as
+finished. Do not rebuild LightTable from scratch and do not resume broad feature
+work. First complete S14 by removing named responsibilities from the large
+integration roots without changing artist behavior, then perform the owner
+acceptance pass and record every failure against the owning slice. After that,
+remove the corresponding quarantined fallbacks in small milestones.
 
-The rescue has produced a substantially more coherent and testable editor core.
-The remaining uncertainty is now product acceptance and release qualification,
-not whether the integration architecture can be made internally consistent.
+The rescue has produced a substantially more coherent and testable editor core,
+but it has not yet delivered the planned maintainable file/module structure. The
+remaining uncertainty includes integration-root decomposition as well as product
+acceptance and release qualification.

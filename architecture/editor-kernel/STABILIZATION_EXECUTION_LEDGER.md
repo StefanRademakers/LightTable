@@ -1,6 +1,13 @@
 # LightTable stabilization execution ledger
 
-Status: **active feature-freeze plan**. Updated 2026-09-10.
+Status: **superseded migration record**. Updated 2026-09-10.
+
+The owner has chosen a physical cut-over before manual testing. Do not execute
+new work from this incremental ledger and do not retain a legacy route merely
+because this file previously required owner acceptance first. The active
+authority is [Editor-kernel cut-over and codebase cleanup](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md).
+This record will be deleted during that plan's final documentation purge after
+its still-current evidence has been consolidated.
 
 This is the single ordered, checkable execution ledger for stabilizing the
 artist-visible editor. It does not replace the kernel contracts or the broader
@@ -185,6 +192,7 @@ slice; they are not postponed to the final phase.
 | S11 | Document geometry, clipboard, open/place/save/export/recovery | `owner` | complete | repaired | packaged passed | [x] | partial |
 | S12 | View, zoom, panels, scopes and multi-document lifecycle | `owner` | yes | passed | packaged lifecycle pass | [x] | partial |
 | S13 | Full undo/redo, Action/MCP, GPU-loss and soak matrix | `owner` | yes | passed | packaged passed | [ ] | n/a |
+| S14 | Integration-root decomposition and monster-file reduction | `mapping` | [ ] | [ ] | [ ] | [ ] | n/a |
 
 The registered toolbar inventory is sourced from `toolRegistry.ts`; adjustment
 and effect inventories come from `adjustmentLayerCatalog.ts`,
@@ -558,6 +566,31 @@ This is a cross-domain proof, not the first time these properties are tested.
 - [x] Full boundary, source-structure audit, workspace typecheck/tests, web build
       and instrumented packaged desktop gate passed on the final source state.
 - [ ] Owner performs the final manual interaction pass before feature unfreeze.
+
+### S14 -- integration-root decomposition
+
+The no-growth ratchet and an ownership review are guardrails, not completion.
+This slice remains open until the large mixed-authority roots have materially
+lost the responsibilities already named in the vertical slices.
+
+- [ ] Extract the remaining editor-domain orchestration from
+      `LightTableEditorOverlay.tsx`; retain composition and dependency wiring.
+- [ ] Extract coherent projection/resource owners from `WebGpuEngine.ts` while
+      retaining one render/submission authority and measuring hot-path overhead.
+- [ ] Reduce the mounted command/input adapters in
+      `useLayerDocumentCommands.ts`, `useSelectionSessionController.ts`,
+      `useViewportInteractionController.ts` and
+      `useTransformSessionController.ts` by complete lifecycle owner, not by
+      arbitrary helper movement.
+- [ ] Reduce `LightTableStandaloneApp.tsx` to host/application composition and
+      `LayerStyleEditor.tsx` to bounded presentation sections.
+- [ ] Update ownership reviews with before/after lines and named responsibilities
+      removed; no baseline may be advanced merely to silence the audit.
+- [ ] Run focused tests after each extraction, then boundary/typecheck and the
+      full packaged interaction/soak matrix after the complete tranche.
+- [ ] Independent critic performs at most two P0/P1 repair rounds on the actual
+      resulting ownership, not only on file size.
+- [ ] Owner manually accepts the unchanged artist-visible behavior.
 
 ## Large-file reduction ledger
 

@@ -99,7 +99,7 @@ export type SelectionCommitResult<Coverage = unknown, Provenance = unknown> =
   | { readonly ok: false; readonly reason: 'cancelled' | 'conflict' | 'prepare-failed';
       readonly message: string };
 
-/** Owns the only admissible prepare -> activate -> state/history publish sequence. */
+/** Owns the only admissible prepare -> canonical CAS -> activate -> history sequence. */
 export class SelectionMutationCoordinator<Intent = unknown, Coverage = unknown, Provenance = unknown> {
   constructor(private readonly dependencies: {
     readonly state: SelectionStateStore<Coverage, Provenance>;
@@ -141,29 +141,49 @@ export class SelectionMutationCoordinator<Intent = unknown, Coverage = unknown, 
       reservation = this.dependencies.history.reserve({
         transactionId: input.transactionId, before: baseline, after: prepared.result,
       });
-      activation = prepared.activate();
       const committed = this.dependencies.publication.run(() => {
         statePublished = this.dependencies.state.compareAndSwap(
           prepared!.baselineRevision, prepared!.result,
         );
         if (!statePublished) return false;
-        if (reservation!.commit()) return true;
-        this.dependencies.state.compareAndSwap(prepared!.result.revision, baseline);
-        statePublished = false;
-        throw new Error('Reserved selection history admission was invalidated.');
+        try {
+          activation = prepared!.activate();
+          if (reservation!.commit()) return true;
+          throw new Error('Reserved selection history admission was invalidated.');
+        } catch (reason) {
+          if (activation) {
+            try { activation.rollback(); } catch { /* canonical rollback below remains required */ }
+            activation = null;
+          }
+          const restored = this.dependencies.state.compareAndSwap(
+            prepared!.result.revision, baseline,
+          );
+          statePublished = false;
+          if (!restored) {
+            throw new Error('The selection publication could not restore its canonical baseline.', {
+              cause: reason,
+            });
+          }
+          throw reason;
+        }
       });
       if (!committed) {
-        activation.rollback();
+        prepared.dispose();
         reservation.cancel();
         return { ok: false, reason: 'conflict', message: 'The selection changed concurrently.' };
       }
       // State and history are now irreversibly published. Acceptance is
       // terminal resource cleanup and may not invalidate that atomic result.
-      try { activation.accept(); } catch { /* projection violated its non-throwing contract */ }
+      const committedActivation = activation as SelectionProjectionActivation | null;
+      if (!committedActivation) {
+        throw new Error('The committed selection has no active renderer projection.');
+      }
+      try { committedActivation.accept(); } catch { /* projection violated its non-throwing contract */ }
       return { ok: true, selection: prepared.result };
     } catch (reason) {
-      if (activation) {
-        try { activation.rollback(); } catch { /* retain original failure */ }
+      const failedActivation = activation as SelectionProjectionActivation | null;
+      if (failedActivation) {
+        try { failedActivation.rollback(); } catch { /* retain original failure */ }
       } else {
         prepared?.dispose();
       }

@@ -14,6 +14,7 @@ import {
 } from '../../../editor/selection/selectionTypes';
 import type {
   SelectionMagicWandProjectionIntent,
+  SelectionOperationProjectionIntent,
   SelectionShapeProjectionIntent,
 } from '../../../editor/rendering/SelectionShapeProjectionService';
 import { DocumentSession, type DocumentSessionId } from '../../documents/documentSession';
@@ -117,6 +118,27 @@ const setup = () => {
         ? [intent.provenance]
         : [...baseline.provenance, intent.provenance],
     }, events, id)),
+    prepareSelectionOperationProjection: vi.fn(async (
+      _document,
+      baseline,
+      intent: SelectionOperationProjectionIntent,
+      id,
+    ) => prepared(baseline, {
+      ...baseline,
+      revision: (baseline.revision + 1) as SelectionRevision,
+      active: intent.operation !== null,
+      coverage: intent.operation === null
+        ? SelectionMaskSnapshot.inactive(10, 8)
+        : coverage,
+      supportBounds: intent.operation === null
+        ? null
+        : { x: 2, y: 1, width: 5, height: 5 },
+      provenance: intent.operation === null
+        ? []
+        : intent.operation.mode === 'replace'
+          ? [intent.operation]
+          : [...baseline.provenance, intent.operation],
+    }, events, id)),
   };
   return { session, renderer, events,
     service: new SelectionShapeCommandService(session, () => renderer) };
@@ -157,6 +179,30 @@ describe('SelectionShapeCommandService', () => {
       'activate', 'overlay:0', 'accept',
       'activate', 'overlay:1', 'accept',
     ]);
+    session.dispose();
+  });
+
+  it('commits generic selection operations through the same CAS, projection and history owner', async () => {
+    const { session, renderer, events, service } = setup();
+    const invert: SelectionOperation = { mode: 'invert', shape: operation.shape };
+
+    expect(await service.executeOperation({ operation: invert })).toBe(true);
+
+    expect(renderer.prepareSelectionOperationProjection).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 1,
+      selection: [invert],
+      selectionMaskSnapshot: coverage,
+    });
+    expect(session.history.getSnapshot()).toMatchObject({ undoDepth: 1, busy: false });
+    expect(events).toEqual(['activate', 'overlay:1', 'accept']);
+
+    expect(await session.history.undo()).toBe(true);
+    expect(session.getSnapshot().editor).toMatchObject({
+      selectionRevision: 2,
+      selection: [],
+      selectionSupportBounds: null,
+    });
     session.dispose();
   });
 

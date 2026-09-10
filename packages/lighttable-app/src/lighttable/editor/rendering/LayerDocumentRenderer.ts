@@ -50,6 +50,13 @@ import type {
 } from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
 import type { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
+import type { SelectionProjectionStage } from './SelectionShapeProjectionService';
+
+interface SelectionPaintPreviewRecord {
+  readonly stage: SelectionProjectionStage;
+  readonly releaseCommittedLease: () => void;
+  retired: boolean;
+}
 
 const isolatedLayerTree = (
   nodes: readonly LayerNode[],
@@ -106,6 +113,7 @@ export const projectTextEditingGeometryPreview = (
 export class LayerDocumentRenderer {
   private readonly runtime: LayerDocumentRendererRuntime;
   private document: ImageDocument | null = null;
+  private selectionPaintPreview: SelectionPaintPreviewRecord | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -384,6 +392,8 @@ export class LayerDocumentRenderer {
   selectionMaskTexture() {
     const preview = this.runtime.transformRasterizer.selectionPreviewTexture();
     if (preview) return preview;
+    const paintPreview = this.selectionPaintPreview?.stage.textures;
+    if (paintPreview?.active) return paintPreview.mask;
     const textures = this.runtime.selectionTextures;
     return textures.active ? textures.mask : null;
   }
@@ -838,24 +848,15 @@ export class LayerDocumentRenderer {
     return this.runtime.layerMaskPixels.apply(layerId, transform, layer.mask);
   }
 
-  loadLayerMaskAsSelection(layerId: LayerId) {
-    this.assertCommittedSelectionAccess();
-    const source = this.maskTextureFor(layerId);
-    return source
-      ? this.runtime.selectionRasterizer.loadMask(source)
-      : false;
+
+  selectionMaskSource(layerId: LayerId) {
+    return this.maskTextureFor(layerId);
   }
 
-  loadCompositeChannelAsSelection(source: GPUTexture, channel: CompositeSelectionChannel) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.loadColorChannel(source, channel);
-  }
-
-  async loadLayerTransparencyAsSelection(
+  async createLayerTransparencySelectionSource(
     document: ImageDocument,
     layer: RasterLayer | Extract<LayerNode, { type: 'text' | 'vector' }>
   ) {
-    this.assertCommittedSelectionAccess();
     if (layer.type === 'text') await this.waitForTextSource(layer.id);
     const encoder = this.device.createCommandEncoder({
       label: 'LightTable load layer transparency as selection'
@@ -884,88 +885,91 @@ export class LayerDocumentRenderer {
       activeLayerId: layer.id
     });
     this.device.queue.submit([encoder.finish()]);
-    const loaded = this.runtime.selectionRasterizer.loadTransparency(source);
-    this.releaseSubmittedResources();
-    return loaded;
+    return source;
   }
 
-  applyMagicWandToTexture(
-    source: GPUTexture,
-    point: SelectionPoint,
-    options: MagicWandOptions,
-    mode: SelectionCombineMode
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
-  }
 
-  applySelectSimilarToTexture(
-    source: GPUTexture,
-    options: import('../selection/selectionTypes').SimilarSelectionOptions
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.selectSimilar(source, options);
-  }
-
-  applyRasterSelectionMask(
-    mask: import('../selection/selectionTypes').RasterSelectionMask,
-    mode: SelectionCombineMode
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.applyRasterMask(mask, mode);
-  }
-
-  paintSelectionDabs(
-    dabs: BrushDab[],
-    hardness: number,
-    opacity: number,
-    mode: 'add' | 'subtract'
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.paintBrushDabs(
-      dabs,
-      hardness,
-      opacity,
-      mode
-    );
-  }
-
-  beginSelectionPaintPreview() {
-    const lease = this.runtime.selectionTextures.beginPreviewMutation();
-    if (!lease) return null;
+  beginSelectionPaintPreview(baseline: SelectionMaskSnapshot) {
+    const committedLease = this.runtime.selectionTextures.beginPreviewMutation();
+    if (!committedLease || this.selectionPaintPreview) {
+      committedLease?.release();
+      return null;
+    }
+    let stage: SelectionProjectionStage | null = null;
+    try {
+      stage = this.runtime.createSelectionProjectionStage();
+      stage.textures.ensureTargets();
+      if (!stage.restore(baseline)) {
+        throw new Error('The selection paint baseline could not be staged.');
+      }
+    } catch (reason) {
+      let cleanupFailure: unknown = null;
+      try {
+        stage?.dispose();
+      } catch (cleanupReason) {
+        cleanupFailure = cleanupReason;
+      } finally {
+        committedLease.release();
+      }
+      if (cleanupFailure) {
+        throw new AggregateError(
+          [reason, cleanupFailure],
+          'The selection paint preview failed and its stage cleanup did not complete.',
+        );
+      }
+      throw reason;
+    }
+    if (!stage) {
+      committedLease.release();
+      throw new Error('The selection paint preview stage was not created.');
+    }
+    const record: SelectionPaintPreviewRecord = {
+      stage,
+      releaseCommittedLease: committedLease.release,
+      retired: false,
+    };
+    this.selectionPaintPreview = record;
+    const isCurrent = () => !record.retired && this.selectionPaintPreview === record;
+    const release = () => this.releaseSelectionPaintPreview(record);
     return {
       paintSelectionDabs: (
         dabs: BrushDab[], hardness: number, opacity: number, mode: 'add' | 'subtract'
-      ) => lease.run(() => this.runtime.selectionRasterizer.paintBrushDabs(
-        dabs, hardness, opacity, mode
-      )),
-      restoreSelectionSnapshot: (snapshot: SelectionMaskSnapshot) => lease.run(
-        () => this.runtime.selectionRasterizer.restoreSnapshot(snapshot)
+      ) => isCurrent() && stage.paint({
+        dabs,
+        hardness,
+        opacity,
+        mode,
+        provenance: {
+          mode,
+          shape: {
+            kind: 'rectangle',
+            points: [{ x: 0, y: 0 }, { x: baseline.width, y: baseline.height }],
+          },
+          source: { kind: 'selection-paint', dabs, hardness, opacity },
+        },
+      }),
+      restoreSelectionSnapshot: (snapshot: SelectionMaskSnapshot) => (
+        isCurrent() && stage.restore(snapshot)
       ),
-      captureSelectionSnapshot: () => lease.run(
-        () => this.runtime.selectionRasterizer.captureSnapshot()
-      ),
-      measureSelectionBounds: () => lease.run(
-        () => this.runtime.selectionContentAnalyzer.measureSelection()
-      ),
-      release: lease.release,
+      captureSelectionSnapshot: () => isCurrent()
+        ? stage.capture()
+        : Promise.reject(new Error('The selection paint preview was retired.')),
+      measureSelectionBounds: () => isCurrent() ? stage.measure() : Promise.resolve(null),
+      release,
     };
   }
 
-  applyMagicWandToActiveLayer(
-    document: ImageDocument,
-    layerId: LayerId,
-    point: SelectionPoint,
-    options: MagicWandOptions,
-    mode: SelectionCombineMode
-  ) {
-    this.assertCommittedSelectionAccess();
-    const source = this.createMagicWandSourceForActiveLayer(document, layerId);
-    if (!source) return false;
-    const applied = this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
-    this.releaseSubmittedResources();
-    return applied;
+  private releaseSelectionPaintPreview(record = this.selectionPaintPreview): void {
+    if (!record || record.retired) return;
+    record.retired = true;
+    if (this.selectionPaintPreview === record) this.selectionPaintPreview = null;
+    try {
+      record.stage.dispose();
+    } finally {
+      record.releaseCommittedLease();
+    }
   }
+
 
   createMagicWandSourceForActiveLayer(document: ImageDocument, layerId: LayerId) {
     const layer = findDocumentLayer(document, layerId);
@@ -982,71 +986,6 @@ export class LayerDocumentRenderer {
     return source;
   }
 
-  applySelectSimilarToActiveLayer(
-    document: ImageDocument,
-    layerId: LayerId,
-    options: import('../selection/selectionTypes').SimilarSelectionOptions
-  ) {
-    this.assertCommittedSelectionAccess();
-    const layer = findDocumentLayer(document, layerId);
-    if (!layer) return false;
-    const encoder = this.device.createCommandEncoder({
-      label: 'LightTable isolate active layer for Select Similar'
-    });
-    const source = this.encodeComposite(encoder, {
-      ...document,
-      layers: [layer],
-      activeLayerId: layer.id
-    });
-    this.device.queue.submit([encoder.finish()]);
-    const applied = this.runtime.selectionRasterizer.selectSimilar(source, options);
-    this.releaseSubmittedResources();
-    return applied;
-  }
-
-  setSelection(
-    shape: SelectionShape,
-    requestedMode: SelectionMode,
-    featherRadius = 0,
-    antiAlias = false
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.set(
-      shape,
-      requestedMode,
-      featherRadius,
-      antiAlias
-    );
-  }
-
-  featherSelection(radius: number, applyAtCanvasBounds: boolean) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.feather(radius, applyAtCanvasBounds);
-  }
-
-  borderSelection(width: number) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.border(width);
-  }
-
-  smoothSelection(radius: number, applyAtCanvasBounds: boolean) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.smooth(radius, applyAtCanvasBounds);
-  }
-
-  modifySelectionMorphology(
-    mode: 'expand' | 'contract',
-    radius: number,
-    applyAtCanvasBounds: boolean
-  ) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.morphology(mode, radius, applyAtCanvasBounds);
-  }
-
-  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.transform(matrix);
-  }
 
   setDuplicateLayerTransform(duplicate: boolean) {
     return this.runtime.transformRasterizer.setDuplicateSelection(duplicate);
@@ -1123,11 +1062,6 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionClipboard.hasInternalClipboard();
   }
 
-  clearSelection() {
-    this.assertCommittedSelectionAccess();
-    return this.runtime.selectionRasterizer.clear();
-  }
-
   async captureSelectionSnapshot() {
     this.assertCommittedSelectionAccess();
     return this.runtime.selectionRasterizer.captureSnapshot();
@@ -1168,7 +1102,21 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionShapeProjection.prepareMagicWand(...parameters);
   }
 
+  prepareSelectionOperationProjection(
+    document: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[0],
+    baseline: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[1],
+    intent: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[2],
+    source: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[3],
+    transactionId: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[4],
+    signal: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareOperation']>[5],
+  ) {
+    return this.runtime.selectionShapeProjection.prepareOperation(
+      document, baseline, intent, source, transactionId, signal,
+    );
+  }
+
   destroyImageResources() {
+    this.releaseSelectionPaintPreview();
     this.runtime.imageResources.destroy();
   }
 

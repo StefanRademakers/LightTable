@@ -1,26 +1,16 @@
 import type { ImageDocument, LayerId, Rect } from '../../../editor/document/documentTypes';
-import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
 import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
+import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
 import type {
   MagicWandOptions,
   RasterSelectionMask,
   SelectionCombineMode,
-  SelectionMode,
   SelectionOperation,
   SelectionPoint,
   SelectionShape,
 } from '../../../editor/selection/selectionTypes';
 import type { BrushDab, BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
 import type { SnapFeature, SnapMatch } from '../snapping/snapEngine';
-
-export interface SelectionHistoryEntry {
-  label: string;
-  type: string;
-  documentMutation: false;
-  byteSize?: number;
-  undo(): void | Promise<void>;
-  redo(): void | Promise<void>;
-}
 
 export interface SelectionPaintPreviewPort {
   paintSelectionDabs(
@@ -33,35 +23,12 @@ export interface SelectionPaintPreviewPort {
 }
 
 export interface SelectionRendererPort {
-  setSelectionPreviewProjection?(
+  setSelectionPreviewProjection(
     operations: readonly SelectionOperation[],
     translation?: Readonly<{ x: number; y: number }>
   ): void;
-  setCommittedSelectionProjection?(operations: readonly SelectionOperation[]): void;
-  replaceSelection(operations: SelectionOperation[]): Promise<boolean>;
-  setSelection(
-    shape: SelectionShape,
-    mode: SelectionMode,
-    featherRadius?: number,
-    antiAlias?: boolean
-  ): Promise<boolean>;
-  clearSelection(): Promise<boolean>;
-  captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
-  measureSelectionBounds(): Promise<SelectionCoverageBounds | null>;
-  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
-  transformSelection(matrix: {
-    a: number; b: number; c: number; d: number; tx: number; ty: number;
-  }): Promise<boolean>;
-  applyMagicWand(operation: SelectionOperation): Promise<boolean>;
-  applySelectSimilar(operation: SelectionOperation): Promise<boolean>;
-  applyRasterSelection(operation: SelectionOperation): Promise<boolean>;
-  paintSelectionDabs(
-    dabs: BrushDab[],
-    hardness: number,
-    opacity: number,
-    mode: 'add' | 'subtract'
-  ): Promise<boolean>;
-  beginSelectionPaintPreview?(): SelectionPaintPreviewPort | null;
+  setCommittedSelectionProjection(operations: readonly SelectionOperation[]): void;
+  beginSelectionPaintPreview(baseline: SelectionMaskSnapshot): SelectionPaintPreviewPort | null;
 }
 
 /** Ports at the gesture boundary; committed writes enter through commit*. */
@@ -79,7 +46,6 @@ export interface SelectionSessionDependencies {
   ): void;
   publishPointer?(pointerId: number | null): void;
   publishDraft(shape: SelectionShape | null): void;
-  pushHistoryEntry(entry: SelectionHistoryEntry): void;
   setError(message: string | null): void;
   getSnapContext?(movingBounds: Rect): {
     targets: readonly SnapFeature[];
@@ -93,32 +59,35 @@ export interface SelectionSessionDependencies {
     readonly featherRadius: number;
     readonly antiAlias: boolean;
   }): void;
-  commitShape?(command: {
+  commitShape(command: {
     readonly mode: SelectionCombineMode;
     readonly shape: SelectionShape;
     readonly featherRadius: number;
     readonly antiAlias: boolean;
     readonly provenance: SelectionOperation;
   }): Promise<boolean>;
-  commitTranslation?(command: {
+  commitTranslation(command: {
     readonly x: number;
     readonly y: number;
     readonly provenance: SelectionOperation;
   }): Promise<boolean>;
-  commitPaint?(command: {
+  commitPaint(command: {
     readonly dabs: readonly BrushDab[];
     readonly hardness: number;
     readonly opacity: number;
     readonly mode: 'add' | 'subtract';
     readonly provenance: SelectionOperation;
   }): Promise<boolean>;
-  commitMagicWand?(command: {
+  commitMagicWand(command: {
     readonly layerId: LayerId;
     readonly point: SelectionPoint;
     readonly mode: SelectionCombineMode;
     readonly options: MagicWandOptions;
     readonly provenance: SelectionOperation;
   }, signal: AbortSignal): Promise<boolean>;
+  commitOperation(command: {
+    readonly operation: SelectionOperation | null;
+  }): Promise<boolean>;
   commitRasterMask(command: {
     readonly mask: RasterSelectionMask;
     readonly mode: SelectionCombineMode;

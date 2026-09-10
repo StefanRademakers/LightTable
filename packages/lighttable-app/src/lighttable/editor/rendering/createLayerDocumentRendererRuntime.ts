@@ -13,7 +13,10 @@ import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
 import { SelectionClipboardService } from './SelectionClipboardService';
-import { SelectionShapeProjectionService } from './SelectionShapeProjectionService';
+import {
+  SelectionShapeProjectionService,
+  type SelectionProjectionStage,
+} from './SelectionShapeProjectionService';
 import { createSelectionProjectionStageDisposer } from './selectionProjectionStageLifecycle';
 import { RasterDocumentOperations } from './RasterDocumentOperations';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
@@ -63,6 +66,7 @@ export interface LayerDocumentRendererRuntime {
   documentAssets: LayerDocumentAssetService;
   selectionRasterizer: SelectionRasterizer;
   selectionContentAnalyzer: SelectionContentAnalyzer;
+  createSelectionProjectionStage(): SelectionProjectionStage;
   selectionShapeProjection: SelectionShapeProjectionService;
   selectionClipboard: SelectionClipboardService;
   transformRasterizer: TransformRasterizer;
@@ -357,9 +361,7 @@ export const createLayerDocumentRendererRuntime = (
     selectionTextures,
     ensureSelectionTargets
   );
-  const selectionShapeProjection = new SelectionShapeProjectionService({
-    committedTextures: selectionTextures,
-    createStage: () => {
+  const createSelectionProjectionStage = (): SelectionProjectionStage => {
       const stageTextures = createSelectionTextures();
       const ensureStageTargets = () => { stageTextures.ensureTargets(); };
       const rasterizer = createSelectionRasterizer(stageTextures, ensureStageTargets);
@@ -389,11 +391,49 @@ export const createLayerDocumentRendererRuntime = (
           intent.options,
           intent.mode
         ),
+        applyOperation: (operation, source) => {
+          if (!operation) return rasterizer.clear();
+          if (operation.source?.kind === 'layer-mask') {
+            return operation.mode === 'replace' && Boolean(source) && rasterizer.loadMask(source!);
+          }
+          if (operation.source?.kind === 'layer-transparency') {
+            return operation.mode === 'replace' && Boolean(source)
+              && rasterizer.loadTransparency(source!);
+          }
+          if (operation.source?.kind === 'composite-channel') {
+            return operation.mode === 'replace' && Boolean(source)
+              && rasterizer.loadColorChannel(source!, operation.source.channel);
+          }
+          if (operation.source?.kind === 'similar') {
+            return Boolean(source) && rasterizer.selectSimilar(source!, operation.source.options);
+          }
+          if (operation.mode === 'feather') {
+            return rasterizer.feather(operation.amount ?? 0, operation.applyAtCanvasBounds === true);
+          }
+          if (operation.mode === 'border') return rasterizer.border(operation.amount ?? 0);
+          if (operation.mode === 'smooth') {
+            return rasterizer.smooth(operation.amount ?? 0, operation.applyAtCanvasBounds === true);
+          }
+          if (operation.mode === 'expand' || operation.mode === 'contract') {
+            return rasterizer.morphology(
+              operation.mode, operation.amount ?? 0, operation.applyAtCanvasBounds === true,
+            );
+          }
+          return rasterizer.set(
+            operation.shape,
+            operation.mode,
+            operation.amount ?? 0,
+            operation.antiAlias ?? false,
+          );
+        },
         capture: () => rasterizer.captureSnapshot(),
         measure: () => analyzer.measureSelection(),
         dispose,
       };
-    },
+  };
+  const selectionShapeProjection = new SelectionShapeProjectionService({
+    committedTextures: selectionTextures,
+    createStage: createSelectionProjectionStage,
   });
   const selectionClipboard = new SelectionClipboardService({
     device,
@@ -634,6 +674,7 @@ export const createLayerDocumentRendererRuntime = (
     documentAssets,
     selectionRasterizer,
     selectionContentAnalyzer,
+    createSelectionProjectionStage,
     selectionShapeProjection,
     selectionClipboard,
     transformRasterizer,

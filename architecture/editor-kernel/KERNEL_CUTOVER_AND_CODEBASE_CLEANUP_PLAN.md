@@ -1,0 +1,246 @@
+# Editor-kernel cut-over and codebase cleanup
+
+Status: **active execution authority**. Started 2026-09-10.
+
+This plan closes the editor-kernel transition. It replaces the incremental
+rule that kept a complete legacy route beside an accepted kernel route. The
+required result is one maintainable production architecture that can be tested
+without ambiguity.
+
+Feature work continues after this plan. Completion therefore means future work
+has one obvious extension path and cannot accidentally revive an older state,
+history or renderer owner.
+
+## Final state
+
+- Production code has exactly one mutation route for every supported editor
+  operation: semantic command -> kernel lifecycle -> canonical document/history
+  -> renderer/resource projections.
+- React owns UI and event adaptation only. It does not own committed document
+  meaning, history publication, GPU recovery or terminal mutation policy.
+- No migration switch, optional kernel mutation port, controller-owned mutation
+  fallback, legacy history publication or renderer-as-document-truth route
+  remains.
+- Unsupported operations fail closed with a typed capability result. They do
+  not fall back to an older implementation.
+- Product degradations such as font substitution, format recovery or
+  Vello-to-native rendering may remain only when explicitly named, tested and
+  incapable of publishing document/history state.
+- Large integration roots are composition facades. Extracted modules have one
+  owner and one lifetime; cleanup may not create a replacement god object.
+- Canonical documentation describes only the resulting system. Superseded
+  migration ledgers, stale status claims and obsolete agent rules are removed
+  after their still-useful facts have been consolidated.
+
+## Classification
+
+**Migration fallback** is an executable route that can substitute an older
+owner for a kernel command, preview, commit, history, rollback, projection or
+resource lifecycle. It must be deleted.
+
+**Product degradation** is an intentional lower-capability result inside the
+same owner and lifecycle. It may remain only if it cannot become an alternate
+mutation authority.
+
+**Route proof** is executable evidence that the expected kernel route ran and
+no alternate route was available. Output-only equivalence is insufficient.
+
+## Mandatory loop for every item
+
+Every C01-C13 item uses this exact loop. Check a box only against current
+source, never because an earlier migration report claimed it.
+
+### 1. Inventory and delete the second route
+
+- [ ] List every UI, shortcut, Action and MCP entry point.
+- [ ] Map command, preview, canonical state, history, projection, resources,
+      rollback, cleanup and rebind owners.
+- [ ] Classify every fallback, compatibility branch, optional port, feature
+      switch and direct mutation as migration, product degradation or dead code.
+- [ ] Make kernel mutation ports required and remove alternate callers,
+      implementations, tests, comments and types.
+- [ ] Convert genuinely unsupported cases to an explicit fail-closed capability.
+- [ ] Record allowed product degradations with their non-mutation invariant.
+
+### 2. Reduce ownership concentration
+
+- [ ] Remove at least one named non-composition responsibility from every
+      touched hotspot.
+- [ ] Keep algorithms in domain packages and lifecycle coordination in small
+      kernel/application owners.
+- [ ] Do not pass broad bags of mutable refs or expose an unbounded facade.
+- [ ] Record before/after line counts and the authority that moved.
+- [ ] New production modules target <=350 lines; at 500 lines a decomposition
+      decision is mandatory; the kernel ceiling remains 800.
+
+### 3. Focused proof
+
+- [ ] Add a route witness or boundary assertion proving the exclusive kernel
+      handler, including UI, shortcut, Action and MCP where supported.
+- [ ] Test commit, cancel, undo, redo, failure compensation, stale generation,
+      document switch and resource cleanup for the slice.
+- [ ] Run touched-package typecheck, boundary checks and focused tests while
+      iterating.
+- [ ] Measure the relevant pointer/preview hot path and terminal latency; a
+      repeatable >10% regression blocks acceptance.
+- [ ] Run the slice's packaged debug and instrumented browser scenario.
+
+### 4. Independent critic and repair
+
+- [ ] A separate read-only senior architecture critic examines ownership,
+      failure paths, performance and remaining alternate routes.
+- [ ] Evaluate findings against code and contracts; never apply mechanically.
+- [ ] Repair round 1 closes every accepted P0/P1 and reruns focused proof.
+- [ ] The critic reviews the resulting implementation again.
+- [ ] Repair round 2 closes every remaining accepted P0/P1 and reruns proof.
+- [ ] A P0/P1 remaining after round 2 blocks the item.
+
+### 5. Close the item
+
+- [ ] Search production, tests and active docs again for the removed route.
+- [ ] Record code delta, proof, critic verdict and allowed degradations here.
+- [ ] Commit one cohesive cut-over milestone without unrelated feature work.
+
+## Ordered checklist
+
+Order follows shared-state dependencies. A later item may be inventoried early
+but cannot inherit another item's acceptance.
+
+| ID | Kernel item | State | Exclusive route | Focused proof | Critic x2 | Hotspot reduced |
+| --- | --- | --- | --- | --- | --- | --- |
+| C00 | Governance, route inventory and machine guard | implementation | [ ] | [ ] | [ ] | n/a |
+| C01 | Selection/marquee, selection paint, mask projection and consumers | accepted | [x] | [x] | [x] | [x] |
+| C02 | Layer finalization: rasterize, merge and flatten | queued | [ ] | [ ] | [ ] | [ ] |
+| C03 | Layer masks, mask edits and Remove Background result insertion | queued | [ ] | [ ] | [ ] | [ ] |
+| C04 | Raster paint, fill/gradient and clipboard pixel consumers | queued | [ ] | [ ] | [ ] | [ ] |
+| C05 | Transform, selected-pixel movement, snapping and edge-pan | queued | [ ] | [ ] | [ ] | [ ] |
+| C06 | Vector paths, Pen, live shapes and vector gradients | queued | [ ] | [ ] | [ ] | [ ] |
+| C07 | Text, Path Text, layout/editing and semantic text transform | queued | [ ] | [ ] | [ ] | [ ] |
+| C08 | Raster Warp, Face Warp and imported Text Warp projection | queued | [ ] | [ ] | [ ] | [ ] |
+| C09 | Adjustment layers and attached adjustments | queued | [ ] | [ ] | [ ] | [ ] |
+| C10 | Layer styles/effects and filter lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
+| C11 | Document geometry, I/O, recovery and view lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
+| C12 | Shared history, command routing, Actions and MCP equivalence | queued | [ ] | [ ] | [ ] | [ ] |
+| C13 | WebGPU/render projection, device loss and resource lifetime | queued | [ ] | [ ] | [ ] | [ ] |
+| C14 | Integration-root decomposition, docs purge and final proof | queued | [ ] | [ ] | [ ] | [ ] |
+
+## C00 -- prevent architectural relapse
+
+- [ ] Create a machine-readable command/route inventory naming each production
+      semantic command's sole owner and supported origins.
+- [ ] Add a boundary audit rejecting optional kernel mutation ports, production
+      migration switches and known direct legacy publishers.
+- [ ] Maintain an explicit allowlist for product degradations; every entry names
+      its owner, reason, test and proof that it cannot mutate document/history.
+- [ ] Make CI fail when a removed legacy module/import or forbidden authority
+      returns.
+- [ ] Reconcile onboarding, kernel README and change rules with physical cut-over.
+
+## C01 acceptance record -- 2026-09-10
+
+1. **Done** -- rectangle/ellipse/freehand/polygon selection, translation and
+   nudge, selection paint, Magic Wand, Object Selection, Select Similar,
+   channel/mask/transparency sources and modify/clear/invert operations commit
+   through required kernel ports. Exact Snapshot, bounds, provenance and
+   revision are one document-session value. Paint preview uses detached GPU
+   targets and cannot mutate committed coverage before CAS activation.
+2. **Deleted** -- controller-owned renderer/history commit fallbacks and the
+   public direct committed selection mutation surface on `WebGpuEngine` and
+   `LayerDocumentRenderer`. Semantic hit-test replay and the obsolete direct
+   selection-transform test were removed. Boundary verification rejects their
+   return.
+3. **Ownership** -- `useSelectionSessionController.ts` reduced from 1,636 to
+   1,238 lines and now adapts interaction only; `WebGpuEngine.ts` reduced from
+   4,395 to 4,078 lines and no longer implements committed selection commands.
+   Atomic prepare/CAS/activation/history lives in the editor kernel plus
+   `SelectionShapeCommandService`; exact GPU preparation lives in
+   `SelectionShapeProjectionService`. The latter is 495 lines after cleanup;
+   its single stage-pool responsibility remains intact and will be reassessed
+   during C13/C14 facade decomposition rather than split into coupled wrappers.
+4. **Proof** -- editor-kernel 13/13; focused selection 49/49; app typecheck;
+   boundary and architecture-document audits; instrumented desktop package;
+   packaged selection-kernel smoke covering edge excursions and return,
+   copy/paint bounds, exact paint-only drag, undo/redo, keyboard nudge and
+   multi-document rebind. Every projection derives bounds from its one exact
+   R16 snapshot, removing the second GPU readback.
+5. **Critic** -- round 1 found provenance capability gates, incomplete gesture
+   binding, committed paint preview and duplicate bounds readback. Round 2 found
+   preview retirement gaps. Both repair rounds were applied; final independent
+   verdict: **ACCEPT**, no C01 P0/P1.
+6. **Open** -- transform and document-geometry compound publications still use
+   temporary direct exact snapshot restore and are explicitly owned by C05 and
+   C11. Broader UI enablement checks based on provenance length move with their
+   command consumers in C12/C14. Neither is a selection-controller fallback.
+7. **Next** -- C02 layer finalization: rasterize, merge and flatten.
+
+## Slice-specific acceptance
+
+- **C01:** one committed selection value owns mask, bounds, provenance and
+  revision; shape/move/nudge/paint/smart selection, copy and paint consume the
+  same revision lease.
+- **C02:** finalization creates one fresh raster destination and one atomic
+  document/history transition; unsupported contextual composites fail closed.
+- **C03:** mask pixels and metadata publish atomically; background inference
+  cannot publish after cancellation, rebind or close.
+- **C04:** pointer frames stay outside React/history; one admitted selection,
+  target transform and renderer generation survive terminal cleanup.
+- **C05:** immutable source pixels survive repeated gestures; snapping has one
+  deterministic per-axis latch and never compares a target with itself.
+- **C06:** vector data remains semantic; render islands/previews are disposable
+  and Pixels mode crosses C02 exactly once.
+- **C07:** document text is canonical; layout is generation-bound and pending
+  layout is never treated as empty content.
+- **C08:** accepted warp rebuilds from the immutable opening source, never a
+  previously rasterized preview.
+- **C09:** document/local adjustment owners stay distinct and one gesture commits
+  one complete validated snapshot.
+- **C10:** styles and filters retain separate canonical stacks while sharing
+  preview/commit/cancel and finalization rules.
+- **C11:** host I/O has exact terminal results; layout/view/foreground cannot
+  mutate or reopen a document.
+- **C12:** UI, shortcuts, Actions and MCP share validation and one semantic
+  handler; mixed-domain undo/redo restores exact state and resources.
+- **C13:** GPU resources are projections owned by explicit repositories/leases;
+  failure, device loss, detach and close have one cleanup authority.
+
+## C14 -- make the result obvious
+
+- [ ] Reduce `LightTableEditorOverlay.tsx` to composition/wiring by extracting
+      document geometry, clipboard, text, warp, layer composition, command
+      panels, adjustments, transform presentation and publication by owner.
+- [ ] Reduce `WebGpuEngine.ts` to render/submission facade authority by extracting
+      selection projection, editing overlays, diagnostics, export/readback and
+      image-resource allocation without hot-path regressions.
+- [ ] Reduce the selection, transform, viewport and layer-command controllers,
+      `LightTableStandaloneApp.tsx` and `LayerStyleEditor.tsx` to their named
+      adapter/presentation roles.
+- [ ] Replace no-growth baselines with reduced ownership ceilings; never raise a
+      ceiling to silence the audit.
+- [ ] Consolidate still-current kernel contracts and slice acceptance facts.
+- [ ] Delete superseded migration status/ledger/final-assessment documents,
+      obsolete handoffs and comments that describe removed routes.
+- [ ] Route a new agent only to the final architecture and current product work.
+- [ ] Run architecture/link audits after documentation purge.
+
+## Final gate before owner testing
+
+- [ ] Repository-wide fallback classification has zero unreviewed matches.
+- [ ] Route inventory and source-boundary guard are green.
+- [ ] C01-C13 have exclusive-route evidence and accepted critic verdicts.
+- [ ] Source-structure audit is green against reduced ceilings.
+- [ ] Full boundary, typecheck, test, web build and desktop package verification
+      pass on one commit.
+- [ ] Packaged cross-domain workflow, multi-document/device-loss soak and
+      performance comparison pass on that same commit.
+- [ ] Worktree contains no temporary harness output or superseded migration docs.
+- [ ] Only then ask the owner to begin manual product acceptance.
+
+## Progress report after every item
+
+1. **Done** -- exclusive artist-visible routes proved.
+2. **Deleted** -- fallback code, types, tests and stale documentation removed.
+3. **Ownership** -- moved responsibilities and before/after hotspot sizes.
+4. **Proof** -- checks, route witness, packaged scenario and performance.
+5. **Critic** -- findings and both repair-round outcomes.
+6. **Open** -- unchecked work without optimistic wording.
+7. **Next** -- exactly one next cut-over item.
