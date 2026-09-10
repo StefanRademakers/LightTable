@@ -102,6 +102,21 @@ const setup = (initialDocument: ImageDocument) => {
     getRendererGeneration: () => rendererGeneration,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => documentId,
+    getSelectionLease: () => ({
+      document: { sessionId: documentId, revision: 0 },
+      selection: {
+        documentSessionId: documentId,
+        revision: 0,
+        canvas: { width: document.width, height: document.height },
+        active: true,
+        coverage: SelectionMaskSnapshot.fromRaw(
+          document.width, document.height,
+          new Uint16Array(document.width * document.height).fill(65_535)
+        ),
+        supportBounds: { x: 0, y: 0, width: document.width, height: document.height },
+        provenance: createFullCanvasSelection(document.width, document.height)
+      }
+    } as unknown as LightTableSelectionReadLease),
     get documentMutations() {
       return documentMutations;
     },
@@ -179,6 +194,24 @@ describe('useLayerDocumentCommands', () => {
     const close = vi.fn();
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 12, height: 8, close })));
     const state = setup(createImageDocument('Place', 100, 80, 'asset'));
+    const admissionOrder: string[] = [];
+    vi.mocked(state.dependencies.reserveHistoryEntry).mockImplementation((entry) => {
+      admissionOrder.push('history');
+      let active = true;
+      return {
+        commit: () => {
+          if (!active) return false;
+          active = false;
+          state.historyEntries.push(entry);
+          return true;
+        },
+        cancel: () => { active = false; }
+      };
+    });
+    vi.mocked(state.renderer.prepareRasterDestination).mockImplementation(() => {
+      admissionOrder.push('gpu');
+      return true;
+    });
     const result = await state.commands.placeImageArtifact(
       new File(['image'], 'badge.png', { type: 'image/png' }), { x: -4, y: 9 }
     );
@@ -189,7 +222,9 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
       layerId: layer?.id, pixels: expect.any(File), mask: null
     }]);
-    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.dependencies.reserveHistoryEntry).toHaveBeenCalledOnce();
+    expect(admissionOrder).toEqual(['history', 'gpu']);
+    expect(state.historyEntries).toHaveLength(1);
     expect(close).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
@@ -205,6 +240,30 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document()).toBe(before);
     expect(state.historyEntries).toHaveLength(0);
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not allocate or publish a placed raster when history admission expires', async () => {
+    const close = vi.fn();
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 12, height: 8, close })));
+    const state = setup(createImageDocument('Place rejected', 100, 80, 'asset'));
+    const before = state.document();
+    vi.mocked(state.dependencies.reserveHistoryEntry).mockReturnValue({
+      commit: () => false,
+      cancel: vi.fn()
+    });
+
+    expect(await state.commands.placeImageArtifact(
+      new File(['image'], 'badge.png', { type: 'image/png' })
+    )).toBeNull();
+
+    expect(state.document()).toBe(before);
+    expect(state.historyEntries).toHaveLength(0);
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledOnce();
+    expect(state.renderer.loadLayerAssets).toHaveBeenCalledOnce();
+    expect(state.renderer.commitRasterDestination).not.toHaveBeenCalled();
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
 
@@ -534,7 +593,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
   });
 
-  it('keeps async copy metadata owned by its source document', async () => {
+  it('cancels async copy before writing stale pixels into the system clipboard', async () => {
     let finishExport!: (blob: Blob) => void;
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     vi.mocked(state.renderer.exportSelectionClipboard).mockReturnValue(new Promise((resolve) => {
@@ -546,9 +605,31 @@ describe('useLayerDocumentCommands', () => {
     finishExport(new Blob(['selection'], { type: 'image/png' }));
     const copied = await copying;
 
-    expect(state.imageClipboard.writeImage).toHaveBeenCalledWith(expect.any(Blob),
-      expect.objectContaining({ sourceDocumentId: 'test-document' }));
-    expect(copied?.fastPasteToken).toBeUndefined();
+    expect(state.imageClipboard.writeImage).not.toHaveBeenCalled();
+    expect(copied).toBeNull();
+  });
+
+  it('lets only the latest concurrent copy publish to the host clipboard', async () => {
+    let finishFirst!: (blob: Blob) => void;
+    const firstBlob = new Blob(['first'], { type: 'image/png' });
+    const secondBlob = new Blob(['second'], { type: 'image/png' });
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    vi.mocked(state.renderer.exportSelectionClipboard)
+      .mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve; }))
+      .mockResolvedValueOnce(secondBlob);
+
+    const first = state.commands.copySelectedContent(createFullCanvasSelection(32, 24));
+    await Promise.resolve();
+    const second = state.commands.copySelectedContent(createFullCanvasSelection(32, 24));
+    finishFirst(firstBlob);
+
+    await expect(first).resolves.toBeNull();
+    await expect(second).resolves.toMatchObject({ file: expect.any(File) });
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledTimes(1);
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledWith(
+      secondBlob, expect.objectContaining({ sourceDocumentId: 'test-document' })
+    );
+    expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledTimes(1);
   });
 
   it('retains feather support in clipboard export and placement bounds', async () => {
@@ -560,6 +641,16 @@ describe('useLayerDocumentCommands', () => {
         points: [{ x: 20, y: 15 }, { x: 60, y: 45 }]
       }
     }, createFeatherSelectionOperation(100, 80, 12.4)];
+    state.dependencies.getSelectionLease = () => ({
+      document: { sessionId: 'test-document', revision: 0 },
+      selection: {
+        documentSessionId: 'test-document', revision: 1,
+        canvas: { width: 100, height: 80 }, active: true,
+        coverage: SelectionMaskSnapshot.fromRaw(100, 80, new Uint16Array(8_000)),
+        supportBounds: { x: 0, y: 0, width: 86, height: 71 },
+        provenance: selection
+      }
+    } as unknown as LightTableSelectionReadLease);
 
     await expect(state.commands.copySelectedContent(selection)).resolves.toMatchObject({
       file: expect.any(File), bounds: { x: 0, y: 0, width: 86, height: 71 }
@@ -700,65 +791,6 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
   });
 
-  it('retains an oversized external clipboard image outside the canvas', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
-      width: 48, height: 36, close: vi.fn()
-    })));
-    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-
-    await expect(state.commands.pasteSelectedContent([])).resolves.toBe(true);
-
-    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
-    expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
-    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
-      expect.objectContaining({ width: 48, height: 36 })
-    );
-    expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
-      layerId: state.document().activeLayerId, pixels: expect.any(File), mask: null
-    }]);
-    expect(state.document().layers).toHaveLength(2);
-    expect(state.document().layers.at(-1)).toMatchObject({
-      width: 48, height: 36,
-      transform: { a: 1, b: 0, c: 0, d: 1, tx: -8, ty: -6 }
-    });
-    expect(state.renderer.commitRasterDestination).toHaveBeenCalledWith(
-      state.document().activeLayerId
-    );
-    vi.unstubAllGlobals();
-  });
-
-  it('cancels an async clipboard paste when the target document changes', async () => {
-    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-    let finishRead!: (image: Awaited<ReturnType<typeof state.imageClipboard.readImage>>) => void;
-    state.imageClipboard.readImage.mockReturnValue(new Promise((resolve) => {
-      finishRead = resolve;
-    }));
-
-    const pasting = state.commands.pasteSelectedContent([]);
-    state.setDocumentId('other-document');
-    finishRead({ blob: new Blob(['clipboard'], { type: 'image/png' }), placement: null });
-
-    await expect(pasting).resolves.toBe(false);
-    expect(state.document().layers).toHaveLength(1);
-    expect(state.renderer.loadLayerAssets).not.toHaveBeenCalled();
-  });
-
-  it('centers an external clipboard image at the active selection without scaling it', async () => {
-    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
-      width: 10, height: 6, close: vi.fn()
-    })));
-    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-    const selection = createFullCanvasSelection(16, 12);
-
-    await expect(state.commands.pasteSelectedContent(selection)).resolves.toBe(true);
-
-    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
-    expect(state.document().layers.at(-1)).toMatchObject({
-      width: 10, height: 6,
-      transform: { a: 1, b: 0, c: 0, d: 1, tx: 3, ty: 3 }
-    });
-    vi.unstubAllGlobals();
-  });
 
   it('duplicates the active layer pixels and records one document command', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
@@ -1842,9 +1874,29 @@ describe('useLayerDocumentCommands', () => {
   it('copies selected pixels into one new raster layer and one history entry', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const sourceId = state.document().activeLayerId;
+    const admissionOrder: string[] = [];
+    vi.mocked(state.dependencies.reserveHistoryEntry).mockImplementation((entry) => {
+      admissionOrder.push('history');
+      let active = true;
+      return {
+        commit: () => {
+          if (!active) return false;
+          active = false;
+          state.historyEntries.push(entry);
+          return true;
+        },
+        cancel: () => { active = false; }
+      };
+    });
+    vi.mocked(state.renderer.copySelectedLayerContent).mockImplementation(() => {
+      admissionOrder.push('scratch');
+      return true;
+    });
 
-    expect(state.commands.layerViaCopy(sourceId!, createFullCanvasSelection(16, 12)))
-      .toBe(state.document().activeLayerId);
+    expect(state.commands.layerViaCopy(sourceId!)).toEqual({
+      layerId: state.document().activeLayerId,
+      scope: 'selection'
+    });
 
     expect(state.renderer.copySelectedLayerContent).toHaveBeenCalledWith(
       expect.anything(),
@@ -1860,7 +1912,31 @@ describe('useLayerDocumentCommands', () => {
     const committedLayer = state.document().layers.at(-1);
     expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
     expect(state.historyEntries).toHaveLength(1);
-    expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledWith(true);
+    expect(admissionOrder).toEqual(['history', 'scratch']);
+    expect(state.dependencies.setSelectionClipboardAvailable).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a Ctrl+C fast token when Layer Via Copy reuses renderer scratch', async () => {
+    const state = setup(createImageDocument('Clipboard ownership', 32, 24, 'asset'));
+    const sourceId = state.document().activeLayerId!;
+    const copied = await state.commands.copySelectedContent(
+      createFullCanvasSelection(32, 24)
+    );
+    expect(copied?.fastPasteToken).toBeTruthy();
+
+    expect(state.commands.layerViaCopy(sourceId)).toBeTruthy();
+    await expect(state.commands.pastePixelArtifact(
+      copied!.file,
+      { x: 0, y: 0, width: 32, height: 24, name: 'Original clipboard artifact' },
+      copied!.fastPasteToken
+    )).resolves.toMatchObject({ width: 32, height: 24 });
+
+    expect(state.renderer.pasteSelectionClipboard).toHaveBeenCalledOnce();
+    expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
+      layerId: state.document().activeLayerId,
+      pixels: copied!.file,
+      mask: null
+    }]);
   });
 
   it('removes a Layer Via Copy destination when history rejects the command', () => {
@@ -1870,9 +1946,7 @@ describe('useLayerDocumentCommands', () => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.layerViaCopy(
-      initial.activeLayerId!, createFullCanvasSelection(16, 12)
-    )).toBeNull();
+    expect(state.commands.layerViaCopy(initial.activeLayerId!)).toBeNull();
 
     expect(state.document()).toBe(initial);
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
@@ -1882,12 +1956,21 @@ describe('useLayerDocumentCommands', () => {
   it('copies the complete explicit raster layer when no selection exists', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const sourceId = state.document().activeLayerId!;
+    const activeLease = state.dependencies.getSelectionLease()!;
+    state.dependencies.getSelectionLease = vi.fn(() => ({
+      ...activeLease,
+      selection: {
+        ...activeLease.selection,
+        active: false,
+        supportBounds: null
+      }
+    }));
 
-    const copiedId = state.commands.layerViaCopy(sourceId, []);
+    const copied = state.commands.layerViaCopy(sourceId);
 
-    expect(copiedId).toBe(state.document().activeLayerId);
-    expect(copiedId).not.toBe(sourceId);
-    expect(state.renderer.duplicateLayerPixels).toHaveBeenCalledWith(sourceId, copiedId);
+    expect(copied).toEqual({ layerId: state.document().activeLayerId, scope: 'layer' });
+    expect(copied?.layerId).not.toBe(sourceId);
+    expect(state.renderer.duplicateLayerPixels).toHaveBeenCalledWith(sourceId, copied?.layerId);
     expect(state.historyEntries).toHaveLength(1);
   });
 });

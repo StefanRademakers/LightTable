@@ -6,6 +6,7 @@ import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixe
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import {
   RasterGradientCommandController,
+  type GradientHistoryEntry,
   type RasterGradientDependencies
 } from './RasterGradientCommandController';
 import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
@@ -17,10 +18,27 @@ const edit: ReversiblePixelEdit = {
   destroy: vi.fn()
 };
 
-const withDocumentMutations = <T extends Omit<RasterGradientDependencies, 'documentMutations'>>(
+const withDocumentMutations = <T extends Omit<RasterGradientDependencies,
+  'documentMutations' | 'reserveHistoryEntry' | 'getSelectionRevision'> & {
+    pushHistoryEntry(entry: GradientHistoryEntry): void;
+    getSelectionRevision?(): number;
+  }>(
   dependencies: T
 ) => ({
   ...dependencies,
+  getSelectionRevision: dependencies.getSelectionRevision ?? (() => 0),
+  reserveHistoryEntry: (entry: GradientHistoryEntry) => {
+    let active = true;
+    return {
+      commit: () => {
+        if (!active) return false;
+        active = false;
+        dependencies.pushHistoryEntry(entry);
+        return true;
+      },
+      cancel: () => { active = false; }
+    };
+  },
   documentMutations: createDocumentMutationController(() => ({
     getDocument: dependencies.getDocument,
     applySnapshot: dependencies.applyDocumentSnapshot,
@@ -31,6 +49,34 @@ const withDocumentMutations = <T extends Omit<RasterGradientDependencies, 'docum
 });
 
 describe('RasterGradientCommandController', () => {
+  it('acquires history ownership before the first GPU write', () => {
+    const document = createImageDocument('Gradient admission', 32, 24, 'asset');
+    const settings = createEditorSession().gradient;
+    const renderer = {
+      beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      fillLayerGradient: vi.fn(() => true), finishPixelEdit: vi.fn(() => edit),
+      cancelPixelEdit: vi.fn(), applyPixelHistory: vi.fn(() => true)
+    };
+    const dependencies = withDocumentMutations({
+      getDocument: () => document, getRenderer: () => renderer,
+      getChannel: () => 'pixels' as const, getSettings: () => settings,
+      applyDocumentSnapshot: vi.fn(), pushHistoryEntry: vi.fn(),
+      setStatus: vi.fn(), setError: vi.fn()
+    });
+    dependencies.reserveHistoryEntry = vi.fn(() => {
+      throw new Error('history unavailable');
+    });
+    const controller = new RasterGradientCommandController(() => dependencies);
+    const command = {
+      layerId: document.activeLayerId!, channel: 'pixels' as const,
+      paint: settings.paint, opacity: settings.opacity, blendMode: settings.blendMode
+    };
+
+    expect(controller.apply(command)).toBeNull();
+    expect(renderer.beginBrushStroke).not.toHaveBeenCalled();
+    expect(renderer.fillLayerGradient).not.toHaveBeenCalled();
+  });
+
   it('commits one constrained gesture and publishes reversible history', () => {
     let document: ImageDocument = createImageDocument('Gradient', 64, 48, 'fixture');
     const before = document;

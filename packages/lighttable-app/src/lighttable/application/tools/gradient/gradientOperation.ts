@@ -33,19 +33,34 @@ export type GradientOperationResult = {
   readonly message: string;
 };
 
+export type PreparedGradientOperation = {
+  readonly document: ImageDocument;
+  readonly layer: LayerNode;
+  readonly layerId: LayerId;
+  readonly targetLabel: string;
+  readonly channel: PaintChannel;
+  readonly paint: GradientPaintInstance;
+  readonly opacity: number;
+  readonly blendMode: BlendMode;
+  readonly preserveTransparency: boolean;
+};
+
+export type GradientPreparationResult =
+  | { readonly ok: true; readonly plan: PreparedGradientOperation }
+  | Extract<GradientOperationResult, { readonly ok: false }>;
+
 const bounds = (document: ImageDocument): Rect => ({
   x: 0, y: 0, width: document.width, height: document.height
 });
 
-export const executeGradientOperation = (
+export const prepareGradientOperation = (
   document: ImageDocument,
-  renderer: GradientRendererPort,
   channel: PaintChannel,
   paint: GradientPaintInstance,
   opacity: number,
   blendMode: BlendMode,
   targetLayerId: LayerId | null = document.activeLayerId
-): GradientOperationResult => {
+): GradientPreparationResult => {
   if (!targetLayerId) return { ok: false, message: 'Select a layer before drawing a pixel gradient.' };
   const layer: LayerNode | null = channel === 'mask'
     ? findDocumentLayer(document, targetLayerId)
@@ -62,20 +77,41 @@ export const executeGradientOperation = (
     return { ok: false, message: 'Unlock the gradient target before editing it.' };
   }
 
-  let transactionOpen = false;
-  try {
-    renderer.beginBrushStroke(layer, channel);
-    transactionOpen = true;
-    const preserveTransparency = channel === 'pixels'
-      && layer.type === 'raster'
-      && layer.locks.transparency;
-    if (!renderer.fillLayerGradient(
-      layer.id,
+  return {
+    ok: true,
+    plan: {
+      document: channel === 'mask'
+        ? markLayerMaskPixelsChanged(document, layer.id, bounds(document))
+        : markLayerPixelsChanged(document, layer.id, bounds(document)),
+      layer,
+      layerId: layer.id,
+      targetLabel: channel === 'mask' ? 'Mask' : layer.name,
       channel,
       paint,
       opacity,
       blendMode,
-      preserveTransparency
+      preserveTransparency: channel === 'pixels'
+        && layer.type === 'raster'
+        && layer.locks.transparency
+    }
+  };
+};
+
+export const executePreparedGradientOperation = (
+  renderer: GradientRendererPort,
+  plan: PreparedGradientOperation
+): GradientOperationResult => {
+  let transactionOpen = false;
+  try {
+    renderer.beginBrushStroke(plan.layer, plan.channel);
+    transactionOpen = true;
+    if (!renderer.fillLayerGradient(
+      plan.layerId,
+      plan.channel,
+      plan.paint,
+      plan.opacity,
+      plan.blendMode,
+      plan.preserveTransparency
     )) {
       renderer.cancelPixelEdit();
       transactionOpen = false;
@@ -90,12 +126,10 @@ export const executeGradientOperation = (
     transactionOpen = false;
     return {
       ok: true,
-      document: channel === 'mask'
-        ? markLayerMaskPixelsChanged(document, layer.id, bounds(document))
-        : markLayerPixelsChanged(document, layer.id, bounds(document)),
-      layerId: layer.id,
-      targetLabel: channel === 'mask' ? 'Mask' : layer.name,
-      channel,
+      document: plan.document,
+      layerId: plan.layerId,
+      targetLabel: plan.targetLabel,
+      channel: plan.channel,
       pixelEdit
     };
   } catch (reason) {
@@ -105,4 +139,19 @@ export const executeGradientOperation = (
       message: reason instanceof Error ? reason.message : 'The pixel gradient failed.'
     };
   }
+};
+
+export const executeGradientOperation = (
+  document: ImageDocument,
+  renderer: GradientRendererPort,
+  channel: PaintChannel,
+  paint: GradientPaintInstance,
+  opacity: number,
+  blendMode: BlendMode,
+  targetLayerId: LayerId | null = document.activeLayerId
+): GradientOperationResult => {
+  const prepared = prepareGradientOperation(
+    document, channel, paint, opacity, blendMode, targetLayerId
+  );
+  return prepared.ok ? executePreparedGradientOperation(renderer, prepared.plan) : prepared;
 };

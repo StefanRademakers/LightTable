@@ -3,13 +3,12 @@ import type { ImageDocument, LayerId } from '../../../editor/document/documentTy
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import type { SemanticFillCommand } from '../../commands/semanticFillCommandContract';
-import {
-  commitAppliedPixelMutation,
-  UnpublishedPixelRollbackOwner
-} from '../../commands/pixelMutationTransaction';
+import { reserveAppliedPixelMutation } from '../../commands/pixelMutationTransaction';
+import type { DocumentHistoryReservation } from '../../commands/documentCommandHistory';
 import type { DocumentMutationController } from '../../documents/useDocumentMutationController';
 import {
-  executeFillOperation,
+  executePreparedFillOperation,
+  prepareFillOperation,
   type FillRendererPort
 } from './fillOperation';
 
@@ -34,7 +33,7 @@ export interface FillCommandDependencies {
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   getChannel(): PaintChannel;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: FillHistoryEntry): void;
+  reserveHistoryEntry(entry: FillHistoryEntry): DocumentHistoryReservation;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
   onFillCommitted?(command: SemanticFillCommand, result: FillCommandResult): void;
@@ -58,7 +57,6 @@ export interface FillCommandController {
 export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
 ): FillCommandController => {
-  const rollbackOwner = new UnpublishedPixelRollbackOwner();
   const execute = (
     layerId: LayerId | undefined,
     channel: PaintChannel,
@@ -68,11 +66,6 @@ export const createFillCommandController = (
     history?: { readonly label: string; readonly type: string }
   ) => {
     const dependencies = resolveDependencies();
-    const recovery = rollbackOwner.retry();
-    if (recovery && !recovery.ok) {
-      dependencies.setError('Fill is blocked until its previous GPU rollback can be recovered.');
-      return null;
-    }
     const renderer = dependencies.getRenderer();
     if (!renderer) return null;
     const transaction = dependencies.documentMutations.begin(
@@ -87,29 +80,37 @@ export const createFillCommandController = (
     );
     if (!transaction) return null;
     const before = transaction.before;
-    const result = executeFillOperation(
+    const prepared = prepareFillOperation(
       before,
-      renderer,
       channel,
       color,
       { ...options, layerId }
     );
-    if (!result.ok) {
+    if (!prepared.ok) {
       transaction.cancel();
-      dependencies.setError(result.message);
+      dependencies.setError(prepared.message);
       return null;
     }
 
-    let historyOwnsPixelEdit = false;
     try {
-      const staged = transaction.stage(() => result.document);
+      const staged = transaction.stage(() => prepared.plan.document);
       const committed = staged && transaction.commitWith((ownedBefore, ownedAfter) => {
-        historyOwnsPixelEdit = true;
-        commitAppliedPixelMutation(() => resolveDependencies(), {
+        const label = history?.label
+          ?? (prepared.plan.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill');
+        const type = history?.type
+          ?? (prepared.plan.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill');
+        const publication = reserveAppliedPixelMutation(() => resolveDependencies(), {
+          label, type, layerIds: [prepared.plan.layerId]
+        });
+        const result = executePreparedFillOperation(renderer, prepared.plan);
+        if (!result.ok) {
+          publication.cancel();
+          throw new Error(result.message);
+        }
+        publication.commit({
           operation: 'Fill',
-          label: history?.label
-            ?? (result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill'),
-          type: history?.type ?? (result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill'),
+          label,
+          type,
           layerIds: [result.layerId],
           before: ownedBefore,
           after: ownedAfter,
@@ -118,16 +119,6 @@ export const createFillCommandController = (
         return true;
       });
       if (!committed) {
-        if (!historyOwnsPixelEdit) {
-          const rollback = rollbackOwner.rollback(
-            (edit, direction) => renderer.applyPixelHistory(edit, direction),
-            [result.pixelEdit]
-          );
-          if (!rollback.ok) {
-            dependencies.setError('Fill was canceled, but its GPU rollback could not be completed.');
-            return null;
-          }
-        }
         dependencies.setError('Fill was canceled because the document changed.');
         return null;
       }
@@ -139,8 +130,8 @@ export const createFillCommandController = (
       return null;
     }
     dependencies.setError(null);
-    dependencies.setStatus(status(result.targetLabel));
-    return { layerId: result.layerId, channel: result.channel };
+    dependencies.setStatus(status(prepared.plan.targetLabel));
+    return { layerId: prepared.plan.layerId, channel: prepared.plan.channel };
   };
   const executeUi = (color: string, preserveTransparency: boolean, opacity = 1) => {
     const dependencies = resolveDependencies();

@@ -2739,6 +2739,24 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('does not mark a document changed when a brush terminal commit is rejected', async () => {
+    const state = setup({ finishGesture: vi.fn(async () => false) });
+    const before = state.session.getSnapshot().documentRevision;
+    const started = await state.service.beginGesture({
+      documentId: state.session.id,
+      kind: 'brush-stroke',
+      coordinateSpace: 'document',
+      parameters: {},
+      sample: { x: 4, y: 5, pressure: 1 }
+    });
+    expect(started.status).toBe('started');
+    await expect(state.service.finishGesture(started.gestureId!, true))
+      .resolves.toMatchObject({ status: 'rejected' });
+    expect(state.session.getSnapshot().documentRevision).toBe(before);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('leases live gestures and releases the document after timeout', async () => {
     vi.useFakeTimers();
     try {

@@ -8,6 +8,7 @@ import { createEditorSession } from '../../../editor/session/editorSession';
 import { identityMatrix } from '../../../editor/tools/transform/affine';
 import {
   createPaintSessionController,
+  type PaintHistoryEntry,
   type PaintSessionDependencies,
   type PaintSessionRendererPort
 } from './usePaintSessionController';
@@ -48,13 +49,13 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     applyPixelHistory: vi.fn(() => true)
   };
   let currentRenderer: PaintSessionRendererPort | null = renderer;
-  const history: Array<Parameters<PaintSessionDependencies['pushHistoryEntry']>[0]> = [];
+  const history: PaintHistoryEntry[] = [];
   const previewDocumentSnapshot = vi.fn((_next: typeof document) => undefined);
   const discardDocumentPreview = vi.fn();
   const applyDocumentSnapshot = vi.fn((next: typeof document) => {
     document = next;
   });
-  const pushHistoryEntry = (entry: Parameters<PaintSessionDependencies['pushHistoryEntry']>[0]) =>
+  const pushHistoryEntry = (entry: PaintHistoryEntry) =>
     history.push(entry);
   const documentMutations = createDocumentMutationController(() => ({
     getDocument: () => document,
@@ -68,7 +69,20 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
     getRenderer: () => currentRenderer,
     documentMutations,
     applyDocumentSnapshot,
-    pushHistoryEntry,
+    reserveHistoryEntry: (entry) => {
+      let active = true;
+      return {
+        commit: () => {
+          if (!active) return false;
+          active = false;
+          history.push(entry);
+          return true;
+        },
+        cancel: () => { active = false; }
+      };
+    },
+    acquireHistoryAdmissionBarrier: () => ({ release: () => undefined }),
+    getSelectionRevision: () => 0,
     setError: vi.fn()
   };
   return {
@@ -89,6 +103,42 @@ const createFixture = (frame?: PaintFramePort, compact = false) => {
 };
 
 describe('PaintSessionController', () => {
+  it('holds history admission before opening the renderer edit and transfers it at finish', () => {
+    const fixture = createFixture();
+    const events: string[] = [];
+    fixture.dependencies.acquireHistoryAdmissionBarrier = vi.fn(() => {
+      events.push('admit');
+      return { release: () => events.push('release') };
+    });
+    fixture.dependencies.reserveHistoryEntry = vi.fn((entry) => {
+      events.push('reserve');
+      let active = true;
+      return {
+        commit: () => {
+          if (!active) return false;
+          active = false;
+          fixture.history.push(entry);
+          return true;
+        },
+        cancel: () => { active = false; }
+      };
+    });
+    vi.mocked(fixture.renderer.beginBrushStroke).mockImplementation(() => {
+      events.push('gpu-open');
+    });
+    expect(fixture.controller.begin({
+      pointerId: 19,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 2, y: 3, pressure: 1 }
+    })).toBe(true);
+    expect(events).toEqual(['admit', 'gpu-open']);
+    expect(fixture.controller.finish(19)).toBe(true);
+    expect(events).toEqual(['admit', 'gpu-open', 'release', 'reserve']);
+  });
+
   it('cancels through the opening renderer when the presentation binding changes', () => {
     const fixture = createFixture();
     const replacement = {
@@ -454,6 +504,51 @@ describe('PaintSessionController', () => {
       operator: sampledPlan,
       samples: [{ x: 10, y: 10, pressure: 1 }, { x: 20, y: 10, pressure: 1 }]
     }));
+  });
+
+  it('keeps a durable stroke when sampled-source cleanup throws after publication', () => {
+    const fixture = createFixture();
+    vi.mocked(fixture.renderer.endSampledBrushStroke).mockImplementation(() => {
+      throw new Error('sample cleanup failed');
+    });
+    expect(fixture.controller.begin({
+      pointerId: 44,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 10, y: 10, pressure: 1 },
+      operator: sampledPlan
+    })).toBe(true);
+
+    expect(fixture.controller.finish(44)).toBe(true);
+    expect(fixture.history).toHaveLength(1);
+    expect(fixture.pixelEdit.undo).not.toHaveBeenCalled();
+    expect(fixture.pixelEdit.destroy).not.toHaveBeenCalled();
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('cleanup failed')
+    );
+  });
+
+  it('rejects a paint finish and rolls GPU pixels back when history admission fails', () => {
+    const fixture = createFixture();
+    fixture.dependencies.reserveHistoryEntry = vi.fn(() => {
+      throw new Error('history unavailable');
+    });
+    expect(fixture.controller.begin({
+      pointerId: 45,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 10, y: 10, pressure: 1 }
+    })).toBe(true);
+
+    expect(fixture.controller.finish(45)).toBe(false);
+    expect(fixture.history).toHaveLength(0);
+    expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(
+      fixture.pixelEdit, 'undo'
+    );
   });
 
   it('releases a sampled source when its paint gesture is cancelled', () => {

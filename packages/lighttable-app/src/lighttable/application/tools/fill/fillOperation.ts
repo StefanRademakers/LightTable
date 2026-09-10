@@ -51,6 +51,21 @@ export type FillOperationResult =
     readonly message: string;
   };
 
+export type PreparedFillOperation = {
+  readonly document: ImageDocument;
+  readonly layer: LayerNode;
+  readonly layerId: LayerId;
+  readonly targetLabel: string;
+  readonly channel: PaintChannel;
+  readonly linearColor: readonly [number, number, number];
+  readonly preserveTransparency: boolean;
+  readonly opacity: number;
+};
+
+export type FillPreparationResult =
+  | { readonly ok: true; readonly plan: PreparedFillOperation }
+  | Extract<FillOperationResult, { readonly ok: false }>;
+
 const fullDocumentBounds = (document: ImageDocument): Rect => ({
   x: 0,
   y: 0,
@@ -78,9 +93,8 @@ export const srgbHexToLinearRgb = (
  * renderer transaction is always cancelled and never returns a partial
  * document revision.
  */
-export const executeFillOperation = (
+export const prepareFillOperation = (
   document: ImageDocument,
-  renderer: FillRendererPort,
   channel: PaintChannel,
   color: string,
   options: {
@@ -88,7 +102,7 @@ export const executeFillOperation = (
     readonly preserveTransparency?: boolean;
     readonly opacity?: number;
   } = {}
-): FillOperationResult => {
+): FillPreparationResult => {
   const targetLayerId = options.layerId ?? document.activeLayerId;
   if (!targetLayerId) {
     return {
@@ -129,19 +143,41 @@ export const executeFillOperation = (
     };
   }
 
-  let transactionOpen = false;
-  try {
-    renderer.beginBrushStroke(layer, channel);
-    transactionOpen = true;
-    const preserveTransparency = channel === 'pixels'
-      && layer.type === 'raster'
-      && (layer.locks.transparency || options.preserveTransparency === true);
-    if (!renderer.fillLayerColor(
-      layer.id,
+  const preserveTransparency = channel === 'pixels'
+    && layer.type === 'raster'
+    && (layer.locks.transparency || options.preserveTransparency === true);
+  const dirtyBounds = fullDocumentBounds(document);
+  return {
+    ok: true,
+    plan: {
+      document: channel === 'mask'
+        ? markLayerMaskPixelsChanged(document, layer.id, dirtyBounds)
+        : markLayerPixelsChanged(document, layer.id, dirtyBounds),
+      layer,
+      layerId: layer.id,
+      targetLabel: channel === 'mask' ? 'Mask' : layer.name,
       channel,
       linearColor,
       preserveTransparency,
       opacity
+    }
+  };
+};
+
+export const executePreparedFillOperation = (
+  renderer: FillRendererPort,
+  plan: PreparedFillOperation
+): FillOperationResult => {
+  let transactionOpen = false;
+  try {
+    renderer.beginBrushStroke(plan.layer, plan.channel);
+    transactionOpen = true;
+    if (!renderer.fillLayerColor(
+      plan.layerId,
+      plan.channel,
+      plan.linearColor,
+      plan.preserveTransparency,
+      plan.opacity
     )) {
       renderer.cancelPixelEdit();
       transactionOpen = false;
@@ -162,15 +198,12 @@ export const executeFillOperation = (
       };
     }
     transactionOpen = false;
-    const dirtyBounds = fullDocumentBounds(document);
     return {
       ok: true,
-      document: channel === 'mask'
-        ? markLayerMaskPixelsChanged(document, layer.id, dirtyBounds)
-        : markLayerPixelsChanged(document, layer.id, dirtyBounds),
-      layerId: layer.id,
-      targetLabel: channel === 'mask' ? 'Mask' : layer.name,
-      channel,
+      document: plan.document,
+      layerId: plan.layerId,
+      targetLabel: plan.targetLabel,
+      channel: plan.channel,
       pixelEdit
     };
   } catch (reason) {
@@ -183,4 +216,19 @@ export const executeFillOperation = (
         : 'The active target could not be filled.'
     };
   }
+};
+
+export const executeFillOperation = (
+  document: ImageDocument,
+  renderer: FillRendererPort,
+  channel: PaintChannel,
+  color: string,
+  options: {
+    readonly layerId?: LayerId;
+    readonly preserveTransparency?: boolean;
+    readonly opacity?: number;
+  } = {}
+): FillOperationResult => {
+  const prepared = prepareFillOperation(document, channel, color, options);
+  return prepared.ok ? executePreparedFillOperation(renderer, prepared.plan) : prepared;
 };

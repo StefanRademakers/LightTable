@@ -112,7 +112,7 @@ but cannot inherit another item's acceptance.
 | C01 | Selection/marquee, selection paint, mask projection and consumers | accepted | [x] | [x] | [x] | [x] |
 | C02 | Layer finalization: rasterize, merge and flatten | accepted | [x] | [x] | [x] | [x] |
 | C03 | Layer masks, mask edits and Remove Background result insertion | accepted | [x] | [x] | [x] | [x] |
-| C04 | Raster paint, fill/gradient and clipboard pixel consumers | queued | [ ] | [ ] | [ ] | [ ] |
+| C04 | Raster paint, fill/gradient and clipboard pixel consumers | accepted | [x] | [x] | [x] | [x] |
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | queued | [ ] | [ ] | [ ] | [ ] |
 | C06 | Vector paths, Pen, live shapes and vector gradients | queued | [ ] | [ ] | [ ] | [ ] |
 | C07 | Text, Path Text, layout/editing and semantic text transform | queued | [ ] | [ ] | [ ] | [ ] |
@@ -249,6 +249,50 @@ but cannot inherit another item's acceptance.
    remains asynchronous but only its generation-bound result enters the shared
    mask command.
 7. **Next** -- C04 raster paint, fill/gradient and clipboard pixel consumers.
+
+## C04 acceptance record -- 2026-09-10
+
+1. **Done** -- fill and raster-gradient separate pure preparation from GPU
+   execution and reserve history before their first pixel write. Paint holds a
+   document history-admission barrier for the complete gesture, transfers it to
+   one terminal pixel publication and reports failure accurately to UI,
+   Actions and MCP. Copy, Copy Merged, fast Paste, bounded Paste, Place and
+   Layer Via Copy consume the committed C01 selection lease and remain bound to
+   the exact document and renderer generation across asynchronous work.
+2. **Deleted** -- post-mutation history publication from fill, gradient and
+   paint; the overlay's direct copy/paste/cut fallbacks; semantic-operation
+   bounds as clipboard truth; inline clipboard capture in the layer facade; and
+   Layer Via Copy's React-selection argument. Boundary verification rejects
+   their return. Layer Via Copy invalidates shared renderer scratch ownership
+   and can no longer leave a valid fast-paste token pointing at different
+   pixels.
+3. **Ownership** -- system-clipboard capture, serialization, committed lease
+   validation and fast-token ownership live in the bounded 212-line
+   `pixelClipboardController.ts`. Semantic paint recording moved to the
+   64-line `PaintStrokeRecorder.ts`. `useLayerDocumentCommands.ts` reduced from
+   1,693 to 1,543 lines. The 578-line paint controller remains one cohesive
+   gesture-lifecycle owner; splitting admission, sampled-source cleanup and
+   terminal publication across wrappers would weaken this slice's invariant.
+4. **Proof** -- 282 focused paint/fill/gradient/clipboard/layer/history/command
+   tests; app typecheck; boundary verification; instrumented desktop package;
+   packaged raster-paint smoke covering fill, gradient, brush, erase, dodge,
+   burn, sponge, clone and healing with no page errors; packaged clipboard
+   equivalence with pixel-exact UI versus Actions and UI versus MCP output
+   (RMSE 0). Terminal smoke timings were 9.1-17.8 ms on the 256x192 fixture;
+   pointer-rate sampling remains outside React and history.
+5. **Critic** -- round 1 found five P1 lifecycle faults: paint cleanup could
+   leak admission, loaded rasters finalized before history, clipboard lease was
+   optional, concurrent copies raced publication, and failed paint could be
+   reported as completed. Repair round 1 closed all five. Round 2 found Layer
+   Via Copy as a second scratch owner capable of stale-token paste. That route
+   was moved behind the same history/clipboard ownership and regression-guarded;
+   final independent verdict: **ACCEPT**, no C04 P0/P1.
+6. **Allowed/non-blocking** -- sampled-tool cleanup after durable paint commit
+   is best-effort and reports cleanup failure without rolling back accepted
+   history. Loaded image decode remains asynchronous, but publication is exact
+   document/renderer-bound and all temporary GPU resources are compensated on
+   rejection. No legacy execution fallback remains in this slice.
+7. **Next** -- C05 transform, selected-pixel movement, snapping and edge-pan.
 
 ## Slice-specific acceptance
 

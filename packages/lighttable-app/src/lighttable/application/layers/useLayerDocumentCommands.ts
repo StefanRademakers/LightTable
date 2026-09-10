@@ -36,11 +36,6 @@ import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
 import {
-  selectionOperationsBounds,
-  selectionOperationsSupportBounds
-} from '../../editor/tools/transform/selectionTransform';
-import { centerClipboardBounds } from '../clipboard/pastePlacement';
-import {
   adjustmentStackForScope,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
@@ -60,7 +55,6 @@ import { isFilterKind, createFilterStack } from '../../processing/filter';
 import { assertFilterStackDocumentReferences } from '../filters/filterDocumentReferences';
 import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
 import {
-  commitAppliedPixelMutation,
   reserveAppliedPixelMutation,
   type AppliedPixelMutationReservation
 } from '../commands/pixelMutationTransaction';
@@ -83,6 +77,12 @@ import {
   type RasterFinalizationMutation,
   type RasterFinalizationHistoryEntry
 } from './rasterFinalizationTransaction';
+import { createPixelClipboardController } from '../clipboard/pixelClipboardController';
+import type {
+  PixelClipboardCapture,
+  PixelClipboardPasteResult,
+  PixelClipboardPlacement
+} from '../clipboard/pixelClipboardTypes';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -146,12 +146,12 @@ export interface LayerDocumentCommandDependencies {
   getRendererGeneration(): number;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
-  getSelectionLease?(): LightTableSelectionReadLease | null;
-  getActiveChannel?(): PaintChannel;
+  getSelectionLease(): LightTableSelectionReadLease | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument,
     description?: { readonly label: string; readonly type: string }): void;
+  /** Temporary non-C04 compatibility surface; removed with adjustment duplication in C09. */
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
   reserveHistoryEntry(entry: LayerCommandHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: PaintChannel): void;
@@ -197,7 +197,6 @@ export interface LayerDocumentCommands {
   invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
-  pasteSelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   pastePixelArtifact(file: File, placement: PixelClipboardPlacement,
     fastPasteToken?: string): Promise<PixelClipboardPasteResult | null>;
   placeImageArtifact(file: File, placement?: {
@@ -205,24 +204,13 @@ export interface LayerDocumentCommands {
     readonly x?: number;
     readonly y?: number;
   }): Promise<{ readonly layerId: LayerId; readonly width: number; readonly height: number } | null>;
-  layerViaCopy(layerId: LayerId, selection: readonly SelectionOperation[]): LayerId | null;
+  layerViaCopy(layerId: LayerId): {
+    readonly layerId: LayerId;
+    readonly scope: 'layer' | 'selection';
+  } | null;
 }
 
-export interface PixelClipboardCapture {
-  readonly file: File;
-  readonly bounds: Rect;
-  readonly fastPasteToken?: string;
-}
-
-export interface PixelClipboardPlacement extends Rect {
-  readonly name?: string;
-  readonly target?: { readonly channel: PaintChannel; readonly layerId?: LayerId };
-}
-export interface PixelClipboardPasteResult {
-  readonly layerId: LayerId;
-  readonly width: number;
-  readonly height: number;
-}
+export type { PixelClipboardCapture, PixelClipboardPasteResult, PixelClipboardPlacement };
 
 const fullDocumentBounds = (document: ImageDocument) => ({
   x: 0,
@@ -284,13 +272,12 @@ const estimateRetainedLayerRuntimeBytes = (
 export const createLayerDocumentCommands = (
   resolveDependencies: () => LayerDocumentCommandDependencies
 ): LayerDocumentCommands => {
-  let fastClipboardToken: string | null = null;
-  let clipboardGeneration = 0;
   const dependenciesRef = {
     get current() {
       return resolveDependencies();
     }
   };
+  const pixelClipboard = createPixelClipboardController(() => dependenciesRef.current);
 
   const waitForTextTargets = async (
     layerIds: readonly LayerId[],
@@ -461,6 +448,15 @@ export const createLayerDocumentCommands = (
       const dependencies = dependenciesRef.current;
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
+      const rendererGeneration = dependencies.getRendererGeneration();
+      const historyReservation = dependencies.reserveHistoryEntry({
+        label: description.label,
+        type: description.type,
+        byteSize: Math.max(1, destination.width) * Math.max(1, destination.height) * 8,
+        layerIds: [destination.id],
+        undo: () => applyDocumentTransition(`Undo ${description.label}`, ownedAfter, ownedBefore),
+        redo: () => applyDocumentTransition(`Redo ${description.label}`, ownedBefore, ownedAfter)
+      });
       let ownsReservation = false;
       const releaseReservation = () => {
         if (!ownsReservation) return;
@@ -473,6 +469,12 @@ export const createLayerDocumentCommands = (
         }
         ownsReservation = true;
         await renderer.loadLayerAssets(assets);
+        const current = dependenciesRef.current;
+        if (current.getRenderer() !== renderer
+          || current.getRendererGeneration() !== rendererGeneration
+          || current.getDocument() !== ownedBefore) {
+          throw new Error(`${description.label} was cancelled because its document renderer changed.`);
+        }
         runEditorOperationTransaction({ operation }, (publication) => {
           publication.adopt('release reserved raster destination', releaseReservation);
           publication.step(
@@ -480,12 +482,22 @@ export const createLayerDocumentCommands = (
             () => dependencies.applyDocumentSnapshot(ownedAfter),
             () => dependencies.applyDocumentSnapshot(ownedBefore)
           );
-          dependencies.pushDocumentHistory(ownedBefore, ownedAfter, description);
-          renderer.commitRasterDestination(destination.id);
+          if (!historyReservation.commit()) {
+            throw new Error(`${description.label} history admission expired.`);
+          }
+          // Durable history now retains the destination runtime. Releasing the
+          // temporary allocation marker is administrative and cannot invalidate
+          // an accepted command.
+          try {
+            renderer.commitRasterDestination(destination.id);
+          } catch (reason) {
+            console.error('Raster destination reservation cleanup failed.', reason);
+          }
           ownsReservation = false;
         });
         return true;
       } catch (reason) {
+        historyReservation.cancel();
         releaseReservation();
         dependencies.setError(reason instanceof Error ? reason.message : errorMessage);
         return false;
@@ -1200,11 +1212,9 @@ export const createLayerDocumentCommands = (
         throw new Error(`${description.label} could not stage its document state.`);
       }
       if (!transaction.commitWith((before, after) => {
-        if (channel === 'mask') {
-          historyPublication = reserveAppliedPixelMutation(() => dependenciesRef.current, {
-            label: description.label, type: description.type, layerIds: [layerId]
-          });
-        }
+        historyPublication = reserveAppliedPixelMutation(() => dependenciesRef.current, {
+          label: description.label, type: description.type, layerIds: [layerId]
+        });
         renderer.beginLayerPixelEdit(layerId, channel);
         editOpen = true;
         if (!renderer.invertLayerColors(layerId, channel)) {
@@ -1226,8 +1236,7 @@ export const createLayerDocumentCommands = (
           after,
           edits: [completedEdit]
         };
-        if (historyPublication) historyPublication.commit(mutation);
-        else commitAppliedPixelMutation(() => dependenciesRef.current, mutation);
+        historyPublication.commit(mutation);
         return true;
       })) throw new Error(`${description.label} could not commit its document state.`);
       dependenciesRef.current.setError(null);
@@ -1249,141 +1258,6 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const clipboardBounds = (
-    document: ImageDocument,
-    selection: readonly SelectionOperation[],
-    lease: LightTableSelectionReadLease | null,
-  ) => {
-    if (!lease) return selectionOperationsSupportBounds(
-      [...selection], fullDocumentBounds(document),
-    );
-    const committed = lease.selection;
-    if (String(committed.documentSessionId) !== dependenciesRef.current.getDocumentId()
-      || committed.canvas.width !== document.width
-      || committed.canvas.height !== document.height
-      || !committed.active) return null;
-    return committed.supportBounds ? { ...committed.supportBounds } : null;
-  };
-
-  const leaseIsCurrent = (lease: LightTableSelectionReadLease | null) => {
-    if (!lease || !dependenciesRef.current.getSelectionLease) return true;
-    try {
-      const current = dependenciesRef.current.getSelectionLease();
-      return current?.selection.revision === lease.selection.revision
-        && current.document.revision === lease.document.revision;
-    } catch {
-      return false;
-    }
-  };
-
-  const acquireSelectionLease = (dependencies: LayerDocumentCommandDependencies) => {
-    try {
-      return { ok: true as const, lease: dependencies.getSelectionLease?.() ?? null };
-    } catch (reason) {
-      dependencies.setError(
-        reason instanceof Error ? reason.message : 'The committed selection is unavailable.'
-      );
-      return { ok: false as const, lease: null };
-    }
-  };
-
-  const writeClipboard = async (
-    clipboard: LightTableImageClipboard,
-    blob: Blob,
-    sourceDocumentId: string,
-    bounds: Rect
-  ) => clipboard.writeImage(blob, {
-    sourceDocumentId,
-    ...bounds
-  });
-
-  const copySelectedContent = async (selection: readonly SelectionOperation[]) => {
-    const dependencies = dependenciesRef.current;
-    const document = dependencies.getDocument();
-    const renderer = dependencies.getRenderer();
-    const clipboard = dependencies.getImageClipboard();
-    const sourceDocumentId = dependencies.getDocumentId();
-    const activeLayer = document
-      ? findRasterLayer(document, document.activeLayerId)
-      : null;
-    const acquired = acquireSelectionLease(dependencies);
-    if (!acquired.ok) return null;
-    const lease = acquired.lease;
-    if (!document || !renderer || !activeLayer || (!lease && !selection.length)) return null;
-    const copyGeneration = ++clipboardGeneration;
-    fastClipboardToken = null;
-    const bounds = clipboardBounds(document, selection, lease);
-    if (!bounds || !leaseIsCurrent(lease)) return null;
-    if (!renderer.copySelectedLayerContent(document, activeLayer.id)) {
-      dependencies.setError(
-        'The selected pixels could not be copied from the active layer.'
-      );
-      return null;
-    }
-    dependencies.setSelectionClipboardAvailable(true);
-    try {
-      const blob = await renderer.exportSelectionClipboard(bounds);
-      if (!leaseIsCurrent(lease)) {
-        throw new Error('The selection changed while its pixels were being copied.');
-      }
-      await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
-      const fastPasteToken = copyGeneration === clipboardGeneration
-        && dependenciesRef.current.getDocumentId() === sourceDocumentId
-        && dependenciesRef.current.getRenderer() === renderer
-        ? `${sourceDocumentId}:${copyGeneration}`
-        : undefined;
-      if (copyGeneration === clipboardGeneration) fastClipboardToken = fastPasteToken ?? null;
-      dependencies.setStatus('Selected pixels copied to the system clipboard');
-      dependencies.setError(null);
-      return { file: new File([blob], 'Selected pixels.png', {
-        type: blob.type || 'image/png'
-      }), bounds, ...(fastPasteToken ? { fastPasteToken } : {}) };
-    } catch (reason) {
-      dependencies.setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The selected pixels could not be written to the system clipboard.'
-      );
-      return null;
-    }
-  };
-
-  const copyMergedContent = async (selection: readonly SelectionOperation[]) => {
-    const dependencies = dependenciesRef.current;
-    const document = dependencies.getDocument();
-    const renderer = dependencies.getRenderer();
-    const clipboard = dependencies.getImageClipboard();
-    const sourceDocumentId = dependencies.getDocumentId();
-    const acquired = acquireSelectionLease(dependencies);
-    if (!acquired.ok) return null;
-    const lease = acquired.lease;
-    if (!document || !renderer || (!lease && !selection.length)) return null;
-    const bounds = clipboardBounds(document, selection, lease);
-    if (!bounds || !leaseIsCurrent(lease)) return null;
-    ++clipboardGeneration;
-    fastClipboardToken = null;
-    try {
-      const blob = await renderer.exportMergedSelection(bounds);
-      if (!leaseIsCurrent(lease)) {
-        throw new Error('The selection changed while merged pixels were being copied.');
-      }
-      await writeClipboard(clipboard, blob, sourceDocumentId, bounds);
-      dependencies.setSelectionClipboardAvailable(true);
-      dependencies.setStatus('Merged selection copied to the system clipboard');
-      dependencies.setError(null);
-      return { file: new File([blob], 'Merged pixels.png', {
-        type: blob.type || 'image/png'
-      }), bounds };
-    } catch (reason) {
-      dependencies.setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The merged selection could not be copied.'
-      );
-      return null;
-    }
-  };
-
   const pastePixelArtifact = async (
     file: File,
     placement: PixelClipboardPlacement,
@@ -1397,6 +1271,7 @@ export const createLayerDocumentCommands = (
     if (!documentTransaction) return null;
     const before = documentTransaction.before;
     const renderer = dependencies.getRenderer();
+    const rendererGeneration = dependencies.getRendererGeneration();
     if (!renderer) {
       documentTransaction.cancel();
       return null;
@@ -1421,11 +1296,17 @@ export const createLayerDocumentCommands = (
       }
       let editOpen = false;
       let pixelEdit: ReversiblePixelEdit | null = null;
+      let historyPublication: AppliedPixelMutationReservation | null = null;
       try {
         const committed = await documentTransaction.commitWithAsync(async (
           ownedBefore,
           ownedAfter
         ) => {
+          historyPublication = reserveAppliedPixelMutation(() => dependenciesRef.current, {
+            label: description.label,
+            type: description.type,
+            layerIds: [targetId]
+          });
           renderer.beginLayerPixelEdit(targetId, 'mask');
           editOpen = true;
           // Clipboard paste replaces mask pixels through a full texture upload.
@@ -1440,12 +1321,18 @@ export const createLayerDocumentCommands = (
           }, 'mask')) {
             throw new Error('The copied pixels could not be pasted into the active mask.');
           }
+          const current = dependenciesRef.current;
+          if (current.getRenderer() !== renderer
+            || current.getRendererGeneration() !== rendererGeneration
+            || current.getDocument() !== ownedBefore) {
+            throw new Error('Mask paste was cancelled because its document renderer changed.');
+          }
           pixelEdit = renderer.finishPixelEdit();
           editOpen = false;
           if (!pixelEdit) throw new Error('Mask paste could not create a recoverable undo step.');
           const completedEdit = pixelEdit;
           pixelEdit = null;
-          commitAppliedPixelMutation(() => dependenciesRef.current, {
+          historyPublication.commit({
             operation: description.label,
             label: description.label,
             type: description.type,
@@ -1464,6 +1351,7 @@ export const createLayerDocumentCommands = (
         return { layerId: targetId, width: placement.width, height: placement.height };
       } catch (reason) {
         if (editOpen) renderer.cancelPixelEdit();
+        (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
         discardUnpublishedPixelEdit(pixelEdit);
         documentTransaction.cancel();
         dependencies.setError(reason instanceof Error ? reason.message : 'Mask paste failed.');
@@ -1474,9 +1362,8 @@ export const createLayerDocumentCommands = (
     // The retained full-document clipboard is an exact Paste in Place fast
     // path. Normal Paste carries an explicit target and must use the cropped
     // artifact so its newly resolved center is honored.
-    const fastPaste = placement.target === undefined && Boolean(requestedFastPasteToken)
-      && requestedFastPasteToken === fastClipboardToken
-      && renderer.hasSelectionClipboard();
+    const fastPaste = placement.target === undefined
+      && pixelClipboard.canUseFastPaste(requestedFastPasteToken);
     if (!fastPaste) {
       const after = createPlacedRasterLayer(before, {
         name: placement.name?.trim() || 'Pasted Selection',
@@ -1550,55 +1437,6 @@ export const createLayerDocumentCommands = (
     return { layerId: pastedLayerId, width: placement.width, height: placement.height };
   };
 
-  const pasteSelectedContent = async (selection: readonly SelectionOperation[]) => {
-    const dependencies = dependenciesRef.current;
-    if (!dependencies.getDocument()) return false;
-    const targetDocumentId = dependencies.getDocumentId();
-    let clipboardImage;
-    try {
-      clipboardImage = await dependencies.getImageClipboard().readImage();
-    } catch (reason) {
-      dependencies.setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The system clipboard could not be read.'
-      );
-      return false;
-    }
-    if (dependenciesRef.current.getDocumentId() !== targetDocumentId
-      || !dependenciesRef.current.getDocument()) return false;
-    if (!clipboardImage) {
-      dependencies.setError('The system clipboard does not contain an image.');
-      return false;
-    }
-    const file = new File(
-      [clipboardImage.blob], 'Clipboard image.png',
-      { type: clipboardImage.blob.type || 'image/png' }
-    );
-    const bitmap = await createImageBitmap(file);
-    const size = { width: bitmap.width, height: bitmap.height };
-    bitmap.close();
-    if (dependenciesRef.current.getDocumentId() !== targetDocumentId) return false;
-    // Use the latest immutable snapshot of the same document session. A tab
-    // switch cancels this paste instead of combining its old selection with a
-    // different document's pixels and active layer.
-    const current = dependencies.getDocument();
-    if (!current) return false;
-    const targetBounds = selection.length
-      ? selectionOperationsBounds([...selection], fullDocumentBounds(current))
-      : fullDocumentBounds(current);
-    const requestedPlacement = centerClipboardBounds(size, targetBounds);
-    const target = dependencies.getActiveChannel?.() === 'mask'
-      ? { channel: 'mask' as const, layerId: current.activeLayerId ?? undefined }
-      : { channel: 'pixels' as const };
-    const result = await pastePixelArtifact(file, {
-      name: 'Pasted Selection',
-      ...requestedPlacement,
-      target
-    });
-    return Boolean(result);
-  };
-
   const placeImageArtifact: LayerDocumentCommands['placeImageArtifact'] = async (file, placement = {}) => {
     const dependencies = dependenciesRef.current;
     if (!dependencies.getDocument() || !dependencies.getRenderer()) return null;
@@ -1655,12 +1493,21 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const layerViaCopy = (sourceId: LayerId, selection: readonly SelectionOperation[]) => {
+  const layerViaCopy = (sourceId: LayerId) => {
     if (!sourceId) return null;
-    if (!selection.length) {
+    const current = dependenciesRef.current.getDocument();
+    if (!current) return null;
+    const committedSelection = pixelClipboard.readCommittedSelection(current);
+    if (!committedSelection) return null;
+    if (!committedSelection.active) {
       const duplicatedId = duplicateLayer(sourceId);
       if (duplicatedId) dependenciesRef.current.setStatus('Layer copied');
-      return duplicatedId;
+      return duplicatedId ? { layerId: duplicatedId, scope: 'layer' as const } : null;
+    }
+    const dirtyBounds = committedSelection.bounds;
+    if (!dirtyBounds) {
+      dependenciesRef.current.setError('The committed selection has no pixel support.');
+      return null;
     }
 
     const description = { label: 'Layer Via Copy', type: 'layer.via-copy' } as const;
@@ -1669,7 +1516,7 @@ export const createLayerDocumentCommands = (
     const before = documentTransaction.before;
     const renderer = dependenciesRef.current.getRenderer();
     const sourceLayer = findRasterLayer(before, sourceId);
-    if (!renderer || !sourceLayer || !renderer.copySelectedLayerContent(before, sourceId)) {
+    if (!renderer || !sourceLayer) {
       documentTransaction.cancel();
       dependenciesRef.current.setError(
         'The selected pixels could not be copied from the source layer.'
@@ -1683,10 +1530,6 @@ export const createLayerDocumentCommands = (
       documentTransaction.cancel();
       return null;
     }
-    const dirtyBounds = selectionOperationsSupportBounds(
-      [...selection],
-      fullDocumentBounds(before)
-    );
     after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
     const destination = findRasterLayer(after, copiedLayerId);
     if (!destination || !commitReservedRasterMutation({
@@ -1695,7 +1538,11 @@ export const createLayerDocumentCommands = (
       current: before,
       next: after,
       destination,
-      render: () => renderer.pasteSelectionClipboard(copiedLayerId),
+      render: () => {
+        pixelClipboard.invalidateRendererScratch();
+        return renderer.copySelectedLayerContent(before, sourceId)
+          && renderer.pasteSelectionClipboard(copiedLayerId);
+      },
       historyEntry: {
         label: 'Layer Via Copy',
         type: 'layer.via-copy',
@@ -1708,11 +1555,10 @@ export const createLayerDocumentCommands = (
       documentTransaction.cancel();
       return null;
     }
-    dependenciesRef.current.setSelectionClipboardAvailable(true);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setStatus('Selection copied to a new layer');
     dependenciesRef.current.setError(null);
-    return copiedLayerId;
+    return { layerId: copiedLayerId, scope: 'selection' as const };
   };
 
   return {
@@ -1735,9 +1581,8 @@ export const createLayerDocumentCommands = (
     rasterizeTextLayerWhenReady,
     rasterizeLayerWhenReady,
     invertLayerColors,
-    copySelectedContent,
-    copyMergedContent,
-    pasteSelectedContent,
+    copySelectedContent: pixelClipboard.copySelected,
+    copyMergedContent: pixelClipboard.copyMerged,
     pastePixelArtifact,
     placeImageArtifact,
     layerViaCopy

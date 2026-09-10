@@ -35,14 +35,20 @@ import {
   type PaintFramePort
 } from './paintDabScheduler';
 import {
-  commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation,
   UnpublishedPixelRollbackOwner
 } from '../../commands/pixelMutationTransaction';
+import type {
+  DocumentHistoryAdmissionBarrier,
+  DocumentHistoryReservation
+} from '../../commands/documentCommandHistory';
 import type {
   DocumentMutationCloseReason,
   DocumentMutationController,
   DocumentMutationTransaction
 } from '../../documents/useDocumentMutationController';
+import { PaintStrokeRecorder } from './PaintStrokeRecorder';
 
 export interface PaintHistoryEntry {
   label: string;
@@ -84,8 +90,9 @@ export interface PaintSessionDependencies {
   getRenderer(): PaintSessionRendererPort | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: PaintHistoryEntry): void;
-  getSelectionRevision?(): number;
+  reserveHistoryEntry(entry: PaintHistoryEntry): DocumentHistoryReservation;
+  acquireHistoryAdmissionBarrier(): DocumentHistoryAdmissionBarrier;
+  getSelectionRevision(): number;
   setError(message: string | null): void;
   onStrokeCommitted?(stroke: {
     readonly target: PaintGestureTarget;
@@ -119,12 +126,6 @@ export interface PaintSessionController {
 }
 
 const cloneBrush = (brush: BrushSettings): BrushSettings => ({ ...brush });
-const cloneOperator = (operator: PaintBrushStrokePlan): PaintBrushStrokePlan =>
-  operator.operator === 'tone' ? { ...operator } : ({
-    ...operator,
-    source: { ...operator.source, point: { ...operator.source.point } },
-    sourceOffset: { ...operator.sourceOffset }
-  });
 
 const clipDirtyBoundsToDocument = (
   bounds: Rect,
@@ -152,14 +153,7 @@ export const createPaintSessionController = (
 ): PaintSessionController => {
   let activeBrush: BrushSettings | null = null;
   let activeOperator: PaintBrushStrokePlan | null = null;
-  let recordedStroke: {
-    target: PaintGestureTarget;
-    brush: BrushSettings;
-    operator?: PaintBrushStrokePlan;
-    samples: BrushPoint[];
-    byteLength: number;
-    overflowed: boolean;
-  } | null = null;
+  const strokeRecorder = new PaintStrokeRecorder();
   let activeDocument: DocumentMutationTransaction | null = null;
   let activeRenderer: PaintSessionRendererPort | null = null;
   let preparedSurface: {
@@ -171,26 +165,15 @@ export const createPaintSessionController = (
   let sampledStrokeClosed = false;
   let specializedCommitOwnsGpuState = false;
   let activeSelectionRevision: number | null = null;
+  let activeHistoryBarrier: DocumentHistoryAdmissionBarrier | null = null;
+  let activeHistoryPublication: AppliedPixelMutationReservation | null = null;
   const rollbackOwner = new UnpublishedPixelRollbackOwner();
   let terminalCleanupError: string | null = null;
-  const captureSamples = (points: readonly BrushPoint[]) => {
-    if (!recordedStroke || recordedStroke.overflowed) return;
-    const addedBytes = points.reduce((total, point) => total + JSON.stringify(point).length, 0);
-    if (recordedStroke.samples.length + points.length > 4096
-      || recordedStroke.byteLength + addedBytes > 220 * 1024) {
-      recordedStroke.overflowed = true;
-      recordedStroke.samples = [];
-      return;
-    }
-    recordedStroke.samples.push(...points.map((point) => ({ ...point })));
-    recordedStroke.byteLength += addedBytes;
-  };
-
   const paint = (update: PaintGestureUpdate) => {
     if (!update.dabs.length || !activeBrush) return;
     const dependencies = resolveDependencies();
     if (activeSelectionRevision !== null
-      && dependencies.getSelectionRevision?.() !== activeSelectionRevision) {
+      && dependencies.getSelectionRevision() !== activeSelectionRevision) {
       activeDocument?.cancel();
       if (!terminalCleanupError) {
         dependencies.setError('The selection changed during the brush stroke; the stroke was cancelled.');
@@ -262,6 +245,10 @@ export const createPaintSessionController = (
     } catch (reason) {
       cleanupFailure(reason, 'Pending brush work could not be cancelled.');
     }
+    activeHistoryBarrier?.release();
+    activeHistoryBarrier = null;
+    activeHistoryPublication?.cancel();
+    activeHistoryPublication = null;
     let pixelEdit: ReversiblePixelEdit | null = null;
     if (!specializedCommitOwnsGpuState && !rendererEditClosed) {
       if (!rendererEditStarted) {
@@ -328,7 +315,7 @@ export const createPaintSessionController = (
     }
     activeBrush = null;
     activeOperator = null;
-    recordedStroke = null;
+    strokeRecorder.reset();
     activeDocument = null;
     activeRenderer = null;
     rendererEditStarted = false;
@@ -386,7 +373,8 @@ export const createPaintSessionController = (
         if (!transaction) throw new Error('The paint document is not available.');
         activeDocument = transaction;
         activeRenderer = renderer;
-        activeSelectionRevision = dependencies.getSelectionRevision?.() ?? null;
+        activeHistoryBarrier = dependencies.acquireHistoryAdmissionBarrier();
+        activeSelectionRevision = dependencies.getSelectionRevision();
         rendererEditStarted = false;
         rendererEditClosed = false;
         sampledStrokeStarted = false;
@@ -430,14 +418,9 @@ export const createPaintSessionController = (
         }
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
-        recordedStroke = recordSemanticCommit ? {
-          target: { ...paintTarget, sourceToDocument: { ...paintTarget.sourceToDocument } },
-          brush: cloneBrush(brush),
-          ...(operator ? { operator: cloneOperator(operator) } : {}),
-          samples: [{ ...point }],
-          byteLength: 512 + JSON.stringify(point).length,
-          overflowed: false
-        } : null;
+        strokeRecorder.begin(
+          recordSemanticCommit, paintTarget, brush, point, operator
+        );
         paintScheduler.schedule(gesture.begin(pointerId, paintTarget, {
           ...activeBrush,
           maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
@@ -458,22 +441,21 @@ export const createPaintSessionController = (
     move: (pointerId, point) => {
       const update = gesture.moveMany(pointerId, [point]);
       if (!update) return false;
-      captureSamples([point]);
+      strokeRecorder.capture([point]);
       paintScheduler.schedule(update);
       return true;
     },
     moveMany: (pointerId, points) => {
       const update = gesture.moveMany(pointerId, points);
       if (!update) return false;
-      captureSamples(points);
+      strokeRecorder.capture(points);
       paintScheduler.schedule(update);
       return true;
     },
     finish: (pointerId) => {
       const finished = gesture.finish(pointerId);
       if (!finished) return false;
-      const completedRecording = recordedStroke;
-      recordedStroke = null;
+      const completedRecording = strokeRecorder.take();
       if (finished.dabs.length) paintScheduler.schedule({
         target: finished.target,
         dabs: finished.dabs
@@ -490,16 +472,16 @@ export const createPaintSessionController = (
         || !canonicalDocument || !workingDocument || !transaction?.active
         || canonicalDocument.id !== transaction.documentId
         || (activeSelectionRevision !== null
-          && dependencies.getSelectionRevision?.() !== activeSelectionRevision)
+          && dependencies.getSelectionRevision() !== activeSelectionRevision)
         || !finished.dirtyBounds) {
         transaction?.cancel();
         if (!transaction) closePaintInteraction('cancel');
-        return true;
+        return false;
       }
       const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, workingDocument);
       if (!dirtyBounds) {
         transaction.cancel();
-        return true;
+        return false;
       }
       const after = finished.target.channel === 'mask'
         ? markLayerMaskPixelsChanged(
@@ -514,42 +496,59 @@ export const createPaintSessionController = (
           );
       if (!transaction.stage(() => after)) {
         transaction.cancel();
-        return true;
+        return false;
       }
       let committed = false;
       try {
         committed = transaction.commitWith((before, stagedAfter) => {
+          activeHistoryBarrier?.release();
+          activeHistoryBarrier = null;
+          const label = finished.target.channel === 'mask'
+            ? 'Brush Tool on Layer Mask' : 'Brush Tool';
+          const type = finished.target.channel === 'mask'
+            ? 'paint.mask.stroke' : 'paint.stroke';
+          activeHistoryPublication = reserveAppliedPixelMutation(() => resolveDependencies(), {
+            label, type, layerIds: [finished.target.layerId]
+          });
           const pixelEdit = renderer.finishPixelEdit();
           rendererEditClosed = true;
-          if (sampledStrokeStarted && !sampledStrokeClosed) {
-            renderer.endSampledBrushStroke();
-            sampledStrokeClosed = true;
-          }
           if (!pixelEdit) {
+            activeHistoryPublication.cancel();
+            activeHistoryPublication = null;
             renderer.cancelPixelEdit();
             return false;
           }
           const surfaceEdit = preparedSurface?.edit ?? null;
-          preparedSurface = null;
           specializedCommitOwnsGpuState = true;
-          commitAppliedPixelMutation(() => resolveDependencies(), {
+          activeHistoryPublication.commit({
             operation: 'Brush Tool',
-            label: finished.target.channel === 'mask' ? 'Brush Tool on Layer Mask' : 'Brush Tool',
-            type: finished.target.channel === 'mask' ? 'paint.mask.stroke' : 'paint.stroke',
+            label,
+            type,
             layerIds: [finished.target.layerId],
             before,
             after: stagedAfter,
             edits: surfaceEdit ? [surfaceEdit, pixelEdit] : [pixelEdit]
           });
+          activeHistoryPublication = null;
+          preparedSurface = null;
+          if (sampledStrokeStarted && !sampledStrokeClosed) {
+            sampledStrokeClosed = true;
+            try {
+              renderer.endSampledBrushStroke();
+            } catch (reason) {
+              console.error('Sampled brush cleanup failed after durable paint commit.', reason);
+              dependencies.setError('The stroke committed, but its sampled source cleanup failed.');
+            }
+          }
           return true;
         });
       } catch (reason) {
         dependencies.setError(
           reason instanceof Error ? reason.message : 'The brush stroke did not complete.'
         );
-        return true;
+        return false;
       }
-      if (committed && completedRecording && !completedRecording.overflowed) {
+      if (committed && completedRecording) {
         dependencies.onStrokeCommitted?.({
           target: completedRecording.target,
           brush: completedRecording.brush,
@@ -557,7 +556,7 @@ export const createPaintSessionController = (
           samples: completedRecording.samples
         });
       }
-      return true;
+      return committed;
     },
     cancel: (pointerId) => {
       if (!gesture.cancel(pointerId)) return false;

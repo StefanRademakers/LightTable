@@ -288,7 +288,7 @@ function verifyLayerFinalizationCutover(relativePath, source) {
       failures.push(`${relativePath}: destructive layer commands must await exact renderer sources`);
     }
     const publicStart = source.indexOf('export interface LayerDocumentCommands');
-    const publicEnd = source.indexOf('export interface PixelClipboardCapture');
+    const publicEnd = source.indexOf('const fullDocumentBounds');
     const publicContract = source.slice(publicStart, publicEnd);
     if (/\b(?:mergeSelectedLayers|mergeActiveLayerDown|flatten|rasterizeLayer|rasterizeActiveLayer)\s*\(/.test(publicContract)) {
       failures.push(`${relativePath}: raw pre-readiness layer finalizers must remain private`);
@@ -309,6 +309,72 @@ function verifyLayerFinalizationCutover(relativePath, source) {
     const directRasterizeFallback = /rasterizeActiveLayer:\s*layerDocumentCommands\.rasterizeActiveLayer|void\s+layerDocumentCommands\.rasterizeActiveLayer\(\)/;
     if (directRasterizeFallback.test(source)) {
       failures.push(`${relativePath}: rasterize UI must use the registered semantic command exclusively`);
+    }
+  }
+}
+
+function verifyRasterPixelCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  const reservedOwners = [
+    '/application/tools/fill/useFillCommandController.ts',
+    '/application/tools/gradient/RasterGradientCommandController.ts'
+  ];
+  if (reservedOwners.some((suffix) => normalizedPath.endsWith(suffix))) {
+    if (!source.includes('reserveAppliedPixelMutation')) {
+      failures.push(`${relativePath}: discrete raster commands must reserve history before GPU mutation`);
+    }
+    if (source.includes('commitAppliedPixelMutation')) {
+      failures.push(`${relativePath}: post-mutation raster history publication must not return`);
+    }
+    if (/\bgetSelectionRevision\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: raster commands must require exact selection revision ownership`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/paint/usePaintSessionController.ts')) {
+    if (!source.includes('acquireHistoryAdmissionBarrier')
+      || !source.includes('reserveAppliedPixelMutation')) {
+      failures.push(`${relativePath}: paint gestures must hold admission before GPU writes and transfer it at commit`);
+    }
+    if (source.includes('commitAppliedPixelMutation')) {
+      failures.push(`${relativePath}: paint must not publish history only after its GPU gesture`);
+    }
+    if (/\bgetSelectionRevision\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: paint must require exact selection revision ownership`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/clipboard/pixelClipboardController.ts')) {
+    if (/\bgetSelectionLease\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: clipboard capture must require the committed selection lease`);
+    }
+    if (!source.includes('claimClipboardTurn()') || !source.includes('let generation = 0')) {
+      failures.push(`${relativePath}: clipboard publication must remain serialized and latest-invocation owned`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/layers/useLayerDocumentCommands.ts')) {
+    if (!source.includes('createPixelClipboardController(')) {
+      failures.push(`${relativePath}: clipboard capture ownership must remain extracted from the layer facade`);
+    }
+    if (/const\s+(?:copySelectedContent|copyMergedContent|pasteSelectedContent)\s*=/.test(source)) {
+      failures.push(`${relativePath}: legacy inline clipboard routes must not return`);
+    }
+    if (/\bgetSelectionLease\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: layer commands must require the committed selection lease`);
+    }
+    if (!source.includes('pixelClipboard.invalidateRendererScratch()')
+      || source.includes('selectionOperationsSupportBounds')) {
+      failures.push(`${relativePath}: Layer Via Copy must use committed selection ownership and invalidate clipboard scratch`);
+    }
+    if (/!renderer\.copySelectedLayerContent\(before, sourceId\)/.test(source)) {
+      failures.push(`${relativePath}: Layer Via Copy must not mutate renderer scratch before history admission`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    if (source.includes('layerDocumentCommands.pasteSelectedContent')) {
+      failures.push(`${relativePath}: paste UI must fail closed instead of bypassing its semantic command`);
+    }
+    const copyFallback = /if\s*\(!execution\)[\s\S]{0,240}layerDocumentCommands\.copy(?:Selected|Merged)Content/;
+    if (copyFallback.test(source)) {
+      failures.push(`${relativePath}: copy UI must not bypass its registered semantic command`);
     }
   }
 }
@@ -368,6 +434,7 @@ async function scan(relativeDirectory) {
     const source = await readFile(relativePath, 'utf8');
       verifyRendererFacadeImports(relativePath, source);
       verifySelectionKernelCutover(relativePath, source);
+      verifyRasterPixelCutover(relativePath, source);
       verifyLayerFinalizationCutover(relativePath, source);
       verifyLayerMaskCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);

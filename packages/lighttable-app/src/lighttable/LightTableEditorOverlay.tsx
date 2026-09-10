@@ -4435,7 +4435,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController,
     getChannel: () => editorSession.activeChannel,
     applyDocumentSnapshot,
-    pushHistoryEntry,
+    reserveHistoryEntry: documentHistoryController.reserve,
     setStatus: setGradeStatus,
     setError,
     onFillCommitted: (parameters, result) => commandService?.recordObservedCommand(
@@ -4458,8 +4458,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController,
     getChannel: () => 'pixels',
     getSettings: createGradientToolSettings,
+    getSelectionRevision: () => 0,
     applyDocumentSnapshot: () => undefined,
-    pushHistoryEntry: () => undefined,
+    reserveHistoryEntry: () => ({ commit: () => false, cancel: () => undefined }),
     setStatus: () => undefined,
     setError: () => undefined
   });
@@ -4472,7 +4473,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
       ?? editorSessionRef.current.selectionRevision,
     applyDocumentSnapshot,
-    pushHistoryEntry,
+    reserveHistoryEntry: documentHistoryController.reserve,
     setStatus: setGradeStatus,
     setError,
     onGradientCommitted: (parameters, result) => commandService?.recordObservedCommand(
@@ -4610,7 +4611,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     documentMutations: documentMutationController,
     applyDocumentSnapshot,
-    pushHistoryEntry,
+    reserveHistoryEntry: documentHistoryController.reserve,
+    acquireHistoryAdmissionBarrier: commandHistory.acquireAdmissionBarrier.bind(commandHistory),
     getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
       ?? editorSessionRef.current.selectionRevision,
     setError,
@@ -5655,7 +5657,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         documentSession.getSnapshot().documentRevision,
       );
     },
-    getActiveChannel: () => editorSessionRef.current.activeChannel,
     documentMutations: documentMutationController,
     applyDocumentSnapshot,
     pushDocumentHistory,
@@ -5751,13 +5752,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copyPixels = async (source: 'active-layer' | 'merged') => {
     await settlePixelInteractionRef.current();
     const execution = executeRegisteredCommand('selection.copyPixels', { source });
-    if (!execution) {
-      await (source === 'active-layer'
-        ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
-        : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection));
-      return;
-    }
-    await execution;
+    if (execution) await execution;
   };
   const copySelectedContent = () => { void copyPixels('active-layer'); };
   copySelectedContentRef.current = copySelectedContent;
@@ -5785,7 +5780,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cutSelectedContent = () => {
     const execution = executeRegisteredCommand('selection.cutPixels', {});
     if (execution) void execution;
-    else void cutPixels();
   };
   cutSelectedContentRef.current = cutSelectedContent;
 
@@ -5798,7 +5792,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       await settlePixelInteractionRef.current();
       if (workspaceDocumentIdRef.current !== targetDocumentId) return;
       if (!commandService) {
-        await layerDocumentCommands.pasteSelectedContent(editorSessionRef.current.selection);
+        setError('Paste is unavailable until the document command service is ready.');
         return;
       }
       // Always inspect the host clipboard. A prior LightTable copy must never
@@ -6326,12 +6320,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         if (command.kind === 'copy-to-new-layer') {
           await settlePixelInteractionRef.current();
-          const layerId = layerDocumentCommands.layerViaCopy(
-            command.layerId,
-            editorSessionRef.current.selection
-          );
-          return layerId ? { sourceLayerId: command.layerId, layerId,
-            scope: editorSessionRef.current.selection.length ? 'selection' : 'layer' } : null;
+          const result = layerDocumentCommands.layerViaCopy(command.layerId);
+          return result ? { sourceLayerId: command.layerId, ...result } : null;
         }
         if (command.kind === 'delete') {
           layerPanelController.deleteSelection([...command.layerIds]);

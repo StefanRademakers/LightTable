@@ -15,10 +15,25 @@ const pixelEdit = (): ReversiblePixelEdit => ({
   destroy: vi.fn()
 });
 
-const withDocumentMutations = <T extends Omit<FillCommandDependencies, 'documentMutations'>>(
+const withDocumentMutations = <T extends Omit<FillCommandDependencies,
+  'documentMutations' | 'reserveHistoryEntry'> & {
+    pushHistoryEntry(entry: FillHistoryEntry): void;
+  }>(
   dependencies: T
 ) => ({
   ...dependencies,
+  reserveHistoryEntry: (entry: FillHistoryEntry) => {
+    let active = true;
+    return {
+      commit: () => {
+        if (!active) return false;
+        active = false;
+        dependencies.pushHistoryEntry(entry);
+        return true;
+      },
+      cancel: () => { active = false; }
+    };
+  },
   documentMutations: createDocumentMutationController(() => ({
     getDocument: dependencies.getDocument,
     applySnapshot: dependencies.applyDocumentSnapshot,
@@ -29,6 +44,27 @@ const withDocumentMutations = <T extends Omit<FillCommandDependencies, 'document
 });
 
 describe('createFillCommandController', () => {
+  it('acquires history ownership before the first GPU write', () => {
+    const document = createImageDocument('Fill admission', 16, 12, 'asset');
+    const renderer = {
+      beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      finishPixelEdit: vi.fn(() => pixelEdit()), cancelPixelEdit: vi.fn(),
+      applyPixelHistory: vi.fn(() => true)
+    };
+    const dependencies = withDocumentMutations({
+      getDocument: () => document, getRenderer: () => renderer,
+      getChannel: () => 'pixels' as const, applyDocumentSnapshot: vi.fn(),
+      pushHistoryEntry: vi.fn(), setStatus: vi.fn(), setError: vi.fn()
+    });
+    dependencies.reserveHistoryEntry = vi.fn(() => {
+      throw new Error('history unavailable');
+    });
+
+    expect(createFillCommandController(() => dependencies).fill('#ffffff')).toBe(false);
+    expect(renderer.beginBrushStroke).not.toHaveBeenCalled();
+    expect(renderer.fillLayerColor).not.toHaveBeenCalled();
+  });
+
   it('publishes one document snapshot and one reversible history entry', () => {
     let document: ImageDocument = createImageDocument('Fill', 16, 12, 'asset');
     const before = document;
