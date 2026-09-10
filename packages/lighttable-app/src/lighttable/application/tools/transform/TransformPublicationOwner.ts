@@ -3,18 +3,23 @@ import { findDocumentLayer } from '../../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
+import type { LightTableSelectionReadLease } from '../selection/DocumentSelectionStateStore';
 import type { AffineMatrix } from '../../../editor/tools/transform/transformTypes';
 import type { DocumentMutationTransaction } from '../../documents/useDocumentMutationController';
 import { AsyncPixelStateRollbackOwner } from '../../commands/AsyncPixelStateRollbackOwner';
 import { AsyncPixelStateTransitionOwner } from '../../commands/AsyncPixelStateTransitionOwner';
 import {
-  commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
   UnpublishedPixelRollbackOwner
 } from '../../commands/pixelMutationTransaction';
+import type { DocumentHistoryReservation } from '../../commands/documentCommandHistory';
 import type { FinishTransformResult } from './transformController';
+import { TransformSelectionPublicationError } from './publishTransformDocumentSelection';
 
 export interface TransformPublicationRenderer {
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
+  commitLayerTransform(): ReversiblePixelEdit | null;
+  cancelLayerTransform(): boolean | void;
   captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
   restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
 }
@@ -33,17 +38,14 @@ export interface TransformSelectionPublicationBinding {
   renderer: TransformPublicationRenderer;
   rendererGeneration: number;
   expectedDocument: ImageDocument;
-  expectedSelectionRevision: number;
-  expectedSelectionMask: SelectionMaskSnapshot;
+  expectedSelectionLease: LightTableSelectionReadLease;
 }
 
 export interface TransformPublicationDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): TransformPublicationRenderer | null;
   getRendererGeneration(): number;
-  getSelection(): SelectionOperation[];
-  getSelectionRevision(): number;
-  getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
+  getSelectionLease(): LightTableSelectionReadLease | null;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyDocumentAndSelection(
     document: ImageDocument,
@@ -51,7 +53,7 @@ export interface TransformPublicationDependencies {
     selectionMaskSnapshot: SelectionMaskSnapshot,
     binding: TransformSelectionPublicationBinding
   ): Promise<void>;
-  pushHistoryEntry(entry: TransformPublicationHistoryEntry): void;
+  reserveHistoryEntry(entry: TransformPublicationHistoryEntry): DocumentHistoryReservation;
   setError(message: string | null): void;
   onLayerTransformCommitted?(layerId: LayerId, transform: AffineMatrix): void;
   onRasterTransformCommitted?(layerId: LayerId, kind: 'layer' | 'selection'): void;
@@ -63,9 +65,7 @@ export interface TransformPublicationRequest {
   transaction: DocumentMutationTransaction | null;
   renderer: TransformPublicationRenderer | null;
   rendererGeneration: number | null;
-  openingSelection: SelectionOperation[] | null;
-  openingSelectionRevision: number | null;
-  openingSelectionMask: SelectionMaskSnapshot | null;
+  openingSelectionLease: LightTableSelectionReadLease | null;
 }
 
 /**
@@ -78,10 +78,35 @@ export interface TransformPublicationRequest {
 export class TransformPublicationOwner {
   readonly unpublishedRollback = new UnpublishedPixelRollbackOwner();
   readonly selectionRollback = new AsyncPixelStateRollbackOwner();
+  private indeterminatePixelEdit: {
+    readonly edit: ReversiblePixelEdit;
+    readonly documentSessionId: LightTableSelectionReadLease['document']['sessionId'];
+    readonly renderer: TransformPublicationRenderer;
+    readonly rendererGeneration: number;
+  } | null = null;
 
   constructor(private readonly dependencies: () => TransformPublicationDependencies) {}
 
+  retireStaleScope(): void {
+    const quarantine = this.indeterminatePixelEdit;
+    if (!quarantine) return;
+    const current = this.dependencies();
+    const currentLease = current.getSelectionLease();
+    if (current.getRenderer() === quarantine.renderer
+      && current.getRendererGeneration() === quarantine.rendererGeneration
+      && currentLease?.document.sessionId === quarantine.documentSessionId) return;
+    quarantine.edit.destroy();
+    this.indeterminatePixelEdit = null;
+  }
+
+  dispose(): void {
+    this.indeterminatePixelEdit?.edit.destroy();
+    this.indeterminatePixelEdit = null;
+  }
+
   async recover(): Promise<boolean> {
+    this.retireStaleScope();
+    if (this.indeterminatePixelEdit) return false;
     const selection = await this.selectionRollback.retry();
     if (selection && !selection.ok) return false;
     const pixels = this.unpublishedRollback.retry();
@@ -101,13 +126,9 @@ export class TransformPublicationOwner {
       return;
     }
     if (!transaction) {
-      if (result.kind !== 'layer' && renderer) {
-        if (this.rendererIsCurrent(renderer, request.rendererGeneration)) {
-          this.unpublishedRollback.rollback(
-            (edit, direction) => renderer.applyPixelHistory(edit, direction),
-            [result.pixelEdit]
-          );
-        } else result.pixelEdit.destroy();
+      if (result.kind !== 'layer' && renderer
+        && this.rendererIsCurrent(renderer, request.rendererGeneration)) {
+        renderer.cancelLayerTransform();
       }
       current.setError('The transform no longer owns the active document transaction.');
       return;
@@ -120,7 +141,15 @@ export class TransformPublicationOwner {
       if (!transaction.stage(() => result.afterDocument)) return;
       if (transaction.commit()) {
         const layer = findDocumentLayer(result.afterDocument, result.layerId);
-        if (layer) current.onLayerTransformCommitted?.(layer.id, { ...layer.transform });
+        if (layer) {
+          try {
+            current.onLayerTransformCommitted?.(layer.id, { ...layer.transform });
+          } catch {
+            current.setError(
+              'The transform was committed, but its document change notification failed.'
+            );
+          }
+        }
       }
       return;
     }
@@ -137,45 +166,51 @@ export class TransformPublicationOwner {
     renderer: TransformPublicationRenderer | null,
     rendererGeneration: number | null
   ) {
-    let editOwned = true;
-    const rollback = () => {
-      if (!editOwned || !renderer) return;
-      if (!this.rendererIsCurrent(renderer, rendererGeneration)) {
-        result.pixelEdit.destroy();
-        editOwned = false;
-        return;
+    const cancelPreview = () => {
+      if (renderer && this.rendererIsCurrent(renderer, rendererGeneration)) {
+        renderer.cancelLayerTransform();
       }
-      const outcome = this.unpublishedRollback.rollback(
-        (edit, direction) => this.applyOpeningPixel(
-          renderer, rendererGeneration, edit, direction
-        ),
-        [result.pixelEdit]
-      );
-      if (outcome.ok) editOwned = false;
     };
     if (!transaction.stage(() => result.afterDocument)) {
-      rollback();
+      cancelPreview();
       return;
     }
     try {
       const committed = transaction.commitWith((before, after) => {
-        editOwned = false;
-        commitAppliedPixelMutation(() => ({
+        if (!renderer || !this.rendererIsCurrent(renderer, rendererGeneration)) {
+          throw new Error('The opening transform renderer is unavailable.');
+        }
+        const publication = reserveAppliedPixelMutation(() => ({
           getRenderer: () => renderer && this.rendererIsCurrent(renderer, rendererGeneration)
             ? renderer
             : null,
           applyDocumentSnapshot: (document) => this.dependencies().applyDocumentSnapshot(document),
-          pushHistoryEntry: (entry) => this.dependencies().pushHistoryEntry(entry)
-        }), {
+          reserveHistoryEntry: (entry) => this.dependencies().reserveHistoryEntry(entry)
+        }), { label: 'Free Transform', type: 'transform.layer', layerIds: [result.layerId] });
+        const pixelEdit = renderer.commitLayerTransform();
+        if (!pixelEdit) {
+          publication.cancel();
+          renderer.cancelLayerTransform();
+          throw new Error('The transform could not be committed.');
+        }
+        publication.commit({
           operation: 'Free Transform', label: 'Free Transform', type: 'transform.layer',
-          layerIds: [result.layerId], before, after, edits: [result.pixelEdit]
+          layerIds: [result.layerId], before, after, edits: [pixelEdit]
         });
         return true;
       });
-      if (!committed) rollback();
-      else this.dependencies().onRasterTransformCommitted?.(result.layerId, 'layer');
+      if (!committed) cancelPreview();
+      else {
+        try {
+          this.dependencies().onRasterTransformCommitted?.(result.layerId, 'layer');
+        } catch {
+          this.dependencies().setError(
+            'The transform was committed, but its document change notification failed.'
+          );
+        }
+      }
     } catch (reason) {
-      rollback();
+      cancelPreview();
       throw reason;
     }
   }
@@ -188,69 +223,120 @@ export class TransformPublicationOwner {
     request: TransformPublicationRequest
   ) {
     const current = this.dependencies();
-    if (!renderer || !beforeSelectionMask) {
-      if (renderer) this.unpublishedRollback.rollback(
-        (edit, direction) => this.applyOpeningPixel(
-          renderer, request.rendererGeneration, edit, direction
-        ), [result.pixelEdit]
-      );
+    const openingSelectionLease = request.openingSelectionLease;
+    if (!renderer || !beforeSelectionMask || !openingSelectionLease
+      || request.rendererGeneration === null) {
+      if (renderer && this.rendererIsCurrent(renderer, request.rendererGeneration)) {
+        renderer.cancelLayerTransform();
+      }
       transaction.cancel();
       current.setError('The exact selection state was unavailable; the transform was rolled back.');
       return;
     }
-    let editOwned = true;
-    const rollback = () => {
-      if (!editOwned) return;
+    if (!transaction.stage(() => result.afterDocument)) {
+      if (this.rendererIsCurrent(renderer, request.rendererGeneration)) {
+        renderer.cancelLayerTransform();
+      }
+      return;
+    }
+
+    let pixelEdit: ReversiblePixelEdit | null = null;
+    let editOwned = false;
+    let canonicalAfterPublished = false;
+    let historyDelegate: TransformPublicationHistoryEntry | null = null;
+    let historyReservation: DocumentHistoryReservation | null = null;
+    const historyProxy: TransformPublicationHistoryEntry = {
+      label: 'Free Transform',
+      type: 'transform.selection',
+      byteSize: 0,
+      layerIds: [result.layerId],
+      undo: () => {
+        if (!historyDelegate) throw new Error('Free Transform history was not finalized.');
+        return historyDelegate.undo();
+      },
+      redo: () => {
+        if (!historyDelegate) throw new Error('Free Transform history was not finalized.');
+        return historyDelegate.redo();
+      },
+      dispose: () => historyDelegate?.dispose()
+    };
+    const discardPreview = () => {
+      if (!pixelEdit && this.rendererIsCurrent(renderer, request.rendererGeneration)) {
+        renderer.cancelLayerTransform();
+      }
+    };
+    const cancelHistoryReservation = () => {
+      const reservation: DocumentHistoryReservation | null = historyReservation;
+      reservation?.cancel();
+      historyReservation = null;
+    };
+    const rollbackUnpublishedPixels = () => {
+      if (!pixelEdit || !editOwned) return;
       if (!this.rendererIsCurrent(renderer, request.rendererGeneration)) {
-        result.pixelEdit.destroy();
+        pixelEdit.destroy();
         editOwned = false;
         return;
       }
       const outcome = this.unpublishedRollback.rollback(
         (edit, direction) => this.applyOpeningPixel(
           renderer, request.rendererGeneration, edit, direction
-        ), [result.pixelEdit]
+        ), [pixelEdit]
       );
-      if (outcome.ok) editOwned = false;
+      editOwned = false;
+      if (!outcome.ok) {
+        this.dependencies().setError(outcome.compensationFailed
+          ? 'Transform pixel rollback failed and is quarantined.'
+          : 'Transform pixel rollback must be retried before another transform.');
+      }
     };
-    if (!transaction.stage(() => result.afterDocument)) {
-      rollback();
-      return;
-    }
+
     try {
       const committed = await transaction.commitWithAsync(async (before, after) => {
+        const opening = this.dependencies();
+        if (!this.rendererIsCurrent(renderer, request.rendererGeneration)
+          || opening.getDocument() !== before
+          || !this.sameSelectionLease(opening.getSelectionLease(), openingSelectionLease)) {
+          discardPreview();
+          opening.setError('The document changed while the transform was finishing; the transform was rolled back.');
+          return false;
+        }
+
+        historyReservation = opening.reserveHistoryEntry(historyProxy);
+        pixelEdit = renderer.commitLayerTransform();
+        if (!pixelEdit) {
+          historyReservation.cancel();
+          historyReservation = null;
+          renderer.cancelLayerTransform();
+          throw new Error('The transform could not be committed.');
+        }
+        editOwned = true;
+
         let afterMask: SelectionMaskSnapshot;
         try {
           afterMask = await renderer.captureSelectionSnapshot();
         } catch (reason) {
-          current.setError(reason instanceof Error
+          this.dependencies().setError(reason instanceof Error
             ? `The transformed selection could not be captured: ${reason.message}`
             : 'The transformed selection could not be captured; the transform was rolled back.');
-          rollback();
-          return false;
+          throw reason;
         }
         const latest = this.dependencies();
+        const currentLease = latest.getSelectionLease();
         if (latest.getRenderer() !== renderer
           || latest.getRendererGeneration() !== request.rendererGeneration
           || latest.getDocument() !== before
-          || latest.getSelectionRevision() !== request.openingSelectionRevision
-          || latest.getSelection() !== request.openingSelection
-          || latest.getSelectionMaskSnapshot() !== request.openingSelectionMask) {
-          rollback();
+          || !this.sameSelectionLease(currentLease, openingSelectionLease)) {
           latest.setError('The document changed while the transform was finishing; the transform was rolled back.');
-          return false;
+          throw new Error('The transform publication lease is no longer current.');
         }
         try {
-          if (request.rendererGeneration === null || request.openingSelectionRevision === null) {
-            throw new Error('The transform selection lease was unavailable.');
-          }
           await latest.applyDocumentAndSelection(after, result.afterSelection, afterMask, {
             renderer,
             rendererGeneration: request.rendererGeneration,
             expectedDocument: before,
-            expectedSelectionRevision: request.openingSelectionRevision,
-            expectedSelectionMask: beforeSelectionMask
+            expectedSelectionLease: openingSelectionLease
           });
+          canonicalAfterPublished = true;
           const undoTransition = new AsyncPixelStateTransitionOwner();
           const redoTransition = new AsyncPixelStateTransitionOwner();
           const undoIdentity = {};
@@ -267,8 +353,9 @@ export class TransformPublicationOwner {
             targetMask: SelectionMaskSnapshot
           ) => {
             const opening = this.dependencies();
+            const openingLease = opening.getSelectionLease();
             if (opening.getDocument() !== sourceDocument
-              || opening.getSelectionMaskSnapshot() !== sourceMask) {
+              || openingLease?.selection.coverage !== sourceMask) {
               throw new Error(`Transform ${targetPixels} source state is no longer current.`);
             }
             const outcome = await owner.transition({
@@ -276,14 +363,14 @@ export class TransformPublicationOwner {
               applyTarget: () => {
                 const dependencies = this.dependencies();
                 return this.applyOpeningPixel(
-                  renderer, request.rendererGeneration, result.pixelEdit, targetPixels
+                  renderer, request.rendererGeneration, pixelEdit!, targetPixels
                 );
               },
               applySource: () => {
                 return this.applyOpeningPixel(
                   renderer,
                   request.rendererGeneration,
-                  result.pixelEdit,
+                  pixelEdit!,
                   targetPixels === 'undo' ? 'redo' : 'undo'
                 );
               },
@@ -302,9 +389,9 @@ export class TransformPublicationOwner {
               ? outcome.reason
               : new Error(`Transform ${targetPixels} could not complete atomically.`);
           };
-          latest.pushHistoryEntry({
+          historyDelegate = {
             label: 'Free Transform', type: 'transform.selection',
-            byteSize: result.pixelEdit.byteSize + beforeSelectionMask.byteSize + afterMask.byteSize,
+            byteSize: pixelEdit.byteSize + beforeSelectionMask.byteSize + afterMask.byteSize,
             layerIds: [result.layerId],
             undo: () => transition(
               undoTransition, undoIdentity, 'undo',
@@ -316,21 +403,48 @@ export class TransformPublicationOwner {
               before, result.beforeSelection, beforeSelectionMask,
               after, result.afterSelection, afterMask
             ),
-            dispose: result.pixelEdit.destroy
-          });
+            dispose: pixelEdit.destroy
+          };
+          historyProxy.byteSize = historyDelegate.byteSize;
+          if (!historyReservation?.commit()) {
+            throw new Error('The Free Transform history reservation is no longer current.');
+          }
+          historyReservation = null;
           editOwned = false;
-          latest.onRasterTransformCommitted?.(result.layerId, 'selection');
           return true;
         } catch (reason) {
+          historyReservation?.cancel();
+          historyReservation = null;
+          if (reason instanceof TransformSelectionPublicationError
+            && reason.phase === 'indeterminate') {
+            this.indeterminatePixelEdit = {
+              edit: pixelEdit,
+              documentSessionId: openingSelectionLease.document.sessionId,
+              renderer,
+              rendererGeneration: request.rendererGeneration
+            };
+            editOwned = false;
+            latest.setError(
+              'Transform publication state is indeterminate; transforms are quarantined until document reload.'
+            );
+            throw reason;
+          }
+          if (!canonicalAfterPublished) {
+            // Bound selection publication guarantees that a rejected publish
+            // restores its renderer mask and canonical document/selection to
+            // the opening side. Only the terminal pixel edit exists here.
+            rollbackUnpublishedPixels();
+            throw reason;
+          }
           if (!this.rendererIsCurrent(renderer, request.rendererGeneration)) {
-            result.pixelEdit.destroy();
+            pixelEdit.destroy();
             editOwned = false;
             throw reason;
           }
           const recovery = await this.selectionRollback.rollback({
-            edit: result.pixelEdit,
+            edit: pixelEdit,
             applyPixel: (direction) => this.applyOpeningPixel(
-              renderer, request.rendererGeneration, result.pixelEdit, direction
+              renderer, request.rendererGeneration, pixelEdit!, direction
             ),
             restoreBefore: () => this.applyBoundState(
               renderer, request.rendererGeneration!,
@@ -350,9 +464,23 @@ export class TransformPublicationOwner {
           throw reason;
         }
       });
-      if (!committed) rollback();
+      if (!committed) {
+        cancelHistoryReservation();
+        if (pixelEdit) rollbackUnpublishedPixels();
+        else discardPreview();
+      } else {
+        try {
+          this.dependencies().onRasterTransformCommitted?.(result.layerId, 'selection');
+        } catch {
+          this.dependencies().setError(
+            'The transform was committed, but its document change notification failed.'
+          );
+        }
+      }
     } catch (reason) {
-      rollback();
+      cancelHistoryReservation();
+      if (pixelEdit) rollbackUnpublishedPixels();
+      else discardPreview();
       throw reason;
     }
   }
@@ -387,17 +515,29 @@ export class TransformPublicationOwner {
     targetMask: SelectionMaskSnapshot
   ): Promise<void> {
     const current = this.dependencies();
+    const currentLease = current.getSelectionLease();
     if (!this.rendererIsCurrent(renderer, rendererGeneration)
       || current.getDocument() !== expectedDocument
-      || current.getSelectionMaskSnapshot() !== expectedMask) {
+      || !currentLease
+      || currentLease.selection.coverage !== expectedMask) {
       throw new Error('The transform state binding is no longer current.');
     }
     await current.applyDocumentAndSelection(targetDocument, targetSelection, targetMask, {
       renderer,
       rendererGeneration,
       expectedDocument,
-      expectedSelectionRevision: current.getSelectionRevision(),
-      expectedSelectionMask: expectedMask
+      expectedSelectionLease: currentLease
     });
+  }
+
+  private sameSelectionLease(
+    current: LightTableSelectionReadLease | null,
+    expected: LightTableSelectionReadLease
+  ): boolean {
+    return Boolean(current
+      && current.document.sessionId === expected.document.sessionId
+      && current.document.revision === expected.document.revision
+      && current.selection.revision === expected.selection.revision
+      && current.selection.coverage === expected.selection.coverage);
   }
 }

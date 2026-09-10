@@ -113,7 +113,7 @@ but cannot inherit another item's acceptance.
 | C02 | Layer finalization: rasterize, merge and flatten | accepted | [x] | [x] | [x] | [x] |
 | C03 | Layer masks, mask edits and Remove Background result insertion | accepted | [x] | [x] | [x] | [x] |
 | C04 | Raster paint, fill/gradient and clipboard pixel consumers | accepted | [x] | [x] | [x] | [x] |
-| C05 | Transform, selected-pixel movement, snapping and edge-pan | queued | [ ] | [ ] | [ ] | [ ] |
+| C05 | Transform, selected-pixel movement, snapping and edge-pan | accepted | [x] | [x] | [x] | [x] |
 | C06 | Vector paths, Pen, live shapes and vector gradients | queued | [ ] | [ ] | [ ] | [ ] |
 | C07 | Text, Path Text, layout/editing and semantic text transform | queued | [ ] | [ ] | [ ] | [ ] |
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | queued | [ ] | [ ] | [ ] | [ ] |
@@ -293,6 +293,44 @@ but cannot inherit another item's acceptance.
    document/renderer-bound and all temporary GPU resources are compensated on
    rejection. No legacy execution fallback remains in this slice.
 7. **Next** -- C05 transform, selected-pixel movement, snapping and edge-pan.
+
+## C05 acceptance record -- 2026-09-10
+
+1. **Done** -- semantic, whole-raster and selected-pixel transforms enter one
+   terminal publication owner. The opening document, exact selection lease and
+   renderer generation remain bound across asynchronous capture. Selected
+   pixels publish document, coverage and editor projection as one CAS-owned
+   transition. Snap candidates exclude the moving dependency chain, retain a
+   deterministic per-axis latch and share bounded edge-pan with marquee.
+2. **Deleted** -- controller-owned terminal renderer commits, selection-active
+   inference from provenance length, whole-layer fallback for an empty active
+   selection and split revision/mask reads. Boundary verification rejects the
+   old terminal commit and non-canonical selection gates. An active selection
+   that cannot produce selected pixels now fails closed instead of silently
+   transforming the layer.
+3. **Ownership** -- `TransformPublicationOwner` reserves history before the
+   first terminal GPU write and owns compensation. The 979-line
+   `useTransformSessionController.ts` is an interaction/session adapter rather
+   than a second publisher. `publishTransformDocumentSelection.ts` owns the
+   document/selection CAS and projection rollback. Indeterminate recovery is
+   scoped to document session plus renderer identity/generation; retirement or
+   unmount destroys its retained GPU edit instead of poisoning later documents.
+4. **Proof** -- 234 focused transform/snapping/edge-pan/selection files and 958
+   tests; workspace typecheck; boundary verification; instrumented and debug
+   desktop packages; packaged transform-kernel smoke covering geometry drag
+   with edge-pan, selected-pixel drag and multi-layer drag, with no page errors.
+   Final timings were 465 ms including the intentional 280 ms edge hold, 390 ms
+   and 212 ms respectively, equivalent to the prior debug baseline.
+5. **Critic** -- repair round 1 closed rollback-phase, active-selection target
+   and post-commit observer faults. Repair round 2 removed two post-CAS
+   self-rejections and made failed compensation explicitly indeterminate and
+   scope-bound. The final independent verdict is **ACCEPT**, no C05 P0/P1.
+6. **Allowed/non-blocking** -- the 9,477-line integration overlay remains a
+   physical decomposition target for C14. It no longer owns terminal transform
+   pixel/history publication. Splitting its UI wiring during this transactional
+   cut-over would have mixed
+   bulk relocation with correctness proof.
+7. **Next** -- C06 vector paths, Pen, live shapes and vector gradients.
 
 ## Slice-specific acceptance
 

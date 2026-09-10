@@ -14,6 +14,7 @@ import {
   type DocumentRendererSnapshot
 } from '../rendering/documentRendererLifecycle';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnapshot';
 import {
   DocumentFontRegistry,
   type SystemFontByteProvider
@@ -388,7 +389,26 @@ export class DocumentSession {
     this.assertEditable();
     if (this.snapshot.document === document) return;
     document?.assets.fonts.forEach((asset) => this.fonts.registerReference(asset));
-    this.update({ document });
+    const editor = this.snapshot.editor;
+    const storedCoverage = editor.selectionMaskSnapshot;
+    const needsInactiveCoverage = Boolean(document
+      && editor.selection.length === 0
+      && (!storedCoverage
+        || storedCoverage.width !== document.width
+        || storedCoverage.height !== document.height));
+    this.update({
+      document,
+      editor: needsInactiveCoverage
+        ? {
+            ...editor,
+            selectionMaskSnapshot: SelectionMaskSnapshot.inactive(
+              document!.width,
+              document!.height
+            ),
+            selectionSupportBounds: null
+          }
+        : editor
+    });
   }
 
   updateViewport(

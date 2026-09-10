@@ -3,6 +3,7 @@ import { createImageDocument } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
+import type { LightTableSelectionReadLease } from '../selection/DocumentSelectionStateStore';
 import type { DocumentMutationTransaction } from '../../documents/useDocumentMutationController';
 import {
   TransformPublicationOwner,
@@ -10,6 +11,7 @@ import {
   type TransformPublicationHistoryEntry,
   type TransformPublicationRenderer
 } from './TransformPublicationOwner';
+import { TransformSelectionPublicationError } from './publishTransformDocumentSelection';
 
 const transaction = (before: ReturnType<typeof createImageDocument>) => {
   let current = before;
@@ -54,8 +56,9 @@ const fixture = () => {
   let document = before;
   let currentSelection = beforeSelection;
   let currentMask = beforeMask;
-  let pixelsApplied = true;
+  let pixelsApplied = false;
   let rendererGeneration = 1;
+  let documentSessionId = 'transform-test' as LightTableSelectionReadLease['document']['sessionId'];
   let selectionRevision = 0;
   const destroy = vi.fn();
   const edit: ReversiblePixelEdit = {
@@ -70,17 +73,37 @@ const fixture = () => {
       pixelsApplied = direction === 'redo';
       return true;
     }),
+    commitLayerTransform: vi.fn(() => {
+      pixelsApplied = true;
+      return edit;
+    }),
+    cancelLayerTransform: vi.fn(() => {
+      pixelsApplied = false;
+    }),
     captureSelectionSnapshot: vi.fn(async () => afterMask),
     restoreSelectionSnapshot: vi.fn(async () => true)
   };
   const history: TransformPublicationHistoryEntry[] = [];
+  const selectionLease = (): LightTableSelectionReadLease => ({
+    document: {
+      sessionId: documentSessionId,
+      revision: document.revision as LightTableSelectionReadLease['document']['revision']
+    },
+    selection: {
+      documentSessionId,
+      revision: selectionRevision as LightTableSelectionReadLease['selection']['revision'],
+      canvas: { width: document.width, height: document.height },
+      active: currentMask.active,
+      coverage: currentMask,
+      supportBounds: currentMask.measureBounds()?.supportBounds ?? null,
+      provenance: currentSelection
+    }
+  });
   const dependencies: TransformPublicationDependencies = {
     getDocument: () => document,
     getRenderer: () => renderer,
     getRendererGeneration: () => rendererGeneration,
-    getSelection: () => currentSelection,
-    getSelectionRevision: () => selectionRevision,
-    getSelectionMaskSnapshot: () => currentMask,
+    getSelectionLease: selectionLease,
     applyDocumentSnapshot: (next) => { document = next; },
     applyDocumentAndSelection: async (next, nextSelection, nextMask) => {
       document = next;
@@ -88,7 +111,18 @@ const fixture = () => {
       currentMask = nextMask;
       selectionRevision += 1;
     },
-    pushHistoryEntry: (entry) => { history.push(entry); },
+    reserveHistoryEntry: (entry) => {
+      let active = true;
+      return {
+        commit: () => {
+          if (!active) return false;
+          active = false;
+          history.push(entry);
+          return true;
+        },
+        cancel: () => { active = false; }
+      };
+    },
     setError: vi.fn(),
     onRasterTransformCommitted: vi.fn()
   };
@@ -101,11 +135,90 @@ const fixture = () => {
     currentMask: () => currentMask,
     selectionRevision: () => selectionRevision,
     setSelectionRevision: (revision: number) => { selectionRevision = revision; },
-    setRendererGeneration: (generation: number) => { rendererGeneration = generation; }
+    setRendererGeneration: (generation: number) => { rendererGeneration = generation; },
+    setDocumentSessionId: (sessionId: string) => {
+      documentSessionId = sessionId as LightTableSelectionReadLease['document']['sessionId'];
+    },
+    selectionLease
   };
 };
 
 describe('TransformPublicationOwner', () => {
+  it('does not turn a committed semantic transform into failure when notification throws', async () => {
+    const state = fixture();
+    state.dependencies.onLayerTransformCommitted = () => { throw new Error('observer failed'); };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'layer', beforeDocument: state.before, afterDocument: state.after,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: null,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: null
+    })).resolves.toBeUndefined();
+
+    expect(state.dependencies.setError).toHaveBeenCalledWith(
+      'The transform was committed, but its document change notification failed.'
+    );
+  });
+
+  it('reserves raster-layer history before committing terminal GPU pixels', async () => {
+    const state = fixture();
+    const order: string[] = [];
+    const reserve = state.dependencies.reserveHistoryEntry;
+    state.dependencies.reserveHistoryEntry = (entry) => {
+      order.push('reserve');
+      return reserve(entry);
+    };
+    state.renderer.commitLayerTransform = vi.fn(() => {
+      order.push('gpu-commit');
+      return state.edit;
+    });
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await owner.apply({
+      result: {
+        kind: 'raster-layer', beforeDocument: state.before, afterDocument: state.after,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: null,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: null
+    });
+
+    expect(order).toEqual(['reserve', 'gpu-commit']);
+    expect(state.document()).toBe(state.after);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('does not commit raster-layer pixels when history admission is rejected', async () => {
+    const state = fixture();
+    state.dependencies.reserveHistoryEntry = () => { throw new Error('history unavailable'); };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'raster-layer', beforeDocument: state.before, afterDocument: state.after,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: null,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: null
+    })).rejects.toThrow('history unavailable');
+
+    expect(state.renderer.commitLayerTransform).not.toHaveBeenCalled();
+    expect(state.renderer.cancelLayerTransform).toHaveBeenCalledOnce();
+    expect(state.document()).toBe(state.before);
+  });
+
   it('publishes selected pixels, document, selection and history as one reversible result', async () => {
     const state = fixture();
     const owner = new TransformPublicationOwner(() => state.dependencies);
@@ -113,15 +226,13 @@ describe('TransformPublicationOwner', () => {
       result: {
         kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
         beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
-        layerId: state.before.activeLayerId!, pixelEdit: state.edit
+        layerId: state.before.activeLayerId!
       },
       beforeSelectionMask: state.beforeMask,
       transaction: transaction(state.before),
       renderer: state.renderer,
       rendererGeneration: 1,
-      openingSelection: state.beforeSelection,
-      openingSelectionRevision: 0,
-      openingSelectionMask: state.beforeMask
+      openingSelectionLease: state.selectionLease()
     });
 
     expect(state.document()).toBe(state.after);
@@ -150,15 +261,13 @@ describe('TransformPublicationOwner', () => {
       result: {
         kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
         beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
-        layerId: state.before.activeLayerId!, pixelEdit: state.edit
+        layerId: state.before.activeLayerId!
       },
       beforeSelectionMask: state.beforeMask,
       transaction: transaction(state.before),
       renderer: state.renderer,
       rendererGeneration: 1,
-      openingSelection: state.beforeSelection,
-      openingSelectionRevision: 0,
-      openingSelectionMask: state.beforeMask
+      openingSelectionLease: state.selectionLease()
     });
     state.setRendererGeneration(2);
 
@@ -174,20 +283,18 @@ describe('TransformPublicationOwner', () => {
       return state.afterMask;
     });
     const owner = new TransformPublicationOwner(() => state.dependencies);
-    await owner.apply({
+    await expect(owner.apply({
       result: {
         kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
         beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
-        layerId: state.before.activeLayerId!, pixelEdit: state.edit
+        layerId: state.before.activeLayerId!
       },
       beforeSelectionMask: state.beforeMask,
       transaction: transaction(state.before),
       renderer: state.renderer,
       rendererGeneration: 1,
-      openingSelection: state.beforeSelection,
-      openingSelectionRevision: 0,
-      openingSelectionMask: state.beforeMask
-    });
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('publication lease is no longer current');
 
     expect(state.pixelsApplied()).toBe(true);
     expect(state.renderer.applyPixelHistory).not.toHaveBeenCalled();
@@ -205,24 +312,132 @@ describe('TransformPublicationOwner', () => {
       return state.afterMask;
     });
     const owner = new TransformPublicationOwner(() => state.dependencies);
-    await owner.apply({
+    await expect(owner.apply({
       result: {
         kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
         beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
-        layerId: state.before.activeLayerId!, pixelEdit: state.edit
+        layerId: state.before.activeLayerId!
       },
       beforeSelectionMask: state.beforeMask,
       transaction: transaction(state.before),
       renderer: state.renderer,
       rendererGeneration: 1,
-      openingSelection: state.beforeSelection,
-      openingSelectionRevision: 0,
-      openingSelectionMask: state.beforeMask
-    });
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('publication lease is no longer current');
 
     expect(state.pixelsApplied()).toBe(false);
     expect(state.history).toHaveLength(0);
     expect(state.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('directly rolls back terminal pixels when canonical publication never completed', async () => {
+    const state = fixture();
+    state.dependencies.applyDocumentAndSelection = async () => {
+      throw new Error('selection publication rejected before CAS');
+    };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('selection publication rejected before CAS');
+
+    expect(state.pixelsApplied()).toBe(false);
+    expect(state.document()).toBe(state.before);
+    expect(state.history).toHaveLength(0);
+    expect(owner.selectionRollback.blocked).toBe(false);
+    expect(owner.unpublishedRollback.blocked).toBe(false);
+    expect(state.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('quarantines an indeterminate publication without guessing which side to restore', async () => {
+    const state = fixture();
+    state.dependencies.applyDocumentAndSelection = async () => {
+      throw new TransformSelectionPublicationError(
+        'publication rollback failed',
+        'indeterminate'
+      );
+    };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('publication rollback failed');
+
+    expect(state.pixelsApplied()).toBe(true);
+    expect(state.destroy).not.toHaveBeenCalled();
+    await expect(owner.recover()).resolves.toBe(false);
+    expect(state.dependencies.setError).toHaveBeenCalledWith(
+      'Transform publication state is indeterminate; transforms are quarantined until document reload.'
+    );
+  });
+
+  it('retires an indeterminate edit when the active document session changes', async () => {
+    const state = fixture();
+    state.dependencies.applyDocumentAndSelection = async () => {
+      throw new TransformSelectionPublicationError('publication rollback failed', 'indeterminate');
+    };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('publication rollback failed');
+
+    state.setDocumentSessionId('next-document');
+    await expect(owner.recover()).resolves.toBe(true);
+    expect(state.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('retires an indeterminate edit when its renderer generation is retired', async () => {
+    const state = fixture();
+    state.dependencies.applyDocumentAndSelection = async () => {
+      throw new TransformSelectionPublicationError('publication rollback failed', 'indeterminate');
+    };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('publication rollback failed');
+
+    state.setRendererGeneration(2);
+    owner.retireStaleScope();
+    expect(state.destroy).toHaveBeenCalledOnce();
+    await expect(owner.recover()).resolves.toBe(true);
   });
 
   it('quarantines failed compound rollback and retries from a known applied side', async () => {
@@ -233,22 +448,23 @@ describe('TransformPublicationOwner', () => {
       if (document === state.before && rejectBefore) throw new Error('restore before failed');
       await publish(document, nextSelection, mask, binding);
     };
-    state.dependencies.pushHistoryEntry = () => { throw new Error('history failed'); };
+    state.dependencies.reserveHistoryEntry = () => ({
+      commit: () => { throw new Error('history failed'); },
+      cancel: () => undefined
+    });
     const owner = new TransformPublicationOwner(() => state.dependencies);
 
     await expect(owner.apply({
       result: {
         kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
         beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
-        layerId: state.before.activeLayerId!, pixelEdit: state.edit
+        layerId: state.before.activeLayerId!
       },
       beforeSelectionMask: state.beforeMask,
       transaction: transaction(state.before),
       renderer: state.renderer,
       rendererGeneration: 1,
-      openingSelection: state.beforeSelection,
-      openingSelectionRevision: 0,
-      openingSelectionMask: state.beforeMask
+      openingSelectionLease: state.selectionLease()
     })).rejects.toThrow('history failed');
 
     expect({ document: state.document(), pixels: state.pixelsApplied(), blocked: owner.selectionRollback.blocked })
@@ -260,5 +476,37 @@ describe('TransformPublicationOwner', () => {
     expect({ document: state.document(), pixels: state.pixelsApplied(), blocked: owner.selectionRollback.blocked })
       .toEqual({ document: state.before, pixels: false, blocked: false });
     expect(state.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('reserves history before the terminal GPU write and cancels without mutating pixels', async () => {
+    const state = fixture();
+    const order: string[] = [];
+    state.dependencies.reserveHistoryEntry = () => {
+      order.push('reserve');
+      throw new Error('history unavailable');
+    };
+    state.renderer.commitLayerTransform = vi.fn(() => {
+      order.push('gpu-commit');
+      return state.edit;
+    });
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+
+    await expect(owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask,
+      transaction: transaction(state.before),
+      renderer: state.renderer,
+      rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    })).rejects.toThrow('history unavailable');
+
+    expect(order).toEqual(['reserve']);
+    expect(state.renderer.cancelLayerTransform).toHaveBeenCalledOnce();
+    expect(state.history).toHaveLength(0);
+    expect(state.pixelsApplied()).toBe(false);
   });
 });

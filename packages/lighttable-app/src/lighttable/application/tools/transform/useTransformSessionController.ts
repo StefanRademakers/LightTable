@@ -12,6 +12,7 @@ import type { SelectionCoverageBounds } from '../../../editor/selection/selectio
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
+import type { LightTableSelectionReadLease } from '../selection/DocumentSelectionStateStore';
 import type {
   AffineMatrix,
   TransformQuad,
@@ -51,6 +52,7 @@ import type {
   DocumentMutationDescription,
   DocumentMutationTransaction
 } from '../../documents/useDocumentMutationController';
+import type { DocumentHistoryReservation } from '../../commands/documentCommandHistory';
 import {
   TransformPublicationOwner,
   type TransformSelectionPublicationBinding
@@ -89,10 +91,8 @@ export interface TransformSessionDependencies {
   selectedLayerIds?: readonly LayerId[];
   /** Advances for an explicit canvas auto-select request, even for the same layer. */
   activationRevision?: number;
-  selection: SelectionOperation[];
-  getSelection(): SelectionOperation[];
-  getSelectionRevision(): number;
-  getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
+  selectionRevision: number;
+  getSelectionLease(): LightTableSelectionReadLease | null;
   getDocument(): ImageDocument | null;
   getRenderer(): TransformEditorRendererPort | null;
   getRendererGeneration(): number;
@@ -105,7 +105,7 @@ export interface TransformSessionDependencies {
     selectionMaskSnapshot: SelectionMaskSnapshot,
     binding: TransformSelectionPublicationBinding
   ): Promise<void>;
-  pushHistoryEntry(entry: TransformHistoryEntry): void;
+  reserveHistoryEntry(entry: TransformHistoryEntry): DocumentHistoryReservation;
   setError(message: string | null): void;
   setStatus(message: string): void;
   transformFrameMode?: TransformFrameMode;
@@ -161,10 +161,7 @@ export const useTransformSessionController = (
   const controllerRendererGenerationRef = useRef<number | null>(null);
   const controllerDocumentIdRef = useRef<ImageDocument['id'] | null>(null);
   const controllerDocumentRevisionRef = useRef<number | null>(null);
-  const controllerSelectionMaskBeforeRef = useRef<SelectionMaskSnapshot | null>(null);
-  const controllerSelectionMaskIdentityRef = useRef<SelectionMaskSnapshot | null>(null);
-  const controllerSelectionIdentityRef = useRef<SelectionOperation[] | null>(null);
-  const controllerSelectionRevisionRef = useRef<number | null>(null);
+  const controllerSelectionLeaseRef = useRef<LightTableSelectionReadLease | null>(null);
   const finishPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const launchPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const [state, setState] = useState<TransformSessionState | null>(null);
@@ -199,17 +196,14 @@ export const useTransformSessionController = (
     controller?.invalidatePendingLaunch();
     if (controller?.state) {
       if (controllerRendererGenerationRef.current === currentGeneration) {
-        controller.finish(null, [], false);
+        controller.finish(null, { active: false, provenance: [] }, false);
       } else controller.abandonRendererGeneration();
     }
     controllerDocumentIdRef.current = null;
     controllerDocumentRevisionRef.current = null;
     controllerRendererRef.current = null;
     controllerRendererGenerationRef.current = null;
-    controllerSelectionMaskBeforeRef.current = null;
-    controllerSelectionMaskIdentityRef.current = null;
-    controllerSelectionIdentityRef.current = null;
-    controllerSelectionRevisionRef.current = null;
+    controllerSelectionLeaseRef.current = null;
   }, []);
 
   const discardOwnedTransformPreview = useCallback(() => {
@@ -245,23 +239,19 @@ export const useTransformSessionController = (
   );
 
   const applyFinishedTransform = useCallback((
-    result: ReturnType<TransformController['finish']>,
+       result: ReturnType<TransformController['finish']>,
     beforeSelectionMask: SelectionMaskSnapshot | null,
     transaction: DocumentMutationTransaction | null,
     renderer: TransformEditorRendererPort | null,
     rendererGeneration: number | null,
-    openingSelection: SelectionOperation[] | null,
-    openingSelectionRevision: number | null,
-    openingSelectionMask: SelectionMaskSnapshot | null
+    openingSelectionLease: LightTableSelectionReadLease | null
   ) => publicationOwnerRef.current!.apply({
     result,
     beforeSelectionMask,
     transaction,
     renderer,
     rendererGeneration,
-    openingSelection,
-    openingSelectionRevision,
-    openingSelectionMask
+    openingSelectionLease
   }), []);
 
   const finish = useCallback((commit: boolean): Promise<void> => {
@@ -284,7 +274,15 @@ export const useTransformSessionController = (
       }
       if (!transaction?.stage(() => result.after) || !transaction.commit()) {
         current.setError(`The layer ${result.target} transform could not be committed.`);
-      } else current.onAuxiliaryTransformCommitted?.(result.target, result.layerIds);
+      } else {
+        try {
+          current.onAuxiliaryTransformCommitted?.(result.target, result.layerIds);
+        } catch {
+          current.setError(
+            `The layer ${result.target} transform was committed, but its notification failed.`
+          );
+        }
+      }
       return finishPromiseRef.current;
     }
     const controller = controllerRef.current;
@@ -292,15 +290,20 @@ export const useTransformSessionController = (
     const current = dependenciesRef.current;
     const transaction = documentTransactionRef.current;
     const document = current.getDocument();
+    const openingSelectionLease = controllerSelectionLeaseRef.current;
+    const currentSelectionLease = current.getSelectionLease();
     const belongsToActiveDocument = Boolean(
       document
       && document.id === controllerDocumentIdRef.current
       && document.revision === controllerDocumentRevisionRef.current
       && current.getRenderer() === controllerRendererRef.current
       && current.getRendererGeneration() === controllerRendererGenerationRef.current
-      && current.getSelection() === controllerSelectionIdentityRef.current
-      && current.getSelectionRevision() === controllerSelectionRevisionRef.current
-      && current.getSelectionMaskSnapshot() === controllerSelectionMaskIdentityRef.current
+      && openingSelectionLease
+      && currentSelectionLease
+      && currentSelectionLease.document.sessionId === openingSelectionLease.document.sessionId
+      && currentSelectionLease.document.revision === openingSelectionLease.document.revision
+      && currentSelectionLease.selection.revision === openingSelectionLease.selection.revision
+      && currentSelectionLease.selection.coverage === openingSelectionLease.selection.coverage
     );
     const transformDelta = controller.state?.matrix ?? null;
     const rendererGenerationCurrent = current.getRendererGeneration()
@@ -308,7 +311,12 @@ export const useTransformSessionController = (
     const result = rendererGenerationCurrent
       ? controller.finish(
           belongsToActiveDocument ? document : null,
-          belongsToActiveDocument ? current.getSelection() : [],
+          belongsToActiveDocument && currentSelectionLease
+            ? {
+                active: currentSelectionLease.selection.active,
+                provenance: currentSelectionLease.selection.provenance
+              }
+            : { active: false, provenance: [] },
           commit && belongsToActiveDocument
         )
       : (controller.abandonRendererGeneration(), { kind: 'cancelled' as const });
@@ -316,21 +324,16 @@ export const useTransformSessionController = (
     controllerDocumentRevisionRef.current = null;
     const openingRenderer = controllerRendererRef.current;
     const openingRendererGeneration = controllerRendererGenerationRef.current;
-    const openingSelection = controllerSelectionIdentityRef.current;
-    const openingSelectionRevision = controllerSelectionRevisionRef.current;
-    const openingSelectionMask = controllerSelectionMaskIdentityRef.current;
     controllerRendererRef.current = null;
     controllerRendererGenerationRef.current = null;
-    controllerSelectionRevisionRef.current = null;
-    const beforeSelectionMask = controllerSelectionMaskBeforeRef.current;
-    controllerSelectionMaskBeforeRef.current = null;
+    controllerSelectionLeaseRef.current = null;
+    const beforeSelectionMask = openingSelectionLease?.selection.coverage ?? null;
     setState(null);
     if (commit && result.kind === 'layer' && transformDelta
       && !matrixApproximatelyEqual(transformDelta, identityMatrix())) {
       lastLayerTransformRef.current = { ...transformDelta };
     }
     if (commit && !belongsToActiveDocument) {
-      controllerSelectionMaskIdentityRef.current = null;
       transaction?.cancel();
       current.setError('The document or selection changed during the transform; the preview was discarded.');
       return finishPromiseRef.current;
@@ -341,20 +344,14 @@ export const useTransformSessionController = (
       transaction,
       openingRenderer,
       openingRendererGeneration,
-      openingSelection,
-      openingSelectionRevision,
-      openingSelectionMask
+      openingSelectionLease
     )
       .catch((reason) => {
         dependenciesRef.current.setError(
           reason instanceof Error ? reason.message : 'The transform could not be finished.'
         );
       })
-      .finally(() => {
-        controllerSelectionIdentityRef.current = null;
-        controllerSelectionRevisionRef.current = null;
-        controllerSelectionMaskIdentityRef.current = null;
-      });
+      .finally(() => { controllerSelectionLeaseRef.current = null; });
     finishPromiseRef.current = pending;
     return pending;
   }, [applyFinishedTransform, setFrameOverride]);
@@ -546,70 +543,54 @@ export const useTransformSessionController = (
     controllerRendererGenerationRef.current = rendererGeneration;
     controllerDocumentIdRef.current = document.id;
     controllerDocumentRevisionRef.current = document.revision;
-    const selection = current.getSelection();
-    controllerSelectionIdentityRef.current = selection;
-    controllerSelectionRevisionRef.current = current.getSelectionRevision();
-    controllerSelectionMaskIdentityRef.current = current.getSelectionMaskSnapshot();
-    let selectionMaskBefore = controllerSelectionMaskIdentityRef.current;
-    if (selection.length > 0 && !selectionMaskBefore) {
-      try {
-        selectionMaskBefore = await renderer.captureSelectionSnapshot();
-      } catch (reason) {
-        transaction.cancel();
-        controllerDocumentIdRef.current = null;
-        controllerDocumentRevisionRef.current = null;
-        controllerSelectionIdentityRef.current = null;
-        controllerSelectionRevisionRef.current = null;
-        controllerSelectionMaskIdentityRef.current = null;
-        current.setError(
-          reason instanceof Error
-            ? `The selection could not be captured: ${reason.message}`
-            : 'The selection could not be captured.'
-        );
-        return;
-      }
-      if (!launchIsCurrent()
-        || !transaction.active
-        || dependenciesRef.current.getSelection() !== selection
-        || dependenciesRef.current.getSelectionRevision() !== controllerSelectionRevisionRef.current
-        || dependenciesRef.current.getSelectionMaskSnapshot()
-          !== controllerSelectionMaskIdentityRef.current) {
-        controllerDocumentIdRef.current = null;
-        controllerDocumentRevisionRef.current = null;
-        controllerSelectionIdentityRef.current = null;
-        controllerSelectionRevisionRef.current = null;
-        controllerSelectionMaskIdentityRef.current = null;
-        transaction.cancel();
-        return;
-      }
+    let selectionLease: LightTableSelectionReadLease | null = null;
+    try {
+      selectionLease = current.getSelectionLease();
+    } catch (reason) {
+      transaction.cancel();
+      current.setError(reason instanceof Error
+        ? reason.message : 'The committed selection is unavailable.');
+      return;
     }
-    const result = await controller.begin(document, selection);
+    if (!selectionLease) {
+      transaction.cancel();
+      current.setError('The committed selection is unavailable.');
+      return;
+    }
+    controllerSelectionLeaseRef.current = selectionLease;
+    const result = await controller.begin(document, {
+      active: selectionLease.selection.active,
+      provenance: selectionLease.selection.provenance
+    });
     if (!launchIsCurrent() || !transaction.active) {
-      if (result.ok) controller.finish(null, [], false);
+      if (result.ok) controller.finish(null, { active: false, provenance: [] }, false);
       transaction.cancel();
       if (controllerRef.current === controller) {
         controllerDocumentIdRef.current = null;
         controllerDocumentRevisionRef.current = null;
-        controllerSelectionIdentityRef.current = null;
-        controllerSelectionMaskIdentityRef.current = null;
-        controllerSelectionMaskBeforeRef.current = null;
+        controllerSelectionLeaseRef.current = null;
         setState(null);
       }
       return;
     }
+    const latestLease = dependenciesRef.current.getSelectionLease();
+    if (!latestLease
+      || latestLease.document.sessionId !== selectionLease.document.sessionId
+      || latestLease.document.revision !== selectionLease.document.revision
+      || latestLease.selection.revision !== selectionLease.selection.revision
+      || latestLease.selection.coverage !== selectionLease.selection.coverage) {
+      if (result.ok) controller.finish(null, { active: false, provenance: [] }, false);
+      transaction.cancel();
+      controllerSelectionLeaseRef.current = null;
+      return;
+    }
     if (result.ok) {
-      controllerSelectionMaskBeforeRef.current = result.state.sourceKind === 'selection'
-        ? selectionMaskBefore
-        : null;
       setState(result.state);
       current.setError(null);
       if (result.notice) current.setStatus(result.notice);
       return;
     }
-    controllerSelectionMaskBeforeRef.current = null;
-    controllerSelectionMaskIdentityRef.current = null;
-    controllerSelectionIdentityRef.current = null;
-    controllerSelectionRevisionRef.current = null;
+    controllerSelectionLeaseRef.current = null;
     controllerDocumentIdRef.current = null;
     controllerDocumentRevisionRef.current = null;
     transaction.cancel();
@@ -853,6 +834,7 @@ export const useTransformSessionController = (
   }, [begin, isActive]);
 
   useEffect(() => {
+    publicationOwnerRef.current?.retireStaleScope();
     const documentTransaction = documentTransactionRef.current;
     const generationChanged = (
       controllerRendererGenerationRef.current !== null
@@ -879,15 +861,14 @@ export const useTransformSessionController = (
       && controllerDocumentIdRef.current !== dependencies.activeDocument?.id
     ) {
       controller?.invalidatePendingLaunch();
-      if (controller?.state) controller.finish(null, [], false);
+      if (controller?.state) {
+        controller.finish(null, { active: false, provenance: [] }, false);
+      }
       controllerRef.current = null;
       controllerDocumentIdRef.current = null;
       controllerDocumentRevisionRef.current = null;
       controllerRendererRef.current = null;
-      controllerSelectionIdentityRef.current = null;
-      controllerSelectionRevisionRef.current = null;
-      controllerSelectionMaskBeforeRef.current = null;
-      controllerSelectionMaskIdentityRef.current = null;
+      controllerSelectionLeaseRef.current = null;
       setState(null);
     }
     const activeController = controllerRef.current;
@@ -942,6 +923,7 @@ export const useTransformSessionController = (
     dependencies.activeTool,
     dependencies.activationRevision,
     dependencies.rendererGeneration,
+    dependencies.selectionRevision,
     discardOwnedTransformPreview,
     finish,
     selectedLayerKey,
@@ -957,19 +939,17 @@ export const useTransformSessionController = (
     controller?.invalidatePendingLaunch();
     if (controller?.state) {
       if (controllerRendererGenerationRef.current === currentGeneration) {
-        controller.finish(null, [], false);
+        controller.finish(null, { active: false, provenance: [] }, false);
       } else controller.abandonRendererGeneration();
     }
     auxiliaryOwnerRef.current?.discard();
+    publicationOwnerRef.current?.dispose();
     controllerRef.current = null;
     controllerDocumentIdRef.current = null;
     controllerDocumentRevisionRef.current = null;
     controllerRendererRef.current = null;
     controllerRendererGenerationRef.current = null;
-    controllerSelectionIdentityRef.current = null;
-    controllerSelectionRevisionRef.current = null;
-    controllerSelectionMaskBeforeRef.current = null;
-    controllerSelectionMaskIdentityRef.current = null;
+    controllerSelectionLeaseRef.current = null;
   }, []);
 
   return {

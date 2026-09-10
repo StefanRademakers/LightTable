@@ -62,7 +62,7 @@ describe('TransformController', () => {
     document.activeLayerId = text.id;
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, []);
+    await controller.begin(document, { active: false, provenance: [] });
 
     for (let index = 1; index <= 2048; index += 1) {
       controller.update(translationMatrix(index / 8, index / 16));
@@ -74,7 +74,7 @@ describe('TransformController', () => {
     expect(port.commitLayerTransform).not.toHaveBeenCalled();
     expect(port.cancelSemanticLayerTransform).not.toHaveBeenCalled();
 
-    const result = controller.finish(document, [], true);
+    const result = controller.finish(document, { active: false, provenance: [] }, true);
     expect(result.kind).toBe('layer');
     if (result.kind === 'layer') {
       expect(result.afterDocument.layers[0]?.transform).toEqual(translationMatrix(256, 128));
@@ -91,14 +91,14 @@ describe('TransformController', () => {
     const port = renderer();
     const controller = new TransformController(port);
 
-    const launch = await controller.begin(document, []);
+    const launch = await controller.begin(document, { active: false, provenance: [] });
     expect(launch.ok).toBe(true);
     if (launch.ok) expect(launch.state.previewKind).toBe('semantic');
     expect(port.beginSemanticLayerTransform).toHaveBeenCalledWith(text);
     expect(port.setSemanticLayerInteraction).toHaveBeenCalledWith(text, true);
 
     controller.update(translationMatrix(18, 7));
-    const result = controller.finish(document, [], true);
+    const result = controller.finish(document, { active: false, provenance: [] }, true);
 
     expect(result.kind).toBe('layer');
     if (result.kind === 'layer') {
@@ -113,7 +113,7 @@ describe('TransformController', () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    const result = await controller.begin(document, selection());
+    const result = await controller.begin(document, { active: true, provenance: selection() });
 
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.state.sourceKind).toBe('selection');
@@ -134,7 +134,7 @@ describe('TransformController', () => {
     };
     const port = renderer();
     const controller = new TransformController(port);
-    const result = await controller.begin(transformed, selection());
+    const result = await controller.begin(transformed, { active: true, provenance: selection() });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -150,25 +150,53 @@ describe('TransformController', () => {
     );
   });
 
-  it('falls back to visible layer content when the selection misses all pixels', async () => {
+  it('does not retarget an active selection to a non-pixel transformed layer', async () => {
+    const base = createImageDocument('Transform', 320, 180, 'asset');
+    const layer = base.layers[0] as RasterLayer;
+    const document = {
+      ...base,
+      layers: [{
+        ...layer,
+        transform: translationMatrix(12, -3)
+      }]
+    };
+    const port = renderer();
+    const controller = new TransformController(port);
+
+    const result = await controller.begin(document, { active: true, provenance: selection() });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'invalid-target',
+      message: 'Rasterize the transformed layer before transforming pixels inside a selection.'
+    });
+    expect(port.measureLayerContent).not.toHaveBeenCalled();
+    expect(port.beginLayerTransform).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the active selection misses all layer pixels', async () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     vi.mocked(port.measureSelectedLayerContent).mockResolvedValue(null);
     const controller = new TransformController(port);
-    const result = await controller.begin(document, selection());
+    const result = await controller.begin(document, { active: true, provenance: selection() });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.state.sourceKind).toBe('layer');
-    expect(port.measureLayerContent).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      ok: false,
+      code: 'empty-layer',
+      message: 'The active selection does not contain pixels from this layer.'
+    });
+    expect(port.measureLayerContent).not.toHaveBeenCalled();
+    expect(port.beginLayerTransform).not.toHaveBeenCalled();
   });
 
   it('commits a complete-layer transform as document geometry without baking pixels', async () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, []);
+    await controller.begin(document, { active: false, provenance: [] });
     controller.update(translationMatrix(14, 9));
-    const result = controller.finish(document, [], true);
+    const result = controller.finish(document, { active: false, provenance: [] }, true);
 
     expect(result.kind).toBe('layer');
     if (result.kind === 'layer') {
@@ -186,9 +214,9 @@ describe('TransformController', () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, selection());
+    await controller.begin(document, { active: true, provenance: selection() });
     controller.update(translationMatrix(7, 4));
-    const result = controller.finish(document, selection(), true);
+    const result = controller.finish(document, { active: true, provenance: selection() }, true);
 
     expect(result.kind).toBe('selection');
     if (result.kind === 'selection') {
@@ -196,7 +224,24 @@ describe('TransformController', () => {
       expect(result.afterSelection).toHaveLength(2);
       expect(result.afterSelection[1].mode).toBe('transform');
       expect(result.afterSelection[1].transform).toMatchObject({ tx: 7, ty: 4 });
-      expect(result.pixelEdit.byteSize).toBe(64);
+    }
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
+  });
+
+  it('uses canonical active coverage even when selection provenance is empty', async () => {
+    const document = createImageDocument('Transform', 320, 180, 'asset');
+    const port = renderer();
+    const controller = new TransformController(port);
+
+    await controller.begin(document, { active: true, provenance: [] });
+    controller.update(translationMatrix(3, 2));
+    const result = controller.finish(document, { active: true, provenance: [] }, true);
+
+    expect(port.measureSelectedLayerContent).toHaveBeenCalledOnce();
+    expect(result.kind).toBe('selection');
+    if (result.kind === 'selection') {
+      expect(result.beforeSelection).toEqual([]);
+      expect(result.afterSelection).toHaveLength(1);
     }
   });
 
@@ -204,7 +249,7 @@ describe('TransformController', () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, selection());
+    await controller.begin(document, { active: true, provenance: selection() });
 
     expect(controller.setDuplicate(true)).toBe(true);
     expect(port.setDuplicateLayerTransform).toHaveBeenCalledWith(true);
@@ -219,7 +264,7 @@ describe('TransformController', () => {
     };
     const port = renderer();
     const controller = new TransformController(port);
-    const launch = await controller.begin(document, []);
+    const launch = await controller.begin(document, { active: false, provenance: [] });
 
     expect(launch.ok).toBe(true);
     const destination = [
@@ -237,7 +282,7 @@ describe('TransformController', () => {
       { x: 10, y: 52 }
     ], destination);
 
-    const result = controller.finish(document, [], true);
+    const result = controller.finish(document, { active: false, provenance: [] }, true);
     expect(result.kind).toBe('raster-layer');
     if (result.kind === 'raster-layer') {
       const afterLayer = result.afterDocument.layers[0] as RasterLayer;
@@ -246,7 +291,7 @@ describe('TransformController', () => {
       expect(afterLayer.width).toBe(document.width);
       expect(afterLayer.height).toBe(document.height);
     }
-    expect(port.commitLayerTransform).toHaveBeenCalledOnce();
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
   });
 
   it('cancels stale async launches without opening a renderer preview', async () => {
@@ -257,7 +302,7 @@ describe('TransformController', () => {
       resolveCoverage = resolve;
     }));
     const controller = new TransformController(port);
-    const pending = controller.begin(document, []);
+    const pending = controller.begin(document, { active: false, provenance: [] });
     controller.invalidatePendingLaunch();
     resolveCoverage(coverage);
     const result = await pending;
@@ -271,9 +316,10 @@ describe('TransformController', () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, []);
+    await controller.begin(document, { active: false, provenance: [] });
     controller.update(identityMatrix());
-    expect(controller.finish(document, [], true)).toEqual({ kind: 'unchanged' });
+    expect(controller.finish(document, { active: false, provenance: [] }, true))
+      .toEqual({ kind: 'unchanged' });
     expect(port.cancelLayerTransform).toHaveBeenCalledOnce();
   });
 
@@ -281,7 +327,7 @@ describe('TransformController', () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
     const controller = new TransformController(port);
-    await controller.begin(document, []);
+    await controller.begin(document, { active: false, provenance: [] });
 
     controller.abandonRendererGeneration();
 

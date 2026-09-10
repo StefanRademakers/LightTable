@@ -65,6 +65,11 @@ export type BeginTransformResult =
     readonly message: string | null;
   };
 
+export interface TransformSelectionSource {
+  readonly active: boolean;
+  readonly provenance: readonly SelectionOperation[];
+}
+
 export type FinishTransformResult =
   | { readonly kind: 'cancelled' }
   | { readonly kind: 'unchanged' }
@@ -81,14 +86,12 @@ export type FinishTransformResult =
     readonly beforeSelection: SelectionOperation[];
     readonly afterSelection: SelectionOperation[];
     readonly layerId: LayerId;
-    readonly pixelEdit: ReversiblePixelEdit;
   }
   | {
     readonly kind: 'raster-layer';
     readonly beforeDocument: ImageDocument;
     readonly afterDocument: ImageDocument;
     readonly layerId: LayerId;
-    readonly pixelEdit: ReversiblePixelEdit;
   }
   | {
     readonly kind: 'error';
@@ -156,7 +159,7 @@ export class TransformController {
 
   async begin(
     document: ImageDocument,
-    selection: SelectionOperation[]
+    selection: TransformSelectionSource
   ): Promise<BeginTransformResult> {
     if (this.activeState) {
       return {
@@ -176,13 +179,21 @@ export class TransformController {
       };
     }
 
-    const selectionRequested = layer.type === 'raster' && selection.length > 0;
+    const selectionRequested = layer.type === 'raster' && selection.active;
     const placedPixelLayer = layer.type === 'raster'
       && layer.transformCommitMode === 'pixels'
       && !matrixApproximatelyEqual(layer.transform, identityMatrix());
     let usesSelection = selectionRequested
       && (matrixApproximatelyEqual(layer.transform, identityMatrix()) || placedPixelLayer);
     let sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
+
+    if (selectionRequested && !usesSelection) {
+      return {
+        ok: false,
+        code: 'invalid-target',
+        message: 'Rasterize the transformed layer before transforming pixels inside a selection.'
+      };
+    }
 
     try {
       let measuredContent = semanticLayer
@@ -195,19 +206,13 @@ export class TransformController {
       if (launchRevision !== this.launchRevision || this.activeState) {
         return { ok: false, code: 'stale', message: null };
       }
-      if (!measuredContent && usesSelection) {
-        usesSelection = false;
-        sourceMatrix = layer.transform;
-        measuredContent = await this.renderer.measureLayerContent(layer as RasterLayer);
-        if (launchRevision !== this.launchRevision || this.activeState) {
-          return { ok: false, code: 'stale', message: null };
-        }
-      }
       if (!measuredContent) {
         return {
           ok: false,
           code: 'empty-layer',
-          message: semanticLayer
+          message: selectionRequested
+            ? 'The active selection does not contain pixels from this layer.'
+            : semanticLayer
             ? 'The semantic layer has no measurable content yet.'
             : 'The active layer does not contain visible pixels.'
         };
@@ -324,7 +329,7 @@ export class TransformController {
 
   finish(
     document: ImageDocument | null,
-    selection: SelectionOperation[],
+    selection: TransformSelectionSource,
     commit: boolean
   ): FinishTransformResult {
     const state = this.activeState;
@@ -358,14 +363,6 @@ export class TransformController {
       };
     }
 
-    const pixelEdit = this.renderer.commitLayerTransform();
-    if (!pixelEdit) {
-      this.renderer.cancelLayerTransform();
-      return {
-        kind: 'error',
-        message: 'The transform could not be committed.'
-      };
-    }
     const dirtyBounds = mergeBounds(
       state.supportBounds,
       state.projectiveQuad
@@ -383,11 +380,10 @@ export class TransformController {
         kind: 'raster-layer',
         beforeDocument: document,
         afterDocument,
-        layerId: state.layerId,
-        pixelEdit
+        layerId: state.layerId
       };
     }
-    const beforeSelection = cloneSelection(selection);
+    const beforeSelection = cloneSelection([...selection.provenance]);
     const afterSelection = state.projectiveQuad
       ? projectSelectionOperations(
           beforeSelection,
@@ -412,8 +408,7 @@ export class TransformController {
       afterDocument,
       beforeSelection,
       afterSelection,
-      layerId: state.layerId,
-      pixelEdit
+      layerId: state.layerId
     };
   }
 

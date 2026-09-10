@@ -28,6 +28,16 @@ const createSession = () => {
 };
 
 describe('DocumentSelectionStateStore', () => {
+  it('stores one stable inactive coverage value when a document is attached', () => {
+    const session = createSession();
+    const store = new DocumentSelectionStateStore(session);
+
+    const first = store.acquire(0);
+    const second = store.acquire(0);
+
+    expect(first.selection.active).toBe(false);
+    expect(second.selection.coverage).toBe(first.selection.coverage);
+  });
   it('publishes one exact selection value when the expected revision matches', () => {
     const session = createSession();
     const store = new DocumentSelectionStateStore(session);

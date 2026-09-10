@@ -421,6 +421,62 @@ function verifyLayerMaskCutover(relativePath, source) {
   }
 }
 
+function verifyTransformCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/tools/transform/TransformPublicationOwner.ts')) {
+    if (!source.includes('reserveHistoryEntry(historyProxy)')
+      || !source.includes('renderer.commitLayerTransform()')) {
+      failures.push(`${relativePath}: terminal selection transforms must reserve history before the GPU commit`);
+    }
+    if (source.includes('commitAppliedPixelMutation')) {
+      failures.push(`${relativePath}: transform publication must not restore post-mutation history admission`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/transform/transformController.ts')) {
+    if (!source.includes('selection.active')) {
+      failures.push(`${relativePath}: transform targeting must use canonical selection activity`);
+    }
+    if (/this\.renderer\.commitLayerTransform\s*\(/.test(source)) {
+      failures.push(`${relativePath}: transform controller must leave terminal GPU commit to publication ownership`);
+    }
+    if (source.includes('usesSelection = false')) {
+      failures.push(`${relativePath}: active selection intent must not retarget to whole-layer transform`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/transform/useTransformSessionController.ts')) {
+    if (!source.includes('getSelectionLease(): LightTableSelectionReadLease | null')) {
+      failures.push(`${relativePath}: transform sessions must acquire one exact committed selection lease`);
+    }
+    if (/\bgetSelection(?:Revision|MaskSnapshot)?\??\s*\(/.test(source)) {
+      failures.push(`${relativePath}: split transform selection authorities must not return`);
+    }
+    if (!source.includes('reserveHistoryEntry(entry: TransformHistoryEntry)')) {
+      failures.push(`${relativePath}: transform sessions must expose pre-mutation history admission`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/selection/DocumentSelectionStateStore.ts')) {
+    if (source.includes('SelectionMaskSnapshot.inactive(')) {
+      failures.push(`${relativePath}: selection lease reads must not synthesize a new inactive coverage identity`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/documents/documentSession.ts')) {
+    if (!source.includes('needsInactiveCoverage')) {
+      failures.push(`${relativePath}: attached documents must own one stable inactive selection coverage value`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/transform/publishTransformDocumentSelection.ts')) {
+    if (!source.includes('Transform selection publication rollback failed.')
+      || !source.includes('compareAndSwapForDocument(')) {
+      failures.push(`${relativePath}: post-CAS transform publication must restore the opening canonical value`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    if (!source.includes('publishTransformDocumentSelection(')) {
+      failures.push(`${relativePath}: transform selection publication must use its lease-bound route`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -437,6 +493,7 @@ async function scan(relativeDirectory) {
       verifyRasterPixelCutover(relativePath, source);
       verifyLayerFinalizationCutover(relativePath, source);
       verifyLayerMaskCutover(relativePath, source);
+      verifyTransformCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

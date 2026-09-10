@@ -8,7 +8,7 @@ import type {
 } from '@lighttable/editor-kernel';
 import { assertCommittedSelectionState } from '@lighttable/editor-kernel';
 import type { DocumentSession } from '../../documents/documentSession';
-import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
+import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 
 export type LightTableCommittedSelection = CommittedSelectionState<
@@ -46,12 +46,9 @@ export class DocumentSelectionStateStore implements SelectionStateStore<
     const document = snapshot.document;
     if (!document) throw new Error('The document selection is unavailable before document open.');
     const editor = snapshot.editor;
-    const coverage = editor.selectionMaskSnapshot
-      ?? (editor.selection.length === 0
-        ? SelectionMaskSnapshot.inactive(document.width, document.height)
-        : null);
+    const coverage = editor.selectionMaskSnapshot;
     if (!coverage) {
-      throw new Error('The legacy selection has operations but no exact committed coverage.');
+      throw new Error('The document has no exact committed selection coverage.');
     }
     return {
       documentSessionId,

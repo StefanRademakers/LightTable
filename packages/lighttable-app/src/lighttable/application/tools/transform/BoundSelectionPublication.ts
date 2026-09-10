@@ -11,6 +11,7 @@ export const publishBoundSelection = async (input: {
   afterMask: SelectionMaskSnapshot;
   bindingIsCurrent(): boolean;
   rendererIsAddressable(): boolean;
+  restoreBeforeOnPublishError?(reason: unknown): boolean;
   publish(): void;
 }): Promise<void> => {
   if (!input.bindingIsCurrent()) {
@@ -28,7 +29,8 @@ export const publishBoundSelection = async (input: {
   try {
     input.publish();
   } catch (reason) {
-    if (input.rendererIsAddressable()) {
+    if ((input.restoreBeforeOnPublishError?.(reason) ?? true)
+      && input.rendererIsAddressable()) {
       await input.renderer.restoreSelectionSnapshot(input.beforeMask);
     }
     throw reason;

@@ -69,7 +69,20 @@ try {
   };
   const visibleBodyPoint = async () => {
     const body = page.locator('.lighttable-transform__body');
-    await body.waitFor({ state: 'visible', timeout: 20_000 });
+    try {
+      await body.waitFor({ state: 'visible', timeout: 20_000 });
+    } catch (reason) {
+      const diagnostics = {
+        document: await driver.queryDocument(documentId).catch(() => null),
+        bodyText: await page.locator('body').innerText().catch(() => ''),
+        pageErrors
+      };
+      await writeFile(path.join(output, 'failure.json'), `${JSON.stringify(diagnostics, null, 2)}\n`);
+      await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => undefined);
+      throw new Error(`Transform controls did not appear: ${JSON.stringify(diagnostics)}`, {
+        cause: reason
+      });
+    }
     const viewportBounds = await viewport.boundingBox();
     assert.ok(viewportBounds);
     const point = await page.evaluate(({ x, y, width, height }) => {

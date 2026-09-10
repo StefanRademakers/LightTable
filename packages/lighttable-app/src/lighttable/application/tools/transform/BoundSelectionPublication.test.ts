@@ -39,4 +39,22 @@ describe('publishBoundSelection', () => {
     expect(renderer.restoreSelectionSnapshot).toHaveBeenNthCalledWith(1, after);
     expect(renderer.restoreSelectionSnapshot).toHaveBeenNthCalledWith(2, before);
   });
+
+  it('retains the applied mask when publication state is explicitly indeterminate', async () => {
+    const before = SelectionMaskSnapshot.inactive(8, 8);
+    const after = SelectionMaskSnapshot.inactive(8, 8);
+    const failure = new Error('indeterminate');
+    const renderer = { restoreSelectionSnapshot: vi.fn(async () => true) };
+
+    await expect(publishBoundSelection({
+      renderer, beforeMask: before, afterMask: after,
+      bindingIsCurrent: () => true,
+      rendererIsAddressable: () => true,
+      restoreBeforeOnPublishError: (reason) => reason !== failure,
+      publish: () => { throw failure; }
+    })).rejects.toBe(failure);
+
+    expect(renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(1);
+    expect(renderer.restoreSelectionSnapshot).toHaveBeenCalledWith(after);
+  });
 });

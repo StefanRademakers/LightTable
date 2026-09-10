@@ -385,6 +385,11 @@ import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuide
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
 import { publishBoundSelection } from './application/tools/transform/BoundSelectionPublication';
+import {
+  publishTransformDocumentSelection as publishTransformSelectionTransaction,
+  TransformSelectionPublicationError
+}
+  from './application/tools/transform/publishTransformDocumentSelection';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
@@ -1934,12 +1939,45 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     else publish();
   }, [applyDocumentSnapshot, documentSession, setEditorSession]);
 
+  const publishTransformDocumentSelection = useCallback((
+    document: ImageDocument,
+    selection: readonly SelectionOperation[],
+    selectionMaskSnapshot: SelectionMaskSnapshot,
+    expectedLease: import('./application/tools/selection/DocumentSelectionStateStore')
+      .LightTableSelectionReadLease,
+    bindingIsCurrent: () => boolean,
+    rendererIsAddressable: () => boolean
+  ) => {
+    if (!documentSession) throw new Error('The transform selection document is unavailable.');
+    publishTransformSelectionTransaction({
+      session: documentSession,
+      document,
+      selection,
+      coverage: selectionMaskSnapshot,
+      expectedLease,
+      bindingIsCurrent,
+      rendererIsAddressable,
+      getProjectedDocument: () => imageDocumentRef.current,
+      applyDocumentSnapshot,
+      publishEditorProjection: (next) => {
+        editorSessionRef.current = {
+          ...editorSessionRef.current,
+          pointerId: null,
+          selection: [...next.selection],
+          selectionMaskSnapshot: next.coverage,
+          selectionRevision: next.selectionRevision,
+          selectionSupportBounds: next.supportBounds
+        };
+      }
+    });
+  }, [applyDocumentSnapshot, documentSession]);
+
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
-    applySnapshot: applyDocumentSnapshot,
-    previewSnapshot: documentProjectionController.previewDocumentSnapshot,
-    discardPreview: documentProjectionController.discardDocumentPreview,
-    pushHistoryEntry,
+      applySnapshot: applyDocumentSnapshot,
+      previewSnapshot: documentProjectionController.previewDocumentSnapshot,
+      discardPreview: documentProjectionController.discardDocumentPreview,
+      pushHistoryEntry,
     isMutationBlocked: () => commandHistory.getSnapshot().busy
       || (documentSession ? !documentSession.isAcceptingMutations() : false)
   });
@@ -6893,11 +6931,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeChannel: editorSession.activeChannel,
     selectedLayerIds,
     activationRevision: transformActivationRevision,
-    selection: editorSession.selection,
-    getSelection: () => editorSessionRef.current.selection,
-    getSelectionRevision: () => documentSession?.getSnapshot().editor.selectionRevision
-      ?? editorSessionRef.current.selectionRevision,
-    getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
+    selectionRevision: documentSession?.getSnapshot().editor.selectionRevision
+      ?? editorSession.selectionRevision,
+    getSelectionLease: () => {
+      if (!documentSession || !imageDocumentRef.current) return null;
+      return new DocumentSelectionStateStore(documentSession).acquire(
+        documentSession.getSnapshot().documentRevision
+      );
+    },
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
@@ -6908,27 +6949,39 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const rendererDocumentBindingIsCurrent = () => engineRef.current === binding.renderer
         && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration
         && imageDocumentRef.current === binding.expectedDocument;
-      const bindingIsCurrent = () => rendererDocumentBindingIsCurrent()
-        && (documentSession?.getSnapshot().editor.selectionRevision
-          ?? editorSessionRef.current.selectionRevision) === binding.expectedSelectionRevision
-        && editorSessionRef.current.selectionMaskSnapshot === binding.expectedSelectionMask;
+      const bindingIsCurrent = () => {
+        if (!rendererDocumentBindingIsCurrent() || !documentSession) return false;
+        const lease = new DocumentSelectionStateStore(documentSession).acquire(
+          documentSession.getSnapshot().documentRevision
+        );
+        return lease.document.sessionId === binding.expectedSelectionLease.document.sessionId
+          && lease.document.revision === binding.expectedSelectionLease.document.revision
+          && lease.selection.revision === binding.expectedSelectionLease.selection.revision
+          && lease.selection.coverage === binding.expectedSelectionLease.selection.coverage;
+      };
       await publishBoundSelection({
         renderer: binding.renderer,
-        beforeMask: binding.expectedSelectionMask,
+        beforeMask: binding.expectedSelectionLease.selection.coverage,
         afterMask: selectionMaskSnapshot,
         bindingIsCurrent,
         rendererIsAddressable: () => engineRef.current === binding.renderer
           && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration,
-        publish: () => publishDocumentSelection(
+        restoreBeforeOnPublishError: (reason) => !(
+          reason instanceof TransformSelectionPublicationError
+          && reason.phase === 'indeterminate'
+        ),
+        publish: () => publishTransformDocumentSelection(
           document,
           selection,
           selectionMaskSnapshot,
-          binding.expectedSelectionRevision,
-          rendererDocumentBindingIsCurrent
+          binding.expectedSelectionLease,
+          rendererDocumentBindingIsCurrent,
+          () => engineRef.current === binding.renderer
+            && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration
         )
       });
     },
-    pushHistoryEntry,
+    reserveHistoryEntry: documentHistoryController.reserve,
     setError,
     setStatus: setGradeStatus,
     transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',

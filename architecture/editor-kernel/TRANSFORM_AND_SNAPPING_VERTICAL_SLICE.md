@@ -134,10 +134,10 @@ compensate or retry; it must not destroy the only recovery snapshot.
 
 ### C-F. Proof and acceptance
 
-- [x] Focused lifecycle/math/GPU tests pass: 343 files / 1,356 tests.
-- [x] Independent read-only critic completed two passes. The final pass found
-      selection-generation and async renderer-binding P1s; both were repaired
-      and covered without starting an unbounded third opinion loop.
+- [x] Current cut-over proof passes: 234 focused files / 958 tests.
+- [x] Independent read-only critic completed two repair rounds plus a final
+      acceptance pass. The repairs closed selection-generation, async binding,
+      post-CAS self-rejection and quarantine-lifetime P1s.
 - [x] Type and boundary gates pass; milestone full verify is recorded at commit.
 - [x] Instrumented and debug packaged Windows matrix passes without page errors.
 - [ ] Owner manually accepts transform feel and latency on a large real document.
@@ -161,14 +161,14 @@ compensate or retry; it must not destroy the only recovery snapshot.
 - `smoke-desktop-transform-kernel.mjs` generates its own document and proves
   layer geometry with edge-pan, exact geometry undo/redo, selected-pixel commit
   and exact pixel undo/redo, canonical revision advance, and one-delta
-  multi-layer transform. The final debug run measured 462 ms including a
-  deliberate 280 ms edge hold, 373 ms selected-pixel drag/commit, and 234 ms
+  multi-layer transform. The final packaged run measured 465 ms including a
+  deliberate 280 ms edge hold, 390 ms selected-pixel drag/commit, and 212 ms
   multi-layer drag/commit; these are end-to-end scripted gesture durations,
   not per-frame renderer timings.
 
 ## Explicit structural follow-up
 
-`useTransformSessionController.ts` fell from 1,164 to 1,002 lines by
+`useTransformSessionController.ts` fell from 1,164 to 979 lines by
 removing real publication and auxiliary GPU ownership. `TransformOverlay.tsx`
 is still about 516 lines and owns pointer capture, handle derivation and the
 drag-local snap latch. Before S04 gains new behavior, extract that gesture state
@@ -176,7 +176,7 @@ machine as a non-React owner; do not mechanically split JSX or move methods to
 an unowned utility file.
 
 The milestone source-structure audit therefore remains red by design: it still
-requires an ownership review for the 1,002-line transform adapter and reports
+requires an ownership review for the 979-line transform adapter and reports
 pre-existing growth in the layer-command, selection, WebGPU, editor-overlay,
 layer-style and standalone-app hotspots. S04 reduced named responsibilities but
 does not claim that broader structural gate is green.
