@@ -36,6 +36,7 @@ import type { SemanticRasterGradientCommand } from './semanticRasterGradientComm
 import type { SemanticFixedTransformCommand } from './semanticFixedTransformCommandContract';
 import type { SemanticAdjustmentCreationCommand } from './semanticAdjustmentCreationCommandContract';
 import type { SemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
+import type { SemanticProcessingStructureCommand } from './semanticProcessingStructureCommandContract';
 import type { SemanticRasterInvertCommand } from './semanticRasterInvertCommandContract';
 import type { SemanticTextFinalizationCommand } from './semanticTextFinalizationCommandContract';
 import type { SemanticLayerRasterizeCommand } from './semanticLayerRasterizeCommandContract';
@@ -336,6 +337,7 @@ export interface LightTableCommandPorts {
   executeFixedTransform?(documentId: DocumentSessionId, command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(documentId: DocumentSessionId, command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   executeAdjustmentSnapshot?(documentId: DocumentSessionId, command: SemanticAdjustmentSnapshotCommand): unknown | Promise<unknown>;
+  executeProcessingStructure?(documentId: DocumentSessionId, command: SemanticProcessingStructureCommand): unknown | Promise<unknown>;
   executeRasterInvert?(documentId: DocumentSessionId, command: SemanticRasterInvertCommand): unknown | Promise<unknown>;
   executeLayerRasterize?(documentId: DocumentSessionId, command: SemanticLayerRasterizeCommand): unknown | Promise<unknown>;
   executeTextToShape?(documentId: DocumentSessionId, command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;
@@ -422,6 +424,7 @@ export interface DocumentLightTableCommandPorts {
   executeFixedTransform?(command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   executeAdjustmentSnapshot?(command: SemanticAdjustmentSnapshotCommand): unknown | Promise<unknown>;
+  executeProcessingStructure?(command: SemanticProcessingStructureCommand): unknown | Promise<unknown>;
   executeRasterInvert?(command: SemanticRasterInvertCommand): unknown | Promise<unknown>;
   executeLayerRasterize?(command: SemanticLayerRasterizeCommand): unknown | Promise<unknown>;
   executeTextToShape?(command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;

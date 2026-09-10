@@ -120,7 +120,7 @@ but cannot inherit another item's acceptance.
 | C09 | Adjustment layers and attached adjustments | accepted | [x] | [x] | [x] | [x] |
 | C10 | Layer styles/effects and filter lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | accepted | [x] | [x] | [x] | [x] |
-| C12 | Shared history, command routing, Actions and MCP equivalence | queued | [ ] | [ ] | [ ] | [ ] |
+| C12 | Shared history, command routing, Actions and MCP equivalence | accepted | [x] | [x] | [x] | [ ] C14 |
 | C13 | WebGPU/render projection, device loss and resource lifetime | queued | [ ] | [ ] | [ ] | [ ] |
 | C14 | Integration-root decomposition, docs purge and final proof | queued | [ ] | [ ] | [ ] | [ ] |
 
@@ -533,6 +533,42 @@ but cannot inherit another item's acceptance.
    canonical UI-kit classes; diagnostic workspace state proves documents remain
    canonical while the harness resolves presentation controls.
 7. **Next** -- C12 Shared history, command routing, Actions and MCP equivalence.
+
+## C12 acceptance record -- 2026-09-11
+
+1. **Done** -- static menu coverage now has 120 actions and zero semantic gaps.
+   Layer creation/grouping/reorder, opacity, vector antialiasing, processing
+   structure and transparency selection cross the public command service.
+   UI, recorded Actions and MCP resolve the same validated command/result
+   contracts; generated layer identities, including `groupId`, remain bindable
+   by later Action steps.
+2. **History and lifecycle** -- visibility and opacity gestures retain one
+   admitted document identity through preview and terminal observation. A
+   document switch or unmount cancels the exact gesture. Processing structure
+   changes settle mounted adjustment/layer transactions before mutation;
+   repeated no-ops complete with `changed: false` and create no revision or
+   history entry. Standalone create/open/duplicate waits for the exact active
+   renderer owner instead of racing document readiness.
+3. **Truthful limits** -- Object Selection remains a canonical-owner-only tool
+   because no stable model/result recipe exists. Face Warp retains a semantic
+   command but stays deliberately excluded from external MCP. These two
+   withheld tool surfaces cannot masquerade as complete automation coverage.
+4. **Proof** -- workspace typecheck, command-contract validation, boundary
+   verification, full workspace tests and web build passed. The app suite has
+   596 files / 3,781 tests. A fresh instrumented desktop package passed command
+   driver, Actions/History, saved Actions, async Actions, UI/Actions/MCP route
+   equivalence and document-capability equivalence smokes. The in-app browser
+   launcher did not retain a newly created WebGPU document and is therefore not
+   counted as runtime proof; packaged Electron is the accepted renderer host.
+5. **Critic** -- reviews rejected nested generated-ID detection, missing group
+   result identity, ambiguous gesture admission, raw processing/transparency
+   delegates, stale processing-owner settlement and dishonest no-op history.
+   All were repaired. Final independent verdict: **ACCEPT**, no C12 P0/P1.
+6. **Hotspot** -- the explicit mounted command adapter made ownership visible
+   but did not reduce `LightTableEditorOverlay.tsx`; its decomposition remains
+   deliberately unchecked and mandatory in C14 rather than being hidden by an
+   optimistic C12 checkbox.
+7. **Next** -- C13 WebGPU/render projection, device loss and resource lifetime.
 
 ## Slice-specific acceptance
 

@@ -4,18 +4,25 @@ import type { DocumentSession } from '../documents/documentSession';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
 import {
   createRasterLayer,
+  createGradientFillLayer,
+  createGroupLayer,
   deleteLayers,
+  groupLayers,
   moveLayer,
+  moveLayerSelection,
   removeLayerMask,
   renameLayer,
   setLayerBlendMode,
   setLayerClipping,
   setLayerFillOpacity,
+  setLayerOpacity,
   setLayerMaskEnabled,
   setLayerMaskLinked,
   setLayersLock,
   setLayersVisibility,
-  setLayerTransform
+  setLayerTransform,
+  setVectorLayerAntiAlias,
+  ungroupLayers
 } from '../../editor/document/documentCommands';
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { createDocumentHistoryController } from './useDocumentHistoryController';
@@ -26,6 +33,7 @@ import { executeSvgImport, exportSvgDocument } from '../vectors/svgDocumentCodec
 import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCommandExecutor';
 import { executeSemanticLayerStyleSnapshot } from '../styles/executeSemanticLayerStyleSnapshot';
 import { executeSemanticFilterSnapshot } from '../filters/executeSemanticFilterSnapshot';
+import { executeSemanticProcessingStructure } from '../adjustments/executeSemanticProcessingStructure';
 import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import { executeSemanticWarpStrokeCommand } from './semanticWarpCommandExecutor';
 import { executeSemanticFaceWarpCommand } from '../effects/faceWarp/semanticFaceWarpCommandExecutor';
@@ -48,15 +56,19 @@ const CANONICAL_PORTS = new Set<string>([
   'executeTextCommand', 'executeVectorCommand', 'executeSvgImport',
   'executeWarpStrokeCommand', 'executeLayerStyleCommand', 'executeFaceWarpCommand',
   'executeLayerStyleSnapshot', 'executeFilterSnapshot',
+  'executeProcessingStructure',
   'executeLayerCommand', 'executeAtomicBatch', 'exportSvgArtifact'
 ]);
 
 const CANONICAL_COMMANDS = new Set<LightTableCommandId>([
-  'view.setZoom', 'layer.createRaster', 'layer.delete', 'layer.move',
+  'view.setZoom', 'layer.createRaster', 'layer.createGradientFill', 'layer.createGroup',
+  'layer.group', 'layer.ungroup', 'layer.reorder', 'layer.delete', 'layer.move',
+  'layer.setOpacity', 'layer.setVectorAntiAlias',
   'layer.setBlendMode', 'layer.setClipping', 'layer.setTransform', 'layer.setLock',
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity',
   'layer.style.setEnabled', 'layer.style.update', 'layer.effect.setEnabled',
   'layer.style.setSnapshot', 'filter.setSnapshot',
+  'adjustment.modifyStructure',
   'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
   'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove', 'vector.importSvg',
@@ -163,6 +175,9 @@ export const createDocumentSessionCommandPorts = (
     executeFilterSnapshot: (command) => executeSemanticFilterSnapshot(command, {
       changeDocument: mutation.change
     }),
+    executeProcessingStructure: (command) => executeSemanticProcessingStructure(command, {
+      changeDocument: mutation.change
+    }),
     executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(
       command, {
         getDocument: semanticDependencies.getDocument,
@@ -186,6 +201,14 @@ export const createDocumentSessionCommandPorts = (
         if (index < 0 || target < 0 || target >= siblings.length) return null;
         change((current) => moveLayer(current, command.layerId, target));
         return { layerId: command.layerId, direction: command.direction };
+      }
+      if (command.kind === 'set-opacity') {
+        change((document) => setLayerOpacity(document, command.layerId, command.opacity));
+        return { layerId: command.layerId, opacity: command.opacity };
+      }
+      if (command.kind === 'set-vector-anti-alias') {
+        change((document) => setVectorLayerAntiAlias(document, command.layerId, command.antiAlias));
+        return { layerId: command.layerId, antiAlias: command.antiAlias };
       }
       if (command.kind === 'set-blend-mode') {
         change((document) => setLayerBlendMode(document, command.layerId, command.blendMode));
@@ -215,6 +238,36 @@ export const createDocumentSessionCommandPorts = (
         return { layerId: command.layerId, operation: command.operation,
           ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
           ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
+      }
+      if (command.kind === 'reorder') {
+        change((document) => moveLayerSelection(
+          document, [...command.layerIds], command.targetLayerId, command.placement
+        ));
+        return command;
+      }
+      if (command.kind === 'create-gradient-fill') {
+        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
+        change((document) => createGradientFillLayer(document));
+        const layerId = session.getSnapshot().document?.activeLayerId;
+        return layerId && layerId !== beforeLayerId ? { layerId } : null;
+      }
+      if (command.kind === 'create-group') {
+        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
+        change((document) => createGroupLayer(document));
+        const layerId = session.getSnapshot().document?.activeLayerId;
+        return layerId && layerId !== beforeLayerId ? { layerId } : null;
+      }
+      if (command.kind === 'group') {
+        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
+        change((document) => groupLayers(document, [...command.layerIds]));
+        const groupId = session.getSnapshot().document?.activeLayerId;
+        return groupId && groupId !== beforeLayerId
+          ? { layerIds: command.layerIds, groupId }
+          : null;
+      }
+      if (command.kind === 'ungroup') {
+        change((document) => ungroupLayers(document, [...command.layerIds]));
+        return { layerIds: command.layerIds };
       }
       change((document) => setLayersLock(
         document, [...command.layerIds], command.lock, command.locked

@@ -72,6 +72,7 @@ import { executeUiPlaceArtifact } from '../lighttable/application/documents/exec
 import { discardDocumentRecovery } from './discardDocumentRecovery';
 import { DocumentRecoveryTransitionGate } from './DocumentRecoveryTransitionGate';
 import { prepareWorkspaceApplicationClose } from './prepareWorkspaceApplicationClose';
+import { waitForActiveDocumentRenderer } from './waitForActiveDocumentRenderer';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -343,11 +344,29 @@ export function LightTableStandaloneApp({
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
       openArtifact: async (file) => {
+        const rendererGeneration = applicationRendererLifecycle.getSnapshot().generation;
         const opened = await openWorkspaceFileSafely(file);
         if (!opened.ok) throw new Error(`The artifact could not be opened: ${opened.error.code}.`);
+        const imageSession = controller.getDocument(opened.value.id as DocumentSessionId);
+        if (imageSession) {
+          try {
+            await waitForReadyDocument(imageSession);
+          } catch (reason) {
+            await discardFailedWorkspaceOpen(imageSession.id);
+            throw reason;
+          }
+          await waitForActiveDocumentRenderer({
+            lifecycle: applicationRendererLifecycle,
+            activeDocumentId: () => controller.workspace.getSnapshot().activeDocumentId,
+            subscribeActiveDocument: controller.workspace.subscribe,
+            documentId: imageSession.id,
+            afterGeneration: rendererGeneration
+          });
+        }
         return opened.value.id as DocumentSessionId;
       },
       createDocument: async (options) => {
+        const rendererGeneration = applicationRendererLifecycle.getSnapshot().generation;
         const file = await createBlankPngFile({
           width: options.width,
           height: options.height,
@@ -374,6 +393,13 @@ export function LightTableStandaloneApp({
           await discardFailedWorkspaceOpen(opened.value.id);
           throw reason;
         }
+        await waitForActiveDocumentRenderer({
+          lifecycle: applicationRendererLifecycle,
+          activeDocumentId: () => controller.workspace.getSnapshot().activeDocumentId,
+          subscribeActiveDocument: controller.workspace.subscribe,
+          documentId: opened.value.id,
+          afterGeneration: rendererGeneration
+        });
         return opened.value.id;
       },
       duplicateDocument: async (documentId, name) => {
@@ -383,6 +409,7 @@ export function LightTableStandaloneApp({
         }
         const captured = await commandPorts.exportNativeArtifact(documentId);
         const artifact = await duplicateLayeredDocumentArtifact(captured, name);
+        const rendererGeneration = applicationRendererLifecycle.getSnapshot().generation;
         const opened = await recoveryTransitions.runTransition(() => {
           const result = openDuplicatedDocument(artifact, name);
           if (result.ok) {
@@ -398,10 +425,18 @@ export function LightTableStandaloneApp({
           await discardFailedWorkspaceOpen(opened.value.id);
           throw reason;
         }
+        await waitForActiveDocumentRenderer({
+          lifecycle: applicationRendererLifecycle,
+          activeDocumentId: () => controller.workspace.getSnapshot().activeDocumentId,
+          subscribeActiveDocument: controller.workspace.subscribe,
+          documentId: opened.value.id,
+          afterGeneration: rendererGeneration
+        });
         return opened.value.id;
       }
     }, undefined, host.actionLibrary),
-    [commandPorts, controller, discardFailedWorkspaceOpen, openDocument, openDuplicatedDocument, openWorkspaceFileSafely, recoveryTransitions]
+    [applicationRendererLifecycle, commandPorts, controller, discardFailedWorkspaceOpen,
+      openDocument, openDuplicatedDocument, openWorkspaceFileSafely, recoveryTransitions]
   );
   useEffect(() => {
     commandService.setTypedWorkspaceProjection({

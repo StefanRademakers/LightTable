@@ -59,6 +59,7 @@ export const projectCommandCapabilities = (
       && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
     availability('adjustment.create', supports('executeAdjustmentCreation', ports.executeAdjustmentCreation), 'Adjustment creation is unavailable in this host.'),
     availability('adjustment.setSnapshot', supports('executeAdjustmentSnapshot', ports.executeAdjustmentSnapshot), 'Adjustment editing is unavailable in this host.'),
+    availability('adjustment.modifyStructure', supports('executeProcessingStructure', ports.executeProcessingStructure), 'Processing structure editing is unavailable in this host.'),
     availability('filter.setSnapshot', supports('executeFilterSnapshot', ports.executeFilterSnapshot), 'Filter editing is unavailable in this host.'),
     availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
     availability('layer.removeBackground', supports('executeBackgroundRemoval', ports.executeBackgroundRemoval), 'Remove Background is unavailable in this host.'),

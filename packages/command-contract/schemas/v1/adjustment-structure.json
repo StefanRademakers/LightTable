@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lighttable.local/schemas/commands/v1/adjustment-structure.json",
+  "schemaVersion": 1,
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "localTarget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "owner"],
+      "properties": {
+        "kind": { "const": "local" }, "layerId": { "$ref": "#/$defs/id" },
+        "owner": { "type": "string", "enum": ["grade", "curves", "lens-fx"] }
+      }
+    },
+    "attachedTarget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId", "adjustmentId"],
+      "properties": {
+        "kind": { "const": "attached" }, "layerId": { "$ref": "#/$defs/id" },
+        "adjustmentId": { "$ref": "#/$defs/id" }
+      }
+    },
+    "layerTarget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "layerId"],
+      "properties": { "kind": { "const": "layer" }, "layerId": { "$ref": "#/$defs/id" } }
+    },
+    "command": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "target"],
+      "properties": {
+        "operation": { "type": "string", "enum": ["set-enabled", "remove", "set-grade-group-enabled"] },
+        "target": { "oneOf": [
+          { "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" },
+          { "$ref": "#/$defs/layerTarget" }
+        ] },
+        "enabled": { "type": "boolean" },
+        "group": { "type": "string", "enum": [
+          "light", "color", "colorMixer", "colorGrading", "blackWhiteMix",
+          "look", "curves", "effects", "detail"
+        ] }
+      },
+      "oneOf": [
+        { "type": "object", "properties": { "operation": { "const": "set-enabled" },
+            "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+          "required": ["enabled"], "not": { "type": "object", "required": ["group"] } },
+        { "type": "object", "properties": { "operation": { "const": "remove" },
+            "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+          "not": { "type": "object", "anyOf": [
+            { "type": "object", "required": ["enabled"] },
+            { "type": "object", "required": ["group"] }
+          ] } },
+        { "type": "object", "properties": { "operation": { "const": "set-grade-group-enabled" },
+            "target": { "oneOf": [{ "$ref": "#/$defs/layerTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+          "required": ["enabled", "group"] }
+      ]
+    }
+  },
+  "commands": {
+    "adjustment.modifyStructure": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation", "target"],
+        "properties": {
+          "operation": { "type": "string", "enum": ["set-enabled", "remove", "set-grade-group-enabled"] },
+          "target": { "oneOf": [
+            { "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" },
+            { "$ref": "#/$defs/layerTarget" }
+          ] },
+          "enabled": { "type": "boolean" },
+          "group": { "type": "string", "enum": [
+            "light", "color", "colorMixer", "colorGrading", "blackWhiteMix",
+            "look", "curves", "effects", "detail"
+          ] }
+        },
+        "oneOf": [
+          { "type": "object", "properties": { "operation": { "const": "set-enabled" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "required": ["enabled"], "not": { "type": "object", "required": ["group"] } },
+          { "type": "object", "properties": { "operation": { "const": "remove" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["group"] }
+            ] } },
+          { "type": "object", "properties": { "operation": { "const": "set-grade-group-enabled" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/layerTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "required": ["enabled", "group"] }
+        ]
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation", "target", "changed"],
+        "properties": {
+          "operation": { "type": "string", "enum": ["set-enabled", "remove", "set-grade-group-enabled"] },
+          "target": { "oneOf": [
+            { "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" },
+            { "$ref": "#/$defs/layerTarget" }
+          ] },
+          "enabled": { "type": "boolean" },
+          "changed": { "type": "boolean" },
+          "group": { "type": "string", "enum": [
+            "light", "color", "colorMixer", "colorGrading", "blackWhiteMix",
+            "look", "curves", "effects", "detail"
+          ] }
+        },
+        "oneOf": [
+          { "type": "object", "properties": { "operation": { "const": "set-enabled" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "required": ["enabled"], "not": { "type": "object", "required": ["group"] } },
+          { "type": "object", "properties": { "operation": { "const": "remove" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/localTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["group"] }
+            ] } },
+          { "type": "object", "properties": { "operation": { "const": "set-grade-group-enabled" },
+              "target": { "oneOf": [{ "$ref": "#/$defs/layerTarget" }, { "$ref": "#/$defs/attachedTarget" }] } },
+            "required": ["enabled", "group"] }
+        ]
+      }
+    }
+  }
+}

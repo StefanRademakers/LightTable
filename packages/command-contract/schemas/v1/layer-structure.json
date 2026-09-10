@@ -149,6 +149,102 @@
           "clipping": { "type": "boolean" }
         }
       }
+    },
+    "layer.createGradientFill": {
+      "input": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": { "layerId": { "type": "string", "minLength": 1, "maxLength": 256 } }
+      }
+    },
+    "layer.createGroup": {
+      "input": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": { "layerId": { "type": "string", "minLength": 1, "maxLength": 256 } }
+      }
+    },
+    "layer.group": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerIds"],
+        "properties": { "layerIds": { "type": "array", "minItems": 1, "maxItems": 256,
+          "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 256 } } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerIds", "groupId"],
+        "properties": {
+          "layerIds": { "type": "array", "minItems": 1, "maxItems": 256,
+            "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 256 } },
+          "groupId": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      }
+    },
+    "layer.ungroup": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerIds"],
+        "properties": { "layerIds": { "type": "array", "minItems": 1, "maxItems": 256,
+          "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 256 } } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerIds"],
+        "properties": { "layerIds": { "type": "array", "minItems": 1, "maxItems": 256,
+          "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 256 } } }
+      }
+    },
+    "layer.reorder": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerIds", "targetLayerId", "placement"],
+        "properties": {
+          "layerIds": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 } },
+          "targetLayerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "placement": { "type": "string", "enum": ["above", "below", "inside"] }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "layerIds", "targetLayerId", "placement"],
+        "properties": {
+          "kind": { "const": "reorder" },
+          "layerIds": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 } },
+          "targetLayerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "placement": { "type": "string", "enum": ["above", "below", "inside"] }
+        }
+      }
+    },
+    "layer.setOpacity": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerId", "opacity"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId", "opacity"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "layer.setVectorAntiAlias": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerId", "antiAlias"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "antiAlias": { "type": "boolean" }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId", "antiAlias"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "antiAlias": { "type": "boolean" }
+        }
+      }
     }
   }
 }

@@ -95,13 +95,13 @@ export const CanvasSizeDialog = ({ open, document, busy = false, onCancel, onCom
       linkLabel={linked ? 'Unlink width and height' : 'Link width and height'}
       linkIcon={<MaskIcon src={lightTableIcon('link_vertical.png')} mode="luminance" />}
       firstField={<span className="canvas-size-dialog__field-pair">
-        <NumberField tabIndex={0} value={widthValue} kind={widthUnit === 'pixels' ? 'integer' : 'float'} step={1}
+        <NumberField tabIndex={0} aria-label={relative ? 'Width change' : 'Width'} value={widthValue} kind={widthUnit === 'pixels' ? 'integer' : 'float'} step={1}
           formatValue={(value) => displayedNumber(value, widthUnit)} onValueChange={(value) => changeDimension('width', value)} />
         <Select tabIndex={0} aria-label="Width unit" value={widthUnit}
           onValueChange={(value) => setWidthUnit(value as ImageSizeUnit)} options={SIZE_UNITS} />
       </span>}
       secondField={<span className="canvas-size-dialog__field-pair">
-        <NumberField tabIndex={0} value={heightValue} kind={heightUnit === 'pixels' ? 'integer' : 'float'} step={1}
+        <NumberField tabIndex={0} aria-label={relative ? 'Height change' : 'Height'} value={heightValue} kind={heightUnit === 'pixels' ? 'integer' : 'float'} step={1}
           formatValue={(value) => displayedNumber(value, heightUnit)} onValueChange={(value) => changeDimension('height', value)} />
         <Select tabIndex={0} aria-label="Height unit" value={heightUnit}
           onValueChange={(value) => setHeightUnit(value as ImageSizeUnit)} options={SIZE_UNITS} />

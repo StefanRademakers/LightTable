@@ -106,7 +106,7 @@ export interface LayerPanelController {
   toggleSoloVisibility(layerId: LayerId): void;
   setOtherLayersVisibility(layerId: LayerId, visible: boolean): void;
   setAllLayersVisibility(visible: boolean): void;
-  beginVisibilityInteraction(): void;
+  beginVisibilityInteraction(): boolean;
   previewVisibility(layerIds: LayerId[], visible: boolean): void;
   endVisibilityInteraction(): void;
   cancelVisibilityInteraction(): void;
@@ -114,7 +114,7 @@ export interface LayerPanelController {
   setOpacity(layerId: LayerId, opacity: number): void;
   setVectorAntiAlias(layerId: LayerId, antiAlias: boolean): void;
   setFillOpacity(layerId: LayerId, opacity: number): void;
-  beginOpacityInteraction(): void;
+  beginOpacityInteraction(): boolean;
   endOpacityInteraction(): void;
   cancelOpacityInteraction(): void;
   setBlendMode(layerId: LayerId, blendMode: BlendMode): void;
@@ -277,6 +277,7 @@ export const createLayerPanelController = (
     beginVisibilityInteraction: () => {
       soloVisibility = null;
       visibilityInteractionActive = resolveDependencies().beginDocumentTransaction();
+      return visibilityInteractionActive;
     },
     previewVisibility: (layerIds, visible) =>
       mutate((current) => setLayersVisibility(current, layerIds, visible)),
@@ -300,6 +301,7 @@ export const createLayerPanelController = (
       mutate((current) => setLayerFillOpacity(current, layerId, opacity)),
     beginOpacityInteraction: () => {
       opacityInteractionActive = resolveDependencies().beginDocumentTransaction();
+      return opacityInteractionActive;
     },
     endOpacityInteraction: () => {
       if (!opacityInteractionActive) return;

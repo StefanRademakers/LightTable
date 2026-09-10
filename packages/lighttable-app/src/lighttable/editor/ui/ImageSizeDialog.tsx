@@ -117,7 +117,7 @@ export const ImageSizeDialog = ({
       linkIcon={<MaskIcon src={lightTableIcon('link_vertical.png')} mode="luminance" />}
       onLinkedChange={setLinked}
       firstField={<span className="image-size-dialog__field-pair">
-        <NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
+        <NumberField tabIndex={0} aria-label="Width" min={0.001} step={1} disabled={!resample}
           kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
           formatValue={(value) => displayedNumber(value, widthUnit)}
           onValueChange={(value) => changeDimension('width', value)} />
@@ -127,7 +127,7 @@ export const ImageSizeDialog = ({
         </Select>
       </span>}
       secondField={<span className="image-size-dialog__field-pair">
-        <NumberField tabIndex={0} min={0.001} step={1} disabled={!resample}
+        <NumberField tabIndex={0} aria-label="Height" min={0.001} step={1} disabled={!resample}
           kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
           formatValue={(value) => displayedNumber(value, heightUnit)}
           onValueChange={(value) => changeDimension('height', value)} />

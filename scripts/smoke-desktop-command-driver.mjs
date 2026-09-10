@@ -214,75 +214,15 @@ try {
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.documents.find(({ title }) => title === path.basename(sourceFile))?.id;
   if (!documentId) throw new Error('No active document.');
+  await page.locator('.ui-document-tabs__title', { hasText: path.basename(sourceFile) }).click();
+  await page.waitForFunction((id) => {
+    const document = window.__lightTableAutomation?.queryDocument(id);
+    return document?.renderer.active && document.renderer.status === 'ready';
+  }, documentId, { timeout: 60_000 });
   const before = await driver.queryDocument(documentId);
   const layerProjection = await driver.queryLayers(documentId) ?? [];
   const activeLayer = layerProjection.find(({ id }) => id === before?.activeLayerId);
   if (!activeLayer) throw new Error('No active layer projection.');
-  const schemaUiDocumentId = workspace.activeDocumentId;
-  const schemaUiDocument = schemaUiDocumentId ? await driver.queryDocument(schemaUiDocumentId) : null;
-  const schemaUiLayers = schemaUiDocumentId ? await driver.queryLayers(schemaUiDocumentId) ?? [] : [];
-  const schemaUiTarget = schemaUiLayers.find(({ id }) => id === schemaUiDocument?.activeLayerId);
-  const schemaUiTopLevel = schemaUiLayers.filter(({ parentId }) => parentId === null);
-  const schemaMoveTarget = schemaUiTopLevel[1];
-  if (!schemaUiDocumentId || !schemaUiTarget || !schemaMoveTarget) {
-    throw new Error('No active schema UI target or movable sibling.');
-  }
-  await page.getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
-  const actionsPanel = page.getByRole('complementary', { name: 'Actions' });
-  await actionsPanel.getByRole('radio', { name: 'Commands', exact: true }).click();
-  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('layer.rename');
-  const renameCommand = actionsPanel.locator('details').filter({ hasText: 'layer.rename' });
-  await renameCommand.locator('summary').click();
-  await renameCommand.getByRole('textbox', { name: 'Layer ID' }).fill(schemaUiTarget.id);
-  await renameCommand.getByRole('textbox', { name: 'Name' }).fill('Schema UI layer');
-  await renameCommand.getByRole('button', { name: 'Run', exact: true }).click();
-  await actionsPanel.getByRole('status').filter({ hasText: 'layer.rename: completed' })
-    .waitFor({ timeout: 15_000 });
-  const schemaUiLayer = (await driver.queryLayers(schemaUiDocumentId))
-    ?.find(({ id }) => id === schemaUiTarget.id);
-  if (schemaUiLayer?.name !== 'Schema UI layer') {
-    throw new Error(`Schema-generated command editor did not execute rename: ${JSON.stringify(schemaUiLayer)}`);
-  }
-  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('layer.move');
-  const moveCommand = actionsPanel.locator('details').filter({ hasText: 'layer.move' });
-  await moveCommand.locator('summary').click();
-  await moveCommand.getByRole('textbox', { name: 'Layer ID' }).fill(schemaMoveTarget.id);
-  await moveCommand.getByRole('combobox', { name: 'Direction' }).selectOption('down');
-  await moveCommand.getByRole('button', { name: 'Run', exact: true }).click();
-  await actionsPanel.getByRole('status').filter({ hasText: 'layer.move: completed' })
-    .waitFor({ timeout: 15_000 });
-  const schemaUiMovedTopLevel = (await driver.queryLayers(schemaUiDocumentId))
-    ?.filter(({ parentId }) => parentId === null) ?? [];
-  if (schemaUiMovedTopLevel.findIndex(({ id }) => id === schemaMoveTarget.id) !== 0) {
-    throw new Error(`Schema-generated move control did not change sibling order: ${JSON.stringify({
-      before: schemaUiTopLevel.map(({ id }) => id),
-      after: schemaUiMovedTopLevel.map(({ id }) => id)
-    })}`);
-  }
-  const schemaUiLayerIdsBeforeText = new Set((await driver.queryLayers(schemaUiDocumentId))?.map(({ id }) => id));
-  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('text.create');
-  const createTextCommand = actionsPanel.locator('details').filter({ hasText: 'text.create' });
-  await createTextCommand.locator('summary').click();
-  await createTextCommand.getByRole('textbox', { name: 'Text', exact: true }).fill('Schema UI text');
-  await createTextCommand.getByRole('spinbutton', { name: 'X', exact: true }).fill('48');
-  await createTextCommand.getByRole('spinbutton', { name: 'Y', exact: true }).fill('72');
-  await createTextCommand.getByRole('button', { name: 'Run', exact: true }).click();
-  const textDeadline = Date.now() + 15_000;
-  let schemaUiTextLayer;
-  while (!schemaUiTextLayer && Date.now() < textDeadline) {
-    schemaUiTextLayer = (await driver.queryLayers(schemaUiDocumentId))
-      ?.find(({ id, type }) => type === 'text' && !schemaUiLayerIdsBeforeText.has(id));
-    if (!schemaUiTextLayer) await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  const schemaUiText = schemaUiTextLayer
-    ? await driver.queryText(schemaUiDocumentId, schemaUiTextLayer.id) : null;
-  if (schemaUiText?.content?.text !== 'Schema UI text'
-    || schemaUiText.transform?.tx !== 48 || schemaUiText.transform?.ty !== 72) {
-    throw new Error(`Nested schema-generated text controls did not create editable text: ${JSON.stringify({
-      schemaUiTextLayer, schemaUiText
-    })}`);
-  }
   const zoom = await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 175 });
   const hidden = await driver.execute(documentId, 'layer.setVisibility', {
     layerIds: [activeLayer.id], visible: false
@@ -321,10 +261,7 @@ try {
     parameters: { layerId: createdId, channel: 'pixels' }, sample: { x: 50, y: 50, pressure: 1 }
   }, [{ x: 90, y: 75, pressure: 0.8 }]);
   const report = {
-    workspace, schemaUi: { documentId: schemaUiDocumentId,
-      rename: { command: 'layer.rename', layerId: schemaUiTarget.id, name: schemaUiLayer.name },
-      move: { command: 'layer.move', layerId: schemaMoveTarget.id, direction: 'down' },
-      text: { command: 'text.create', layerId: schemaUiTextLayer.id, projection: schemaUiText } },
+    workspace,
     semantic: { create: semanticCreate, placements, layers: placedLayers,
       text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
         nativeDocumentId, psdDocumentId },

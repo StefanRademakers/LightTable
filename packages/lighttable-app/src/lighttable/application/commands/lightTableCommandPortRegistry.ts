@@ -5,6 +5,7 @@ import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandCont
 import type { AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { SemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
+import type { SemanticProcessingStructureCommand } from './semanticProcessingStructureCommandContract';
 import type { SemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
@@ -33,7 +34,11 @@ import type {
 } from './lightTableCommandContract';
 import { mountedDocumentCommandPort } from './lightTableCommandOwnership';
 
-/** Resolves transport-neutral commands to the mounted owner of one document. */
+/**
+ * Selects exactly one command owner per document: its mounted presentation
+ * owner while active, otherwise its document-lifetime canonical owner. Ports
+ * are never composed across those owners.
+ */
 export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   private readonly documents = new Map<DocumentSessionId, DocumentLightTableCommandPorts>();
 
@@ -201,6 +206,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     command: SemanticAdjustmentSnapshotCommand) {
     const execute = this.resolve(documentId).executeAdjustmentSnapshot;
     if (!execute) throw new Error('Adjustment snapshot commands are unavailable in the target document.');
+    return execute(command);
+  }
+  executeProcessingStructure(documentId: DocumentSessionId, command: SemanticProcessingStructureCommand) {
+    const execute = this.resolve(documentId).executeProcessingStructure;
+    if (!execute) throw new Error('Processing structure commands are unavailable in the target document.');
     return execute(command);
   }
   executeRasterInvert(documentId: DocumentSessionId,

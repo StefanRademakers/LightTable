@@ -80,7 +80,7 @@
     { "id": "rasterize-text", "classification": "command", "command": "text.rasterize" },
     { "id": "remove-background", "classification": "command", "command": "layer.removeBackground" },
     { "id": "remove-mask", "classification": "command", "command": "layer.setMask" },
-    { "id": "remove-object", "classification": "gap", "reason": "No semantic object-removal command exists." },
+      { "id": "remove-object", "classification": "host", "reason": "Exports document and selection artifacts into the external GenAI project workflow; it does not mutate the open document. A returned artifact is admitted separately through layer.placeArtifact." },
     { "id": "reload-ui", "classification": "host", "reason": "Reloads the development renderer host without mutating a document." },
     { "id": "rename-layer", "classification": "command", "command": "layer.rename" },
     { "id": "reset-workspace-layout", "classification": "presentation", "reason": "Resets local panel layout." },

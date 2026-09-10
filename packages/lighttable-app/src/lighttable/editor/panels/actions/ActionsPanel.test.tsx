@@ -33,6 +33,7 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('aria-label="Action Sets"');
     expect(markup).toContain('Default Set');
     expect(markup).toContain('aria-label="Record"');
+    expect(markup).toContain('aria-label="Clear"');
     expect(markup).toContain('aria-label="New Action Set"');
     expect(markup).toContain('aria-label="New Action"');
     expect(markup).not.toContain('Search commands');

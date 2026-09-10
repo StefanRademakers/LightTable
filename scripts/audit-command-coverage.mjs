@@ -222,6 +222,9 @@ for (const entry of [...mapping.actions, ...mapping.dynamicActions]) {
   groups.set(entry.classification, entries);
 }
 const gapEntries = groups.get('gap') ?? [];
+if (gapEntries.length > 0) {
+  throw new Error(`Unresolved semantic command gaps: ${gapEntries.map(({ id, expression }) => id ?? expression).join(', ')}.`);
+}
 const ownerCount = groups.get('command-owner')?.length ?? 0;
 const rows = mapping.actions.map((entry) => {
   const target = commandClassifications.has(entry.classification) ? `\`${entry.command}\`` : entry.reason;

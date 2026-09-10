@@ -420,6 +420,9 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
           || !actionHierarchyEnabled
           || !recording.steps.some((step) => step.replayable && step.enabled !== false)}><img
           src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></ButtonBase>
+      <ButtonBase type="button" aria-label="Clear" onClick={props.onClear}
+        disabled={busy || recording.status === 'recording' || recording.steps.length === 0}><img
+          src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
       <span className="lighttable-action-recorder__footer-spacer" />
       <ButtonBase type="button" aria-label="New Action Set"
         disabled={treeLocked}

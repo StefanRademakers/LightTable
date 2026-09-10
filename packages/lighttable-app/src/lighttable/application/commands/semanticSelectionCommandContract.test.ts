@@ -70,4 +70,18 @@ describe('semantic selection command contract', () => {
     expect(parseSemanticSelectionCommand({ ...command, tolerance: 256 })).toHaveProperty('message');
     expect(parseSemanticSelectionCommand({ ...command, contiguous: false })).toHaveProperty('message');
   });
+
+  it('parses layer transparency as an explicitly targeted selection operation', () => {
+    expect(parseSemanticSelectionCommand({
+      kind: 'modify', operation: 'load-transparency', layerId: 'layer-photo'
+    })).toEqual({
+      kind: 'modify', operation: 'load-transparency', layerId: 'layer-photo'
+    });
+    expect(parseSemanticSelectionCommand({
+      kind: 'modify', operation: 'load-transparency', layerId: ''
+    })).toHaveProperty('message');
+    expect(parseSemanticSelectionCommand({
+      kind: 'modify', operation: 'load-transparency', layerId: 'layer-photo', channel: 'alpha'
+    })).toHaveProperty('message');
+  });
 });

@@ -49,7 +49,7 @@ try {
   const smokeSet = panel.getByText('Smoke Set', { exact: true });
   await smokeSet.waitFor();
   const selectedSet = smokeSet.locator('..');
-  if (!(await selectedSet.evaluate((element) => element.classList.contains('lighttable-panel-stack-row--active')))) {
+  if (!(await selectedSet.evaluate((element) => element.dataset.active === 'true'))) {
     throw new Error('Clicking an Action Set did not make its row active.');
   }
   const emptySetEnabled = panel.getByRole('checkbox', { name: 'Enable Smoke Set' });
@@ -117,7 +117,7 @@ try {
   const layerSetup = panel.getByText('Layer setup', { exact: true });
   await layerSetup.click();
   if (!(await layerSetup.locator('..').evaluate((element) =>
-    element.classList.contains('lighttable-panel-stack-row--active')))) {
+    element.dataset.active === 'true'))) {
     throw new Error('Clicking an Action did not make its row active.');
   }
   await selectedSet.focus();
@@ -196,9 +196,9 @@ try {
       actionRadius: a.borderRadius, layerRadius: l.borderRadius,
       actionIcon: [actionIcon.backgroundColor, actionIcon.borderTopWidth],
       setIcon: [setIcon.backgroundColor, setIcon.borderTopWidth],
-      setColumns: columns(set, ['.lighttable-action-tree__enabled', '.lighttable-panel-stack-disclosure',
+      setColumns: columns(set, ['.lighttable-action-tree__enabled', '.ui-tree-disclosure',
         '.lighttable-layer__thumbnail-slot']),
-      actionColumns: columns(action, ['.lighttable-action-tree__enabled', '.lighttable-panel-stack-disclosure',
+      actionColumns: columns(action, ['.lighttable-action-tree__enabled', '.ui-tree-disclosure',
         '.lighttable-layer__thumbnail-slot']),
       stepColumns: columns(step, ['.lighttable-action-tree__enabled', ':scope > span:last-child']) };
   });

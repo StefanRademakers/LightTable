@@ -37,6 +37,7 @@ import { createDefaultGradientPaint, type GradientPaintInstance } from '@lightta
 import {
   ensureAdjustmentStackLocalProcessing,
   removeAdjustmentStackLocalProcessing,
+  adjustmentStackGradeGroupIsEnabled,
   setAdjustmentStackLocalProcessingEnabled,
   setAdjustmentStackGradeGroupEnabled,
   setAdjustmentStackOwnerEnabled,
@@ -660,6 +661,7 @@ export const setAdjustmentLayerStack = (
   adjustmentStack: AdjustmentStack
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'adjustment') return layer;
+  if (layer.adjustmentStack === adjustmentStack) return layer;
   return {
     ...layer,
     adjustmentStack: structuredClone(adjustmentStack),
@@ -674,6 +676,7 @@ export const setRasterLayerAdjustmentStack = (
   adjustmentStack: AdjustmentStack | null
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'raster') return layer;
+  if (layer.adjustmentStack === adjustmentStack) return layer;
   return {
     ...layer,
     adjustmentStack: adjustmentStack ? structuredClone(adjustmentStack) : null,
@@ -709,6 +712,7 @@ export const setRasterLayerAttachedAdjustmentStack = (
   let changed = false;
   const attachedAdjustments = (layer.attachedAdjustments ?? []).map((adjustment) => {
     if (adjustment.id !== adjustmentId) return adjustment;
+    if (adjustment.adjustmentStack === adjustmentStack) return adjustment;
     changed = true;
     return {
       ...adjustment,
@@ -736,6 +740,9 @@ export const setGradeOwnerGroupEnabled = (
   if (attached) {
     const layer = findRasterLayer(document, attached.layerId);
     const adjustment = layer?.attachedAdjustments?.find(({ id }) => id === attached.adjustmentId);
+    if (enabled && adjustmentStackGradeGroupIsEnabled(adjustment?.adjustmentStack, group)) {
+      return document;
+    }
     return adjustment
       ? setRasterLayerAttachedAdjustmentStack(
           document,
@@ -746,6 +753,10 @@ export const setGradeOwnerGroupEnabled = (
       : document;
   }
   const layer = findLayerNode(document.layers, ownerId)?.node;
+  if ((layer?.type === 'adjustment' || layer?.type === 'raster')
+    && enabled && adjustmentStackGradeGroupIsEnabled(layer.adjustmentStack, group)) {
+    return document;
+  }
   if (layer?.type === 'adjustment') {
     return setAdjustmentLayerStack(
       document,

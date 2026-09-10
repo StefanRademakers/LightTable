@@ -6,7 +6,8 @@ import {
 } from '@lighttable/command-contract';
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { moveLayer, renameLayer, setLayerBlendMode, setLayerClipping, setLayerFillOpacity,
-  setLayersLock, setLayersVisibility } from '../../editor/document/documentCommands';
+  setLayerOpacity, setLayersLock, setLayersVisibility,
+  setVectorLayerAntiAlias } from '../../editor/document/documentCommands';
 import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry';
 import type { TextToolSettings } from '../../editor/session/editorSession';
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
@@ -121,9 +122,12 @@ export const executeAtomicCommandBatch = async (
         }
       });
     } else if (operation.command === 'layer.move' || operation.command === 'layer.setBlendMode'
-      || operation.command === 'layer.setClipping' || operation.command === 'layer.setLock') {
+      || operation.command === 'layer.setClipping' || operation.command === 'layer.setLock'
+      || operation.command === 'layer.setOpacity' || operation.command === 'layer.setVectorAntiAlias') {
       const kinds = {
         'layer.move': 'move',
+        'layer.setOpacity': 'set-opacity',
+        'layer.setVectorAntiAlias': 'set-vector-anti-alias',
         'layer.setBlendMode': 'set-blend-mode',
         'layer.setClipping': 'set-clipping',
         'layer.setLock': 'set-lock'
@@ -133,7 +137,14 @@ export const executeAtomicCommandBatch = async (
       if (parsed.kind === 'duplicate' || parsed.kind === 'delete') {
         throw new Error(`${operation.operationId}: the layer command is not atomic-batch compatible.`);
       }
-      const targetIds = 'layerIds' in parsed ? parsed.layerIds : [parsed.layerId];
+      const targetIds = 'layerIds' in parsed
+        ? parsed.layerIds
+        : 'layerId' in parsed
+          ? [parsed.layerId]
+          : [];
+      if (!targetIds.length) {
+        throw new Error(`${operation.operationId}: the layer command has no target.`);
+      }
       if (targetIds.some((id) => !findDocumentLayer(current, id))) {
         throw new Error(`${operation.operationId}: the target layer does not exist.`);
       }
@@ -156,6 +167,15 @@ export const executeAtomicCommandBatch = async (
         }
         current = setLayerClipping(current, parsed.layerId, parsed.clipping);
         result = { layerId: parsed.layerId, clipping: parsed.clipping };
+      } else if (parsed.kind === 'set-opacity') {
+        current = setLayerOpacity(current, parsed.layerId, parsed.opacity);
+        result = { layerId: parsed.layerId, opacity: parsed.opacity };
+      } else if (parsed.kind === 'set-vector-anti-alias') {
+        if (findDocumentLayer(current, parsed.layerId)?.type !== 'vector') {
+          throw new Error(`${operation.operationId}: anti-alias requires a vector layer.`);
+        }
+        current = setVectorLayerAntiAlias(current, parsed.layerId, parsed.antiAlias);
+        result = { layerId: parsed.layerId, antiAlias: parsed.antiAlias };
       } else if (parsed.kind === 'set-lock') {
         current = setLayersLock(current, [...parsed.layerIds], parsed.lock, parsed.locked);
         result = { layerIds: parsed.layerIds, lock: parsed.lock, locked: parsed.locked };

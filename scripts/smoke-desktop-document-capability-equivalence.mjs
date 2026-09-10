@@ -110,8 +110,10 @@ try {
   const profileEvidence = await runAssignProfileRouteEquivalence({ page, driver, mcp, output });
 
   const uiDocumentId = await createDocument(mcp, driver, 'Geometry UI');
-  await page.getByRole('menuitem', { name: 'View' }).click();
-  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  if (!await page.getByRole('complementary', { name: 'Actions' }).count()) {
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
   let panel = page.getByRole('complementary', { name: 'Actions' });
   let recorder = panel.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
@@ -129,7 +131,8 @@ try {
     linkedHeight = Number(await height.inputValue());
   }
   assert.equal(linkedHeight, 240, 'Image Size did not preserve the linked aspect ratio.');
-  await imageSize.getByRole('combobox', { name: 'Resampling method' }).selectOption('bilinear');
+  await imageSize.getByRole('combobox', { name: 'Resampling method' }).click();
+  await page.getByRole('option', { name: 'Bilinear', exact: true }).click();
   await imageSize.getByRole('button', { name: 'OK' }).click();
   await waitForCanvas(driver, uiDocumentId, 320, 240, 1);
 
@@ -147,8 +150,10 @@ try {
   const recording = await driver.queryActionRecording();
   assert.deepEqual(recording.steps.map(({ command }) => command),
     ['document.resizeImage', 'document.applyGeometry']);
-  assert.deepEqual(recording.steps[0].result, { width: 320, height: 240, resolutionPpi: 72 });
-  assert.deepEqual(recording.steps[1].result, { operation: 'rotate', width: 240, height: 320 });
+  assert.deepEqual(recording.steps[0].result,
+    { changed: true, width: 320, height: 240, resolutionPpi: 72 });
+  assert.deepEqual(recording.steps[1].result,
+    { changed: true, operation: 'rotate', width: 240, height: 320 });
 
   const actionsDocumentId = await createDocument(mcp, driver, 'Geometry Actions');
   if (!await page.getByRole('complementary', { name: 'Actions' }).count()) {
@@ -169,7 +174,8 @@ try {
     parameters: { width: 320, height: 240, resolutionPpi: 72, resample: true,
       method: 'bilinear', preserveDetailsNoiseReduction: 0, scaleStyles: true }
   } }), 'MCP Image Size');
-  assert.deepEqual(resized.value, { width: 320, height: 240, resolutionPpi: 72 });
+  assert.deepEqual(resized.value,
+    { changed: true, width: 320, height: 240, resolutionPpi: 72 });
   mcpDocument = mcpResult(await mcp.callTool({ name: 'lighttable_document',
     arguments: { documentId: mcpDocumentId } }), 'MCP resized document');
   const rotated = mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
@@ -177,7 +183,8 @@ try {
     expectedDocumentRevision: mcpDocument.canonicalRevision,
     parameters: { operation: 'rotate', rotation: 'clockwise-90' }
   } }), 'MCP rotate');
-  assert.deepEqual(rotated.value, { operation: 'rotate', width: 240, height: 320 });
+  assert.deepEqual(rotated.value,
+    { changed: true, operation: 'rotate', width: 240, height: 320 });
   await waitForCanvas(driver, mcpDocumentId, 240, 320, 2);
 
   const states = {

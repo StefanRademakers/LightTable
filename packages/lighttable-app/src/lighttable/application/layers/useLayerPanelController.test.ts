@@ -438,6 +438,19 @@ describe('createLayerPanelController', () => {
     });
   });
 
+  it('admits gesture previews only when the document transaction is owned', () => {
+    const admitted = setup(createImageDocument('test', 100, 100, 'asset'));
+    expect(admitted.controller.beginVisibilityInteraction()).toBe(true);
+    admitted.controller.endVisibilityInteraction();
+    expect(admitted.dependencies.endDocumentTransaction).toHaveBeenCalledOnce();
+
+    const rejected = setup(createImageDocument('test', 100, 100, 'asset'));
+    vi.mocked(rejected.dependencies.beginDocumentTransaction).mockReturnValue(false);
+    expect(rejected.controller.beginOpacityInteraction()).toBe(false);
+    rejected.controller.endOpacityInteraction();
+    expect(rejected.dependencies.endDocumentTransaction).not.toHaveBeenCalled();
+  });
+
   it('returns structural layer operations to the pixel channel', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
 

@@ -77,6 +77,7 @@ test('versioned schemas describe and validate every completed command vertical',
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
     'adjustment.create',
     'adjustment.setSnapshot',
+    'adjustment.modifyStructure',
     'file.exportNative',
     'file.exportPng',
     'file.exportBitmap',
@@ -119,6 +120,13 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.delete',
     'layer.move',
     'layer.setClipping',
+    'layer.createGradientFill',
+    'layer.createGroup',
+    'layer.group',
+    'layer.ungroup',
+    'layer.reorder',
+    'layer.setOpacity',
+    'layer.setVectorAntiAlias',
     'layer.style.setSnapshot',
     'layer.rename',
     'layer.setVisibility',
@@ -321,6 +329,56 @@ test('shared result schemas accept the canonical layer result values', () => {
     assert.deepEqual(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command].result, value),
       { valid: true, issues: [] }, command);
   }
+});
+
+test('layer structure schemas preserve generated identity and exact appearance state', () => {
+  const group = LIGHTTABLE_COMMAND_SCHEMAS['layer.group'];
+  assert.equal(validateJsonSchemaValue(group.input, {
+    layerIds: ['photo', 'grade']
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(group.result, {
+    layerIds: ['photo', 'grade'], groupId: 'group-created'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(group.result, {
+    layerIds: ['photo', 'grade']
+  }).valid, false);
+
+  assert.equal(validateJsonSchemaValue(
+    LIGHTTABLE_COMMAND_SCHEMAS['layer.setOpacity'].input,
+    { layerId: 'photo', opacity: 0.5 }
+  ).valid, true);
+  assert.equal(validateJsonSchemaValue(
+    LIGHTTABLE_COMMAND_SCHEMAS['layer.setVectorAntiAlias'].input,
+    { layerId: 'shape', antiAlias: true }
+  ).valid, true);
+});
+
+test('processing structure schema distinguishes local, attached and grade-group operations', () => {
+  const schema = LIGHTTABLE_COMMAND_SCHEMAS['adjustment.modifyStructure'];
+  for (const value of [
+    { operation: 'set-enabled',
+      target: { kind: 'local', layerId: 'photo', owner: 'curves' }, enabled: false, changed: true },
+    { operation: 'remove',
+      target: { kind: 'attached', layerId: 'photo', adjustmentId: 'blur' }, changed: true },
+    { operation: 'set-grade-group-enabled',
+      target: { kind: 'layer', layerId: 'grade' }, group: 'light', enabled: true, changed: false }
+  ]) {
+    const { changed, ...input } = value;
+    assert.equal(validateJsonSchemaValue(schema.input, input).valid, true, JSON.stringify(input));
+    assert.equal(validateJsonSchemaValue(schema.result, value).valid, true, JSON.stringify(value));
+  }
+  for (const value of [
+    { operation: 'set-enabled',
+      target: { kind: 'layer', layerId: 'grade' }, enabled: false },
+    { operation: 'remove',
+      target: { kind: 'local', layerId: 'photo', owner: 'filter' } },
+    { operation: 'set-grade-group-enabled',
+      target: { kind: 'local', layerId: 'photo', owner: 'grade' }, group: 'light', enabled: true }
+  ]) assert.equal(validateJsonSchemaValue(schema.input, value).valid, false, JSON.stringify(value));
+  assert.equal(validateJsonSchemaValue(schema.result, {
+    operation: 'remove',
+    target: { kind: 'local', layerId: 'photo', owner: 'grade' }
+  }).valid, false);
 });
 
 test('shared result schemas accept canonical text IDs and optional exact font status', () => {

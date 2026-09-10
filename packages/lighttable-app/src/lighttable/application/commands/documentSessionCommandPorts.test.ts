@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAdjustmentLayer, createRasterLayer } from '../../editor/document/documentCommands';
+import {
+  createAdjustmentLayer,
+  createRasterLayer,
+  groupLayers,
+  setActiveLayer
+} from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { EditorApplicationSession } from '../workspace/editorApplicationSession';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import { createDocumentSessionCommandPorts } from './documentSessionCommandPorts';
 import { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 import { LightTableCommandService } from './lightTableCommandService';
-import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
+import type { DocumentLightTableCommandPorts, LightTableCommandId } from './lightTableCommandContract';
 import { canReadInactiveFlatRaster } from './inactiveFlatRasterArtifacts';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
@@ -113,6 +118,137 @@ describe('document-lifetime command ownership', () => {
     workspace.dispose();
   });
 
+  it('keeps layer-panel structure and appearance commands available without a mounted panel', async () => {
+    const workspace = new WorkspaceSession({ createId: () => 'document-layers' as never });
+    const opened = workspace.open({
+      source: { id: 'source-layers', name: 'Layers.png', mediaType: 'image/png' }
+    });
+    if (!opened.ok) throw new Error('The layer command fixture did not open.');
+    opened.value.setDocument(createRasterLayer(createImageDocument(
+      'Layers', 80, 60, 'source-layers'
+    )));
+    opened.value.setReady();
+    const registry = new LightTableCommandPortRegistry(() => createDocumentSessionCommandPorts(
+      opened.value, new EditorApplicationSession()
+    ));
+    const service = new LightTableCommandService(workspace, registry);
+    const sourceLayerId = opened.value.getSnapshot().document!.activeLayerId!;
+    const execute = (requestId: string, command: LightTableCommandId,
+      parameters: unknown) => service.execute({
+        protocolVersion: 1, requestId, command, documentId: opened.value.id, parameters
+      });
+
+    await expect(execute('opacity', 'layer.setOpacity', {
+      layerId: sourceLayerId, opacity: 0.35
+    })).resolves.toMatchObject({ status: 'completed', value: { opacity: 0.35 } });
+    expect(findDocumentLayer(opened.value.getSnapshot().document!, sourceLayerId)?.opacity).toBe(0.35);
+
+    const group = await execute('create-group', 'layer.createGroup', {});
+    expect(group).toMatchObject({ status: 'completed', value: { layerId: expect.any(String) } });
+    const gradient = await execute('create-gradient', 'layer.createGradientFill', {});
+    expect(gradient).toMatchObject({ status: 'completed', value: { layerId: expect.any(String) } });
+    expect(opened.value.getSnapshot().history.undoDepth).toBe(3);
+
+    service.dispose();
+    workspace.dispose();
+  });
+
+  it('reports generated identities for nested structure commands and records them once', async () => {
+    const workspace = new WorkspaceSession({ createId: () => 'document-nested' as never });
+    const opened = workspace.open({
+      source: { id: 'source-nested', name: 'Nested.psd', mediaType: 'image/vnd.adobe.photoshop' }
+    });
+    if (!opened.ok) throw new Error('The nested fixture did not open.');
+    let document = createRasterLayer(createImageDocument('Nested', 80, 60, 'source-nested'));
+    const firstLayerId = document.activeLayerId!;
+    document = createRasterLayer(document);
+    const secondLayerId = document.activeLayerId!;
+    document = groupLayers(document, [firstLayerId, secondLayerId]);
+    document = setActiveLayer(document, firstLayerId);
+    opened.value.setDocument(document);
+    opened.value.setReady();
+    const registry = new LightTableCommandPortRegistry(() => createDocumentSessionCommandPorts(
+      opened.value, new EditorApplicationSession()
+    ));
+    const service = new LightTableCommandService(workspace, registry);
+    const execute = (requestId: string, command: LightTableCommandId, parameters: unknown) => (
+      service.execute({
+        protocolVersion: 1, requestId, command, documentId: opened.value.id, parameters
+      })
+    );
+
+    const createdGroup = await execute('nested-group', 'layer.createGroup', {});
+    expect(createdGroup).toMatchObject({ status: 'completed', value: { layerId: expect.any(String) } });
+    const groupId = createdGroup.status === 'completed'
+      ? (createdGroup.value as { layerId: string }).layerId
+      : '';
+    expect(findDocumentLayer(opened.value.getSnapshot().document!, groupId as never)?.type).toBe('group');
+
+    const gradient = await execute('nested-gradient', 'layer.createGradientFill', {});
+    expect(gradient).toMatchObject({ status: 'completed', value: { layerId: expect.any(String) } });
+    const gradientId = gradient.status === 'completed'
+      ? (gradient.value as { layerId: string }).layerId
+      : '';
+    expect(findDocumentLayer(opened.value.getSnapshot().document!, gradientId as never)?.type).toBe('vector');
+
+    const grouped = await execute('nested-regroup', 'layer.group', {
+      layerIds: [groupId, gradientId]
+    });
+    expect(grouped).toMatchObject({
+      status: 'completed',
+      value: { layerIds: [groupId, gradientId], groupId: expect.any(String) }
+    });
+    expect(opened.value.getSnapshot().history.undoDepth).toBe(3);
+
+    service.dispose();
+    workspace.dispose();
+  });
+
+  it('owns processing-structure changes through normal document history', async () => {
+    const workspace = new WorkspaceSession({ createId: () => 'document-processing' as never });
+    const opened = workspace.open({
+      source: { id: 'source-processing', name: 'Processing.png', mediaType: 'image/png' }
+    });
+    if (!opened.ok) throw new Error('The processing fixture did not open.');
+    opened.value.setDocument(createRasterLayer(createImageDocument(
+      'Processing', 80, 60, 'source-processing'
+    )));
+    opened.value.setReady();
+    const registry = new LightTableCommandPortRegistry(() => createDocumentSessionCommandPorts(
+      opened.value, new EditorApplicationSession()
+    ));
+    const service = new LightTableCommandService(workspace, registry);
+    const layerId = opened.value.getSnapshot().document!.activeLayerId!;
+
+    const parameters = {
+      operation: 'set-enabled',
+      target: { kind: 'local', layerId, owner: 'curves' },
+      enabled: false
+    } as const;
+    await expect(service.execute({
+      protocolVersion: 1,
+      requestId: 'disable-curves',
+      command: 'adjustment.modifyStructure',
+      documentId: opened.value.id,
+      parameters
+    })).resolves.toMatchObject({ status: 'completed' });
+    expect(opened.value.getSnapshot().history.undoDepth).toBe(1);
+    await expect(service.execute({
+      protocolVersion: 1,
+      requestId: 'disable-curves-again',
+      command: 'adjustment.modifyStructure',
+      documentId: opened.value.id,
+      parameters
+    })).resolves.toMatchObject({ status: 'completed', value: { changed: false } });
+    expect(opened.value.getSnapshot().history.undoDepth).toBe(1);
+    await opened.value.history.undo();
+    const layer = findDocumentLayer(opened.value.getSnapshot().document!, layerId);
+    expect(layer?.type === 'raster' ? layer.adjustmentStack : null).toBeNull();
+
+    service.dispose();
+    workspace.dispose();
+  });
+
   it('executes complete style and filter snapshots for an inactive document', () => {
     const workspace = new WorkspaceSession({ createId: () => 'document-effects' as never });
     const opened = workspace.open({
@@ -155,7 +291,7 @@ describe('document-lifetime command ownership', () => {
     workspace.dispose();
   });
 
-  it('uses the mounted presentation port while active and falls back after detach', () => {
+  it('uses the mounted presentation owner while active and resumes the document-lifetime owner after detach', () => {
     const canonicalCreate = vi.fn();
     const mountedCreate = vi.fn();
     const canonical = { createRasterLayer: canonicalCreate } as unknown as DocumentLightTableCommandPorts;

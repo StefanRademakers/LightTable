@@ -83,6 +83,7 @@ import { parseSemanticDetailAdjustmentCommand } from './semanticDetailAdjustment
 import { parseSemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
 import { parseSemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
 import { parseSemanticFilterSnapshotCommand } from './semanticFilterSnapshotCommandContract';
+import { parseSemanticProcessingStructureCommand } from './semanticProcessingStructureCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
   parseAdjustmentQueryTarget,
@@ -1640,6 +1641,23 @@ export class LightTableCommandService {
         }
         return { value: result, changed: (result as { changed?: boolean }).changed !== false };
       }
+      case 'adjustment.modifyStructure': {
+        const command = parseSemanticProcessingStructureCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeProcessingStructure) {
+          return { code: 'command-unavailable', message: 'Processing structure editing is unavailable in this host.' };
+        }
+        const beforeRevision = snapshot.document!.revision;
+        const result = await this.ports.executeProcessingStructure(request.documentId, command);
+        if (!result || typeof result !== 'object' || typeof (result as { changed?: unknown }).changed !== 'boolean') {
+          return { code: 'execution-failed', message: 'The processing structure did not change.' };
+        }
+        const changed = (result as { changed: boolean }).changed;
+        if (changed !== (this.document(request.documentId)?.document?.revision !== beforeRevision)) {
+          return { code: 'execution-failed', message: 'The processing structure reported an inconsistent revision.' };
+        }
+        return { value: result, changed };
+      }
       case 'layer.style.setSnapshot': {
         const command = parseSemanticLayerStyleSnapshotCommand(parameters);
         if ('message' in command) return this.invalidParameters(command.message);
@@ -1724,27 +1742,53 @@ export class LightTableCommandService {
       case 'layer.copyToNewLayer':
       case 'layer.delete':
       case 'layer.move':
+      case 'layer.setOpacity':
+      case 'layer.setVectorAntiAlias':
       case 'layer.setBlendMode':
       case 'layer.setClipping':
       case 'layer.setTransform':
       case 'layer.setMask':
-      case 'layer.setLock': {
+      case 'layer.setLock':
+      case 'layer.reorder':
+      case 'layer.createGradientFill':
+      case 'layer.createGroup':
+      case 'layer.group':
+      case 'layer.ungroup': {
         const kinds = {
           'layer.duplicate': 'duplicate',
           'layer.copyToNewLayer': 'copy-to-new-layer',
           'layer.delete': 'delete',
           'layer.move': 'move',
+          'layer.setOpacity': 'set-opacity',
+          'layer.setVectorAntiAlias': 'set-vector-anti-alias',
           'layer.setBlendMode': 'set-blend-mode',
           'layer.setClipping': 'set-clipping',
           'layer.setTransform': 'set-transform',
           'layer.setMask': 'set-mask',
-          'layer.setLock': 'set-lock'
+          'layer.setLock': 'set-lock',
+          'layer.reorder': 'reorder',
+          'layer.createGradientFill': 'create-gradient-fill',
+          'layer.createGroup': 'create-group',
+          'layer.group': 'group',
+          'layer.ungroup': 'ungroup'
         } as const;
         const command = parseSemanticLayerCommand(kinds[request.command], parameters);
         if ('message' in command) return this.invalidParameters(command.message);
-        const targetIds = 'layerIds' in command ? command.layerIds : [command.layerId];
+        const targetIds = 'layerIds' in command
+          ? command.layerIds
+          : 'layerId' in command
+            ? [command.layerId]
+            : [];
         if (targetIds.some((id) => !findDocumentLayer(snapshot.document!, id))) {
           return { code: 'command-unavailable', message: 'One or more target layers do not exist.' };
+        }
+        if (command.kind === 'reorder'
+          && !findDocumentLayer(snapshot.document!, command.targetLayerId)) {
+          return { code: 'command-unavailable', message: 'The reorder target layer does not exist.' };
+        }
+        if (command.kind === 'set-vector-anti-alias'
+          && findDocumentLayer(snapshot.document!, command.layerId)?.type !== 'vector') {
+          return { code: 'command-unavailable', message: 'Anti-alias is available only for vector layers.' };
         }
         if (command.kind === 'duplicate' || command.kind === 'copy-to-new-layer') {
           const layer = findDocumentLayer(snapshot.document!, command.layerId)!;

@@ -111,7 +111,7 @@ export interface SelectionSessionController {
     applyAtCanvasBounds: boolean
   ): Promise<boolean>;
   selectLayerMask(layerId: LayerId): Promise<boolean>;
-  selectLayerTransparency(layerId: LayerId): void;
+  selectLayerTransparency(layerId: LayerId): Promise<boolean>;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
   settle(): Promise<void>;
@@ -1195,8 +1195,10 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const layer = document ? findDocumentLayer(document, layerId) : null;
-      if (!document || !layer || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')) return;
-      void commitSnapshot(
+      if (!document || !layer || (layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector')) {
+        return Promise.resolve(false);
+      }
+      return commitSnapshot(
         [createLayerTransparencySelectionOperation(
           layer.id,
           layer.type === 'raster'

@@ -102,7 +102,7 @@ export const TOOL_AUTOMATION_CATALOG = {
     'One bounded tone stroke publishes after commit; pointer updates stay on the local paint hot path.'),
   warp: uiCommand('continuous', ['warp.applyStroke'],
     'UI previews remain frame-coalesced; one bounded layer-source stroke publishes after history commit.'),
-  'face-warp': owner('discrete', ['faceWarp.applyOperation'], 'Semantic operations exist but remain experimentally excluded from MCP.' )
+  'face-warp': owner('continuous', ['faceWarp.applyOperation'], 'Semantic operations exist but remain experimentally excluded from MCP.' )
 } as const satisfies Record<ToolId, ToolAutomationDefinition>;
 
 export const toolAutomationDefinition = (tool: ToolId): ToolAutomationDefinition => (

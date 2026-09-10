@@ -45,6 +45,23 @@ describe('semanticLayerCommandContract', () => {
     expect(parseSemanticLayerCommand('set-lock', {
       layerIds: ['a'], lock: 'position', locked: true
     })).toEqual({ kind: 'set-lock', layerIds: ['a'], lock: 'position', locked: true });
+    expect(parseSemanticLayerCommand('set-opacity', {
+      layerId: 'a', opacity: 0.4
+    })).toEqual({ kind: 'set-opacity', layerId: 'a', opacity: 0.4 });
+    expect(parseSemanticLayerCommand('set-vector-anti-alias', {
+      layerId: 'a', antiAlias: false
+    })).toEqual({ kind: 'set-vector-anti-alias', layerId: 'a', antiAlias: false });
+    expect(parseSemanticLayerCommand('reorder', {
+      layerIds: ['a', 'b'], targetLayerId: 'c', placement: 'inside'
+    })).toEqual({ kind: 'reorder', layerIds: ['a', 'b'], targetLayerId: 'c', placement: 'inside' });
+    expect(parseSemanticLayerCommand('create-gradient-fill', {})).toEqual({ kind: 'create-gradient-fill' });
+    expect(parseSemanticLayerCommand('create-group', {})).toEqual({ kind: 'create-group' });
+    expect(parseSemanticLayerCommand('group', { layerIds: ['a', 'b'] })).toEqual({
+      kind: 'group', layerIds: ['a', 'b']
+    });
+    expect(parseSemanticLayerCommand('ungroup', { layerIds: ['group'] })).toEqual({
+      kind: 'ungroup', layerIds: ['group']
+    });
   });
 
   it('rejects unsupported values before they reach document owners', () => {
@@ -68,5 +85,9 @@ describe('semanticLayerCommandContract', () => {
     expect(parseSemanticLayerCommand('set-mask', {
       layerId: 'a', operation: 'add', source: 'opaque'
     })).toEqual({ message: 'Layer mask add source must be reveal-all or selection.' });
+    expect(parseSemanticLayerCommand('set-opacity', { layerId: 'a', opacity: 2 })).toHaveProperty('message');
+    expect(parseSemanticLayerCommand('reorder', {
+      layerIds: ['a'], targetLayerId: 'a', placement: 'above'
+    })).toHaveProperty('message');
   });
 });

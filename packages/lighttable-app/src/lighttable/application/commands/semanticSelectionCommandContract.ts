@@ -33,6 +33,12 @@ export interface SemanticSelectionSimilarCommand {
   readonly sampleAllLayers: boolean;
 }
 
+export interface SemanticSelectionLoadTransparencyCommand {
+  readonly kind: 'modify';
+  readonly operation: 'load-transparency';
+  readonly layerId: LayerId;
+}
+
 export interface SemanticSelectionMagicWandCommand {
   readonly kind: 'magic-wand';
   readonly layerId: LayerId;
@@ -45,6 +51,7 @@ export type SemanticSelectionCommand =
   | SemanticSelectionApplyShapeCommand
   | SemanticSelectionModifyCommand
   | SemanticSelectionSimilarCommand
+  | SemanticSelectionLoadTransparencyCommand
   | SemanticSelectionMagicWandCommand;
 
 const MAX_POINTS = 4096;
@@ -59,6 +66,12 @@ export const parseSemanticSelectionCommand = (
   value: unknown
 ): SemanticSelectionCommand | { readonly message: string } => {
   if (record(value) && value.kind === 'modify') {
+    if (value.operation === 'load-transparency') {
+      return typeof value.layerId === 'string' && value.layerId.length > 0
+        && value.layerId.length <= 512 && Object.keys(value).length === 3
+        ? { kind: 'modify', operation: value.operation, layerId: value.layerId as LayerId }
+        : { message: 'Load transparency requires exactly one source layer.' };
+    }
     if (value.operation === 'similar') {
       const allowed = new Set([
         'kind', 'operation', 'layerId', 'tolerance', 'antiAlias', 'sampleAllLayers'

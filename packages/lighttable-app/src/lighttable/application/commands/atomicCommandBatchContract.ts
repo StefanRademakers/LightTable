@@ -6,7 +6,8 @@ export const MAX_BATCH_DURATION_MS = 10_000;
 
 export const ATOMIC_BATCH_COMMANDS = [
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity',
-  'layer.move', 'layer.setBlendMode', 'layer.setClipping', 'layer.setLock',
+  'layer.move', 'layer.setOpacity', 'layer.setVectorAntiAlias',
+  'layer.setBlendMode', 'layer.setClipping', 'layer.setLock',
   'layer.style.setEnabled', 'layer.effect.setEnabled',
   'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove',

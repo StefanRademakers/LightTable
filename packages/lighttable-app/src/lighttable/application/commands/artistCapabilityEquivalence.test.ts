@@ -244,8 +244,13 @@ const createHarness = () => {
       redoDepth: session.history.getSnapshot().redoDepth
     }
   });
+  const canonicalState = () => ({
+    document: structuredClone(session.getSnapshot().document),
+    selection: structuredClone(selection),
+    basicAdjustments: structuredClone(basicAdjustments)
+  });
   return { workspace, session, service, adapter, topId, execute, snapshot,
-    selectionSnapshot, designSnapshot, gradeSnapshot };
+    selectionSnapshot, designSnapshot, gradeSnapshot, canonicalState };
 };
 
 const steps = (layerId: string) => [
@@ -486,6 +491,48 @@ describe('artist capability equivalence harness', () => {
     expect(state.service.actionRecordingSnapshot().steps[2].parameters).toMatchObject({
       layerId: { $lighttableResult: { step: 1, path: 'layerId' } }
     });
+
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('restores exact mixed-domain state after every undo and redo boundary', async () => {
+    const state = createHarness();
+    const states = [state.canonicalState()];
+    const created = await state.execute('vector.create', {
+      name: 'Mixed-domain badge',
+      primitive: { kind: 'rectangle', x: 5, y: 7, width: 31, height: 29 },
+      style: { fill: { type: 'solid', color: [0.8, 0.2, 0.1, 1] } }
+    });
+    expect(created).toMatchObject({ status: 'completed' });
+    states.push(state.canonicalState());
+    await state.execute('selection.applyShape', {
+      mode: 'replace',
+      shape: { kind: 'rectangle', points: [{ x: 4, y: 6 }, { x: 38, y: 40 }] },
+      featherRadius: 0,
+      antiAlias: true
+    });
+    states.push(state.canonicalState());
+    await state.execute('grade.setBasic', {
+      target: { kind: 'document' }, values: { exposureEV: 0.25, vibrance: 12 }
+    });
+    states.push(state.canonicalState());
+    await state.execute('layer.setBlendMode', {
+      layerId: state.topId, blendMode: 'multiply'
+    });
+    states.push(state.canonicalState());
+
+    for (let index = states.length - 2; index >= 0; index -= 1) {
+      expect(await state.execute('history.undo', {})).toMatchObject({ status: 'completed' });
+      expect(state.canonicalState()).toEqual(states[index]);
+    }
+    expect(state.session.history.getSnapshot()).toMatchObject({ undoDepth: 0, redoDepth: 4 });
+
+    for (let index = 1; index < states.length; index += 1) {
+      expect(await state.execute('history.redo', {})).toMatchObject({ status: 'completed' });
+      expect(state.canonicalState()).toEqual(states[index]);
+    }
+    expect(state.session.history.getSnapshot()).toMatchObject({ undoDepth: 4, redoDepth: 0 });
 
     state.service.dispose();
     state.workspace.dispose();

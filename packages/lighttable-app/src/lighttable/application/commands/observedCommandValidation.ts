@@ -15,8 +15,13 @@ import { parseSemanticAssignProfileCommand } from './semanticDocumentColorComman
 import { parseSemanticAdjustmentSnapshotCommand } from './semanticAdjustmentSnapshotCommandContract';
 import { parseSemanticLayerStyleSnapshotCommand } from './semanticLayerStyleSnapshotCommandContract';
 import { parseSemanticFilterSnapshotCommand } from './semanticFilterSnapshotCommandContract';
+import { parseSemanticAdjustmentCreationCommand } from './semanticAdjustmentCreationCommandContract';
+import { parseAtomicCommandBatch } from './atomicCommandBatchContract';
 
 const valid = (parsed: object) => !('message' in parsed);
+const record = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
 
 /** Fail-closed validation for commands observed after a direct UI commit. */
 export const observedCommandParametersAreValid = (
@@ -40,9 +45,24 @@ export const observedCommandParametersAreValid = (
     case 'grade.setBasic': return valid(parseSemanticBasicAdjustmentCommand(parameters));
     case 'grade.setDetail': return valid(parseSemanticDetailAdjustmentCommand(parameters));
     case 'adjustment.setSnapshot': return valid(parseSemanticAdjustmentSnapshotCommand(parameters));
+    case 'adjustment.create': return valid(parseSemanticAdjustmentCreationCommand(parameters));
+    case 'command.batch': return parseAtomicCommandBatch(parameters) !== null;
     case 'layer.style.setSnapshot': return valid(parseSemanticLayerStyleSnapshotCommand(parameters));
     case 'filter.setSnapshot': return valid(parseSemanticFilterSnapshotCommand(parameters));
     case 'layer.setTransform': return valid(parseSemanticLayerCommand('set-transform', parameters));
+    case 'layer.setOpacity': return valid(parseSemanticLayerCommand('set-opacity', parameters));
+    case 'layer.setVectorAntiAlias': return valid(parseSemanticLayerCommand('set-vector-anti-alias', parameters));
+    case 'layer.reorder': return valid(parseSemanticLayerCommand('reorder', parameters));
+    case 'layer.setFillOpacity': return record(parameters)
+      && typeof parameters.layerId === 'string'
+      && typeof parameters.opacity === 'number'
+      && Number.isFinite(parameters.opacity)
+      && parameters.opacity >= 0 && parameters.opacity <= 1;
+    case 'layer.setVisibility': return record(parameters)
+      && Array.isArray(parameters.layerIds)
+      && parameters.layerIds.length >= 1 && parameters.layerIds.length <= 256
+      && parameters.layerIds.every((id) => typeof id === 'string' && id.length > 0)
+      && typeof parameters.visible === 'boolean';
     case 'layer.style.update': return valid(parseSemanticLayerStyleCommand('stack-update', parameters));
     case 'layer.effect.add': return valid(parseSemanticLayerStyleCommand('add', parameters));
     case 'layer.effect.update': return valid(parseSemanticLayerStyleCommand('update', parameters));

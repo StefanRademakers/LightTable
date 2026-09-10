@@ -614,6 +614,15 @@ function verifyWarpCutover(relativePath, source) {
 
 function verifyAdjustmentCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
+    if (!/executeProcessingStructure:\s*\(command\)\s*=>\s*\{[\s\S]{0,200}adjustmentInteractions\.finish\(\);[\s\S]{0,120}commitLayerDocumentTransaction\(\);/.test(source)) {
+      failures.push(`${relativePath}: processing structure commands must settle mounted adjustment and layer-panel gestures before mutation`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/executeSemanticProcessingStructure.ts')
+    && !source.includes('return { ...command, changed }')) {
+    failures.push(`${relativePath}: processing structure commands must report truthful idempotent completion`);
+  }
   if (normalizedPath.endsWith('/application/adjustments/useAdjustmentTransactionController.ts')) {
     if (!source.includes('dependencies.documentMutations.begin(')
       || !source.includes('active.documentTransaction.change(')
@@ -767,6 +776,40 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
     && !source.includes('recoveryTransitions.runFailedOpenDiscard(async () => {')) {
     failures.push(`${relativePath}: failed document opens must use the non-checkpointing discard transition`);
   }
+  if (normalizedPath.endsWith('/standalone/LightTableStandaloneApp.tsx')) {
+    const terminalRendererWaits = source.match(/await waitForActiveDocumentRenderer\(/g)?.length ?? 0;
+    if (terminalRendererWaits < 3) {
+      failures.push(`${relativePath}: create, duplicate and image-artifact open must await exact active renderer readiness`);
+    }
+  }
+}
+
+function verifyCommandRoutingCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
+    const forbiddenFallbackOwners = [
+      'commandService?.',
+      'EMPTY_ACTION_RECORDING',
+      'EMPTY_ACTION_PLAYBACK',
+      'EMPTY_ACTION_LIBRARY',
+      'subscribeToNothing',
+      'layerDocumentCommands.pasteSelectedContent',
+      'layerPanelController.duplicateActive()',
+      'layerPanelController.moveActive(direction)',
+      '...layerPanelController',
+      'selectionSessionController.clear();',
+      'execution ?? textToShapeController.convert'
+    ];
+    for (const owner of forbiddenFallbackOwners) {
+      if (source.includes(owner)) {
+        failures.push(`${relativePath}: command UI fallback owner ${owner} must not return`);
+      }
+    }
+    if (source.includes("if (!executeRegisteredCommand('")
+      || source.includes('if (!commandService)')) {
+      failures.push(`${relativePath}: required semantic commands must fail closed, never enter a direct UI fallback`);
+    }
+  }
 }
 
 async function scan(relativeDirectory) {
@@ -792,6 +835,7 @@ async function scan(relativeDirectory) {
       verifyAdjustmentCutover(relativePath, source);
       verifyStyleAndFilterCutover(relativePath, source);
       verifyDocumentLifecycleCutover(relativePath, source);
+      verifyCommandRoutingCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

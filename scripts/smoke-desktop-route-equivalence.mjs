@@ -37,6 +37,8 @@ const waitForDocument = async (driver, documentId) => {
 };
 
 const createDocument = async (driver, name) => {
+  const activeDocumentId = (await driver.queryWorkspace()).activeDocumentId;
+  if (activeDocumentId) await waitForDocument(driver, activeDocumentId);
   const result = await driver.executeWorkspace('document.create', {
     name, width: 640, height: 480, resolutionPpi: 72, bitDepth: 8, profile: 'srgb',
     background: { kind: 'solid', color: '#182238' }

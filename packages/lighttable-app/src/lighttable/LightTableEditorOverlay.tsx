@@ -70,18 +70,13 @@ import { projectBasicAdjustmentValues } from './application/adjustments/basicAdj
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
 import { executeSemanticGradePatch } from './application/adjustments/executeSemanticGradePatch';
 import { executeSemanticAdjustmentSnapshot } from './application/adjustments/executeSemanticAdjustmentSnapshot';
+import { executeSemanticProcessingStructure } from './application/adjustments/executeSemanticProcessingStructure';
 import { adjustmentTargetIsPresented } from './application/adjustments/adjustmentTargetIsPresented';
 import { runEditorOperationTransaction } from './application/commands/editorOperationTransaction';
 import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
 } from './application/commands/semanticAdjustmentCreationCommandContract';
-import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
-import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
-import {
-  LIGHTTABLE_DEFAULT_ACTION_SET_ID,
-  type SemanticActionLibrarySnapshot
-} from './application/actions/semanticActionLibrary';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
@@ -124,7 +119,7 @@ import { useLayerDocumentCommands } from './application/layers/useLayerDocumentC
 import { executeSemanticMaskCommand } from './application/layers/executeSemanticMaskCommand';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
-import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { useLayerPanelController, type LayerPanelController } from './application/layers/useLayerPanelController';
 import { createLayerMaskCommandBridge } from './application/layers/createLayerMaskCommandBridge';
 import {
   canRestoreLayerVisibility,
@@ -467,12 +462,6 @@ const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
 const DEVICE_LOSS_RECOVERY_LIMIT = 2;
 const DEVICE_LOSS_STABILITY_WINDOW_MS = 30_000;
-const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
-  status: 'idle', id: null, name: 'Untitled Action', startedAt: null, stoppedAt: null,
-  steps: [], variables: [], byteLength: 0, limitReached: false
-};
-const subscribeToNothing = () => () => undefined;
-
 const waitForCommandArtifact = (
   service: LightTableCommandService,
   documentId: DocumentSessionId,
@@ -503,16 +492,6 @@ const waitForCommandArtifact = (
   };
   inspect();
 });
-const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
-const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
-  status: 'idle', currentSequence: null, results: [], taskProgress: null
-};
-const emptyActionPlayback = () => EMPTY_ACTION_PLAYBACK;
-const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
-  sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set', createdAt: 0, updatedAt: 0 }],
-  selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, actions: [], selectedId: null, error: null
-};
-const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
 const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
   'text-plan-blocked': 'the text preflight is blocked',
   'no-native-text': 'no text layer can be emitted natively',
@@ -1032,25 +1011,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
-    commandService?.subscribeActionRecording ?? subscribeToNothing,
-    commandService?.actionRecordingSnapshot ?? emptyActionRecording,
-    commandService?.actionRecordingSnapshot ?? emptyActionRecording
+    commandService.subscribeActionRecording,
+    commandService.actionRecordingSnapshot,
+    commandService.actionRecordingSnapshot
   );
   const actionPlayback = useSyncExternalStore(
-    commandService?.subscribeActionPlayback ?? subscribeToNothing,
-    commandService?.actionPlaybackSnapshot ?? emptyActionPlayback,
-    commandService?.actionPlaybackSnapshot ?? emptyActionPlayback
+    commandService.subscribeActionPlayback,
+    commandService.actionPlaybackSnapshot,
+    commandService.actionPlaybackSnapshot
   );
   const actionLibrary = useSyncExternalStore(
-    commandService?.subscribeActionLibrary ?? subscribeToNothing,
-    commandService?.actionLibrarySnapshot ?? emptyActionLibrary,
-    commandService?.actionLibrarySnapshot ?? emptyActionLibrary
+    commandService.subscribeActionLibrary,
+    commandService.actionLibrarySnapshot,
+    commandService.actionLibrarySnapshot
   );
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
     parameters: unknown
   ) => {
-    if (!commandService) return null;
     const requestId = `ui-${workspaceDocumentId}-${++commandRequestSequenceRef.current}`;
     const execution = commandService.execute({
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
@@ -2637,7 +2615,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onCommitted: (entry) => {
       const ports = textEditingPortsRef.current;
       if (entry.semanticReplacement) {
-        ports.commandService?.recordObservedCommand(
+        ports.commandService.recordObservedCommand(
           'text.replaceRange',
           workspaceDocumentIdRef.current as DocumentSessionId,
           entry.semanticReplacement,
@@ -2904,7 +2882,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds }),
     onShapeCommitted: (parameters) => {
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'selection.applyShape',
         workspaceDocumentId as DocumentSessionId,
         parameters,
@@ -2913,7 +2891,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     onMagicWandCommitted: (parameters) => {
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'selection.applyMagicWand',
         workspaceDocumentId as DocumentSessionId,
         parameters,
@@ -2922,7 +2900,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     onPaintCommitted: (parameters) => {
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'tool.commitGesture',
         workspaceDocumentId as DocumentSessionId,
         {
@@ -2957,7 +2935,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setDraft: setSelectionDraft,
     onBackendIdentityChange: setSmartSelectionBackendIdentity,
     onPreparationChange: setSmartSelectionPreparation,
-    onSelectionCommitted: (parameters, result) => commandService?.recordObservedCommand(
+    onSelectionCommitted: (parameters, result) => commandService.recordObservedCommand(
       'selection.selectSubject',
       workspaceDocumentId as DocumentSessionId,
       parameters,
@@ -3075,7 +3053,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           ? { kind: 'layer' as const, layerId: targetLayerId }
           : { kind: 'document' as const,
             owner: domain === 'lens-fx' ? 'lens-fx' as const : 'grade' as const };
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'adjustment.setSnapshot',
         workspaceDocumentId as DocumentSessionId,
         { target, snapshot: after },
@@ -3456,10 +3434,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copyCurrentGrade = async () => {
     try {
       const execution = executeRegisteredCommand('grade.copy', {});
-      if (!execution) {
-        await captureCurrentGrade();
-        return;
-      }
       const result = await execution;
       const value = result.status === 'completed' && typeof result.value === 'object'
         && result.value !== null ? result.value as Record<string, unknown> : null;
@@ -3472,10 +3446,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   const pasteCurrentGrade = async () => {
     try {
-      if (!commandService) {
-        if (copiedGrade) await applyGradeCapture(copiedGrade);
-        return;
-      }
       let artifactId = latestGradeClipboardArtifactRef.current;
       if (artifactId && !commandService.queryArtifact(artifactId)) {
         latestGradeClipboardArtifactRef.current = null;
@@ -3508,12 +3478,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [documentHistoryController, endAdjustmentTransaction, commitActiveDocumentTransaction]);
 
   const undoEditor = useCallback(() => {
-    if (!executeRegisteredCommand('history.undo', {})) void applyUndoEditor();
-  }, [applyUndoEditor, executeRegisteredCommand]);
+    void executeRegisteredCommand('history.undo', {});
+  }, [executeRegisteredCommand]);
 
   const redoEditor = useCallback(() => {
-    if (!executeRegisteredCommand('history.redo', {})) void applyRedoEditor();
-  }, [applyRedoEditor, executeRegisteredCommand]);
+    void executeRegisteredCommand('history.redo', {});
+  }, [executeRegisteredCommand]);
 
   const getDocumentPublicationPorts = useCallback(() => ({
     commitPublication: (publish: () => void) => {
@@ -3990,28 +3960,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current?.setActive(hostPresentationActive);
   }, [hostPresentationActive]);
 
-  const selectAllContentOwner = selectionSessionController.selectAll;
-  const clearCurrentSelectionOwner = selectionSessionController.clear;
-  const invertCurrentSelectionOwner = selectionSessionController.invert;
   const selectAllContent = () => {
     void settlePixelInteractionRef.current().then(() => {
-      if (!executeRegisteredCommand('selection.modify', {
+      void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'all'
-      })) selectAllContentOwner();
+      });
     });
   };
   const clearCurrentSelection = () => {
     void settlePixelInteractionRef.current().then(() => {
-      if (!executeRegisteredCommand('selection.modify', {
+      void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'clear'
-      })) clearCurrentSelectionOwner();
+      });
     });
   };
   const invertCurrentSelection = () => {
     void settlePixelInteractionRef.current().then(() => {
-      if (!executeRegisteredCommand('selection.modify', {
+      void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'invert'
-      })) invertCurrentSelectionOwner();
+      });
     });
   };
   const selectSimilarColors = () => {
@@ -4027,20 +3994,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         antiAlias: magicWand.antiAlias,
         sampleAllLayers: magicWand.sampleAllLayers
       };
-      if (!executeRegisteredCommand('selection.modify', parameters)) {
-        void selectionSessionController.selectSimilar(parameters.layerId, {
-          tolerance: parameters.tolerance,
-          antiAlias: parameters.antiAlias,
-          sampleAllLayers: parameters.sampleAllLayers
-        });
-      }
+      void executeRegisteredCommand('selection.modify', parameters);
     });
   };
   const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
     void settlePixelInteractionRef.current().then(() => {
-      if (!executeRegisteredCommand('selection.modify', {
+      void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
-      })) void selectionSessionController.feather(radius, applyAtCanvasBounds);
+      });
     });
   };
   const modifyCurrentSelection = (
@@ -4052,11 +4013,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const parameters = operation === 'border'
         ? { kind: 'modify' as const, operation, width: amount }
         : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
-      if (executeRegisteredCommand('selection.modify', parameters)) return;
-      if (operation === 'border') void selectionSessionController.border(amount);
-      else if (operation === 'smooth') {
-        void selectionSessionController.smooth(amount, applyAtCanvasBounds);
-      } else void selectionSessionController.morphology(operation, amount, applyAtCanvasBounds);
+      void executeRegisteredCommand('selection.modify', parameters);
     });
   };
   const presentViewportImmediately = useCallback((
@@ -4266,7 +4223,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       setActiveLayerOpacity: (percent) => {
         const layerId = imageDocumentRef.current?.activeLayerId;
-        if (layerId) layerPanelController.setOpacity(layerId, percent / 100);
+        if (layerId) void executeRegisteredCommand('layer.setOpacity', {
+          layerId, opacity: percent / 100
+        });
       },
       nudgeSelectionMask: (x, y) => selectionSessionController.translate(x, y),
       nudgeContent: (x, y, duplicate, continueTransform) => {
@@ -4339,7 +4298,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         if (cancelPenPathRef.current()) return;
         if (editorSession.selection.length) {
-          selectionSessionController.clear();
+          clearCurrentSelection();
           return;
         }
       }
@@ -4384,7 +4343,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reserveHistoryEntry: documentHistoryController.reserve,
     setStatus: setGradeStatus,
     setError,
-    onFillCommitted: (parameters, result) => commandService?.recordObservedCommand(
+    onFillCommitted: (parameters, result) => commandService.recordObservedCommand(
       'raster.fill',
       workspaceDocumentId as DocumentSessionId,
       parameters,
@@ -4422,7 +4381,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reserveHistoryEntry: documentHistoryController.reserve,
     setStatus: setGradeStatus,
     setError,
-    onGradientCommitted: (parameters, result) => commandService?.recordObservedCommand(
+    onGradientCommitted: (parameters, result) => commandService.recordObservedCommand(
       'raster.applyGradient',
       workspaceDocumentId as DocumentSessionId,
       parameters,
@@ -4563,7 +4522,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ?? editorSessionRef.current.selectionRevision,
     setError,
     onStrokeCommitted: ({ target, brush, operator, samples }) => {
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'tool.commitGesture',
         workspaceDocumentId as DocumentSessionId,
         {
@@ -4611,7 +4570,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       };
     },
-    onStrokeCommitted: (layerId, stroke, command) => commandService?.recordObservedCommand(
+    onStrokeCommitted: (layerId, stroke, command) => commandService.recordObservedCommand(
       'warp.applyStroke',
       workspaceDocumentId as DocumentSessionId,
       command,
@@ -4658,7 +4617,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       replaceLayerSelection(layerId);
       const parameters = observedLiveShapeCreateCommand(element, existingLayerId, layerName);
       if (!parameters) return;
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'vector.create',
         workspaceDocumentId as DocumentSessionId,
         parameters,
@@ -4670,7 +4629,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const parameters = operation === 'create'
         ? observedVectorPathCreateCommand(path, existingLayerId, layerName)
         : observedVectorPathUpdateCommand(path, layerId);
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         operation === 'create' ? 'vector.create' : 'vector.update',
         workspaceDocumentId as DocumentSessionId,
         parameters,
@@ -4678,7 +4637,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     onPathMutationCommitted: ({ layerId, pathId, path }) => {
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         path ? 'vector.update' : 'vector.remove',
         workspaceDocumentId as DocumentSessionId,
         path ? observedVectorPathUpdateCommand(path, layerId) : { layerId, elementId: pathId },
@@ -4696,7 +4655,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           })
         : observedLiveShapeUpdateCommand(element, layerId);
       if (!parameters) return;
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         operation === 'create' ? 'vector.create' : 'vector.update',
         workspaceDocumentId as DocumentSessionId,
         parameters,
@@ -5667,8 +5626,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return capture;
   };
   const cutSelectedContent = () => {
-    const execution = executeRegisteredCommand('selection.cutPixels', {});
-    if (execution) void execution;
+    void executeRegisteredCommand('selection.cutPixels', {});
   };
   cutSelectedContentRef.current = cutSelectedContent;
 
@@ -5680,10 +5638,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void (async () => {
       await settlePixelInteractionRef.current();
       if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-      if (!commandService) {
-        setError('Paste is unavailable until the document command service is ready.');
-        return;
-      }
       // Always inspect the host clipboard. A prior LightTable copy must never
       // shadow a newer image copied from another application.
       const clipboardImage = await imageClipboard.readImage();
@@ -5811,7 +5765,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onCheckpoint: (before, after, layerId) => {
       const current = findDocumentLayer(after, layerId);
       if (!findDocumentLayer(before, layerId) || !current) return;
-      commandService?.recordObservedCommand(
+      commandService.recordObservedCommand(
         'layer.style.setSnapshot', workspaceDocumentId as DocumentSessionId,
         { layerId, snapshot: layerStyleSnapshot(current.styleStack) },
         { layerId, changed: true }
@@ -5930,26 +5884,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     flattenImage: flattenImageCommand,
     editStyles: openLayerStyleEditor,
     setStyleStackEnabled: (layerId, enabled) => {
-      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) {
-        setError('Layer Style commands are unavailable in this document.');
-      }
+      void executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled });
     },
     setStyleEnabled: (layerId, effectId, enabled) => {
-      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) {
-        setError('Layer effect commands are unavailable in this document.');
-      }
+      void executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled });
     },
     removeStyle: (layerId, effectId) => {
-      if (!executeRegisteredCommand('layer.effect.remove', { layerId, effectId })) {
-        setError('Layer effect commands are unavailable in this document.');
-      }
+      void executeRegisteredCommand('layer.effect.remove', { layerId, effectId });
     },
     clearStyles: (layerId) => {
       const document = imageDocumentRef.current;
       const layer = document ? findDocumentLayer(document, layerId) : null;
-      if (!layer || !executeRegisteredCommand('layer.style.setSnapshot', {
+      if (!layer) {
+        setError('The layer is unavailable.');
+        return;
+      }
+      void executeRegisteredCommand('layer.style.setSnapshot', {
         layerId, snapshot: { ...layerStyleSnapshot(layer.styleStack), effects: [] }
-      })) setError('Layer Style commands are unavailable in this document.');
+      });
     },
     finishStyleEditing: layerStyleEditor.commit,
     finishProcessingEditing: () => {
@@ -5970,18 +5922,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   applyCurvesRef.current = () => {
     const document = imageDocumentRef.current;
-    const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
-    if (active?.type === 'raster' && !active.locks.all) {
-      layerPanelController.createLocalProcessing(active.id, 'curves');
-      showProperties({ kind: 'processing', layerId: active.id, owner: 'curves' });
-      return;
+    if (!document) return;
+    const command = resolveContextualAdjustmentCreation(document, 'curves');
+    if (command.placement === 'local') {
+      const layer = findDocumentLayer(document, command.layerId);
+      if (layer?.type === 'raster'
+        && adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'curves')) {
+        showProperties({ kind: 'processing', layerId: command.layerId, owner: 'curves' });
+        return;
+      }
     }
-    if (layerPanelController.createCurvesAdjustmentLayer()) {
-      requestAnimationFrame(() => {
-        const layerId = imageDocumentRef.current?.activeLayerId;
-        if (layerId) showProperties({ kind: 'layer', layerId });
-      });
-    }
+    void executeRegisteredCommand('adjustment.create', command).then((result) => {
+      if (result.status !== 'completed') return;
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (command.placement === 'local') {
+        showProperties({ kind: 'processing', layerId: command.layerId, owner: 'curves' });
+      } else if (layerId) {
+        showProperties({ kind: 'layer', layerId });
+      }
+    });
   };
   executeAdjustmentCreationRef.current = (command) => {
     const before = imageDocumentRef.current;
@@ -6024,9 +5983,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return;
       }
     }
-    if (!executeRegisteredCommand('adjustment.create', command)) {
-      executeAdjustmentCreationRef.current(command);
-    }
+    void executeRegisteredCommand('adjustment.create', command);
   };
   deleteActiveTargetRef.current = () => {
     const document = imageDocumentRef.current;
@@ -6060,10 +6017,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : document?.activeLayerId
         ? [document.activeLayerId]
         : [];
-    if (layerIds.length > 0
-      && !executeRegisteredCommand('layer.delete', { layerIds })) {
-      layerPanelController.deleteSelection(layerIds);
-    }
+    if (layerIds.length > 0) void executeRegisteredCommand('layer.delete', { layerIds });
   };
   useLayoutEffect(() => {
     if (!commandPorts || workspaceDocumentKind !== 'image'
@@ -6216,6 +6170,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           layerPanelController.move(command.layerId, command.direction);
           return { layerId: command.layerId, direction: command.direction };
         }
+        if (command.kind === 'set-opacity') {
+          layerPanelController.setOpacity(command.layerId, command.opacity);
+          return { layerId: command.layerId, opacity: command.opacity };
+        }
+        if (command.kind === 'set-vector-anti-alias') {
+          layerPanelController.setVectorAntiAlias(command.layerId, command.antiAlias);
+          return { layerId: command.layerId, antiAlias: command.antiAlias };
+        }
         if (command.kind === 'set-blend-mode') {
           layerPanelController.setBlendMode(command.layerId, command.blendMode);
           return { layerId: command.layerId, blendMode: command.blendMode };
@@ -6242,12 +6204,46 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             changeDocument: documentMutationController.change
           });
         }
+        if (command.kind === 'reorder') {
+          layerPanelController.reorder(
+            [...command.layerIds], command.targetLayerId, command.placement
+          );
+          return command;
+        }
+        if (command.kind === 'create-gradient-fill') {
+          const previousLayerId = imageDocumentRef.current?.activeLayerId;
+          layerPanelController.createGradientFillLayer();
+          const layerId = imageDocumentRef.current?.activeLayerId;
+          return layerId && layerId !== previousLayerId ? { layerId } : null;
+        }
+        if (command.kind === 'create-group') {
+          const previousLayerId = imageDocumentRef.current?.activeLayerId;
+          layerPanelController.createGroup();
+          const layerId = imageDocumentRef.current?.activeLayerId;
+          return layerId && layerId !== previousLayerId ? { layerId } : null;
+        }
+        if (command.kind === 'group') {
+          const beforeLayerId = imageDocumentRef.current?.activeLayerId;
+          layerPanelController.groupSelection([...command.layerIds]);
+          const groupId = imageDocumentRef.current?.activeLayerId;
+          return groupId && groupId !== beforeLayerId
+            ? { layerIds: command.layerIds, groupId }
+            : null;
+        }
+        if (command.kind === 'ungroup') {
+          layerPanelController.ungroupSelection([...command.layerIds]);
+          return { layerIds: command.layerIds };
+        }
         layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
       executeSelectionCommand: async (command) => {
         await settlePixelInteractionRef.current();
         if (command.kind === 'modify') {
+          if (command.operation === 'load-transparency') {
+            const applied = await selectionSessionController.selectLayerTransparency(command.layerId);
+            return applied ? { operation: command.operation, layerId: command.layerId } : null;
+          }
           if (command.operation === 'similar') {
             const applied = await selectionSessionController.selectSimilar(command.layerId, {
               tolerance: command.tolerance,
@@ -6381,6 +6377,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           publishDocumentProcessing: (snapshot, domain) => documentProjectionController
             .applyAdjustmentSnapshot(snapshot, null, domain, presented),
           pushProcessingHistoryEntry: pushHistoryEntry
+        });
+      },
+      executeProcessingStructure: (command) => {
+        adjustmentInteractions.finish();
+        commitLayerDocumentTransaction();
+        return executeSemanticProcessingStructure(command, {
+          changeDocument: documentMutationController.change
         });
       },
       executeRasterInvert: async (command) => {
@@ -6543,26 +6546,46 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!operations.length) return;
     if (operations.length === 1) {
       const parameters = operations[0]!.parameters;
-      if (!executeRegisteredCommand('layer.setVisibility', parameters)) {
-        layerPanelController.setVisibility(parameters.layerIds, parameters.visible);
-      }
+      void executeRegisteredCommand('layer.setVisibility', parameters);
       return;
     }
-    if (!executeRegisteredCommand('command.batch', { name, operations })) {
-      changes.forEach(({ layerIds, visible }) =>
-        layerPanelController.setVisibility([...layerIds], visible));
-    }
+    void executeRegisteredCommand('command.batch', { name, operations });
   }, [executeRegisteredCommand, layerPanelController]);
 
-  const commandLayerPanelController = useMemo(() => ({
-    ...layerPanelController,
-    createRasterLayer: () => { if (!executeRegisteredCommand('layer.createRaster', {})) layerPanelController.createRasterLayer(); },
-    rename: (layerId: LayerId, name: string) => { if (!executeRegisteredCommand('layer.rename', { layerId, name })) layerPanelController.rename(layerId, name); },
+  const layerInteractionSequenceRef = useRef(0);
+  const layerVisibilityInteractionRef = useRef<{
+    readonly token: number;
+    readonly documentId: DocumentSessionId;
+    initial: Map<LayerId, boolean>;
+  } | null>(null);
+  const layerOpacityInteractionRef = useRef<{
+    readonly token: number;
+    readonly documentId: DocumentSessionId;
+    initialOpacity: Map<LayerId, number>;
+    initialFillOpacity: Map<LayerId, number>;
+  } | null>(null);
+
+  useEffect(() => () => {
+    if (layerVisibilityInteractionRef.current) {
+      layerVisibilityInteractionRef.current = null;
+      layerPanelController.cancelVisibilityInteraction();
+    }
+    if (layerOpacityInteractionRef.current) {
+      layerOpacityInteractionRef.current = null;
+      layerPanelController.cancelOpacityInteraction();
+    }
+  }, [layerPanelController, workspaceDocumentId]);
+
+  const commandLayerPanelController = useMemo<LayerPanelController>(() => ({
+    // Selection and channel choice are presentation state; every document edit
+    // below is either dispatched or recorded once at its gesture boundary.
+    select: layerPanelController.select,
+    changeChannel: layerPanelController.changeChannel,
+    createRasterLayer: () => { void executeRegisteredCommand('layer.createRaster', {}); },
+    rename: (layerId: LayerId, name: string) => { void executeRegisteredCommand('layer.rename', { layerId, name }); },
     setVisibility: (layerIds: LayerId[], visible: boolean) => {
       soloLayerVisibilityRef.current = null;
-      if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) {
-        layerPanelController.setVisibility(layerIds, visible);
-      }
+      void executeRegisteredCommand('layer.setVisibility', { layerIds, visible });
     },
     toggleSoloVisibility: (layerId: LayerId) => {
       const document = imageDocumentRef.current;
@@ -6603,13 +6626,169 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     beginVisibilityInteraction: () => {
       soloLayerVisibilityRef.current = null;
-      layerPanelController.beginVisibilityInteraction();
+      if (layerVisibilityInteractionRef.current) return false;
+      if (!layerPanelController.beginVisibilityInteraction()) return false;
+      layerVisibilityInteractionRef.current = {
+        token: ++layerInteractionSequenceRef.current,
+        documentId: workspaceDocumentId as DocumentSessionId,
+        initial: new Map()
+      };
+      return true;
+    },
+    previewVisibility: (layerIds, visible) => {
+      const interaction = layerVisibilityInteractionRef.current;
+      if (!interaction || interaction.documentId !== workspaceDocumentId) return;
+      const document = imageDocumentRef.current;
+      if (document) {
+        for (const layerId of layerIds) {
+          if (!interaction.initial.has(layerId)) {
+            const layer = findDocumentLayer(document, layerId);
+            if (layer) interaction.initial.set(layerId, layer.visible);
+          }
+        }
+      }
+      layerPanelController.previewVisibility(layerIds, visible);
+    },
+    endVisibilityInteraction: () => {
+      const interaction = layerVisibilityInteractionRef.current;
+      if (!interaction) return;
+      layerVisibilityInteractionRef.current = null;
+      if (interaction.documentId !== workspaceDocumentId) {
+        layerPanelController.cancelVisibilityInteraction();
+        return;
+      }
+      layerPanelController.endVisibilityInteraction();
+      const document = imageDocumentRef.current;
+      const changed = document ? [...interaction.initial].flatMap(([layerId, initial]) => {
+        const layer = findDocumentLayer(document, layerId);
+        return layer && layer.visible !== initial ? [{ layerId, visible: layer.visible }] : [];
+      }) : [];
+      interaction.initial.clear();
+      const finals = [false, true].flatMap((visible) => {
+        const layerIds = changed.filter((change) => change.visible === visible).map(({ layerId }) => layerId);
+        return layerIds.length ? [{ layerIds, visible }] : [];
+      });
+      if (finals.length === 1) {
+        commandService.recordObservedCommand(
+          'layer.setVisibility', interaction.documentId,
+          finals[0], finals[0]
+        );
+      } else if (finals.length > 1) {
+        const operations = finals.map((parameters, index) => ({
+          operationId: `visibility-${index}`,
+          command: 'layer.setVisibility' as const,
+          parameters
+        }));
+        commandService.recordObservedCommand(
+          'command.batch', interaction.documentId,
+          { name: 'Set layer visibility', operations },
+          { results: operations.map(({ operationId, parameters }) => ({ operationId, value: parameters })) }
+        );
+      }
+    },
+    cancelVisibilityInteraction: () => {
+      if (!layerVisibilityInteractionRef.current) return;
+      layerVisibilityInteractionRef.current = null;
+      layerPanelController.cancelVisibilityInteraction();
+    },
+    setOpacity: (layerId, opacity) => {
+      const interaction = layerOpacityInteractionRef.current;
+      if (interaction) {
+        if (interaction.documentId !== workspaceDocumentId) return;
+        const current = imageDocumentRef.current
+          ? findDocumentLayer(imageDocumentRef.current, layerId)
+          : null;
+        if (current && !interaction.initialOpacity.has(layerId)) {
+          interaction.initialOpacity.set(layerId, current.opacity);
+        }
+        layerPanelController.setOpacity(layerId, opacity);
+      } else {
+        void executeRegisteredCommand('layer.setOpacity', { layerId, opacity });
+      }
+    },
+    setVectorAntiAlias: (layerId, antiAlias) => {
+      void executeRegisteredCommand('layer.setVectorAntiAlias', { layerId, antiAlias });
+    },
+    setFillOpacity: (layerId, opacity) => {
+      const interaction = layerOpacityInteractionRef.current;
+      if (interaction) {
+        if (interaction.documentId !== workspaceDocumentId) return;
+        const current = imageDocumentRef.current
+          ? findDocumentLayer(imageDocumentRef.current, layerId)
+          : null;
+        if (current && !interaction.initialFillOpacity.has(layerId)) {
+          interaction.initialFillOpacity.set(layerId, current.fillOpacity);
+        }
+        layerPanelController.setFillOpacity(layerId, opacity);
+      } else {
+        void executeRegisteredCommand('layer.setFillOpacity', { layerId, opacity });
+      }
+    },
+    beginOpacityInteraction: () => {
+      if (layerOpacityInteractionRef.current) return false;
+      if (!layerPanelController.beginOpacityInteraction()) return false;
+      layerOpacityInteractionRef.current = {
+        token: ++layerInteractionSequenceRef.current,
+        documentId: workspaceDocumentId as DocumentSessionId,
+        initialOpacity: new Map(),
+        initialFillOpacity: new Map()
+      };
+      return true;
+    },
+    endOpacityInteraction: () => {
+      const interaction = layerOpacityInteractionRef.current;
+      if (!interaction) return;
+      layerOpacityInteractionRef.current = null;
+      if (interaction.documentId !== workspaceDocumentId) {
+        layerPanelController.cancelOpacityInteraction();
+        return;
+      }
+      layerPanelController.endOpacityInteraction();
+      const document = imageDocumentRef.current;
+      const observed: Array<{
+        command: 'layer.setOpacity' | 'layer.setFillOpacity';
+        parameters: { layerId: LayerId; opacity: number };
+      }> = [];
+      if (document) {
+        for (const [layerId, initial] of interaction.initialOpacity) {
+          const opacity = findDocumentLayer(document, layerId)?.opacity;
+          if (opacity !== undefined && opacity !== initial) observed.push({
+            command: 'layer.setOpacity', parameters: { layerId, opacity }
+          });
+        }
+        for (const [layerId, initial] of interaction.initialFillOpacity) {
+          const opacity = findDocumentLayer(document, layerId)?.fillOpacity;
+          if (opacity !== undefined && opacity !== initial) observed.push({
+            command: 'layer.setFillOpacity', parameters: { layerId, opacity }
+          });
+        }
+      }
+      if (observed.length === 1) {
+        commandService.recordObservedCommand(
+          observed[0]!.command, interaction.documentId,
+          observed[0]!.parameters, observed[0]!.parameters
+        );
+      } else if (observed.length > 1) {
+        const operations = observed.map(({ command, parameters }, index) => ({
+          operationId: `opacity-${index}`, command, parameters
+        }));
+        commandService.recordObservedCommand(
+          'command.batch', interaction.documentId,
+          { name: 'Set layer opacity', operations },
+          { results: operations.map(({ operationId, parameters }) => ({ operationId, value: parameters })) }
+        );
+      }
+      interaction.initialOpacity.clear();
+      interaction.initialFillOpacity.clear();
+    },
+    cancelOpacityInteraction: () => {
+      if (!layerOpacityInteractionRef.current) return;
+      layerOpacityInteractionRef.current = null;
+      layerPanelController.cancelOpacityInteraction();
     },
     duplicateActive: () => {
       const layerId = imageDocumentRef.current?.activeLayerId;
-      if (!layerId || !executeRegisteredCommand('layer.duplicate', { layerId })) {
-        layerPanelController.duplicateActive();
-      }
+      if (layerId) void executeRegisteredCommand('layer.duplicate', { layerId });
     },
     rasterizeActive: () => {
       const layerId = imageDocumentRef.current?.activeLayerId;
@@ -6617,37 +6796,158 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeRegisteredCommand('layer.rasterize', { layerId });
     },
     deleteSelection: (layerIds: LayerId[]) => {
-      if (!executeRegisteredCommand('layer.delete', { layerIds })) layerPanelController.deleteSelection(layerIds);
+      void executeRegisteredCommand('layer.delete', { layerIds });
     },
     move: (layerId: LayerId, direction: 'up' | 'down') => {
-      if (!executeRegisteredCommand('layer.move', { layerId, direction })) layerPanelController.move(layerId, direction);
+      void executeRegisteredCommand('layer.move', { layerId, direction });
     },
     moveActive: (direction: 'up' | 'down') => {
       const layerId = imageDocumentRef.current?.activeLayerId;
-      if (!layerId || !executeRegisteredCommand('layer.move', { layerId, direction })) {
-        layerPanelController.moveActive(direction);
-      }
+      if (layerId) void executeRegisteredCommand('layer.move', { layerId, direction });
     },
     setBlendMode: (layerId: LayerId, blendMode: Parameters<typeof layerPanelController.setBlendMode>[1]) => {
-      if (!executeRegisteredCommand('layer.setBlendMode', { layerId, blendMode })) layerPanelController.setBlendMode(layerId, blendMode);
+      void executeRegisteredCommand('layer.setBlendMode', { layerId, blendMode });
     },
     setClipping: (layerId: LayerId, clipping: boolean) => {
-      if (!executeRegisteredCommand('layer.setClipping', { layerId, clipping })) layerPanelController.setClipping(layerId, clipping);
+      void executeRegisteredCommand('layer.setClipping', { layerId, clipping });
     },
+    reorder: (layerIds, targetLayerId, placement) => {
+      void executeRegisteredCommand('layer.reorder', { layerIds, targetLayerId, placement });
+    },
+    addMask: layerPanelController.addMask,
+    loadMaskSelection: layerPanelController.loadMaskSelection,
+    loadTransparencySelection: (layerId) => {
+      void executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'load-transparency', layerId
+      });
+    },
+    toggleMask: layerPanelController.toggleMask,
+    setMaskLinked: layerPanelController.setMaskLinked,
+    removeMask: layerPanelController.removeMask,
     setLock: (layerIds: LayerId[], lock: Parameters<typeof layerPanelController.setLock>[1], locked: boolean) => {
-      if (!executeRegisteredCommand('layer.setLock', { layerIds, lock, locked })) layerPanelController.setLock(layerIds, lock, locked);
+      void executeRegisteredCommand('layer.setLock', { layerIds, lock, locked });
     },
+    createAdjustmentLayer: () => {
+      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
+      const created = layerPanelController.createAdjustmentLayer();
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (created && layerId) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind: 'grade', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
+        { kind: 'grade', placement: 'adjustment-layer', layerId }
+      );
+      return created;
+    },
+    createCurvesAdjustmentLayer: () => {
+      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
+      const created = layerPanelController.createCurvesAdjustmentLayer();
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (created && layerId) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind: 'curves', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
+        { kind: 'curves', placement: 'adjustment-layer', layerId }
+      );
+      return created;
+    },
+    createLocalProcessing: (layerId, kind) => {
+      const revision = imageDocumentRef.current?.revision;
+      layerPanelController.createLocalProcessing(layerId, kind);
+      if (imageDocumentRef.current?.revision !== revision) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind, placement: 'local', layerId }, { kind, placement: 'local', layerId }
+      );
+    },
+    createGradientFillLayer: () => { void executeRegisteredCommand('layer.createGradientFill', {}); },
+    createLensFxLayer: () => {
+      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
+      const created = layerPanelController.createLensFxLayer();
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (created && layerId) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind: 'lens-fx', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
+        { kind: 'lens-fx', placement: 'adjustment-layer', layerId }
+      );
+      return created;
+    },
+    createAdjustmentLayerOfKind: (kind, aboveLayerId, settings) => {
+      const created = layerPanelController.createAdjustmentLayerOfKind(kind, aboveLayerId, settings);
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (created && layerId) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind, placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}),
+          ...(settings ? { settings } : {}) },
+        { kind, placement: 'adjustment-layer', layerId }
+      );
+      return created;
+    },
+    createAttachedAdjustment: (layerId, kind, settings) => {
+      const adjustmentId = layerPanelController.createAttachedAdjustment(layerId, kind, settings);
+      if (adjustmentId) commandService.recordObservedCommand(
+        'adjustment.create', workspaceDocumentId as DocumentSessionId,
+        { kind, placement: 'attached', layerId, ...(settings ? { settings } : {}) },
+        { kind, placement: 'attached', layerId, adjustmentId }
+      );
+      return adjustmentId;
+    },
+    createGroup: () => { void executeRegisteredCommand('layer.createGroup', {}); },
+    groupSelection: (layerIds) => { void executeRegisteredCommand('layer.group', { layerIds }); },
+    ungroupSelection: (layerIds) => { void executeRegisteredCommand('layer.ungroup', { layerIds }); },
     setStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => {
-      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) {
-        setError('Layer effect commands are unavailable in this document.');
-      }
+      void executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled });
     },
     setStyleStackEnabled: (layerId: LayerId, enabled: boolean) => {
-      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) {
-        setError('Layer Style commands are unavailable in this document.');
-      }
+      void executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled });
+    },
+    mergeDown: layerPanelController.mergeDown,
+    mergeSelected: layerPanelController.mergeSelected,
+    flattenGroup: layerPanelController.flattenGroup,
+    flattenImage: layerPanelController.flattenImage,
+    editStyles: layerPanelController.editStyles,
+    removeStyle: layerPanelController.removeStyle,
+    clearStyles: layerPanelController.clearStyles,
+    setLocalGradeEnabled: (layerId, enabled) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'grade' }, enabled
+      });
+    },
+    setLocalCurvesEnabled: (layerId, enabled) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'curves' }, enabled
+      });
+    },
+    setLocalLensFxEnabled: (layerId, enabled) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'lens-fx' }, enabled
+      });
+    },
+    setGradeGroupEnabled: (ownerId, group, enabled) => {
+      const attached = parseAttachedAdjustmentOwnerId(ownerId);
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'set-grade-group-enabled',
+        target: attached
+          ? { kind: 'attached', layerId: attached.layerId, adjustmentId: attached.adjustmentId }
+          : { kind: 'layer', layerId: ownerId },
+        group,
+        enabled
+      });
+    },
+    removeLocalProcessing: (layerId, owner) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'remove', target: { kind: 'local', layerId, owner }
+      });
+    },
+    setAttachedAdjustmentEnabled: (layerId, adjustmentId, enabled) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'set-enabled', target: { kind: 'attached', layerId, adjustmentId }, enabled
+      });
+    },
+    removeAttachedAdjustment: (layerId, adjustmentId) => {
+      void executeRegisteredCommand('adjustment.modifyStructure', {
+        operation: 'remove', target: { kind: 'attached', layerId, adjustmentId }
+      });
     }
-  }), [executeLayerVisibilityChanges, executeRegisteredCommand, layerPanelController]);
+  }), [commandService, executeLayerVisibilityChanges, executeRegisteredCommand,
+    layerPanelController, workspaceDocumentId]);
   toggleSelectedLayerVisibilityRef.current = () => {
     const document = imageDocumentRef.current;
     if (!document) return;
@@ -6837,11 +7137,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
     onLayerTransformCommitted: (layerId, transform) => {
       if (!fixedTransformCommandRunningRef.current) {
-        if (commandService) commandService.recordObservedCommand(
+        commandService.recordObservedCommand(
           'layer.setTransform', workspaceDocumentId as DocumentSessionId,
           { layerId, transform }, { layerId, transform }
         );
-        else documentSession?.markChanged();
       }
     },
     onRasterTransformCommitted: () => {
@@ -7210,11 +7509,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void settlePixelInteractionRef.current().then(() => {
       const layerId = imageDocumentRef.current?.activeLayerId;
       const channel = editorSessionRef.current.activeChannel;
-      if (!layerId || !executeRegisteredCommand('raster.invert', {
-        layerId, channel
-      })) {
-        if (layerId) layerDocumentCommands.invertLayerColors(layerId, channel);
-      }
+      if (layerId) void executeRegisteredCommand('raster.invert', { layerId, channel });
     });
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
@@ -7672,9 +7967,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       pasteGrade: pasteCurrentGrade,
       copyGrade: copyCurrentGrade,
       applyFixedTransform: (operation) => {
-        if (!executeRegisteredCommand('transform.applyFixed', { operation })) {
-          void transformSession.applyFixed(operation);
-        }
+        void executeRegisteredCommand('transform.applyFixed', { operation });
       }
     },
     selection: {
@@ -7706,9 +7999,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           placement: 'adjustment-layer' as const,
           ...(active ? { aboveLayerId: active.id } : {})
         };
-        if (!executeRegisteredCommand('adjustment.create', command)) {
-          executeAdjustmentCreationRef.current(command);
-        }
+        void executeRegisteredCommand('adjustment.create', command);
       },
       attachAdjustment: (kind) => {
         const document = imageDocumentRef.current;
@@ -7716,21 +8007,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const active = findDocumentLayer(document, document.activeLayerId);
         if (active?.type !== 'raster' || layerIsLocked(active, 'pixels')) return;
         const command = { kind, placement: 'attached' as const, layerId: active.id };
-        if (!executeRegisteredCommand('adjustment.create', command)) {
-          executeAdjustmentCreationRef.current(command);
-        }
+        void executeRegisteredCommand('adjustment.create', command);
       },
       assignSrgbProfile: () => {
-        if (!executeRegisteredCommand('document.assignProfile', { profile: 'srgb' })) {
-          documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
-            ? document
-            : {
-                ...document,
-                colorSettings: { ...document.colorSettings, profileState: 'assigned' },
-                revision: document.revision + 1,
-                modifiedAt: Date.now()
-              });
-        }
+        void executeRegisteredCommand('document.assignProfile', { profile: 'srgb' });
       }
     },
     layers: {
@@ -7973,13 +8253,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   function commitTextToShape(layerId: LayerId) {
     setGradeStatus('Converting text to editable shapes...');
-    const execution = executeRegisteredCommand('text.convertToShape', { layerId });
-    const conversion = execution ?? textToShapeController.convert(layerId).then((converted) => (
-      converted
-        ? { status: 'completed' as const }
-        : { status: 'rejected' as const, message: 'Text could not be converted to shapes.' }
-    ));
-    void conversion.then((result) => {
+    void executeRegisteredCommand('text.convertToShape', { layerId }).then((result) => {
       setGradeStatus(result.status === 'completed' ? 'Text converted to editable shapes.' : null);
       if (result.status === 'rejected') setError(result.message);
     }).catch((reason) => {
@@ -8205,7 +8479,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ...(Object.keys(style).length ? { style } : {}),
       ...(Object.keys(paragraph).length ? { paragraph } : {})
     };
-    commandService?.recordObservedCommand(
+    commandService.recordObservedCommand(
       'text.format',
       workspaceDocumentId as DocumentSessionId,
       parameters,
@@ -8236,23 +8510,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       commitTextPropertyGesture();
       return true;
     }
-    if (!commandService) return false;
-    const execution = executeRegisteredCommand('text.format', { layerId,
+    void executeRegisteredCommand('text.format', { layerId,
       ...(Object.keys(style).length ? { style } : {}),
       ...(Object.keys(paragraph).length ? { paragraph } : {}) });
-    return Boolean(execution);
+    return true;
   };
   const applyDiscreteTextProperty = (patch: TextStylePatch) => {
-    if (dispatchDiscreteTextFormat(patch, {})) return;
-    if (!beginTextPropertyGesture()) return;
-    applyTextPropertyPatch(patch);
-    commitTextPropertyGesture();
+    dispatchDiscreteTextFormat(patch, {});
   };
   const applyDiscreteTextParagraph = (patch: ParagraphStylePatch) => {
-    if (dispatchDiscreteTextFormat({}, patch)) return;
-    if (!beginTextPropertyGesture()) return;
-    applyTextPropertyPatch({}, patch);
-    commitTextPropertyGesture();
+    dispatchDiscreteTextFormat({}, patch);
   };
   const applyTextFontAsset = (assetId: string) => {
     void (async () => {

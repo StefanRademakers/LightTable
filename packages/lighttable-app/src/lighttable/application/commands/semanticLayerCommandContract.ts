@@ -7,6 +7,8 @@ export type SemanticLayerCommand =
   | { readonly kind: 'copy-to-new-layer'; readonly layerId: LayerId }
   | { readonly kind: 'delete'; readonly layerIds: readonly LayerId[] }
   | { readonly kind: 'move'; readonly layerId: LayerId; readonly direction: 'up' | 'down' }
+  | { readonly kind: 'set-opacity'; readonly layerId: LayerId; readonly opacity: number }
+  | { readonly kind: 'set-vector-anti-alias'; readonly layerId: LayerId; readonly antiAlias: boolean }
   | { readonly kind: 'set-blend-mode'; readonly layerId: LayerId; readonly blendMode: BlendMode }
   | { readonly kind: 'set-clipping'; readonly layerId: LayerId; readonly clipping: boolean }
   | { readonly kind: 'set-transform'; readonly layerId: LayerId; readonly transform: AffineMatrix }
@@ -15,7 +17,13 @@ export type SemanticLayerCommand =
       | 'invert' | 'apply' | 'load-selection';
     readonly source?: 'reveal-all' | 'selection'; readonly enabled?: boolean; readonly linked?: boolean }
   | { readonly kind: 'set-lock'; readonly layerIds: readonly LayerId[];
-    readonly lock: keyof LayerLocks; readonly locked: boolean };
+    readonly lock: keyof LayerLocks; readonly locked: boolean }
+  | { readonly kind: 'reorder'; readonly layerIds: readonly LayerId[];
+    readonly targetLayerId: LayerId; readonly placement: 'above' | 'below' | 'inside' }
+  | { readonly kind: 'create-gradient-fill' }
+  | { readonly kind: 'create-group' }
+  | { readonly kind: 'group'; readonly layerIds: readonly LayerId[] }
+  | { readonly kind: 'ungroup'; readonly layerIds: readonly LayerId[] };
 
 const blendModes = new Set<string>(BLEND_MODES.map(({ id }) => id));
 const lockKinds = new Set<keyof LayerLocks>(['transparency', 'pixels', 'position', 'all']);
@@ -42,6 +50,11 @@ export const parseSemanticLayerCommand = (
   value: unknown
 ): SemanticLayerCommand | { readonly message: string } => {
   if (!record(value)) return { message: 'Layer command parameters must be an object.' };
+  if (kind === 'create-gradient-fill' || kind === 'create-group') {
+    return Object.keys(value).length === 0
+      ? { kind }
+      : { message: `${kind === 'create-group' ? 'Create group' : 'Create gradient fill'} takes no parameters.` };
+  }
   if (kind === 'duplicate' || kind === 'copy-to-new-layer') {
     const target = layerId(value.layerId);
     if (!target || Object.keys(value).some((key) => key !== 'layerId')) {
@@ -59,6 +72,21 @@ export const parseSemanticLayerCommand = (
       return { message: 'Layer move requires layerId and direction up or down.' };
     }
     return { kind, layerId: target, direction: value.direction };
+  }
+  if (kind === 'set-opacity') {
+    const target = layerId(value.layerId);
+    if (!target || typeof value.opacity !== 'number' || !Number.isFinite(value.opacity)
+      || value.opacity < 0 || value.opacity > 1) {
+      return { message: 'Layer opacity requires layerId and an opacity from 0 to 1.' };
+    }
+    return { kind, layerId: target, opacity: value.opacity };
+  }
+  if (kind === 'set-vector-anti-alias') {
+    const target = layerId(value.layerId);
+    if (!target || typeof value.antiAlias !== 'boolean') {
+      return { message: 'Vector anti-alias requires layerId and a boolean antiAlias value.' };
+    }
+    return { kind, layerId: target, antiAlias: value.antiAlias };
   }
   if (kind === 'set-blend-mode') {
     const target = layerId(value.layerId);
@@ -114,6 +142,24 @@ export const parseSemanticLayerCommand = (
         : { message: 'Layer mask set-linked requires a boolean linked value.' };
     }
     return { kind, layerId: target, operation };
+  }
+  if (kind === 'reorder') {
+    const targets = layerIds(value.layerIds);
+    const target = layerId(value.targetLayerId);
+    if (!targets || !target || (value.placement !== 'above' && value.placement !== 'below'
+      && value.placement !== 'inside')) {
+      return { message: 'Layer reorder requires layerIds, targetLayerId and placement.' };
+    }
+    if (targets.includes(target)) {
+      return { message: 'Layer reorder target cannot be part of the moving selection.' };
+    }
+    return { kind, layerIds: targets, targetLayerId: target, placement: value.placement };
+  }
+  if (kind === 'group' || kind === 'ungroup') {
+    const targets = layerIds(value.layerIds);
+    return targets
+      ? { kind, layerIds: targets }
+      : { message: `${kind === 'group' ? 'Group' : 'Ungroup'} requires 1-256 layerIds.` };
   }
   const targets = layerIds(value.layerIds);
   if (!targets || typeof value.lock !== 'string' || !lockKinds.has(value.lock as keyof LayerLocks)
