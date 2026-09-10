@@ -1044,9 +1044,15 @@ export class WebGpuEngine {
     if (!active) this.requestRender();
   }
   requestCanonicalWarpProjection(layerId: LayerId, moduleId: string, moduleRevision: number) {
-    this.layerEffectRenderer?.requestCanonicalWarpProjection(layerId, moduleId, moduleRevision);
+    const retire = this.layerEffectRenderer?.requestCanonicalWarpProjection(
+      layerId,
+      moduleId,
+      moduleRevision
+    );
+    if (!retire) return null;
     this.renderDirty.invalidate('document');
     this.requestRender();
+    return { retire };
   }
   beginLayerPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
     this.documentRenderer?.beginPixelEdit(layerId, channel);

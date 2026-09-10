@@ -23,7 +23,7 @@ This status file remains the compact statement of what is actually migrated.
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
 | vector paths and live shapes | renderer-only fallback retained | implemented | complete S05 vertical | packaged automated | partial |
 | text/path text | no alternate mutation/history route | implemented | complete C07 vertical | packaged automated | yes |
-| warp | compatibility paths retained | implemented | complete S07 raster/Face Warp vertical | packaged automated | partial |
+| warp | no alternate mutation/history route | implemented | complete C08 raster/Face Warp vertical | packaged automated | yes |
 | adjustment layers | compatibility paths retained | implemented | complete S08 lifecycle | packaged automated | partial |
 | layer styles/effects | UI presentation adapter retained | implemented | complete S09 lifecycle | packaged automated | yes |
 | filters | yes | documented | no | no | no |
@@ -130,15 +130,18 @@ playback. Debug packaged Type and Path Text gates passed without page errors.
 The C07 cut-over also removed direct overlay creation and private text/history
 publishers, frame-coalesced typing/property projection, bound font and geometry
 continuations to exact document/renderer identities, and put tab activation and
-active close behind the text terminal boundary. Text Warp remains C08 and owner
-feel acceptance is open. See
+active close behind the text terminal boundary. Imported Text Warp remains
+render-only by product scope and owner feel acceptance is open. See
 [Text and Path Text vertical slice](TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md).
 
-Warp is the eighth implemented vertical. A renderer-bound lease retains the
+Warp is the eighth accepted cut-over vertical. A renderer-bound lease retains the
 immutable source across repeated Warp interactions; pointer previews remain
 transient and each accepted gesture rebuilds from the canonical source rather
 than repeatedly rasterizing the previous preview. Raster Warp and the hidden
 experimental Face Warp route have packaged lifecycle and performance evidence.
+Semantic commands use the shared document mutation authority, terminal raster
+canonicalization is a retireable renderer lease, and Face Warp detection/review
+is no longer React-owned. Face refinement commits before pointer-up returns.
 Imported Text Warp remains renderable canonical data, but authoring it is not a
 current product surface. See [Warp vertical slice](WARP_VERTICAL_SLICE.md).
 

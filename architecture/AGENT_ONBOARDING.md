@@ -259,11 +259,16 @@ Warp authoring starts behind a bounded application controller. Owner feel
 acceptance is open, and no more text policy may enter the 9k-line overlay before
 its post-hit adapter is extracted.
 
-Warp reset, updated 2026-09-09: read
+Warp reset, updated 2026-09-10: read
 [Warp vertical slice](editor-kernel/WARP_VERTICAL_SLICE.md) before changing
 raster Warp, imported Text Warp or experimental Face Warp. One renderer-bound
 lease owns the immutable source and transient previews; an accepted gesture
 rebuilds from that source and publishes one canonical/history transition.
+The terminal canonical projection is an identity-scoped lease and must be
+retired whenever history admission or commit fails. Face Warp detection/review
+belongs to `FaceWarpDetectionReviewController`; React may only present its
+snapshot. Face Warp refinement and its single history commit finish inside
+pointer-up, so lifecycle reset cannot discard a completed gesture.
 Never use a committed preview as the next source or add Text Warp authoring to
 the text overlay as an incidental extension. Raster and Face Warp packaged
 gates passed; owner feel acceptance remains open.

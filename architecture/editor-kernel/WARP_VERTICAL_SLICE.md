@@ -1,6 +1,6 @@
 # Warp Vertical Slice
 
-Status: kernel route implemented and independently approved (S07); owner feel acceptance open.
+Status: C08 exclusive kernel route independently approved; owner feel acceptance open.
 
 ## Artist contract
 
@@ -34,7 +34,7 @@ Status: kernel route implemented and independently approved (S07); owner feel ac
 | GPU displacement field/output | none | per-layer `WarpEffect` in `LayerEffectRenderer` |
 | Imported text envelope | text layer `TextWarp` | text renderer; no authoring session exists |
 | Face landmarks/displacements after acceptance | raster `lt.face-warp` node | none |
-| Face detection/review | none | detector plus review session |
+| Face detection/review | none | `FaceWarpDetectionReviewController` |
 | Face sculpt/refinement | none until commit | face-warp interaction session |
 
 ## Baseline defect proved in S07
@@ -82,10 +82,9 @@ cancel/invalidation
   history never retain GPU objects.
 - A future Text Warp authoring feature must begin behind a bounded application
   controller; it may not first add gesture policy to `LightTableEditorOverlay.tsx`.
-- Face Warp detection, review, gesture and refinement currently form a second
-  overlay-local state machine. S07 must extract its transaction/lifetime
-  orchestration behind a bounded application controller; detector/deformer
-  algorithms remain in the existing domain modules.
+- Face Warp detection and review are owned by a bounded application controller;
+  detector/deformer algorithms remain in their domain modules. React presents
+  its external-store snapshot and cannot publish accepted settings directly.
 - The source-structure threshold may not be raised to hide these extractions.
 
 ## Acceptance matrix
@@ -138,11 +137,16 @@ cancel/invalidation
   now allowed only under an explicit renderer-owned layer/module preview lease;
   every other document/history projection rebuilds from the complete recipe.
   Packaged two-stroke commit/undo/redo is pixel-exact for both strokes.
-- Accepted nonblocking P2: detector/review UI state still lives in
-  `LightTableEditorOverlay.tsx`. Generation, source and renderer guards now fail
-  closed, but the next Face Warp behavior change must first extract that seam
-  into a dedicated detection/review controller. The 9k-line source-structure
-  threshold was not raised.
+- C08 removed the remaining semantic command's private apply/history ports,
+  made the interactive renderer binding mandatory and extracted detector/review
+  state from `LightTableEditorOverlay.tsx`. Late detection results require the
+  exact opening document, renderer and generation.
+- C08 critic pass 1 found two terminal lifecycle defects: rejected Warp history
+  could retain a renderer canonicalization marker, and RAF-delayed Face Warp
+  refinement could be cancelled after pointer-up by a tool/document switch.
+  Canonical projection is now an identity-scoped retire lease; Face Warp
+  refines and commits synchronously at pointer-up. Pass 2 accepted with no
+  P0/P1, and direct stale-retire test coverage was added.
 - Debug-packaged native WebGPU Face Warp acceptance passed detection review,
   cancellation, mesh acceptance, sculpt/refinement, eight repeated transaction
   boundaries, semantic adjustment undo, idle stability and GPU/heap checks.

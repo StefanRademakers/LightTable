@@ -25,16 +25,10 @@ export interface FaceWarpRendererBinding {
   setMode(mode: FaceWarpInteractionMode | null): void;
 }
 
-export interface FaceWarpRefinementScheduler {
-  schedule(run: () => void): unknown;
-  cancel(handle: unknown): void;
-}
-
 export interface FaceWarpInteractionDependencies {
   getDocument(): ImageDocument | null;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   acquireRendererBinding(): FaceWarpRendererBinding | null;
-  readonly refinementScheduler: FaceWarpRefinementScheduler;
   setError(message: string): void;
 }
 
@@ -60,7 +54,6 @@ export interface FaceWarpInteractionSessionController {
     refine?: (document: ImageDocument, context: FaceWarpGestureContext) => ImageDocument
   ): boolean;
   cancelGesture(pointerId: number): boolean;
-  flushPendingRefinement(): boolean;
   reset(): void;
 }
 
@@ -74,13 +67,6 @@ interface ActiveEdit {
   gesture: FaceWarpGestureContext | null;
 }
 
-interface PendingRefinement {
-  readonly edit: ActiveEdit;
-  readonly context: FaceWarpGestureContext;
-  readonly mutate: (document: ImageDocument, context: FaceWarpGestureContext) => ImageDocument;
-  readonly handle: unknown;
-}
-
 /**
  * Owns Face Warp edits from pointer admission through renderer cleanup and history commit.
  * React may present the controls, but it cannot replace the admitted document, layer,
@@ -90,7 +76,6 @@ export const createFaceWarpInteractionSessionController = (
   resolveDependencies: () => FaceWarpInteractionDependencies
 ): FaceWarpInteractionSessionController => {
   let active: ActiveEdit | null = null;
-  let pending: PendingRefinement | null = null;
 
   const report = (edit: ActiveEdit | null, reason: unknown, fallback: string) => {
     edit?.dependencies.setError(reason instanceof Error ? reason.message : fallback);
@@ -107,10 +92,6 @@ export const createFaceWarpInteractionSessionController = (
   };
 
   const closeState = (edit: ActiveEdit) => {
-    if (pending?.edit === edit) {
-      edit.dependencies.refinementScheduler.cancel(pending.handle);
-      pending = null;
-    }
     cleanupBinding(edit);
     edit.gesture = null;
     if (active === edit) active = null;
@@ -132,39 +113,10 @@ export const createFaceWarpInteractionSessionController = (
   const close = (commit: boolean): boolean => {
     const edit = active;
     if (!edit) return false;
-    if (pending?.edit === edit) {
-      edit.dependencies.refinementScheduler.cancel(pending.handle);
-      pending = null;
-    }
     return commit ? edit.transaction.commit() : edit.transaction.cancel();
   };
 
-  const executePendingRefinement = (): boolean => {
-    const refinement = pending;
-    if (!refinement) return false;
-    pending = null;
-    refinement.edit.dependencies.refinementScheduler.cancel(refinement.handle);
-    if (active !== refinement.edit || !currentDocument(refinement.edit)) {
-      refinement.edit.transaction.cancel();
-      return false;
-    }
-    try {
-      if (!refinement.edit.transaction.change((document) => (
-        refinement.mutate(document, refinement.context)
-      ))) {
-        refinement.edit.transaction.cancel();
-        return false;
-      }
-      return refinement.edit.transaction.commit();
-    } catch (reason) {
-      report(refinement.edit, reason, 'Face Warp refinement failed.');
-      refinement.edit.transaction.cancel();
-      return false;
-    }
-  };
-
   const beginEdit = (): boolean => {
-    if (pending) executePendingRefinement();
     if (active?.transaction.active) return false;
     active = null;
     const dependencies = resolveDependencies();
@@ -213,7 +165,6 @@ export const createFaceWarpInteractionSessionController = (
     commitEdit: () => close(true),
     cancelEdit: () => close(false),
     beginGesture: (documentId, layerId, context) => {
-      if (pending) executePendingRefinement();
       if (active?.transaction.active) return false;
       active = null;
       const dependencies = resolveDependencies();
@@ -288,16 +239,14 @@ export const createFaceWarpInteractionSessionController = (
       if (!refine || context.mode !== 'sculpt' || context.latestRadius <= 0) {
         return edit.transaction.commit();
       }
-      const run = () => {
-        if (pending?.edit !== edit) return;
-        executePendingRefinement();
-      };
       try {
-        const handle = edit.dependencies.refinementScheduler.schedule(run);
-        pending = { edit, context, mutate: refine, handle };
-        return true;
+        if (!edit.transaction.change((document) => refine(document, context))) {
+          edit.transaction.cancel();
+          return false;
+        }
+        return edit.transaction.commit();
       } catch (reason) {
-        report(edit, reason, 'Face Warp refinement could not be scheduled.');
+        report(edit, reason, 'Face Warp refinement failed.');
         edit.transaction.cancel();
         return false;
       }
@@ -306,7 +255,6 @@ export const createFaceWarpInteractionSessionController = (
       if (active?.gesture?.pointerId !== pointerId) return false;
       return close(false);
     },
-    flushPendingRefinement: executePendingRefinement,
     reset: () => {
       if (active) close(false);
     }

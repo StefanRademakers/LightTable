@@ -6,6 +6,30 @@ import { findWarpModuleInstance, MAX_WARP_STROKE_SAMPLES,
 import { parseSemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { executeSemanticWarpStrokeCommand } from './semanticWarpCommandExecutor';
 import { projectWarpQuery } from './warpQueryProjection';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
+
+const harness = (initial = createImageDocument('Warp command', 200, 100, 'source')) => {
+  let document = initial;
+  const history = vi.fn();
+  const mutation = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: (next) => { document = next; },
+    previewSnapshot: () => undefined,
+    discardPreview: () => undefined,
+    pushHistoryEntry: history
+  }));
+  let id = 0;
+  return {
+    dependencies: {
+      getDocument: () => document,
+      changeDocument: mutation.change,
+      createId: (kind: 'stack' | 'module' | 'stroke') => `${kind}-${++id}`
+    },
+    history,
+    get document() { return document; },
+    set document(next) { document = next; }
+  };
+};
 
 const command = (layerId: LayerId, sampleCount = 2) => ({
   layerId, mode: 'push' as const,
@@ -21,26 +45,12 @@ const command = (layerId: LayerId, sampleCount = 2) => ({
 
 describe('semantic Warp stroke command', () => {
   it('appends one editable recipe and one history entry without gesture previews', () => {
-    let document = createImageDocument('Warp command', 200, 100, 'source');
-    const layer = findRasterLayer(document, document.activeLayerId)!;
-    const history = vi.fn(); let id = 0;
-    const requestCanonicalProjection = vi.fn(() => true);
-    const result = executeSemanticWarpStrokeCommand(command(layer.id), {
-      getDocument: () => document,
-      applyDocument: (next) => { document = next; },
-      recordHistory: history,
-      createId: (kind) => `${kind}-${++id}`,
-      requestCanonicalProjection
-    });
+    const state = harness();
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const result = executeSemanticWarpStrokeCommand(command(layer.id), state.dependencies);
     expect(result).toEqual({ layerId: layer.id, strokeId: 'stroke-1', sampleCount: 2 });
-    expect(history).toHaveBeenCalledOnce();
-    const updated = findRasterLayer(document, layer.id)!;
-    const terminalModule = findWarpModuleInstance(updated.adjustmentStack)!;
-    expect(requestCanonicalProjection).toHaveBeenCalledExactlyOnceWith(
-      layer.id,
-      terminalModule.id,
-      terminalModule.revision
-    );
+    expect(state.history).toHaveBeenCalledOnce();
+    const updated = findRasterLayer(state.document, layer.id)!;
     const settings = readWarpNodeSettings(findWarpModuleInstance(updated.adjustmentStack)!);
     expect(settings.strokes[0]).toMatchObject({ id: 'stroke-1', mode: 'push',
       samples: [{ positionPx: [10, 20] }, { positionPx: [11, 21] }] });
@@ -65,18 +75,12 @@ describe('semantic Warp stroke command', () => {
   });
 
   it('projects a detached and bounded editable recipe', () => {
-    let document = createImageDocument('Warp query', 200, 100, 'source');
-    const layerId = document.activeLayerId!;
-    let id = 0;
+    const state = harness(createImageDocument('Warp query', 200, 100, 'source'));
+    const layerId = state.document.activeLayerId!;
     for (let index = 0; index < 65; index += 1) {
-      executeSemanticWarpStrokeCommand(command(layerId, 1), {
-        getDocument: () => document,
-        applyDocument: (next) => { document = next; },
-        recordHistory: () => undefined,
-        createId: (kind) => `${kind}-${++id}`
-      });
+      executeSemanticWarpStrokeCommand(command(layerId, 1), state.dependencies);
     }
-    const layer = findRasterLayer(document, layerId)!;
+    const layer = findRasterLayer(state.document, layerId)!;
     const projected = projectWarpQuery(layer)!;
     expect(projected).toMatchObject({ totalStrokes: 65, totalSamples: 65, truncated: true });
     expect(projected.strokes).toHaveLength(64);
@@ -87,31 +91,24 @@ describe('semantic Warp stroke command', () => {
   });
 
   it('rejects locked targets without publishing history', () => {
-    let document = createImageDocument('Warp command', 200, 100, 'source');
-    const layer = findRasterLayer(document, document.activeLayerId)!;
-    document = { ...document, layers: [{ ...layer, locks: { ...layer.locks, pixels: true } }] };
-    const history = vi.fn();
-    expect(() => executeSemanticWarpStrokeCommand(command(layer.id), {
-      getDocument: () => document, applyDocument: (next) => { document = next; },
-      recordHistory: history, createId: (kind) => kind
-    })).toThrow(/Unlock/);
-    expect(history).not.toHaveBeenCalled();
+    const initial = createImageDocument('Warp command', 200, 100, 'source');
+    const layer = findRasterLayer(initial, initial.activeLayerId)!;
+    const state = harness({ ...initial, layers: [{ ...layer, locks: { ...layer.locks, pixels: true } }] });
+    expect(() => executeSemanticWarpStrokeCommand(command(layer.id), state.dependencies)).toThrow(/Unlock/);
+    expect(state.history).not.toHaveBeenCalled();
   });
 
-  it('fails before document and history publication when terminal projection is unavailable', () => {
-    const document = createImageDocument('Warp command', 200, 100, 'source');
-    const layer = findRasterLayer(document, document.activeLayerId)!;
-    const applyDocument = vi.fn();
-    const history = vi.fn();
-
-    expect(() => executeSemanticWarpStrokeCommand(command(layer.id), {
-      getDocument: () => document,
-      applyDocument,
-      recordHistory: history,
-      createId: (kind) => kind,
-      requestCanonicalProjection: () => false
-    })).toThrow(/terminal recipe/);
-    expect(applyDocument).not.toHaveBeenCalled();
-    expect(history).not.toHaveBeenCalled();
+  it('rejects publication after the exact opening document was replaced', () => {
+    const state = harness();
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const opening = state.document;
+    const dependencies = { ...state.dependencies,
+      changeDocument: ((mutate: (current: typeof opening) => typeof opening) => {
+        state.document = { ...opening };
+        return state.dependencies.changeDocument(mutate);
+      }) as typeof state.dependencies.changeDocument };
+    expect(executeSemanticWarpStrokeCommand(command(layer.id), dependencies)).toBeNull();
+    expect(state.document).not.toBe(opening);
+    expect(state.history).not.toHaveBeenCalled();
   });
 });

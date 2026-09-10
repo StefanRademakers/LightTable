@@ -48,7 +48,7 @@ export interface WarpSessionDependencies {
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   setError(message: string | null): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
-  acquireInteractionBinding?(layerId: LayerId): WarpInteractionBinding | null;
+  acquireInteractionBinding(layerId: LayerId): WarpInteractionBinding | null;
   onStrokeCommitted?(
     layerId: LayerId,
     stroke: WarpStroke,
@@ -59,7 +59,10 @@ export interface WarpSessionDependencies {
 export interface WarpInteractionBinding {
   isCurrent(): boolean;
   setActive(active: boolean, moduleId: string): void;
-  requestCanonicalProjection(moduleId: string, moduleRevision: number): boolean;
+  requestCanonicalProjection(
+    moduleId: string,
+    moduleRevision: number
+  ): { retire(): void } | null;
 }
 
 export interface BeginWarpSession {
@@ -87,7 +90,7 @@ interface ActiveWarpSession {
   readonly layerId: RasterLayer['id'];
   readonly transaction: DocumentMutationTransaction;
   readonly dependencies: WarpSessionDependencies;
-  readonly interactionBinding: WarpInteractionBinding | null;
+  readonly interactionBinding: WarpInteractionBinding;
   /** Stable stack/module identity used to replace this gesture's stroke. */
   readonly recipeBase: ImageDocument;
   readonly moduleId: string;
@@ -280,8 +283,8 @@ export const createWarpSessionController = (
           transaction.cancel();
           return false;
         }
-        const interactionBinding = dependencies.acquireInteractionBinding?.(layer.id) ?? null;
-        if (dependencies.acquireInteractionBinding && !interactionBinding) {
+        const interactionBinding = dependencies.acquireInteractionBinding(layer.id);
+        if (!interactionBinding) {
           gesture.reset();
           transaction.cancel();
           dependencies.setError('The Warp renderer is unavailable.');
@@ -362,25 +365,40 @@ export const createWarpSessionController = (
         session.transaction.cancel();
         return false;
       }
+      let terminalProjection: { retire(): void } | null = null;
       try {
         const terminalModule = findWarpModuleInstance(
           findRasterLayer(session.transaction.current, session.layerId)?.adjustmentStack
         );
-        if (!terminalModule
-          || session.interactionBinding?.requestCanonicalProjection(
+        terminalProjection = terminalModule
+          ? session.interactionBinding.requestCanonicalProjection(
             terminalModule.id,
             terminalModule.revision
-          ) === false) {
+          )
+          : null;
+        if (!terminalProjection) {
           throw new Error('The Warp renderer could not bind the terminal recipe.');
         }
       } catch (reason) {
+        terminalProjection?.retire();
         session.dependencies.setError(
           reason instanceof Error ? reason.message : 'Warp terminal projection failed.'
         );
         session.transaction.cancel();
         return false;
       }
-      if (!session.transaction.commit()) return false;
+      try {
+        if (!session.transaction.commit()) {
+          terminalProjection.retire();
+          return false;
+        }
+      } catch (reason) {
+        terminalProjection.retire();
+        session.dependencies.setError(
+          reason instanceof Error ? reason.message : 'Warp commit failed.'
+        );
+        return false;
+      }
       try {
         session.dependencies.onStrokeCommitted?.(
           session.layerId,

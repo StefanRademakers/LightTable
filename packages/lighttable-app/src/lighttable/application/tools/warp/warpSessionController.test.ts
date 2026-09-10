@@ -52,10 +52,13 @@ const harness = () => {
   const history: Array<{ undo(): void; redo(): void }> = [];
   let id = 0;
   let interactionCurrent = true;
+  const retireCanonicalProjection = vi.fn();
   const interactionBinding = {
     isCurrent: vi.fn(() => interactionCurrent),
     setActive: vi.fn(),
-    requestCanonicalProjection: vi.fn(() => interactionCurrent)
+    requestCanonicalProjection: vi.fn(() => interactionCurrent
+      ? { retire: retireCanonicalProjection }
+      : null)
   };
   const getDocument = () => document;
   const previewDocumentSnapshot = vi.fn((next: ImageDocument) => {
@@ -91,6 +94,7 @@ const harness = () => {
   return {
     dependencies,
     history,
+    retireCanonicalProjection,
     originalStack,
     get document() {
       return document;
@@ -362,6 +366,26 @@ describe('Warp session controller', () => {
     ]);
     expect(state.interactionBinding.requestCanonicalProjection).not.toHaveBeenCalled();
     expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
+  it('retires terminal renderer intent when history publication rejects the commit', () => {
+    const state = harness();
+    const opening = state.document;
+    state.dependencies.pushHistoryEntry.mockImplementation(() => {
+      throw new Error('history rejected');
+    });
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 151,
+      mode: 'push',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    expect(controller.move(151, point(60, 60, 20))).toBe(true);
+    expect(controller.finish(151, 30)).toBe(false);
+    expect(state.retireCanonicalProjection).toHaveBeenCalledOnce();
+    expect(state.document).toBe(opening);
+    expect(controller.active).toBe(false);
   });
 
   it('coalesces previews while preserving every authored sample at commit', () => {

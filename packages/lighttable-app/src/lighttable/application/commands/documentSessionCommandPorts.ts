@@ -135,7 +135,8 @@ export const createDocumentSessionCommandPorts = (
     }),
     executeSvgImport: (command) => executeSvgImport(command, semanticDependencies),
     executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
-      ...semanticDependencies,
+      getDocument: semanticDependencies.getDocument,
+      changeDocument: mutation.change,
       createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
     }),
     executeFillCommand: () => requiresPresentation('Fill'),

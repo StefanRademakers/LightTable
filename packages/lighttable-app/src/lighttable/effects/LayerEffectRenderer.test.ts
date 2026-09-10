@@ -74,4 +74,21 @@ describe('LayerEffectRenderer memory telemetry', () => {
 
     expect(renderer.estimatedTextureBytes()).toBe(0);
   });
+
+  it('does not let an older Warp request retire a newer canonical projection', () => {
+    const renderer = new LayerEffectRenderer(
+      {} as GPUDevice,
+      {} as GPUSampler,
+      {} as GPUShaderModule
+    );
+    const retireA = renderer.requestCanonicalWarpProjection('layer', 'warp', 1);
+    const retireB = renderer.requestCanonicalWarpProjection('layer', 'warp', 2);
+    retireA();
+    const pending = (renderer as unknown as {
+      pendingCanonicalWarp: Map<string, { moduleId: string; moduleRevision: number }>;
+    }).pendingCanonicalWarp;
+    expect(pending.get('layer')).toEqual({ moduleId: 'warp', moduleRevision: 2 });
+    retireB();
+    expect(pending.has('layer')).toBe(false);
+  });
 });

@@ -116,7 +116,7 @@ but cannot inherit another item's acceptance.
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | accepted | [x] | [x] | [x] | [x] |
 | C06 | Vector paths, Pen, live shapes and vector gradients | accepted | [x] | [x] | [x] | [x] |
 | C07 | Text, Path Text, layout/editing and semantic text transform | accepted | [x] | [x] | [x] | [x] |
-| C08 | Raster Warp, Face Warp and imported Text Warp projection | queued | [ ] | [ ] | [ ] | [ ] |
+| C08 | Raster Warp, Face Warp and imported Text Warp projection | accepted | [x] | [x] | [x] | [x] |
 | C09 | Adjustment layers and attached adjustments | queued | [ ] | [ ] | [ ] | [ ] |
 | C10 | Layer styles/effects and filter lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
@@ -407,6 +407,30 @@ but cannot inherit another item's acceptance.
    document/history outside the shared transaction. Created-layer history
    metadata can be enriched later without changing command ownership.
 7. **Next** -- C08 Raster Warp, Face Warp and imported Text Warp projection.
+
+## C08 acceptance record -- 2026-09-10
+
+1. **Done** -- semantic raster Warp now uses the shared document mutation
+   authority; interactive Warp requires an opening renderer lease and an
+   identity-scoped terminal canonical-projection lease. Failed history
+   publication retires that renderer intent and restores the opening document.
+   Face Warp detection/review lives in a bounded application controller with
+   exact document/renderer-generation admission, while pointer-up refinement
+   completes synchronously inside the gesture's single terminal transaction.
+2. **Proof** -- app typecheck and boundary audit; 25 focused files and 110 Warp,
+   Face Warp and effect-runtime tests; debug desktop package; packaged Warp
+   two-stroke/undo/redo pixel-exact smoke; packaged Face Warp detection,
+   reject/cancel/accept, sculpt/refine, semantic edit, undo, idle and memory
+   smoke. Native NVIDIA preview frames measured 5.8 ms p50/6.3 ms p95 and
+   pointer-up refinement 30.4 ms with no page/console errors.
+3. **Critic** -- pass 1 rejected an unretired pre-commit Warp renderer marker
+   and RAF-delayed Face Warp terminal publication. Both lifecycle defects were
+   repaired; pass 2 verdict: **ACCEPT**, no C08 P0/P1. The P2 stale-retire test
+   hardening was also added.
+4. **Imported Text Warp** -- remains canonical PSD import/export data rendered
+    as a resolution-independent text envelope. No authoring surface or fallback
+    mutation route exists; feature freeze deliberately does not invent one.
+5. **Next** -- C09 Adjustment layers and attached adjustments.
 
 ## Slice-specific acceptance
 

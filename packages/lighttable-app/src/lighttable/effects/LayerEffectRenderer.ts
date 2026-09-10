@@ -95,8 +95,14 @@ export class LayerEffectRenderer {
     layerId: string,
     moduleId: string,
     moduleRevision: number
-  ): void {
-    this.pendingCanonicalWarp.set(layerId, { moduleId, moduleRevision });
+  ): () => void {
+    const request = { moduleId, moduleRevision };
+    this.pendingCanonicalWarp.set(layerId, request);
+    return () => {
+      if (this.pendingCanonicalWarp.get(layerId) === request) {
+        this.pendingCanonicalWarp.delete(layerId);
+      }
+    };
   }
 
   setWarpPreviewLease(layerId: string, moduleId: string, active: boolean): void {

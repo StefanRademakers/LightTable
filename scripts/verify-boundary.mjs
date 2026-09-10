@@ -566,6 +566,51 @@ function verifyTextCutover(relativePath, source) {
   }
 }
 
+function verifyWarpCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/commands/semanticWarpCommandExecutor.ts')) {
+    if (!source.includes('changeDocument(')
+      || /\b(?:applyDocument|recordHistory)\s*\(/.test(source)
+      || source.includes('requestCanonicalProjection?')) {
+      failures.push(`${relativePath}: semantic Warp must use shared document mutation without a projection fallback`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/warp/warpSessionController.ts')) {
+    if (source.includes('acquireInteractionBinding?')
+      || source.includes('acquireInteractionBinding?.')
+      || source.includes('interactionBinding?.requestCanonicalProjection')
+      || !source.includes('terminalProjection.retire()')) {
+      failures.push(`${relativePath}: interactive Warp must require its renderer lease through terminal projection`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    const forbiddenFaceWarpReviewOwners = [
+      'FaceWarpDetector',
+      'faceWarpDetectionGenerationRef',
+      'setPendingFaceWarpDetection',
+      'setFaceWarpBusy',
+      'faceWarpDetectionReviewMatches'
+    ];
+    for (const symbol of forbiddenFaceWarpReviewOwners) {
+      if (source.includes(symbol)) {
+        failures.push(`${relativePath}: Face Warp detection/review owner ${symbol} must stay outside React`);
+      }
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/faceWarp/FaceWarpDetectionReviewController.ts')) {
+    if (!source.includes('changeDocument: DocumentMutationController')
+      || !source.includes('dependencies.getDocument() === document')
+      || !source.includes('dependencies.getRenderer() === renderer')
+      || !source.includes('dependencies.getRendererGeneration() === rendererGeneration')) {
+      failures.push(`${relativePath}: Face Warp review must bind mutation and async publication to its opening owners`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/tools/faceWarp/FaceWarpInteractionSessionController.ts')
+    && (source.includes('refinementScheduler') || source.includes('PendingRefinement'))) {
+    failures.push(`${relativePath}: Face Warp pointer-up refinement must publish synchronously before lifecycle reset`);
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -585,6 +630,7 @@ async function scan(relativeDirectory) {
       verifyTransformCutover(relativePath, source);
       verifyVectorCutover(relativePath, source);
       verifyTextCutover(relativePath, source);
+      verifyWarpCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

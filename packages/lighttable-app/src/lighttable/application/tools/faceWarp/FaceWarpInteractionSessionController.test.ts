@@ -26,7 +26,6 @@ const harness = () => {
   let current = document();
   let preview = current;
   let bindingCurrent = true;
-  let scheduled: (() => void) | null = null;
   const modes: Array<string | null> = [];
   const history: unknown[] = [];
   const errors: string[] = [];
@@ -45,10 +44,6 @@ const harness = () => {
       isCurrent: () => bindingCurrent,
       setMode: (mode) => { modes.push(mode); }
     }),
-    refinementScheduler: {
-      schedule: (run) => { scheduled = run; return run; },
-      cancel: (handle) => { if (scheduled === handle) scheduled = null; }
-    },
     setError: (message) => { errors.push(message); }
   }));
   return {
@@ -56,7 +51,6 @@ const harness = () => {
     get current() { return current; },
     set current(next: ImageDocument) { current = next; preview = next; },
     get preview() { return preview; },
-    get scheduled() { return scheduled; },
     set bindingCurrent(value: boolean) { bindingCurrent = value; },
     history,
     modes,
@@ -118,15 +112,12 @@ describe('FaceWarpInteractionSessionController', () => {
       return { ...current, name: 'drag-preview' };
     })).toBe(true);
     expect(state.controller.finishGesture(7, (current) => ({ ...current, name: 'refined' }))).toBe(true);
-    expect(state.controller.active).toBe(true);
-    expect(state.history).toHaveLength(0);
-    state.scheduled?.();
     expect(state.current.name).toBe('refined');
     expect(state.controller.active).toBe(false);
     expect(state.history).toHaveLength(1);
   });
 
-  it('flushes pending refinement before history restoration', () => {
+  it('keeps a pointer-up refinement committed across an immediate lifecycle reset', () => {
     const state = harness();
     const context = gesture();
     state.controller.beginGesture(state.documentId, state.activeLayerId, context);
@@ -135,10 +126,9 @@ describe('FaceWarpInteractionSessionController', () => {
       return { ...current, name: 'preview' };
     });
     state.controller.finishGesture(7, (current) => ({ ...current, name: 'flushed' }));
-    expect(state.controller.flushPendingRefinement()).toBe(true);
+    state.controller.reset();
     expect(state.current.name).toBe('flushed');
     expect(state.history).toHaveLength(1);
-    expect(state.scheduled).toBe(null);
   });
 
   it('contains renderer failures and cancels the transaction', () => {
@@ -158,7 +148,6 @@ describe('FaceWarpInteractionSessionController', () => {
         isCurrent: () => true,
         setMode: () => { throw new Error('renderer lost'); }
       }),
-      refinementScheduler: { schedule: vi.fn(), cancel: vi.fn() },
       setError: (message) => { state.errors.push(message); }
     }));
     expect(failing.beginGesture(state.documentId, state.activeLayerId, gesture())).toBe(false);
