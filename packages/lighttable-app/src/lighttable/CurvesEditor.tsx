@@ -30,11 +30,11 @@ interface CurvesEditorProps {
   histogram: RgbHistogram | null;
   disabled?: boolean;
   onChannelChange: (channel: CurveChannel) => void;
-  onChange: (channel: CurveChannel, points: ToneCurve) => void;
+  onChange: (channel: CurveChannel, points: ToneCurve, handle: object | void) => void;
   onReset: (channel: CurveChannel) => void;
-  onInteractionStart: () => void;
-  onInteractionEnd: () => void;
-  onInteractionCancel: () => void;
+  onInteractionStart: () => object | void;
+  onInteractionEnd: (handle: object | void) => void;
+  onInteractionCancel: (handle: object | void) => void;
 }
 
 const toSvgPoint = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -72,6 +72,8 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onInteractionCancel
 }) => {
   const dragIndexRef = useRef<number | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const interactionHandleRef = useRef<object | void>(undefined);
   const cancelInteractionRef = useRef(onInteractionCancel);
   cancelInteractionRef.current = onInteractionCancel;
   const previewPointsRef = useRef<ToneCurve | null>(null);
@@ -80,7 +82,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   const publishPreview = (next: ToneCurve) => {
     previewPointsRef.current = next;
     setPreviewPoints(next);
-    onChange(channel, next);
+    onChange(channel, next, interactionHandleRef.current);
   };
   const curvePath = useMemo(() => {
     const samples = Array.from({ length: 129 }, (_, index) => {
@@ -91,18 +93,19 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   }, [points]);
 
   const beginPointDrag = (event: React.PointerEvent<SVGCircleElement>, index: number) => {
-    if (disabled || event.button !== 0) return;
+    if (disabled || event.button !== 0 || pointerIdRef.current !== null) return;
     event.preventDefault();
     event.stopPropagation();
     dragIndexRef.current = index;
+    pointerIdRef.current = event.pointerId;
     previewPointsRef.current = points.map((point) => ({ ...point }));
     setPreviewPoints(previewPointsRef.current);
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
-    onInteractionStart();
+    interactionHandleRef.current = onInteractionStart();
   };
 
   const addPoint = (event: React.PointerEvent<SVGRectElement>) => {
-    if (disabled || event.button !== 0) return;
+    if (disabled || event.button !== 0 || pointerIdRef.current !== null) return;
     const svg = event.currentTarget.ownerSVGElement;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
@@ -112,8 +115,9 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     };
     const next = normalizeCurvePoints([...points, point]);
     dragIndexRef.current = next.findIndex((candidate) => Math.abs(candidate.x - point.x) < 1e-5);
+    pointerIdRef.current = event.pointerId;
     svg.setPointerCapture(event.pointerId);
-    onInteractionStart();
+    interactionHandleRef.current = onInteractionStart();
     publishPreview(next);
   };
 
@@ -130,35 +134,38 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   };
 
   const endDrag = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (dragIndexRef.current === null) return;
+    if (dragIndexRef.current === null || pointerIdRef.current !== event.pointerId) return;
     dragIndexRef.current = null;
+    pointerIdRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    onInteractionEnd();
+    onInteractionEnd(interactionHandleRef.current);
+    interactionHandleRef.current = undefined;
     previewPointsRef.current = null;
     setPreviewPoints(null);
   };
 
   const cancelDrag = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (dragIndexRef.current === null) return;
+    if (dragIndexRef.current === null || pointerIdRef.current !== event.pointerId) return;
     dragIndexRef.current = null;
+    pointerIdRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    onInteractionCancel();
+    onInteractionCancel(interactionHandleRef.current);
+    interactionHandleRef.current = undefined;
     previewPointsRef.current = null;
     setPreviewPoints(null);
   };
 
   React.useEffect(() => () => {
-    if (dragIndexRef.current !== null) cancelInteractionRef.current();
+    if (dragIndexRef.current !== null) cancelInteractionRef.current(interactionHandleRef.current);
   }, []);
 
   const removePoint = (event: React.MouseEvent<SVGCircleElement>, index: number) => {
     if (disabled || index === 0 || index === points.length - 1) return;
     event.preventDefault();
     event.stopPropagation();
-    onInteractionEnd();
-    onInteractionStart();
-    onChange(channel, points.filter((_, pointIndex) => pointIndex !== index));
-    onInteractionEnd();
+    const handle = onInteractionStart();
+    onChange(channel, points.filter((_, pointIndex) => pointIndex !== index), handle);
+    onInteractionEnd(handle);
   };
 
   return (

@@ -44,7 +44,8 @@ export interface DocumentProjectionController {
   ): void;
   applyProjectedAdjustmentSnapshot(
     projection: AdjustmentProjection,
-    domain?: AdjustmentPresentationDomain
+    domain?: AdjustmentPresentationDomain,
+    publishPresentation?: boolean
   ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
@@ -151,8 +152,12 @@ export const createDocumentProjectionController = (
     ) => {
       projectAdjustments(snapshot, targetLayerId, true, domain, publishPresentation);
     },
-    applyProjectedAdjustmentSnapshot: (projection, domain = 'all') => {
-      publishCanonicalProjection(projection, domain);
+    applyProjectedAdjustmentSnapshot: (
+      projection,
+      domain = 'all',
+      publishPresentation = true
+    ) => {
+      publishCanonicalProjection(projection, domain, publishPresentation);
     },
     applyDocumentSnapshot: (document) => {
       previewDocument = null;

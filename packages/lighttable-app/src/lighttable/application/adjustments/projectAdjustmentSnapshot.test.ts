@@ -18,7 +18,10 @@ import {
   createAdjustmentStackFromBasicAdjustments,
   ensureAdjustmentStackLocalProcessing
 } from '../../processing/adjustmentStack';
-import { projectAdjustmentSnapshot } from './projectAdjustmentSnapshot';
+import {
+  projectAdjustmentDelta,
+  projectAdjustmentSnapshot
+} from './projectAdjustmentSnapshot';
 import { attachedAdjustmentOwnerId } from '../../processing/attachedAdjustment';
 import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import {
@@ -78,6 +81,43 @@ describe('adjustment snapshot projection', () => {
     expect(projected.adjustmentStack?.modules.some((module) => (
       module.type === 'lt.grain'
     ))).toBe(true);
+  });
+
+  it('keeps unrelated raster modules out of pointer-rate clone work', () => {
+    const base = createImageDocument('Image', 64, 48, 'image');
+    const rasterId = base.activeLayerId!;
+    const before = createDefaultAdjustments();
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      rasterId,
+      createAdjustmentStackFromBasicAdjustments(before)
+    );
+    const original = findDocumentLayer(document, rasterId);
+    if (original?.type !== 'raster' || !original.adjustmentStack) {
+      throw new Error('Expected raster adjustment stack.');
+    }
+    const originalCurves = original.adjustmentStack.modules.find(
+      ({ type }) => type === 'lt.curves'
+    );
+    const after = { ...before, exposureEV: 2 };
+
+    const result = projectAdjustmentDelta({
+      previousSnapshot: before,
+      snapshot: after,
+      targetLayerId: rasterId,
+      document,
+      documentAdjustments: createDefaultAdjustments()
+    });
+    const projected = result.document
+      ? findDocumentLayer(result.document, rasterId)
+      : null;
+    if (projected?.type !== 'raster') throw new Error('Expected raster projection.');
+    expect(projected.adjustmentStack?.modules.find(
+      ({ type }) => type === 'lt.curves'
+    )).toBe(originalCurves);
+    expect(projected.adjustmentStack?.modules.find(
+      ({ type }) => type === 'lt.light'
+    )?.settings.exposureEV).toBe(2);
   });
 
   it('keeps an authored pixel-layer warp intact when its grade changes', () => {

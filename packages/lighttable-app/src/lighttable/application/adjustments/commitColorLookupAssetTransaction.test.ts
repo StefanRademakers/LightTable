@@ -5,19 +5,21 @@ import type { EditorHistoryEntry } from '../commands/useDocumentHistoryControlle
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import {
   commitColorLookupAssetTransaction,
+  type ColorLookupCanonicalProjection,
   type ColorLookupRuntimePort
 } from './commitColorLookupAssetTransaction';
-import type { AdjustmentProjection } from './projectAdjustmentSnapshot';
 
 const assetId = 'lut-imported' as DocumentAssetId;
 
-const setup = (rejectHistory = false) => {
+const setup = (rejectHistory = false, invalidateDuringLoad = false) => {
   const beforeDocument = createImageDocument('Fixture', 16, 9, 'fixture');
   let document = beforeDocument;
-  let editorAdjustments = createDefaultAdjustments();
   let documentAdjustments = createDefaultAdjustments();
+  let bindingCurrent = true;
   const runtime: ColorLookupRuntimePort = {
-    loadColorLookupAsset: vi.fn(async () => undefined),
+    loadColorLookupAsset: vi.fn(async () => {
+      if (invalidateDuringLoad) bindingCurrent = false;
+    }),
     removeColorLookupAsset: vi.fn(() => true)
   };
   const controller = createDocumentMutationController(() => ({
@@ -47,23 +49,21 @@ const setup = (rejectHistory = false) => {
   };
   transaction.stage(() => withAsset);
   const nextAdjustments = {
-    ...editorAdjustments,
-    gradeLook: { ...editorAdjustments.gradeLook, assetId }
+    ...documentAdjustments,
+    gradeLook: { ...documentAdjustments.gradeLook, assetId }
   };
-  const applyProjection = vi.fn((projection: AdjustmentProjection) => {
+  const applyCanonicalProjection = vi.fn((projection: ColorLookupCanonicalProjection) => {
     if (projection.document) document = projection.document;
-    editorAdjustments = projection.editorAdjustments;
     documentAdjustments = projection.documentAdjustments;
   });
   const entries: EditorHistoryEntry[] = [];
   return {
     beforeDocument,
-    beforeEditorAdjustments: editorAdjustments,
     beforeDocumentAdjustments: documentAdjustments,
     nextAdjustments,
     transaction,
     runtime,
-    applyProjection,
+    applyCanonicalProjection,
     entries,
     execute: () => commitColorLookupAssetTransaction({
       transaction,
@@ -71,21 +71,19 @@ const setup = (rejectHistory = false) => {
       source: new Blob(['LUT']),
       assetId,
       beforeDocument,
-      beforeEditorAdjustments: editorAdjustments,
       beforeDocumentAdjustments: documentAdjustments,
       nextEditorAdjustments: nextAdjustments,
       targetLayerId: null,
       history: { type: 'adjustment.grade.paste', label: 'Paste Grade' },
-      originIsCurrent: () => document === beforeDocument,
+      bindingIsCurrent: () => bindingCurrent && document === beforeDocument,
       documentIsActive: (documentId) => document.id === documentId,
-      applyProjection,
+      applyCanonicalProjection,
       pushHistoryEntry: (entry) => {
         if (rejectHistory) throw new Error('History rejected the import.');
         entries.push(entry);
       }
     }),
     getDocument: () => document,
-    getEditorAdjustments: () => editorAdjustments,
     getDocumentAdjustments: () => documentAdjustments
   };
 };
@@ -121,6 +119,19 @@ describe('commitColorLookupAssetTransaction', () => {
 
     expect(state.getDocument()).toBe(state.beforeDocument);
     expect(state.getDocumentAdjustments().gradeLook.assetId).toBeNull();
+    expect(state.runtime.removeColorLookupAsset).toHaveBeenCalledWith(
+      state.beforeDocument.id,
+      assetId
+    );
+  });
+
+  it('rejects and removes a loaded runtime when its renderer binding changes', async () => {
+    const state = setup(false, true);
+
+    await expect(state.execute()).rejects.toThrow('target changed');
+
+    expect(state.getDocument()).toBe(state.beforeDocument);
+    expect(state.entries).toHaveLength(0);
     expect(state.runtime.removeColorLookupAsset).toHaveBeenCalledWith(
       state.beforeDocument.id,
       assetId

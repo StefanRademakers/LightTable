@@ -11,6 +11,11 @@ import {
   type AdjustmentProjection
 } from './projectAdjustmentSnapshot';
 
+export type ColorLookupCanonicalProjection = Pick<
+  AdjustmentProjection,
+  'document' | 'documentAdjustments' | 'scope'
+>;
+
 export interface ColorLookupRuntimePort {
   loadColorLookupAsset(
     documentResourceKey: string,
@@ -28,7 +33,6 @@ export interface ColorLookupAssetTransactionInput {
   readonly source: Blob;
   readonly assetId: DocumentAssetId;
   readonly beforeDocument: ImageDocument;
-  readonly beforeEditorAdjustments: BasicAdjustments;
   readonly beforeDocumentAdjustments: BasicAdjustments;
   readonly nextEditorAdjustments: BasicAdjustments;
   readonly targetLayerId: LayerId | null;
@@ -36,9 +40,10 @@ export interface ColorLookupAssetTransactionInput {
     readonly type: string;
     readonly label: string;
   };
-  originIsCurrent(): boolean;
+  /** Exact document target plus captured renderer generation remain admitted. */
+  bindingIsCurrent(): boolean;
   documentIsActive(documentId: ImageDocument['id']): boolean;
-  applyProjection(projection: AdjustmentProjection): void;
+  applyCanonicalProjection(projection: ColorLookupCanonicalProjection): void;
   pushHistoryEntry(entry: EditorHistoryEntry): void;
 }
 
@@ -53,14 +58,13 @@ export const commitColorLookupAssetTransaction = async ({
   source,
   assetId,
   beforeDocument,
-  beforeEditorAdjustments,
   beforeDocumentAdjustments,
   nextEditorAdjustments,
   targetLayerId,
   history,
-  originIsCurrent,
+  bindingIsCurrent,
   documentIsActive,
-  applyProjection,
+  applyCanonicalProjection,
   pushHistoryEntry
 }: ColorLookupAssetTransactionInput): Promise<AdjustmentProjection> => {
   const projection = projectAdjustmentSnapshot({
@@ -72,10 +76,14 @@ export const commitColorLookupAssetTransaction = async ({
   if (!projection.document) {
     throw new Error('The selected layer cannot own this color lookup.');
   }
-  const beforeProjection: AdjustmentProjection = {
-    editorAdjustments: beforeEditorAdjustments,
+  const beforeProjection: ColorLookupCanonicalProjection = {
     documentAdjustments: beforeDocumentAdjustments,
     document: beforeDocument,
+    scope: projection.scope
+  };
+  const afterProjection: ColorLookupCanonicalProjection = {
+    documentAdjustments: projection.documentAdjustments,
+    document: projection.document,
     scope: projection.scope
   };
   if (projection.document !== transaction.current
@@ -87,22 +95,25 @@ export const commitColorLookupAssetTransaction = async ({
   let canonicalPublicationStarted = false;
   try {
     const committed = await transaction.commitWithAsync(async (ownedBefore, ownedAfter) => {
+      if (!bindingIsCurrent()) {
+        throw new Error('The color lookup renderer or target is no longer current.');
+      }
       await runtime.loadColorLookupAsset(transaction.documentId, { lutId: assetId, source });
       runtimeLoaded = true;
       if (ownedBefore !== beforeDocument
         || ownedAfter !== projection.document
-        || !originIsCurrent()) {
+        || !bindingIsCurrent()) {
         throw new Error('The color lookup target changed before it could be committed.');
       }
       canonicalPublicationStarted = true;
-      applyProjection(projection);
+      applyCanonicalProjection(afterProjection);
       pushHistoryEntry({
         type: history.type,
         label: history.label,
         documentMutation: true,
         resourceIds: [assetId],
-        undo: () => applyProjection(beforeProjection),
-        redo: () => applyProjection(projection)
+        undo: () => applyCanonicalProjection(beforeProjection),
+        redo: () => applyCanonicalProjection(afterProjection)
       });
       return true;
     });
@@ -115,7 +126,7 @@ export const commitColorLookupAssetTransaction = async ({
     let rollbackError: unknown;
     if (canonicalPublicationStarted && documentIsActive(beforeDocument.id)) {
       try {
-        applyProjection(beforeProjection);
+        applyCanonicalProjection(beforeProjection);
       } catch (reason) {
         rollbackError = reason;
       }

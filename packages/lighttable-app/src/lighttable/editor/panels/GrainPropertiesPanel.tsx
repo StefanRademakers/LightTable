@@ -5,6 +5,7 @@ import { useLensFxPresentation } from '../../application/adjustments/adjustmentP
 import { DEFAULT_GRAIN_SETTINGS } from '../../effects/grain/settings';
 import { GRAIN_ADVANCED_SLIDERS, GRAIN_SLIDERS } from '../config/adjustmentControls';
 import type { LensFxPanelProps } from './LensFxPanel';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 
 export const GrainPropertiesPanel = ({ model, commands }: LensFxPanelProps) => {
   const adjustments = useLensFxPresentation(model.adjustmentStore);
@@ -24,11 +25,15 @@ export const GrainPropertiesPanel = ({ model, commands }: LensFxPanelProps) => {
               track={slider.track} resetValue={DEFAULT_GRAIN_SETTINGS[slider.key]}
               disabled={!model.metadata || !grain.enabled}
               resetModifierActive={model.resetModifierActive}
-              onChange={(value) => commands.grain.update(slider.key, value)}
+              onChange={(value, handle) => commands.grain.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.grain.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment} />
+              onInteractionStart={() => commands.beginAdjustment(`grain:${slider.key}`)}
+              onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+              onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)} />
           ))}
         </div></section>
       </div>

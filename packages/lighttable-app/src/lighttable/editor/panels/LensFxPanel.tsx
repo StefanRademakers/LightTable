@@ -24,6 +24,7 @@ import {
   type AdjustmentPresentationStore,
   useLensFxPresentation
 } from '../../application/adjustments/adjustmentPresentationStore';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 import type {
   DepthAnalysisProgress,
   DepthAnalysisResult
@@ -68,42 +69,42 @@ export interface LensFxPanelModel {
 }
 
 export interface LensFxPanelCommands {
-  readonly beginAdjustment: () => void;
-  readonly endAdjustment: () => void;
-  readonly cancelAdjustment: () => void;
+  readonly beginAdjustment: (interactionKey: string) => AdjustmentInteractionHandle;
+  readonly endAdjustment: (handle?: AdjustmentInteractionHandle | void) => void;
+  readonly cancelAdjustment: (handle?: AdjustmentInteractionHandle | void) => void;
   readonly grain: {
     setEnabled: () => void;
-    update: (key: GrainNumericKey, value: number) => void;
+    update: (key: GrainNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: GrainNumericKey) => void;
     reset: () => void;
   };
   readonly halation: {
     setEnabled: (enabled: boolean) => void;
-    update: (key: HalationNumericKey, value: number) => void;
+    update: (key: HalationNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: HalationNumericKey) => void;
     reset: () => void;
   };
   readonly chromaticAberration: {
     setEnabled: (enabled: boolean) => void;
-    update: (key: ChromaticAberrationNumericKey, value: number) => void;
+    update: (key: ChromaticAberrationNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: ChromaticAberrationNumericKey) => void;
     reset: () => void;
   };
   readonly lensDistortion: {
     setEnabled: (enabled: boolean) => void;
-    update: (key: LensDistortionNumericKey, value: number) => void;
+    update: (key: LensDistortionNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: LensDistortionNumericKey) => void;
     reset: () => void;
   };
   readonly vignette: {
     setEnabled: (enabled: boolean) => void;
-    update: (key: VignetteNumericKey, value: number) => void;
+    update: (key: VignetteNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: VignetteNumericKey) => void;
     reset: () => void;
   };
   readonly lensBlur: {
     setEnabled: (enabled: boolean) => void;
-    update: (key: LensBlurNumericKey, value: number) => void;
+    update: (key: LensBlurNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
     resetControl: (key: LensBlurNumericKey) => void;
     reset: () => void;
     setShape: (shape: BokehShape) => void;
@@ -119,6 +120,15 @@ export interface LensFxPanelProps {
 }
 
 export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
+  const interaction = (key: string) => ({
+    onInteractionStart: () => commands.beginAdjustment(key),
+    onInteractionEnd: (handle: object | void) => commands.endAdjustment(
+      handle as AdjustmentInteractionHandle | void
+    ),
+    onInteractionCancel: (handle: object | void) => commands.cancelAdjustment(
+      handle as AdjustmentInteractionHandle | void
+    )
+  });
   const [grainAdvancedExpanded, setGrainAdvancedExpanded] = useState(false);
   const [expanded, setExpanded] = useState<LensFxExpandedState>({
     grain: true,
@@ -182,11 +192,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               publishIntervalMs={1000 / 60}
               disabled={!metadata || !lensDistortion.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.lensDistortion.update(slider.key, value)}
+              onChange={(value, handle) => commands.lensDistortion.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.lensDistortion.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`lens-distortion:${slider.key}`)}
             />
           ))}
         </EffectPanel>
@@ -213,11 +225,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_CHROMATIC_ABERRATION_SETTINGS[slider.key]}
               disabled={!metadata || !chromaticAberration.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.chromaticAberration.update(slider.key, value)}
+              onChange={(value, handle) => commands.chromaticAberration.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.chromaticAberration.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`chromatic-aberration:${slider.key}`)}
             />
           ))}
         </EffectPanel>
@@ -314,24 +328,28 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_LENS_BLUR_SETTINGS[slider.key]}
               disabled={!metadata || !lensBlur.enabled || analyzing}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => {
+              onChange={(value, handle) => {
                 setLensBlurPreview((current) => ({
                   ...(current ?? lensBlur),
                   [slider.key]: value
                 }));
-                commands.lensBlur.update(slider.key, value);
+                commands.lensBlur.update(
+                  slider.key,
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                );
               }}
               onReset={() => commands.lensBlur.resetControl(slider.key)}
               onInteractionStart={() => {
                 setLensBlurPreview({ ...lensBlur });
-                commands.beginAdjustment();
+                return commands.beginAdjustment(`lens-blur:${slider.key}`);
               }}
-              onInteractionEnd={() => {
-                commands.endAdjustment();
+              onInteractionEnd={(handle) => {
+                commands.endAdjustment(handle as AdjustmentInteractionHandle | void);
                 setLensBlurPreview(null);
               }}
-              onInteractionCancel={() => {
-                commands.cancelAdjustment();
+              onInteractionCancel={(handle) => {
+                commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void);
                 setLensBlurPreview(null);
               }}
             />
@@ -360,11 +378,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_HALATION_SETTINGS[slider.key]}
               disabled={!metadata || !halation.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.halation.update(slider.key, value)}
+              onChange={(value, handle) => commands.halation.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.halation.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`halation:${slider.key}`)}
             />
           ))}
         </EffectPanel>
@@ -391,11 +411,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_VIGNETTE_SETTINGS[slider.key]}
               disabled={!metadata || !vignette.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.vignette.update(slider.key, value)}
+              onChange={(value, handle) => commands.vignette.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.vignette.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`vignette:${slider.key}`)}
             />
           ))}
         </EffectPanel>
@@ -422,11 +444,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_GRAIN_SETTINGS[slider.key]}
               disabled={!metadata || !grain.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.grain.update(slider.key, value)}
+              onChange={(value, handle) => commands.grain.update(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.grain.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`grain:${slider.key}`)}
             />
           ))}
           <PanelSection label="Advanced" variant="disclosure" expanded={grainAdvancedExpanded}
@@ -444,11 +468,13 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                     resetValue={DEFAULT_GRAIN_SETTINGS[slider.key]}
                     disabled={!metadata || !grain.enabled}
                     resetModifierActive={resetModifierActive}
-                    onChange={(value) => commands.grain.update(slider.key, value)}
+                    onChange={(value, handle) => commands.grain.update(
+                      slider.key,
+                      value,
+                      handle as AdjustmentInteractionHandle | void
+                    )}
                     onReset={() => commands.grain.resetControl(slider.key)}
-                    onInteractionStart={commands.beginAdjustment}
-                    onInteractionEnd={commands.endAdjustment}
-                    onInteractionCancel={commands.cancelAdjustment}
+                    {...interaction(`grain:${slider.key}`)}
                   />
                 ))}
           </PanelSection>

@@ -34,6 +34,7 @@ import {
   type AdjustmentPresentationStore,
   useGradePresentation
 } from '../../application/adjustments/adjustmentPresentationStore';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 import {
   COLOR_SLIDERS,
   colorMixerRangeBounds,
@@ -80,25 +81,26 @@ export interface GradePanelCommands {
   readonly toggleMasterEnabled: () => void;
   readonly toggleVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: GradeGroup) => void;
-  readonly beginAdjustment: () => void;
-  readonly endAdjustment: () => void;
-  readonly cancelAdjustment: () => void;
-  readonly updateAdjustment: (key: NumericAdjustmentKey, value: number) => void;
+  readonly beginAdjustment: (interactionKey: string) => AdjustmentInteractionHandle;
+  readonly endAdjustment: (handle?: AdjustmentInteractionHandle | void) => void;
+  readonly cancelAdjustment: (handle?: AdjustmentInteractionHandle | void) => void;
+  readonly updateAdjustment: (key: NumericAdjustmentKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetAdjustment: (key: NumericAdjustmentKey) => void;
-  readonly updateDetail: (key: keyof DetailAdjustments, value: number) => void;
+  readonly updateDetail: (key: keyof DetailAdjustments, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetDetailControl: (key: keyof DetailAdjustments) => void;
   readonly resetDetail: () => void;
   readonly updateColorMixer: (
     channel: ColorMixerChannel,
     index: number,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
   readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
-  readonly updateBlackWhiteMix: (index: number, value: number) => void;
+  readonly updateBlackWhiteMix: (index: number, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetBlackWhiteMix: (index: number) => void;
   readonly setGradeLookAsset: (assetId: string | null) => void;
-  readonly updateGradeLookStrength: (strength: number) => void;
+  readonly updateGradeLookStrength: (strength: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradeLook: () => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
@@ -106,7 +108,8 @@ export interface GradePanelCommands {
   readonly updatePointColorSample: (
     id: string,
     key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetPointColorSample: (id: string) => void;
   readonly removePointColorSample: (id: string) => void;
@@ -115,26 +118,29 @@ export interface GradePanelCommands {
   readonly updateColorGradingWheel: (
     zone: ColorGradingZone,
     hue: number,
-    saturation: number
+    saturation: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly updateColorGradingLuminance: (
     zone: ColorGradingZone,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly updateColorGradingControl: (
     control: 'blending' | 'balance',
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetColorGradingControl: (
     control: 'blending' | 'balance'
   ) => void;
   readonly resetColorGradingZone: (zone: ColorGradingZone) => void;
   readonly resetColorGradingLuminance: (zone: ColorGradingZone) => void;
-  readonly updateCurve: (channel: CurveChannel, points: ToneCurve) => void;
+  readonly updateCurve: (channel: CurveChannel, points: ToneCurve, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetCurve: (channel: CurveChannel) => void;
-  readonly updateGradientMap: (value: GradientMapAdjustments) => void;
+  readonly updateGradientMap: (value: GradientMapAdjustments, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradientMap: () => void;
-  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings) => void;
+  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetPhotoshopAdjustment: () => void;
   readonly loadColorLookup?: (file: File) => Promise<void>;
   readonly loadGradeLook?: (file: File) => Promise<void>;
@@ -182,6 +188,15 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
   } | null>(null);
   const adjustments = useGradePresentation(model.adjustmentStore);
   const { metadata, visibility, resetModifierActive } = model;
+  const interaction = (key: string) => ({
+    onInteractionStart: () => commands.beginAdjustment(key),
+    onInteractionEnd: (handle: object | void) => commands.endAdjustment(
+      handle as AdjustmentInteractionHandle | void
+    ),
+    onInteractionCancel: (handle: object | void) => commands.cancelAdjustment(
+      handle as AdjustmentInteractionHandle | void
+    )
+  });
 
   useEffect(() => {
     const samples = adjustments.pointColor.samples;
@@ -231,7 +246,11 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     }
   }, []);
 
-  const publishHistogramSliderPreview = (key: GradeHistogramControlKey, value: number) => {
+  const publishHistogramSliderPreview = (
+    key: GradeHistogramControlKey,
+    value: number,
+    handle: object | void
+  ) => {
     pendingHistogramPreviewRef.current = { key, value };
     if (histogramPreviewFrameRef.current === null) {
       histogramPreviewFrameRef.current = requestAnimationFrame(() => {
@@ -243,26 +262,32 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         }
       });
     }
-    commands.updateAdjustment(key, value);
+    commands.updateAdjustment(key, value, handle as AdjustmentInteractionHandle | void);
   };
 
-  const finishHistogramInteraction = () => {
+  const finishHistogramInteraction = (
+    _key: GradeHistogramControlKey,
+    handle: object | void
+  ) => {
     if (histogramPreviewFrameRef.current !== null) {
       cancelAnimationFrame(histogramPreviewFrameRef.current);
       histogramPreviewFrameRef.current = null;
     }
     pendingHistogramPreviewRef.current = null;
-    commands.endAdjustment();
+    commands.endAdjustment(handle as AdjustmentInteractionHandle | void);
     setHistogramPreview({});
   };
 
-  const cancelHistogramInteraction = () => {
+  const cancelHistogramInteraction = (
+    _key: GradeHistogramControlKey,
+    handle: object | void
+  ) => {
     if (histogramPreviewFrameRef.current !== null) {
       cancelAnimationFrame(histogramPreviewFrameRef.current);
       histogramPreviewFrameRef.current = null;
     }
     pendingHistogramPreviewRef.current = null;
-    commands.cancelAdjustment();
+    commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void);
     setHistogramPreview({});
   };
 
@@ -288,7 +313,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               adjustments={adjustments}
               disabled={!metadata || !visibility[group]}
               onChange={publishHistogramSliderPreview}
-              onInteractionStart={commands.beginAdjustment}
+              onInteractionStart={(key) => commands.beginAdjustment(`histogram:${key}`)}
               onInteractionEnd={finishHistogramInteraction}
               onInteractionCancel={cancelHistogramInteraction}
             />
@@ -308,11 +333,13 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               resetValue={DEFAULT_BASIC_ADJUSTMENTS[slider.key]}
               disabled={!metadata || !visibility[group]}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.updateAdjustment(slider.key, value)}
+              onChange={(value, handle) => commands.updateAdjustment(
+                slider.key,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.resetAdjustment(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`basic:${slider.key}`)}
             />
           ))}
         </EffectPanel>
@@ -342,11 +369,13 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
           format={slider.format}
           resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[key]}
           disabled={!metadata || !visible || dependentDisabled}
-          onChange={(value) => commands.updateDetail(key, value)}
+          onChange={(value, handle) => commands.updateDetail(
+            key,
+            value,
+            handle as AdjustmentInteractionHandle | void
+          )}
           onReset={() => commands.resetDetailControl(key)}
-          onInteractionStart={commands.beginAdjustment}
-          onInteractionEnd={commands.endAdjustment}
-          onInteractionCancel={commands.cancelAdjustment}
+          {...interaction(`detail:${key}`)}
         />
       );
     };
@@ -411,9 +440,10 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
     const disabled = !metadata || !visibility.colorMixer || !selected;
     const update = (
       key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
-      value: number
+      value: number,
+      handle: AdjustmentInteractionHandle | void
     ) => {
-      if (selected) commands.updatePointColorSample(selected.id, key, value);
+      if (selected) commands.updatePointColorSample(selected.id, key, value, handle);
     };
     const swatch = selected ? pointColorSampleCss(selected) : '#7c828a';
     const controls = [
@@ -498,11 +528,19 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
             trackBackground={'track' in control ? control.track : undefined}
             disabled={disabled}
             resetModifierActive={resetModifierActive}
-            onChange={(value) => update(control.key, value)}
-            onReset={() => update(control.key, control.reset)}
-            onInteractionStart={commands.beginAdjustment}
-            onInteractionEnd={commands.endAdjustment}
-            onInteractionCancel={commands.cancelAdjustment}
+            onChange={(value, handle) => update(
+              control.key,
+              value,
+              handle as AdjustmentInteractionHandle | void
+            )}
+            onReset={() => {
+              const handle = commands.beginAdjustment(
+                `point-color:${selected?.id ?? 'none'}:${control.key}:reset`
+              );
+              update(control.key, control.reset, handle);
+              commands.endAdjustment(handle);
+            }}
+            {...interaction(`point-color:${selected?.id ?? 'none'}:${control.key}`)}
           />
         ))}
       </div>
@@ -641,13 +679,16 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
               trackBackground={colorMixerTrack(channel, selectedColorMixerRange)}
               disabled={!metadata || !visible}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => {
-                commands.updateColorMixer(channel, selectedColorMixerRange, value);
+              onChange={(value, handle) => {
+                commands.updateColorMixer(
+                  channel,
+                  selectedColorMixerRange,
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                );
               }}
               onReset={() => commands.resetColorMixer(channel, selectedColorMixerRange)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`color-mixer:${channel}:${selectedColorMixerRange}`)}
             />
           ))}
           </> : renderPointColor()}
@@ -668,13 +709,16 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
           compact={compact}
           disabled={!metadata || !visible}
           resetModifierActive={resetModifierActive}
-          onChange={(hue, saturation) => {
-            commands.updateColorGradingWheel(zone, hue, saturation);
+          onChange={(hue, saturation, handle) => {
+            commands.updateColorGradingWheel(
+              zone,
+              hue,
+              saturation,
+              handle as AdjustmentInteractionHandle | void
+            );
           }}
           onReset={() => commands.resetColorGradingZone(zone)}
-          onInteractionStart={commands.beginAdjustment}
-          onInteractionEnd={commands.endAdjustment}
-          onInteractionCancel={commands.cancelAdjustment}
+          {...interaction(`color-grading-wheel:${zone}`)}
         />
         <AdjustmentSlider
           density={compact ? 'compact' : 'default'}
@@ -686,11 +730,13 @@ onEnabledChange={() => commands.toggleVisibility(group)} keepMounted contentClas
           resetValue={0}
           disabled={!metadata || !visible}
           resetModifierActive={resetModifierActive}
-          onChange={(value) => commands.updateColorGradingLuminance(zone, value)}
+          onChange={(value, handle) => commands.updateColorGradingLuminance(
+            zone,
+            value,
+            handle as AdjustmentInteractionHandle | void
+          )}
           onReset={() => commands.resetColorGradingLuminance(zone)}
-          onInteractionStart={commands.beginAdjustment}
-          onInteractionEnd={commands.endAdjustment}
-          onInteractionCancel={commands.cancelAdjustment}
+          {...interaction(`color-grading-luminance:${zone}`)}
         />
       </div>
     );
@@ -733,11 +779,13 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
                 resetValue={50}
                 disabled={!metadata || !visible}
                 resetModifierActive={resetModifierActive}
-                onChange={(value) => commands.updateColorGradingControl('blending', value)}
+                onChange={(value, handle) => commands.updateColorGradingControl(
+                  'blending',
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                )}
                 onReset={() => commands.resetColorGradingControl('blending')}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment}
+                {...interaction('color-grading:blending')}
               />
               <AdjustmentSlider
                 label="Balance"
@@ -747,11 +795,13 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
                 resetValue={0}
                 disabled={!metadata || !visible}
                 resetModifierActive={resetModifierActive}
-                onChange={(value) => commands.updateColorGradingControl('balance', value)}
+                onChange={(value, handle) => commands.updateColorGradingControl(
+                  'balance',
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                )}
                 onReset={() => commands.resetColorGradingControl('balance')}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment}
+                {...interaction('color-grading:balance')}
               />
             </div>
           </EffectPanel>
@@ -803,11 +853,13 @@ onEnabledChange={() => commands.toggleVisibility(group)} contentClassName="light
               trackBackground={colorMixerTrack('luminance', selectedBlackWhiteRange)}
               disabled={!metadata || !visible || !adjustments.blackWhiteMix.enabled}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.updateBlackWhiteMix(selectedBlackWhiteRange, value)}
+              onChange={(value, handle) => commands.updateBlackWhiteMix(
+                selectedBlackWhiteRange,
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={() => commands.resetBlackWhiteMix(selectedBlackWhiteRange)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`black-white:${selectedBlackWhiteRange}`)}
             />
           </EffectPanel>
     );
@@ -845,11 +897,16 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               resetValue={100}
               disabled={!metadata || !visible || !adjustments.gradeLook.assetId}
               resetModifierActive={resetModifierActive}
-              onChange={commands.updateGradeLookStrength}
-              onReset={() => commands.updateGradeLookStrength(100)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              onChange={(value, handle) => commands.updateGradeLookStrength(
+                value,
+                handle as AdjustmentInteractionHandle | void
+              )}
+              onReset={() => {
+                const handle = commands.beginAdjustment('grade-look:strength:reset');
+                commands.updateGradeLookStrength(100, handle);
+                commands.endAdjustment(handle);
+              }}
+              {...interaction('grade-look:strength')}
             />
             <PanelFileField
               label="3D LUT"
@@ -880,11 +937,13 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
               histogram={model.histogram}
               disabled={!metadata || !visible}
               onChannelChange={setCurveChannel}
-              onChange={commands.updateCurve}
+              onChange={(channel, points, handle) => commands.updateCurve(
+                channel,
+                points,
+                handle as AdjustmentInteractionHandle | void
+              )}
               onReset={commands.resetCurve}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              {...interaction(`curve:${curveChannel}`)}
             />
           </EffectPanel>
     );

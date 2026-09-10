@@ -85,15 +85,14 @@ import {
   createDefaultBlackWhiteMix
 } from '../../blackWhiteMix';
 import { createDefaultGradeLook } from '../../gradeLook';
+import type { AdjustmentInteractionHandle } from './AdjustmentInteractionCoordinator';
 
 export interface AdjustmentCommandPorts {
-  readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
-  readonly beginLensBlurInteraction: () => void;
-  readonly endLensBlurInteraction: () => void;
   readonly changeAdjustments: (
     recipe: (current: BasicAdjustments) => BasicAdjustments,
-    domain?: AdjustmentPresentationDomain
+    domain?: AdjustmentPresentationDomain,
+    interactionHandle?: AdjustmentInteractionHandle | void
   ) => boolean;
   readonly getAdjustments: () => BasicAdjustments;
   readonly getGroupVisibility: () => GroupVisibility;
@@ -105,22 +104,23 @@ export interface AdjustmentCommandPorts {
 }
 
 export interface AdjustmentCommands {
-  readonly updateAdjustment: (key: NumericAdjustmentKey, value: number) => void;
+  readonly updateAdjustment: (key: NumericAdjustmentKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetAdjustment: (key: NumericAdjustmentKey) => void;
-  readonly updateDetail: (key: keyof DetailAdjustments, value: number) => void;
+  readonly updateDetail: (key: keyof DetailAdjustments, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetDetailControl: (key: keyof DetailAdjustments) => void;
   readonly resetDetail: () => void;
-  readonly updateGrain: (key: GrainNumericKey, value: number) => void;
+  readonly updateGrain: (key: GrainNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGrainControl: (key: GrainNumericKey) => void;
   readonly resetGrain: () => void;
   readonly toggleGrain: () => void;
-  readonly updateHalation: (key: HalationNumericKey, value: number) => void;
+  readonly updateHalation: (key: HalationNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetHalationControl: (key: HalationNumericKey) => void;
   readonly resetHalation: () => void;
   readonly setHalationEnabled: (enabled: boolean) => void;
   readonly updateChromaticAberration: (
     key: ChromaticAberrationNumericKey,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetChromaticAberrationControl: (
     key: ChromaticAberrationNumericKey
@@ -129,16 +129,17 @@ export interface AdjustmentCommands {
   readonly setChromaticAberrationEnabled: (enabled: boolean) => void;
   readonly updateLensDistortion: (
     key: LensDistortionNumericKey,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetLensDistortionControl: (key: LensDistortionNumericKey) => void;
   readonly resetLensDistortion: () => void;
   readonly setLensDistortionEnabled: (enabled: boolean) => void;
-  readonly updateVignette: (key: VignetteNumericKey, value: number) => void;
+  readonly updateVignette: (key: VignetteNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetVignetteControl: (key: VignetteNumericKey) => void;
   readonly resetVignette: () => void;
   readonly setVignetteEnabled: (enabled: boolean) => void;
-  readonly updateLensBlur: (key: LensBlurNumericKey, value: number) => void;
+  readonly updateLensBlur: (key: LensBlurNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetLensBlurControl: (key: LensBlurNumericKey) => void;
   readonly resetLensBlur: () => void;
   readonly setLensBlurEnabled: (enabled: boolean) => void;
@@ -148,14 +149,15 @@ export interface AdjustmentCommands {
   readonly updateColorMixer: (
     channel: ColorMixerChannel,
     index: number,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
   readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
-  readonly updateBlackWhiteMix: (index: number, value: number) => void;
+  readonly updateBlackWhiteMix: (index: number, value: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetBlackWhiteMix: (index: number) => void;
   readonly setGradeLookAsset: (assetId: string | null) => void;
-  readonly updateGradeLookStrength: (strength: number) => void;
+  readonly updateGradeLookStrength: (strength: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradeLook: () => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
@@ -163,33 +165,37 @@ export interface AdjustmentCommands {
   readonly updatePointColorSample: (
     id: string,
     key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetPointColorSample: (id: string) => void;
   readonly removePointColorSample: (id: string) => void;
   readonly updateColorGradingWheel: (
     zone: ColorGradingZone,
     hue: number,
-    saturation: number
+    saturation: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly updateColorGradingLuminance: (
     zone: ColorGradingZone,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly updateColorGradingControl: (
     control: 'blending' | 'balance',
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => void;
   readonly resetColorGradingControl: (
     control: 'blending' | 'balance'
   ) => void;
   readonly resetColorGradingZone: (zone: ColorGradingZone) => void;
   readonly resetColorGradingLuminance: (zone: ColorGradingZone) => void;
-  readonly updateCurve: (channel: CurveChannel, points: ToneCurve) => void;
+  readonly updateCurve: (channel: CurveChannel, points: ToneCurve, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetCurve: (channel: CurveChannel) => void;
-  readonly updateGradientMap: (value: GradientMapAdjustments) => void;
+  readonly updateGradientMap: (value: GradientMapAdjustments, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradientMap: () => void;
-  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings) => void;
+  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetPhotoshopAdjustment: () => void;
   readonly resetAll: () => void;
   readonly toggleGroupVisibility: (group: keyof GroupVisibility) => void;
@@ -206,7 +212,8 @@ export const createAdjustmentCommands = (
     effect: K,
     recipe: (
       current: BasicAdjustments['effects'][K]
-    ) => BasicAdjustments['effects'][K]
+    ) => BasicAdjustments['effects'][K],
+    interactionHandle?: AdjustmentInteractionHandle | void
   ) => {
     ports.changeAdjustments((current) => ({
       ...current,
@@ -214,12 +221,11 @@ export const createAdjustmentCommands = (
         ...current.effects,
         [effect]: recipe(current.effects[effect])
       }
-    }), 'lens-fx');
+    }), 'lens-fx', interactionHandle);
   };
 
-  const updateAdjustment = (key: NumericAdjustmentKey, value: number) => {
-    ports.beginAdjustment();
-    ports.changeAdjustments((current) => ({ ...current, [key]: value }));
+  const updateAdjustment = (key: NumericAdjustmentKey, value: number, handle: AdjustmentInteractionHandle | void) => {
+    ports.changeAdjustments((current) => ({ ...current, [key]: value }), 'grade', handle);
   };
 
   const resetAdjustment = (key: NumericAdjustmentKey) => {
@@ -230,12 +236,11 @@ export const createAdjustmentCommands = (
     }));
   };
 
-  const updateDetail = (key: keyof DetailAdjustments, value: number) => {
-    ports.beginAdjustment();
+  const updateDetail = (key: keyof DetailAdjustments, value: number, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => ({
       ...current,
       detail: { ...current.detail, [key]: value }
-    }), 'grade');
+    }), 'grade', handle);
   };
 
   const resetDetailControl = (key: keyof DetailAdjustments) => {
@@ -255,12 +260,11 @@ export const createAdjustmentCommands = (
     }), 'grade');
   };
 
-  const updateGradientMap = (value: GradientMapAdjustments) => {
-    ports.beginAdjustment();
+  const updateGradientMap = (value: GradientMapAdjustments, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => ({
       ...current,
       gradientMap: structuredClone(value)
-    }), 'grade');
+    }), 'grade', handle);
   };
 
   const resetGradientMap = () => {
@@ -271,12 +275,11 @@ export const createAdjustmentCommands = (
     }), 'grade');
   };
 
-  const updatePhotoshopAdjustment = (value: PhotoshopAdjustmentSettings) => {
-    ports.beginAdjustment();
+  const updatePhotoshopAdjustment = (value: PhotoshopAdjustmentSettings, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => ({
       ...current,
       photoshopAdjustment: structuredClone(value)
-    }), 'grade');
+    }), 'grade', handle);
   };
 
   const resetPhotoshopAdjustment = () => {
@@ -289,9 +292,8 @@ export const createAdjustmentCommands = (
     }), 'grade');
   };
 
-  const updateGrain = (key: GrainNumericKey, value: number) => {
-    ports.beginAdjustment();
-    changeEffect('grain', (current) => ({ ...current, [key]: value }));
+  const updateGrain = (key: GrainNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => {
+    changeEffect('grain', (current) => ({ ...current, [key]: value }), handle);
   };
 
   const resetGrainControl = (key: GrainNumericKey) => {
@@ -315,9 +317,8 @@ export const createAdjustmentCommands = (
     changeEffect('grain', (current) => ({ ...current, enabled: !current.enabled }));
   };
 
-  const updateHalation = (key: HalationNumericKey, value: number) => {
-    ports.beginAdjustment();
-    changeEffect('halation', (current) => ({ ...current, [key]: value }));
+  const updateHalation = (key: HalationNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => {
+    changeEffect('halation', (current) => ({ ...current, [key]: value }), handle);
   };
 
   const resetHalationControl = (key: HalationNumericKey) => {
@@ -343,13 +344,13 @@ export const createAdjustmentCommands = (
 
   const updateChromaticAberration = (
     key: ChromaticAberrationNumericKey,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     changeEffect('chromaticAberration', (current) => ({
       ...current,
       [key]: value
-    }));
+    }), handle);
   };
 
   const resetChromaticAberrationControl = (
@@ -377,10 +378,10 @@ export const createAdjustmentCommands = (
 
   const updateLensDistortion = (
     key: LensDistortionNumericKey,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
-    changeEffect('lensDistortion', (current) => ({ ...current, [key]: value }));
+    changeEffect('lensDistortion', (current) => ({ ...current, [key]: value }), handle);
   };
 
   const resetLensDistortionControl = (key: LensDistortionNumericKey) => {
@@ -404,9 +405,8 @@ export const createAdjustmentCommands = (
     changeEffect('lensDistortion', (current) => ({ ...current, enabled }));
   };
 
-  const updateVignette = (key: VignetteNumericKey, value: number) => {
-    ports.beginAdjustment();
-    changeEffect('vignette', (current) => ({ ...current, [key]: value }));
+  const updateVignette = (key: VignetteNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => {
+    changeEffect('vignette', (current) => ({ ...current, [key]: value }), handle);
   };
 
   const resetVignetteControl = (key: VignetteNumericKey) => {
@@ -430,13 +430,12 @@ export const createAdjustmentCommands = (
     changeEffect('vignette', (current) => ({ ...current, enabled }));
   };
 
-  const updateLensBlur = (key: LensBlurNumericKey, value: number) => {
-    ports.beginLensBlurInteraction();
-    changeEffect('lensBlur', (current) => ({ ...current, [key]: value }));
+  const updateLensBlur = (key: LensBlurNumericKey, value: number, handle: AdjustmentInteractionHandle | void) => {
+    changeEffect('lensBlur', (current) => ({ ...current, [key]: value }), handle);
   };
 
   const resetLensBlurControl = (key: LensBlurNumericKey) => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     changeEffect('lensBlur', (current) => ({
       ...current,
       [key]: DEFAULT_LENS_BLUR_SETTINGS[key]
@@ -444,7 +443,7 @@ export const createAdjustmentCommands = (
   };
 
   const resetLensBlur = () => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     changeEffect('lensBlur', (current) => ({
       ...createDefaultLensBlurSettings(),
       enabled: current.enabled
@@ -453,7 +452,7 @@ export const createAdjustmentCommands = (
   };
 
   const setLensBlurEnabled = (enabled: boolean) => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     changeEffect('lensBlur', (current) => ({ ...current, enabled }));
     if (!enabled) {
       ports.setFocusPickerActive(false);
@@ -462,7 +461,7 @@ export const createAdjustmentCommands = (
   };
 
   const setLensBlurShape = (shape: BokehShape) => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     changeEffect('lensBlur', (current) => ({
       ...current,
       bokehShape: shape
@@ -470,21 +469,21 @@ export const createAdjustmentCommands = (
   };
 
   const setLensBlurQuality = (quality: LensBlurQuality) => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     changeEffect('lensBlur', (current) => ({ ...current, quality }));
   };
 
   const setLensBlurViewportMode = (mode: LensBlurViewportMode) => {
-    ports.endLensBlurInteraction();
+    ports.endAdjustment();
     ports.publishLensBlurViewportMode(mode);
   };
 
   const updateColorMixer = (
     channel: ColorMixerChannel,
     index: number,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     ports.changeAdjustments((current) => {
       const values = [...current.colorMixer[channel]] as ColorMixerValues;
       values[index] = value;
@@ -492,7 +491,7 @@ export const createAdjustmentCommands = (
         ...current,
         colorMixer: { ...cloneColorMixer(current.colorMixer), [channel]: values }
       };
-    });
+    }, 'grade', handle);
   };
 
   const resetColorMixer = (channel: ColorMixerChannel, index: number) => {
@@ -515,8 +514,7 @@ export const createAdjustmentCommands = (
     }));
   };
 
-  const updateBlackWhiteMix = (index: number, value: number) => {
-    ports.beginAdjustment();
+  const updateBlackWhiteMix = (index: number, value: number, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => {
       const luminance = [...current.blackWhiteMix.luminance] as ColorMixerValues;
       luminance[index] = value;
@@ -524,7 +522,7 @@ export const createAdjustmentCommands = (
         ...current,
         blackWhiteMix: { ...cloneBlackWhiteMix(current.blackWhiteMix), luminance }
       };
-    });
+    }, 'grade', handle);
   };
 
   const resetBlackWhiteMix = (index: number) => {
@@ -547,12 +545,11 @@ export const createAdjustmentCommands = (
     }), 'grade');
   };
 
-  const updateGradeLookStrength = (strength: number) => {
-    ports.beginAdjustment();
+  const updateGradeLookStrength = (strength: number, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => ({
       ...current,
       gradeLook: { ...current.gradeLook, strength: Math.min(100, Math.max(0, strength)) }
-    }), 'grade');
+    }), 'grade', handle);
   };
 
   const resetGradeLook = () => {
@@ -587,16 +584,16 @@ export const createAdjustmentCommands = (
   const updatePointColorSample = (
     id: string,
     key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     ports.changeAdjustments((current) => ({
       ...current,
       pointColor: {
         samples: current.pointColor.samples.map((sample) =>
           sample.id === id ? { ...sample, [key]: value } : { ...sample })
       }
-    }));
+    }), 'grade', handle);
   };
 
   const resetPointColorSample = (id: string) => {
@@ -624,23 +621,23 @@ export const createAdjustmentCommands = (
   const updateColorGradingWheel = (
     zone: ColorGradingZone,
     hue: number,
-    saturation: number
+    saturation: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     ports.changeAdjustments((current) => {
       const index = colorGradingZoneIndex(zone);
       const next = cloneColorGrading(current.colorGrading);
       next.hue[index] = hue;
       next.saturation[index] = saturation;
       return { ...current, colorGrading: next };
-    });
+    }, 'grade', handle);
   };
 
   const updateColorGradingLuminance = (
     zone: ColorGradingZone,
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     ports.changeAdjustments((current) => {
       const index = colorGradingZoneIndex(zone);
       const luminance = [...current.colorGrading.luminance] as ColorGradingValues;
@@ -649,21 +646,21 @@ export const createAdjustmentCommands = (
         ...current,
         colorGrading: { ...cloneColorGrading(current.colorGrading), luminance }
       };
-    });
+    }, 'grade', handle);
   };
 
   const updateColorGradingControl = (
     control: 'blending' | 'balance',
-    value: number
+    value: number,
+    handle: AdjustmentInteractionHandle | void
   ) => {
-    ports.beginAdjustment();
     ports.changeAdjustments((current) => ({
       ...current,
       colorGrading: {
         ...cloneColorGrading(current.colorGrading),
         [control]: value
       }
-    }));
+    }), 'grade', handle);
   };
 
   const resetColorGradingControl = (
@@ -704,14 +701,14 @@ export const createAdjustmentCommands = (
     });
   };
 
-  const updateCurve = (channel: CurveChannel, points: ToneCurve) => {
+  const updateCurve = (channel: CurveChannel, points: ToneCurve, handle: AdjustmentInteractionHandle | void) => {
     ports.changeAdjustments((current) => ({
       ...current,
       curves: {
         ...cloneCurves(current.curves),
         [channel]: points.map((point) => ({ ...point }))
       }
-    }));
+    }), 'grade', handle);
   };
 
   const resetCurve = (channel: CurveChannel) => {

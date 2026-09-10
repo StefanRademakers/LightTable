@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createImageDocument } from '../../editor/document/documentTypes';
-import {
-  createDefaultAdjustments,
-  type BasicAdjustments
-} from '../../types';
+import { createImageDocument, type ImageDocument } from '../../editor/document/documentTypes';
+import { findRasterLayer } from '../../editor/document/layerTree';
+import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
+import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import {
   createAdjustmentTransactionController,
   type AdjustmentHistoryEntry,
@@ -13,199 +13,255 @@ import {
 const firstDocument = createImageDocument('First', 32, 24, 'first');
 const secondDocument = createImageDocument('Second', 32, 24, 'second');
 
-const setup = () => {
-  let documentId = firstDocument.id;
+const setup = (documentWide = false) => {
+  let document: ImageDocument = firstDocument;
+  let projectedDocument = document;
   let adjustments = createDefaultAdjustments();
-  let targetLayerId = firstDocument.activeLayerId;
-  let targetIdentity = `layer:${targetLayerId}:grade`;
-  const history: AdjustmentHistoryEntry[] = [];
+  let targetLayerId = documentWide ? null : firstDocument.activeLayerId;
+  let targetIdentity = documentWide ? 'document:grade' : `layer:${targetLayerId}:grade`;
+  const history: Array<Pick<AdjustmentHistoryEntry, 'undo' | 'redo'>> = [];
   const renderer = {
     setScopeInteractionActive: vi.fn(),
     setLensBlurInteractionActive: vi.fn()
   };
-  const previewSnapshot = vi.fn((
-    next: BasicAdjustments,
-    _targetLayerId: unknown,
-    _domain: unknown
-  ) => {
+  let currentRenderer = renderer;
+  let rendererGeneration = 1;
+  let mutationBlocked = false;
+  let rejectHistory = false;
+  const previewDocument = vi.fn((next: ImageDocument) => { projectedDocument = next; });
+  const applyDocument = vi.fn((next: ImageDocument) => {
+    document = next;
+    projectedDocument = next;
+  });
+  const discardDocument = vi.fn(() => { projectedDocument = document; });
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    previewSnapshot: previewDocument,
+    applySnapshot: applyDocument,
+    discardPreview: discardDocument,
+    pushHistoryEntry: (entry) => {
+      if (rejectHistory) throw new Error('History rejected adjustment.');
+      history.push(entry);
+    },
+    isMutationBlocked: () => mutationBlocked
+  }));
+  const previewDocumentProcessing = vi.fn((next: BasicAdjustments) => {
     adjustments = next;
   });
-  const commitSnapshot = vi.fn((
-    next: BasicAdjustments,
-    _targetLayerId: unknown,
-    _domain: unknown
-  ) => {
+  const commitDocumentProcessing = vi.fn((next: BasicAdjustments) => {
     adjustments = next;
   });
   const onCommitted = vi.fn();
-  const discardPreview = vi.fn();
+  const discardPreview = vi.fn(() => { projectedDocument = document; });
   const restoreStagedSnapshot = vi.fn((next: BasicAdjustments) => {
     adjustments = next;
   });
   const dependencies: AdjustmentTransactionDependencies = {
-    getDocumentId: () => documentId,
-    getAdjustments: () => adjustments,
+    getDocumentId: () => document.id,
+    getDocument: () => document,
+    getDocumentAdjustments: () => createDefaultAdjustments(),
+    getCanonicalAdjustments: () => {
+      if (!targetLayerId) return adjustments;
+      const layer = findRasterLayer(document, targetLayerId);
+      return layer?.adjustmentStack
+        ? materializeBasicAdjustments(layer.adjustmentStack, undefined, undefined, true)
+        : createDefaultAdjustments();
+    },
     getActiveTargetLayerId: () => targetLayerId,
     getActiveTargetIdentity: () => targetIdentity,
-    getRenderer: () => renderer,
-    previewSnapshot,
-    commitSnapshot,
+    getRenderer: () => currentRenderer,
+    getRendererGeneration: () => rendererGeneration,
+    documentMutations,
+    previewDocumentProcessing,
+    commitDocumentProcessing,
+    stageEditorAdjustments: (next) => { adjustments = next; },
     restoreStagedSnapshot,
     discardPreview,
-    pushHistoryEntry: (entry) => history.push(entry),
+    pushProcessingHistoryEntry: (entry) => history.push(entry),
     onCommitted
   };
   const controller = createAdjustmentTransactionController(() => dependencies);
+  const layerAdjustments = () => {
+    const layer = findRasterLayer(document, document.activeLayerId)!;
+    return layer.adjustmentStack
+      ? materializeBasicAdjustments(layer.adjustmentStack, undefined, undefined, true)
+      : createDefaultAdjustments();
+  };
   return {
-    controller,
-    renderer,
-    previewSnapshot,
-    commitSnapshot,
-    onCommitted,
-    restoreStagedSnapshot,
-    discardPreview,
-    history,
+    controller, renderer, previewDocument, applyDocument, previewDocumentProcessing,
+    commitDocumentProcessing, onCommitted, restoreStagedSnapshot, discardPreview,
+    history, layerAdjustments,
+    documentMutations,
     get adjustments() { return adjustments; },
-    switchDocument: () => { documentId = secondDocument.id; },
+    get document() { return document; },
+    get projectedDocument() { return projectedDocument; },
+    switchDocument: () => { document = secondDocument; projectedDocument = document; },
     switchTarget: () => {
       targetLayerId = secondDocument.activeLayerId;
       targetIdentity = `layer:${targetLayerId}:grade`;
     },
     switchSubOwner: () => { targetIdentity = `layer:${targetLayerId}:lens-fx`; }
+    ,replaceRenderer: () => {
+      currentRenderer = {
+        setScopeInteractionActive: vi.fn(),
+        setLensBlurInteractionActive: vi.fn()
+      };
+    },
+    replaceRendererGeneration: () => { rendererGeneration += 1; },
+    rejectAdmission: () => { mutationBlocked = true; },
+    allowAdmission: () => { mutationBlocked = false; },
+    rejectHistory: () => { rejectHistory = true; },
+    setPresentationAdjustments: (next: BasicAdjustments) => { adjustments = next; }
   };
 };
 
 describe('adjustment transaction controller', () => {
-  it('coalesces a complete slider gesture into one history command', () => {
+  it('coalesces a layer slider gesture through one document history command', () => {
     const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
-    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
-    state.controller.change((current) => ({ ...current, exposureEV: 3 }));
-    state.controller.end();
-    expect(state.adjustments.exposureEV).toBe(3);
-    expect(state.previewSnapshot).toHaveBeenCalledTimes(3);
-    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 1 }), 'grade', gesture);
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    state.controller.change((current) => ({ ...current, exposureEV: 3 }), 'grade', gesture);
+    state.controller.end(gesture);
+    expect(state.layerAdjustments().exposureEV).toBe(3);
+    expect(state.previewDocument).toHaveBeenCalledTimes(3);
+    expect(state.applyDocument).toHaveBeenCalledTimes(1);
     expect(state.history).toHaveLength(1);
     expect(state.onCommitted).toHaveBeenCalledOnce();
-    expect(state.onCommitted).toHaveBeenCalledWith(expect.objectContaining({
-      targetLayerId: firstDocument.activeLayerId,
-      domain: 'grade',
-      before: expect.objectContaining({ exposureEV: 0 }),
-      after: expect.objectContaining({ exposureEV: 3 })
-    }));
     expect(state.renderer.setScopeInteractionActive).toHaveBeenNthCalledWith(1, true);
     expect(state.renderer.setScopeInteractionActive).toHaveBeenLastCalledWith(false);
   });
 
-  it('creates one immediate history command outside an interaction', () => {
-    const state = setup();
-    state.controller.change((current) => ({ ...current, contrast: 12 }));
-    expect(state.previewSnapshot).not.toHaveBeenCalled();
-    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
+  it('uses the explicit processing owner for a document-wide gesture', () => {
+    const state = setup(true);
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 3 }), 'grade', gesture);
+    state.controller.end(gesture);
+    expect(state.previewDocument).not.toHaveBeenCalled();
+    expect(state.previewDocumentProcessing).toHaveBeenCalledOnce();
+    expect(state.commitDocumentProcessing).toHaveBeenCalledOnce();
     expect(state.history).toHaveLength(1);
-    state.history[0].undo();
-    expect(state.adjustments.contrast).toBe(0);
-    state.history[0].redo();
-    expect(state.adjustments.contrast).toBe(12);
-  });
-
-  it('preserves the owning presentation domain through preview and commit', () => {
-    const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        grain: { ...current.effects.grain, amount: 1.5 }
-      }
-    }), 'lens-fx');
-    state.controller.end();
-
-    expect(state.previewSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
-    expect(state.commitSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
-  });
-
-  it('does not commit a gesture that returns to its starting value', () => {
-    const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
-    state.controller.change((current) => ({ ...current, exposureEV: 0 }));
-    state.controller.end();
-
-    expect(state.previewSnapshot).toHaveBeenCalledTimes(2);
-    expect(state.commitSnapshot).not.toHaveBeenCalled();
-    expect(state.history).toHaveLength(0);
-    expect(state.onCommitted).not.toHaveBeenCalled();
-    expect(state.discardPreview).toHaveBeenCalledOnce();
-  });
-
-  it('cancels a preview without changing document state or history', () => {
-    const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
-
-    state.controller.cancel();
-
+    state.history[0]!.undo();
     expect(state.adjustments.exposureEV).toBe(0);
+  });
+
+  it('creates one immediate document mutation outside a layer interaction', () => {
+    const state = setup();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 1 }))).toBe(true);
+    expect(state.applyDocument).toHaveBeenCalledOnce();
+    expect(state.history).toHaveLength(1);
+    expect(state.layerAdjustments().exposureEV).toBe(1);
+    state.history[0]!.undo();
+    expect(state.layerAdjustments().exposureEV).toBe(0);
+  });
+
+  it('cancels a layer preview without publishing document state or history', () => {
+    const state = setup();
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    state.controller.cancel(gesture);
+    expect(state.document).toBe(firstDocument);
     expect(state.restoreStagedSnapshot).toHaveBeenCalledOnce();
-    expect(state.discardPreview).toHaveBeenCalledOnce();
-    expect(state.commitSnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
     expect(state.controller.active).toBe(false);
   });
 
-  it('rejects a pending interaction after a document switch', () => {
+  it('rejects a pending layer interaction after document replacement', () => {
     const state = setup();
-    state.controller.begin();
+    const gesture = state.controller.begin()!;
     state.switchDocument();
-    expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
-    state.controller.end();
-    expect(state.previewSnapshot).not.toHaveBeenCalled();
-    expect(state.commitSnapshot).not.toHaveBeenCalled();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture)).toBe(false);
+    state.controller.end(gesture);
+    expect(state.applyDocument).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
   });
 
-  it('does not let a lost pointer transaction capture a later layer interaction', () => {
+  it('does not let an equal layer id hide a contextual owner switch', () => {
     const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
-    state.switchTarget();
-
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
-    state.controller.end();
-
-    expect(state.previewSnapshot).toHaveBeenCalledTimes(2);
-    expect(state.previewSnapshot.mock.calls[0]?.[1]).toBe(firstDocument.activeLayerId);
-    expect(state.previewSnapshot.mock.calls[1]?.[1]).toBe(secondDocument.activeLayerId);
-    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
-    expect(state.commitSnapshot.mock.calls[0]?.[1]).toBe(secondDocument.activeLayerId);
-    expect(state.history).toHaveLength(1);
-  });
-
-  it('rejects a stale target change when no new interaction was begun', () => {
-    const state = setup();
-    state.controller.begin();
-    state.switchTarget();
-
-    expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
-    expect(state.previewSnapshot).not.toHaveBeenCalled();
-    expect(state.commitSnapshot).not.toHaveBeenCalled();
-  });
-
-  it('does not let equal layer IDs hide a contextual owner switch', () => {
-    const state = setup();
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
+    const firstGesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 1 }), 'grade', firstGesture);
     state.switchSubOwner();
-
-    state.controller.begin();
-    state.controller.change((current) => ({ ...current, contrast: 20 }), 'lens-fx');
-    state.controller.end();
-
-    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
+    const secondGesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, contrast: 20 }), 'lens-fx', secondGesture);
+    state.controller.end(secondGesture);
     expect(state.history).toHaveLength(1);
-    expect(state.commitSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
+    expect(state.onCommitted).toHaveBeenCalledWith(expect.objectContaining({ domain: 'lens-fx' }));
+  });
+
+  it('restores staged layer values when another document command supersedes the gesture', () => {
+    const state = setup();
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    expect(state.adjustments.exposureEV).toBe(2);
+    state.documentMutations.change((document) => ({ ...document, name: 'external' }));
+    expect(state.controller.active).toBe(false);
+    expect(state.adjustments.exposureEV).toBe(0);
+    expect(state.history).toHaveLength(1);
+    expect(state.controller.change(
+      (current) => ({ ...current, exposureEV: 3 }),
+      'grade',
+      gesture
+    )).toBe(false);
+    state.controller.end(gesture);
+    const nextGesture = state.controller.begin();
+    expect(nextGesture).not.toBeNull();
+    state.controller.cancel(nextGesture!);
+  });
+
+  it('cancels against the opening renderer when renderer ownership changes', () => {
+    const state = setup();
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    state.replaceRenderer();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 3 }), 'grade', gesture)).toBe(false);
+    expect(state.controller.active).toBe(false);
+    expect(state.renderer.setScopeInteractionActive).toHaveBeenLastCalledWith(false);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('rejects an opening renderer generation after device rebind', () => {
+    const state = setup();
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    state.replaceRendererGeneration();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 3 }), 'grade', gesture)).toBe(false);
+    expect(state.controller.active).toBe(false);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('fails a rejected gesture closed instead of falling back to immediate commits', () => {
+    const state = setup();
+    state.rejectAdmission();
+    expect(state.controller.begin()).toBeNull();
+    state.allowAdmission();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 1 }))).toBe(false);
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
+    expect(state.applyDocument).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+    state.controller.reset();
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 3 }))).toBe(true);
+  });
+
+  it('starts layer mutations from canonical owner state rather than stale presentation', () => {
+    const state = setup();
+    state.controller.change((current) => ({ ...current, contrast: 25 }));
+    state.setPresentationAdjustments({
+      ...createDefaultAdjustments(),
+      exposureEV: 9,
+      contrast: -50
+    });
+    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
+    expect(state.layerAdjustments()).toMatchObject({ exposureEV: 1, contrast: 25 });
+  });
+
+  it('rolls a layer commit back when history admission fails', () => {
+    const state = setup();
+    const gesture = state.controller.begin()!;
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }), 'grade', gesture);
+    state.rejectHistory();
+    expect(() => state.controller.end(gesture)).toThrow('History rejected adjustment.');
+    expect(state.document).toBe(firstDocument);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.active).toBe(false);
   });
 });

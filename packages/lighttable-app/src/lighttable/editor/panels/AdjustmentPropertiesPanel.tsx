@@ -9,6 +9,7 @@ import {
   type SliderDefinition
 } from '../config/adjustmentControls';
 import type { NumericAdjustmentKey } from '../../application/adjustments/groupVisibility';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 import type { GradePanelProps } from './GradePanel';
 
 interface AdjustmentPropertiesPanelProps extends GradePanelProps {
@@ -59,11 +60,15 @@ export const AdjustmentPropertiesPanel = ({
                 resetValue={0}
                 disabled={!model.metadata}
                 resetModifierActive={model.resetModifierActive}
-                onChange={(value) => commands.updateAdjustment(slider.key, value)}
+                onChange={(value, handle) => commands.updateAdjustment(
+                  slider.key,
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                )}
                 onReset={() => commands.resetAdjustment(slider.key)}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment}
+                onInteractionStart={() => commands.beginAdjustment(`basic:${slider.key}`)}
+                onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+                onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)}
               />
             ))}
           </div>

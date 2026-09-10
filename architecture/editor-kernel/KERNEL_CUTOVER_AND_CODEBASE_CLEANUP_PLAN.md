@@ -117,7 +117,7 @@ but cannot inherit another item's acceptance.
 | C06 | Vector paths, Pen, live shapes and vector gradients | accepted | [x] | [x] | [x] | [x] |
 | C07 | Text, Path Text, layout/editing and semantic text transform | accepted | [x] | [x] | [x] | [x] |
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | accepted | [x] | [x] | [x] | [x] |
-| C09 | Adjustment layers and attached adjustments | queued | [ ] | [ ] | [ ] | [ ] |
+| C09 | Adjustment layers and attached adjustments | accepted | [x] | [x] | [x] | [x] |
 | C10 | Layer styles/effects and filter lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
 | C12 | Shared history, command routing, Actions and MCP equivalence | queued | [ ] | [ ] | [ ] | [ ] |
@@ -431,6 +431,37 @@ but cannot inherit another item's acceptance.
     as a resolution-independent text envelope. No authoring surface or fallback
     mutation route exists; feature freeze deliberately does not invent one.
 5. **Next** -- C09 Adjustment layers and attached adjustments.
+
+## C09 acceptance record -- 2026-09-10
+
+1. **Done** -- document-local, Adjustment Layer and attached-adjustment edits
+   now start from their exact canonical owner and use the shared document
+   mutation/history admission. One opaque UI handle binds start, every live
+   change, end and cancel to one renderer generation and target identity;
+   rejected or stale gestures fail closed. Document-wide processing remains an
+   explicit separate owner because it is not stored in `ImageDocument`.
+2. **Exclusive route** -- presentation caches are projection output only. The
+   old presentation-owned preview/commit/history ports and per-sample fallback
+   are absent. Async LUT publication is bound to the opening document, exact
+   Properties target, renderer object and renderer generation before and after
+   upload. Boundary guards reject restoration of those removed routes.
+3. **Hot path** -- raster-local gestures use immutable delta projection.
+   Registry-path identity selects only changed modules; unrelated curves,
+   gradients, Point Color and effects retain object identity and never enter
+   pointer-rate clone/serialization work. The already-owned persistent stack is
+   projected without cloning the full module inventory.
+4. **Proof** -- UI/app typechecks and boundary audit; focused adjustment,
+   interaction, projection and UI suites; full workspace test run including
+   590 app files / 3,745 app tests; instrumented desktop package; packaged
+   adjustment-menu workflow three consecutive passes; packaged 3840x2160
+   16-bit Grade audit with 47-48 submitted frames for 50 pointer moves, no long
+   tasks, no page/console errors and 97 processing-cache hits versus one miss.
+5. **Critic** -- the first review rejected presentation-cache ownership,
+   renderer-generation gaps, failed-admission fallback, LUT binding and
+   pointer-rate full-tree serialization. Gesture-token review then exposed
+   stale terminal and stale live-change ownership. All were repaired. Final
+   independent verdict: **ACCEPT**, no C09 P0/P1.
+6. **Next** -- C10 Layer styles/effects and filter lifecycle.
 
 ## Slice-specific acceptance
 

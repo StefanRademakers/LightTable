@@ -395,6 +395,84 @@ export const createAdjustmentStackFromBasicAdjustments = (
   };
 };
 
+/**
+ * Finds adjustment registry paths changed by an immutable edit. This is the
+ * pointer-rate detector: nested settings must be replaced, never mutated in
+ * place, so unchanged objects are eliminated without serialization.
+ */
+export const changedAdjustmentSettingsPaths = (
+  before: BasicAdjustments,
+  after: BasicAdjustments,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): ReadonlySet<CurrentAdjustmentSettingsPath> => {
+  const changed = new Set<CurrentAdjustmentSettingsPath>();
+  for (const definition of registry.definitions()) {
+    for (const path of definition.settingsPaths) {
+      if (!Object.is(readSetting(before, path), readSetting(after, path))) {
+        changed.add(path);
+      }
+    }
+  }
+  return changed;
+};
+
+/**
+ * Updates only registry modules touched by one immutable adjustment edit.
+ * Unrelated modules retain their object identity and are never cloned or
+ * serialized. Missing modules are materialized only when the edited settings
+ * are authored relative to that module's neutral defaults.
+ */
+export const patchAdjustmentStackFromBasicAdjustments = (
+  adjustments: BasicAdjustments,
+  previous: AdjustmentStack | null | undefined,
+  changedPaths: ReadonlySet<CurrentAdjustmentSettingsPath>,
+  scope: 'layer' | 'adjustment-layer',
+  includeMissingAuthored: boolean,
+  createId: AdjustmentIdFactory = defaultIdFactory,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => {
+  const candidates = registry.definitions().filter((definition) =>
+    registry.allows(definition.type, scope)
+    && definition.settingsPaths.some((path) => changedPaths.has(path))
+  );
+  const candidatesByType = new Map(
+    candidates.map((definition) => [definition.type, definition])
+  );
+  let changed = false;
+  const modules = (previous?.modules ?? []).map((module) => {
+    const definition = candidatesByType.get(module.type);
+    if (!definition) return module;
+    const settings = settingsForModule(adjustments, definition.settingsPaths);
+    if (valuesEqual(module.settings, settings)) return module;
+    changed = true;
+    return { ...module, revision: module.revision + 1, settings };
+  });
+  if (includeMissingAuthored) {
+    const existingTypes = new Set(modules.map((module) => module.type));
+    const defaults = createDefaultAdjustments();
+    for (const definition of candidates) {
+      if (existingTypes.has(definition.type)) continue;
+      const settings = settingsForModule(adjustments, definition.settingsPaths);
+      const neutral = settingsForModule(defaults, definition.settingsPaths);
+      if (valuesEqual(settings, neutral)) continue;
+      changed = true;
+      modules.push({
+        id: createId('module'),
+        type: definition.type,
+        enabled: true,
+        revision: 0,
+        settings
+      });
+    }
+  }
+  if (!changed && previous) return previous;
+  return {
+    id: previous?.id ?? createId('stack'),
+    revision: changed ? (previous?.revision ?? -1) + 1 : 0,
+    modules
+  };
+};
+
 /** Adds missing neutral modules without disturbing authored local processing. */
 export const ensureAdjustmentStackModuleTypes = (
   stack: AdjustmentStack | null | undefined,

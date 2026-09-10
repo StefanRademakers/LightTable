@@ -4,6 +4,7 @@ import { lightTableIcon } from '../../../assets/icons';
 import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 
 type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
 type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];
@@ -31,10 +32,10 @@ export interface LevelsTrackProps {
   readonly showValues?: boolean;
   readonly background: string;
   readonly disabled: boolean;
-  readonly onChange: (index: number, value: number) => void;
-  readonly onInteractionStart: () => void;
-  readonly onInteractionEnd: () => void;
-  readonly onInteractionCancel: () => void;
+  readonly onChange: (index: number, value: number, handle: object | void) => void;
+  readonly onInteractionStart: () => object | void;
+  readonly onInteractionEnd: (handle: object | void) => void;
+  readonly onInteractionCancel: (handle: object | void) => void;
 }
 
 export const LevelsTrack = ({
@@ -45,7 +46,7 @@ export const LevelsTrack = ({
   disabled={disabled} trackBackground={background}
   onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
   onInteractionCancel={onInteractionCancel}
-  onChange={(next, index) => onChange(index, next[index]!)}
+  onChange={(next, index, handle) => onChange(index, next[index]!, handle)}
   getBounds={(index, current) => {
     // Gamma follows the endpoints; it must never constrain their travel.
     if (current.length === 3) return index === 0
@@ -63,7 +64,9 @@ export const LevelsTrack = ({
     <NumberField key={ariaLabels[index]} aria-label={`${ariaLabels[index]} value`}
       value={value} min={0} max={255} step={1} kind="integer" formatValue={formatters?.[index]}
       disabled={disabled} onValueChange={next => {
-        onInteractionStart(); onChange(index, next); onInteractionEnd();
+        const handle = onInteractionStart();
+        onChange(index, next, handle);
+        onInteractionEnd(handle);
       }} />) : undefined} />;
 
 export const LevelsPropertiesPanel = ({
@@ -72,42 +75,53 @@ export const LevelsPropertiesPanel = ({
   settings
 }: GradePanelProps & { readonly settings: PhotoshopAdjustmentSettings }) => {
   const disabled = !model.metadata;
-  const update = (next: PhotoshopAdjustmentSettings) =>
-    commands.updatePhotoshopAdjustment(next);
-  const commit = (recipe: () => void) => {
-    recipe();
-    commands.endAdjustment();
+  const update = (
+    next: PhotoshopAdjustmentSettings,
+    handle: AdjustmentInteractionHandle | void
+  ) => commands.updatePhotoshopAdjustment(next, handle);
+  const commit = (recipe: (handle: AdjustmentInteractionHandle | void) => void) => {
+    const handle = commands.beginAdjustment('photoshop:levels:discrete');
+    recipe(handle);
+    commands.endAdjustment(handle);
   };
   const selected = settings.levels[settings.levelsChannel];
-  const updateSelected = (next: { input?: LevelsInput; output?: LevelsOutput }) => update({
+  const updateSelected = (
+    next: { input?: LevelsInput; output?: LevelsOutput },
+    handle: AdjustmentInteractionHandle | void
+  ) => update({
     ...settings,
     levels: {
       ...settings.levels,
       [settings.levelsChannel]: { ...selected, ...next }
     }
-  });
-  const updateInput = (index: number, rawValue: number) => {
+  }, handle);
+  const updateInput = (
+    index: number,
+    rawValue: number,
+    handle: AdjustmentInteractionHandle | void
+  ) => {
     const [black, gamma, white] = selected.input;
     let next: LevelsInput;
     if (index === 0) next = [clamp(rawValue, 0, white - 1), gamma, white];
     else if (index === 1) next = [black, clamp(rawValue, 0.1, 9.99), white];
     else next = [black, gamma, clamp(rawValue, black + 1, 255)];
-    updateSelected({ input: next });
+    updateSelected({ input: next }, handle);
   };
-  const updateInputHandle = (index: number, rawValue: number) => {
-    if (index !== 1) return updateInput(index, rawValue);
+  const updateInputHandle = (index: number, rawValue: number, handle: object | void) => {
+    const adjustmentHandle = handle as AdjustmentInteractionHandle | void;
+    if (index !== 1) return updateInput(index, rawValue, adjustmentHandle);
     updateInput(1, levelsGammaFromPosition(
       rawValue,
       selected.input[0],
       selected.input[2]
-    ));
+    ), adjustmentHandle);
   };
-  const updateOutput = (index: number, rawValue: number) => {
+  const updateOutput = (index: number, rawValue: number, handle: object | void) => {
     const [black, white] = selected.output;
     const next: LevelsOutput = index === 0
       ? [clamp(rawValue, 0, white), white]
       : [black, clamp(rawValue, black, 255)];
-    updateSelected({ output: next });
+    updateSelected({ output: next }, handle as AdjustmentInteractionHandle | void);
   };
   const inputHandleValues = [
     selected.input[0],
@@ -129,10 +143,10 @@ export const LevelsPropertiesPanel = ({
               options={['rgb', 'red', 'green', 'blue'].map((value) => ({
                 value, label: value.toUpperCase()
               }))}
-              onChange={(levelsChannel) => commit(() => update({
+              onChange={(levelsChannel) => commit((handle) => update({
                 ...settings,
                 levelsChannel: levelsChannel as PhotoshopAdjustmentSettings['levelsChannel']
-              }))} />
+              }, handle))} />
             <div className="lighttable-levels__histogram">
               <Histogram histogram={model.histogram} fit="container"
                 channel={settings.levelsChannel as HistogramChannel} />
@@ -145,21 +159,21 @@ export const LevelsPropertiesPanel = ({
               background="linear-gradient(to right, #050607, #f2f4f6)"
               disabled={disabled}
               onChange={updateInputHandle}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              onInteractionStart={() => commands.beginAdjustment('photoshop:levels:input')}
+              onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+              onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)}
             />
             <div className="lighttable-levels__input-values">
               <NumberField align="center" aria-label="Black input value"
                 value={selected.input[0]} min={0} max={selected.input[2] - 1}
-                kind="integer" onValueChange={(value) => commit(() => updateInput(0, value))} disabled={disabled} />
+                kind="integer" onValueChange={(value) => commit((handle) => updateInput(0, value, handle))} disabled={disabled} />
               <NumberField align="center" aria-label="Gamma value"
                 value={selected.input[1]} min={0.1} max={9.99} step={0.01}
                 formatValue={(value) => value.toFixed(2)}
-                onValueChange={(value) => commit(() => updateInput(1, value))} disabled={disabled} />
+                onValueChange={(value) => commit((handle) => updateInput(1, value, handle))} disabled={disabled} />
               <NumberField align="center" aria-label="White input value"
                 value={selected.input[2]} min={selected.input[0] + 1} max={255}
-                kind="integer" onValueChange={(value) => commit(() => updateInput(2, value))} disabled={disabled} />
+                kind="integer" onValueChange={(value) => commit((handle) => updateInput(2, value, handle))} disabled={disabled} />
             </div>
             <LevelsTrack
               label="Output Levels"
@@ -168,9 +182,9 @@ export const LevelsPropertiesPanel = ({
               background="linear-gradient(to right, #050607, #f2f4f6)"
               disabled={disabled}
               onChange={updateOutput}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment}
+              onInteractionStart={() => commands.beginAdjustment('photoshop:levels:output')}
+              onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+              onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)}
             />
           </div>
         </section>

@@ -10,6 +10,7 @@ import {
   type PhotoshopAdjustmentSettings
 } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 import { LevelsPropertiesPanel } from './LevelsPropertiesPanel';
 import {
   PanelCheckboxField,
@@ -100,11 +101,15 @@ export const LayerAdjustmentPropertiesPanel = ({
     }
   };
 
-  const update = (next: PhotoshopAdjustmentSettings) =>
-    commands.updatePhotoshopAdjustment(next);
+  const update = (
+    next: PhotoshopAdjustmentSettings,
+    handle: AdjustmentInteractionHandle | void
+  ) => commands.updatePhotoshopAdjustment(next, handle);
   const commit = (next: PhotoshopAdjustmentSettings) => {
-    update(next);
-    commands.endAdjustment();
+    const interactionKey = `photoshop:${kind}:discrete`;
+    const handle = commands.beginAdjustment(interactionKey);
+    update(next, handle);
+    commands.endAdjustment(handle);
   };
   if (kind === 'levels') {
     return <LevelsPropertiesPanel model={model} commands={commands} settings={settings} />;
@@ -131,7 +136,12 @@ export const LayerAdjustmentPropertiesPanel = ({
     if (typeof value === 'number') return value;
     return 0;
   };
-  const updateScalar = (spec: SliderSpec, index: number, value: number) => {
+  const updateScalar = (
+    spec: SliderSpec,
+    index: number,
+    value: number,
+    handle: AdjustmentInteractionHandle | void
+  ) => {
     if (selectedHueRange) {
       const field = spec.key === 'hue' ? 'hue'
         : spec.key === 'hueSaturation' ? 'saturation'
@@ -145,11 +155,11 @@ export const LayerAdjustmentPropertiesPanel = ({
             ...settings.hueSaturationRanges,
             [channel]: { ...selectedHueRange, [field]: value }
           }
-        });
+        }, handle);
         return;
       }
     }
-    update({ ...settings, [spec.key]: value });
+    update({ ...settings, [spec.key]: value }, handle);
   };
   const renderArraySliders = (
     values: readonly number[],
@@ -157,7 +167,7 @@ export const LayerAdjustmentPropertiesPanel = ({
     minimum: number,
     maximum: number,
     defaultsForArray: readonly number[],
-    publish: (next: number[]) => void,
+    publish: (next: number[], handle: AdjustmentInteractionHandle | void) => void,
     tracks: readonly (AdjustmentSliderTrack | undefined)[] = []
   ) => labels.map((label, index) => (
     <AdjustmentSlider
@@ -170,20 +180,22 @@ export const LayerAdjustmentPropertiesPanel = ({
       resetValue={defaultsForArray[index] ?? 0}
       disabled={!model.metadata}
       resetModifierActive={model.resetModifierActive}
-      onChange={(value) => {
+      onChange={(value, handle) => {
         const next = [...values];
         next[index] = value;
-        publish(next);
+        publish(next, handle as AdjustmentInteractionHandle | void);
       }}
       onReset={() => {
+        const interactionKey = `photoshop:${kind}:array:${label}`;
+        const handle = commands.beginAdjustment(interactionKey);
         const next = [...values];
         next[index] = defaultsForArray[index] ?? 0;
-        publish(next);
-        commands.endAdjustment();
+        publish(next, handle);
+        commands.endAdjustment(handle);
       }}
-      onInteractionStart={commands.beginAdjustment}
-      onInteractionEnd={commands.endAdjustment}
-      onInteractionCancel={commands.cancelAdjustment}
+      onInteractionStart={() => commands.beginAdjustment(`photoshop:${kind}:array:${label}`)}
+      onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+      onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)}
     />
   ));
   const balanceValues = settings.colorBalanceTone === 'shadows'
@@ -232,14 +244,21 @@ export const LayerAdjustmentPropertiesPanel = ({
                 resetValue={resetValue(slider, index)}
                 disabled={!model.metadata}
                 resetModifierActive={model.resetModifierActive}
-                onChange={(value) => updateScalar(slider, index, value)}
+                onChange={(value, handle) => updateScalar(
+                  slider,
+                  index,
+                  value,
+                  handle as AdjustmentInteractionHandle | void
+                )}
                 onReset={() => {
-                  updateScalar(slider, index, resetValue(slider, index));
-                  commands.endAdjustment();
+                  const interactionKey = `photoshop:${kind}:${String(slider.key)}`;
+                  const handle = commands.beginAdjustment(interactionKey);
+                  updateScalar(slider, index, resetValue(slider, index), handle);
+                  commands.endAdjustment(handle);
                 }}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionEnd={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment}
+                onInteractionStart={() => commands.beginAdjustment(`photoshop:${kind}:${String(slider.key)}`)}
+                onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+                onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)}
               />
             ))}
             {kind === 'brightness-contrast' ? (
@@ -256,31 +275,37 @@ export const LayerAdjustmentPropertiesPanel = ({
                   value, label: `${value[0].toUpperCase()}${value.slice(1)}`
                 }))}
                 onChange={(colorBalanceTone) => commit({ ...settings, colorBalanceTone: colorBalanceTone as PhotoshopAdjustmentSettings['colorBalanceTone'] })} />
-              {renderArraySliders(balanceValues, ['Cyan / Red', 'Magenta / Green', 'Yellow / Blue'], -100, 100, [0, 0, 0], (next) => {
+              {renderArraySliders(balanceValues, ['Cyan / Red', 'Magenta / Green', 'Yellow / Blue'], -100, 100, [0, 0, 0], (next, handle) => {
                 const key = settings.colorBalanceTone === 'shadows' ? 'colorBalanceShadows'
                   : settings.colorBalanceTone === 'highlights' ? 'colorBalanceHighlights'
                     : 'colorBalanceMidtones';
-                update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] });
+                update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] }, handle);
               }, ['cyan-red', 'magenta-green', 'yellow-blue'])}
               <PanelCheckboxField label="Preserve Luminosity" checked={settings.preserveLuminosity}
                 onChange={(preserveLuminosity) => commit({ ...settings, preserveLuminosity })} />
             </> : null}
             {kind === 'black-white' ? <>
-              {renderArraySliders(settings.blackWhiteMix, ['Reds', 'Yellows', 'Greens', 'Cyans', 'Blues', 'Magentas'], -200, 300, defaults.blackWhiteMix, (next) => update({ ...settings, blackWhiteMix: next as PhotoshopAdjustmentSettings['blackWhiteMix'] }), ['luminance', 'luminance', 'luminance', 'luminance', 'luminance', 'luminance'])}
+              {renderArraySliders(settings.blackWhiteMix, ['Reds', 'Yellows', 'Greens', 'Cyans', 'Blues', 'Magentas'], -200, 300, defaults.blackWhiteMix, (next, handle) => update({ ...settings, blackWhiteMix: next as PhotoshopAdjustmentSettings['blackWhiteMix'] }, handle), ['luminance', 'luminance', 'luminance', 'luminance', 'luminance', 'luminance'])}
               <PanelCheckboxField label="Tint" checked={settings.blackWhiteTint}
                 onChange={(blackWhiteTint) => commit({ ...settings, blackWhiteTint })} />
               {settings.blackWhiteTint ? <PanelColorSwatch label="Tint color" value={settings.blackWhiteTintColor}
-                onChange={(blackWhiteTintColor) => update({ ...settings, blackWhiteTintColor })}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionCommit={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment} /> : null}
+                onChange={(blackWhiteTintColor, handle) => update(
+                  { ...settings, blackWhiteTintColor },
+                  handle as AdjustmentInteractionHandle | void
+                )}
+                onInteractionStart={() => commands.beginAdjustment('photoshop:black-white:tint')}
+                onInteractionCommit={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+                onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)} /> : null}
             </> : null}
             {kind === 'photo-filter' ? <>
               <PanelColorSwatch label="Color" value={settings.photoFilterColor}
-                onChange={(photoFilterColor) => update({ ...settings, photoFilterColor })}
-                onInteractionStart={commands.beginAdjustment}
-                onInteractionCommit={commands.endAdjustment}
-                onInteractionCancel={commands.cancelAdjustment} />
+                onChange={(photoFilterColor, handle) => update(
+                  { ...settings, photoFilterColor },
+                  handle as AdjustmentInteractionHandle | void
+                )}
+                onInteractionStart={() => commands.beginAdjustment('photoshop:photo-filter:color')}
+                onInteractionCommit={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+                onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)} />
               <PanelCheckboxField label="Preserve Luminosity" checked={settings.preserveLuminosity}
                 onChange={(preserveLuminosity) => commit({ ...settings, preserveLuminosity })} />
             </> : null}
@@ -288,10 +313,10 @@ export const LayerAdjustmentPropertiesPanel = ({
               <PanelSelectField label="Output Channel" value={settings.channelMixerOutput}
                 options={['red', 'green', 'blue'].map((value) => ({ value, label: `${value[0].toUpperCase()}${value.slice(1)}` }))}
                 onChange={(channelMixerOutput) => commit({ ...settings, channelMixerOutput: channelMixerOutput as PhotoshopAdjustmentSettings['channelMixerOutput'] })} />
-              {renderArraySliders(channelMixerValues, ['Red', 'Green', 'Blue', 'Constant'], -200, 200, settings.channelMixerOutput === 'red' ? defaults.channelMixerRed : settings.channelMixerOutput === 'green' ? defaults.channelMixerGreen : defaults.channelMixerBlue, (next) => {
+              {renderArraySliders(channelMixerValues, ['Red', 'Green', 'Blue', 'Constant'], -200, 200, settings.channelMixerOutput === 'red' ? defaults.channelMixerRed : settings.channelMixerOutput === 'green' ? defaults.channelMixerGreen : defaults.channelMixerBlue, (next, handle) => {
                 const key = settings.channelMixerOutput === 'red' ? 'channelMixerRed'
                   : settings.channelMixerOutput === 'green' ? 'channelMixerGreen' : 'channelMixerBlue';
-                update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] });
+                update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] }, handle);
               }, ['cyan-red', 'magenta-green', 'yellow-blue', 'luminance'])}
               <PanelCheckboxField label="Monochrome" checked={settings.channelMixerMonochrome}
                 onChange={(channelMixerMonochrome) => commit({ ...settings, channelMixerMonochrome })} />
@@ -300,10 +325,10 @@ export const LayerAdjustmentPropertiesPanel = ({
               <PanelSelectField label="Colors" value={String(settings.selectiveColorRange)}
                 options={['Reds', 'Yellows', 'Greens', 'Cyans', 'Blues', 'Magentas', 'Whites', 'Neutrals', 'Blacks'].map((label, value) => ({ value: String(value), label }))}
                 onChange={(selectiveColorRange) => commit({ ...settings, selectiveColorRange: Number(selectiveColorRange) })} />
-              {renderArraySliders(selectiveValues, ['Cyan', 'Magenta', 'Yellow', 'Black'], -100, 100, [0, 0, 0, 0], (next) => {
+              {renderArraySliders(selectiveValues, ['Cyan', 'Magenta', 'Yellow', 'Black'], -100, 100, [0, 0, 0, 0], (next, handle) => {
                 const selectiveColorValues = [...settings.selectiveColorValues];
                 next.forEach((value, index) => { selectiveColorValues[selectiveOffset + index] = value; });
-                update({ ...settings, selectiveColorValues });
+                update({ ...settings, selectiveColorValues }, handle);
               }, ['red-cyan', 'green-magenta', 'blue-yellow', 'white-black'])}
               <PanelSelectField label="Method" value={settings.selectiveColorMethod}
                 options={[{ value: 'relative', label: 'Relative' }, { value: 'absolute', label: 'Absolute' }]}

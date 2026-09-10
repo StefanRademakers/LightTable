@@ -41,14 +41,14 @@ export const PanelColorSwatch = <T extends PanelColor>({
   label: string;
   value: T;
   inline?: boolean;
-  onChange: (color: T) => void;
-  onInteractionStart?: () => void;
-  onInteractionCommit?: () => void;
-  onInteractionCancel?: () => void;
+  onChange: (color: T, handle: object | void) => void;
+  onInteractionStart?: () => object | void;
+  onInteractionCommit?: (handle: object | void) => void;
+  onInteractionCancel?: (handle: object | void) => void;
 }) => {
   const swatch = (
     <ColorSwatchField value={panelColorHex(value)} ariaLabel={label}
-      onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))}
+      onChange={(color, handle) => onChange(parsePanelHexColor<T>(color, value.a), handle)}
       onInteractionStart={onInteractionStart}
       onInteractionCommit={onInteractionCommit}
       onInteractionCancel={onInteractionCancel} />
@@ -69,10 +69,10 @@ export const PanelNumberSlider: React.FC<{
   step?: number;
   suffix?: string;
   resetValue?: number;
-  onChange: (value: number) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onChange: (value: number, handle: object | void) => void;
+  onInteractionStart?: () => object | void;
+  onInteractionEnd?: (handle: object | void) => void;
+  onInteractionCancel?: (handle: object | void) => void;
 }> = ({
   label, value, min, max, step = 1, suffix = '', resetValue = 0, onChange,
   onInteractionStart, onInteractionEnd, onInteractionCancel
@@ -80,7 +80,11 @@ export const PanelNumberSlider: React.FC<{
   <AdjustmentSlider label={label} value={value} min={min} max={max} step={step}
     resetValue={resetValue}
     format={(current) => `${step < 1 ? current.toFixed(2) : Math.round(current)}${suffix}`}
-    onChange={onChange} onReset={() => onChange(resetValue)}
+    onChange={onChange} onReset={() => {
+      const handle = onInteractionStart?.();
+      onChange(resetValue, handle);
+      onInteractionEnd?.(handle);
+    }}
     onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd}
     onInteractionCancel={onInteractionCancel} />
 );

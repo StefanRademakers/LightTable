@@ -7,37 +7,41 @@ import {
   createAdjustmentCommands,
   type AdjustmentCommandPorts
 } from './createAdjustmentCommands';
+import type { AdjustmentInteractionHandle } from './AdjustmentInteractionCoordinator';
 import {
   createDefaultAdjustments,
   type BasicAdjustments
 } from '../../types';
 
 const createHarness = () => {
+  const interactionHandle: AdjustmentInteractionHandle = {
+    key: 'test-interaction',
+    token: { sequence: 1 }
+  };
   let adjustments = createDefaultAdjustments();
   let visibility = createDefaultGroupVisibility();
   let viewportMode: 'result' | 'depth' = 'result';
   let focusPickerActive = true;
-  const beginAdjustment = vi.fn();
   const endAdjustment = vi.fn();
-  const beginLensBlurInteraction = vi.fn();
-  const endLensBlurInteraction = vi.fn();
   const publishGroupVisibility = vi.fn((next: GroupVisibility) => {
     visibility = next;
   });
   const publishLensBlurViewportMode = vi.fn((next: 'result' | 'depth') => {
     viewportMode = next;
   });
+  const changeAdjustments = vi.fn((
+    recipe: (current: BasicAdjustments) => BasicAdjustments,
+    _domain?: 'grade' | 'lens-fx' | 'all',
+    _interactionHandle?: AdjustmentInteractionHandle | void
+  ) => {
+    const next = recipe(adjustments);
+    const changed = JSON.stringify(next) !== JSON.stringify(adjustments);
+    adjustments = next;
+    return changed;
+  });
   const ports: AdjustmentCommandPorts = {
-    beginAdjustment,
     endAdjustment,
-    beginLensBlurInteraction,
-    endLensBlurInteraction,
-    changeAdjustments: (recipe) => {
-      const next = recipe(adjustments);
-      const changed = JSON.stringify(next) !== JSON.stringify(adjustments);
-      adjustments = next;
-      return changed;
-    },
+    changeAdjustments,
     getAdjustments: () => adjustments,
     getGroupVisibility: () => visibility,
     publishGroupVisibility,
@@ -50,16 +54,15 @@ const createHarness = () => {
   };
   return {
     commands: createAdjustmentCommands(ports),
-    beginAdjustment,
     endAdjustment,
-    beginLensBlurInteraction,
-    endLensBlurInteraction,
+    changeAdjustments,
     publishGroupVisibility,
     publishLensBlurViewportMode,
     adjustments: () => adjustments,
     visibility: () => visibility,
     viewportMode: () => viewportMode,
-    focusPickerActive: () => focusPickerActive
+    focusPickerActive: () => focusPickerActive,
+    interactionHandle
   };
 };
 
@@ -67,15 +70,16 @@ describe('createAdjustmentCommands', () => {
   it('coalesces scalar and effect changes through their correct transaction', () => {
     const harness = createHarness();
 
-    harness.commands.updateAdjustment('exposureEV', 1.25);
-    harness.commands.updateGrain('amount', 2.5);
-    harness.commands.updateLensBlur('apertureSize', 75);
+    harness.commands.updateAdjustment('exposureEV', 1.25, harness.interactionHandle);
+    harness.commands.updateGrain('amount', 2.5, harness.interactionHandle);
+    harness.commands.updateLensBlur('apertureSize', 75, harness.interactionHandle);
 
     expect(harness.adjustments().exposureEV).toBe(1.25);
     expect(harness.adjustments().effects.grain.amount).toBe(2.5);
     expect(harness.adjustments().effects.lensBlur.apertureSize).toBe(75);
-    expect(harness.beginAdjustment).toHaveBeenCalledTimes(2);
-    expect(harness.beginLensBlurInteraction).toHaveBeenCalledTimes(1);
+    expect(harness.changeAdjustments.mock.calls.map((call) => call[2])).toEqual([
+      harness.interactionHandle, harness.interactionHandle, harness.interactionHandle
+    ]);
   });
 
   it('resets a group without mutating the previous adjustment snapshot', () => {
@@ -97,13 +101,14 @@ describe('createAdjustmentCommands', () => {
   it('authors, edits and removes an independent Point Color sample', () => {
     const harness = createHarness();
     harness.commands.addPointColorSample('skin', 0.7, 0.12, 0.8);
-    harness.commands.updatePointColorSample('skin', 'hueShift', 35);
-    harness.commands.updatePointColorSample('skin', 'luminanceRange', 72);
+    harness.commands.updatePointColorSample('skin', 'hueShift', 35, harness.interactionHandle);
+    harness.commands.updatePointColorSample('skin', 'luminanceRange', 72, harness.interactionHandle);
 
     expect(harness.adjustments().pointColor.samples[0]).toMatchObject({
       id: 'skin', hueShift: 35, luminanceRange: 72
     });
-    expect(harness.beginAdjustment).toHaveBeenCalledTimes(2);
+    expect(harness.changeAdjustments.mock.calls.slice(1, 3)
+      .every((call) => call[2] === harness.interactionHandle)).toBe(true);
 
     harness.commands.removePointColorSample('skin');
     expect(harness.adjustments().pointColor.samples).toEqual([]);
@@ -170,7 +175,7 @@ describe('createAdjustmentCommands', () => {
     );
     expect(harness.viewportMode()).toBe('depth');
     expect(harness.publishLensBlurViewportMode).toHaveBeenCalledWith('depth');
-    expect(harness.endLensBlurInteraction).toHaveBeenCalled();
+    expect(harness.endAdjustment).toHaveBeenCalled();
   });
 
   it('preserves effect enablement on reset and exits focus picking when blur is disabled', () => {

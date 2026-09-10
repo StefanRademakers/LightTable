@@ -611,6 +611,59 @@ function verifyWarpCutover(relativePath, source) {
   }
 }
 
+function verifyAdjustmentCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/adjustments/useAdjustmentTransactionController.ts')) {
+    if (!source.includes('dependencies.documentMutations.begin(')
+      || !source.includes('active.documentTransaction.change(')
+      || !source.includes('projectAdjustmentDelta({')
+      || !source.includes('previousSnapshot: before')
+      || !source.includes('getCanonicalAdjustments(): BasicAdjustments | null')
+      || !source.includes('getRendererGeneration(): number')
+      || !source.includes('let rejectedGesture = false')
+      || !source.includes('token?: AdjustmentInteractionToken')
+      || !source.includes('if (active && token !== active.token) return false')
+      || source.includes('getAdjustments(): BasicAdjustments')
+      || source.includes('previewSnapshot:')
+      || source.includes('commitSnapshot:')
+      || source.includes('pushHistoryEntry(entry: AdjustmentHistoryEntry)')) {
+      failures.push(`${relativePath}: layer adjustment gestures must use the shared document transaction and may not restore presentation-owned commit/history ports`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/projectAdjustmentSnapshot.ts')) {
+    if (!source.includes('changedAdjustmentSettingsPaths(previousSnapshot, input.snapshot)')
+      || !source.includes('patchAdjustmentStackFromBasicAdjustments(')
+      || !source.includes('const editorAdjustments = changedPaths ? snapshot : structuredClone(snapshot)')) {
+      failures.push(`${relativePath}: pointer-rate adjustment projection must patch only changed registry modules without cloning the full snapshot`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/AdjustmentInteractionCoordinator.ts')) {
+    if (!source.includes('if (!handle || lease !== handle) return')
+      || !source.includes('if (!handle || lease !== handle || !lease.token) return false')
+      || !source.includes('controller.change(mutate, domain, lease.token)')
+      || !source.includes('if (lease?.token) controller.cancel(lease.token)')) {
+      failures.push(`${relativePath}: adjustment controls must retain opaque gesture ownership and ignore stale changes and terminal callbacks`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/commitColorLookupAssetTransaction.ts')) {
+    if (!source.includes('bindingIsCurrent(): boolean')
+      || (source.match(/!bindingIsCurrent\(\)/g)?.length ?? 0) < 2
+      || source.includes('beforeEditorAdjustments')
+      || source.includes('applyProjection(')) {
+      failures.push(`${relativePath}: LUT publication must bind the exact renderer/target and replay canonical state without presentation snapshots`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/executeSemanticAdjustmentSnapshot.ts')
+    || normalizedPath.endsWith('/application/adjustments/executeSemanticGradePatch.ts')) {
+    if (!source.includes('changeDocument: DocumentMutationController')
+      || !source.includes('publishDocumentProcessing')
+      || /readonly publish:\s*\(/.test(source)
+      || /readonly pushHistoryEntry:\s*\(/.test(source)) {
+      failures.push(`${relativePath}: semantic layer adjustments must use document mutation while document processing remains an explicit separate owner`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -631,6 +684,7 @@ async function scan(relativeDirectory) {
       verifyVectorCutover(relativePath, source);
       verifyTextCutover(relativePath, source);
       verifyWarpCutover(relativePath, source);
+      verifyAdjustmentCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

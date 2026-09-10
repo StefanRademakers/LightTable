@@ -10,9 +10,11 @@ import {
   adjustmentStackOwnerHasAuthoredSettings,
   adjustmentStackOwnerIsEnabled,
   cloneAdjustmentStack,
+  changedAdjustmentSettingsPaths,
   createAdjustmentStackFromBasicAdjustments,
   ensureAdjustmentStackLocalProcessing,
   materializeBasicAdjustments,
+  patchAdjustmentStackFromBasicAdjustments,
   removeAdjustmentStackOwner,
   removeAdjustmentStackLocalProcessing,
   setAdjustmentStackLocalProcessingEnabled,
@@ -99,6 +101,36 @@ describe('LightTable adjustment stacks', () => {
           : initial.modules[index].revision
       );
     });
+  });
+
+  it('patches only the module addressed by an immutable pointer-rate edit', () => {
+    const before = createDefaultAdjustments();
+    const initial = createAdjustmentStackFromBasicAdjustments(
+      before,
+      undefined,
+      sequentialIds()
+    );
+    const after = { ...before, exposureEV: 1.5 };
+    const changedPaths = changedAdjustmentSettingsPaths(before, after);
+    const patched = patchAdjustmentStackFromBasicAdjustments(
+      after,
+      initial,
+      changedPaths,
+      'layer',
+      true,
+      sequentialIds()
+    );
+
+    expect([...changedPaths]).toContain('exposureEV');
+    expect(patched.modules.find(({ type }) => type === 'lt.light')).not.toBe(
+      initial.modules.find(({ type }) => type === 'lt.light')
+    );
+    expect(patched.modules.find(({ type }) => type === 'lt.curves')).toBe(
+      initial.modules.find(({ type }) => type === 'lt.curves')
+    );
+    expect(patched.modules.find(({ type }) => type === 'lt.gradient-map')).toBe(
+      initial.modules.find(({ type }) => type === 'lt.gradient-map')
+    );
   });
 
   it('uses defaults for disabled modules', () => {

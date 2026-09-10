@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { DocumentId, LayerId } from '../../editor/document/documentTypes';
-import {
-  cloneAdjustments,
-  type BasicAdjustments
-} from '../../types';
+import type { DocumentId, ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import { cloneAdjustments, type BasicAdjustments } from '../../types';
+import type { DocumentMutationController, DocumentMutationTransaction } from '../documents/useDocumentMutationController';
 import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
+import { projectAdjustmentDelta } from './projectAdjustmentSnapshot';
 
 export interface AdjustmentHistoryEntry {
   readonly label: string;
@@ -20,24 +19,31 @@ export interface AdjustmentInteractionRendererPort {
 
 export interface AdjustmentTransactionDependencies {
   getDocumentId(): DocumentId | null;
-  getAdjustments(): BasicAdjustments;
+  getDocument(): ImageDocument | null;
+  getDocumentAdjustments(): BasicAdjustments;
+  /** Materializes the exact current canonical owner; presentation caches are output-only. */
+  getCanonicalAdjustments(): BasicAdjustments | null;
   getActiveTargetLayerId(): LayerId | null;
   /** Stable semantic owner identity, including contextual sub-owner/domain. */
   getActiveTargetIdentity(): string | null;
   getRenderer(): AdjustmentInteractionRendererPort | null;
-  previewSnapshot(
+  getRendererGeneration(): number;
+  readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
+  /** Document-wide processing preview. Layer previews use the document mutation projection. */
+  previewDocumentProcessing(
     adjustments: BasicAdjustments,
-    targetLayerId: LayerId | null,
     domain: AdjustmentPresentationDomain
   ): void;
-  commitSnapshot(
+  /** Document-wide processing commit/restore. Layer commits use the document mutation owner. */
+  commitDocumentProcessing(
     adjustments: BasicAdjustments,
-    targetLayerId: LayerId | null,
     domain: AdjustmentPresentationDomain
   ): void;
+  stageEditorAdjustments(adjustments: BasicAdjustments): void;
   restoreStagedSnapshot(adjustments: BasicAdjustments): void;
   discardPreview(): void;
-  pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
+  /** History authority for document-wide processing only. */
+  pushProcessingHistoryEntry(entry: AdjustmentHistoryEntry): void;
   onCommitted?(commit: {
     readonly before: BasicAdjustments;
     readonly after: BasicAdjustments;
@@ -48,21 +54,31 @@ export interface AdjustmentTransactionDependencies {
 
 export interface AdjustmentTransactionController {
   get active(): boolean;
-  begin(): void;
-  end(): void;
-  cancel(): void;
+  begin(): AdjustmentInteractionToken | null;
+  end(token: AdjustmentInteractionToken): void;
+  cancel(token: AdjustmentInteractionToken): void;
   reset(): void;
   change(
     mutate: (current: BasicAdjustments) => BasicAdjustments,
-    domain?: AdjustmentPresentationDomain
+    domain?: AdjustmentPresentationDomain,
+    token?: AdjustmentInteractionToken
   ): boolean;
 }
 
+/** Opaque ownership lease for one adjustment gesture. */
+export interface AdjustmentInteractionToken {
+  readonly sequence: number;
+}
+
 interface ActiveAdjustmentTransaction {
-  documentId: DocumentId | null;
-  targetLayerId: LayerId | null;
-  targetIdentity: string | null;
-  before: BasicAdjustments;
+  readonly token: AdjustmentInteractionToken;
+  readonly documentId: DocumentId;
+  readonly targetLayerId: LayerId | null;
+  readonly targetIdentity: string | null;
+  readonly before: BasicAdjustments;
+  readonly documentTransaction: DocumentMutationTransaction | null;
+  readonly renderer: AdjustmentInteractionRendererPort;
+  readonly rendererGeneration: number;
   latest: BasicAdjustments;
   domain: AdjustmentPresentationDomain;
 }
@@ -71,187 +87,336 @@ const adjustmentsEqual = (left: BasicAdjustments, right: BasicAdjustments) =>
   JSON.stringify(left) === JSON.stringify(right);
 
 /**
- * Owns the complete interaction transaction for grade and Lens Fx controls.
+ * Owns adjustment gestures without creating a second layer/history authority.
  *
- * The document and Adjustment Layer target are locked at interaction start.
- * A slider can emit any number of preview changes, but completion records one
- * history command. Switching documents cannot publish that command into the
- * newly active session.
+ * Layer and attached-adjustment previews are staged by the shared document
+ * transaction and commit through its history. Only document-wide Grade/Lens
+ * processing uses the separate processing publisher/history entry because that
+ * state deliberately lives outside ImageDocument.
  */
 export const createAdjustmentTransactionController = (
   resolveDependencies: () => AdjustmentTransactionDependencies
 ): AdjustmentTransactionController => {
-  let transaction: ActiveAdjustmentTransaction | null = null;
+  let active: ActiveAdjustmentTransaction | null = null;
+  let rejectedGesture = false;
+  let rejectedToken: AdjustmentInteractionToken | null = null;
+  let tokenSequence = 0;
 
-  const setInteractiveQuality = (active: boolean) => {
-    const renderer = resolveDependencies().getRenderer();
-    renderer?.setScopeInteractionActive(active);
-    renderer?.setLensBlurInteractionActive(active);
+  const setInteractiveQuality = (
+    enabled: boolean,
+    renderer = resolveDependencies().getRenderer()
+  ) => {
+    renderer?.setScopeInteractionActive(enabled);
+    renderer?.setLensBlurInteractionActive(enabled);
   };
 
-  const pushHistory = (
-    documentId: DocumentId | null,
-    before: BasicAdjustments,
-    after: BasicAdjustments,
-    targetLayerId: LayerId | null,
-    domain: AdjustmentPresentationDomain
+  const targetStillMatches = (transaction: ActiveAdjustmentTransaction) => {
+    const dependencies = resolveDependencies();
+    return dependencies.getDocumentId() === transaction.documentId
+      && dependencies.getActiveTargetLayerId() === transaction.targetLayerId
+      && dependencies.getActiveTargetIdentity() === transaction.targetIdentity
+      && dependencies.getRenderer() === transaction.renderer
+      && dependencies.getRendererGeneration() === transaction.rendererGeneration;
+  };
+
+  const finishLocalState = (transaction: ActiveAdjustmentTransaction) => {
+    if (active === transaction) active = null;
+    setInteractiveQuality(false, transaction.renderer);
+  };
+
+  const pushDocumentProcessingHistory = (
+    transaction: ActiveAdjustmentTransaction,
+    after: BasicAdjustments
   ) => {
-    const previous = cloneAdjustments(before);
+    const previous = cloneAdjustments(transaction.before);
     const next = cloneAdjustments(after);
-    resolveDependencies().pushHistoryEntry({
-      label: targetLayerId ? 'Edit Adjustment Layer' : 'Edit Adjustments',
-      type: targetLayerId ? 'adjustment.layer.edit' : 'adjustment.document.edit',
-      undo: () => {
-        const dependencies = resolveDependencies();
-        if (dependencies.getDocumentId() !== documentId) {
-          throw new Error('The grade belongs to a different document.');
-        }
-        dependencies.commitSnapshot(cloneAdjustments(previous), targetLayerId, domain);
-      },
-      redo: () => {
-        const dependencies = resolveDependencies();
-        if (dependencies.getDocumentId() !== documentId) {
-          throw new Error('The grade belongs to a different document.');
-        }
-        dependencies.commitSnapshot(cloneAdjustments(next), targetLayerId, domain);
+    const apply = (snapshot: BasicAdjustments) => {
+      const dependencies = resolveDependencies();
+      if (dependencies.getDocumentId() !== transaction.documentId) {
+        throw new Error('The processing adjustment belongs to a different document.');
       }
+      dependencies.commitDocumentProcessing(cloneAdjustments(snapshot), transaction.domain);
+    };
+    resolveDependencies().pushProcessingHistoryEntry({
+      label: 'Edit Adjustments',
+      type: 'adjustment.document.edit',
+      undo: () => apply(previous),
+      redo: () => apply(next)
     });
   };
 
-  const cancel = () => {
-    const completed = transaction;
-    transaction = null;
-    const dependencies = resolveDependencies();
-    if (completed && dependencies.getDocumentId() === completed.documentId) {
-      dependencies.restoreStagedSnapshot(cloneAdjustments(completed.before));
-    }
-    dependencies.discardPreview();
-    setInteractiveQuality(false);
-  };
-
-  const end = () => {
+  const cancelActive = () => {
+    rejectedGesture = false;
+    rejectedToken = null;
+    const transaction = active;
+    active = null;
     if (!transaction) {
       setInteractiveQuality(false);
       return;
     }
-    const completed = transaction;
-    transaction = null;
-    setInteractiveQuality(false);
+    if (transaction.documentTransaction?.active) transaction.documentTransaction.cancel();
     const dependencies = resolveDependencies();
-    if (dependencies.getDocumentId() !== completed.documentId
-      || dependencies.getActiveTargetLayerId() !== completed.targetLayerId
-      || dependencies.getActiveTargetIdentity() !== completed.targetIdentity) {
-      if (dependencies.getDocumentId() === completed.documentId) {
-        dependencies.restoreStagedSnapshot(cloneAdjustments(completed.before));
-      }
-      dependencies.discardPreview();
+    if (dependencies.getDocumentId() === transaction.documentId) {
+      dependencies.restoreStagedSnapshot(cloneAdjustments(transaction.before));
+    }
+    dependencies.discardPreview();
+    setInteractiveQuality(false, transaction.renderer);
+    // A deliberate UI cancel ends the gesture. Only an external transaction
+    // interruption is allowed to latch rejection until the matching terminal.
+    rejectedGesture = false;
+  };
+
+  const endActive = () => {
+    rejectedGesture = false;
+    const transaction = active;
+    if (!transaction) {
+      setInteractiveQuality(false);
       return;
     }
-    const after = cloneAdjustments(completed.latest);
-    if (!adjustmentsEqual(completed.before, after)) {
-      dependencies.commitSnapshot(after, completed.targetLayerId, completed.domain);
+    if (!targetStillMatches(transaction)) {
+      cancelActive();
+      return;
+    }
+    const after = cloneAdjustments(transaction.latest);
+    if (adjustmentsEqual(transaction.before, after)) {
+      cancelActive();
+      return;
+    }
+    if (transaction.documentTransaction) {
+      // Retire the presentation owner before canonical publication. The shared
+      // applyDocumentSnapshot boundary resets stale adjustment gestures; it
+      // must not mistake this transaction's own terminal publication for an
+      // external cancellation and briefly restore the opening preview.
+      active = null;
+      let committed = false;
       try {
-        pushHistory(
-          completed.documentId,
-          completed.before,
-          after,
-          completed.targetLayerId,
-          completed.domain
-        );
+        committed = transaction.documentTransaction.commit();
+      } finally {
+        setInteractiveQuality(false, transaction.renderer);
+      }
+      if (!committed) {
+        const dependencies = resolveDependencies();
+        if (dependencies.getDocumentId() === transaction.documentId) {
+          dependencies.restoreStagedSnapshot(cloneAdjustments(transaction.before));
+        }
+        dependencies.discardPreview();
+        return;
+      }
+    } else {
+      const dependencies = resolveDependencies();
+      try {
+        dependencies.commitDocumentProcessing(after, transaction.domain);
+        pushDocumentProcessingHistory(transaction, after);
       } catch (error) {
-        dependencies.commitSnapshot(
-          cloneAdjustments(completed.before),
-          completed.targetLayerId,
-          completed.domain
+        dependencies.commitDocumentProcessing(
+          cloneAdjustments(transaction.before),
+          transaction.domain
         );
+        finishLocalState(transaction);
         throw error;
       }
-      dependencies.onCommitted?.({
-        before: cloneAdjustments(completed.before),
-        after: cloneAdjustments(after),
-        targetLayerId: completed.targetLayerId,
-        domain: completed.domain
-      });
-    } else {
-      dependencies.discardPreview();
+      finishLocalState(transaction);
     }
+    resolveDependencies().onCommitted?.({
+      before: cloneAdjustments(transaction.before),
+      after,
+      targetLayerId: transaction.targetLayerId,
+      domain: transaction.domain
+    });
+  };
+
+  const rejectGesture = (token: AdjustmentInteractionToken | null = null) => {
+    rejectedGesture = true;
+    rejectedToken = token;
+    return false;
+  };
+
+  const begin = (): AdjustmentInteractionToken | null => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const documentId = dependencies.getDocumentId();
+    const renderer = dependencies.getRenderer();
+    if (rejectedGesture) return null;
+    if (!document || !documentId || !renderer) {
+      rejectGesture();
+      return null;
+    }
+    const rendererGeneration = dependencies.getRendererGeneration();
+    const targetLayerId = dependencies.getActiveTargetLayerId();
+    const targetIdentity = dependencies.getActiveTargetIdentity();
+    if (active) {
+      const rendererChanged = active.renderer !== renderer
+        || active.rendererGeneration !== rendererGeneration;
+      cancelActive();
+      if (rendererChanged) {
+        rejectGesture();
+        return null;
+      }
+    }
+    let transaction: ActiveAdjustmentTransaction | null = null;
+    let documentTransaction: DocumentMutationTransaction | null = null;
+    if (targetLayerId) {
+      documentTransaction = dependencies.documentMutations.begin(
+        'adjustment.layer',
+        { label: 'Edit Adjustment Layer', type: 'adjustment.layer.edit', layerIds: [
+          targetLayerId
+        ] },
+        (reason) => {
+          if (!transaction || active !== transaction) return;
+          active = null;
+          if (reason !== 'commit') {
+            rejectedGesture = true;
+            rejectedToken = transaction.token;
+          }
+          if (reason !== 'commit'
+            && resolveDependencies().getDocumentId() === transaction.documentId) {
+            resolveDependencies().restoreStagedSnapshot(
+              cloneAdjustments(transaction.before)
+            );
+            resolveDependencies().discardPreview();
+          }
+          setInteractiveQuality(false, transaction.renderer);
+        },
+        'cancel'
+      );
+      if (!documentTransaction) {
+        rejectGesture();
+        return null;
+      }
+    }
+    const canonical = dependencies.getCanonicalAdjustments();
+    if (!canonical) {
+      documentTransaction?.cancel();
+      rejectGesture();
+      return null;
+    }
+    const before = cloneAdjustments(canonical);
+    const token: AdjustmentInteractionToken = { sequence: ++tokenSequence };
+    transaction = {
+      token,
+      documentId,
+      targetLayerId,
+      targetIdentity,
+      before,
+      latest: cloneAdjustments(before),
+      domain: 'grade',
+      documentTransaction,
+      renderer,
+      rendererGeneration
+    };
+    active = transaction;
+    setInteractiveQuality(true, renderer);
+    return token;
+  };
+
+  const change = (
+    mutate: (current: BasicAdjustments) => BasicAdjustments,
+    domain: AdjustmentPresentationDomain = 'grade',
+    token?: AdjustmentInteractionToken
+  ): boolean => {
+    const dependencies = resolveDependencies();
+    if (rejectedGesture) return false;
+    if (active && token !== active.token) return false;
+    if (!active && token) return false;
+    if (active && !targetStillMatches(active)) {
+      const rejectedActiveToken = active.token;
+      cancelActive();
+      rejectGesture(rejectedActiveToken);
+      return false;
+    }
+    const canonical = active?.latest ?? dependencies.getCanonicalAdjustments();
+    if (!canonical) return false;
+    const before = canonical;
+    // Adjustment recipes are immutable by contract. Preserving unchanged
+    // references lets the delta projector skip unrelated modules at pointer rate.
+    const next = mutate(before);
+    if (!active && adjustmentsEqual(before, next)) return false;
+    const targetLayerId = active?.targetLayerId ?? dependencies.getActiveTargetLayerId();
+    const documentId = dependencies.getDocumentId();
+    if (!documentId) return false;
+
+    if (targetLayerId) {
+      const applyToDocument = (document: ImageDocument) => {
+        const projection = projectAdjustmentDelta({
+          previousSnapshot: before,
+          snapshot: next,
+          targetLayerId,
+          document,
+          documentAdjustments: dependencies.getDocumentAdjustments()
+        });
+        return projection.document ?? document;
+      };
+      const changed = active?.documentTransaction
+        ? active.documentTransaction.change(applyToDocument)
+        : dependencies.documentMutations.change(applyToDocument, true, {
+          label: 'Edit Adjustment Layer',
+          type: 'adjustment.layer.edit',
+          layerIds: [targetLayerId]
+        });
+      if (!changed) return false;
+      dependencies.stageEditorAdjustments(next);
+    } else if (active) {
+      dependencies.previewDocumentProcessing(next, domain);
+    } else {
+      const previous = cloneAdjustments(before);
+      dependencies.commitDocumentProcessing(next, domain);
+      try {
+        const synthetic: ActiveAdjustmentTransaction = {
+          token: { sequence: 0 },
+          documentId,
+          targetLayerId: null,
+          targetIdentity: dependencies.getActiveTargetIdentity(),
+          before: previous,
+          latest: cloneAdjustments(next),
+          domain,
+          documentTransaction: null,
+          renderer: dependencies.getRenderer()!,
+          rendererGeneration: dependencies.getRendererGeneration()
+        };
+        pushDocumentProcessingHistory(synthetic, next);
+      } catch (error) {
+        dependencies.commitDocumentProcessing(previous, domain);
+        throw error;
+      }
+    }
+
+    if (active) {
+      active.latest = next;
+      active.domain = domain;
+    } else {
+      dependencies.onCommitted?.({
+        before: cloneAdjustments(before), after: cloneAdjustments(next),
+        targetLayerId, domain
+      });
+    }
+    return true;
   };
 
   return {
-    get active() {
-      return transaction !== null;
-    },
-    begin: () => {
-      const dependencies = resolveDependencies();
-      const documentId = dependencies.getDocumentId();
-      const targetLayerId = dependencies.getActiveTargetLayerId();
-      const targetIdentity = dependencies.getActiveTargetIdentity();
-      if (transaction) {
-        if (transaction.documentId === documentId
-          && transaction.targetLayerId === targetLayerId
-          && transaction.targetIdentity === targetIdentity) return;
-        // Pointer capture can be lost when a contextual panel is replaced.
-        // A later interaction must never inherit that transaction's owner.
-        cancel();
-      }
-      const before = cloneAdjustments(dependencies.getAdjustments());
-      transaction = {
-        documentId,
-        targetLayerId,
-        targetIdentity,
-        before,
-        latest: cloneAdjustments(before),
-        domain: 'grade'
-      };
-      setInteractiveQuality(true);
-    },
-    end,
-    cancel,
-    reset: cancel,
-    change: (mutate, domain = 'grade') => {
-      const dependencies = resolveDependencies();
-      if (transaction && dependencies.getDocumentId() !== transaction.documentId) {
-        cancel();
-        return false;
-      }
-      if (transaction
-        && dependencies.getActiveTargetLayerId() !== transaction.targetLayerId) {
-        cancel();
-        return false;
-      }
-      if (transaction
-        && dependencies.getActiveTargetIdentity() !== transaction.targetIdentity) {
-        cancel();
-        return false;
-      }
-      // Adjustment snapshots are immutable at this boundary. Keep the current
-      // reference and clone only the value handed to the mutator. During a
-      // pointer gesture the final comparison in end() is sufficient; serializing
-      // the complete adjustment tree for every pointer event made sliders do
-      // avoidable main-thread work, especially on lower-power Macs.
-      const before = transaction?.latest ?? dependencies.getAdjustments();
-      const next = mutate(cloneAdjustments(before));
-      if (!transaction && adjustmentsEqual(before, next)) return false;
-      const documentId = dependencies.getDocumentId();
-      const targetLayerId = transaction?.targetLayerId
-        ?? dependencies.getActiveTargetLayerId();
-      if (transaction) {
-        transaction.domain = domain;
-        transaction.latest = cloneAdjustments(next);
-        dependencies.previewSnapshot(next, targetLayerId, domain);
-      } else {
-        dependencies.commitSnapshot(next, targetLayerId, domain);
-      }
-      if (!transaction) {
-        try {
-          pushHistory(documentId, before, next, targetLayerId, domain);
-        } catch (error) {
-          dependencies.commitSnapshot(cloneAdjustments(before), targetLayerId, domain);
-          throw error;
+    get active() { return active !== null; },
+    begin,
+    end: (token) => {
+      if (active?.token !== token) {
+        if (rejectedGesture && rejectedToken === token) {
+          rejectedGesture = false;
+          rejectedToken = null;
         }
+        return;
       }
-      return true;
-    }
+      endActive();
+    },
+    cancel: (token) => {
+      if (active?.token !== token) {
+        if (rejectedGesture && rejectedToken === token) {
+          rejectedGesture = false;
+          rejectedToken = null;
+        }
+        return;
+      }
+      cancelActive();
+    },
+    reset: cancelActive,
+    change
   };
 };
 
@@ -264,6 +429,6 @@ export const useAdjustmentTransactionController = (
     () => createAdjustmentTransactionController(() => dependenciesRef.current),
     []
   );
-  useEffect(() => () => controller.cancel(), [controller]);
+  useEffect(() => () => controller.reset(), [controller]);
   return controller;
 };

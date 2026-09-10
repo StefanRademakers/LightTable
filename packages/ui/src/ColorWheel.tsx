@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { useSliderInteraction } from './useSliderInteraction';
+import { useSliderInteraction, type InteractionHandle, type LocalInteractionSession } from './useSliderInteraction';
 
 export interface ColorWheelProps {
   label: string;
@@ -11,11 +11,11 @@ export interface ColorWheelProps {
   tabIndex?: number;
   resetModifierActive?: boolean;
   publishIntervalMs?: number | 'animation-frame';
-  onChange: (hue: number, saturation: number) => void;
+  onChange: (hue: number, saturation: number, handle?: InteractionHandle) => void;
   onReset?: () => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onInteractionStart?: () => InteractionHandle;
+  onInteractionEnd?: (handle: InteractionHandle) => void;
+  onInteractionCancel?: (handle: InteractionHandle) => void;
 }
 const clamp = (value: number) => Math.min(100, Math.max(0, value));
 const normalizeHue = (value: number) => ((value % 360) + 360) % 360;
@@ -26,13 +26,37 @@ export function ColorWheel({ label, hue, saturation, luminance, disabled = false
   onInteractionStart, onInteractionEnd, onInteractionCancel }: ColorWheelProps) {
   const value = useMemo(() => ({ hue, saturation }), [hue, saturation]);
   const interaction = useSliderInteraction(value, {
-    onChange: next => onChange(next.hue, next.saturation), onInteractionStart, onInteractionEnd,
+    onChange: (next, handle) => onChange(next.hue, next.saturation, handle), onInteractionStart, onInteractionEnd,
     onInteractionCancel, publishIntervalMs
   });
   const pointer = useRef<number | null>(null);
-  const finish = () => { pointer.current = null; interaction.end(); };
-  const cancel = () => { pointer.current = null; interaction.cancel(); };
-  React.useEffect(() => { if (disabled) cancel(); }, [disabled]);
+  const pointerSession = useRef<LocalInteractionSession | null>(null);
+  const keyboardSession = useRef<LocalInteractionSession | null>(null);
+  const finishPointer = (pointerId: number) => {
+    if (pointer.current !== pointerId) return;
+    const session = pointerSession.current;
+    pointer.current = null;
+    pointerSession.current = null;
+    interaction.end(session);
+  };
+  const cancelPointer = (pointerId: number) => {
+    if (pointer.current !== pointerId) return;
+    const session = pointerSession.current;
+    pointer.current = null;
+    pointerSession.current = null;
+    interaction.cancel(session);
+  };
+  const finishKeyboard = () => {
+    const session = keyboardSession.current;
+    keyboardSession.current = null;
+    interaction.end(session);
+  };
+  React.useEffect(() => {
+    if (!disabled) return;
+    if (pointer.current !== null) cancelPointer(pointer.current);
+    if (keyboardSession.current) interaction.cancel(keyboardSession.current);
+    keyboardSession.current = null;
+  }, [disabled]);
   const shown = interaction.display;
   const radius = clamp(shown.saturation) / 100;
   const angle = normalizeHue(shown.hue) * Math.PI / 180;
@@ -66,26 +90,27 @@ export function ColorWheel({ label, hue, saturation, luminance, disabled = false
         pointer.current = event.pointerId;
         event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
-        interaction.begin(); move(event.currentTarget, event.clientX, event.clientY);
+        pointerSession.current = interaction.begin();
+        move(event.currentTarget, event.clientX, event.clientY);
       }}
       onPointerMove={event => { if (pointer.current === event.pointerId) move(event.currentTarget, event.clientX, event.clientY); }}
-      onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX, event.clientY); finish(); } }}
-      onPointerCancel={cancel}
-      onLostPointerCapture={() => { if (pointer.current !== null) cancel(); }}
+      onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX, event.clientY); finishPointer(event.pointerId); } }}
+      onPointerCancel={event => cancelPointer(event.pointerId)}
+      onLostPointerCapture={event => cancelPointer(event.pointerId)}
       onDoubleClick={event => { if (!disabled && onReset) { event.preventDefault(); onReset(); } }}
       onKeyDown={event => {
         if (disabled || !['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Home'].includes(event.key)) return;
         event.preventDefault(); event.stopPropagation();
         const step = event.shiftKey ? 10 : 1;
         const current = interaction.latest.current;
-        interaction.begin();
+        if (!keyboardSession.current) keyboardSession.current = interaction.begin();
         interaction.update({
           hue: normalizeHue(current.hue + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0)),
           saturation: event.key === 'Home' ? 0 : clamp(current.saturation + (event.key === 'ArrowDown' ? -step : event.key === 'ArrowUp' ? step : 0))
         });
       }}
-      onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home') { event.stopPropagation(); finish(); } }}
-      onBlur={finish}>
+      onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home') { event.stopPropagation(); finishKeyboard(); } }}
+      onBlur={finishKeyboard}>
       <span className="ui-color-wheel__guide" aria-hidden="true" />
       <span className="ui-color-wheel__hue-marker" aria-hidden="true"
         style={{ left: `${50 + x * 56}%`, top: `${50 + y * 56}%`, backgroundColor: `hsl(${normalizeHue(shown.hue)} 100% 55%)` }} />

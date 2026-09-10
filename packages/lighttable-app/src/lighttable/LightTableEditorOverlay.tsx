@@ -56,8 +56,15 @@ import {
   resolveAdjustmentPresentationSource,
   type AdjustmentPresentationSource
 } from './application/adjustments/resolveAdjustmentPresentation';
-import { commitColorLookupAssetTransaction } from './application/adjustments/commitColorLookupAssetTransaction';
+import {
+  commitColorLookupAssetTransaction,
+  type ColorLookupCanonicalProjection
+} from './application/adjustments/commitColorLookupAssetTransaction';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import {
+  createAdjustmentInteractionCoordinator,
+  type AdjustmentInteractionHandle
+} from './application/adjustments/AdjustmentInteractionCoordinator';
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
@@ -1797,8 +1804,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     [publishAdjustmentPresentation, setImageDocument]
   );
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
-  const applyProjectedAdjustmentSnapshot =
-    documentProjectionController.applyProjectedAdjustmentSnapshot;
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
   const finishOpenHistoryTransactions = useCallback(async () => {
@@ -1841,6 +1846,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       publishAdjustmentPresentation(presentation.adjustments, presentation.domain);
       adjustmentPresentationSourceRef.current = source;
     }
+  }, [documentProjectionController, publishAdjustmentPresentation]);
+  const applyCanonicalAdjustmentProjection = useCallback((
+    projection: ColorLookupCanonicalProjection,
+    domain: AdjustmentPresentationDomain
+  ) => {
+    documentProjectionController.applyProjectedAdjustmentSnapshot(
+      { ...projection, editorAdjustments: projection.documentAdjustments },
+      domain,
+      false
+    );
+    if (!projection.document) return;
+    const source = resolveAdjustmentPresentationSource(
+      projection.document,
+      projection.documentAdjustments,
+      propertiesTargetRef.current
+    );
+    if (!source) return;
+    const presentation = materializeAdjustmentPresentationSource(source);
+    publishAdjustmentPresentation(presentation.adjustments, presentation.domain);
+    adjustmentPresentationSourceRef.current = source;
   }, [documentProjectionController, publishAdjustmentPresentation]);
 
   const publishDocumentSelection = useCallback((
@@ -2965,9 +2990,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? active.id
       : null;
   };
+  const resolveAdjustmentTargetIdentity = (
+    document: ImageDocument,
+    target: PropertiesInspectorTarget = propertiesTargetRef.current
+  ) => JSON.stringify(reconcilePropertiesTarget(document, target));
+  const resolveCanonicalAdjustmentSnapshot = (
+    document: ImageDocument,
+    target: PropertiesInspectorTarget = propertiesTargetRef.current
+  ) => resolveAdjustmentPresentation(
+    document,
+    documentAdjustmentsRef.current,
+    target
+  )?.adjustments ?? null;
   const adjustmentTransactionController = useAdjustmentTransactionController({
     getDocumentId: () => imageDocumentRef.current?.id ?? null,
-    getAdjustments: () => adjustmentsRef.current,
+    getDocument: () => imageDocumentRef.current,
+    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    getCanonicalAdjustments: () => {
+      const document = imageDocumentRef.current;
+      return document ? resolveCanonicalAdjustmentSnapshot(document) : null;
+    },
     getActiveTargetLayerId: () => {
       const document = imageDocumentRef.current;
       return document ? resolveAdjustmentTargetLayerId(document) : null;
@@ -2975,19 +3017,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getActiveTargetIdentity: () => {
       const document = imageDocumentRef.current;
       if (!document) return null;
-      return JSON.stringify(reconcilePropertiesTarget(
-        document,
-        propertiesTargetRef.current
-      ));
+      return resolveAdjustmentTargetIdentity(document);
     },
     getRenderer: () => engineRef.current,
-    previewSnapshot: previewAdjustmentSnapshot,
-    commitSnapshot: applyAdjustmentSnapshot,
+    getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
+    documentMutations: documentMutationController,
+    previewDocumentProcessing: (snapshot, domain) =>
+      previewAdjustmentSnapshot(snapshot, null, domain),
+    commitDocumentProcessing: (snapshot, domain) =>
+      applyAdjustmentSnapshot(snapshot, null, domain),
+    stageEditorAdjustments: (snapshot) => {
+      adjustmentsRef.current = snapshot;
+    },
     restoreStagedSnapshot: (snapshot) => {
       adjustmentsRef.current = cloneAdjustments(snapshot);
     },
     discardPreview: documentProjectionController.discardAdjustmentPreview,
-    pushHistoryEntry,
+    pushProcessingHistoryEntry: pushHistoryEntry,
     onCommitted: ({ after, targetLayerId, domain }) => {
       const attached = targetLayerId
         ? parseAttachedAdjustmentOwnerId(targetLayerId)
@@ -3007,14 +3053,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     }
   });
-  resetAdjustmentTransactionRef.current = () => {
-    adjustmentTransactionController.cancel();
-  };
+  const adjustmentInteractions = useMemo(
+    () => createAdjustmentInteractionCoordinator(adjustmentTransactionController),
+    [adjustmentTransactionController]
+  );
+  resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;
 
-  const beginAdjustmentTransaction = adjustmentTransactionController.begin;
-  const endAdjustmentTransaction = adjustmentTransactionController.end;
-  const cancelAdjustmentTransaction = adjustmentTransactionController.cancel;
-  const changeAdjustments = adjustmentTransactionController.change;
+  const beginAdjustmentTransaction = adjustmentInteractions.begin;
+  const endAdjustmentTransaction = (handle?: AdjustmentInteractionHandle | void) => {
+    if (handle) adjustmentInteractions.end(handle);
+    else adjustmentInteractions.finish();
+  };
+  const cancelAdjustmentTransaction = (handle?: AdjustmentInteractionHandle | void) => {
+    if (handle) adjustmentInteractions.cancel(handle);
+    else adjustmentInteractions.reset();
+  };
+  const changeAdjustments = (
+    recipe: Parameters<typeof adjustmentTransactionController.change>[0],
+    domain?: Parameters<typeof adjustmentTransactionController.change>[1],
+    interactionHandle?: AdjustmentInteractionHandle | void
+  ) => interactionHandle
+    ? adjustmentInteractions.change(interactionHandle, recipe, domain)
+    : adjustmentInteractions.discreteChange(recipe, domain);
   const loadCubeAsset = async (file: File, purpose: 'photoshop-color-lookup' | 'grade-look') => {
     if (!/\.cube$/i.test(file.name)) throw new Error('Choose a 3D .cube LUT file.');
     if (file.size <= 0 || file.size > 32 * 1024 * 1024) {
@@ -3024,11 +3084,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const renderer = engineRef.current;
     const beforeDocument = imageDocumentRef.current;
     if (!renderer || !beforeDocument) throw new Error('Open a document before loading a LUT.');
-    const beforeAdjustments = cloneAdjustments(adjustmentsRef.current);
+    const canonicalAdjustments = resolveCanonicalAdjustmentSnapshot(beforeDocument);
+    if (!canonicalAdjustments) throw new Error('Select a Grade owner before loading a LUT.');
+    const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
     const beforeDocumentAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-    const beforeAdjustmentsIdentity = adjustmentsRef.current;
     const beforeDocumentAdjustmentsIdentity = documentAdjustmentsRef.current;
     const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
+    const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
+    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
+    const bindingIsCurrent = () => imageDocumentRef.current === beforeDocument
+      && engineRef.current === renderer
+      && rendererLifecycle.getSnapshot().generation === rendererGeneration
+      && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
+      && (targetLayerId !== null
+        || documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity);
     const historyType = purpose === 'grade-look'
       ? 'adjustment.grade-look'
       : 'adjustment.color-lookup';
@@ -3047,9 +3116,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     try {
       const parsed = parseCubeLut(await file.text());
       if (!transaction.active
-        || imageDocumentRef.current !== beforeDocument
-        || adjustmentsRef.current !== beforeAdjustmentsIdentity
-        || documentAdjustmentsRef.current !== beforeDocumentAdjustmentsIdentity) {
+        || !bindingIsCurrent()) {
         throw new Error('The LUT target changed while the file was loading.');
       }
       const nextAdjustments = purpose === 'grade-look' ? {
@@ -3096,16 +3163,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         source: file,
         assetId,
         beforeDocument,
-        beforeEditorAdjustments: beforeAdjustments,
         beforeDocumentAdjustments,
         nextEditorAdjustments: nextAdjustments,
         targetLayerId,
         history: { type: historyType, label: historyLabel },
-        originIsCurrent: () => imageDocumentRef.current === beforeDocument
-          && adjustmentsRef.current === beforeAdjustmentsIdentity
-          && documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity,
+        bindingIsCurrent,
         documentIsActive: (documentId) => imageDocumentRef.current?.id === documentId,
-        applyProjection: (projection) => applyProjectedAdjustmentSnapshot(projection, 'grade'),
+        applyCanonicalProjection: (projection) =>
+          applyCanonicalAdjustmentProjection(projection, 'grade'),
         pushHistoryEntry
       });
       setGradeStatus(`Loaded ${parsed.title || file.name} · ${parsed.size}³ LUT`);
@@ -3143,19 +3208,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
 
-  const beginLensBlurInteraction = useCallback(() => {
-    beginAdjustmentTransaction();
-  }, [beginAdjustmentTransaction]);
-
-  const endLensBlurInteraction = useCallback(() => {
-    endAdjustmentTransaction();
-  }, [endAdjustmentTransaction]);
-
   const adjustmentCommands = useMemo(() => createAdjustmentCommands({
-    beginAdjustment: beginAdjustmentTransaction,
     endAdjustment: endAdjustmentTransaction,
-    beginLensBlurInteraction,
-    endLensBlurInteraction,
     changeAdjustments,
     getAdjustments: () => adjustmentsRef.current,
     getGroupVisibility: () => groupVisibilityRef.current,
@@ -3170,11 +3224,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishGradeStatus: setGradeStatus
   }), [
     beginAdjustmentTransaction,
-    beginLensBlurInteraction,
     changeAdjustments,
     documentProjectionController,
     endAdjustmentTransaction,
-    endLensBlurInteraction,
     sourceName
   ]);
   const {
@@ -3238,7 +3290,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const captureCurrentGrade = async (): Promise<LightTableGradeClipboardCapture> => {
     const document = imageDocumentRef.current;
     const renderer = engineRef.current;
-    const settings = cloneAdjustments(adjustmentsRef.current);
+    const canonical = document ? resolveCanonicalAdjustmentSnapshot(document) : null;
+    const settings = cloneAdjustments(canonical ?? documentAdjustmentsRef.current);
     const assetId = settings.gradeLook.assetId;
     let gradeLookAsset: LightTableGradeClipboardCapture['gradeLookAsset'];
     if (assetId && document && renderer) {
@@ -3276,11 +3329,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (!renderer) throw new Error('The document renderer is not ready to import this LUT.');
         endAdjustmentTransaction();
         const beforeDocument = document;
-        const beforeAdjustments = cloneAdjustments(adjustmentsRef.current);
+        const canonicalAdjustments = resolveCanonicalAdjustmentSnapshot(beforeDocument);
+        if (!canonicalAdjustments) {
+          throw new Error('Select a Grade owner before pasting a LUT-backed Grade.');
+        }
+        const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
         const beforeDocumentAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-        const beforeAdjustmentsIdentity = adjustmentsRef.current;
         const beforeDocumentAdjustmentsIdentity = documentAdjustmentsRef.current;
         const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
+        const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
+        const rendererGeneration = rendererLifecycle.getSnapshot().generation;
+        const bindingIsCurrent = () => imageDocumentRef.current === beforeDocument
+          && engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === rendererGeneration
+          && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
+          && (targetLayerId !== null
+            || documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity);
         const transaction = documentMutationController.begin(
           'adjustment.grade.paste',
           { label: `Load ${capture.name}`, type: 'adjustment.grade.paste' },
@@ -3293,9 +3357,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         try {
           const parsed = parseCubeLut(await source.text());
           if (!transaction.active
-            || imageDocumentRef.current !== beforeDocument
-            || adjustmentsRef.current !== beforeAdjustmentsIdentity
-            || documentAdjustmentsRef.current !== beforeDocumentAdjustmentsIdentity) {
+            || !bindingIsCurrent()) {
             throw new Error('The Grade target changed while its LUT was loading.');
           }
           settings = { ...settings, gradeLook: { ...settings.gradeLook, assetId } };
@@ -3326,16 +3388,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             source,
             assetId,
             beforeDocument,
-            beforeEditorAdjustments: beforeAdjustments,
             beforeDocumentAdjustments,
             nextEditorAdjustments: nextAdjustments,
             targetLayerId,
             history: { type: 'adjustment.grade.paste', label: `Load ${capture.name}` },
-            originIsCurrent: () => imageDocumentRef.current === beforeDocument
-              && adjustmentsRef.current === beforeAdjustmentsIdentity
-              && documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity,
+            bindingIsCurrent,
             documentIsActive: (documentId) => imageDocumentRef.current?.id === documentId,
-            applyProjection: (projection) => applyProjectedAdjustmentSnapshot(projection, 'grade'),
+            applyCanonicalProjection: (projection) =>
+              applyCanonicalAdjustmentProjection(projection, 'grade'),
             pushHistoryEntry
           });
           setGradeStatus(`Loaded ${capture.name}`);
@@ -6233,7 +6293,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         smartSelectionController.executeSubjectSelection(command, signal, report)
       ),
       executeBasicAdjustmentCommand: (command) => {
-        adjustmentTransactionController.end();
+        adjustmentInteractions.finish();
         const document = imageDocumentRef.current;
         if (!document) return null;
         const currentPropertiesTarget = propertiesTargetRef.current;
@@ -6248,13 +6308,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           target: command.target, values: command.values,
           historyType: 'adjustment.basic', historyLabel: 'Set Basic Grade',
           mutate: (snapshot, values) => Object.assign(snapshot, values),
-          publish: (snapshot, targetLayerId) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, targetLayerId, 'grade', presented),
-          pushHistoryEntry
+          changeDocument: documentMutationController.change,
+          publishDocumentProcessing: (snapshot) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, null, 'grade', presented),
+          pushProcessingHistoryEntry: pushHistoryEntry
         });
       },
       executeDetailAdjustmentCommand: (command) => {
-        adjustmentTransactionController.end();
+        adjustmentInteractions.finish();
         const document = imageDocumentRef.current;
         if (!document) return null;
         const currentPropertiesTarget = propertiesTargetRef.current;
@@ -6269,15 +6330,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           target: command.target, values: command.values,
           historyType: 'adjustment.detail', historyLabel: 'Set Detail',
           mutate: (snapshot, values) => Object.assign(snapshot.detail, values),
-          publish: (snapshot, targetLayerId) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, targetLayerId, 'grade', presented),
-          pushHistoryEntry
+          changeDocument: documentMutationController.change,
+          publishDocumentProcessing: (snapshot) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, null, 'grade', presented),
+          pushProcessingHistoryEntry: pushHistoryEntry
         });
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
       executeAdjustmentSnapshot: (command) => {
-        adjustmentTransactionController.end();
+        adjustmentInteractions.finish();
         const document = imageDocumentRef.current;
         if (!document) return null;
         const currentTarget = propertiesTargetRef.current;
@@ -6287,9 +6349,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           documentAdjustments: documentAdjustmentsRef.current,
           target: command.target,
           snapshot: command.snapshot,
-          publish: (snapshot, targetLayerId, domain) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, targetLayerId, domain, presented),
-          pushHistoryEntry
+          changeDocument: documentMutationController.change,
+          publishDocumentProcessing: (snapshot, domain) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, null, domain, presented),
+          pushProcessingHistoryEntry: pushHistoryEntry
         });
       },
       executeRasterInvert: async (command) => {
@@ -6903,7 +6966,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   nudgeTransformRef.current = transformSession.nudge;
   hostPresentationDeactivateRef.current = () => {
     viewportInteraction.cancelActiveGesture();
-    adjustmentTransactionController.cancel();
+    adjustmentInteractions.reset();
     rasterGradientController.cancel();
     cancelAutoAlignRef.current();
     if (transformSession.isActive()) transformSession.cancel();

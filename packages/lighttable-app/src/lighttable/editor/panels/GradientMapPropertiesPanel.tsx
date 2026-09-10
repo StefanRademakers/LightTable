@@ -6,6 +6,7 @@ import { GradientAssetEditor } from '../ui/LayerStyleGradientEditor';
 import type { LayerStyleGradient } from '../styles/layerStyleTypes';
 import { DEFAULT_BASIC_ADJUSTMENTS } from '../../types';
 import type { GradePanelProps } from './GradePanel';
+import type { AdjustmentInteractionHandle } from '../../application/adjustments/AdjustmentInteractionCoordinator';
 
 /** Focused Gradient Map editor reusing the production Grade gradient widget. */
 export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps) => {
@@ -20,7 +21,7 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
       ...stop, id: `gradient-map-opacity-${index}`
     }))
   };
-  const updateGradient = (value: LayerStyleGradient) => commands.updateGradientMap({
+  const updateGradient = (value: LayerStyleGradient, handle: object | void) => commands.updateGradientMap({
     ...gradientMap,
     colorStops: value.colorStops.map(({ position, midpoint, color }) => ({
       position, midpoint, color: { r: color.r, g: color.g, b: color.b }
@@ -28,10 +29,11 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
     opacityStops: value.opacityStops.map(({ position, midpoint, opacity }) => ({
       position, midpoint, opacity
     }))
-  });
+  }, handle as AdjustmentInteractionHandle | void);
   const commitGradientMap = (next: typeof gradientMap) => {
-    commands.updateGradientMap(next);
-    commands.endAdjustment();
+    const handle = commands.beginAdjustment('gradient-map:discrete');
+    commands.updateGradientMap(next, handle);
+    commands.endAdjustment(handle);
   };
 
   return (
@@ -45,9 +47,9 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
         <section className="lighttable-group">
           <div className="lighttable-group__controls">
             <GradientAssetEditor value={editorValue} onChange={updateGradient}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
-              onInteractionCancel={commands.cancelAdjustment} />
+              onInteractionStart={() => commands.beginAdjustment('gradient-map')}
+              onInteractionEnd={(handle) => commands.endAdjustment(handle as AdjustmentInteractionHandle | void)}
+              onInteractionCancel={(handle) => commands.cancelAdjustment(handle as AdjustmentInteractionHandle | void)} />
             <div className="lighttable-gradient-map__options">
               <SwitchControl checked={gradientMap.reverse} onCheckedChange={(reverse) => commitGradientMap({ ...gradientMap, reverse })} label="Reverse Gradient Map" />
               <span>Reverse</span>

@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
+export type InteractionHandle = object | void;
+export interface LocalInteractionSession {
+  readonly handle: InteractionHandle;
+}
+
 /** Local feedback is immediate; only the consumer's preview is rate limited. */
 export function useSliderInteraction<T>(value: T, options: {
-  onChange: (value: T) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onChange: (value: T, handle: InteractionHandle) => void;
+  onInteractionStart?: () => InteractionHandle;
+  onInteractionEnd?: (handle: InteractionHandle) => void;
+  onInteractionCancel?: (handle: InteractionHandle) => void;
   publishIntervalMs?: number | 'animation-frame';
 }) {
   const [display, setDisplay] = useState(value);
@@ -14,6 +19,7 @@ export function useSliderInteraction<T>(value: T, options: {
   const published = useRef(value);
   const baseline = useRef(value);
   const active = useRef(false);
+  const session = useRef<LocalInteractionSession | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const frame = useRef<number | null>(null);
   const lastPublish = useRef(0);
@@ -30,14 +36,15 @@ export function useSliderInteraction<T>(value: T, options: {
     if (Object.is(published.current, latest.current)) return;
     published.current = latest.current;
     lastPublish.current = performance.now();
-    callbacks.current.onChange(latest.current);
+    callbacks.current.onChange(latest.current, session.current?.handle);
   };
   const begin = () => {
-    if (active.current) return;
+    if (active.current) return session.current!;
     active.current = true;
     baseline.current = latest.current;
     setInteracting(true);
-    callbacks.current.onInteractionStart?.();
+    session.current = { handle: callbacks.current.onInteractionStart?.() };
+    return session.current;
   };
   const update = (next: T) => {
     latest.current = next;
@@ -50,22 +57,24 @@ export function useSliderInteraction<T>(value: T, options: {
     if (remaining <= 0) publish();
     else if (timer.current === null) timer.current = setTimeout(publish, remaining);
   };
-  const end = () => {
-    if (!active.current) return;
+  const end = (expected: LocalInteractionSession | null) => {
+    if (!active.current || !expected || session.current !== expected) return;
     publish();
     active.current = false;
     setInteracting(false);
-    callbacks.current.onInteractionEnd?.();
+    session.current = null;
+    callbacks.current.onInteractionEnd?.(expected.handle);
   };
-  const cancel = () => {
-    if (!active.current) return;
+  const cancel = (expected: LocalInteractionSession | null) => {
+    if (!active.current || !expected || session.current !== expected) return;
     clear();
     latest.current = baseline.current;
     published.current = baseline.current;
     setDisplay(baseline.current);
     active.current = false;
     setInteracting(false);
-    callbacks.current.onInteractionCancel?.();
+    session.current = null;
+    callbacks.current.onInteractionCancel?.(expected.handle);
   };
   useEffect(() => {
     if (active.current) return;
@@ -77,7 +86,8 @@ export function useSliderInteraction<T>(value: T, options: {
     clear();
     if (active.current) {
       active.current = false;
-      callbacks.current.onInteractionCancel?.();
+      callbacks.current.onInteractionCancel?.(session.current?.handle);
+      session.current = null;
     }
   }, []);
   return { display, latest, active, begin, update, end, cancel };

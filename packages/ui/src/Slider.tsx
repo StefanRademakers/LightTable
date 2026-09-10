@@ -1,5 +1,6 @@
 import React, { useId, useRef } from 'react';
-import { sliderEditKeys, sliderValueAtPosition, useSliderInteraction } from './useSliderInteraction';
+import { sliderEditKeys, sliderValueAtPosition, useSliderInteraction, type InteractionHandle,
+  type LocalInteractionSession } from './useSliderInteraction';
 
 export interface SliderProps {
   label: string;
@@ -19,11 +20,11 @@ export interface SliderProps {
   className?: string;
   publishIntervalMs?: number | 'animation-frame';
   resetModifierActive?: boolean;
-  onChange: (value: number) => void;
+  onChange: (value: number, handle?: InteractionHandle) => void;
   onReset?: () => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onInteractionStart?: () => InteractionHandle;
+  onInteractionEnd?: (handle: InteractionHandle) => void;
+  onInteractionCancel?: (handle: InteractionHandle) => void;
 }
 export interface SliderFieldProps extends SliderProps {
   layout?: 'stacked' | 'inline';
@@ -38,7 +39,9 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
 }: SliderProps & { field?: Pick<SliderFieldProps, 'layout' | 'size'> }) {
   const id = useId();
   const pointer = useRef<number | null>(null);
+  const pointerSession = useRef<LocalInteractionSession | null>(null);
   const keyboard = useRef(false);
+  const keyboardSession = useRef<LocalInteractionSession | null>(null);
   const interaction = useSliderInteraction(value, {
     onChange,
     onInteractionStart,
@@ -50,10 +53,10 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
   const percentage = (next: number) => max > min ? Math.min(100, Math.max(0, (next - min) / (max - min) * 100)) : 0;
   const reset = () => {
     if (disabled) return;
-    interaction.begin();
+    const session = interaction.begin();
     if (onReset) onReset();
     else interaction.update(resetValue);
-    interaction.end();
+    interaction.end(session);
   };
   const move = (input: HTMLInputElement, x: number) => {
     const bounds = input.getBoundingClientRect();
@@ -61,8 +64,32 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
     const thumb = parseFloat(getComputedStyle(input).getPropertyValue('--ui-slider-thumb-size')) || 18;
     interaction.update(sliderValueAtPosition(x, bounds.left + thumb / 2, Math.max(0, bounds.width - thumb), min, max, step));
   };
-  const finish = () => { pointer.current = null; keyboard.current = false; interaction.end(); };
-  React.useEffect(() => { if (disabled) finish(); }, [disabled]);
+  const finishPointer = (pointerId: number) => {
+    if (pointer.current !== pointerId) return;
+    const session = pointerSession.current;
+    pointer.current = null;
+    pointerSession.current = null;
+    interaction.end(session);
+  };
+  const cancelPointer = (pointerId: number) => {
+    if (pointer.current !== pointerId) return;
+    const session = pointerSession.current;
+    pointer.current = null;
+    pointerSession.current = null;
+    interaction.cancel(session);
+  };
+  const finishKeyboard = () => {
+    if (!keyboard.current) return;
+    keyboard.current = false;
+    const session = keyboardSession.current;
+    keyboardSession.current = null;
+    interaction.end(session);
+  };
+  React.useEffect(() => {
+    if (!disabled) return;
+    if (pointer.current !== null) cancelPointer(pointer.current);
+    if (keyboard.current) finishKeyboard();
+  }, [disabled]);
   const track = <div className="ui-slider__track" data-transparency={transparency || undefined}
     style={{ '--ui-slider-position': `${percentage(display)}%`, '--ui-slider-neutral': percentage(resetValue) / 100,
       ...(trackBackground ? { '--ui-slider-background': trackBackground } : {}) } as React.CSSProperties}>
@@ -74,29 +101,33 @@ function SliderControl({ label, ariaLabel, value, min, max, step = 1,
         event.preventDefault();
         event.currentTarget.focus({ preventScroll: true });
         pointer.current = event.pointerId;
-        interaction.begin();
+        pointerSession.current = interaction.begin();
         event.currentTarget.setPointerCapture(event.pointerId);
         move(event.currentTarget, event.clientX);
       }}
       onPointerMove={event => { if (pointer.current === event.pointerId) move(event.currentTarget, event.clientX); }}
-      onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX); finish(); } }}
-      onPointerCancel={finish} onLostPointerCapture={finish}
+      onPointerUp={event => { if (pointer.current === event.pointerId) { move(event.currentTarget, event.clientX); finishPointer(event.pointerId); } }}
+      onPointerCancel={event => cancelPointer(event.pointerId)}
+      onLostPointerCapture={event => cancelPointer(event.pointerId)}
       onKeyDown={event => {
         if (!sliderEditKeys.has(event.key)) return;
         event.preventDefault();
-        if (!keyboard.current) { keyboard.current = true; interaction.begin(); }
+        if (!keyboard.current) {
+          keyboard.current = true;
+          keyboardSession.current = interaction.begin();
+        }
         const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'PageDown' ? -1 : 1;
         const delta = step * direction * (event.key.startsWith('Page') ? 10 : 1);
         interaction.update(event.key === 'Home' ? min : event.key === 'End' ? max
           : Math.min(max, Math.max(min, Number((interaction.latest.current + delta).toFixed(10)))));
       }}
-      onKeyUp={event => { if (sliderEditKeys.has(event.key)) finish(); }} onBlur={() => { if (keyboard.current) finish(); }}
+      onKeyUp={event => { if (sliderEditKeys.has(event.key)) finishKeyboard(); }} onBlur={finishKeyboard}
       onChange={event => {
         if (pointer.current !== null) return;
         const discrete = !keyboard.current;
-        if (discrete) interaction.begin();
+        const session = discrete ? interaction.begin() : null;
         interaction.update(Number(event.currentTarget.value));
-        if (discrete) interaction.end();
+        if (discrete) interaction.end(session);
       }} onDragStart={event => event.preventDefault()} />
   </div>;
   return <div className={`ui-slider${field ? ' ui-slider-field' : ''}${className ? ` ${className}` : ''}`}

@@ -4,81 +4,93 @@ import {
   createAdjustmentLayer,
   createRasterLayer
 } from '../../editor/document/documentCommands';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import { createImageDocument, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import {
-  createAdjustmentStackFromBasicAdjustments
-} from '../../processing/adjustmentStack';
+import { createAdjustmentStackFromBasicAdjustments, materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import { createFilterStack } from '../../processing/filter';
 import { createDefaultAdjustments } from '../../types';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import { executeSemanticAdjustmentSnapshot } from './executeSemanticAdjustmentSnapshot';
 
+const targetAdjustments = (
+  document: ImageDocument,
+  target: { kind: 'layer'; layerId: LayerId } | {
+    kind: 'attached'; layerId: LayerId; adjustmentId: string;
+  }
+) => {
+  const layer = findDocumentLayer(document, target.layerId);
+  const stack = target.kind === 'attached' && layer?.type === 'raster'
+    ? (layer.attachedAdjustments ?? []).find(({ id }) => id === target.adjustmentId)
+        ?.adjustmentStack
+    : layer?.type === 'raster' || layer?.type === 'adjustment'
+      ? layer.adjustmentStack
+      : null;
+  return stack
+    ? materializeBasicAdjustments(stack, undefined, undefined, true)
+    : createDefaultAdjustments();
+};
+
+const harness = (initial: ImageDocument) => {
+  let document = initial;
+  const history: Array<{ undo(): void; redo(): void }> = [];
+  const mutation = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: (next) => { document = next; },
+    previewSnapshot: () => undefined,
+    discardPreview: () => undefined,
+    pushHistoryEntry: (entry) => history.push(entry)
+  }));
+  const processingPublish = vi.fn();
+  const processingHistory = vi.fn();
+  return {
+    history, mutation, processingPublish, processingHistory,
+    get document() { return document; },
+    options: (target: Parameters<typeof executeSemanticAdjustmentSnapshot>[0]['target'], snapshot: ReturnType<typeof createDefaultAdjustments>) => ({
+      document,
+      documentAdjustments: createDefaultAdjustments(),
+      target,
+      snapshot,
+      changeDocument: mutation.change,
+      publishDocumentProcessing: processingPublish,
+      pushProcessingHistoryEntry: processingHistory
+    })
+  };
+};
+
 describe('semantic adjustment snapshot executor', () => {
-  it('creates the first local Grade state on a plain raster and keeps it reversible', () => {
-    const document = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
-    const layerId = document.activeLayerId!;
-    const layer = findDocumentLayer(document, layerId);
-    expect(layer?.type === 'raster' ? layer.adjustmentStack : undefined).toBeNull();
+  it('creates the first local Grade through shared document history', () => {
+    const state = harness(createRasterLayer(createImageDocument('Fixture', 80, 60, 'source')));
+    const layerId = state.document.activeLayerId!;
     const snapshot = createDefaultAdjustments();
     snapshot.exposureEV = 1.25;
-    const publish = vi.fn();
-    let history: { undo(): void; redo(): void } | null = null;
-    expect(executeSemanticAdjustmentSnapshot({
-      document, documentAdjustments: createDefaultAdjustments(),
-      target: { kind: 'layer', layerId }, snapshot, publish,
-      pushHistoryEntry: (entry) => { history = entry; }
-    }).changed).toBe(true);
-    history!.undo(); history!.redo();
-    expect(publish).toHaveBeenCalledTimes(3);
-    expect(publish.mock.calls.map(([value]) => value.exposureEV)).toEqual([1.25, 0, 1.25]);
+    expect(executeSemanticAdjustmentSnapshot(state.options(
+      { kind: 'layer', layerId }, snapshot
+    )).changed).toBe(true);
+    expect(state.history).toHaveLength(1);
+    expect(state.processingPublish).not.toHaveBeenCalled();
+    expect(targetAdjustments(state.document, { kind: 'layer', layerId }).exposureEV).toBe(1.25);
+    state.history[0]!.undo();
+    expect(targetAdjustments(state.document, { kind: 'layer', layerId }).exposureEV).toBe(0);
   });
 
-  it('publishes one reversible document-owner transaction', () => {
-    const document = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
-    const before = createDefaultAdjustments();
-    const after = createDefaultAdjustments();
-    after.exposureEV = 1.5;
-    const publish = vi.fn();
-    const pushHistoryEntry = vi.fn();
-    expect(executeSemanticAdjustmentSnapshot({
-      document, documentAdjustments: before,
-      target: { kind: 'document', owner: 'grade' }, snapshot: after,
-      publish, pushHistoryEntry
-    })).toEqual({ target: { kind: 'document', owner: 'grade' }, changed: true });
-    expect(publish).toHaveBeenCalledWith(
-      expect.objectContaining({ exposureEV: 1.5 }), null, 'grade'
+  it('keeps document processing on its explicit reversible owner', () => {
+    const state = harness(createRasterLayer(createImageDocument('Fixture', 80, 60, 'source')));
+    const snapshot = createDefaultAdjustments();
+    snapshot.exposureEV = 1.5;
+    expect(executeSemanticAdjustmentSnapshot(state.options(
+      { kind: 'document', owner: 'grade' }, snapshot
+    )).changed).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.processingPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ exposureEV: 1.5 }), 'grade'
     );
-    const history = pushHistoryEntry.mock.calls[0]?.[0];
-    history.undo(); history.redo();
-    expect(publish).toHaveBeenCalledTimes(3);
+    const entry = state.processingHistory.mock.calls[0]?.[0];
+    entry.undo(); entry.redo();
+    expect(state.processingPublish).toHaveBeenCalledTimes(3);
   });
 
-  it('changes only the addressed document owner through commit, undo and redo', () => {
-    const document = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
-    const current = createDefaultAdjustments();
-    current.effects.grain.enabled = true;
-    current.effects.grain.amount = 0.75;
-    const incoming = createDefaultAdjustments();
-    incoming.exposureEV = 2;
-    incoming.effects.grain.enabled = false;
-    incoming.effects.grain.amount = 9;
-    const published: ReturnType<typeof createDefaultAdjustments>[] = [];
-    let history: { undo(): void; redo(): void } | null = null;
-    executeSemanticAdjustmentSnapshot({
-      document, documentAdjustments: current,
-      target: { kind: 'document', owner: 'grade' }, snapshot: incoming,
-      publish: (snapshot) => published.push(snapshot),
-      pushHistoryEntry: (entry) => { history = entry; }
-    });
-    history!.undo(); history!.redo();
-    expect(published.map(({ exposureEV }) => exposureEV)).toEqual([2, 0, 2]);
-    expect(published.every(({ effects }) => (
-      effects.grain.enabled && effects.grain.amount === 0.75
-    ))).toBe(true);
-  });
-
-  it('addresses a specialized layer and attached adjustment without panel state', () => {
+  it('addresses specialized layer and attached owners through document mutation', () => {
     const base = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
     const rasterId = base.activeLayerId!;
     const exposure = selectAdjustmentLayerModules(
@@ -90,28 +102,22 @@ describe('semantic adjustment snapshot executor', () => {
     });
     const withLayer = createAdjustmentLayer(withAttached, exposure, 'Exposure');
     const layerId = withLayer.activeLayerId!;
-    expect(findDocumentLayer(withLayer, layerId)?.type).toBe('adjustment');
     const snapshot = createDefaultAdjustments();
     snapshot.photoshopAdjustment.kind = 'exposure';
     snapshot.photoshopAdjustment.exposure = 2;
-    const publish = vi.fn();
     for (const target of [
       { kind: 'layer', layerId },
       { kind: 'attached', layerId: rasterId, adjustmentId: 'exposure' }
     ] as const) {
-      publish.mockClear();
-      expect(executeSemanticAdjustmentSnapshot({
-        document: withLayer, documentAdjustments: createDefaultAdjustments(),
-        target, snapshot, publish, pushHistoryEntry: vi.fn()
-      }).changed).toBe(true);
-      expect(publish).toHaveBeenCalledWith(
-        expect.objectContaining({ photoshopAdjustment: expect.objectContaining({ exposure: 2 }) }),
-        expect.any(String), 'all'
-      );
+      const state = harness(withLayer);
+      expect(executeSemanticAdjustmentSnapshot(state.options(target, snapshot)).changed).toBe(true);
+      expect(state.history).toHaveLength(1);
+      expect(targetAdjustments(state.document, target)
+        .photoshopAdjustment.exposure).toBe(2);
     }
   });
 
-  it('rejects a snapshot whose Photoshop kind differs from its canonical owner', () => {
+  it('does not publish ignored snapshot fields for specialized or attached owners', () => {
     const base = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
     const rasterId = base.activeLayerId!;
     const levelsSnapshot = createDefaultAdjustments();
@@ -126,44 +132,52 @@ describe('semantic adjustment snapshot executor', () => {
     const withLayer = createAdjustmentLayer(
       withAttached, levels, 'Levels', withAttached.activeLayerId!, 'levels'
     );
-    const layerId = withLayer.activeLayerId!;
-    const threshold = createDefaultAdjustments();
-    threshold.photoshopAdjustment.kind = 'threshold';
+    const irrelevant = structuredClone(levelsSnapshot);
+    irrelevant.exposureEV = 1.5;
+
     for (const target of [
-      { kind: 'layer', layerId },
+      { kind: 'layer', layerId: withLayer.activeLayerId! },
       { kind: 'attached', layerId: rasterId, adjustmentId: 'levels' }
     ] as const) {
-      expect(() => executeSemanticAdjustmentSnapshot({
-        document: withLayer, documentAdjustments: createDefaultAdjustments(),
-        target, snapshot: threshold, publish: vi.fn(), pushHistoryEntry: vi.fn()
-      })).toThrow('snapshot kind does not match');
+      const state = harness(withLayer);
+      const before = state.document;
+      expect(executeSemanticAdjustmentSnapshot(state.options(target, irrelevant)).changed)
+        .toBe(false);
+      expect(state.document).toBe(before);
+      expect(state.document.revision).toBe(before.revision);
+      expect(state.history).toHaveLength(0);
+      expect(state.processingPublish).not.toHaveBeenCalled();
     }
   });
 
-  it('rejects filter-only layer and attached owners that require typed filter commands', () => {
+  it('rejects a snapshot whose kind differs from its canonical owner', () => {
     const base = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
-    const rasterId = base.activeLayerId!;
-    const filter = createFilterStack('gaussian-blur', { radius: 8 }, (part) => `blur-${part}`);
-    const withAttached = addRasterLayerAttachedAdjustment(base, rasterId, {
-      id: 'blur', adjustmentKind: 'gaussian-blur', name: 'Gaussian Blur', enabled: true,
-      revision: 0, adjustmentStack: filter
-    });
-    const withLayer = createAdjustmentLayer(
-      withAttached, filter, 'Gaussian Blur', withAttached.activeLayerId!, 'gaussian-blur'
+    const levelsSnapshot = createDefaultAdjustments();
+    levelsSnapshot.photoshopAdjustment.kind = 'levels';
+    const levels = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(levelsSnapshot), 'levels'
     );
-    const snapshot = createDefaultAdjustments();
-    for (const target of [
-      { kind: 'layer', layerId: withLayer.activeLayerId! },
-      { kind: 'attached', layerId: rasterId, adjustmentId: 'blur' }
-    ] as const) {
-      const publish = vi.fn();
-      const pushHistoryEntry = vi.fn();
-      expect(() => executeSemanticAdjustmentSnapshot({
-        document: withLayer, documentAdjustments: snapshot, target, snapshot,
-        publish, pushHistoryEntry
-      })).toThrow('typed filter command');
-      expect(publish).not.toHaveBeenCalled();
-      expect(pushHistoryEntry).not.toHaveBeenCalled();
-    }
+    const withLayer = createAdjustmentLayer(base, levels, 'Levels', base.activeLayerId!, 'levels');
+    const state = harness(withLayer);
+    const threshold = createDefaultAdjustments();
+    threshold.photoshopAdjustment.kind = 'threshold';
+    expect(() => executeSemanticAdjustmentSnapshot(state.options(
+      { kind: 'layer', layerId: withLayer.activeLayerId! }, threshold
+    ))).toThrow('snapshot kind does not match');
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('rejects filter-only owners that require typed filter commands', () => {
+    const base = createRasterLayer(createImageDocument('Fixture', 80, 60, 'source'));
+    const filter = createFilterStack('gaussian-blur', { radius: 8 }, (part) => `blur-${part}`);
+    const withLayer = createAdjustmentLayer(
+      base, filter, 'Gaussian Blur', base.activeLayerId!, 'gaussian-blur'
+    );
+    const state = harness(withLayer);
+    expect(findDocumentLayer(withLayer, withLayer.activeLayerId!)?.type).toBe('adjustment');
+    expect(() => executeSemanticAdjustmentSnapshot(state.options(
+      { kind: 'layer', layerId: withLayer.activeLayerId! }, createDefaultAdjustments()
+    ))).toThrow('typed filter command');
+    expect(state.history).toHaveLength(0);
   });
 });

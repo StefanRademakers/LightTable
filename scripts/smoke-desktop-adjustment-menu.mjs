@@ -14,6 +14,16 @@ const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace);
 await mkdir(userData, { recursive: true });
 
+const waitForBounds = async (locator, timeoutMs = 3_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const bounds = await locator.boundingBox();
+    if (bounds) return bounds;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return null;
+};
+
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
@@ -243,8 +253,8 @@ try {
   const middleColorStop = colorStops.nth(1);
   await middleColorStop.waitFor({ state: 'visible' });
   const gradientTrack = gradientMap.locator('.ui-gradient-editor__track');
-  const gradientBounds = await gradientTrack.boundingBox();
-  const stopBounds = await middleColorStop.boundingBox();
+  const gradientBounds = await waitForBounds(gradientTrack);
+  const stopBounds = await waitForBounds(middleColorStop);
   if (!gradientBounds || !stopBounds) throw new Error('The Gradient Map controls have no bounds.');
   await page.mouse.move(stopBounds.x + stopBounds.width / 2, stopBounds.y + stopBounds.height / 2);
   await page.mouse.down();

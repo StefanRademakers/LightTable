@@ -50,10 +50,10 @@ interface GradeHistogramControlProps {
   readonly histogram: RgbHistogram | null;
   readonly adjustments: BasicAdjustments;
   readonly disabled: boolean;
-  readonly onChange: (key: GradeHistogramControlKey, value: number) => void;
-  readonly onInteractionStart: () => void;
-  readonly onInteractionEnd: () => void;
-  readonly onInteractionCancel: () => void;
+  readonly onChange: (key: GradeHistogramControlKey, value: number, handle: object | void) => void;
+  readonly onInteractionStart: (key: GradeHistogramControlKey) => object | void;
+  readonly onInteractionEnd: (key: GradeHistogramControlKey, handle: object | void) => void;
+  readonly onInteractionCancel: (key: GradeHistogramControlKey, handle: object | void) => void;
 }
 
 interface HistogramGesture {
@@ -62,6 +62,7 @@ interface HistogramGesture {
   readonly startX: number;
   readonly width: number;
   readonly startValue: number;
+  readonly handle: object | void;
 }
 
 export const GradeHistogramControl = ({
@@ -78,21 +79,25 @@ export const GradeHistogramControl = ({
   cancelInteractionRef.current = onInteractionCancel;
 
   const finishGesture = (element: HTMLElement, pointerId: number) => {
-    if (gestureRef.current?.pointerId !== pointerId) return;
+    const gesture = gestureRef.current;
+    if (gesture?.pointerId !== pointerId) return;
     gestureRef.current = null;
     if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
-    onInteractionEnd();
+    onInteractionEnd(gesture.key, gesture.handle);
   };
 
   const cancelGesture = (element: HTMLElement, pointerId: number) => {
-    if (gestureRef.current?.pointerId !== pointerId) return;
+    const gesture = gestureRef.current;
+    if (gesture?.pointerId !== pointerId) return;
     gestureRef.current = null;
     if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
-    onInteractionCancel();
+    onInteractionCancel(gesture.key, gesture.handle);
   };
 
   useEffect(() => () => {
-    if (gestureRef.current) cancelInteractionRef.current();
+    if (gestureRef.current) {
+      cancelInteractionRef.current(gestureRef.current.key, gestureRef.current.handle);
+    }
   }, []);
 
   return (
@@ -122,19 +127,20 @@ export const GradeHistogramControl = ({
             aria-label={`Drag to adjust ${LABELS[key]}`}
             title={`${LABELS[key]} · drag horizontally`}
             onPointerDown={(event) => {
-              if (event.button !== 0 || disabled) return;
+              if (event.button !== 0 || disabled || gestureRef.current) return;
               const container = event.currentTarget.parentElement;
               if (!container) return;
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
+              const handle = onInteractionStart(key);
               gestureRef.current = {
                 pointerId: event.pointerId,
                 key,
                 startX: event.clientX,
                 width: Math.max(1, container.getBoundingClientRect().width),
-                startValue: adjustments[key]
+                startValue: adjustments[key],
+                handle
               };
-              onInteractionStart();
             }}
             onPointerMove={(event) => {
               const gesture = gestureRef.current;
@@ -145,7 +151,8 @@ export const GradeHistogramControl = ({
                   gesture.key,
                   gesture.startValue,
                   (event.clientX - gesture.startX) / gesture.width
-                )
+                ),
+                gesture.handle
               );
             }}
             onPointerUp={(event) => finishGesture(event.currentTarget, event.pointerId)}
@@ -155,13 +162,13 @@ export const GradeHistogramControl = ({
               event.preventDefault();
               const direction = event.key === 'ArrowLeft' ? -1 : 1;
               const step = key === 'exposureEV' ? 0.1 : 1;
-              onInteractionStart();
+              const handle = onInteractionStart(key);
               onChange(key, gradeHistogramDragValue(
                 key,
                 adjustments[key],
                 direction * step / (key === 'exposureEV' ? 5 : 200)
-              ));
-              onInteractionEnd();
+              ), handle);
+              onInteractionEnd(key, handle);
             }}
           >
             <span>{LABELS[key]}</span>

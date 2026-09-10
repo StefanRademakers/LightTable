@@ -1,6 +1,6 @@
 import React from 'react';
 import { SliderField } from './Slider';
-import { useSliderInteraction } from './useSliderInteraction';
+import { useSliderInteraction, type InteractionHandle, type LocalInteractionSession } from './useSliderInteraction';
 import { clamp01, stopId, colorHex, sampleColor, sampleOpacity, gradientStopPosition, gradientMidpointPosition,
   gradientMidpointValue, removableGradientStops, gradientPreview } from './gradientUtils';
 
@@ -11,21 +11,21 @@ export interface GradientValue { colorStops: GradientColorStop[]; opacityStops: 
 export interface GradientColorFieldProps {
   value: GradientColor;
   onChange: (value: GradientColor) => void;
-  onInteractionStart: () => void;
-  onInteractionEnd: () => void;
-  onInteractionCancel: () => void;
+  onInteractionStart: () => LocalInteractionSession;
+  onInteractionEnd: (session: LocalInteractionSession) => void;
+  onInteractionCancel: (session: LocalInteractionSession) => void;
 }
 export interface GradientEditorProps {
   value: GradientValue;
-  onChange: (value: GradientValue) => void;
+  onChange: (value: GradientValue, handle?: InteractionHandle) => void;
   initialColorStop?: 'first' | 'last';
   maxStops?: number;
   publishIntervalMs?: number | 'animation-frame';
   tabIndex?: number;
   renderColorField?: (props: GradientColorFieldProps) => React.ReactNode;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-  onInteractionCancel?: () => void;
+  onInteractionStart?: () => InteractionHandle;
+  onInteractionEnd?: (handle: InteractionHandle) => void;
+  onInteractionCancel?: (handle: InteractionHandle) => void;
 }
 
 const DEFAULT_HINT = 'Hover over a control for instructions.';
@@ -47,6 +47,9 @@ export const GradientEditor = ({
     opacityStops[0]?.id ?? null
   );
   const [hint, setHint] = React.useState(DEFAULT_HINT);
+  const colorInputSessionRef = React.useRef<LocalInteractionSession | null>(null);
+  const pointerSessionsRef = React.useRef(new Map<number, LocalInteractionSession>());
+  const keyboardSessionsRef = React.useRef(new Map<string, LocalInteractionSession>());
   const selectedColor = colorStops.find((stop) => stop.id === selectedColorId) ?? colorStops[0];
   const selectedOpacity = opacityStops.find((stop) => stop.id === selectedOpacityId) ?? opacityStops[0];
   const preview = gradientPreview(presentedValue);
@@ -57,9 +60,14 @@ export const GradientEditor = ({
   const cancelInteraction = interaction.cancel;
   const publish = (patch: Partial<GradientValue>) => {
     const discrete = !interaction.active.current;
-    if (discrete) beginInteraction();
+    const session = discrete ? beginInteraction() : null;
     interaction.update({ ...interaction.latest.current, ...patch });
-    if (discrete) endInteraction();
+    if (discrete) endInteraction(session);
+  };
+  const runDiscrete = (command: () => void) => {
+    const session = beginInteraction();
+    command();
+    endInteraction(session);
   };
   const updateColor = (id: string, patch: Partial<GradientColorStop>) => publish({
     colorStops: interaction.latest.current.colorStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
@@ -116,13 +124,21 @@ export const GradientEditor = ({
     select: (id: string) => void,
     remove: (id: string) => void,
     removable: boolean
-  ) => ({
+  ) => {
+    const gestureKey = `stop:${id}`;
+    const finishKeyboard = () => {
+      const session = keyboardSessionsRef.current.get(gestureKey) ?? null;
+      keyboardSessionsRef.current.delete(gestureKey);
+      endInteraction(session);
+    };
+    return ({
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.focus({ preventScroll: true });
-      beginInteraction();
+      if (interaction.active.current) return;
+      pointerSessionsRef.current.set(event.pointerId, beginInteraction());
       select(id);
       event.currentTarget.setPointerCapture(event.pointerId);
       update(id, { position: pointerPosition(event) });
@@ -132,31 +148,44 @@ export const GradientEditor = ({
       update(id, { position: pointerPosition(event) });
     },
     onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const session = pointerSessionsRef.current.get(event.pointerId);
+      if (!session) return;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         update(id, { position: pointerPosition(event) });
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
-      endInteraction();
+      pointerSessionsRef.current.delete(event.pointerId);
+      endInteraction(session);
     },
-    onPointerCancel: cancelInteraction,
-    onLostPointerCapture: () => {
-      if (interaction.active.current) cancelInteraction();
+    onPointerCancel: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const session = pointerSessionsRef.current.get(event.pointerId);
+      if (!session) return;
+      pointerSessionsRef.current.delete(event.pointerId);
+      cancelInteraction(session);
+    },
+    onLostPointerCapture: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const session = pointerSessionsRef.current.get(event.pointerId);
+      if (session) {
+        pointerSessionsRef.current.delete(event.pointerId);
+        cancelInteraction(session);
+      }
     },
     onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
       if (removable) {
-        beginInteraction();
-        remove(id);
-        endInteraction();
+        runDiscrete(() => remove(id));
       }
     },
-    onKeyUp: endInteraction,
-    onBlur: endInteraction,
+    onKeyUp: finishKeyboard,
+    onBlur: finishKeyboard,
     onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation(),
     onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault(); beginInteraction();
+        event.preventDefault();
+        if (!keyboardSessionsRef.current.has(gestureKey) && !interaction.active.current) {
+          keyboardSessionsRef.current.set(gestureKey, beginInteraction());
+        }
         const stops = update === updateColor ? interaction.latest.current.colorStops : interaction.latest.current.opacityStops;
         const stop = stops.find(stop => stop.id === id);
         if (stop) update(id, { position: clamp01(stop.position + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 0.1 : 0.01)) });
@@ -164,18 +193,18 @@ export const GradientEditor = ({
       }
       if (removable && (event.key === 'Delete' || event.key === 'Backspace')) {
         event.preventDefault();
-        beginInteraction();
-        remove(id);
-        endInteraction();
+        runDiscrete(() => remove(id));
       }
     }
   });
+  };
   const draggableMidpointProps = (
     leftId: string,
     leftPosition: number,
     rightPosition: number,
     update: (id: string, patch: { midpoint: number }) => void
   ) => {
+    const gestureKey = `midpoint:${leftId}`;
     const move = (event: React.PointerEvent<HTMLButtonElement>) => update(leftId, {
       midpoint: gradientMidpointValue(pointerPosition(event), leftPosition, rightPosition)
     });
@@ -185,7 +214,8 @@ export const GradientEditor = ({
         event.preventDefault();
         event.stopPropagation();
         event.currentTarget.focus({ preventScroll: true });
-        beginInteraction();
+        if (interaction.active.current) return;
+        pointerSessionsRef.current.set(event.pointerId, beginInteraction());
         event.currentTarget.setPointerCapture(event.pointerId);
         move(event);
       },
@@ -193,26 +223,49 @@ export const GradientEditor = ({
         if (event.currentTarget.hasPointerCapture(event.pointerId)) move(event);
       },
       onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+        const session = pointerSessionsRef.current.get(event.pointerId);
+        if (!session) return;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           move(event);
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        endInteraction();
+        pointerSessionsRef.current.delete(event.pointerId);
+        endInteraction(session);
       },
-      onPointerCancel: cancelInteraction,
-      onLostPointerCapture: () => {
-        if (interaction.active.current) cancelInteraction();
+      onPointerCancel: (event: React.PointerEvent<HTMLButtonElement>) => {
+        const session = pointerSessionsRef.current.get(event.pointerId);
+        if (!session) return;
+        pointerSessionsRef.current.delete(event.pointerId);
+        cancelInteraction(session);
+      },
+      onLostPointerCapture: (event: React.PointerEvent<HTMLButtonElement>) => {
+        const session = pointerSessionsRef.current.get(event.pointerId);
+        if (session) {
+          pointerSessionsRef.current.delete(event.pointerId);
+          cancelInteraction(session);
+        }
       },
       onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-        event.preventDefault(); beginInteraction();
+        event.preventDefault();
+        if (!keyboardSessionsRef.current.has(gestureKey) && !interaction.active.current) {
+          keyboardSessionsRef.current.set(gestureKey, beginInteraction());
+        }
         const stops = update === updateColor ? interaction.latest.current.colorStops : interaction.latest.current.opacityStops;
         const stop = stops.find(stop => stop.id === leftId);
         if (stop) update(leftId, { midpoint: Math.max(0.05, Math.min(0.95,
           stop.midpoint + (event.key === 'ArrowRight' ? 0.01 : -0.01))) });
       },
-      onKeyUp: endInteraction,
-      onBlur: endInteraction,
+      onKeyUp: () => {
+        const session = keyboardSessionsRef.current.get(gestureKey) ?? null;
+        keyboardSessionsRef.current.delete(gestureKey);
+        endInteraction(session);
+      },
+      onBlur: () => {
+        const session = keyboardSessionsRef.current.get(gestureKey) ?? null;
+        keyboardSessionsRef.current.delete(gestureKey);
+        endInteraction(session);
+      },
       onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation()
     };
   };
@@ -229,8 +282,9 @@ export const GradientEditor = ({
             format={value => `${Math.round(value)}%`} tabIndex={tabIndex}
             transparency trackBackground={`linear-gradient(to right, transparent, ${colorHex(sampleColor(presentedValue.colorStops, selectedOpacity.position))})`}
             onChange={opacity => updateOpacity(selectedOpacity.id, { opacity: opacity / 100 })}
-            onInteractionStart={beginInteraction} onInteractionEnd={endInteraction}
-            onInteractionCancel={cancelInteraction} />
+            onInteractionStart={beginInteraction}
+            onInteractionEnd={(session) => endInteraction(session as LocalInteractionSession)}
+            onInteractionCancel={(session) => cancelInteraction(session as LocalInteractionSession)} />
         </div>
       ) : null}
       <div className="ui-gradient-editor__track">
@@ -244,11 +298,9 @@ export const GradientEditor = ({
             event.preventDefault(); addOpacity();
           }}
           onClick={(event) => {
-            beginInteraction();
             const bounds = event.currentTarget.getBoundingClientRect();
-            addOpacity(event.detail === 0 ? 0.5
-              : gradientStopPosition(event.clientX, bounds.left, bounds.width));
-            endInteraction();
+            runDiscrete(() => addOpacity(event.detail === 0 ? 0.5
+              : gradientStopPosition(event.clientX, bounds.left, bounds.width)));
           }} />
         <div className="ui-gradient-editor__preview" style={{ '--ui-gradient-ramp': preview } as React.CSSProperties}>
         {opacityStops.slice(0, -1).map((stop, index) => {
@@ -337,11 +389,9 @@ export const GradientEditor = ({
             event.preventDefault(); addColor();
           }}
           onClick={(event) => {
-            beginInteraction();
             const bounds = event.currentTarget.getBoundingClientRect();
-            addColor(event.detail === 0 ? 0.5
-              : gradientStopPosition(event.clientX, bounds.left, bounds.width));
-            endInteraction();
+            runDiscrete(() => addColor(event.detail === 0 ? 0.5
+              : gradientStopPosition(event.clientX, bounds.left, bounds.width)));
           }} />
       </div>
 
@@ -356,9 +406,16 @@ export const GradientEditor = ({
             onInteractionCancel: cancelInteraction
           }) : <label className="ui-gradient-editor__color-field">Color
             <input type="color" aria-label="Gradient stop color" tabIndex={tabIndex} value={colorHex(selectedColor.color)}
-              onFocus={beginInteraction} onBlur={endInteraction}
+              onFocus={() => { colorInputSessionRef.current = beginInteraction(); }}
+              onBlur={() => {
+                const session = colorInputSessionRef.current;
+                colorInputSessionRef.current = null;
+                endInteraction(session);
+              }}
               onChange={event => {
-                beginInteraction();
+                if (!colorInputSessionRef.current) {
+                  colorInputSessionRef.current = beginInteraction();
+                }
                 const hex = event.currentTarget.value;
                 updateColor(selectedColor.id, { color: {
                   r: parseInt(hex.slice(1, 3), 16) / 255, g: parseInt(hex.slice(3, 5), 16) / 255,

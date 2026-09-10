@@ -17,6 +17,8 @@ import type { CurrentAdjustmentSettingsPath } from '../../processing/moduleDefin
 import type { AdjustmentQueryTarget } from './adjustmentQuery';
 import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
 import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
+import { projectAdjustmentSnapshot } from './projectAdjustmentSnapshot';
 
 export interface AdjustmentSnapshotHistoryEntry {
   readonly type: string;
@@ -130,12 +132,12 @@ export const executeSemanticAdjustmentSnapshot = (options: {
   readonly documentAdjustments: BasicAdjustments;
   readonly target: AdjustmentQueryTarget;
   readonly snapshot: BasicAdjustments;
-  readonly publish: (
+  readonly changeDocument: DocumentMutationController['change'];
+  readonly publishDocumentProcessing: (
     snapshot: BasicAdjustments,
-    targetLayerId: LayerId | null,
     domain: AdjustmentPresentationDomain
   ) => void;
-  readonly pushHistoryEntry: (entry: AdjustmentSnapshotHistoryEntry) => void;
+  readonly pushProcessingHistoryEntry: (entry: AdjustmentSnapshotHistoryEntry) => void;
 }): { readonly target: AdjustmentQueryTarget; readonly changed: boolean } => {
   const resolved = resolveOwner(
     options.document, options.documentAdjustments, options.target
@@ -159,12 +161,36 @@ export const executeSemanticAdjustmentSnapshot = (options: {
   if (JSON.stringify(before) === JSON.stringify(after)) {
     return { target: options.target, changed: false };
   }
-  const apply = (snapshot: BasicAdjustments) => options.publish(
-    cloneAdjustments(snapshot), resolved.targetLayerId, resolved.domain
+  if (options.target.kind !== 'document') {
+    const changed = options.changeDocument((currentDocument) => {
+      const current = resolveOwner(
+        currentDocument,
+        options.documentAdjustments,
+        options.target
+      );
+      if ('message' in current) throw new Error(current.message);
+      const currentBefore = cloneAdjustments(current.before);
+      const currentAfter = cloneAdjustments(options.snapshot);
+      if (JSON.stringify(currentBefore) === JSON.stringify(currentAfter)) return currentDocument;
+      return projectAdjustmentSnapshot({
+        snapshot: currentAfter,
+        targetLayerId: current.targetLayerId,
+        document: currentDocument,
+        documentAdjustments: options.documentAdjustments
+      }).document ?? currentDocument;
+    }, true, {
+      label: 'Set Adjustment',
+      type: 'adjustment.snapshot',
+      layerIds: [options.target.layerId]
+    });
+    return { target: options.target, changed };
+  }
+  const apply = (snapshot: BasicAdjustments) => options.publishDocumentProcessing(
+    cloneAdjustments(snapshot), resolved.domain
   );
   runEditorOperationTransaction({ operation: 'Set Adjustment' }, (transaction) => {
     transaction.step('publish adjustment snapshot', () => apply(after), () => apply(before));
-    options.pushHistoryEntry({
+    options.pushProcessingHistoryEntry({
       type: 'adjustment.snapshot',
       label: 'Set Adjustment',
       documentMutation: true,

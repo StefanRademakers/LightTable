@@ -45,10 +45,10 @@ export interface ColorSwatchFieldProps {
   readonly className?: string;
   readonly disabled?: boolean;
   readonly tabIndex?: number;
-  readonly onChange: (value: string) => void;
-  readonly onInteractionStart?: () => void;
-  readonly onInteractionCommit?: () => void;
-  readonly onInteractionCancel?: () => void;
+  readonly onChange: (value: string, handle: object | void) => void;
+  readonly onInteractionStart?: () => object | void;
+  readonly onInteractionCommit?: (handle: object | void) => void;
+  readonly onInteractionCancel?: (handle: object | void) => void;
 }
 
 /** Canonical solid-color editor: one value shared by manual and sampled input. */
@@ -74,13 +74,16 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const popoverRef = React.useRef<HTMLDivElement | null>(null);
   const openingValueRef = React.useRef(value);
+  const pickerHandleRef = React.useRef<object | void>(undefined);
 
   const close = React.useCallback((commit: boolean) => {
     setOpen(false);
-    if (commit) onInteractionCommit?.();
+    const handle = pickerHandleRef.current;
+    pickerHandleRef.current = undefined;
+    if (commit) onInteractionCommit?.(handle);
     else {
-      onChange(openingValueRef.current);
-      onInteractionCancel?.();
+      onChange(openingValueRef.current, handle);
+      onInteractionCancel?.(handle);
     }
   }, [onChange, onInteractionCancel, onInteractionCommit]);
 
@@ -135,19 +138,19 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   const sample = async () => {
     if (disabled || sampling) return;
     setSampling(true);
-    onInteractionStart?.();
     const sampled = await sampleScreenColor();
     setSampling(false);
-    if (!sampled) {
-      onInteractionCancel?.();
-      return;
-    }
-    onChange(sampled);
-    onInteractionCommit?.();
+    if (!sampled) return;
+    // Sampling is asynchronous and must not reserve a document transaction
+    // while another control can become active. Commit it synchronously only
+    // after a color was actually returned.
+    const handle = onInteractionStart?.();
+    onChange(sampled, handle);
+    onInteractionCommit?.(handle);
   };
 
   const togglePicker = () => {
-    if (disabled) return;
+    if (disabled || sampling) return;
     if (onActivate) {
       onActivate();
       return;
@@ -155,7 +158,7 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
     if (presentedOpen) close(true);
     else {
       openingValueRef.current = value;
-      onInteractionStart?.();
+      pickerHandleRef.current = onInteractionStart?.();
       setOpen(true);
     }
   };
@@ -170,7 +173,10 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
           data-ui-component="color-popover" data-ui-theme={triggerRef.current?.closest('[data-ui-theme]')?.getAttribute('data-ui-theme') ?? undefined}
           data-editor-floating-control style={position}>
           <ColorPicker value={colorPickerParseHex(value) ?? { r: 0, g: 0, b: 0, a: 1 }}
-            onChange={(color) => onChange(colorPickerHex(color).toLowerCase())} />
+            onChange={(color) => onChange(
+              colorPickerHex(color).toLowerCase(),
+              pickerHandleRef.current
+            )} />
         </div>, document.body
       ) : null}
     </>

@@ -29,7 +29,7 @@ export { Slider, SliderField, type SliderProps, type SliderFieldProps } from './
 export { RangeSlider, type RangeSliderProps } from './RangeSlider';
 export { GradientEditor, type GradientEditorProps, type GradientColorFieldProps, type GradientValue, type GradientColor, type GradientColorStop, type GradientOpacityStop } from './GradientEditor';
 export { gradientStopPosition, gradientMidpointPosition, gradientMidpointValue, removableGradientStops, gradientPreview } from './gradientUtils';
-export { sliderValueAtPosition } from './useSliderInteraction';
+export { sliderValueAtPosition, type LocalInteractionSession } from './useSliderInteraction';
 export { Button, type ButtonProps } from './Button';
 export { ButtonBase, type ButtonBaseProps } from './ButtonBase';
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl';
