@@ -118,6 +118,7 @@ import { executeSemanticMaskCommand } from './application/layers/executeSemantic
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { createLayerMaskCommandBridge } from './application/layers/createLayerMaskCommandBridge';
 import {
   canRestoreLayerVisibility,
   captureLayerVisibility,
@@ -5967,6 +5968,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     });
   }, [documentMutationController, executeRegisteredCommand, openLayerStyleEditor]);
+  const layerMaskCommandBridge = useMemo(() => createLayerMaskCommandBridge(() => ({
+    getDocument: () => imageDocumentRef.current,
+    hasSelection: () => editorSessionRef.current.selection.length > 0,
+    execute: (parameters) => executeRegisteredCommand('layer.setMask', parameters),
+    setPaintTarget: (activeChannel, brushColor) => setEditorSession((current) => ({
+      ...current,
+      activeChannel,
+      brush: brushColor ? { ...current.brush, color: brushColor } : current.brush
+    })),
+    setError
+  })), [executeRegisteredCommand]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
@@ -6000,12 +6012,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         snapshot: { ...owner.snapshot, enabled }
       }));
     },
-    addActiveLayerMask: async () => {
-      await settlePixelInteractionRef.current();
-      return layerDocumentCommands.addActiveLayerMask(
-        editorSessionRef.current.selection.length > 0
-      );
-    },
+    requestAddLayerMask: layerMaskCommandBridge.add,
+    requestToggleLayerMask: layerMaskCommandBridge.toggle,
+    requestSetLayerMaskLinked: layerMaskCommandBridge.setLinked,
+    requestRemoveLayerMask: layerMaskCommandBridge.remove,
     duplicateActiveLayer,
     rasterizeActiveLayer: async () => {
       const layerId = imageDocumentRef.current?.activeLayerId;
@@ -6352,6 +6362,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           return executeSemanticMaskCommand(command, {
             commands: layerDocumentCommands,
             settlePixelInteraction: () => settlePixelInteractionRef.current(),
+            waitForPresentation: waitForStableLayerCommandFrame,
             loadMaskAsSelection: selectionSessionController.selectLayerMask,
             changeDocument: documentMutationController.change
           });
@@ -6744,44 +6755,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     setClipping: (layerId: LayerId, clipping: boolean) => {
       if (!executeRegisteredCommand('layer.setClipping', { layerId, clipping })) layerPanelController.setClipping(layerId, clipping);
-    },
-    addMask: () => {
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      const source = editorSessionRef.current.selection.length > 0 ? 'selection' : 'reveal-all';
-      const execution = layerId
-        ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'add', source })
-        : null;
-      if (!execution) setError('Layer mask commands are unavailable in this document.');
-      else {
-        void execution.then((result) => {
-          if (result.status === 'completed') layerPanelController.changeChannel('mask');
-        });
-      }
-    },
-    toggleMask: () => {
-      const document = imageDocumentRef.current;
-      const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-      if (!layer?.mask) return;
-      if (!executeRegisteredCommand('layer.setMask', {
-        layerId: layer.id, operation: 'set-enabled', enabled: !layer.mask.enabled
-      })) setError('Layer mask commands are unavailable in this document.');
-    },
-    setMaskLinked: (layerId: LayerId, linked: boolean) => {
-      if (!executeRegisteredCommand('layer.setMask', { layerId, operation: 'set-linked', linked })) {
-        setError('Layer mask commands are unavailable in this document.');
-      }
-    },
-    removeMask: (requestedLayerId?: LayerId) => {
-      const layerId = requestedLayerId ?? imageDocumentRef.current?.activeLayerId;
-      const execution = layerId
-        ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'remove' })
-        : null;
-      if (!execution) setError('Layer mask commands are unavailable in this document.');
-      else {
-        void execution.then((result) => {
-          if (result.status === 'completed') layerPanelController.changeChannel('pixels');
-        });
-      }
     },
     setLock: (layerIds: LayerId[], lock: Parameters<typeof layerPanelController.setLock>[1], locked: boolean) => {
       if (!executeRegisteredCommand('layer.setLock', { layerIds, lock, locked })) layerPanelController.setLock(layerIds, lock, locked);

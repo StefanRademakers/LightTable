@@ -313,6 +313,48 @@ function verifyLayerFinalizationCutover(relativePath, source) {
   }
 }
 
+function verifyLayerMaskCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/layers/useLayerPanelController.ts')) {
+    const forbiddenDirectMaskMutations = /\b(?:addLayerMask|removeLayerMask|setLayerMaskEnabled|setLayerMaskLinked)\b/;
+    if (forbiddenDirectMaskMutations.test(source)) {
+      failures.push(`${relativePath}: Layers-panel mask actions must enter through required semantic command ports`);
+    }
+    const requiredMaskPorts = [
+      'requestAddLayerMask(): void',
+      'requestToggleLayerMask(): void',
+      'requestSetLayerMaskLinked(layerId: LayerId, linked: boolean): void',
+      'requestRemoveLayerMask(layerId?: LayerId): void'
+    ];
+    for (const port of requiredMaskPorts) {
+      if (!source.includes(port)) failures.push(`${relativePath}: missing required mask port ${port}`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/backgroundRemoval/useBackgroundRemovalController.ts')) {
+    if (/\b(?:startTask|cancelTask)\?:/.test(source)) {
+      failures.push(`${relativePath}: background removal UI task ports must be required`);
+    }
+    if (/else\s+void\s+removeBackgroundFromLayer/.test(source)) {
+      failures.push(`${relativePath}: background removal UI must not bypass the semantic task registry`);
+    }
+  }
+  const reservedMaskOwners = [
+    '/application/layers/addLayerMaskCommand.ts',
+    '/application/layers/removeLayerMaskCommand.ts',
+    '/application/layers/applyLayerMaskCommand.ts',
+    '/application/layers/applyBackgroundRemovalMaskCommand.ts'
+  ];
+  if (reservedMaskOwners.some((suffix) => normalizedPath.endsWith(suffix))
+    && !source.includes('reserveAppliedPixelMutation')) {
+    failures.push(`${relativePath}: pixel-bearing mask commands must reserve history before GPU mutation`);
+  }
+  if (normalizedPath.endsWith('/application/backgroundRemoval/useBackgroundRemovalTaskBridge.ts')) {
+    if (!source.includes('this.generation += 1;')) {
+      failures.push(`${relativePath}: cancellation must invalidate pending task admission`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -327,6 +369,7 @@ async function scan(relativeDirectory) {
       verifyRendererFacadeImports(relativePath, source);
       verifySelectionKernelCutover(relativePath, source);
       verifyLayerFinalizationCutover(relativePath, source);
+      verifyLayerMaskCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

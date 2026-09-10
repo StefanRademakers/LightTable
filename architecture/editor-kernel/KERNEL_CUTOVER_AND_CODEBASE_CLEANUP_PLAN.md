@@ -111,7 +111,7 @@ but cannot inherit another item's acceptance.
 | C00 | Governance, route inventory and machine guard | implementation | [ ] | [ ] | [ ] | n/a |
 | C01 | Selection/marquee, selection paint, mask projection and consumers | accepted | [x] | [x] | [x] | [x] |
 | C02 | Layer finalization: rasterize, merge and flatten | accepted | [x] | [x] | [x] | [x] |
-| C03 | Layer masks, mask edits and Remove Background result insertion | queued | [ ] | [ ] | [ ] | [ ] |
+| C03 | Layer masks, mask edits and Remove Background result insertion | accepted | [x] | [x] | [x] | [x] |
 | C04 | Raster paint, fill/gradient and clipboard pixel consumers | queued | [ ] | [ ] | [ ] | [ ] |
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | queued | [ ] | [ ] | [ ] | [ ] |
 | C06 | Vector paths, Pen, live shapes and vector gradients | queued | [ ] | [ ] | [ ] | [ ] |
@@ -212,6 +212,43 @@ but cannot inherit another item's acceptance.
    separately owned until C04.
 7. **Next** -- C03 layer masks, mask edits and Remove Background result
    insertion.
+
+## C03 acceptance record -- 2026-09-10
+
+1. **Done** -- Layers-panel, semantic command, Action and MCP mask operations
+   converge on one required application route. Add from selection, invert,
+   delete, apply and Remove Background reserve durable history before their
+   first GPU mutation, then publish mask pixels and metadata atomically.
+   Enable/link remain document-only commands. Loading a mask as selection uses
+   the accepted C01 kernel and validates the monotone session address across
+   renderer preparation.
+2. **Deleted** -- direct mask mutations from `useLayerPanelController`, its
+   optional semantic request ports, and the UI-owned Remove Background fallback.
+   Boundary verification rejects their return. Pending inference cannot publish
+   after cancel, document switch or unmount; a late task admission is cancelled.
+3. **Ownership** -- Layers-panel mask presentation moved into the 99-line
+   `createLayerMaskCommandBridge`; `useLayerPanelController.ts` lost 26 more
+   production lines and `LightTableEditorOverlay.tsx` lost a net 27 lines.
+   Reusable reservation/publication ownership lives in
+   `pixelMutationTransaction.ts`; the remaining broad layer-command facade is
+   still explicitly scheduled for C04/C14 decomposition rather than hidden
+   behind another broad wrapper.
+4. **Proof** -- 165 focused selection/mask/history tests and 254-mask iteration
+   tests during repair; app typecheck; boundary verification; instrumented
+   desktop package; packaged mask-kernel smoke covering add, enable/link,
+   invert, undo/redo, load as selection, copy bounds, delete, mask paint and
+   apply with visual RMSE 0.037 and no page errors. The smoke exposed and closed
+   a session-revision versus internal-document-revision mismatch after undo.
+5. **Critic** -- round 1 found non-atomic history admission, pending-task
+   cancellation, late active-layer presentation and post-commit cleanup risks.
+   Round 2 found deferred byte accounting. All accepted P0/P1 findings were
+   repaired; final independent verdict: **ACCEPT**, no C03 P0/P1.
+6. **Allowed/non-blocking** -- mask-to-selection performs a GPU coverage
+   measurement/readback at terminal command time; it is not a pointer-rate hot
+   path or alternate mutation authority. Remove Background model inference
+   remains asynchronous but only its generation-bound result enters the shared
+   mask command.
+7. **Next** -- C04 raster paint, fill/gradient and clipboard pixel consumers.
 
 ## Slice-specific acceptance
 

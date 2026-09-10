@@ -52,7 +52,10 @@ const setup = (initialDocument: ImageDocument) => {
     createAdjustmentLayerOfKind: vi.fn(),
     createAttachedAdjustment: vi.fn(() => null),
     setAttachedFilterEnabled: vi.fn(() => true),
-    addActiveLayerMask: vi.fn(() => true),
+    requestAddLayerMask: vi.fn(),
+    requestToggleLayerMask: vi.fn(),
+    requestSetLayerMaskLinked: vi.fn(),
+    requestRemoveLayerMask: vi.fn(),
     duplicateActiveLayer: vi.fn(() => true),
     rasterizeActiveLayer: vi.fn(async () => true),
     loadLayerMaskSelection: vi.fn(),
@@ -167,16 +170,13 @@ describe('createLayerPanelController', () => {
     );
   });
 
-  it('adds a mask and atomically targets it with a black brush', () => {
+  it('delegates adding a mask to the semantic mask command owner', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
 
     harness.controller.addMask();
 
-    expect(harness.dependencies.addActiveLayerMask).toHaveBeenCalledOnce();
-    expect(harness.dependencies.setPaintTarget).toHaveBeenCalledWith(
-      'mask',
-      '#000000'
-    );
+    expect(harness.dependencies.requestAddLayerMask).toHaveBeenCalledOnce();
+    expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
   });
 
   it('delegates loading a mask selection without changing the paint target', () => {
@@ -197,6 +197,18 @@ describe('createLayerPanelController', () => {
 
     expect(harness.dependencies.loadLayerTransparencySelection).toHaveBeenCalledWith(activeLayerId);
     expect(harness.dependencies.setPaintTarget).not.toHaveBeenCalled();
+  });
+
+  it('delegates mask metadata changes without a direct document mutation path', () => {
+    const harness = setup(createImageDocument('test', 100, 100, 'asset'));
+    const layerId = harness.document().activeLayerId!;
+
+    harness.controller.toggleMask();
+    harness.controller.setMaskLinked(layerId, false);
+
+    expect(harness.dependencies.requestToggleLayerMask).toHaveBeenCalledOnce();
+    expect(harness.dependencies.requestSetLayerMaskLinked).toHaveBeenCalledWith(layerId, false);
+    expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
   });
 
   it('prepares provisional vector work before changing the active layer', async () => {
@@ -371,18 +383,17 @@ describe('createLayerPanelController', () => {
     expect(harness.dependencies.finishProcessingEditing).toHaveBeenCalledOnce();
   });
 
-  it('removes the active mask and returns painting to pixels', () => {
+  it('delegates active-mask removal without a document fallback', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
     const activeLayerId = harness.document().activeLayerId!;
-    harness.controller.addMask();
-
     harness.controller.removeMask();
 
+    expect(harness.dependencies.requestRemoveLayerMask).toHaveBeenCalledWith(undefined);
     expect(findDocumentLayer(harness.document(), activeLayerId)?.mask).toBeNull();
-    expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
+    expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
   });
 
-  it('removes the explicitly dragged mask without depending on the active layer', () => {
+  it('delegates explicitly targeted mask removal to the semantic owner', () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const backgroundId = base.activeLayerId!;
     const maskedBackground = addLayerMask(base, backgroundId);
@@ -390,8 +401,9 @@ describe('createLayerPanelController', () => {
 
     harness.controller.removeMask(backgroundId);
 
-    expect(findDocumentLayer(harness.document(), backgroundId)?.mask).toBeNull();
-    expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
+    expect(harness.dependencies.requestRemoveLayerMask).toHaveBeenCalledWith(backgroundId);
+    expect(findDocumentLayer(harness.document(), backgroundId)?.mask).not.toBeNull();
+    expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
   });
 
   it('moves the active layer in document compositing order', () => {

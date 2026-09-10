@@ -2,7 +2,12 @@ import { addLayerMask, markLayerMaskPixelsChanged } from '../../editor/document/
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
-import { commitAppliedPixelMutation, type PixelMutationHistoryEntry } from '../commands/pixelMutationTransaction';
+import {
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation,
+  type PixelMutationHistoryEntry
+} from '../commands/pixelMutationTransaction';
+import type { DocumentHistoryReservation } from '../commands/documentCommandHistory';
 import type { DocumentMutationTransaction } from '../documents/useDocumentMutationController';
 
 interface AddMaskRendererPort {
@@ -17,7 +22,7 @@ interface AddMaskDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): AddMaskRendererPort | null;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
+  reserveHistoryEntry(entry: PixelMutationHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: 'mask'): void;
   setStatus(message: string): void;
   setError(message: string | null): void;
@@ -75,28 +80,32 @@ export const createAddLayerMaskCommand = (
     }
     let editOpen = false;
     let pixelEdit: ReversiblePixelEdit | null = null;
+    let historyPublication: AppliedPixelMutationReservation | null = null;
     try {
       if (!transaction.change(() => withMask)) {
         throw new Error('The layer mask preview could not be prepared.');
       }
-      renderer.beginLayerPixelEdit(layerId, 'mask');
-      editOpen = true;
-      if (!renderer.bakeSelectionIntoLayerMask(layerId)) {
-        throw new Error('The current selection could not be copied into the layer mask.');
-      }
-      pixelEdit = renderer.finishPixelEdit();
-      editOpen = false;
-      if (!pixelEdit) throw new Error('The layer mask could not create a recoverable undo step.');
       const after = markLayerMaskPixelsChanged(withMask, layerId, {
         x: 0, y: 0, width: before.width, height: before.height
       });
       if (!transaction.stage(() => after)) {
         throw new Error('The layer mask transaction could not be staged.');
       }
-      const completedEdit = pixelEdit;
       if (!transaction.commitWith((ownedBefore, ownedAfter) => {
+        historyPublication = reserveAppliedPixelMutation(resolveDependencies, {
+          label: description.label, type: description.type, layerIds: [layerId]
+        });
+        renderer.beginLayerPixelEdit(layerId, 'mask');
+        editOpen = true;
+        if (!renderer.bakeSelectionIntoLayerMask(layerId)) {
+          throw new Error('The current selection could not be copied into the layer mask.');
+        }
+        pixelEdit = renderer.finishPixelEdit();
+        editOpen = false;
+        if (!pixelEdit) throw new Error('The layer mask could not create a recoverable undo step.');
+        const completedEdit = pixelEdit;
         pixelEdit = null;
-        commitAppliedPixelMutation(resolveDependencies, {
+        historyPublication!.commit({
           operation: description.label,
           label: description.label,
           type: description.type,
@@ -116,8 +125,10 @@ export const createAddLayerMaskCommand = (
       return true;
     } catch (reason) {
       if (editOpen) renderer.cancelPixelEdit();
-      if (pixelEdit) {
-        try { pixelEdit.undo(); } finally { pixelEdit.destroy(); }
+      (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
+      const unpublishedEdit = pixelEdit as ReversiblePixelEdit | null;
+      if (unpublishedEdit) {
+        try { unpublishedEdit.undo(); } finally { unpublishedEdit.destroy(); }
       }
       transaction.cancel();
       if (present) dependencies.setError(

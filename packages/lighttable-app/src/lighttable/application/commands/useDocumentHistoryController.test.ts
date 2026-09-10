@@ -78,6 +78,34 @@ describe('document history controller', () => {
     expect(reservation.commit()).toBe(false);
   });
 
+  it('accounts for a deferred reservation byte size at commit time', () => {
+    const state = setup({ maxBytes: 64 });
+    const first = {
+      label: 'Deferred GPU edit',
+      byteSize: 0,
+      undo: () => undefined,
+      redo: () => undefined,
+    };
+    const reservation = state.controller.reserve(first);
+    first.byteSize = 48;
+    expect(reservation.commit()).toBe(true);
+    expect(state.history.getSnapshot()).toMatchObject({
+      undoDepth: 1,
+      estimatedBytes: 48,
+    });
+
+    state.controller.record({
+      label: 'Second GPU edit',
+      byteSize: 48,
+      undo: () => undefined,
+      redo: () => undefined,
+    });
+    expect(state.history.getSnapshot()).toMatchObject({
+      undoDepth: 1,
+      estimatedBytes: 48,
+    });
+  });
+
   it('cancels a reserved command without changing history', () => {
     const state = setup();
     const reservation = state.controller.reserve({

@@ -9,6 +9,7 @@ interface SemanticMaskCommandDependencies {
   readonly commands: Pick<LayerDocumentCommands,
     'addLayerMask' | 'invertLayerColors' | 'applyLayerMask' | 'removeLayerMask'>;
   readonly settlePixelInteraction: () => Promise<void>;
+  readonly waitForPresentation: () => Promise<void>;
   readonly loadMaskAsSelection: (layerId: MaskCommand['layerId']) => Promise<boolean>;
   readonly changeDocument: (
     change: (document: ImageDocument) => ImageDocument,
@@ -55,6 +56,7 @@ export const executeSemanticMaskCommand = async (
   }
   if (command.operation === 'load-selection') {
     await dependencies.settlePixelInteraction();
+    await dependencies.waitForPresentation();
     return await dependencies.loadMaskAsSelection(command.layerId)
       ? { layerId: command.layerId, operation: command.operation }
       : null;

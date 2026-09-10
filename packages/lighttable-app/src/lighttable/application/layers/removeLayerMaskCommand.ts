@@ -3,10 +3,12 @@ import { layerIsLocked, type ImageDocument, type LayerId } from '../../editor/do
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import {
-  commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation,
   type PixelMutationHistoryEntry
 } from '../commands/pixelMutationTransaction';
 import type { DocumentMutationTransaction } from '../documents/useDocumentMutationController';
+import type { DocumentHistoryReservation } from '../commands/documentCommandHistory';
 
 interface RemoveMaskRendererPort {
   beginLayerPixelEdit(layerId: LayerId, channel: 'mask'): void;
@@ -19,7 +21,7 @@ interface RemoveMaskRendererPort {
 interface RemoveMaskDependencies {
   getRenderer(): RemoveMaskRendererPort | null;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
+  reserveHistoryEntry(entry: PixelMutationHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: 'pixels'): void;
   setStatus(message: string): void;
   setError(message: string | null): void;
@@ -56,19 +58,23 @@ export const createRemoveLayerMaskCommand = (
 
   let editOpen = false;
   let pixelEdit: ReversiblePixelEdit | null = null;
+  let historyPublication: AppliedPixelMutationReservation | null = null;
   try {
-    renderer.beginLayerPixelEdit(layerId, 'mask');
-    editOpen = true;
-    if (renderer.captureAllPixelEdit(layerId, 'mask') < 1) {
-      throw new Error('The layer mask could not capture its recoverable pixels.');
-    }
-    pixelEdit = renderer.finishPixelEdit();
-    editOpen = false;
-    if (!pixelEdit) throw new Error('The layer mask could not create a recoverable undo step.');
-    const completedEdit = pixelEdit;
     if (!transaction.commitWith((ownedBefore, ownedAfter) => {
+      historyPublication = reserveAppliedPixelMutation(resolveDependencies, {
+        label: description.label, type: description.type, layerIds: [layerId]
+      });
+      renderer.beginLayerPixelEdit(layerId, 'mask');
+      editOpen = true;
+      if (renderer.captureAllPixelEdit(layerId, 'mask') < 1) {
+        throw new Error('The layer mask could not capture its recoverable pixels.');
+      }
+      pixelEdit = renderer.finishPixelEdit();
+      editOpen = false;
+      if (!pixelEdit) throw new Error('The layer mask could not create a recoverable undo step.');
+      const completedEdit = pixelEdit;
       pixelEdit = null;
-      commitAppliedPixelMutation(resolveDependencies, {
+      historyPublication!.commit({
         operation: description.label,
         label: description.label,
         type: description.type,
@@ -88,7 +94,8 @@ export const createRemoveLayerMaskCommand = (
     return true;
   } catch (reason) {
     if (editOpen) renderer.cancelPixelEdit();
-    pixelEdit?.destroy();
+    (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
+    (pixelEdit as ReversiblePixelEdit | null)?.destroy();
     transaction.cancel();
     if (present) dependencies.setError(
       reason instanceof Error ? reason.message : 'The layer mask could not be deleted.'

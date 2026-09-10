@@ -77,7 +77,10 @@ export const createDocumentHistoryController = (
       label: entry.label ?? 'Document Change',
       documentId: dependencies.documentId,
       affectsDocument: entry.documentMutation !== false,
-      byteSize: entry.byteSize,
+      // Reservations may only know their retained GPU size after the renderer
+      // has produced the reversible edit. Keep this deferred so history reads
+      // the finalized value when the reservation is committed.
+      get byteSize() { return entry.byteSize; },
       resourceIds: entry.resourceIds ?? entry.layerIds,
       undo: entry.undo,
       redo: entry.redo,

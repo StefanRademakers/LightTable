@@ -17,13 +17,10 @@ import {
   moveLayer,
   moveLayerSelection,
   renameLayer,
-  removeLayerMask,
   setActiveLayer,
   setLayerBlendMode,
   setLayerClipping,
   setLayerFillOpacity,
-  setLayerMaskLinked,
-  setLayerMaskEnabled,
   setLayerOpacity,
   setVectorLayerAntiAlias,
   ensureRasterLayerLocalProcessing,
@@ -78,7 +75,10 @@ export interface LayerPanelControllerDependencies {
     settings?: AdjustmentInitialSettings): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
-  addActiveLayerMask(): boolean | Promise<boolean>;
+  requestAddLayerMask(): void;
+  requestToggleLayerMask(): void;
+  requestSetLayerMaskLinked(layerId: LayerId, linked: boolean): void;
+  requestRemoveLayerMask(layerId?: LayerId): void;
   duplicateActiveLayer(): boolean;
   rasterizeActiveLayer(): Promise<boolean>;
   loadLayerMaskSelection(layerId: LayerId): void | Promise<void>;
@@ -318,41 +318,15 @@ export const createLayerPanelController = (
     reorder: (layerIds, targetLayerId, placement) =>
       mutate((current) =>
         moveLayerSelection(current, layerIds, targetLayerId, placement)),
-    addMask: () => {
-      const dependencies = resolveDependencies();
-      const result = dependencies.addActiveLayerMask();
-      if (typeof result === 'boolean') {
-        if (result) dependencies.setPaintTarget('mask', '#000000');
-        return;
-      }
-      void result.then((added) => {
-        if (added) resolveDependencies().setPaintTarget('mask', '#000000');
-      });
-    },
+    addMask: () => resolveDependencies().requestAddLayerMask(),
     loadMaskSelection: (layerId) =>
       resolveDependencies().loadLayerMaskSelection(layerId),
     loadTransparencySelection: (layerId) =>
       resolveDependencies().loadLayerTransparencySelection(layerId),
-    toggleMask: () => {
-      const dependencies = resolveDependencies();
-      const document = dependencies.getDocument();
-      const layer = document
-        ? findDocumentLayer(document, document.activeLayerId)
-        : null;
-      if (!layer?.mask) return;
-      dependencies.mutateDocument((current) =>
-        setLayerMaskEnabled(current, layer.id, !layer.mask!.enabled));
-    },
+    toggleMask: () => resolveDependencies().requestToggleLayerMask(),
     setMaskLinked: (layerId, linked) =>
-      mutate((current) => setLayerMaskLinked(current, layerId, linked)),
-    removeMask: (requestedLayerId) => {
-      const dependencies = resolveDependencies();
-      const layerId = requestedLayerId ?? dependencies.getDocument()?.activeLayerId;
-      if (!layerId) return;
-      dependencies.mutateDocument((current) =>
-        removeLayerMask(current, layerId));
-      dependencies.setPaintTarget('pixels');
-    },
+      resolveDependencies().requestSetLayerMaskLinked(layerId, linked),
+    removeMask: (layerId) => resolveDependencies().requestRemoveLayerMask(layerId),
     move,
     moveActive: (direction) => {
       const layerId = resolveDependencies().getDocument()?.activeLayerId;

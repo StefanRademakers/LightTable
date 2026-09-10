@@ -59,7 +59,11 @@ import {
 import { isFilterKind, createFilterStack } from '../../processing/filter';
 import { assertFilterStackDocumentReferences } from '../filters/filterDocumentReferences';
 import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
-import { commitAppliedPixelMutation } from '../commands/pixelMutationTransaction';
+import {
+  commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation
+} from '../commands/pixelMutationTransaction';
 import type {
   DocumentMutationController,
   DocumentMutationDescription,
@@ -495,7 +499,7 @@ export const createLayerDocumentCommands = (
       getDocument: dependencies.getDocument,
       getRenderer: dependencies.getRenderer,
       applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
-      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      reserveHistoryEntry: (entry) => dependencies.reserveHistoryEntry(entry),
       setActiveChannel: dependencies.setActiveChannel,
       setStatus: dependencies.setStatus,
       setError: dependencies.setError
@@ -507,7 +511,7 @@ export const createLayerDocumentCommands = (
     return {
       getRenderer: dependencies.getRenderer,
       applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
-      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      reserveHistoryEntry: (entry) => dependencies.reserveHistoryEntry(entry),
       setActiveChannel: dependencies.setActiveChannel,
       setStatus: dependencies.setStatus,
       setError: dependencies.setError
@@ -519,7 +523,7 @@ export const createLayerDocumentCommands = (
     return {
       getRenderer: dependencies.getRenderer,
       applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
-      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      reserveHistoryEntry: (entry) => dependencies.reserveHistoryEntry(entry),
       setActiveChannel: dependencies.setActiveChannel,
       setStatus: dependencies.setStatus,
       setError: dependencies.setError
@@ -600,7 +604,7 @@ export const createLayerDocumentCommands = (
     return {
       getRenderer: dependencies.getRenderer,
       applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
-      pushHistoryEntry: (entry) => dependencies.pushHistoryEntry(entry),
+      reserveHistoryEntry: (entry) => dependencies.reserveHistoryEntry(entry),
       setActiveChannel: dependencies.setActiveChannel,
       setStatus: dependencies.setStatus,
       setError: dependencies.setError
@@ -1187,27 +1191,33 @@ export const createLayerDocumentCommands = (
 
     let editOpen = false;
     let pixelEdit: ReversiblePixelEdit | null = null;
+    let historyPublication: AppliedPixelMutationReservation | null = null;
     try {
-      renderer.beginLayerPixelEdit(layerId, channel);
-      editOpen = true;
-      if (!renderer.invertLayerColors(layerId, channel)) {
-        throw new Error(
-          `The active ${channel === 'mask' ? 'mask' : 'layer pixels'} are not available on the GPU.`
-        );
-      }
-      pixelEdit = renderer.finishPixelEdit();
-      editOpen = false;
-      if (!pixelEdit) throw new Error('The invert operation could not create an undo snapshot.');
       const next = channel === 'mask'
         ? markLayerMaskPixelsChanged(current, layerId, fullDocumentBounds(current))
         : markLayerPixelsChanged(current, layerId, fullDocumentBounds(current));
       if (!transaction.stage(() => next)) {
         throw new Error(`${description.label} could not stage its document state.`);
       }
-      const completedEdit = pixelEdit;
       if (!transaction.commitWith((before, after) => {
+        if (channel === 'mask') {
+          historyPublication = reserveAppliedPixelMutation(() => dependenciesRef.current, {
+            label: description.label, type: description.type, layerIds: [layerId]
+          });
+        }
+        renderer.beginLayerPixelEdit(layerId, channel);
+        editOpen = true;
+        if (!renderer.invertLayerColors(layerId, channel)) {
+          throw new Error(
+            `The active ${channel === 'mask' ? 'mask' : 'layer pixels'} are not available on the GPU.`
+          );
+        }
+        pixelEdit = renderer.finishPixelEdit();
+        editOpen = false;
+        if (!pixelEdit) throw new Error('The invert operation could not create an undo snapshot.');
+        const completedEdit = pixelEdit;
         pixelEdit = null;
-        commitAppliedPixelMutation(() => dependenciesRef.current, {
+        const mutation = {
           operation: description.label,
           label: description.label,
           type: description.type,
@@ -1215,7 +1225,9 @@ export const createLayerDocumentCommands = (
           before,
           after,
           edits: [completedEdit]
-        });
+        };
+        if (historyPublication) historyPublication.commit(mutation);
+        else commitAppliedPixelMutation(() => dependenciesRef.current, mutation);
         return true;
       })) throw new Error(`${description.label} could not commit its document state.`);
       dependenciesRef.current.setError(null);
@@ -1225,6 +1237,7 @@ export const createLayerDocumentCommands = (
       return true;
     } catch (reason) {
       if (editOpen) renderer.cancelPixelEdit();
+      (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
       discardUnpublishedPixelEdit(pixelEdit);
       transaction.cancel();
       dependenciesRef.current.setError(

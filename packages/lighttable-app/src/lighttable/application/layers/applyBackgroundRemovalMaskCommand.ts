@@ -7,8 +7,13 @@ import { layerIsLocked, type ImageDocument, type LayerId, type RasterLayer } fro
 import { findDocumentLayer, findRasterLayer } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
-import { commitAppliedPixelMutation, type PixelMutationHistoryEntry } from '../commands/pixelMutationTransaction';
+import {
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation,
+  type PixelMutationHistoryEntry
+} from '../commands/pixelMutationTransaction';
 import type { DocumentMutationTransaction } from '../documents/useDocumentMutationController';
+import type { DocumentHistoryReservation } from '../commands/documentCommandHistory';
 
 interface BackgroundMaskRendererPort {
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): boolean;
@@ -29,7 +34,7 @@ interface BackgroundMaskRendererPort {
 interface BackgroundMaskDependencies {
   getRenderer(): BackgroundMaskRendererPort | null;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
+  reserveHistoryEntry(entry: PixelMutationHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: 'mask'): void;
   setStatus(message: string): void;
   setError(message: string | null): void;
@@ -87,6 +92,7 @@ export const createApplyBackgroundRemovalMaskCommand = (
   let reservation: RasterLayer | null = null;
   let editOpen = false;
   let pixelEdit: ReversiblePixelEdit | null = null;
+  let historyPublication: AppliedPixelMutationReservation | null = null;
   try {
     if (mode === 'new-layer') {
       reservation = findRasterLayer(prepared, targetId);
@@ -97,27 +103,30 @@ export const createApplyBackgroundRemovalMaskCommand = (
     if (prepared !== before && !transaction.change(() => prepared)) {
       throw new Error('The background-removal preview could not be prepared.');
     }
-    if (mode === 'new-layer' && !renderer.duplicateLayerPixels(layerId, targetId)) {
-      throw new Error('The source layer pixels could not be duplicated.');
-    }
-    renderer.beginLayerPixelEdit(targetId, 'mask');
-    editOpen = true;
-    if (!renderer.applyGeneratedLayerMask(
-      targetId, mask, mode === 'intersect' && source.mask ? 'intersect' : 'replace'
-    )) throw new Error('The generated background mask could not be uploaded to the GPU.');
-    pixelEdit = renderer.finishPixelEdit();
-    editOpen = false;
-    if (!pixelEdit) throw new Error('Background removal could not create a recoverable undo step.');
     const after = markLayerMaskPixelsChanged(prepared, targetId, {
       x: 0, y: 0, width: before.width, height: before.height
     });
     if (!transaction.stage(() => after)) {
       throw new Error('The background-removal transaction could not be staged.');
     }
-    const completedEdit = pixelEdit;
     if (!transaction.commitWith((ownedBefore, ownedAfter) => {
+      historyPublication = reserveAppliedPixelMutation(resolveDependencies, {
+        label: description.label, type: description.type, layerIds: [layerId, targetId]
+      });
+      if (mode === 'new-layer' && !renderer.duplicateLayerPixels(layerId, targetId)) {
+        throw new Error('The source layer pixels could not be duplicated.');
+      }
+      renderer.beginLayerPixelEdit(targetId, 'mask');
+      editOpen = true;
+      if (!renderer.applyGeneratedLayerMask(
+        targetId, mask, mode === 'intersect' && source.mask ? 'intersect' : 'replace'
+      )) throw new Error('The generated background mask could not be uploaded to the GPU.');
+      pixelEdit = renderer.finishPixelEdit();
+      editOpen = false;
+      if (!pixelEdit) throw new Error('Background removal could not create a recoverable undo step.');
+      const completedEdit = pixelEdit;
       pixelEdit = null;
-      commitAppliedPixelMutation(resolveDependencies, {
+      historyPublication!.commit({
         operation: description.label,
         label: description.label,
         type: description.type,
@@ -130,7 +139,12 @@ export const createApplyBackgroundRemovalMaskCommand = (
         retainedByteSize: mode === 'new-layer' ? before.width * before.height * 10 : 0,
         edits: [completedEdit]
       });
-      if (reservation) renderer.commitRasterDestination(reservation.id);
+      if (reservation) {
+        // History now owns the durable runtime. Dropping its temporary
+        // reservation marker is administrative and cannot invalidate it.
+        try { renderer.commitRasterDestination(reservation.id); }
+        catch (reason) { console.error('Background-removal reservation cleanup failed.', reason); }
+      }
       return true;
     })) throw new Error('The background-removal transaction could not be committed.');
     dependencies.setActiveChannel('mask');
@@ -141,8 +155,10 @@ export const createApplyBackgroundRemovalMaskCommand = (
     return true;
   } catch (reason) {
     if (editOpen) renderer.cancelPixelEdit();
-    if (pixelEdit) {
-      try { pixelEdit.undo(); } finally { pixelEdit.destroy(); }
+    (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
+    const unpublishedEdit = pixelEdit as ReversiblePixelEdit | null;
+    if (unpublishedEdit) {
+      try { unpublishedEdit.undo(); } finally { unpublishedEdit.destroy(); }
     }
     transaction.cancel();
     if (reservation) renderer.releaseRasterDestination(reservation.id);

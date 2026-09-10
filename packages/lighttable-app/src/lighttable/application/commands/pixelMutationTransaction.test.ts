@@ -3,6 +3,7 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import {
   commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
   UnpublishedPixelRollbackOwner,
   type PixelMutationHistoryEntry,
   type PixelMutationTransactionDependencies
@@ -42,6 +43,38 @@ const createFixture = () => {
 };
 
 describe('pixelMutationTransaction', () => {
+  it('reserves history before an in-place GPU mutation is admitted', () => {
+    const fixture = createFixture();
+    const dependencies = {
+      ...fixture.dependencies,
+      reserveHistoryEntry: (entry: PixelMutationHistoryEntry) => {
+        fixture.calls.push('reserve');
+        let active = true;
+        return {
+          commit: () => {
+            if (!active) return false;
+            active = false;
+            fixture.history.push(entry);
+            fixture.calls.push('history');
+            return true;
+          },
+          cancel: () => { active = false; }
+        };
+      }
+    };
+    const reservation = reserveAppliedPixelMutation(() => dependencies, {
+      label: 'Mask', type: 'layer.mask.edit', layerIds: [fixture.before.layers[0]!.id]
+    });
+    expect(fixture.calls).toEqual(['reserve']);
+    reservation.commit({
+      operation: 'Mask', label: 'Mask', type: 'layer.mask.edit',
+      layerIds: [fixture.before.layers[0]!.id], before: fixture.before,
+      after: fixture.after, edits: [createEdit(40)]
+    });
+    expect(fixture.calls).toEqual(['reserve', 'document:After', 'history']);
+    expect(fixture.history[0]?.byteSize).toBe(40);
+  });
+
   it('commits document state and replays multiple edits in dependency order', () => {
     const fixture = createFixture();
     const surface = createEdit(20);

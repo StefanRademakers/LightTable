@@ -8,37 +8,55 @@ type ExecuteTaskCommand = (
   parameters: unknown
 ) => Promise<LightTableCommandResult> | null;
 
-/** Owns the UI command/task correlation only; document task generation and
- * result admission remain in the task registry and background controller. */
-export const useBackgroundRemovalTaskBridge = (execute: ExecuteTaskCommand) => {
-  const taskIdRef = useRef<string | null>(null);
-  const requestGenerationRef = useRef(0);
+/** Keeps task admission and cancellation ordered even while command admission is pending. */
+export class BackgroundRemovalTaskCorrelation {
+  private taskId: string | null = null;
+  private generation = 0;
 
-  const startTask = useCallback(async (layerId: LayerId, mode: BackgroundRemovalMaskMode) => {
-    const generation = ++requestGenerationRef.current;
+  async start(
+    execute: ExecuteTaskCommand,
+    layerId: LayerId,
+    mode: BackgroundRemovalMaskMode
+  ): Promise<boolean> {
+    const generation = ++this.generation;
     const execution = execute('layer.removeBackground', { layerId, mode });
     if (!execution) return false;
     const result = await execution;
     if (result.status !== 'accepted') return false;
-    if (generation !== requestGenerationRef.current) {
+    if (generation !== this.generation) {
       void execute('task.cancel', { taskId: result.taskId });
       return false;
     }
-    taskIdRef.current = result.taskId;
+    this.taskId = result.taskId;
     return true;
-  }, [execute]);
+  }
 
-  const cancelTask = useCallback(() => {
-    const taskId = taskIdRef.current;
+  cancel(execute: ExecuteTaskCommand): boolean {
+    const taskId = this.taskId;
+    this.generation += 1;
+    this.taskId = null;
     if (!taskId) return false;
-    requestGenerationRef.current += 1;
-    taskIdRef.current = null;
     void execute('task.cancel', { taskId });
     return true;
-  }, [execute]);
+  }
+
+  clearCompleted(): void {
+    this.taskId = null;
+  }
+}
+
+/** Owns the UI command/task correlation only; document task generation and
+ * result admission remain in the task registry and background controller. */
+export const useBackgroundRemovalTaskBridge = (execute: ExecuteTaskCommand) => {
+  const correlationRef = useRef(new BackgroundRemovalTaskCorrelation());
+
+  const startTask = useCallback((layerId: LayerId, mode: BackgroundRemovalMaskMode) =>
+    correlationRef.current.start(execute, layerId, mode), [execute]);
+
+  const cancelTask = useCallback(() => correlationRef.current.cancel(execute), [execute]);
 
   const clearCompletedTask = useCallback(() => {
-    taskIdRef.current = null;
+    correlationRef.current.clearCompleted();
   }, []);
 
   return { startTask, cancelTask, clearCompletedTask } as const;

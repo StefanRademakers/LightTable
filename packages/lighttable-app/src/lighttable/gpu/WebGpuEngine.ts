@@ -1477,13 +1477,16 @@ export class WebGpuEngine {
     >,
   ) {
     const renderer = this.documentRenderer;
-    const documentId = this.imageDocument?.id ?? null;
+    const document = this.imageDocument;
+    const documentId = document?.id ?? null;
     const task = this.selectionQueue.then(async () => {
-      if (!renderer || !this.selectionOwnerIsCurrent(renderer, documentId)) {
+      if (!renderer || this.imageDocument !== document
+        || !this.selectionOwnerIsCurrent(renderer, documentId)) {
         throw new Error(`The active selection renderer changed before ${kind} preparation.`);
       }
       const prepared = await prepare(renderer);
-      if (!this.selectionOwnerIsCurrent(renderer, documentId)) {
+      if (this.imageDocument !== document
+        || !this.selectionOwnerIsCurrent(renderer, documentId)) {
         prepared.dispose();
         throw new Error(`The active selection renderer changed during ${kind} preparation.`);
       }
@@ -1579,7 +1582,13 @@ export class WebGpuEngine {
   ) {
     return this.prepareSelectionProjection('operation', async (renderer) => {
       const document = this.imageDocument;
-      if (!document || document.revision !== documentAddress.revision) {
+      // DocumentAddress uses the monotonic DocumentSession publication
+      // revision. ImageDocument.revision describes content and may move
+      // backwards on undo, so comparing the two rejects valid post-undo work.
+      // SelectionShapeCommandService validates the session address before and
+      // after preparation; this engine additionally pins the exact document
+      // object for the queued GPU operation.
+      if (!document) {
         throw new Error('The selection operation document is no longer current.');
       }
       const operation = intent.operation;

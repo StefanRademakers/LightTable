@@ -1,6 +1,7 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import { AppliedPixelMutationCoordinator } from '@lighttable/editor-kernel';
+import type { DocumentHistoryReservation } from './documentCommandHistory';
 
 export interface PixelMutationHistoryEntry {
   readonly label: string;
@@ -18,6 +19,14 @@ export interface PixelMutationTransactionDependencies {
   } | null;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
+}
+
+export interface ReservedPixelMutationTransactionDependencies {
+  getRenderer(): {
+    applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
+  } | null;
+  applyDocumentSnapshot(document: ImageDocument): void;
+  reserveHistoryEntry(entry: PixelMutationHistoryEntry): DocumentHistoryReservation;
 }
 
 export type UnpublishedPixelEditApplier = (
@@ -108,6 +117,103 @@ export interface CommitAppliedPixelMutation {
   /** Runtime bytes retained by history outside the reversible edit snapshots. */
   readonly retainedByteSize?: number;
 }
+
+export interface AppliedPixelMutationReservation {
+  commit(mutation: CommitAppliedPixelMutation): PixelMutationHistoryEntry;
+  cancel(): void;
+}
+
+/**
+ * Reserves history before an in-place GPU edit starts. The history stores a
+ * stable proxy whose lifecycle is connected to the exact reversible edit at
+ * commit time, so capacity/busy rejection cannot occur after pixels changed.
+ */
+export const reserveAppliedPixelMutation = (
+  resolveDependencies: () => ReservedPixelMutationTransactionDependencies,
+  metadata: Pick<CommitAppliedPixelMutation, 'label' | 'type' | 'layerIds'>
+): AppliedPixelMutationReservation => {
+  let delegate: PixelMutationHistoryEntry | null = null;
+  let resolved = false;
+  const proxy: PixelMutationHistoryEntry = {
+    label: metadata.label,
+    type: metadata.type,
+    byteSize: 0,
+    layerIds: metadata.layerIds,
+    undo: () => {
+      if (!delegate) throw new Error(`${metadata.label} history was not finalized.`);
+      delegate.undo();
+    },
+    redo: () => {
+      if (!delegate) throw new Error(`${metadata.label} history was not finalized.`);
+      delegate.redo();
+    },
+    dispose: () => delegate?.dispose()
+  };
+  const reservation = resolveDependencies().reserveHistoryEntry(proxy);
+  return {
+    commit: (mutation) => {
+      if (resolved) throw new Error(`${metadata.label} history reservation is closed.`);
+      if (mutation.label !== metadata.label
+        || mutation.type !== metadata.type
+        || mutation.layerIds.length !== metadata.layerIds.length
+        || mutation.layerIds.some((layerId, index) => layerId !== metadata.layerIds[index])) {
+        reservation.cancel();
+        resolved = true;
+        throw new Error(`${metadata.label} history metadata changed after reservation.`);
+      }
+      const coordinator = new AppliedPixelMutationCoordinator<ImageDocument>(() => {
+        const current = resolveDependencies();
+        return {
+          applyState: current.applyDocumentSnapshot,
+          appendHistory: () => {
+            if (!reservation.commit()) {
+              throw new Error(`${metadata.label} history reservation is no longer current.`);
+            }
+          }
+        };
+      });
+      try {
+        coordinator.commit({
+          operation: mutation.operation,
+          before: mutation.before,
+          undoBase: mutation.undoBase,
+          redoBase: mutation.redoBase,
+          after: mutation.after,
+          retainedByteSize: mutation.retainedByteSize,
+          steps: mutation.edits.map((edit) => ({
+            byteSize: edit.byteSize,
+            apply: (direction) => resolveDependencies().getRenderer()
+              ?.applyPixelHistory(edit, direction) ?? false,
+            dispose: () => edit.destroy()
+          }))
+        }, (lifecycle) => {
+          delegate = {
+            label: mutation.label,
+            type: mutation.type,
+            byteSize: lifecycle.byteSize,
+            layerIds: mutation.layerIds,
+            undo: lifecycle.undo,
+            redo: lifecycle.redo,
+            dispose: lifecycle.dispose
+          };
+          proxy.byteSize = delegate.byteSize;
+          return proxy;
+        });
+        resolved = true;
+        return proxy;
+      } catch (reason) {
+        reservation.cancel();
+        resolved = true;
+        throw reason;
+      }
+    },
+    cancel: () => {
+      if (resolved) return;
+      resolved = true;
+      reservation.cancel();
+    }
+  };
+};
 
 /**
  * Transfers an already-applied GPU mutation to document history atomically.

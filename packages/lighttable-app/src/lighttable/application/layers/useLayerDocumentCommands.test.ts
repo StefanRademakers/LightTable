@@ -266,6 +266,49 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(0);
   });
 
+  it('admits history before every mask command can mutate GPU pixels', () => {
+    const cases = ['add', 'remove', 'apply', 'background'] as const;
+    for (const operation of cases) {
+      const source = createImageDocument(`Reserve ${operation}`, 8, 8, 'asset');
+      const layerId = source.activeLayerId!;
+      const initial = operation === 'remove' || operation === 'apply'
+        ? addLayerMask(source, layerId)
+        : source;
+      const state = setup(initial);
+      vi.mocked(state.dependencies.reserveHistoryEntry).mockImplementation(() => {
+        throw new Error('History busy.');
+      });
+
+      const completed = operation === 'add'
+        ? state.commands.addLayerMask(layerId, true)
+        : operation === 'remove'
+          ? state.commands.removeLayerMask(layerId)
+          : operation === 'apply'
+            ? state.commands.applyLayerMask(layerId)
+            : state.commands.applyBackgroundRemovalMask(layerId, {
+              width: 8, height: 8, data: new Uint8Array(64).fill(255)
+            }, 'replace');
+
+      expect(completed, operation).toBe(false);
+      expect(state.renderer.beginLayerPixelEdit, operation).not.toHaveBeenCalled();
+      expect(state.document(), operation).toBe(initial);
+    }
+  });
+
+  it('admits mask-invert history before touching its GPU texture', () => {
+    const source = createImageDocument('Reserve invert', 8, 8, 'asset');
+    const layerId = source.activeLayerId!;
+    const initial = addLayerMask(source, layerId);
+    const state = setup(initial);
+    vi.mocked(state.dependencies.reserveHistoryEntry).mockImplementation(() => {
+      throw new Error('History busy.');
+    });
+
+    expect(state.commands.invertLayerColors(layerId, 'mask')).toBe(false);
+    expect(state.renderer.beginLayerPixelEdit).not.toHaveBeenCalled();
+    expect(state.document()).toBe(initial);
+  });
+
   it('deletes and restores exact mask pixels through one history entry', () => {
     const source = createImageDocument('Delete mask', 32, 24, 'asset');
     const layerId = source.activeLayerId!;
@@ -355,7 +398,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(0);
   });
 
-  it('retains rollback ownership when Apply Mask publication is refused before admission', () => {
+  it('does not touch GPU pixels when Apply Mask publication is refused before admission', () => {
     const source = createImageDocument('Apply mask refusal', 32, 24, 'asset');
     const layerId = source.activeLayerId!;
     const masked = addLayerMask(source, layerId);
@@ -383,10 +426,11 @@ describe('useLayerDocumentCommands', () => {
     });
 
     expect(state.commands.applyLayerMask(layerId)).toBe(false);
-    expect(pixelHistory.undo).toHaveBeenCalledOnce();
-    expect(maskHistory.undo).toHaveBeenCalledOnce();
-    expect(pixelHistory.destroy).toHaveBeenCalledOnce();
-    expect(maskHistory.destroy).toHaveBeenCalledOnce();
+    expect(state.renderer.beginLayerPixelEdit).not.toHaveBeenCalled();
+    expect(pixelHistory.undo).not.toHaveBeenCalled();
+    expect(maskHistory.undo).not.toHaveBeenCalled();
+    expect(pixelHistory.destroy).not.toHaveBeenCalled();
+    expect(maskHistory.destroy).not.toHaveBeenCalled();
     expect(state.historyEntries).toHaveLength(0);
     expect(cancel).toHaveBeenCalledOnce();
   });

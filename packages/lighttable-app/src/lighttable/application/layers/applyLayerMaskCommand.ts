@@ -6,10 +6,12 @@ import { layerIsLocked, type ImageDocument, type LayerId } from '../../editor/do
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import {
-  commitAppliedPixelMutation,
+  reserveAppliedPixelMutation,
+  type AppliedPixelMutationReservation,
   type PixelMutationHistoryEntry
 } from '../commands/pixelMutationTransaction';
 import type { DocumentMutationTransaction } from '../documents/useDocumentMutationController';
+import type { DocumentHistoryReservation } from '../commands/documentCommandHistory';
 
 interface ApplyMaskRendererPort {
   beginLayerPixelEdit(layerId: LayerId, channel: 'pixels' | 'mask'): void;
@@ -23,7 +25,7 @@ interface ApplyMaskRendererPort {
 interface ApplyMaskDependencies {
   getRenderer(): ApplyMaskRendererPort | null;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushHistoryEntry(entry: PixelMutationHistoryEntry): void;
+  reserveHistoryEntry(entry: PixelMutationHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: 'pixels'): void;
   setStatus(message: string): void;
   setError(message: string | null): void;
@@ -61,41 +63,44 @@ export const createApplyLayerMaskCommand = (
 
   let editOpen = false;
   const edits: ReversiblePixelEdit[] = [];
+  let historyPublication: AppliedPixelMutationReservation | null = null;
   try {
-    renderer.beginLayerPixelEdit(layerId, 'pixels');
-    editOpen = true;
-    if (renderer.captureAllPixelEdit(layerId, 'pixels') < 1
-      || !renderer.applyLayerMaskToPixels(before, layerId)) {
-      throw new Error('The layer mask could not be applied to its pixels.');
-    }
-    const pixelEdit = renderer.finishPixelEdit();
-    editOpen = false;
-    if (!pixelEdit) throw new Error('Apply Layer Mask could not capture pixel history.');
-    edits.push(pixelEdit);
-
-    // The document removes the mask target after commit. Retain an exact mask
-    // snapshot as a second reversible step so undo can recreate its pixels.
-    renderer.beginLayerPixelEdit(layerId, 'mask');
-    editOpen = true;
-    if (renderer.captureAllPixelEdit(layerId, 'mask') < 1) {
-      throw new Error('Apply Layer Mask could not capture mask history.');
-    }
-    const maskEdit = renderer.finishPixelEdit();
-    editOpen = false;
-    if (!maskEdit) throw new Error('Apply Layer Mask could not retain the original mask.');
-    edits.push(maskEdit);
-
     const after = removeLayerMask(markLayerPixelsChanged(before, layerId, fullBounds(before)), layerId);
     if (after === before || !transaction.stage(() => after)) {
       throw new Error('Apply Layer Mask could not stage its document result.');
     }
-    const completed = [...edits];
     if (!transaction.commitWith((ownedBefore, ownedAfter) => {
+      historyPublication = reserveAppliedPixelMutation(resolveDependencies, {
+        label: description.label, type: description.type, layerIds: [layerId]
+      });
+      renderer.beginLayerPixelEdit(layerId, 'pixels');
+      editOpen = true;
+      if (renderer.captureAllPixelEdit(layerId, 'pixels') < 1
+        || !renderer.applyLayerMaskToPixels(before, layerId)) {
+        throw new Error('The layer mask could not be applied to its pixels.');
+      }
+      const pixelEdit = renderer.finishPixelEdit();
+      editOpen = false;
+      if (!pixelEdit) throw new Error('Apply Layer Mask could not capture pixel history.');
+      edits.push(pixelEdit);
+
+      // The document removes the mask target after commit. Retain an exact mask
+      // snapshot as a second reversible step so undo can recreate its pixels.
+      renderer.beginLayerPixelEdit(layerId, 'mask');
+      editOpen = true;
+      if (renderer.captureAllPixelEdit(layerId, 'mask') < 1) {
+        throw new Error('Apply Layer Mask could not capture mask history.');
+      }
+      const maskEdit = renderer.finishPixelEdit();
+      editOpen = false;
+      if (!maskEdit) throw new Error('Apply Layer Mask could not retain the original mask.');
+      edits.push(maskEdit);
+      const completed = [...edits];
       // commitWith may refuse the publication without invoking this callback.
       // Keep local rollback ownership until the transaction actually admits
       // the compound pixel/document publication.
       edits.length = 0;
-      commitAppliedPixelMutation(resolveDependencies, {
+      historyPublication!.commit({
         operation: description.label,
         label: description.label,
         type: description.type,
@@ -114,6 +119,7 @@ export const createApplyLayerMaskCommand = (
     return true;
   } catch (reason) {
     if (editOpen) renderer.cancelPixelEdit();
+    (historyPublication as AppliedPixelMutationReservation | null)?.cancel();
     for (const edit of [...edits].reverse()) {
       try { edit.undo(); } finally { edit.destroy(); }
     }
