@@ -15,7 +15,10 @@ import type {
 export interface ParagraphFrameResizeDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
-  getLocalToDocument(layerId: LayerId): AffineMatrix | null;
+  captureRealization(layerId: LayerId): {
+    readonly localToDocument: AffineMatrix;
+    isCurrent(): boolean;
+  } | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
 }
 
@@ -23,7 +26,7 @@ interface ActiveResize {
   readonly pointerId: number;
   readonly layerId: LayerId;
   readonly transaction: DocumentMutationTransaction;
-  readonly localToDocument: AffineMatrix;
+  readonly realization: NonNullable<ReturnType<ParagraphFrameResizeDependencies['captureRealization']>>;
   readonly openingFrame: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly handle: ParagraphFrameHandleKind;
 }
@@ -43,12 +46,12 @@ export class ParagraphFrameResizeController {
     const source = layer?.type === 'text' && layer.text.source.kind === 'flow'
       ? layer.text.source
       : null;
-    const localToDocument = layerId ? dependencies.getLocalToDocument(layerId) : null;
-    if (!document || !layerId || source?.layout.mode !== 'paragraph' || !localToDocument) {
+    const realization = layerId ? dependencies.captureRealization(layerId) : null;
+    if (!document || !layerId || source?.layout.mode !== 'paragraph' || !realization) {
       return false;
     }
     const hit = hitTestParagraphFrameHandle(
-      source.layout.frame, localToDocument, documentPoint, radius
+      source.layout.frame, realization.localToDocument, documentPoint, radius
     );
     if (!hit) return false;
     const transaction = dependencies.documentMutations.begin(
@@ -60,7 +63,7 @@ export class ParagraphFrameResizeController {
       pointerId,
       layerId,
       transaction,
-      localToDocument: { ...localToDocument },
+      realization,
       openingFrame: { ...source.layout.frame },
       handle: hit.kind
     };
@@ -74,7 +77,7 @@ export class ParagraphFrameResizeController {
   move(pointerId: number, documentPoint: Vec2) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    if (!active.transaction.active) {
+    if (!active.transaction.active || !active.realization.isCurrent()) {
       active.transaction.cancel();
       this.active = null;
       return false;
@@ -83,7 +86,7 @@ export class ParagraphFrameResizeController {
       active.openingFrame,
       active.handle,
       documentPoint,
-      active.localToDocument
+      active.realization.localToDocument
     );
     if (!frame) return false;
     const openingLayer = findDocumentLayer(active.transaction.before, active.layerId);
@@ -104,10 +107,16 @@ export class ParagraphFrameResizeController {
 
   finish(pointerId: number, documentPoint: Vec2) {
     if (!this.owns(pointerId)) return false;
-    this.move(pointerId, documentPoint);
-    const active = this.active;
+    const active = this.active!;
+    if (!this.move(pointerId, documentPoint) || this.active !== active) {
+      if (this.active === active) {
+        this.active = null;
+        active.transaction.cancel();
+      }
+      return false;
+    }
     this.active = null;
-    return active ? active.transaction.commit() : false;
+    return active.transaction.commit();
   }
 
   cancel(pointerId?: number) {

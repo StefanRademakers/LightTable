@@ -76,11 +76,15 @@ export class TextLayerMoveGestureController {
   finish(pointerId: number, point: Point) {
     if (!this.owns(pointerId)) return false;
     const active = this.active!;
-    this.move(pointerId, point);
-    if (this.active !== active) return false;
+    if (!this.move(pointerId, point) || this.active !== active) {
+      if (this.active === active) {
+        this.active = null;
+        active.transaction.cancel();
+      }
+      return false;
+    }
     this.active = null;
-    active.transaction.commit();
-    return true;
+    return active.transaction.commit();
   }
 
   cancel(pointerId?: number) {

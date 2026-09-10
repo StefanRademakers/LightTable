@@ -232,7 +232,7 @@ unavailable. Packaged instrumented vector gates passed; owner feel acceptance
 and the named Pen-session extraction from the no-growth session router remain
 open.
 
-Text reset, updated 2026-09-09: read
+Text reset, updated 2026-09-10: read
 [Text and Path Text vertical slice](editor-kernel/TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md)
 before changing point/paragraph/vertical text, Path Text, glyph measurement,
 text hit-testing or semantic text transform. The document text layer is
@@ -243,6 +243,14 @@ revision, document, tool, renderer, source identity and repeat the exact hit.
 Path Text first targets the native contour under the pointer and records stable
 path ids. Never interpret pending layout as empty content, retain a stale layout
 under a current key, or observe a Pen result through a later React projection.
+Semantic text creation/edit/layout, typing/IME, property gestures and
+missing-font replacement all use the shared document mutation owner. Do not
+restore direct overlay creation, private apply/history callbacks or per-input
+full projections. Typing and property input stage locally and project at most
+once per frame. Async font work and paragraph/path handles require the exact
+opening document and current renderer layout. Document activation and active
+close must cross `runAfterTextEditingTerminal`; caret/input presentation must
+match the exact document id.
 Packaged Type and Path Text/Actions gates passed. Imported Text Warp remains a
 canonical document/rendering feature, but there is no user-facing Text Warp
 authoring control. Do not mistake removed/dead overlay callbacks for an

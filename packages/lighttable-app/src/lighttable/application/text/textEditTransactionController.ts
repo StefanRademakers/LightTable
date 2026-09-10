@@ -2,7 +2,10 @@ import type { TextLayerData } from '@lighttable/text-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
-import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
+import type {
+  DocumentMutationController,
+  DocumentMutationTransaction
+} from '../documents/useDocumentMutationController';
 import { graphemeStops } from './flowTextEditing';
 
 export type TextEditGroupKind =
@@ -20,13 +23,10 @@ export const TEXT_EDIT_COALESCING_RULES = Object.freeze({
   layout: 'One committed frame/transform gesture.'
 } satisfies Record<TextEditGroupKind, string>);
 
-export interface TextEditHistoryEntry {
-  readonly layerIds: readonly LayerId[];
-  readonly resourceIds: readonly LayerId[];
+export interface TextEditCommitObservation {
+  readonly layerId: LayerId;
   readonly group: TextEditGroupKind;
   readonly semanticReplacement: TextEditSemanticReplacement | null;
-  undo(): void;
-  redo(): void;
 }
 
 export interface TextEditSemanticReplacement {
@@ -63,12 +63,16 @@ export const describeTextReplacement = (
 
 export interface TextEditTransactionDependencies {
   getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  pushHistory(entry: TextEditHistoryEntry): void;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
+  onCommitted(entry: TextEditCommitObservation): void;
+  reportError(message: string): void;
+  requestPreviewFrame(callback: () => void): number;
+  cancelPreviewFrame(frame: number): void;
 }
 
 export interface TextEditTransactionController {
   readonly active: boolean;
+  currentDocument(): ImageDocument | null;
   begin(layerId: LayerId, group: TextEditGroupKind): boolean;
   apply(change: (text: TextLayerData) => TextLayerData): boolean;
   commit(): boolean;
@@ -81,7 +85,8 @@ interface ActiveTextEdit {
   readonly layerId: LayerId;
   readonly group: TextEditGroupKind;
   readonly before: ImageDocument;
-  latest: ImageDocument;
+  readonly transaction: DocumentMutationTransaction;
+  previewFrame: number | null;
   changed: boolean;
 }
 
@@ -95,37 +100,46 @@ export const createTextEditTransactionController = (
 ): TextEditTransactionController => {
   let edit: ActiveTextEdit | null = null;
 
-  const applyForDocument = (documentId: ImageDocument['id'], document: ImageDocument) => {
-    const dependencies = resolveDependencies();
-    if (dependencies.getDocument()?.id !== documentId) {
-      throw new Error('The text edit belongs to a different document.');
-    }
-    dependencies.applyDocument(document);
+  const cancelPreviewFrame = (active: ActiveTextEdit) => {
+    if (active.previewFrame === null) return;
+    resolveDependencies().cancelPreviewFrame(active.previewFrame);
+    active.previewFrame = null;
   };
 
   return {
     get active() {
       return edit !== null;
     },
+    currentDocument: () => edit?.transaction.current ?? resolveDependencies().getDocument(),
     begin: (layerId, group) => {
       if (edit) return false;
-      const document = resolveDependencies().getDocument();
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
       if (!document || findDocumentLayer(document, layerId)?.type !== 'text') return false;
+      const transaction = dependencies.documentMutations.begin(
+        `text-edit:${layerId}`,
+        {
+          label: group === 'composition' ? 'Compose text' : 'Edit text',
+          type: `text.${group}`,
+          layerIds: [layerId]
+        }
+      );
+      if (!transaction || transaction.before !== document) return false;
       edit = {
         documentId: document.id,
         layerId,
         group,
         before: document,
-        latest: document,
+        transaction,
+        previewFrame: null,
         changed: false
       };
       return true;
     },
     apply: (change) => {
       if (!edit) return false;
-      const dependencies = resolveDependencies();
-      const current = dependencies.getDocument();
-      if (!current || current.id !== edit.documentId || current !== edit.latest) {
+      const current = edit.transaction.current;
+      if (!edit.transaction.active || current.id !== edit.documentId) {
         edit = null;
         return false;
       }
@@ -136,8 +150,25 @@ export const createTextEditTransactionController = (
       }
       const next = applyTextLayerDataMutation(current, edit.layerId, change(owner.text));
       if (next === current) return false;
-      dependencies.applyDocument(next);
-      edit.latest = next;
+      if (!edit.transaction.stage(() => next)) {
+        edit = null;
+        return false;
+      }
+      if (edit.previewFrame === null) {
+        const active = edit;
+        active.previewFrame = resolveDependencies().requestPreviewFrame(() => {
+          if (edit !== active) return;
+          active.previewFrame = null;
+          try {
+            if (!active.transaction.project()) edit = null;
+          } catch (error) {
+            edit = null;
+            resolveDependencies().reportError(error instanceof Error
+              ? `The text preview failed: ${error.message}`
+              : 'The text preview failed.');
+          }
+        });
+      }
       edit.changed = true;
       return true;
     },
@@ -145,9 +176,12 @@ export const createTextEditTransactionController = (
       if (!edit) return false;
       const completed = edit;
       edit = null;
-      const dependencies = resolveDependencies();
-      const after = dependencies.getDocument();
-      if (!completed.changed || after !== completed.latest) return false;
+      cancelPreviewFrame(completed);
+      const after = completed.transaction.current;
+      if (!completed.changed || !completed.transaction.active) {
+        completed.transaction.cancel();
+        return false;
+      }
       const beforeLayer = findDocumentLayer(completed.before, completed.layerId);
       const afterLayer = findDocumentLayer(after, completed.layerId);
       const semanticReplacement = beforeLayer?.type === 'text'
@@ -160,37 +194,33 @@ export const createTextEditTransactionController = (
           afterLayer.text.source.text
         )
         : null;
-      runEditorOperationTransaction({ operation: 'Commit text edit' }, (transaction) => {
-        // The edited document is already live because typing is rendered at
-        // input cadence. Until history accepts ownership, retain compensation
-        // for that publication so a rejected command cannot strand the edit.
-        transaction.adopt(
-          'published text document',
-          () => applyForDocument(completed.documentId, completed.before)
-        );
-        dependencies.pushHistory({
-          layerIds: [completed.layerId],
-          resourceIds: [],
+      const committed = completed.transaction.commit();
+      if (!committed) return false;
+      try {
+        resolveDependencies().onCommitted({
+          layerId: completed.layerId,
           group: completed.group,
-          semanticReplacement,
-          undo: () => applyForDocument(completed.documentId, completed.before),
-          redo: () => applyForDocument(completed.documentId, after)
+          semanticReplacement
         });
-      });
-      return true;
+      } catch (error) {
+        resolveDependencies().reportError(error instanceof Error
+          ? `The text edit committed, but command observation failed: ${error.message}`
+          : 'The text edit committed, but command observation failed.');
+      }
+      return committed;
     },
     cancel: () => {
       if (!edit) return false;
       const cancelled = edit;
       edit = null;
-      const current = resolveDependencies().getDocument();
-      if (!current || current !== cancelled.latest) return false;
-      if (current !== cancelled.before) {
-        resolveDependencies().applyDocument(cancelled.before);
-      }
-      return true;
+      cancelPreviewFrame(cancelled);
+      const originIsCurrent = resolveDependencies().getDocument() === cancelled.before;
+      const didCancel = cancelled.transaction.cancel();
+      return originIsCurrent && didCancel;
     },
     reset: () => {
+      if (edit) cancelPreviewFrame(edit);
+      edit?.transaction.cancel();
       edit = null;
     }
   };

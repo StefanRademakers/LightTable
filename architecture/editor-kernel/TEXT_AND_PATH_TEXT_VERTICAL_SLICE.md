@@ -1,7 +1,7 @@
 # Text and Path Text Vertical Slice
 
-Status: implemented and independently accepted (S06); owner feel acceptance and
-the S07 Warp hand-off remain open.
+Status: kernel cut-over accepted (C07); owner feel acceptance and the C08 Warp
+hand-off remain open.
 
 ## Artist contract
 
@@ -19,6 +19,9 @@ the S07 Warp hand-off remain open.
   canonical document state.
 - Document switch, renderer replacement, font-runtime replacement, cancel and
   unmount invalidate pending activation/conversion work.
+- Document activation and active-document close first commit the current
+  typing/IME group. A rejected terminal blocks the transition; observed
+  external replacement resets editing fail-closed.
 - Text warp belongs to S07. S06 proves only the hand-off and preserves semantic
   text; it does not add another warp preview owner.
 
@@ -102,17 +105,22 @@ the S07 Warp hand-off remain open.
 - Pen commit publishes its Action result from the admitted vector transaction,
   not from a later React document projection.
 - Ancestor-hidden or effectively transparent text is excluded from edit hits.
+- Direct overlay text creation and text-owned document/history publishers were
+  removed. Semantic commands, typing, property gestures and font recovery use
+  the shared document transaction owner.
+- Property and typing previews stage every input but project at most once per
+  animation frame. Caret and input presentation require the exact document id.
 
 ## Acceptance evidence
 
 - App typecheck passed.
-- The involved text, geometry and renderer workspaces passed 1,388 tests.
+- The C07 focused text/layout/command/transform set passed 346 tests.
 - Independent architecture review completed its repair loop and returned
   `ACCEPT` with no P0/P1. The overlay adapter extraction above is the sole
   nonblocking P2.
-- Debug packaged Type Tool acceptance passed point, paragraph and vertical text,
+- Instrumented packaged Type Tool acceptance passed point, paragraph and vertical text,
   re-entry after semantic transform, repeated transforms and history. The
-  measured interaction sample was 19.4 ms input-to-submit and 27.0 ms
+  measured interaction sample was 21.2 ms input-to-submit and 30.2 ms
   input-to-GPU, with no page errors.
 - Debug packaged Path Text acceptance passed direct contour targeting, semantic
   Action recording, two undo operations and Action playback back to a

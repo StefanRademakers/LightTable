@@ -230,9 +230,6 @@ import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
   PointTextCreationController,
-  createParagraphTextDocument,
-  createPathTextDocument,
-  createPointTextDocument,
   defaultTextStyleForFamily,
   resolvePathTextCreationTargetAtPoint,
   type PathTextCreationTarget,
@@ -260,10 +257,12 @@ import { waitForExactCommandRender } from './application/rendering/waitForExactC
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { visibleTextLayersTopmostFirst } from './application/geometry/layerGeometryQuery';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
+import { DocumentTextPropertyGestureController } from './application/text/DocumentTextPropertyGestureController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
+import { runAfterTextEditingTerminal } from './application/text/textDocumentTransition';
 import { formatFlowTextSource, type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import {
   buildTextPropertyPresentation,
@@ -275,8 +274,7 @@ import {
 import {
   applyTextLayerDataMutation,
   convertParagraphTextToPoint,
-  convertPointTextToParagraph,
-  setFlowTextLayout
+  convertPointTextToParagraph
 } from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
@@ -1449,7 +1447,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         readonly range: { readonly start: number; readonly end: number } | null;
         style: TextStylePatch; paragraph: ParagraphStylePatch; recordable: boolean }
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId;
-        readonly transaction: DocumentMutationTransaction; style: TextStylePatch;
+        readonly projection: DocumentTextPropertyGestureController; style: TextStylePatch;
         paragraph: ParagraphStylePatch; recordable: boolean }
     | null
   >(null);
@@ -2030,6 +2028,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerDocumentTransactionRef.current = null;
     resetFaceWarpSessionRef.current();
     if (textPropertyGestureRef.current?.kind === 'document') {
+      textPropertyGestureRef.current.projection.cancel();
       textPropertyGestureRef.current = null;
     }
     documentMutationController.cancelActive();
@@ -2037,7 +2036,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const commitActiveDocumentTransaction = () => {
     layerDocumentTransactionRef.current = null;
     if (textPropertyGestureRef.current?.kind === 'document') {
+      const committed = textPropertyGestureRef.current.projection.commit();
       textPropertyGestureRef.current = null;
+      return committed;
     }
     return documentMutationController.commitActive();
   };
@@ -2743,64 +2744,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController
   }));
   const positionedTextRecoveryController = positionedTextRecoveryControllerRef.current;
-  const pendingTextDocumentRef = useRef<ImageDocument | null>(null);
-  const textDocumentPublicationFrameRef = useRef<number | null>(null);
-  const applyTextEditingDocument = (document: ImageDocument) => {
-    // Typing owns the canonical ref immediately. GPU and React shell
-    // projections consume only the newest document once per frame, preventing
-    // a full editor render and obsolete shaping dispatch for every character.
-    imageDocumentRef.current = document;
-    pendingTextDocumentRef.current = document;
-    if (textDocumentPublicationFrameRef.current !== null) return;
-    textDocumentPublicationFrameRef.current = window.requestAnimationFrame(() => {
-      textDocumentPublicationFrameRef.current = null;
-      const pending = pendingTextDocumentRef.current;
-      pendingTextDocumentRef.current = null;
-      if (!pending) return;
-      // React can render the previous external-store snapshot between the
-      // edit and this frame, which temporarily rewinds imageDocumentRef. The
-      // dedicated pending slot is the authoritative newest text document.
-      imageDocumentRef.current = pending;
-      engineRef.current?.setDocument(pending);
-      setImageDocument(pending);
-    });
-  };
-  const flushTextEditingDocument = () => {
-    if (textDocumentPublicationFrameRef.current !== null) {
-      window.cancelAnimationFrame(textDocumentPublicationFrameRef.current);
-      textDocumentPublicationFrameRef.current = null;
-    }
-    const pending = pendingTextDocumentRef.current;
-    pendingTextDocumentRef.current = null;
-    if (!pending) return;
-    imageDocumentRef.current = pending;
-    engineRef.current?.setDocument(pending);
-    setImageDocument(pending);
-  };
   const textEditingPortsRef = useRef({
-    applyDocument: applyTextEditingDocument,
-    flushDocument: flushTextEditingDocument,
-    pushHistoryEntry,
-    commandService
+    commandService,
+    documentMutations: documentMutationController,
+    reportError: setError
   });
   textEditingPortsRef.current = {
-    applyDocument: applyTextEditingDocument,
-    flushDocument: flushTextEditingDocument,
-    pushHistoryEntry,
-    commandService
+    commandService,
+    documentMutations: documentMutationController,
+    reportError: setError
   };
   const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
   textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
-    getDocument: () => pendingTextDocumentRef.current ?? imageDocumentRef.current,
-    applyDocument: (document) => textEditingPortsRef.current.applyDocument(document),
-    pushHistory: (entry) => {
+    getDocument: () => imageDocumentRef.current,
+    documentMutations: textEditingPortsRef.current.documentMutations,
+    onCommitted: (entry) => {
       const ports = textEditingPortsRef.current;
-      ports.flushDocument();
-      ports.pushHistoryEntry({
-        ...entry,
-        type: `text.${entry.group}`,
-        label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
-      });
       if (entry.semanticReplacement) {
         ports.commandService?.recordObservedCommand(
           'text.replaceRange',
@@ -2809,9 +2768,29 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           { layerId: entry.semanticReplacement.layerId }
         );
       }
-    }
+    },
+    reportError: (message) => textEditingPortsRef.current.reportError(message),
+    requestPreviewFrame: (callback) => window.requestAnimationFrame(callback),
+    cancelPreviewFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textEditingController = textEditingControllerRef.current;
+  const activateWorkspaceDocument = useCallback((documentId: string) => {
+    if (!onActivateWorkspaceDocument || documentId === workspaceDocumentId) return;
+    runAfterTextEditingTerminal(textEditingController, () => {
+      onActivateWorkspaceDocument(documentId);
+    });
+  }, [onActivateWorkspaceDocument, textEditingController, workspaceDocumentId]);
+  const closeWorkspaceDocument = useCallback((documentId: string) => {
+    const close = () => {
+      if (onCloseWorkspaceDocument) onCloseWorkspaceDocument(documentId);
+      else if (documentId === workspaceDocumentId) onClose();
+    };
+    if (documentId !== workspaceDocumentId) {
+      close();
+      return;
+    }
+    runAfterTextEditingTerminal(textEditingController, close);
+  }, [onClose, onCloseWorkspaceDocument, textEditingController, workspaceDocumentId]);
   const existingTextHitControllerRef = useRef<ExistingTextHitController | null>(null);
   existingTextHitControllerRef.current ??= new ExistingTextHitController({
     getDocument: () => imageDocumentRef.current,
@@ -2821,13 +2800,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const existingTextHitController = existingTextHitControllerRef.current;
   const existingTextActivationRevisionRef = useRef(0);
   useEffect(() => () => {
-    if (textDocumentPublicationFrameRef.current !== null) {
-      window.cancelAnimationFrame(textDocumentPublicationFrameRef.current);
-      textDocumentPublicationFrameRef.current = null;
-    }
-    pendingTextDocumentRef.current = null;
+    textEditingController.reset();
     existingTextHitController.cancel();
-  }, [existingTextHitController]);
+  }, [existingTextHitController, textEditingController]);
   useEffect(() => {
     existingTextActivationRevisionRef.current += 1;
     existingTextHitController.cancel();
@@ -2873,7 +2848,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const snapshot = textEditingController.getSnapshot();
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
-    getLocalToDocument: (layerId) => engineRef.current?.textEditingLayout(layerId)?.localToDocument ?? null,
+    captureRealization: (layerId) => {
+      const renderer = engineRef.current;
+      const generation = rendererLifecycle.getSnapshot().generation;
+      const localToDocument = renderer?.currentTextEditingLayout(layerId)?.localToDocument;
+      return renderer && localToDocument ? {
+        localToDocument,
+        isCurrent: () => engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === generation
+      } : null;
+    },
     documentMutations: documentMutationController
   }));
   const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
@@ -2885,11 +2869,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return snapshot.status === 'editing' ? snapshot.layerId : null;
     },
     getRealization: (layerId) => {
-      const editingLayout = engineRef.current?.textEditingLayout(layerId);
+      const renderer = engineRef.current;
+      const generation = rendererLifecycle.getSnapshot().generation;
+      const editingLayout = renderer?.currentTextEditingLayout(layerId);
       return editingLayout?.path ? {
         table: editingLayout.path.table,
         projection: editingLayout.path.projection,
-        localToDocument: editingLayout.localToDocument
+        localToDocument: editingLayout.localToDocument,
+        isCurrent: () => engineRef.current === renderer
+          && rendererLifecycle.getSnapshot().generation === generation
       } : null;
     },
     documentMutations: documentMutationController
@@ -2926,14 +2914,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pathTextHandleController.cancel();
   }, [pathTextHandleController]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     textLayerMoveGestureController.cancel();
     paragraphFrameResizeController.cancel();
     pathTextHandleController.cancel();
+    const propertyGesture = textPropertyGestureRef.current;
+    textPropertyGestureRef.current = null;
+    if (propertyGesture?.kind === 'document') propertyGesture.projection.cancel();
+    else if (propertyGesture?.kind === 'text') textEditingController.cancelFormatting();
+    pendingTextPaintPatchRef.current = null;
+    if (textPaintPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
+      textPaintPreviewFrameRef.current = null;
+    }
+    textEditingController.reset();
   }, [
     paragraphFrameResizeController,
     pathTextHandleController,
     textLayerMoveGestureController,
+    textEditingController,
     workspaceDocumentId
   ]);
 
@@ -4384,10 +4383,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ) % workspaceDocuments.length;
         const nextDocument = workspaceDocuments[nextIndex];
         if (nextDocument && nextDocument.id !== workspaceDocumentId) {
-          onActivateWorkspaceDocument(nextDocument.id);
+          activateWorkspaceDocument(nextDocument.id);
         }
       },
-      closeActiveDocument: onClose,
+      closeActiveDocument: () => closeWorkspaceDocument(workspaceDocumentId),
       changeZoom: (direction) => {
         if (workspaceViewControls) workspaceViewControls.onZoomStep(direction);
         else setExactZoom(steppedZoomPercent(activeScale * 100, direction));
@@ -4990,11 +4989,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const missingFontReplacementActions = useMissingFontReplacementActions({
     documentId: workspaceDocumentId,
-    documentRef: imageDocumentRef,
+    getDocument: () => imageDocumentRef.current,
     registry: textFontRegistry,
     substitutionFamilies: DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
-    applyDocument: applyDocumentSnapshot,
-    recordHistory: pushDocumentHistory,
+    documentMutations: documentMutationController,
     closeRecovery: editorDialogs.closeMissingFontRecovery,
     requestRecovery: editorDialogs.requestMissingFontRecovery,
     beginEditing: (layerId, offset, affinity) => {
@@ -5189,52 +5187,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const pathTarget = pathTextCreationTargetRef.current;
     pathTextCreationTargetRef.current = null;
     if (!request || !before || !font || request.documentId !== before.id) return false;
-    if (commandService) {
-      const command = pathTarget
-        ? pathTextCreateCommand(
-            request, pathTarget, editorSession.text, font, editorSession.brush.color
-          )
-        : pointTextCreateCommand(request, editorSession.text, font,
-            editorSession.brush.color, editorSession.activeTool === 'text-vertical');
-      const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(command));
-      void execution?.then((result) => {
-        if (beginEditing && result.status === 'completed') {
-          const layerId = (result.value as { layerId?: LayerId }).layerId;
-          if (layerId) {
-            textEditingController.begin(layerId); textEditingController.selectAll();
-          }
+    const command = pathTarget
+      ? pathTextCreateCommand(
+          request, pathTarget, editorSession.text, font, editorSession.brush.color
+        )
+      : pointTextCreateCommand(request, editorSession.text, font,
+          editorSession.brush.color, editorSession.activeTool === 'text-vertical');
+    const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(command));
+    void execution?.then((result) => {
+      if (beginEditing && result.status === 'completed') {
+        const layerId = (result.value as { layerId?: LayerId }).layerId;
+        if (layerId) {
+          textEditingController.begin(layerId); textEditingController.selectAll();
         }
-      });
-      return Boolean(execution);
-    }
-    let createdLayerId: LayerId | null = null;
-    const changed = documentMutationController.change(
-      (document) => {
-        if (document.id !== request.documentId) return document;
-        const next = pathTarget
-          ? createPathTextDocument(
-              document, request, pathTarget, editorSession.text, font, editorSession.brush.color
-            )
-          : createPointTextDocument(
-              document,
-              request,
-              editorSession.text,
-              font,
-              editorSession.brush.color,
-              editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
-            );
-        createdLayerId = next === document ? null : next.activeLayerId;
-        return next;
-      },
-      true,
-      { label: 'New Type Layer', type: 'text.create' }
-    );
-    if (!changed) return false;
-    if (beginEditing && createdLayerId) {
-      textEditingController.begin(createdLayerId);
-      textEditingController.selectAll();
-    }
-    return true;
+      }
+    });
+    return Boolean(execution);
   };
 
   const cancelPointTextCreation = () => {
@@ -5313,44 +5281,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const request = paragraphTextController.commit();
     if (!request || !before || !font || request.documentId !== before.id) return false;
     paragraphCanvasCreationPendingRef.current = false;
-    if (commandService) {
-      const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(
-        paragraphTextCreateCommand(request, editorSession.text, font, editorSession.brush.color,
-          editorSession.activeTool === 'text-vertical')));
-      void execution?.then((result) => {
-        if (beginEditing && result.status === 'completed') {
-          const layerId = (result.value as { layerId?: LayerId }).layerId;
-          if (layerId) {
-            textEditingController.begin(layerId); textEditingController.selectAll();
-          }
+    const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(
+      paragraphTextCreateCommand(request, editorSession.text, font, editorSession.brush.color,
+        editorSession.activeTool === 'text-vertical')));
+    void execution?.then((result) => {
+      if (beginEditing && result.status === 'completed') {
+        const layerId = (result.value as { layerId?: LayerId }).layerId;
+        if (layerId) {
+          textEditingController.begin(layerId); textEditingController.selectAll();
         }
-      });
-      return Boolean(execution);
-    }
-    let createdLayerId: LayerId | null = null;
-    const changed = documentMutationController.change(
-      (document) => {
-        if (document.id !== request.documentId) return document;
-        const next = createParagraphTextDocument(
-          document,
-          request,
-          editorSession.text,
-          font,
-          editorSession.brush.color,
-          editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
-        );
-        createdLayerId = next === document ? null : next.activeLayerId;
-        return next;
-      },
-      true,
-      { label: 'New Type Layer', type: 'text.create' }
-    );
-    if (!changed) return false;
-    if (beginEditing && createdLayerId) {
-      textEditingController.begin(createdLayerId);
-      textEditingController.selectAll();
-    }
-    return true;
+      }
+    });
+    return Boolean(execution);
   };
 
   const finishParagraphTextCreation = (
@@ -6303,9 +6245,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }),
       executeTextCommand: async (command) => {
         const result = await executeSemanticTextCommand(command, {
-          fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
+          fontRegistry: textFontRegistry,
+          getDocument: () => imageDocumentRef.current,
           getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
-          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory
+          changeDocument: documentMutationController.change
         });
         if (!result) return null;
         if (!await waitForExactCommandRender(engineRef.current)) {
@@ -8279,8 +8222,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     const transaction = documentMutationController.begin('text-properties');
     if (!transaction) return false;
+    const projection = new DocumentTextPropertyGestureController(transaction, {
+      request: (callback) => window.requestAnimationFrame(callback),
+      cancel: (frame) => window.cancelAnimationFrame(frame),
+      reportError: (message) => setError(message)
+    });
     textPropertyGestureRef.current = {
-      kind: 'document', documentId: document.id, layerId, transaction,
+      kind: 'document', documentId: document.id, layerId, projection,
       style: {}, paragraph: {}, recordable: true
     };
     return true;
@@ -8305,7 +8253,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     if (imageDocumentRef.current?.id !== gesture.documentId) return;
     const layerId = gesture.layerId;
-    gesture.transaction.change((document) => {
+    gesture.projection.stage((document) => {
       const layer = findDocumentLayer(document, layerId);
       if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
       return applyTextLayerDataMutation(document, layerId, {
@@ -8343,7 +8291,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!gesture) return;
     const changed = gesture.kind === 'text'
       ? textEditingController.endFormatting()
-      : gesture.transaction.commit();
+      : gesture.projection.commit();
     textPropertyGestureRef.current = null;
     if (!changed || !gesture.recordable) return;
     const style = semanticStylePatchFromCanonical(gesture.style);
@@ -8369,7 +8317,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (gesture.kind === 'text') {
       textEditingController.cancelFormatting();
     } else {
-      gesture.transaction.cancel();
+      gesture.projection.cancel();
     }
     textPropertyGestureRef.current = null;
   };
@@ -8464,39 +8412,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (layer?.type !== 'text' || layer.text.source.kind !== 'flow'
       || layer.text.source.layout.mode === 'path') return;
     textEditingController.finish();
-    if (commandService) {
-      const execution = executeRegisteredCommand('text.setLayout', { layerId, writingMode });
-      void execution?.then((result) => {
-        if (result.status === 'completed') {
-          activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
-        }
-      });
-      return;
-    }
-    const changed = documentMutationController.change(
-      (document) => {
-        const current = findDocumentLayer(document, layerId);
-        return current?.type === 'text' && current.text.source.kind === 'flow'
-          && current.text.source.layout.mode !== 'path'
-          ? setFlowTextLayout(document, layerId, {
-              ...current.text.source.layout,
-              writingMode
-            })
-          : document;
-      },
-      true,
-      { label: 'Change Text Direction', type: 'text.set-layout', layerIds: [layerId] }
-    );
-    if (!changed) return;
-    activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
+    const execution = executeRegisteredCommand('text.setLayout', { layerId, writingMode });
+    void execution?.then((result) => {
+      if (result.status === 'completed') {
+        activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
+      }
+    });
   };
   useEffect(() => () => {
+    const gesture = textPropertyGestureRef.current;
+    textPropertyGestureRef.current = null;
+    if (gesture?.kind === 'document') gesture.projection.cancel();
+    else if (gesture?.kind === 'text') textEditingController.cancelFormatting();
     pendingTextPaintPatchRef.current = null;
     if (textPaintPreviewFrameRef.current !== null) {
       window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
       textPaintPreviewFrameRef.current = null;
     }
-  }, []);
+  }, [textEditingController]);
   const textPropertiesPanel = textPropertyPresentation ? {
     model: textPropertyPresentation,
     fonts: availableFontAssets,
@@ -9140,20 +9073,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   disabledReason: 'Open GenAI with a model that accepts image references.',
                   onClick: () => {
                     setPendingTabReference({ id: workspaceDocument.id, origin: workspaceDocumentId });
-                    if (workspaceDocument.id !== workspaceDocumentId) onActivateWorkspaceDocument?.(workspaceDocument.id);
+                    if (workspaceDocument.id !== workspaceDocumentId) activateWorkspaceDocument(workspaceDocument.id);
                   } }
               ],
               onClose: () => {
-                if (onCloseWorkspaceDocument) {
-                  onCloseWorkspaceDocument(workspaceDocument.id);
-                } else if (workspaceDocument.id === workspaceDocumentId) {
-                  onClose();
-                }
+                closeWorkspaceDocument(workspaceDocument.id);
               },
               content: workspaceDocument.id === workspaceDocumentId ? documentSurface : null
             }))}
             activeDocumentId={workspaceDocumentId}
-            onActiveDocumentChange={onActivateWorkspaceDocument}
+            onActiveDocumentChange={activateWorkspaceDocument}
             accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}

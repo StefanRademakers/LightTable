@@ -21,8 +21,14 @@ const setup = (value = 'A👋B') => {
     getTextSettings: () => ({ family: 'Inter', style: 'Regular', size: 50,
       antiAlias: 'smooth', alignment: 'start', fillEnabled: true }),
     getForegroundColor: () => '#000000',
-    applyDocument: (next) => { document = next; },
-    recordHistory: history
+    changeDocument: (change) => {
+      const before = document;
+      const after = change(before);
+      if (after === before) return false;
+      document = after;
+      history(before, after);
+      return true;
+    }
   };
   return { layerId, dependencies, history, document: () => document };
 };
@@ -93,6 +99,22 @@ describe('semantic text command executor', () => {
     expect(state.history).not.toHaveBeenCalled();
   });
 
+  it('does not publish into a replacement document after command admission', async () => {
+    const state = setup('opening');
+    const replacement = createImageDocument('Replacement', 64, 48, 'replacement');
+    const dependencies = { ...state.dependencies,
+      changeDocument: (change: Parameters<SemanticTextCommandDependencies['changeDocument']>[0]) => {
+        const next = change(replacement);
+        expect(next).toBe(replacement);
+        return false;
+      } };
+
+    await expect(executeSemanticTextCommand({
+      kind: 'replace', layerId: state.layerId, start: 0, end: 7, text: 'late'
+    }, dependencies)).resolves.toBeNull();
+    expect(state.history).not.toHaveBeenCalled();
+  });
+
   it('creates editable text bound to one explicit native contour', async () => {
     const font = BUNDLED_TEXT_FONT_CATALOG[0]!;
     const path = createVectorPath('title-path', 'Title path', [
@@ -113,8 +135,14 @@ describe('semantic text command executor', () => {
       getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,
         size: 48, antiAlias: 'smooth', alignment: 'start', fillEnabled: true }),
       getForegroundColor: () => '#224466',
-      applyDocument: (next) => { document = next; },
-      recordHistory: history
+      changeDocument: (change) => {
+        const before = document;
+        const after = change(before);
+        if (after === before) return false;
+        document = after;
+        history(before, after);
+        return true;
+      }
     };
     const result = await executeSemanticTextCommand({
       kind: 'create', mode: 'path', text: 'Along the curve', origin: { x: 0, y: 0 },
@@ -160,8 +188,14 @@ describe('semantic text command executor', () => {
       getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,
         size: 48, antiAlias: 'smooth', alignment: 'start', fillEnabled: true }),
       getForegroundColor: () => '#224466',
-      applyDocument: (next) => { document = next; },
-      recordHistory: history
+      changeDocument: (change) => {
+        const before = document;
+        const after = change(before);
+        if (after === before) return false;
+        document = after;
+        history(before, after);
+        return true;
+      }
     });
     expect(result).toBeNull();
     expect(document).toBe(original);

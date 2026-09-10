@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { createTextLayer, setLayerLock } from '../../editor/document/documentCommands';
 import { createImageDocument, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { createDocumentMutationController,
+  type DocumentMutationHistoryEntry } from '../documents/useDocumentMutationController';
 import {
   createTextEditTransactionController,
   describeTextReplacement,
   TEXT_EDIT_COALESCING_RULES,
-  type TextEditHistoryEntry
+  type TextEditCommitObservation
 } from './textEditTransactionController';
 
 const setup = () => {
@@ -16,17 +18,42 @@ const setup = () => {
     createDefaultTextLayerData(),
     'Text'
   );
-  const history: TextEditHistoryEntry[] = [];
+  let preview = document;
+  const history: DocumentMutationHistoryEntry[] = [];
+  const observations: TextEditCommitObservation[] = [];
+  const frames = new Map<number, () => void>();
+  let frameSequence = 0;
+  const documentMutations = createDocumentMutationController(() => ({
+    getDocument: () => document,
+    applySnapshot: (next) => { document = next; preview = next; },
+    previewSnapshot: (next) => { preview = next; },
+    discardPreview: () => { preview = document; },
+    pushHistoryEntry: (entry) => history.push(entry)
+  }));
   const dependencies = {
     getDocument: () => document,
-    applyDocument: (next: ImageDocument) => { document = next; },
-    pushHistory: (entry: TextEditHistoryEntry) => history.push(entry)
+    documentMutations,
+    onCommitted: (entry: TextEditCommitObservation) => observations.push(entry),
+    reportError: () => undefined,
+    requestPreviewFrame: (callback: () => void) => {
+      const frame = ++frameSequence;
+      frames.set(frame, callback);
+      return frame;
+    },
+    cancelPreviewFrame: (frame: number) => { frames.delete(frame); }
   };
   return {
     controller: createTextEditTransactionController(() => dependencies),
     history,
+    observations,
+    flushPreview: () => {
+      const pending = [...frames.values()];
+      frames.clear();
+      pending.forEach((callback) => callback());
+    },
+    get preview() { return preview; },
     get document() { return document; },
-    set document(next: ImageDocument) { document = next; }
+    set document(next: ImageDocument) { document = next; preview = next; }
   };
 };
 
@@ -38,13 +65,16 @@ const typeText = (value: string) => (text: ReturnType<typeof createDefaultTextLa
 describe('text edit transaction controller', () => {
   it('coalesces one explicit typing group into one undoable snapshot', () => {
     const state = setup();
+    const opening = state.document;
     const id = state.document.activeLayerId!;
 
     expect(state.controller.begin(id, 'typing')).toBe(true);
     expect(state.controller.apply(typeText('T'))).toBe(true);
     expect(state.controller.apply(typeText('Ty'))).toBe(true);
     expect(state.controller.apply(typeText('Type'))).toBe(true);
-    const authored = findDocumentLayer(state.document, id);
+    expect(state.document).toBe(opening);
+    state.flushPreview();
+    const authored = findDocumentLayer(state.preview, id);
     expect(authored?.type === 'text' ? authored.text.revisions : null).toEqual({
       content: 3,
       font: 0,
@@ -56,9 +86,8 @@ describe('text edit transaction controller', () => {
     expect(state.history).toHaveLength(0);
     expect(state.controller.commit()).toBe(true);
     expect(state.history).toHaveLength(1);
-    expect(state.history[0].group).toBe('typing');
-    expect(state.history[0].resourceIds).toEqual([]);
-    expect(state.history[0].semanticReplacement).toEqual({
+    expect(state.observations[0].group).toBe('typing');
+    expect(state.observations[0].semanticReplacement).toEqual({
       layerId: id, start: 1, end: 4, text: 'ype'
     });
 
@@ -188,6 +217,6 @@ describe('text edit transaction controller', () => {
     state.controller.apply(typeText('First編'));
     state.controller.commit();
 
-    expect(state.history.map(({ group }) => group)).toEqual(['typing', 'composition']);
+    expect(state.observations.map(({ group }) => group)).toEqual(['typing', 'composition']);
   });
 });

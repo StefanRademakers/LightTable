@@ -124,7 +124,8 @@ export const createDocumentSessionCommandPorts = (
       { kind: 'toggle', layerId, effectId, enabled }, { changeDocument: mutation.change }
     ),
     executeTextCommand: (command) => executeSemanticTextCommand(command, {
-      ...semanticDependencies,
+      changeDocument: mutation.change,
+      getDocument: semanticDependencies.getDocument,
       fontRegistry: session.fonts,
       getTextSettings: () => applicationSession.getSnapshot().text,
       getForegroundColor: () => applicationSession.getSnapshot().brush.color

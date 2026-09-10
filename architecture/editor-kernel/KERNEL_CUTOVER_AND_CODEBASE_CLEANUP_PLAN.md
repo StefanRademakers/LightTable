@@ -115,7 +115,7 @@ but cannot inherit another item's acceptance.
 | C04 | Raster paint, fill/gradient and clipboard pixel consumers | accepted | [x] | [x] | [x] | [x] |
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | accepted | [x] | [x] | [x] | [x] |
 | C06 | Vector paths, Pen, live shapes and vector gradients | accepted | [x] | [x] | [x] | [x] |
-| C07 | Text, Path Text, layout/editing and semantic text transform | queued | [ ] | [ ] | [ ] | [ ] |
+| C07 | Text, Path Text, layout/editing and semantic text transform | accepted | [x] | [x] | [x] | [x] |
 | C08 | Raster Warp, Face Warp and imported Text Warp projection | queued | [ ] | [ ] | [ ] | [ ] |
 | C09 | Adjustment layers and attached adjustments | queued | [ ] | [ ] | [ ] | [ ] |
 | C10 | Layer styles/effects and filter lifecycle | queued | [ ] | [ ] | [ ] | [ ] |
@@ -372,6 +372,41 @@ but cannot inherit another item's acceptance.
    same element transaction. Owner feel acceptance remains separate from the
    automated gate.
 7. **Next** -- C07 text, Path Text, layout/editing and semantic text transform.
+
+## C07 acceptance record -- 2026-09-10
+
+1. **Done** -- Type, Path Text, typing/IME, formatting, missing-font recovery,
+   paragraph/path handles and semantic text transforms now share document
+   mutation admission. Pointer/key-rate changes are staged and projected at
+   most once per animation frame; one explicit group publishes canonical state
+   and history once. Async font/layout work is bound to the exact opening
+   document and current renderer realization.
+2. **Deleted** -- semantic text's private document/history publisher, direct
+   overlay point/paragraph/path creation, the typing live-document publisher,
+   missing-font direct publication and stale `textEditingLayout()` gesture
+   acquisition. Missing services or exact layouts fail closed; no older text
+   mutation route is selected. Boundary verification rejects their return.
+3. **Ownership** -- `textEditTransactionController` owns edit-group lifetime;
+   `DocumentTextPropertyGestureController` owns frame-coalesced property
+   projection; the document transaction owns commit/history; the renderer owns
+   only shaped layout and caret presentation. Workspace activation and active
+   close cross one text terminal boundary before the host changes documents.
+4. **Proof** -- 54 focused text/layout/command/transform files and 346 tests;
+   app typecheck; boundary verification; instrumented desktop package; packaged
+   Type Tool smoke including text transform/transform-again and Path Text Action
+   smoke. Latest measured Type sample was 21.2 ms input-to-submit and 30.2 ms
+   input-to-GPU with no page errors.
+5. **Critic** -- review rejected exact-document font admission, stale layout
+   acquisition, uncoalesced property projection, repeated preview replacement,
+   tab-switch cleanup and text terminal handling. Repairs added exact identity
+   leases, current-layout gates, RAF projection, document-bound caret/input and
+   pre-activation/close terminal admission. Final verdict: **ACCEPT**, no C07
+   P0/P1.
+6. **Allowed/non-blocking** -- bundled-font substitution and retained imported
+   appearance remain explicit product degradations only. They cannot publish
+   document/history outside the shared transaction. Created-layer history
+   metadata can be enriched later without changing command ownership.
+7. **Next** -- C08 Raster Warp, Face Warp and imported Text Warp projection.
 
 ## Slice-specific acceptance
 

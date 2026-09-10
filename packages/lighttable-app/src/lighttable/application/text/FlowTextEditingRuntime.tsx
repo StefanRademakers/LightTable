@@ -48,7 +48,8 @@ const editingOverlayFor = (
   document: ImageDocument | null,
   currentText: string
 ) => {
-  if (editing.status !== 'editing' || !editing.layerId || !presentation) return null;
+  if (editing.status !== 'editing' || !editing.layerId || !presentation
+    || editing.documentId !== document?.id) return null;
   const layer = document ? findDocumentLayer(document, editing.layerId) : null;
   const frame = layer?.type === 'text'
     && layer.text.source.kind === 'flow'
@@ -191,7 +192,8 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
     return () => { window.clearInterval(blink); };
   }, [active, overlay, renderer]);
 
-  if (editing.status !== 'editing' || !editing.layerId) return null;
+  if (editing.status !== 'editing' || !editing.layerId
+    || editing.documentId !== document?.id) return null;
   const layerId = editing.layerId;
   const runMeasured = (mutation: () => boolean) => {
     const startedAt = performance.now();

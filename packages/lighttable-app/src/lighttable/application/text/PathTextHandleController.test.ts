@@ -27,6 +27,8 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
     glyphRuns: [], linearOrigin: 0, contentAdvance: 20,
     range: { start: 10, end: 90, origin: 10, available: 80, overflow: 0, direction }
   };
+  let realizationCurrent = true;
+  let realizationAvailable = true;
   let preview = document;
   const previewDocumentSnapshot = vi.fn((next) => { preview = next; });
   const discardDocumentPreview = vi.fn(() => { preview = document; });
@@ -42,7 +44,8 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
   const controller = new PathTextHandleController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
-    getRealization: () => ({ table, projection, localToDocument: identity }),
+    getRealization: () => realizationAvailable ? ({ table, projection, localToDocument: identity,
+      isCurrent: () => realizationCurrent }) : null,
     documentMutations
   }));
   const layout = () => {
@@ -59,6 +62,8 @@ const harness = (direction: 'forward' | 'reverse' = 'forward') => {
     recordHistory: pushHistoryEntry,
     getDocument: () => document,
     getPreview: () => preview,
+    invalidateRealization: () => { realizationCurrent = false; },
+    removeCurrentRealization: () => { realizationAvailable = false; },
     layout
   };
 };
@@ -102,5 +107,24 @@ describe('PathTextHandleController', () => {
     expect(state.getPreview()).toBe(before);
     expect(state.discardDocumentPreview).toHaveBeenCalledOnce();
     expect(state.recordHistory).not.toHaveBeenCalled();
+  });
+
+  it('rejects the final frame when its renderer realization was replaced', () => {
+    const state = harness();
+    const before = state.getDocument();
+    expect(state.controller.begin(8, { x: 10, y: 0 }, 5)).toBe(true);
+    expect(state.controller.move(8, { x: 30, y: 0 })).toBe(true);
+    state.invalidateRealization();
+
+    expect(state.controller.finish(8, { x: 50, y: 0 })).toBe(false);
+    expect(state.getDocument()).toBe(before);
+    expect(state.recordHistory).not.toHaveBeenCalled();
+  });
+
+  it('refuses to begin while an exact current editing layout is unavailable', () => {
+    const state = harness();
+    state.removeCurrentRealization();
+    expect(state.controller.begin(8, { x: 10, y: 0 }, 5)).toBe(false);
+    expect(state.controller.owns(8)).toBe(false);
   });
 });

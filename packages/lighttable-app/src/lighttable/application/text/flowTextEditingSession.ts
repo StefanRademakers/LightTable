@@ -7,10 +7,11 @@ import {
 } from '@lighttable/text-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 import {
   createTextEditTransactionController,
-  type TextEditGroupKind,
-  type TextEditHistoryEntry
+  type TextEditCommitObservation,
+  type TextEditGroupKind
 } from './textEditTransactionController';
 import {
   deleteFlowTextSelection,
@@ -43,8 +44,11 @@ export interface FlowTextEditingSnapshot {
 
 export interface FlowTextEditingDependencies {
   getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  pushHistory(entry: TextEditHistoryEntry): void;
+  documentMutations: Pick<DocumentMutationController, 'begin'>;
+  onCommitted(entry: TextEditCommitObservation): void;
+  reportError(message: string): void;
+  requestPreviewFrame(callback: () => void): number;
+  cancelPreviewFrame(frame: number): void;
 }
 
 const IDLE_SNAPSHOT: FlowTextEditingSnapshot = Object.freeze({
@@ -102,7 +106,7 @@ export class FlowTextEditingSessionController {
 
   begin(layerId: LayerId, offset?: number, caretAffinity: 'upstream' | 'downstream' = 'downstream') {
     this.finish();
-    const document = this.dependencies().getDocument();
+    const document = this.transaction.currentDocument();
     const source = flowSourceFor(document, layerId);
     if (!document || !source) return false;
     const focus = snapTextOffset(source.text, offset ?? source.text.length);
@@ -437,14 +441,15 @@ export class FlowTextEditingSessionController {
 
   finish() {
     if (this.snapshot.status === 'idle') return false;
-    this.commitOpenGroup();
+    const hadOpenGroup = this.openGroup !== null;
+    const groupCommitted = this.commitOpenGroup();
     this.compositionText = '';
     this.deleteSignature = '';
     this.insertionStyle = undefined;
     this.insertionParagraph = undefined;
     this.formattingInsertionBefore = null;
     this.publish(IDLE_SNAPSHOT);
-    return true;
+    return !hadOpenGroup || groupCommitted;
   }
 
   cancelComposition() {
@@ -469,7 +474,7 @@ export class FlowTextEditingSessionController {
   }
 
   private currentSource(resetIfMissing = true): FlowTextSource | null {
-    const document = this.dependencies().getDocument();
+    const document = this.transaction.currentDocument();
     const source = document?.id === this.snapshot.documentId
       ? flowSourceFor(document, this.snapshot.layerId)
       : null;

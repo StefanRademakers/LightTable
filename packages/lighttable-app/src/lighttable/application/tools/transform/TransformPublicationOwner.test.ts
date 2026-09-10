@@ -27,6 +27,7 @@ const transaction = (before: ReturnType<typeof createImageDocument>) => {
       current = mutate(current);
       return true;
     }),
+    project: vi.fn(() => true),
     change: vi.fn(() => false),
     commit: vi.fn(() => { active = false; return true; }),
     commitWith: vi.fn((commit) => { active = false; return commit(before, current); }),

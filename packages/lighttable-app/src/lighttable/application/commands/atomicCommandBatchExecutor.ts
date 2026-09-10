@@ -66,8 +66,15 @@ export const executeAtomicCommandBatch = async (
   const before = transaction.before;
   let current = before;
   const results = new Map<string, unknown>();
-  const local = { getDocument: () => current, applyDocument: (document: ImageDocument) => { current = document; },
-    recordHistory: () => undefined };
+  const localText = {
+    getDocument: () => current,
+    changeDocument: (change: (document: ImageDocument) => ImageDocument) => {
+      const next = change(current);
+      if (next === current) return false;
+      current = next;
+      return true;
+    }
+  };
   const localVector = {
     changeDocument: (change: (document: ImageDocument) => ImageDocument) => {
       const next = change(current);
@@ -92,7 +99,7 @@ export const executeAtomicCommandBatch = async (
       if (!kind) throw new Error(`${operation.operationId}: the text command is not atomic-batch compatible.`);
       const parsed = parseSemanticTextCommand(kind, parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
-      result = await executeSemanticTextCommand(parsed, { ...local, fontRegistry: dependencies.fontRegistry,
+      result = await executeSemanticTextCommand(parsed, { ...localText, fontRegistry: dependencies.fontRegistry,
         getTextSettings: dependencies.getTextSettings, getForegroundColor: dependencies.getForegroundColor });
     } else if (operation.command.startsWith('vector.')) {
       const parsed = parseSemanticVectorCommand(semanticKind(operation) as 'create' | 'update' | 'remove', parameters);

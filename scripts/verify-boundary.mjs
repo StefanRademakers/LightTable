@@ -508,6 +508,64 @@ function verifyVectorCutover(relativePath, source) {
   }
 }
 
+function verifyTextCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/text/semanticTextCommandExecutor.ts')) {
+    if (!source.includes('changeDocument(')
+      || /\b(?:applyDocument|recordHistory)\s*\(/.test(source)) {
+      failures.push(`${relativePath}: semantic text commands must use the shared document mutation route`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/textEditTransactionController.ts')) {
+    if (!source.includes('DocumentMutationTransaction')
+      || !source.includes('.stage(')
+      || !source.includes('.project()')
+      || /\b(?:applyDocument|pushHistory)\s*\(/.test(source)) {
+      failures.push(`${relativePath}: text input groups must stage/project/commit through one document transaction`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/useMissingFontReplacementActions.ts')) {
+    if (!source.includes('documentMutations.begin(')
+      || !source.includes('documentMutations.change(')
+      || !source.includes('dependencies.getDocument() !== openingDocument')
+      || /\b(?:applyDocument|recordHistory)\s*\(/.test(source)
+      || source.includes('documentRef:')) {
+      failures.push(`${relativePath}: missing-font preview and replacement must share one document transaction owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/PathTextHandleController.ts')
+    || normalizedPath.endsWith('/application/text/ParagraphFrameResizeController.ts')) {
+    if (!source.includes('isCurrent()')) {
+      failures.push(`${relativePath}: renderer-derived text geometry must remain bound through terminal commit`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    if (/\bcreate(?:Point|Paragraph|Path)TextDocument\s*\(/.test(source)) {
+      failures.push(`${relativePath}: Type-tool creation must not retain a direct document mutation fallback`);
+    }
+    if (!source.includes('renderer?.currentTextEditingLayout(layerId)?.localToDocument')
+      || !source.includes('const editingLayout = renderer?.currentTextEditingLayout(layerId)')) {
+      failures.push(`${relativePath}: text geometry gestures must begin from exact current renderer layouts`);
+    }
+    if (!source.includes('new DocumentTextPropertyGestureController(transaction')) {
+      failures.push(`${relativePath}: document text-property gestures must use frame-coalesced transaction projection`);
+    }
+    if (!source.includes('runAfterTextEditingTerminal(textEditingController')
+      || !source.includes('onActiveDocumentChange={activateWorkspaceDocument}')
+      || !source.includes('closeActiveDocument: () => closeWorkspaceDocument(workspaceDocumentId)')
+      || !source.includes('closeWorkspaceDocument(workspaceDocument.id)')
+      || source.includes('onActivateWorkspaceDocument(nextDocument.id)')
+      || source.includes('onActivateWorkspaceDocument?.(workspaceDocument.id)')) {
+      failures.push(`${relativePath}: workspace activation must cross the text-edit terminal boundary`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/FlowTextEditingRuntime.tsx')) {
+    if (!source.includes("editing.documentId !== document?.id")) {
+      failures.push(`${relativePath}: text input and caret overlays must be bound to the active document identity`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -526,6 +584,7 @@ async function scan(relativeDirectory) {
       verifyLayerMaskCutover(relativePath, source);
       verifyTransformCutover(relativePath, source);
       verifyVectorCutover(relativePath, source);
+      verifyTextCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

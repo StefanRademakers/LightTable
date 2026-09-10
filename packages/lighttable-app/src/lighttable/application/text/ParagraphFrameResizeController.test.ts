@@ -21,6 +21,8 @@ const harness = () => {
   const discardDocumentPreview = vi.fn(() => { preview = document; });
   const applyDocumentSnapshot = vi.fn((next) => { document = next; preview = next; });
   const pushHistoryEntry = vi.fn();
+  let realizationCurrent = true;
+  let realizationAvailable = true;
   const documentMutations = createDocumentMutationController(() => ({
     getDocument: () => document,
     previewSnapshot: previewDocumentSnapshot,
@@ -31,7 +33,8 @@ const harness = () => {
   const controller = new ParagraphFrameResizeController(() => ({
     getDocument: () => document,
     getEditingLayerId: () => layer.id,
-    getLocalToDocument: () => identity,
+    captureRealization: () => realizationAvailable ? ({ localToDocument: identity,
+      isCurrent: () => realizationCurrent }) : null,
     documentMutations
   }));
   return {
@@ -39,6 +42,8 @@ const harness = () => {
     layer,
     getDocument: () => document,
     getPreview: () => preview,
+    invalidateRealization: () => { realizationCurrent = false; },
+    removeCurrentRealization: () => { realizationAvailable = false; },
     previewDocumentSnapshot,
     discardDocumentPreview,
     applyDocumentSnapshot,
@@ -81,5 +86,24 @@ describe('ParagraphFrameResizeController', () => {
     const state = harness();
     expect(state.controller.begin(1, { x: 60, y: 50 }, 6)).toBe(false);
     expect(state.controller.owns(1)).toBe(false);
+  });
+
+  it('refuses to begin while an exact current editing layout is unavailable', () => {
+    const state = harness();
+    state.removeCurrentRealization();
+    expect(state.controller.begin(1, { x: 110, y: 80 }, 6)).toBe(false);
+    expect(state.controller.owns(1)).toBe(false);
+  });
+
+  it('cancels instead of committing the last preview after renderer replacement', () => {
+    const state = harness();
+    const before = state.getDocument();
+    expect(state.controller.begin(9, { x: 110, y: 80 }, 6)).toBe(true);
+    expect(state.controller.move(9, { x: 140, y: 100 })).toBe(true);
+    state.invalidateRealization();
+
+    expect(state.controller.finish(9, { x: 160, y: 120 })).toBe(false);
+    expect(state.getDocument()).toBe(before);
+    expect(state.recordHistory).not.toHaveBeenCalled();
   });
 });

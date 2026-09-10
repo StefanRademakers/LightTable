@@ -33,6 +33,8 @@ export interface DocumentMutationTransaction {
   get active(): boolean;
   /** Updates the owned document state without asking the document renderer to project it. */
   stage(mutate: (current: ImageDocument) => ImageDocument): boolean;
+  /** Projects the latest staged state without changing canonical document ownership. */
+  project(): boolean;
   change(mutate: (current: ImageDocument) => ImageDocument): boolean;
   commit(description?: DocumentMutationDescription): boolean;
   /** Completes a compound GPU/document operation without creating generic history. */
@@ -486,6 +488,21 @@ export const createDocumentMutationController = (
     return true;
   };
 
+  const projectTransaction = (active: ActiveDocumentTransaction): boolean => {
+    if (transaction?.token !== active.token || active.phase === 'committing') return false;
+    if (mutationIsBlocked() || !canonicalOriginIsCurrent(active)) {
+      cancelTransaction(active.token);
+      return false;
+    }
+    try {
+      resolveDependencies().previewSnapshot(active.latest);
+      return true;
+    } catch (error) {
+      cancelTransaction(active.token);
+      throw error;
+    }
+  };
+
   return {
     get active() {
       return transaction !== null;
@@ -540,6 +557,7 @@ export const createDocumentMutationController = (
           return transaction?.token === active.token;
         },
         stage: (mutate) => updateTransaction(active, mutate, false),
+        project: () => projectTransaction(active),
         change: (mutate) => updateTransaction(active, mutate, true),
         commit: (description) => commitTransaction(active.token, description),
         commitWith: (commit) => commitTransactionWith(active.token, commit),

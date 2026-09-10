@@ -476,6 +476,7 @@ describe('useLayerDocumentCommands', () => {
         current: masked,
         active: true,
         stage: vi.fn(() => true),
+        project: vi.fn(() => true),
         change: vi.fn(() => false),
         commit: vi.fn(() => false),
         commitWith: vi.fn(() => false),

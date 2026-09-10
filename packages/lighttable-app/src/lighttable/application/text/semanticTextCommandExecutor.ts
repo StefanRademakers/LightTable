@@ -20,8 +20,11 @@ export interface SemanticTextCommandDependencies {
   getDocument(): ImageDocument | null;
   getTextSettings(): TextToolSettings;
   getForegroundColor(): string;
-  applyDocument(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  changeDocument(
+    change: (document: ImageDocument) => ImageDocument,
+    recordHistory?: boolean,
+    description?: { readonly label: string; readonly type: string; readonly layerIds?: readonly LayerId[] }
+  ): boolean;
 }
 
 const creationStyle = (settings: TextToolSettings, font: DocumentFontAsset, color: string) => ({
@@ -186,103 +189,109 @@ const attachFont = (document: ImageDocument, font: DocumentFontAsset | null) => 
     ...document, assets: { ...document.assets, fonts: [...document.assets.fonts, structuredClone(font)] }
   };
 
-const applyFormat = async (
-  document: ImageDocument,
-  command: Extract<SemanticTextCommand, { kind: 'format' }>,
-  dependencies: SemanticTextCommandDependencies
-): Promise<{ document: ImageDocument; font: DocumentFontAsset | null }> => {
-  const layer = findDocumentLayer(document, command.layerId as LayerId);
-  if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return { document, font: null };
-  const resolved = await patches(dependencies.fontRegistry, command.style, dependencies.getTextSettings());
-  const selection = command.start === undefined ? null : { anchor: command.start, focus: command.end! };
-  const changed = applyTextLayerDataMutation(document, layer.id, { ...layer.text,
-    source: formatFlowTextSource(layer.text.source, selection, resolved.style, paragraphPatch(command)) });
-  return { document: attachFont(changed, resolved.font), font: resolved.font };
-};
-
 export const executeSemanticTextCommand = async (
   command: SemanticTextCommand,
   dependencies: SemanticTextCommandDependencies
 ): Promise<{ readonly layerId: LayerId; readonly fontStatus?: unknown } | null> => {
-  const before = dependencies.getDocument();
-  if (!before) return null;
-  let after = before;
+  const openingDocument = dependencies.getDocument();
+  if (!openingDocument) return null;
   let fontStatus: unknown;
+  let resultLayerId: LayerId | null = command.kind === 'create'
+    ? null
+    : command.layerId as LayerId;
+  let change: (document: ImageDocument) => ImageDocument;
   if (command.kind === 'create') {
     const settings = dependencies.getTextSettings();
+    const foreground = command.style?.fill?.color ?? dependencies.getForegroundColor();
     const font = await resolveFont(dependencies.fontRegistry, command.style?.font, settings);
     const authoredSettings: TextToolSettings = { ...settings,
       family: font.familyNames[0] ?? font.postScriptName ?? settings.family,
       style: font.styleName, size: command.style?.fontSize ?? settings.size,
       alignment: command.paragraph?.alignment ?? settings.alignment,
       fillEnabled: command.style?.fill?.enabled ?? settings.fillEnabled };
-    after = command.mode === 'point'
-      ? createPointTextDocument(before, { documentId: before.id, origin: command.origin, text: command.text },
-          authoredSettings, font, command.style?.fill?.color ?? dependencies.getForegroundColor(), command.writingMode)
-      : command.mode === 'paragraph'
-        ? createParagraphTextDocument(before, { documentId: before.id, pointerId: null,
-          aboveLayerId: before.activeLayerId, start: command.origin,
-          end: { x: command.origin.x + command.frame!.width, y: command.origin.y + command.frame!.height },
-          text: command.text }, authoredSettings, font,
-          command.style?.fill?.color ?? dependencies.getForegroundColor(), command.writingMode)
-        : createPathTextDocument(before, {
-          documentId: before.id, origin: command.origin, text: command.text
-        }, {
-          pathLayerId: command.path!.layerId as LayerId,
-          pathElementId: command.path!.elementId,
-          pathSubpathId: command.path!.subpathId
-        }, authoredSettings, font,
-        command.style?.fill?.color ?? dependencies.getForegroundColor(), {
-          startOffset: command.path!.startOffset,
-          side: command.path!.side,
-          upright: command.path!.upright,
-          direction: command.path!.direction
-        });
-    if (after === before) return null;
-    const createdId = after.activeLayerId;
-    if (!createdId) return null;
-    if (command.name) after = renameLayer(after, createdId, command.name);
-    const created = findDocumentLayer(after, createdId);
-    if (created?.type === 'text' && created.text.source.kind === 'flow') {
-      const resolved = await patches(dependencies.fontRegistry, command.style, authoredSettings);
-      after = applyTextLayerDataMutation(after, createdId, { ...created.text,
-        source: formatFlowTextSource(created.text.source, null, resolved.style, paragraphPatch(command)) });
-    }
+    const resolved = await patches(dependencies.fontRegistry, command.style, authoredSettings);
+    change = (before) => {
+      let after = command.mode === 'point'
+        ? createPointTextDocument(before, { documentId: before.id, origin: command.origin, text: command.text },
+            authoredSettings, font, foreground, command.writingMode)
+        : command.mode === 'paragraph'
+          ? createParagraphTextDocument(before, { documentId: before.id, pointerId: null,
+            aboveLayerId: before.activeLayerId, start: command.origin,
+            end: { x: command.origin.x + command.frame!.width, y: command.origin.y + command.frame!.height },
+            text: command.text }, authoredSettings, font, foreground, command.writingMode)
+          : createPathTextDocument(before, {
+            documentId: before.id, origin: command.origin, text: command.text
+          }, {
+            pathLayerId: command.path!.layerId as LayerId,
+            pathElementId: command.path!.elementId,
+            pathSubpathId: command.path!.subpathId
+          }, authoredSettings, font, foreground, {
+            startOffset: command.path!.startOffset,
+            side: command.path!.side,
+            upright: command.path!.upright,
+            direction: command.path!.direction
+          });
+      if (after === before || !after.activeLayerId) return before;
+      resultLayerId = after.activeLayerId;
+      if (command.name) after = renameLayer(after, resultLayerId, command.name);
+      const created = findDocumentLayer(after, resultLayerId);
+      if (created?.type === 'text' && created.text.source.kind === 'flow') {
+        after = applyTextLayerDataMutation(after, resultLayerId, { ...created.text,
+          source: formatFlowTextSource(created.text.source, null, resolved.style, paragraphPatch(command)) });
+      }
+      return after;
+    };
     fontStatus = { kind: 'exact', assetId: font.assetId, family: font.familyNames[0], style: font.styleName };
   } else if (command.kind === 'replace') {
-    const layer = findDocumentLayer(before, command.layerId as LayerId);
-    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return null;
-    const edit = replaceFlowTextSelection(layer.text.source,
-      { anchor: command.start, focus: command.end }, command.text);
-    after = applyTextLayerDataMutation(before, layer.id, { ...layer.text, source: edit.source });
+    change = (before) => {
+      const layer = findDocumentLayer(before, command.layerId as LayerId);
+      if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return before;
+      const edit = replaceFlowTextSelection(layer.text.source,
+        { anchor: command.start, focus: command.end }, command.text);
+      return applyTextLayerDataMutation(before, layer.id, { ...layer.text, source: edit.source });
+    };
   } else if (command.kind === 'format') {
-    const formatted = await applyFormat(before, command, dependencies);
-    after = formatted.document;
-    if (formatted.font) fontStatus = { kind: 'exact', assetId: formatted.font.assetId,
-      family: formatted.font.familyNames[0], style: formatted.font.styleName };
+    const resolved = await patches(dependencies.fontRegistry, command.style, dependencies.getTextSettings());
+    change = (before) => {
+      const layer = findDocumentLayer(before, command.layerId as LayerId);
+      if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return before;
+      const selection = command.start === undefined ? null : { anchor: command.start, focus: command.end! };
+      const changed = applyTextLayerDataMutation(before, layer.id, { ...layer.text,
+        source: formatFlowTextSource(layer.text.source, selection, resolved.style, paragraphPatch(command)) });
+      return attachFont(changed, resolved.font);
+    };
+    if (resolved.font) fontStatus = { kind: 'exact', assetId: resolved.font.assetId,
+      family: resolved.font.familyNames[0], style: resolved.font.styleName };
   } else {
-    const layer = findDocumentLayer(before, command.layerId as LayerId);
-    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return null;
-    let layout = layer.text.source.layout;
-    const writingMode = command.writingMode ?? (layout.mode === 'path' ? 'horizontal-tb' : layout.writingMode);
-    if (command.mode === 'point' || (command.origin && layout.mode === 'point')) {
-      layout = { mode: 'point', origin: command.origin ?? (layout.mode === 'point' ? layout.origin : {
-        x: layout.mode === 'paragraph' ? layout.frame.x : 0, y: layout.mode === 'paragraph' ? layout.frame.y : 0
-      }), writingMode };
-    } else if (command.mode === 'paragraph' || command.frame || layout.mode === 'paragraph') {
-      const frame = command.frame ?? (layout.mode === 'paragraph' ? layout.frame : {
-        x: layout.mode === 'point' ? layout.origin.x : 0, y: layout.mode === 'point' ? layout.origin.y : 0,
-        width: 240, height: 120
-      });
-      layout = { mode: 'paragraph', frame, overflow: layout.mode === 'paragraph' ? layout.overflow : 'indicator', writingMode };
-    }
-    after = setFlowTextLayout(before, layer.id, layout);
-    if (command.transform) after = setTextLayerTransform(after, layer.id, command.transform);
+    change = (before) => {
+      const layer = findDocumentLayer(before, command.layerId as LayerId);
+      if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return before;
+      let layout = layer.text.source.layout;
+      const writingMode = command.writingMode ?? (layout.mode === 'path' ? 'horizontal-tb' : layout.writingMode);
+      if (command.mode === 'point' || (command.origin && layout.mode === 'point')) {
+        layout = { mode: 'point', origin: command.origin ?? (layout.mode === 'point' ? layout.origin : {
+          x: layout.mode === 'paragraph' ? layout.frame.x : 0, y: layout.mode === 'paragraph' ? layout.frame.y : 0
+        }), writingMode };
+      } else if (command.mode === 'paragraph' || command.frame || layout.mode === 'paragraph') {
+        const frame = command.frame ?? (layout.mode === 'paragraph' ? layout.frame : {
+          x: layout.mode === 'point' ? layout.origin.x : 0, y: layout.mode === 'point' ? layout.origin.y : 0,
+          width: 240, height: 120
+        });
+        layout = { mode: 'paragraph', frame, overflow: layout.mode === 'paragraph' ? layout.overflow : 'indicator', writingMode };
+      }
+      let after = setFlowTextLayout(before, layer.id, layout);
+      if (command.transform) after = setTextLayerTransform(after, layer.id, command.transform);
+      return after;
+    };
   }
-  if (after === before) return null;
-  dependencies.applyDocument(after);
-  dependencies.recordHistory(before, after);
-  const resultLayerId = command.kind === 'create' ? after.activeLayerId! : command.layerId as LayerId;
+  const changed = dependencies.changeDocument((current) => (
+    current === openingDocument ? change(current) : current
+  ), true, {
+    label: command.kind === 'create' ? 'New Type Layer' : 'Edit Type',
+    type: `text.${command.kind}`,
+    ...(resultLayerId ? { layerIds: [resultLayerId] } : {})
+  });
+  if (!changed || !resultLayerId) return null;
   return { layerId: resultLayerId,
     ...(fontStatus ? { fontStatus } : {}) };
 };

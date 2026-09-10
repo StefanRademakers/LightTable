@@ -1,14 +1,19 @@
 import { createDefaultTextLayerData } from '@lighttable/text-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, type ImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { createDocumentMutationController,
+  type DocumentMutationHistoryEntry } from '../documents/useDocumentMutationController';
 import { FlowTextEditingSessionController } from './flowTextEditingSession';
-import type { TextEditHistoryEntry } from './textEditTransactionController';
+import { runAfterTextEditingTerminal } from './textDocumentTransition';
+import type { TextEditCommitObservation } from './textEditTransactionController';
+
+type ObservedTextHistory = TextEditCommitObservation & Pick<DocumentMutationHistoryEntry, 'undo' | 'redo'>;
 
 const setup = (
   initial = 'Text',
-  publishHistory?: (entry: TextEditHistoryEntry) => void
+  publishHistory?: (entry: DocumentMutationHistoryEntry) => void
 ) => {
   const data = createDefaultTextLayerData();
   data.source.kind === 'flow' && Object.assign(data, {
@@ -21,26 +26,57 @@ const setup = (
   let document: ImageDocument = createTextLayer(
     createImageDocument('Edit', 320, 200, 'background'), data, 'Headline'
   );
-  const history: TextEditHistoryEntry[] = [];
-  const controller = new FlowTextEditingSessionController(() => ({
+  let preview = document;
+  let latestHistory: DocumentMutationHistoryEntry | null = null;
+  let nextPreviewFrame = 1;
+  const previewFrames = new Map<number, () => void>();
+  const flushPreviewFrames = () => {
+    const queued = [...previewFrames.entries()];
+    previewFrames.clear();
+    for (const [, callback] of queued) callback();
+  };
+  const history: ObservedTextHistory[] = [];
+  const documentMutations = createDocumentMutationController(() => ({
     getDocument: () => document,
-    applyDocument: (next) => { document = next; },
-    pushHistory: (entry) => {
+    applySnapshot: (next) => { document = next; preview = next; },
+    previewSnapshot: (next) => { preview = next; },
+    discardPreview: () => { preview = document; },
+    pushHistoryEntry: (entry) => {
       publishHistory?.(entry);
-      history.push(entry);
+      latestHistory = entry;
     }
   }));
+  const controller = new FlowTextEditingSessionController(() => ({
+    getDocument: () => document,
+    documentMutations,
+    onCommitted: (entry) => {
+      if (!latestHistory) throw new Error('Text history was not published.');
+      history.push({ ...entry, undo: latestHistory.undo, redo: latestHistory.redo });
+      latestHistory = null;
+    },
+    reportError: () => undefined,
+    requestPreviewFrame: (callback) => {
+      const frame = nextPreviewFrame++;
+      previewFrames.set(frame, callback);
+      return frame;
+    },
+    cancelPreviewFrame: (frame) => { previewFrames.delete(frame); }
+  }));
   const text = () => {
-    const layer = findDocumentLayer(document, document.activeLayerId!);
+    flushPreviewFrames();
+    const layer = findDocumentLayer(preview, preview.activeLayerId!);
     return layer?.type === 'text' && layer.text.source.kind === 'flow'
       ? layer.text.source.text : '';
   };
   const source = () => {
-    const layer = findDocumentLayer(document, document.activeLayerId!);
+    flushPreviewFrames();
+    const layer = findDocumentLayer(preview, preview.activeLayerId!);
     return layer?.type === 'text' && layer.text.source.kind === 'flow'
       ? layer.text.source : null;
   };
-  return { controller, history, text, source, get document() { return document; }, set document(next) { document = next; } };
+  return { controller, history, text, source, get document() { return document; },
+    get pendingPreviewFrames() { return previewFrames.size; },
+    set document(next) { document = next; preview = next; } };
 };
 
 describe('flow text editing session', () => {
@@ -118,6 +154,18 @@ describe('flow text editing session', () => {
     expect(state.history).toHaveLength(1);
   });
 
+  it('blocks a document transition when a real text terminal is rejected', () => {
+    const state = setup('', () => { throw new Error('History rejected the edit.'); });
+    const transition = vi.fn();
+    state.controller.begin(state.document.activeLayerId!);
+    state.controller.insert('A');
+
+    expect(() => runAfterTextEditingTerminal(state.controller, transition))
+      .toThrow('History rejected the edit.');
+    expect(transition).not.toHaveBeenCalled();
+    expect(state.controller.getSnapshot().status).toBe('editing');
+  });
+
   it('replaces intermediate IME updates inside one composition history group', () => {
     const state = setup('A');
     const id = state.document.activeLayerId!;
@@ -183,6 +231,26 @@ describe('flow text editing session', () => {
     expect(state.controller.insert('lost')).toBe(false);
     expect(state.controller.getSnapshot().status).toBe('idle');
     expect(state.history).toHaveLength(0);
+  });
+
+  it('makes a queued final input durable before switching to a document with the same layer ids', () => {
+    const state = setup('A');
+    const layerId = state.document.activeLayerId!;
+    const duplicate = { ...state.document, name: 'B' };
+    state.controller.begin(layerId, 1);
+    expect(state.controller.insert('!')).toBe(true);
+    expect(state.pendingPreviewFrames).toBe(1);
+
+    expect(state.controller.finish()).toBe(true);
+    expect(state.pendingPreviewFrames).toBe(0);
+    expect(state.source()?.text).toBe('A!');
+    expect(state.history).toHaveLength(1);
+
+    state.document = duplicate;
+    state.controller.reset();
+    expect(state.controller.getSnapshot().status).toBe('idle');
+    expect(state.source()?.text).toBe('A');
+    expect(state.controller.begin(layerId, 1)).toBe(true);
   });
 
   it('splits delete history when direction changes', () => {

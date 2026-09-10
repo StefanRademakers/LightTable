@@ -22,7 +22,7 @@ This status file remains the compact statement of what is actually migrated.
 | masks and background-result insertion | paint fallback retained for S03 | implemented | supported mask commands/task result | packaged automated | partial |
 | raster paint and pixel mutations | no alternate session owner | implemented | brush/erase/sampled/tone/fill/gradient/mask | packaged automated | yes |
 | vector paths and live shapes | renderer-only fallback retained | implemented | complete S05 vertical | packaged automated | partial |
-| text/path text | overlay adapter retained | implemented | complete S06 vertical | packaged automated | partial |
+| text/path text | no alternate mutation/history route | implemented | complete C07 vertical | packaged automated | yes |
 | warp | compatibility paths retained | implemented | complete S07 raster/Face Warp vertical | packaged automated | partial |
 | adjustment layers | compatibility paths retained | implemented | complete S08 lifecycle | packaged automated | partial |
 | layer styles/effects | UI presentation adapter retained | implemented | complete S09 lifecycle | packaged automated | yes |
@@ -127,9 +127,11 @@ empty layer; asynchronous layer activation revalidates the document, tool,
 renderer, source and click before editing. Path Text targets the clicked native
 contour and its stable result references survive Action recording, undo and
 playback. Debug packaged Type and Path Text gates passed without page errors.
-Text Warp remains S07, owner feel acceptance is open, and the accepted
-overlay-local activation adapter must be extracted before adding more text
-policy. See
+The C07 cut-over also removed direct overlay creation and private text/history
+publishers, frame-coalesced typing/property projection, bound font and geometry
+continuations to exact document/renderer identities, and put tab activation and
+active close behind the text terminal boundary. Text Warp remains C08 and owner
+feel acceptance is open. See
 [Text and Path Text vertical slice](TEXT_AND_PATH_TEXT_VERTICAL_SLICE.md).
 
 Warp is the eighth implemented vertical. A renderer-bound lease retains the

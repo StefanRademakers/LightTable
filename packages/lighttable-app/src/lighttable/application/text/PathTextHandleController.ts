@@ -19,6 +19,7 @@ export interface PathTextHandleRealization {
   readonly table: PathArcLengthTable;
   readonly projection: RigidPathGlyphProjection;
   readonly localToDocument: AffineMatrix;
+  isCurrent(): boolean;
 }
 
 export interface PathTextHandleDependencies {
@@ -100,7 +101,7 @@ export class PathTextHandleController {
   move(pointerId: number, documentPoint: Vec2) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    if (!active.transaction.active) {
+    if (!active.transaction.active || !active.realization.isCurrent()) {
       active.transaction.cancel();
       this.active = null;
       return false;
@@ -130,7 +131,7 @@ export class PathTextHandleController {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
     if (active.kind === 'direction') {
-      active.transaction.change(() => setFlowTextLayout(
+      if (!active.realization.isCurrent() || !active.transaction.change(() => setFlowTextLayout(
         active.transaction.before,
         active.layerId,
         {
@@ -138,9 +139,19 @@ export class PathTextHandleController {
           direction: (active.openingLayout.direction ?? 'forward') === 'forward'
             ? 'reverse' : 'forward'
         }
-      ));
+      ))) {
+        this.active = null;
+        active.transaction.cancel();
+        return false;
+      }
     } else {
-      this.move(pointerId, documentPoint);
+      if (!this.move(pointerId, documentPoint) || this.active !== active) {
+        if (this.active === active) {
+          this.active = null;
+          active.transaction.cancel();
+        }
+        return false;
+      }
     }
     this.active = null;
     return active.transaction.commit();
