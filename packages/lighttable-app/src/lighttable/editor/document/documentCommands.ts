@@ -62,7 +62,10 @@ import {
   updateLayerNode,
   walkLayerTree
 } from './layerTree';
-import { layerCanBeRasterized } from './layerRasterization';
+import {
+  getLayerRasterizationEligibility,
+  hasBackdropThroughPassThroughAncestors
+} from './layerRasterization';
 import { textLayerNameFromData } from './textLayerName';
 import { reconcileRemovedFilterReferences } from './filterReferenceIntegrity';
 import type { BlendMode } from './blendModes';
@@ -1405,25 +1408,6 @@ export type FlattenGroupEligibility =
 const layerIdsIn = (nodes: readonly LayerNode[]) =>
   walkLayerTree(nodes).map((entry) => entry.node.id);
 
-const hasBackdropThroughPassThroughAncestors = (
-  document: ImageDocument,
-  layerId: LayerId,
-  siblingIndex: number
-): boolean => {
-  if (siblingIndex > 0) return true;
-  let entry = findLayerNode(document.layers, layerId);
-  while (entry?.parentId) {
-    const parentEntry = findLayerNode(document.layers, entry.parentId);
-    if (!parentEntry || parentEntry.node.type !== 'group') return false;
-    if (parentEntry.node.compositing !== 'pass-through') return false;
-    const parentSiblings = siblingLayers(document, parentEntry.node.id);
-    const parentIndex = parentSiblings.findIndex(({ id }) => id === parentEntry.node.id);
-    if (parentIndex > 0) return true;
-    entry = parentEntry;
-  }
-  return false;
-};
-
 export const getFlattenGroupEligibility = (
   document: ImageDocument,
   groupId: LayerId
@@ -1553,8 +1537,9 @@ export const rasterizeLayer = (
   document: ImageDocument,
   layerId: LayerId
 ): ImageDocument => {
-  const source = findLayerNode(document.layers, layerId)?.node ?? null;
-  if (!source || !layerCanBeRasterized(source)) return document;
+  const eligibility = getLayerRasterizationEligibility(document, layerId);
+  if (!eligibility.ok) return document;
+  const source = eligibility.layer;
   const id = createLayerId();
   const now = Date.now();
   const replacement: RasterLayer = {

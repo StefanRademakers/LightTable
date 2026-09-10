@@ -953,7 +953,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const rasterizeShapeRef = useRef<(
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
-  ) => boolean>(() => false);
+  ) => Promise<boolean>>(async () => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
   const soloLayerVisibilityRef = useRef<LayerVisibilitySnapshot | null>(null);
@@ -5659,6 +5659,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushDocumentHistory,
     pushHistoryEntry,
+    reserveHistoryEntry: documentHistoryController.reserve,
     setActiveChannel: (activeChannel) => {
       setEditorSession((session) => ({ ...session, activeChannel }));
     },
@@ -6006,7 +6007,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     duplicateActiveLayer,
-    rasterizeActiveLayer: layerDocumentCommands.rasterizeActiveLayer,
+    rasterizeActiveLayer: async () => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      const execution = layerId
+        ? executeRegisteredCommand('layer.rasterize', { layerId })
+        : null;
+      if (!execution) {
+        setError('Select a layer to rasterize.');
+        return false;
+      }
+      try {
+        return (await execution).status === 'completed';
+      } catch {
+        return false;
+      }
+    },
     loadLayerMaskSelection: async (layerId) => {
       await executeRegisteredCommand('layer.setMask', {
         layerId, operation: 'load-selection'
@@ -7343,7 +7358,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const rasterizeActiveTextLayerCommand = () => {
     const layerId = imageDocumentRef.current?.activeLayerId;
     if (!layerId) {
-      void layerDocumentCommands.rasterizeActiveLayer();
+      setError('Select a layer to rasterize.');
       return;
     }
     textEditingController.finish();

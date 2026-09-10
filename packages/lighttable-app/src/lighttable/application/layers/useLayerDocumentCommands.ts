@@ -72,20 +72,19 @@ import { createApplyLayerMaskCommand } from './applyLayerMaskCommand';
 import { createApplyBackgroundRemovalMaskCommand } from './applyBackgroundRemovalMaskCommand';
 import { createAddLayerMaskCommand } from './addLayerMaskCommand';
 import { commitAdjustmentLayerDuplicate } from '../adjustments/duplicateAdjustmentLayerCommand';
+import type { DocumentHistoryReservation } from '../commands/documentCommandHistory';
+import {
+  commitRasterFinalization,
+  publishRasterFinalization,
+  type RasterFinalizationMutation,
+  type RasterFinalizationHistoryEntry
+} from './rasterFinalizationTransaction';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
   | { kind: 'image' };
 
-export interface LayerCommandHistoryEntry {
-  label?: string;
-  type?: string;
-  byteSize?: number;
-  layerIds?: readonly LayerId[];
-  undo(): void | Promise<void>;
-  redo(): void | Promise<void>;
-  dispose?(): void;
-}
+export type LayerCommandHistoryEntry = RasterFinalizationHistoryEntry;
 
 export interface LayerCommandRendererPort {
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): boolean;
@@ -107,7 +106,8 @@ export interface LayerCommandRendererPort {
     sourceId: LayerId,
     destinationId: LayerId
   ): boolean;
-  waitForTextSource?(layerId: LayerId): Promise<boolean>;
+  waitForLayerFinalizationSources(scope: 'layer' | 'document'): Promise<boolean>;
+  waitForTextSource(layerId: LayerId): Promise<boolean>;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
   bakeSelectionIntoLayerMask(layerId: LayerId): boolean;
   applyGeneratedLayerMask(
@@ -149,16 +149,17 @@ export interface LayerDocumentCommandDependencies {
   pushDocumentHistory(before: ImageDocument, after: ImageDocument,
     description?: { readonly label: string; readonly type: string }): void;
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
+  reserveHistoryEntry(entry: LayerCommandHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: PaintChannel): void;
   setSelectionClipboardAvailable(available: boolean): void;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
-  getDocumentAdjustments?(): BasicAdjustments;
-  getPanelAdjustments?(): BasicAdjustments;
-  publishDocumentAdjustments?(adjustments: BasicAdjustments): void;
-  publishPanelAdjustments?(adjustments: BasicAdjustments): void;
-  getGlobalGradeStrength?(): number;
-  publishGlobalGradeStrength?(strength: number): void;
+  getDocumentAdjustments(): BasicAdjustments;
+  getPanelAdjustments(): BasicAdjustments;
+  publishDocumentAdjustments(adjustments: BasicAdjustments): void;
+  publishPanelAdjustments(adjustments: BasicAdjustments): void;
+  getGlobalGradeStrength(): number;
+  publishGlobalGradeStrength(strength: number): void;
 }
 
 export interface LayerDocumentCommands {
@@ -180,19 +181,15 @@ export interface LayerDocumentCommands {
     settings?: AdjustmentInitialSettings): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
-  mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   rasterizeVectorCreation(
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
-  ): boolean;
+  ): Promise<boolean>;
   mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
-  mergeActiveLayerDown(): boolean;
-  flatten(request: FlattenRequest): boolean;
+  mergeActiveLayerDownWhenReady(): Promise<boolean>;
   flattenWhenReady(request: FlattenRequest): Promise<boolean>;
   rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
-  rasterizeLayer(layerId: LayerId): boolean;
   rasterizeLayerWhenReady(layerId: LayerId): Promise<boolean>;
-  rasterizeActiveLayer(): Promise<boolean>;
   invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
@@ -293,12 +290,15 @@ export const createLayerDocumentCommands = (
 
   const waitForTextTargets = async (
     layerIds: readonly LayerId[],
-    forceRootContribution = false
+    forceRootContribution = false,
+    finalizationScope: 'layer' | 'document' = 'layer'
   ) => {
     const dependencies = dependenciesRef.current;
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    if (!document || !renderer?.waitForTextSource) return true;
+    if (!document || !renderer) {
+      throw new Error('The document renderer is unavailable for text source preparation.');
+    }
     const admittedDocumentId = document.id;
     const admittedRevision = document.revision;
     const targets = layerIds.map((layerId) => findDocumentLayer(document, layerId))
@@ -319,6 +319,17 @@ export const createLayerDocumentCommands = (
         || currentDependencies.getRenderer() !== renderer) {
         throw new Error('The document changed while its text source was being prepared.');
       }
+    }
+    if (!await renderer.waitForLayerFinalizationSources(finalizationScope)) {
+      throw new Error('The exact layer rendering sources could not be prepared for finalization.');
+    }
+    const currentDependencies = dependenciesRef.current;
+    const currentDocument = currentDependencies.getDocument();
+    if (!currentDocument
+      || currentDocument.id !== admittedDocumentId
+      || currentDocument.revision !== admittedRevision
+      || currentDependencies.getRenderer() !== renderer) {
+      throw new Error('The document changed while its rendering sources were being prepared.');
     }
     return true;
   };
@@ -369,71 +380,21 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const publishReservedRasterMutation = ({
-    operation,
-    current,
-    next,
-    destination,
-    render,
-    historyEntry,
-    processing,
-    rollbackDocument = current,
-    errorMessage
-  }: {
-    readonly operation: string;
-    readonly current: ImageDocument;
-    readonly next: ImageDocument;
-    readonly destination: RasterLayer;
-    readonly render: () => boolean;
-    readonly historyEntry: LayerCommandHistoryEntry;
-    readonly processing?: {
-      readonly publish: () => void;
-      readonly restore: () => void;
-    };
-    /**
-     * Snapshot restored when publication fails. This differs from `current`
-     * for tool previews: the preview is the render source, but the durable
-     * operation started from the document that existed before the gesture.
-     */
-    readonly rollbackDocument?: ImageDocument;
-    readonly errorMessage: string;
-  }): boolean => {
+  const publishReservedRasterMutation = (mutation: RasterFinalizationMutation) => {
     const dependencies = dependenciesRef.current;
     const renderer = dependencies.getRenderer();
     if (!renderer) return false;
     try {
-      runEditorOperationTransaction({ operation }, (transaction) => {
-        transaction.adopt(
-          'release reserved raster destination',
-          () => { renderer.releaseRasterDestination(destination.id); }
-        );
-        if (!renderer.prepareRasterDestination(destination)) {
-          throw new Error('The raster destination could not be allocated on the GPU.');
-        }
-        if (!render()) throw new Error(errorMessage);
-        if (processing) {
-          transaction.step(
-            'publish document processing state',
-            processing.publish,
-            processing.restore
-          );
-        }
-        transaction.step(
-          'publish document snapshot',
-          () => dependencies.applyDocumentSnapshot(next),
-          () => dependencies.applyDocumentSnapshot(rollbackDocument)
-        );
-        dependencies.pushHistoryEntry(historyEntry);
-
-        // Recording is the ownership hand-off: from here the document and its
-        // history retain both source and destination runtimes. The concrete
-        // renderer implementation only clears a reservation and cannot fail.
-        renderer.commitRasterDestination(destination.id);
-      });
+      publishRasterFinalization({
+        renderer,
+        reserveHistoryEntry: dependencies.reserveHistoryEntry,
+        applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+        reportError: dependencies.setError
+      }, mutation);
       return true;
     } catch (reason) {
       dependencies.setError(
-        reason instanceof Error ? reason.message : errorMessage
+        reason instanceof Error ? reason.message : mutation.errorMessage
       );
       return false;
     }
@@ -457,25 +418,18 @@ export const createLayerDocumentCommands = (
     readonly rollbackDocument?: ImageDocument;
     readonly errorMessage: string;
   }): boolean => {
-    if (!transaction.stage(() => mutation.next)) {
+    const dependencies = dependenciesRef.current;
+    const renderer = dependencies.getRenderer();
+    if (!renderer) {
       transaction.cancel();
       return false;
     }
-    try {
-      return transaction.commitWith((ownedBefore, ownedAfter) => (
-        publishReservedRasterMutation({
-          ...mutation,
-          current: ownedBefore,
-          next: ownedAfter,
-          rollbackDocument: mutation.rollbackDocument ?? ownedBefore
-        })
-      ));
-    } catch (reason) {
-      dependenciesRef.current.setError(
-        reason instanceof Error ? reason.message : mutation.errorMessage
-      );
-      return false;
-    }
+    return commitRasterFinalization({
+      renderer,
+      reserveHistoryEntry: dependencies.reserveHistoryEntry,
+      applyDocumentSnapshot: dependencies.applyDocumentSnapshot,
+      reportError: dependencies.setError
+    }, transaction, mutation);
   };
 
   const commitLoadedRasterLayer = async ({
@@ -859,10 +813,14 @@ export const createLayerDocumentCommands = (
       : false;
   };
 
-  const rasterizeVectorCreation = (
+  const rasterizeVectorCreation = async (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
   ) => {
+    const rejectCreation = (message: string) => {
+      dependenciesRef.current.setError(message);
+      return transaction.commitWith(() => false);
+    };
     const dependencies = dependenciesRef.current;
     const renderer = dependencies.getRenderer();
     const liveDocument = dependencies.getDocument();
@@ -871,26 +829,34 @@ export const createLayerDocumentCommands = (
       || liveDocument.id !== transaction.beforeDocument.id
       || liveDocument.revision !== transaction.beforeDocument.revision
       || dependencies.getRendererGeneration() !== rendererGeneration) {
-      dependencies.setError('The shape preview is no longer the active document state.');
-      return false;
+      return rejectCreation('The shape preview is no longer the active document state.');
+    }
+    try {
+      await waitForTextTargets([], false, 'layer');
+    } catch (reason) {
+      return rejectCreation(
+        reason instanceof Error ? reason.message : 'The shape render source could not be prepared.'
+      );
+    }
+    if (dependenciesRef.current.getRendererGeneration() !== rendererGeneration) {
+      return rejectCreation('The shape renderer changed before its pixels could be committed.');
     }
     const siblings = siblingLayers(transaction.previewDocument, transaction.layerId);
     const shapeIndex = siblings.findIndex(({ id }) => id === transaction.layerId);
     const destinationSource = shapeIndex > 0 ? siblings[shapeIndex - 1] : null;
     if (destinationSource?.type !== 'raster') {
-      dependencies.setError(
+      return rejectCreation(
         'Pixels mode requires an editable raster layer directly below the new shape.'
       );
-      return false;
     }
     const layerIds = [destinationSource.id, transaction.layerId];
     const next = mergeDocumentLayers(transaction.previewDocument, layerIds);
     const destination = findRasterLayer(next, next.activeLayerId);
     if (next === transaction.previewDocument || !destination) {
-      dependencies.setError('The GPU raster target for this shape could not be allocated.');
-      return false;
+      return rejectCreation('The GPU raster target for this shape could not be allocated.');
     }
-    if (!publishReservedRasterMutation({
+    return transaction.commitWith(() => {
+      if (!publishReservedRasterMutation({
       operation: 'Apply Shape to Pixels',
       current: transaction.previewDocument,
       rollbackDocument: transaction.beforeDocument,
@@ -918,16 +884,36 @@ export const createLayerDocumentCommands = (
         )
       },
       errorMessage: 'The shape could not be baked into the active raster layer.'
-    })) return false;
-    dependencies.setActiveChannel('pixels');
-    dependencies.setError(null);
-    dependencies.setStatus('Shape applied to pixels');
-    return true;
+      })) return false;
+      dependencies.setActiveChannel('pixels');
+      dependencies.setError(null);
+      dependencies.setStatus('Shape applied to pixels');
+      return true;
+    });
   };
 
   const mergeLayersWhenReady = async (selectedLayerIds: LayerId[]) => {
     await waitForTextTargets(selectedLayerIds);
     if (mergeSelectedLayers(selectedLayerIds)) return true;
+    throw new Error('The prepared layers could not be merged.');
+  };
+
+  const mergeActiveLayerDownWhenReady = async () => {
+    const current = dependenciesRef.current.getDocument();
+    const activeLayerId = current?.activeLayerId;
+    const siblings = current && activeLayerId ? siblingLayers(current, activeLayerId) : [];
+    const index = activeLayerId
+      ? siblings.findIndex(({ id }) => id === activeLayerId)
+      : -1;
+    const top = index > 0 ? siblings[index] : null;
+    const bottom = index > 0 ? siblings[index - 1] : null;
+    if (!top || !bottom) {
+      const message = 'The active layer has no layer below it to merge with.';
+      dependenciesRef.current.setError(message);
+      throw new Error(message);
+    }
+    await waitForTextTargets([bottom.id, top.id]);
+    if (mergeActiveLayerDown()) return true;
     throw new Error('The prepared layers could not be merged.');
   };
 
@@ -974,13 +960,13 @@ export const createLayerDocumentCommands = (
     }
     const resetsDocumentFinalState = request.kind === 'image';
     const previousDocumentAdjustments = resetsDocumentFinalState
-      ? cloneAdjustments(dependencies.getDocumentAdjustments?.() ?? createDefaultAdjustments())
+      ? cloneAdjustments(dependencies.getDocumentAdjustments())
       : null;
     const previousPanelAdjustments = resetsDocumentFinalState
-      ? cloneAdjustments(dependencies.getPanelAdjustments?.() ?? createDefaultAdjustments())
+      ? cloneAdjustments(dependencies.getPanelAdjustments())
       : null;
     const previousGlobalGradeStrength = resetsDocumentFinalState
-      ? dependencies.getGlobalGradeStrength?.() ?? 100
+      ? dependencies.getGlobalGradeStrength()
       : 100;
     const neutralAdjustments = createDefaultAdjustments();
     const groupEligibility = request.kind === 'group'
@@ -1017,16 +1003,16 @@ export const createLayerDocumentCommands = (
     }
     const publishNeutralProcessing = () => {
       const latest = dependenciesRef.current;
-      latest.publishDocumentAdjustments?.(neutralAdjustments);
-      latest.publishPanelAdjustments?.(neutralAdjustments);
-      latest.publishGlobalGradeStrength?.(100);
+      latest.publishDocumentAdjustments(neutralAdjustments);
+      latest.publishPanelAdjustments(neutralAdjustments);
+      latest.publishGlobalGradeStrength(100);
     };
     const restorePreviousProcessing = () => {
       if (!previousDocumentAdjustments || !previousPanelAdjustments) return;
       const latest = dependenciesRef.current;
-      latest.publishDocumentAdjustments?.(previousDocumentAdjustments);
-      latest.publishPanelAdjustments?.(previousPanelAdjustments);
-      latest.publishGlobalGradeStrength?.(previousGlobalGradeStrength);
+      latest.publishDocumentAdjustments(previousDocumentAdjustments);
+      latest.publishPanelAdjustments(previousPanelAdjustments);
+      latest.publishGlobalGradeStrength(previousGlobalGradeStrength);
     };
     const applyFlattenState = (flattened: boolean) => runEditorOperationTransaction(
       { operation: flattened ? 'Redo Flatten Image' : 'Undo Flatten Image' },
@@ -1092,7 +1078,8 @@ export const createLayerDocumentCommands = (
       request.kind === 'group'
         ? [request.groupId]
         : current.layers.map(({ id }) => id),
-      request.kind === 'group'
+      request.kind === 'group',
+      request.kind === 'image' ? 'document' : 'layer'
     );
     if (flatten(request)) return true;
     throw new Error('The prepared layer stack could not be flattened.');
@@ -1150,23 +1137,6 @@ export const createLayerDocumentCommands = (
     await waitForTextTargets([layerId], true);
     if (rasterizeLayerById(layerId)) return true;
     throw new Error('The prepared layer could not be rasterized.');
-  };
-
-  const rasterizeActiveLayer = async () => {
-    const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
-    if (!activeLayerId) {
-      const message = 'Select a layer to rasterize.';
-      dependenciesRef.current.setError(message);
-      return false;
-    }
-    try {
-      return await rasterizeLayerWhenReady(activeLayerId);
-    } catch (reason) {
-      dependenciesRef.current.setError(
-        reason instanceof Error ? reason.message : 'The layer could not be rasterized.'
-      );
-      return false;
-    }
   };
 
   const rasterizeTextLayerWhenReady = async (layerId: LayerId) => {
@@ -1745,16 +1715,12 @@ export const createLayerDocumentCommands = (
     createLensFxLayer,
     createAdjustmentLayerOfKind: createProcessingLayer,
     createAttachedAdjustment,
-    mergeSelectedLayers,
     rasterizeVectorCreation,
     mergeLayersWhenReady,
-    mergeActiveLayerDown,
-    flatten,
+    mergeActiveLayerDownWhenReady,
     flattenWhenReady,
     rasterizeTextLayerWhenReady,
-    rasterizeLayer: rasterizeLayerById,
     rasterizeLayerWhenReady,
-    rasterizeActiveLayer,
     invertLayerColors,
     copySelectedContent,
     copyMergedContent,

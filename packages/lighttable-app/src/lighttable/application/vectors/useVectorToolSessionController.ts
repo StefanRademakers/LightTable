@@ -32,7 +32,7 @@ export interface VectorToolSessionHookOptions {
   readonly rasterizeShape: (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
-  ) => boolean;
+  ) => Promise<boolean>;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
   readonly onPenPathCommitted?: VectorToolSessionOptions['onPenPathCommitted'];

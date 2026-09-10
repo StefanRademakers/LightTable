@@ -75,7 +75,7 @@ export interface VectorToolSessionOptions {
   rasterizeShape?: (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
-  ) => boolean;
+  ) => Promise<boolean>;
   requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   onLiveShapeCommitted?: (result: {
     readonly layerId: LayerId;
@@ -352,9 +352,9 @@ export class VectorToolSessionController {
       if (options.rasterize || capture.rasterize) {
         const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
         if (!transaction) return false;
-        return transaction.commitWith(
-          () => this.rasterizeShape?.(transaction, capture.rendererGeneration) ?? false
-        );
+        return this.rasterizeShape
+          ? this.rasterizeShape(transaction, capture.rendererGeneration)
+          : false;
       }
       const committed = this.liveShape.pointerUpWithCommit(documentPoint, options);
       if (committed) {

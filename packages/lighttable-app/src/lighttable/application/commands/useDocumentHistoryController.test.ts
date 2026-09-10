@@ -63,6 +63,33 @@ describe('document history controller', () => {
     expect(redo).toHaveBeenCalledOnce();
   });
 
+  it('does not expose a reserved command until its owner commits it', () => {
+    const state = setup();
+    const reservation = state.controller.reserve({
+      label: 'Rasterize Layer',
+      type: 'layer.rasterize',
+      undo: () => undefined,
+      redo: () => undefined,
+    });
+
+    expect(state.history.getSnapshot()).toMatchObject({ undoDepth: 0, busy: true });
+    expect(reservation.commit()).toBe(true);
+    expect(state.history.getSnapshot()).toMatchObject({ undoDepth: 1, busy: false });
+    expect(reservation.commit()).toBe(false);
+  });
+
+  it('cancels a reserved command without changing history', () => {
+    const state = setup();
+    const reservation = state.controller.reserve({
+      undo: () => undefined,
+      redo: () => undefined,
+    });
+
+    reservation.cancel();
+    reservation.cancel();
+    expect(state.history.getSnapshot()).toMatchObject({ undoDepth: 0, busy: false });
+  });
+
   it('retains current and history-owned layer runtimes', () => {
     const state = setup();
     const retained = 'detached-layer' as LayerId;

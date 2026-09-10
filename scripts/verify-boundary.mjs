@@ -274,6 +274,45 @@ function verifySelectionKernelCutover(relativePath, source) {
   }
 }
 
+function verifyLayerFinalizationCutover(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/layers/useLayerDocumentCommands.ts')) {
+    const optionalFinalizationPorts = /\b(?:waitForLayerFinalizationSources|waitForTextSource|getDocumentAdjustments|getPanelAdjustments|publishDocumentAdjustments|publishPanelAdjustments|getGlobalGradeStrength|publishGlobalGradeStrength)\?\s*\(/;
+    if (optionalFinalizationPorts.test(source)) {
+      failures.push(`${relativePath}: layer finalization readiness and processing ports must be required`);
+    }
+    if (!source.includes('commitRasterFinalization(')) {
+      failures.push(`${relativePath}: raster finalization must enter through its transaction owner`);
+    }
+    if (!source.includes('renderer.waitForLayerFinalizationSources(finalizationScope)')) {
+      failures.push(`${relativePath}: destructive layer commands must await exact renderer sources`);
+    }
+    const publicStart = source.indexOf('export interface LayerDocumentCommands');
+    const publicEnd = source.indexOf('export interface PixelClipboardCapture');
+    const publicContract = source.slice(publicStart, publicEnd);
+    if (/\b(?:mergeSelectedLayers|mergeActiveLayerDown|flatten|rasterizeLayer|rasterizeActiveLayer)\s*\(/.test(publicContract)) {
+      failures.push(`${relativePath}: raw pre-readiness layer finalizers must remain private`);
+    }
+    if (!source.includes("await waitForTextTargets([], false, 'layer')")) {
+      failures.push(`${relativePath}: Pixels-mode vector finalization must await exact renderer sources`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/layers/rasterFinalizationTransaction.ts')) {
+    if (!source.includes('reserveHistoryEntry(mutation.historyEntry)')) {
+      failures.push(`${relativePath}: raster finalization must reserve history before publication`);
+    }
+    if (!source.includes("operation.adopt('release reserved raster destination'")) {
+      failures.push(`${relativePath}: failed raster finalization must release its destination runtime`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    const directRasterizeFallback = /rasterizeActiveLayer:\s*layerDocumentCommands\.rasterizeActiveLayer|void\s+layerDocumentCommands\.rasterizeActiveLayer\(\)/;
+    if (directRasterizeFallback.test(source)) {
+      failures.push(`${relativePath}: rasterize UI must use the registered semantic command exclusively`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -287,6 +326,7 @@ async function scan(relativeDirectory) {
     const source = await readFile(relativePath, 'utf8');
       verifyRendererFacadeImports(relativePath, source);
       verifySelectionKernelCutover(relativePath, source);
+      verifyLayerFinalizationCutover(relativePath, source);
     verifyEditorKernelBoundary(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);

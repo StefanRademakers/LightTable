@@ -693,7 +693,10 @@ describe('LightTable document commands', () => {
       if (kind === 'gradient') return createGradientFillLayer(source, undefined, 'Gradient');
       if (kind === 'text') return createTextLayer(source, createDefaultTextLayerData(), 'Text');
       const withChild = createRasterLayer(source, 'Group child');
-      return groupLayers(withChild, [withChild.activeLayerId!], 'Group');
+      const grouped = groupLayers(withChild, [withChild.activeLayerId!], 'Group');
+      const group = findDocumentLayer(grouped, grouped.activeLayerId);
+      if (group?.type === 'group') group.compositing = 'isolated';
+      return grouped;
     };
 
     for (const kind of [

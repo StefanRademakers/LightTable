@@ -40,7 +40,7 @@ const setup = (
   rasterizeShape?: (
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
-  ) => boolean,
+  ) => Promise<boolean>,
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
   onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
   preview?: {
@@ -293,8 +293,8 @@ describe('VectorToolSessionController', () => {
     });
   });
 
-  it('hands Pixels-mode live shapes to one deferred raster transaction', () => {
-    const rasterizeShape = vi.fn((
+  it('hands Pixels-mode live shapes to one deferred raster transaction', async () => {
+    const rasterizeShape = vi.fn(async (
       _transaction: VectorElementCreationTransaction,
       _rendererGeneration: number
     ) => true);
@@ -305,9 +305,9 @@ describe('VectorToolSessionController', () => {
       12, { x: 10, y: 10 }, { hitRadius: 2, rasterize: true }
     )).toBe(true);
     state.controller.pointerMove(12, { x: 70, y: 50 }, { rasterize: true });
-    expect(state.controller.pointerUp(
+    await expect(state.controller.pointerUp(
       12, { x: 70, y: 50 }, 1, { rasterize: true }
-    )).toBe(true);
+    )).resolves.toBe(true);
 
     expect(rasterizeShape).toHaveBeenCalledOnce();
     expect(rasterizeShape.mock.calls[0]?.[0]).toMatchObject({

@@ -110,7 +110,7 @@ but cannot inherit another item's acceptance.
 | --- | --- | --- | --- | --- | --- | --- |
 | C00 | Governance, route inventory and machine guard | implementation | [ ] | [ ] | [ ] | n/a |
 | C01 | Selection/marquee, selection paint, mask projection and consumers | accepted | [x] | [x] | [x] | [x] |
-| C02 | Layer finalization: rasterize, merge and flatten | queued | [ ] | [ ] | [ ] | [ ] |
+| C02 | Layer finalization: rasterize, merge and flatten | accepted | [x] | [x] | [x] | [x] |
 | C03 | Layer masks, mask edits and Remove Background result insertion | queued | [ ] | [ ] | [ ] | [ ] |
 | C04 | Raster paint, fill/gradient and clipboard pixel consumers | queued | [ ] | [ ] | [ ] | [ ] |
 | C05 | Transform, selected-pixel movement, snapping and edge-pan | queued | [ ] | [ ] | [ ] | [ ] |
@@ -172,6 +172,46 @@ but cannot inherit another item's acceptance.
    C11. Broader UI enablement checks based on provenance length move with their
    command consumers in C12/C14. Neither is a selection-controller fallback.
 7. **Next** -- C02 layer finalization: rasterize, merge and flatten.
+
+## C02 acceptance record -- 2026-09-10
+
+1. **Done** -- panel, menu, Ctrl/Cmd+E, Actions and MCP finalization converge
+   through the semantic command service and required `*WhenReady` application
+   ports. Rasterize, merge, group flatten, image flatten and Shape Pixels mode
+   wait for CPU-side text/style/adjustment sources, revalidate document and
+   renderer identity, then create one fresh raster and one durable history
+   transition. Document-contextual eligibility rejects pass-through groups
+   whose isolated render would depend on an external backdrop.
+2. **Deleted** -- the Layers-panel direct rasterize fallback and the public
+   pre-readiness `mergeSelectedLayers`, `mergeActiveLayerDown`, `flatten`,
+   `rasterizeLayer` and `rasterizeActiveLayer` command surface. Optional text
+   readiness and optional flatten processing publishers were made required.
+   Boundary verification rejects return of these seams and requires Pixels-mode
+   readiness plus the single raster-finalization transaction owner.
+3. **Ownership** -- history admission now has an explicit reservation and the
+   raster publication/compensation lifecycle moved from
+   `useLayerDocumentCommands.ts` (1,726 -> 1,680 lines) into
+   `rasterFinalizationTransaction.ts` (116 lines). The remaining controller is
+   still above its intended adapter size and remains named C03/C04/C14 work;
+   this slice did not hide it behind a replacement broad facade.
+4. **Proof** -- 202 focused document, command, vector-session, capability and
+   transaction tests; app typecheck; boundary verification; instrumented
+   desktop package; packaged tight-raster merge smoke; packaged two-document
+   layer merge matrix covering semantic rasterize, flatten-image, repeated
+   merge-down and undo with visual RMSE checks. GPU-to-GPU finalization relies
+   on submission ordering and adds no `queue.onSubmittedWorkDone()` stall.
+5. **Critic** -- round 1 found contextual pass-through rasterization, a
+   Shape-Pixels readiness bypass, public raw finalizers and an over-broad GPU
+   synchronization barrier. Repair round 1 closed all four; independent final
+   verdict: **ACCEPT**, no C02 P0/P1.
+6. **Allowed/non-blocking** -- layer readiness currently prepares adjustment
+   assets and style pipelines document-wide; target-ID scoping is a measured
+   optimization, not an alternate authority. `text.rasterize` remains a public
+   compatibility command converging on the same ready kernel and is reviewed
+   with text command contracts in C07/C12. Clipboard/import publication remains
+   separately owned until C04.
+7. **Next** -- C03 layer masks, mask edits and Remove Background result
+   insertion.
 
 ## Slice-specific acceptance
 

@@ -52,7 +52,9 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   loadLayerAssets: vi.fn(async () => undefined),
   commitRasterDestination: vi.fn(),
   releaseRasterDestination: vi.fn(() => true),
-  rasterizeLayer: vi.fn(() => true),
+    rasterizeLayer: vi.fn(() => true),
+    waitForLayerFinalizationSources: vi.fn(async () => true),
+    waitForTextSource: vi.fn(async () => true),
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
   applyGeneratedLayerMask: vi.fn(() => true),
@@ -108,6 +110,18 @@ const setup = (initialDocument: ImageDocument) => {
     }),
     pushDocumentHistory: vi.fn(),
     pushHistoryEntry: vi.fn((entry: LayerCommandHistoryEntry) => historyEntries.push(entry)),
+    reserveHistoryEntry: vi.fn((entry: LayerCommandHistoryEntry) => {
+      let resolved = false;
+      return {
+        commit: () => {
+          if (resolved) return false;
+          resolved = true;
+          dependencies.pushHistoryEntry(entry);
+          return true;
+        },
+        cancel: () => { resolved = true; },
+      };
+    }),
     setActiveChannel: vi.fn(),
     setSelectionClipboardAvailable: vi.fn(),
     setStatus: vi.fn(),
@@ -819,7 +833,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = vector.id;
     const state = setup(document);
 
-    await expect(state.commands.rasterizeActiveLayer()).resolves.toBe(true);
+    await expect(state.commands.rasterizeLayerWhenReady(vector.id)).resolves.toBe(true);
 
     const destination = state.document().layers[0]!;
     expect(destination).toMatchObject({ type: 'raster', name: 'Shape', width: 32, height: 24 });
@@ -859,7 +873,7 @@ describe('useLayerDocumentCommands', () => {
     expect(findDocumentLayer(state.document(), child.id)).toBe(child);
   });
 
-  it('releases an unpublished raster and restores the semantic layer when history rejects rasterize', () => {
+  it('releases an unpublished raster and restores the semantic layer when history rejects rasterize', async () => {
     const document = createImageDocument('Vector rollback', 32, 24, 'asset');
     const vector = createVectorLayer([], 'Shape');
     document.layers = [vector];
@@ -869,7 +883,9 @@ describe('useLayerDocumentCommands', () => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.rasterizeLayer(vector.id)).toBe(false);
+    await expect(state.commands.rasterizeLayerWhenReady(vector.id)).rejects.toThrow(
+      'The prepared layer could not be rasterized.'
+    );
 
     expect(state.document()).toBe(document);
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
@@ -890,10 +906,55 @@ describe('useLayerDocumentCommands', () => {
     await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
 
     expect(waitForTextSource).toHaveBeenCalledWith(layerId);
+    expect(state.renderer.waitForLayerFinalizationSources).toHaveBeenCalledWith('layer');
     expect(state.renderer.rasterizeLayer).toHaveBeenCalledOnce();
     expect(state.document().layers.at(-1)).toMatchObject({ type: 'raster' });
     expect(state.document().layers.at(-1)?.id).not.toBe(layerId);
     expect(state.historyEntries).toHaveLength(1);
+  });
+
+  it('fails closed before raster publication when exact renderer sources are unavailable', async () => {
+    const document = createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Fresh text'
+    );
+    const state = setup(document);
+    const layerId = document.activeLayerId!;
+    vi.mocked(state.renderer.waitForLayerFinalizationSources).mockResolvedValue(false);
+
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
+      'The exact layer rendering sources could not be prepared for finalization.'
+    );
+
+    expect(state.renderer.rasterizeLayer).not.toHaveBeenCalled();
+    expect(state.renderer.prepareRasterDestination).not.toHaveBeenCalled();
+    expect(state.historyEntries).toEqual([]);
+    expect(state.document()).toBe(document);
+  });
+
+  it('rejects finalization when the document changes while exact sources settle', async () => {
+    const document = createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Fresh text'
+    );
+    const state = setup(document);
+    const layerId = document.activeLayerId!;
+    vi.mocked(state.renderer.waitForLayerFinalizationSources).mockImplementation(async () => {
+      state.dependencies.applyDocumentSnapshot({
+        ...state.document(),
+        revision: state.document().revision + 1
+      });
+      return true;
+    });
+
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
+      'The document changed while its rendering sources were being prepared.'
+    );
+
+    expect(state.renderer.rasterizeLayer).not.toHaveBeenCalled();
+    expect(state.historyEntries).toEqual([]);
   });
 
   it('waits for hidden intrinsic text before forcing it visible for rasterization', async () => {
@@ -1331,12 +1392,12 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(2);
   });
 
-  it('merges contiguous tight raster layers into a reversible full-canvas destination', () => {
+  it('merges contiguous tight raster layers into a reversible full-canvas destination', async () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
     const layerIds = state.document().layers.map((layer) => layer.id);
 
-    expect(state.commands.mergeSelectedLayers(layerIds)).toBe(true);
+    await expect(state.commands.mergeLayersWhenReady(layerIds)).resolves.toBe(true);
 
     expect(state.document().layers).toHaveLength(1);
     const mergedId = state.document().layers[0]!.id;
@@ -1353,7 +1414,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.id).toBe(mergedId);
   });
 
-  it('retains nested source runtimes and accounts for them when merging a group', () => {
+  it('retains nested source runtimes and accounts for them when merging a group', async () => {
     const document = createImageDocument('Group merge', 32, 24, 'unused');
     const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
     const group = createGroupLayerNode('Artwork');
@@ -1363,7 +1424,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = top.id;
     const state = setup(document);
 
-    expect(state.commands.mergeSelectedLayers([top.id, group.id])).toBe(true);
+    await expect(state.commands.mergeLayersWhenReady([top.id, group.id])).resolves.toBe(true);
 
     const destination = state.document().layers[0]!;
     expect(state.historyEntries[0]?.layerIds).toEqual([
@@ -1375,14 +1436,15 @@ describe('useLayerDocumentCommands', () => {
     expect(findDocumentLayer(state.document(), child.id)).toBe(child);
   });
 
-  it('restores every source layer and releases the destination when merge history rejects', () => {
+  it('restores every source layer and releases the destination when merge history rejects', async () => {
     const document = createRasterLayer(createImageDocument('Merge rollback', 32, 24, 'asset'), 'Top');
     const state = setup(document);
     vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.mergeSelectedLayers(document.layers.map(({ id }) => id))).toBe(false);
+    await expect(state.commands.mergeLayersWhenReady(document.layers.map(({ id }) => id)))
+      .rejects.toThrow('The prepared layers could not be merged.');
 
     expect(state.document()).toBe(document);
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
@@ -1390,18 +1452,18 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
-  it('merges the active raster layer down and reports the completed command', () => {
+  it('merges the active raster layer down and reports the completed command', async () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
 
-    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
 
     expect(state.document().layers).toHaveLength(1);
     expect(state.dependencies.setStatus).toHaveBeenCalledWith('Layers merged');
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('flattens into a new full-canvas runtime and restores source runtimes on undo', () => {
+  it('flattens into a new full-canvas runtime and restores source runtimes on undo', async () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
     const sourceIds = state.document().layers.map(({ id }) => id);
@@ -1411,7 +1473,7 @@ describe('useLayerDocumentCommands', () => {
     state.panelAdjustments().exposureEV = 1.25;
     state.dependencies.publishGlobalGradeStrength!(42);
 
-    expect(state.commands.flatten({ kind: 'image' })).toBe(true);
+    await expect(state.commands.flattenWhenReady({ kind: 'image' })).resolves.toBe(true);
 
     const destination = state.document().layers[0];
     expect(destination).toMatchObject({ type: 'raster', width: 32, height: 24 });
@@ -1436,7 +1498,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.globalGradeStrength()).toBe(100);
   });
 
-  it('flattens a group without baking its outer stack relationship and restores it repeatedly', () => {
+  it('flattens a group without baking its outer stack relationship and restores it repeatedly', async () => {
     const document = createImageDocument('Group flatten', 32, 24, 'unused');
     const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
     const group = createGroupLayerNode('Artwork');
@@ -1448,7 +1510,8 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = group.id;
     const state = setup(document);
 
-    expect(state.commands.flatten({ kind: 'group', groupId: group.id })).toBe(true);
+    await expect(state.commands.flattenWhenReady({ kind: 'group', groupId: group.id }))
+      .resolves.toBe(true);
 
     const destination = state.document().layers[0]!;
     expect(destination).toMatchObject({
@@ -1465,7 +1528,7 @@ describe('useLayerDocumentCommands', () => {
     }
   });
 
-  it('restores the complete group and releases its destination when flatten history rejects', () => {
+  it('restores the complete group and releases its destination when flatten history rejects', async () => {
     const document = createImageDocument('Group rollback', 32, 24, 'unused');
     const child = createImageDocument('Child', 32, 24, 'child-asset').layers[0]!;
     const group = createGroupLayerNode('Artwork');
@@ -1477,7 +1540,8 @@ describe('useLayerDocumentCommands', () => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.flatten({ kind: 'group', groupId: group.id })).toBe(false);
+    await expect(state.commands.flattenWhenReady({ kind: 'group', groupId: group.id }))
+      .rejects.toThrow('The prepared layer stack could not be flattened.');
 
     expect(state.document()).toBe(document);
     expect(state.document().layers[0]).toBe(group);
@@ -1486,7 +1550,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
-  it('restores layers and document processing when flatten history rejects', () => {
+  it('restores layers and document processing when flatten history rejects', async () => {
     const document = createRasterLayer(createImageDocument('Flatten rollback', 32, 24, 'asset'), 'Top');
     const state = setup(document);
     state.documentAdjustments().exposureEV = 1.25;
@@ -1496,7 +1560,8 @@ describe('useLayerDocumentCommands', () => {
       throw new Error('History unavailable.');
     });
 
-    expect(state.commands.flatten({ kind: 'image' })).toBe(false);
+    await expect(state.commands.flattenWhenReady({ kind: 'image' }))
+      .rejects.toThrow('The prepared layer stack could not be flattened.');
 
     expect(state.document()).toBe(document);
     expect(state.documentAdjustments().exposureEV).toBe(1.25);
@@ -1507,7 +1572,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
-  it('bakes an active vector shape into the raster layer below with pixel history', () => {
+  it('bakes an active vector shape into the raster layer below with pixel history', async () => {
     const document = createImageDocument('Vector merge', 32, 24, 'asset');
     const vector = createVectorLayer([
       createVectorPath('shape', 'Shape', [createSubpath('contour')])
@@ -1517,7 +1582,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(document);
     const sourceDestinationId = document.layers[0]!.id;
 
-    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
 
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
       expect.anything(), [sourceDestinationId, vector.id], state.document().layers[0]!.id
@@ -1530,7 +1595,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('rejects deferred vector rasterization after renderer replacement', () => {
+  it('rejects deferred vector rasterization after renderer replacement', async () => {
     const before = createImageDocument('Vector raster handoff', 32, 24, 'asset');
     const vector = createVectorLayer([
       createVectorPath('shape', 'Shape', [createSubpath('contour')])
@@ -1543,13 +1608,13 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(before);
     state.setRendererGeneration(2);
 
-    expect(state.commands.rasterizeVectorCreation({
+    await expect(state.commands.rasterizeVectorCreation({
       beforeDocument: before,
       previewDocument: preview,
       layerId: vector.id,
       elementId: 'shape',
       commitWith: vi.fn(() => false)
-    }, 1)).toBe(false);
+    }, 1)).resolves.toBe(false);
 
     expect(state.renderer.mergeLayers).not.toHaveBeenCalled();
     expect(state.dependencies.setError).toHaveBeenLastCalledWith(
@@ -1557,7 +1622,61 @@ describe('useLayerDocumentCommands', () => {
     );
   });
 
-  it('merges selected raster pixels above a vector shape into a fresh raster', () => {
+  it('settles exact sources before committing a Pixels-mode shape transaction', async () => {
+    const before = createImageDocument('Vector raster', 32, 24, 'asset');
+    const vector = createVectorLayer([
+      createVectorPath('shape', 'Shape', [createSubpath('contour')])
+    ], 'Shape');
+    const preview = {
+      ...before,
+      layers: [...before.layers, vector],
+      activeLayerId: vector.id
+    };
+    const state = setup(before);
+    const commitWith = vi.fn((commit: (ownedBefore: ImageDocument, ownedAfter: ImageDocument) => boolean) => (
+      commit(before, preview)
+    ));
+
+    await expect(state.commands.rasterizeVectorCreation({
+      beforeDocument: before,
+      previewDocument: preview,
+      layerId: vector.id,
+      elementId: 'shape',
+      commitWith
+    }, 1)).resolves.toBe(true);
+
+    expect(state.renderer.waitForLayerFinalizationSources).toHaveBeenCalledWith('layer');
+    expect(commitWith).toHaveBeenCalledOnce();
+    expect(state.renderer.mergeLayers).toHaveBeenCalledOnce();
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.document().layers[0]).toMatchObject({ type: 'raster' });
+    expect(state.historyEntries).toHaveLength(1);
+  });
+
+  it('closes the Pixels-mode shape transaction when source readiness fails', async () => {
+    const before = createImageDocument('Vector raster', 32, 24, 'asset');
+    const vector = createVectorLayer([], 'Shape');
+    const preview = { ...before, layers: [...before.layers, vector], activeLayerId: vector.id };
+    const state = setup(before);
+    vi.mocked(state.renderer.waitForLayerFinalizationSources).mockResolvedValue(false);
+    const commitWith = vi.fn((commit: (ownedBefore: ImageDocument, ownedAfter: ImageDocument) => boolean) => (
+      commit(before, preview)
+    ));
+
+    await expect(state.commands.rasterizeVectorCreation({
+      beforeDocument: before,
+      previewDocument: preview,
+      layerId: vector.id,
+      elementId: 'shape',
+      commitWith
+    }, 1)).resolves.toBe(false);
+
+    expect(commitWith).toHaveBeenCalledOnce();
+    expect(state.renderer.mergeLayers).not.toHaveBeenCalled();
+    expect(state.historyEntries).toEqual([]);
+  });
+
+  it('merges selected raster pixels above a vector shape into a fresh raster', async () => {
     const document = createImageDocument('Vector-first merge', 32, 24, 'asset');
     const vector = createVectorLayer([
       createVectorPath('shape', 'Shape', [createSubpath('contour')])
@@ -1568,7 +1687,7 @@ describe('useLayerDocumentCommands', () => {
     const pixels = withRaster.layers[2]!;
     const state = setup(withRaster);
 
-    expect(state.commands.mergeSelectedLayers([pixels.id, shape.id])).toBe(true);
+    await expect(state.commands.mergeLayersWhenReady([pixels.id, shape.id])).resolves.toBe(true);
 
     const merged = state.document().layers[1]!;
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
@@ -1578,7 +1697,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('executes every ordered semantic layer pair without a type-specific merge error', () => {
+  it('executes every ordered semantic layer pair without a type-specific merge error', async () => {
     type Kind = 'raster' | 'vector' | 'text' | 'adjustment' | 'group';
     const kinds: readonly Kind[] = ['raster', 'vector', 'text', 'adjustment', 'group'];
     const node = (kind: Kind, name: string): LayerNode => {
@@ -1605,10 +1724,10 @@ describe('useLayerDocumentCommands', () => {
         document.activeLayerId = top.id;
         const state = setup(document);
 
-        expect(
-          state.commands.mergeSelectedLayers([top.id, bottom.id]),
+        await expect(
+          state.commands.mergeLayersWhenReady([top.id, bottom.id]),
           `${bottomKind} below ${topKind}`
-        ).toBe(true);
+        ).resolves.toBe(true);
         expect(state.document().layers).toHaveLength(1);
         expect(state.document().layers[0]).toMatchObject({
           type: 'raster', name: `Top ${topKind}`
@@ -1618,14 +1737,14 @@ describe('useLayerDocumentCommands', () => {
     }
   });
 
-  it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', () => {
+  it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', async () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     expect(state.commands.createAdjustmentLayer()).toBe(true);
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
     const sourceIds = state.document().layers.map((layer) => layer.id);
     const sourceDestinationId = sourceIds[0];
 
-    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
 
     expect(state.renderer.mergeLayers).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -1638,10 +1757,12 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(2);
   });
 
-  it('explains why Merge Down cannot run instead of failing silently', () => {
+  it('explains why Merge Down cannot run instead of failing silently', async () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
-    expect(state.commands.mergeActiveLayerDown()).toBe(false);
+    await expect(state.commands.mergeActiveLayerDownWhenReady()).rejects.toThrow(
+      'The active layer has no layer below it to merge with.'
+    );
 
     expect(state.dependencies.setError).toHaveBeenCalledWith(
       'The active layer has no layer below it to merge with.'

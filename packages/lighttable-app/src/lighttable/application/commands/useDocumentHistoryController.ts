@@ -6,7 +6,10 @@ import type {
 } from '../../editor/document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../../editor/document/layerTree';
 import type { DocumentSessionId } from '../documents/documentSession';
-import type { DocumentCommandHistory } from './documentCommandHistory';
+import type {
+  DocumentCommandHistory,
+  DocumentHistoryReservation,
+} from './documentCommandHistory';
 
 export interface EditorHistoryEntry {
   readonly label?: string;
@@ -41,6 +44,7 @@ export interface DocumentHistoryDependencies {
 
 export interface DocumentHistoryController {
   record(entry: EditorHistoryEntry): void;
+  reserve(entry: EditorHistoryEntry): DocumentHistoryReservation;
   /** Reset history for a document lifecycle boundary after tools were cancelled. */
   clear(): void;
   undo(): Promise<boolean>;
@@ -63,6 +67,23 @@ export const createDocumentHistoryController = (
   resolveDependencies: () => DocumentHistoryDependencies
 ): DocumentHistoryController => {
   let commandSequence = 0;
+
+  const command = (entry: EditorHistoryEntry) => {
+    const dependencies = resolveDependencies();
+    commandSequence += 1;
+    return {
+      id: `${dependencies.documentId}:editor:${commandSequence}`,
+      type: entry.type ?? 'editor.mutation',
+      label: entry.label ?? 'Document Change',
+      documentId: dependencies.documentId,
+      affectsDocument: entry.documentMutation !== false,
+      byteSize: entry.byteSize,
+      resourceIds: entry.resourceIds ?? entry.layerIds,
+      undo: entry.undo,
+      redo: entry.redo,
+      dispose: entry.dispose,
+    };
+  };
 
   const pruneResources = () => {
     const dependencies = resolveDependencies();
@@ -132,20 +153,20 @@ export const createDocumentHistoryController = (
   return {
     record: (entry) => {
       const dependencies = resolveDependencies();
-      commandSequence += 1;
-      dependencies.history.record({
-        id: `${dependencies.documentId}:editor:${commandSequence}`,
-        type: entry.type ?? 'editor.mutation',
-        label: entry.label ?? 'Document Change',
-        documentId: dependencies.documentId,
-        affectsDocument: entry.documentMutation !== false,
-        byteSize: entry.byteSize,
-        resourceIds: entry.resourceIds ?? entry.layerIds,
-        undo: entry.undo,
-        redo: entry.redo,
-        dispose: entry.dispose
-      });
+      dependencies.history.record(command(entry));
       pruneResources();
+    },
+    reserve: (entry) => {
+      const dependencies = resolveDependencies();
+      const reservation = dependencies.history.reserve(command(entry));
+      return {
+        commit: () => {
+          const committed = reservation.commit();
+          if (committed) pruneResources();
+          return committed;
+        },
+        cancel: reservation.cancel,
+      };
     },
     clear: () => {
       const dependencies = resolveDependencies();

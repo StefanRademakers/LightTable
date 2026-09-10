@@ -1,6 +1,5 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import { findDocumentLayer } from '../../editor/document/layerTree';
-import { layerCanBeRasterized } from '../../editor/document/layerRasterization';
+import { getLayerRasterizationEligibility } from '../../editor/document/layerRasterization';
 import {
   parseSemanticLayerRasterizeCommand,
   type SemanticLayerRasterizeCommand
@@ -21,10 +20,10 @@ export const dispatchSemanticLayerRasterize = async (
   if ('message' in command) {
     return { ok: false, code: 'invalid-parameters', message: command.message };
   }
-  const layer = findDocumentLayer(document, command.layerId);
-  if (!layer || !layerCanBeRasterized(layer)) {
+  const eligibility = getLayerRasterizationEligibility(document, command.layerId);
+  if (!eligibility.ok) {
     return { ok: false, code: 'command-unavailable',
-      message: 'The target must contain live, unlocked layer semantics to rasterize.' };
+      message: eligibility.message };
   }
   if (!execute) {
     return { ok: false, code: 'command-unavailable',

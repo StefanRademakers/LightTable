@@ -126,6 +126,17 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.hasFlattenableGroup).toBe(true);
   });
 
+  it('does not offer isolated rasterization for a pass-through group with an external backdrop', () => {
+    const withUpper = createRasterLayer(createDocument(), 'Upper');
+    const grouped = groupLayers(withUpper, [withUpper.activeLayerId!], 'Pass-through');
+    const group = grouped.layers.find((layer) => layer.type === 'group')!;
+
+    expect(queryLayerCommandCapabilities(grouped).canRasterizeActiveLayer).toBe(false);
+
+    group.compositing = 'isolated';
+    expect(queryLayerCommandCapabilities(grouped).canRasterizeActiveLayer).toBe(true);
+  });
+
   it('exposes compositing commands for text while rejecting pixel editing', () => {
     const document = createTextLayer(createDocument(), createDefaultTextLayerData(), 'Text fixture');
     const capabilities = queryLayerCommandCapabilities(document);

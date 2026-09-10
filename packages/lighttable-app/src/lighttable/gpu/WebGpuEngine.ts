@@ -1970,6 +1970,30 @@ export class WebGpuEngine {
     return this.documentRenderer?.waitForTextSource(layerId) ?? Promise.resolve(false);
   }
 
+  /**
+   * Establishes the exact render boundary used by destructive layer commands.
+   * A frame boundary alone is insufficient: optional style pipelines and
+   * adjustment assets may still be preparing while the preview renderer is
+   * allowed to omit them. Finalization must never bake that temporary output.
+   */
+  async waitForLayerFinalizationSources(scope: 'layer' | 'document') {
+    const document = this.imageDocument;
+    const renderer = this.documentRenderer;
+    if (!document || !renderer) return false;
+    this.initializeLayerStylesIfNeeded(document);
+    await this.layerStyleInitialization;
+    const coreAssetsReady = scope === 'document' && this.coreResources
+      ? await this.coreResources.waitForAdjustmentAssets(this.adjustmentState.current)
+      : false;
+    const layerAssetsReady = await this.adjustmentLayerResources.waitForAdjustmentAssets();
+    if (coreAssetsReady || layerAssetsReady) {
+      this.syncAdjustmentPayload();
+      this.markDocumentDirty();
+    }
+    this.settleInteractiveRenderQuality();
+    return this.imageDocument === document && this.documentRenderer === renderer;
+  }
+
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo') {
     const changed = direction === 'undo' ? edit.undo() : edit.redo();
     if (changed) this.markDocumentDirty();
