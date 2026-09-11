@@ -94,3 +94,30 @@
   universal text durability proof. Save/export, temporary tools, host and target
   transitions remain O02c work; broader document lifecycle remains O03.
 - Next: temporary override ownership and its focus/retirement wiring.
+
+## O02c.2a — Temporary override state
+
+- Done/deleted: four independent React booleans, the separate controller ref
+  and repeated start/release/reset lists leave Overlay. TemporaryToolController
+  owns one immutable tool/direction snapshot; useTemporaryTool adapts subscription
+  and zoom-overlay release. Input and presentation use the same owner.
+- Behavior: preserves one override (not a stack), repeat-key idempotence and
+  mismatched release. Removes contradictory pan/zoom presentation on overlap.
+  Overlay 9,035 -> 8,999 physical lines, audit ceiling 9,000.
+- Critic: no blocking finding; repair rounds 1/2 not needed. Updated inaccurate
+  persistent-tool ownership comment. Existing viewport render-captured input
+  values and renderer-retirement binding remain later work, not certified here.
+- Proof: focused temporary controller/router/executor tests, app typecheck,
+  boundary/structure, fresh instrumented package; layer-history smoke extended
+  with pan -> modifier/Space -> zoom, zoom-out -> pan, browser blur and held
+  override across document-tab rebind. Exact pixels/history remain unchanged.
+  Evidence tmp/layer-history-gesture/report.json and final.png.
+- Harness findings: temporary erase has no current default keyboard binding;
+  its controller behavior is unit-tested, not packaged-keyboard certified.
+  New-document initialization resets persistent tool to Hand; the rebind test
+  explicitly establishes Brush afterward instead of assuming it survives create.
+  Synthetic browser blur is not native host suspension proof.
+- Open/next: host/target/file terminal policy remains O02c. Projection binding
+  (O03a) is the next substantive extraction, as it gives those lifecycle routes
+  named publication/discard ports without changing terminal policy. Critic
+  reviewed this dependency ordering; neither O02 nor O03 is marked complete.

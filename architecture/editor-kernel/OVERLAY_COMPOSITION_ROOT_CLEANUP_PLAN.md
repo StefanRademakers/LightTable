@@ -134,6 +134,9 @@ class names: reuse existing owners before creating a new one.
       current lifecycle scope checks. Critic PASS after repair 1; packaged held
       Opacity drags plus keyboard exact pixel undo/redo and transform smoke passed.
     - [ ] O02c.2: temporary overrides and host/target transitions.
+      - [x] Temporary override state/subscription; duplicate React booleans
+        removed. Critic found no blocker; packaged overlap/blur/tab proof passed.
+      - [ ] Native host/target transition policy (after named O03 publication ports).
     - [ ] O02c.3: save/export prerequisite consolidation.
 - [ ] O03 — Extract document publication and lifecycle binding. Move semantic
   snapshot application policy, exact session binding, open/rebind/retire

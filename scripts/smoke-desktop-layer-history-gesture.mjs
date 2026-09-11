@@ -80,10 +80,69 @@ try {
     { id: documentId, depth: opening.history.undoDepth + index });
   }
   assert.deepEqual(await pixels(), finalPixels, 'Redo must restore exact final pixels.');
+  await page.keyboard.press('b');
+  const viewport = page.locator('.lighttable-viewport');
+  const waitTool = async tool => {
+    try {
+      await page.waitForFunction(name => document.querySelector('.lighttable-viewport')
+        ?.classList.contains(`lighttable-viewport--${name}`), tool);
+    } catch (error) {
+      console.error(JSON.stringify({ expectedTool: tool, viewport: await viewport.getAttribute('class'),
+        workspace: await driver.queryWorkspace(), pageErrors }));
+      await page.screenshot({ path: path.join(output, 'failure.png') });
+      throw error;
+    }
+  };
+  await waitTool('brush');
+  await page.keyboard.down('Space');
+  await waitTool('view');
+  // Repeat Space with a changed modifier: owner replaces pan with zoom, not
+  // two independent UI booleans displaying pan while input executes zoom.
+  await page.keyboard.down('Control');
+  await page.keyboard.down('Space');
+  await waitTool('zoom');
+  await page.keyboard.up('Space');
+  await page.keyboard.up('Control');
+  await waitTool('brush');
+  await page.keyboard.down('Alt');
+  await page.keyboard.down('Space');
+  await waitTool('zoom');
+  assert.ok((await viewport.getAttribute('class')).includes('lighttable-viewport--zoom-out'));
+  await page.keyboard.up('Alt');
+  await page.keyboard.down('Space');
+  await waitTool('view');
+  assert.ok(!(await viewport.getAttribute('class')).includes('lighttable-viewport--zoom-out'));
+  await page.keyboard.up('Space');
+  await waitTool('brush');
+  await page.keyboard.down('Space');
+  await waitTool('view');
+  // Browser blur exercises the keyboard terminal; native foreground suspension
+  // is a separate lifecycle gate, not inferred from this synthetic event.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up('Space');
+  await waitTool('brush');
+  assert.deepEqual(await pixels(), finalPixels, 'Temporary tools must not modify document pixels.');
+  assert.equal((await driver.queryDocument(documentId)).history.undoDepth, opening.history.undoDepth + 3);
+  const second = await driver.executeWorkspace('document.create', {
+    name: 'Temporary override rebind', width: 320, height: 240, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'solid', color: '#305090' }
+  });
+  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  // New-document initialization currently resets the persistent tool to Hand.
+  // Establish Brush before testing whether a temporary override survives rebind.
+  await page.keyboard.press('b');
+  await waitTool('brush');
+  await page.keyboard.down('Space');
+  await waitTool('view');
+  await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
+  await driver.waitForRenderedDocument(documentId, 60_000);
+  await page.keyboard.up('Space');
+  await waitTool('brush');
+  assert.deepEqual(await pixels(), finalPixels, 'Tab rebind must preserve exact pixels.');
   assert.deepEqual(pageErrors, []);
   await page.screenshot({ path: path.join(output, 'final.png') });
   await writeFile(path.join(output, 'report.json'), JSON.stringify({
-    samples, exactUndoRedo: true, pageErrors
+    samples, exactUndoRedo: true, temporaryOverrides: 'pan/zoom/overlap/browser-blur/tab-rebind', pageErrors
   }, null, 2));
   console.log(`Packaged layer gesture/history smoke passed: ${output}`);
 } finally {

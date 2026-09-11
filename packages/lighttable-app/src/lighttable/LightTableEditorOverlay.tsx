@@ -303,7 +303,7 @@ import {
   type EditorSession,
   type ToolId
 } from './editor/session/editorSession';
-import { TemporaryToolController } from './editor/tools/temporaryToolController';
+import { useTemporaryTool } from './application/tools/useTemporaryTool';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
 import {
   RasterGradientCommandController,
@@ -939,7 +939,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     preserveTransparency?: boolean
   ) => void>(() => undefined);
   const deleteActiveTargetRef = useRef<() => void>(() => undefined);
-  const temporaryToolRef = useRef(new TemporaryToolController());
+  const temporaryTool = useTemporaryTool(() => engineRef.current?.setZoomEditingOverlay(null));
   const beginSelectionContentMoveRef = useRef<(duplicate: boolean) => Promise<boolean>>(
     async () => false
   );
@@ -1346,10 +1346,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [duplicateImageBusy, setDuplicateImageBusy] = useState(false);
   const [duplicateImageError, setDuplicateImageError] = useState<string | null>(null);
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
-  const [temporaryPanActive, setTemporaryPanActive] = useState(false);
-  const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
-  const [temporaryZoomActive, setTemporaryZoomActive] = useState(false);
-  const [temporaryZoomOutActive, setTemporaryZoomOutActive] = useState(false);
+  const temporaryPanActive = temporaryTool.snapshot.tool === 'view';
+  const temporaryZoomActive = temporaryTool.snapshot.tool === 'zoom';
+  const temporaryZoomOutActive = temporaryTool.snapshot.zoomOut;
   const transformSnapMatchesRef = useRef<readonly SnapMatch[]>([]);
   const [selectionSnapFeedback, setSelectionSnapFeedback] = useState<{
     matches: readonly SnapMatch[];
@@ -1458,17 +1457,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   useEffect(() => {
-    temporaryToolRef.current.end();
+    temporaryTool.clear();
     fontHydrationGenerationRef.current += 1;
     pointTextCapabilityGenerationRef.current += 1;
     pathTextCreationTargetRef.current = null;
     pointTextController.cancel();
     paragraphTextController.cancel();
     textEditingControllerRef.current?.reset();
-    setTemporaryPanActive(false);
-    setTemporaryEraseActive(false);
-    setTemporaryZoomActive(false);
-    setTemporaryZoomOutActive(false);
     setAltPressed(false);
     brushPercentInputRef.current.clear();
   }, [paragraphTextController, pointTextController, workspaceDocumentId]);
@@ -4114,18 +4109,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       undo: () => { void undoEditor(); },
       undoPenAnchor: () => undoPenAnchorRef.current(),
       redo: () => { void redoEditor(); },
-      beginTemporaryPan: () => {
-        if (temporaryToolRef.current.begin('view')) setTemporaryPanActive(true);
-      },
-      beginTemporaryZoom: (direction) => {
-        if (temporaryToolRef.current.begin('zoom')) {
-          setTemporaryZoomActive(true);
-          setTemporaryZoomOutActive(direction < 0);
-        }
-      },
-      beginTemporaryErase: () => {
-        if (temporaryToolRef.current.begin('erase')) setTemporaryEraseActive(true);
-      },
+      beginTemporaryPan: temporaryTool.beginPan,
+      beginTemporaryZoom: temporaryTool.beginZoom,
+      beginTemporaryErase: temporaryTool.beginErase,
       fillForeground: (preserveTransparency) =>
         fillActiveTargetRef.current(editorSession.brush.color, preserveTransparency),
       fillBackground: (preserveTransparency) =>
@@ -4295,30 +4281,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         selection: { isActive: () => editorSession.selection.length > 0, cancel: clearCurrentSelection }
       })
     },
-    temporaryPanActive: () => temporaryToolRef.current.activeTool === 'view',
-    releaseTemporaryPan: () => {
-      if (temporaryToolRef.current.end('view')) setTemporaryPanActive(false);
-    },
-    temporaryZoomActive: () => temporaryToolRef.current.activeTool === 'zoom',
-    releaseTemporaryZoom: () => {
-      if (temporaryToolRef.current.end('zoom')) {
-        setTemporaryZoomActive(false);
-        setTemporaryZoomOutActive(false);
-        engineRef.current?.setZoomEditingOverlay(null);
-      }
-    },
-    temporaryEraseActive: () => temporaryToolRef.current.activeTool === 'erase',
-    releaseTemporaryErase: () => {
-      if (temporaryToolRef.current.end('erase')) setTemporaryEraseActive(false);
-    },
+    temporaryPanActive: () => temporaryTool.controller.activeTool === 'view',
+    releaseTemporaryPan: temporaryTool.releasePan,
+    temporaryZoomActive: () => temporaryTool.controller.activeTool === 'zoom',
+    releaseTemporaryZoom: temporaryTool.releaseZoom,
+    temporaryEraseActive: () => temporaryTool.controller.activeTool === 'erase',
+    releaseTemporaryErase: temporaryTool.releaseErase,
     clearTemporaryTool: () => {
-      if (temporaryToolRef.current.end()) {
-        setTemporaryPanActive(false);
-        setTemporaryEraseActive(false);
-        setTemporaryZoomActive(false);
-        setTemporaryZoomOutActive(false);
-        engineRef.current?.setZoomEditingOverlay(null);
-      }
+      temporaryTool.clear();
       brushPercentInputRef.current.clear();
     },
     onShiftChange: setShiftPressed,
@@ -5227,7 +5197,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setZoomMode,
     editorSession,
     setEditorSession,
-    temporaryTools: temporaryToolRef.current,
+    temporaryTools: temporaryTool.controller,
     temporaryZoomOut: temporaryZoomOutActive,
     onTransformPick: pickTransformAtPoint,
     selectionContentMove: {
@@ -7790,13 +7760,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   if (!open) return null;
 
-  const visibleTool = temporaryPanActive
-    ? 'view'
-    : temporaryZoomActive
-      ? 'zoom'
-      : temporaryEraseActive
-        ? 'erase'
-        : editorSession.activeTool;
+  const visibleTool = temporaryTool.snapshot.tool ?? editorSession.activeTool;
   const updateBrush = (change: Partial<EditorSession['brush']>) => {
     setEditorSession((current) => ({
       ...current,
