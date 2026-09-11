@@ -19,6 +19,7 @@ const setup = () => {
   const host = createVectorDocumentTestHarness(document);
   const edits = new VectorToolSessionController({
     ...host.dependencies, getRendererGeneration: () => 1,
+    captureRuntime: () => ({ isCurrent: () => true }),
     getSelection: () => session.vectorSelection,
     setSelection: value => { session.vectorSelection = value; },
     reportError: vi.fn(), captureTransformPreview: () => null

@@ -230,11 +230,14 @@ class names: reuse existing owners before creating a new one.
     toolbar/context gradient route, creation options separate from geometry.
     Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property
     parity, shape geometry/history and vector authoring/roundtrip pass.
-  - [ ] O05b.2: vector commit observation, Pen terminals and mounted lifetimes.
+  - [x] O05b.2: vector commit observation, Pen terminals and mounted lifetimes.
     - [x] O05b.2a: current document/settings/selection getters and committed
       payload observer; no post-commit active-layer rediscovery. Critic PASS;
       packaged Gradient create/update Actions, Pen/Path Text and shape pass.
-    - [ ] O05b.2b: exact session/renderer retirement and Pen presentation.
+    - [x] O05b.2b: exact session/renderer retirement and Pen presentation.
+      Critic repairs accepted; packaged idle/Pen/Transform close-reopen exposed
+      and verified selection-retirement repair. Selection and Exposure pass.
+  - [ ] O05c.1: transform frame/snap presentation and exact renderer binding.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

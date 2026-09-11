@@ -97,6 +97,8 @@ export interface SelectionSessionController {
   finishPolygon(): boolean;
   cancelPolygon(): boolean;
   reset(): void;
+  /** Retires transient work without publishing into a closing or successor document. */
+  retire(): void;
   selectAll(): void;
   clear(): void;
   invert(): void;
@@ -188,6 +190,7 @@ export const createSelectionSessionController = (
   polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
   let magicWandGeneration = 0;
+  let retirementEpoch = 0;
   const magicWandAborts = new Set<AbortController>();
   let marqueeTool: GeometricSelectionToolId | null = null;
   let marqueeSnapMatches: readonly SnapMatch[] = [];
@@ -213,17 +216,19 @@ export const createSelectionSessionController = (
   let commitQueue: Promise<void> = Promise.resolve();
   let commitActive = false;
   let queuedTranslationSelection: SelectionOperation[] | null = null;
-  const queueCommit = <Result,>(operation: () => Promise<Result>): Promise<Result> => {
+  const queueCommit = <Result,>(operation: (isAdmitted: () => boolean) => Promise<Result>): Promise<Result> => {
+    const epoch = retirementEpoch;
+    const run = () => operation(() => epoch === retirementEpoch);
     let task: Promise<Result>;
     if (!commitActive) {
       commitActive = true;
       try {
-        task = operation();
+        task = run();
       } catch (reason) {
         task = Promise.reject(reason);
       }
     } else {
-      task = commitQueue.then(operation, operation);
+      task = commitQueue.then(run, run);
     }
     const tail = task.then(() => undefined, () => undefined);
     commitQueue = tail;
@@ -244,8 +249,8 @@ export const createSelectionSessionController = (
     const operation = createTranslateSelectionOperation(document.width, document.height, x, y);
     const after = [...before, operation];
     queuedTranslationSelection = after;
-    const execution = queueCommit(() => {
-      if (!isCurrent(document, renderer)) return Promise.resolve(false);
+    const execution = queueCommit((isAdmitted) => {
+      if (!isAdmitted() || !isCurrent(document, renderer)) return Promise.resolve(false);
       return resolveDependencies().commitTranslation({ x, y, provenance: operation });
     }).then(() => undefined).finally(() => {
       if (queuedTranslationSelection === after) queuedTranslationSelection = null;
@@ -310,9 +315,10 @@ export const createSelectionSessionController = (
     dependencies.publishDraft(null);
     dependencies.publishSelection(dependencies.getSelection(), null);
     const operation = after.at(-1) ?? null;
-    return queueCommit(async () => {
-      if (!isCurrent(document, renderer)) return false;
+    return queueCommit(async (isAdmitted) => {
+      if (!isAdmitted() || !isCurrent(document, renderer)) return false;
       const applied = await resolveDependencies().commitOperation({ operation });
+      if (!isAdmitted()) return false;
       resolveDependencies().setError(applied ? null : failureMessage);
       return applied;
     });
@@ -343,8 +349,8 @@ export const createSelectionSessionController = (
       ...(result.featherRadius > 0 ? { amount: result.featherRadius } : {}),
       ...(result.antiAlias ? { antiAlias: true } : {})
     };
-    void queueCommit(async () => {
-      if (!isCurrent(document, renderer)) return false;
+    void queueCommit(async (isAdmitted) => {
+      if (!isAdmitted() || !isCurrent(document, renderer)) return false;
       const applied = await resolveDependencies().commitShape({
         mode: result.mode,
         shape: result.shape,
@@ -352,6 +358,7 @@ export const createSelectionSessionController = (
         antiAlias: result.antiAlias,
         provenance: operation,
       });
+      if (!isAdmitted()) return false;
       const latest = resolveDependencies();
       if (applied) {
         latest.setError(null);
@@ -383,8 +390,8 @@ export const createSelectionSessionController = (
       ...(featherRadius > 0 ? { amount: featherRadius } : {}),
       ...(antiAlias ? { antiAlias: true } : {})
     };
-    return queueCommit(() => {
-      if (!isCurrent(document, renderer)) return Promise.resolve(false);
+    return queueCommit((isAdmitted) => {
+      if (!isAdmitted() || !isCurrent(document, renderer)) return Promise.resolve(false);
       return resolveDependencies().commitShape({
         mode,
         shape,
@@ -521,8 +528,8 @@ export const createSelectionSessionController = (
     const cancellation = new AbortController();
     magicWandAborts.add(cancellation);
     try {
-      return await queueCommit(async () => {
-        if (generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
+      return await queueCommit(async (isAdmitted) => {
+        if (!isAdmitted() || generation !== magicWandGeneration || !isCurrent(document, renderer)) return false;
         const latest = resolveDependencies();
         const applied = await latest.commitMagicWand({
           layerId,
@@ -531,7 +538,7 @@ export const createSelectionSessionController = (
           options: { ...options },
           provenance: operation,
         }, cancellation.signal);
-        if (!applied || generation !== magicWandGeneration) return false;
+        if (!applied || !isAdmitted() || generation !== magicWandGeneration) return false;
         latest.setError(null);
         if (recordObserved) {
           notifyObservedCommit(latest, () => latest.onMagicWandCommitted?.({
@@ -563,8 +570,10 @@ export const createSelectionSessionController = (
       document.height,
       options
     );
-    return queueCommit(async () => {
+    return queueCommit(async (isAdmitted) => {
+      if (!isAdmitted() || resolveDependencies().getDocument() !== document) return false;
       const applied = await resolveDependencies().commitOperation({ operation });
+      if (!isAdmitted()) return false;
       resolveDependencies().setError(applied ? null : 'Similar colors could not be selected.');
       return applied;
     });
@@ -693,12 +702,14 @@ export const createSelectionSessionController = (
           return true;
         }
         const provenance = after.at(-1)!;
-        void queueCommit(async () => {
+        void queueCommit(async (isAdmitted) => {
+          if (!isAdmitted() || !isCurrent(current.document, current.renderer)) return false;
           const applied = await resolveDependencies().commitTranslation({
             x: current.x,
             y: current.y,
             provenance,
           });
+          if (!isAdmitted()) return false;
           if (!applied && isCurrent(current.document, current.renderer)) {
             current.renderer.setCommittedSelectionProjection(current.before);
             resolveDependencies().setError('The selection could not be moved.');
@@ -785,10 +796,10 @@ export const createSelectionSessionController = (
       const operation = createObjectSelectionOperation(
         document.revision, document.width, document.height, mode,
       );
-      return queueCommit(() => {
+      return queueCommit((isAdmitted) => {
         const latest = resolveDependencies();
         const latestDocument = latest.getDocument();
-        if (signal.aborted || latest.getRenderer() !== renderer
+        if (!isAdmitted() || signal.aborted || latest.getRenderer() !== renderer
           || latestDocument?.id !== document.id
           || latestDocument.revision !== documentRevision) return Promise.resolve(false);
         return latest.commitRasterMask({ mask, mode, provenance: operation }, signal);
@@ -812,6 +823,21 @@ export const createSelectionSessionController = (
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);
       return true;
+    },
+    retire: () => {
+      retirementEpoch += 1;
+      magicWandGeneration += 1;
+      magicWandAborts.forEach((controller) => controller.abort());
+      magicWandAborts.clear();
+      if (translation) translation.stopped = true;
+      translation = null;
+      queuedTranslationSelection = null;
+      marqueeTool = null;
+      marqueeSnapMatches = [];
+      gestureOwner = null;
+      gesture.reset();
+      polygonGesture.reset();
+      paint.retire();
     },
     reset: () => {
       const dependencies = resolveDependencies();

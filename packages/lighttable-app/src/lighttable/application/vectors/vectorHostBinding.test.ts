@@ -16,6 +16,33 @@ vi.mock('react', () => ({
 }));
 
 describe('vector host authority between React renders', () => {
+  it.each(['session', 'renderer'] as const)('retires an exact %s replacement before React rerenders', replace => {
+    const initial = createImageDocument('same id', 320, 180, 'asset');
+    const h = createVectorDocumentTestHarness(initial);
+    const session = createEditorSession(); session.activeTool = 'vector-pen';
+    let sessionIdentity = {}, rendererIdentity = {};
+    const controller = useVectorToolSessionController({
+      document: initial, rendererGeneration: 1, sessionIdentity, rendererIdentity,
+      lifecycleIdentity: h, getSessionIdentity: () => sessionIdentity,
+      getRendererGeneration: () => 1, captureScope: () => {
+        const renderer = rendererIdentity;
+        return { isCurrent: () => renderer === rendererIdentity };
+      },
+      getDocument: () => h.canonicalDocument, getSession: () => session,
+      documentMutations: h.mutations,
+      publishSelection: selection => { session.vectorSelection = selection; },
+      captureTransformPreview: () => null, reportError: vi.fn(), rasterizeShape: async () => false
+    });
+    controller.activate('pen');
+    for (const [id, point] of [{ x: 10, y: 10 }, { x: 70, y: 30 }].entries()) {
+      controller.pointerDown(id, point, { hitRadius: 3 }); controller.pointerUp(id, point);
+    }
+    if (replace === 'session') sessionIdentity = {};
+    else rendererIdentity = {};
+    controller.deactivate();
+    expect(h.history).toHaveLength(0);
+    controller.dispose();
+  });
   it('reads live document/settings/selection and observes one exact gradient create/update', () => {
     const initial = createImageDocument('gradient', 320, 180, 'asset');
     const h = createVectorDocumentTestHarness(initial);
@@ -27,6 +54,8 @@ describe('vector host authority between React renders', () => {
     });
     const controller = useVectorToolSessionController({
       document: initial, rendererGeneration: 1,
+      sessionIdentity: h, rendererIdentity: null, lifecycleIdentity: h, getSessionIdentity: () => h,
+      getRendererGeneration: () => 1, captureScope: () => ({ isCurrent: () => true }),
       getDocument: () => h.canonicalDocument, getSession: () => session,
       documentMutations: h.mutations,
       publishSelection: selection => { session.vectorSelection = selection; },

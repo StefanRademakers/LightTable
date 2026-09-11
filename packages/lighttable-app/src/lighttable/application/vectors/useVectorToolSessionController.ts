@@ -14,10 +14,17 @@ import type { VectorElementCreationTransaction } from './VectorDocumentControlle
 import { vectorStyleFromToolSettings } from './vectorStylePresentation';
 import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 import type { VectorTransformPreviewBinding } from './VectorTransformPreviewBinding';
+import type { VectorRuntimeScope } from './VectorRuntimeBinding';
 
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
   readonly rendererGeneration: number;
+  readonly sessionIdentity: object | undefined;
+  readonly rendererIdentity: object | null;
+  readonly lifecycleIdentity: object;
+  readonly getSessionIdentity: () => object | undefined;
+  readonly getRendererGeneration: () => number;
+  readonly captureScope: () => VectorRuntimeScope;
   readonly getDocument: () => ImageDocument | null;
   readonly getSession: () => EditorSession;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
@@ -45,7 +52,7 @@ export interface VectorToolSessionHookOptions {
 export const useVectorToolSessionController = (
   options: VectorToolSessionHookOptions
 ): VectorToolSessionController => {
-  const { document, rendererGeneration } = options;
+  const { document, rendererGeneration, sessionIdentity, rendererIdentity, lifecycleIdentity } = options;
   const { activeTool, gradient, shape } = options.getSession();
   const portsRef = useRef(options);
   portsRef.current = options;
@@ -54,7 +61,12 @@ export const useVectorToolSessionController = (
   if (!controllerRef.current) {
     controllerRef.current = new VectorToolSessionController({
       getDocument: () => portsRef.current.getDocument(),
-      getRendererGeneration: () => portsRef.current.rendererGeneration,
+      getRendererGeneration: () => portsRef.current.getRendererGeneration(),
+      captureRuntime: () => {
+        const session = portsRef.current.getSessionIdentity();
+        const scope = portsRef.current.captureScope();
+        return { isCurrent: () => portsRef.current.getSessionIdentity() === session && scope.isCurrent() };
+      },
       documentMutations: {
         begin: (...args) => portsRef.current.documentMutations.begin(...args),
         change: (...args) => portsRef.current.documentMutations.change(...args)
@@ -113,7 +125,7 @@ export const useVectorToolSessionController = (
           : activation.preset
     );
     controller.activate(activation.mode);
-  }, [activeTool, document?.id, rendererGeneration, gradient.application, shape.linkedCorners,
+  }, [activeTool, document?.id, rendererGeneration, sessionIdentity, rendererIdentity, lifecycleIdentity, gradient.application, shape.linkedCorners,
     shape.rectangleCornerRadii, shape.lineStartArrow, shape.lineEndArrow,
     shape.lineArrowWidth, shape.lineArrowLength]);
 

@@ -4,16 +4,13 @@ import { createInteractionTransitionCoordinator } from './InteractionTransitionC
 describe('InteractionTransitionCoordinator', () => {
   it('preserves mounted interactions across host presentation loss', async () => {
     const settle = vi.fn(async () => undefined);
-    const cancel = vi.fn();
     const coordinator = createInteractionTransitionCoordinator({
       settleMountedInteraction: settle,
-      cancelMountedInteraction: cancel,
       reportFailure: vi.fn()
     });
 
     expect(await coordinator.request('preserve')).toEqual({ status: 'admitted' });
     expect(settle).not.toHaveBeenCalled();
-    expect(cancel).not.toHaveBeenCalled();
   });
 
   it('serializes overlapping adjustment and command admission behind settlement', async () => {
@@ -25,7 +22,6 @@ describe('InteractionTransitionCoordinator', () => {
       .mockImplementationOnce(async () => { events.push('settle-2'); });
     const coordinator = createInteractionTransitionCoordinator({
       settleMountedInteraction: settle,
-      cancelMountedInteraction: vi.fn(),
       reportFailure: vi.fn()
     });
 
@@ -52,7 +48,6 @@ describe('InteractionTransitionCoordinator', () => {
     const reportFailure = vi.fn();
     const coordinator = createInteractionTransitionCoordinator({
       settleMountedInteraction: async () => { throw new Error('GPU finalization failed'); },
-      cancelMountedInteraction: vi.fn(),
       reportFailure
     });
 
@@ -71,13 +66,12 @@ describe('InteractionTransitionCoordinator', () => {
     const cancel = vi.fn();
     const coordinator = createInteractionTransitionCoordinator({
       settleMountedInteraction: async () => settlement,
-      cancelMountedInteraction: cancel,
       reportFailure: vi.fn()
     });
 
     const pending = coordinator.request('commit-before-mutation');
     await Promise.resolve();
-    expect(await coordinator.request('cancel-on-document-retire')).toEqual({ status: 'admitted' });
+    coordinator.retire(cancel);
     releaseSettlement();
 
     expect(await pending).toEqual({
@@ -85,5 +79,24 @@ describe('InteractionTransitionCoordinator', () => {
       reason: 'The document interaction was retired during mutation admission.'
     });
     expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('retires the captured participant before a queued admission can select a successor', async () => {
+    const oldOwner = vi.fn();
+    const newOwner = vi.fn();
+    let current = oldOwner;
+    const settle = vi.fn(async () => undefined);
+    const coordinator = createInteractionTransitionCoordinator({
+      settleMountedInteraction: settle, reportFailure: vi.fn()
+    });
+    const captured = current;
+    const queued = coordinator.request('commit-before-mutation');
+    current = newOwner;
+    coordinator.retire(captured);
+    expect((await queued).status).toBe('rejected');
+    expect(oldOwner).toHaveBeenCalledOnce();
+    expect(current).not.toHaveBeenCalled();
+    expect(settle).not.toHaveBeenCalled();
+    expect((await coordinator.request('commit-before-mutation')).status).toBe('admitted');
   });
 });

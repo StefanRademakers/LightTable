@@ -101,6 +101,128 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
 };
 
 describe('selection session controller kernel boundary', () => {
+  it('retires idle and draft state without publishing to a disposed session', () => {
+    const publishSelection = vi.fn();
+    const publishDraft = vi.fn();
+    const publishSnapFeedback = vi.fn();
+    const state = setup({ publishSelection, publishDraft, publishSnapFeedback });
+    state.controller.begin(71, 'select-rectangle', { x: 5, y: 5 }, 'replace');
+    state.controller.move(71, { x: 25, y: 25 });
+    publishSelection.mockClear(); publishDraft.mockClear(); publishSnapFeedback.mockClear();
+    state.controller.retire();
+    state.controller.retire();
+    expect(state.controller.active).toBe(false);
+    expect(state.controller.draft).toBeNull();
+    expect(publishSelection).not.toHaveBeenCalled();
+    expect(publishDraft).not.toHaveBeenCalled();
+    expect(publishSnapFeedback).not.toHaveBeenCalled();
+    expect(state.renderer.setCommittedSelectionProjection).not.toHaveBeenCalled();
+  });
+
+  it('retires translation without restoring pixels or publishing pointer state', async () => {
+    const publishSelection = vi.fn();
+    const publishPointer = vi.fn();
+    const state = setup({ publishSelection, publishPointer });
+    await state.controller.applyState('all');
+    expect(state.controller.begin(72, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
+    state.controller.move(72, { x: 20, y: 20 });
+    publishSelection.mockClear(); publishPointer.mockClear();
+    state.controller.retire();
+    expect(state.controller.finish(72)).toBe(false);
+    expect(state.renderer.setCommittedSelectionProjection).not.toHaveBeenCalled();
+    expect(publishSelection).not.toHaveBeenCalled();
+    expect(publishPointer).not.toHaveBeenCalled();
+  });
+
+  it('invalidates queued commands and late feedback while allowing a fresh lifetime', async () => {
+    let finish!: (value: boolean) => void;
+    const commitOperation = vi.fn().mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }))
+      .mockResolvedValue(true);
+    const state = setup({ commitOperation });
+    const first = state.controller.applyState('all');
+    const queued = state.controller.applyState('invert');
+    state.controller.retire();
+    finish(true);
+    expect(await first).toBe(false);
+    expect(await queued).toBe(false);
+    expect(commitOperation).toHaveBeenCalledTimes(1);
+    expect(state.setError).not.toHaveBeenCalled();
+    expect(await state.controller.applyState('all')).toBe(true);
+    expect(commitOperation).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['active', 'finished', 'cancelled'] as const)('retires %s selection paint with one exact lease release', async (phase) => {
+    let finish!: (value: boolean) => void;
+    const publishSelection = vi.fn();
+    const state = setup({ publishSelection });
+    state.preview.paintSelectionDabs.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    expect(state.controller.beginPaint(73, { x: 10, y: 10, pressure: 1 }, 'add',
+      { size: 10, hardness: 1, opacity: 1, smooth: 0 })).toBe(true);
+    if (phase === 'finished') state.controller.finishPaint(73);
+    if (phase === 'cancelled') state.controller.cancelPaint(73);
+    publishSelection.mockClear();
+    state.controller.retire();
+    expect(state.preview.release).toHaveBeenCalledTimes(1);
+    finish(true);
+    await state.controller.settle();
+    await Promise.resolve();
+    expect(state.preview.release).toHaveBeenCalledTimes(1);
+    expect(state.preview.restoreSelectionSnapshot).not.toHaveBeenCalled();
+    expect(state.commitPaint).not.toHaveBeenCalled();
+    expect(publishSelection).not.toHaveBeenCalled();
+    expect(state.setError).not.toHaveBeenCalled();
+  });
+
+  it('preserves live reset paint restoration and pointer publication', async () => {
+    const publishSelection = vi.fn();
+    const state = setup({ publishSelection });
+    state.controller.beginPaint(74, { x: 10, y: 10, pressure: 1 }, 'add',
+      { size: 10, hardness: 1, opacity: 1, smooth: 0 });
+    publishSelection.mockClear();
+    state.controller.reset();
+    await state.controller.settle();
+    await Promise.resolve();
+    expect(state.preview.restoreSelectionSnapshot).toHaveBeenCalledOnce();
+    expect(state.preview.release).toHaveBeenCalledOnce();
+    expect(publishSelection).toHaveBeenCalled();
+  });
+
+  it('aborts a pending wand and prevents late observation after retirement', async () => {
+    let finish!: (value: boolean) => void;
+    let signal: AbortSignal | undefined;
+    const commitMagicWand = vi.fn((_command, cancellation: AbortSignal) => {
+      signal = cancellation;
+      return new Promise<boolean>(resolve => { finish = resolve; });
+    });
+    const onMagicWandCommitted = vi.fn();
+    const state = setup({ commitMagicWand, onMagicWandCommitted });
+    expect(state.controller.magicWand({ x: 10, y: 10 }, 'replace',
+      { tolerance: 0.1, contiguous: true, antiAlias: true, sampleSize: 1, sampleAllLayers: false })).toBe(true);
+    state.controller.retire();
+    expect(signal?.aborted).toBe(true);
+    finish(true);
+    await state.controller.settle();
+    expect(onMagicWandCommitted).not.toHaveBeenCalled();
+    expect(state.setError).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a completed paint commit into the next lifetime', async () => {
+    let finish!: (value: boolean) => void;
+    const commitPaint = vi.fn(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const onPaintCommitted = vi.fn();
+    const state = setup({ commitPaint, onPaintCommitted });
+    state.controller.beginPaint(75, { x: 10, y: 10, pressure: 1 }, 'add',
+      { size: 10, hardness: 1, opacity: 1, smooth: 0 });
+    state.controller.finishPaint(75);
+    await vi.waitFor(() => expect(commitPaint).toHaveBeenCalledOnce());
+    state.controller.retire();
+    finish(true);
+    await state.controller.settle();
+    expect(onPaintCommitted).not.toHaveBeenCalled();
+    expect(state.setError).not.toHaveBeenCalled();
+    expect(state.preview.release).toHaveBeenCalledOnce();
+  });
+
   it('routes Select All, Invert and Clear through the generic kernel operation port', async () => {
     const state = setup();
     expect(await state.controller.applyState('all')).toBe(true);

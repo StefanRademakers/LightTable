@@ -1,5 +1,41 @@
 # Task 416 progress
 
+## O05b.2b — Exact vector runtime and Pen presentation (accepted)
+
+- VectorRuntimeBinding compares exact session/renderer/lifecycle scope rather
+  than only IDs/generation; normal document previews remain within that scope.
+  All terminal entry points synchronize before finishing. Unmount cancels Pen;
+  normal same-runtime tool exit still finishes a viable path once. Hook reads
+  operational generation live. PenPresentationBinding owns only exact-renderer
+  overlay callbacks/terminal presentation; no path, command or history owner.
+- Critic repairs: active-layer preparation must synchronize too; presentation
+  starts closed and layout setup opens it, including StrictMode replay. Final
+  source PASS. Hook tests exercise actual construction but mock React scheduling;
+  they are not complete React lifecycle proof. Overlay 7,272 -> 7,267 lines.
+- Actual packaged close exposed a separate real invariant failure: workspace
+  disposes DocumentSession before React cleanup; ordinary selection.reset then
+  published into that disposed session. Preserved failed run:
+  tmp/quality-audit/vector-document-lifecycle/report.json. Repair is explicit
+  retire(), not disposed guards/catches. Retirement invalidates queued selection
+  commands, wand and late paint feedback, releases exact preview leases once,
+  and publishes no selection/editor state. Ordinary reset remains unchanged.
+  Coordinator retirement receives captured participants instead of resolving a
+  mutable latest cancel callback. Effect also follows concrete document session.
+  Existing transform reset discards transient preview; no new canonical rollback.
+- Focused vector/Pen/coordinator: 62 tests/5 files; selection family38/3 files;
+  typecheck, boundary, structure, diff and fresh instrumented package pass.
+  Independent retirement review PASS. Packaged Pen/Path Actions, gradient
+  properties and shape passed before retirement repair; final package verifies
+  three idle, three open-Pen and three active-Transform close/reopen cycles,
+  selection kernel and Transform-to-Exposure handoff. All zero page errors.
+- Reports tmp/quality-audit/vector-lifecycle-retirement-{idle,pen,transform}/report.json:
+  GPU estimate delta0 each; settled heap tail growth842192/1192716/996504 bytes.
+  These bounded resource checks are not a global memory/performance guarantee.
+  Harness now waits for canonical no-document launcher; active-transform test
+  explicitly selects an editable vector child rather than the imported group.
+- Next O05c.1 transform/smart-guide presentation binding. Broader tool lifecycle,
+  controller composition, property Actions and O08 performance remain open.
+
 ## O05b.2a — Current vector reads and committed observations (accepted)
 
 - Existing vector host now reads current application document, session settings

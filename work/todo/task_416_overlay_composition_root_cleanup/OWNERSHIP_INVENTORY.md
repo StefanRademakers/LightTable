@@ -198,6 +198,14 @@ must be decomposed along the stated owners, not moved wholesale.
 
 ## Baseline evidence and open inventory gate
 
+O05b.2b: vector runtime admission now captures concrete session/lifecycle/renderer;
+PenPresentationBinding owns exact renderer overlay/terminal callbacks, not paths.
+Packaged close revealed selection.reset publishing into disposed DocumentSession.
+Selection retire now owns local epoch/abort/lease teardown with no canonical or
+UI publication. Coordinator takes captured retirement participants; mutable
+cancelPixelInteractionRef removed. Normal live reset and kernel mutation owners
+remain unchanged. Idle/Pen/Transform close/reopen and selection/Exposure pass.
+
 O03c.1 relocation: loaded-source publication/hydration callbacks ->
 DocumentLoadedSourceBinding; pending/error and late completion -> document-owned
 DocumentFontHydrationOwner; standalone registry construction/subscription/reset/

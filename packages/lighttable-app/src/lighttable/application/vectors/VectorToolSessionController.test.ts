@@ -55,10 +55,15 @@ const setup = (
   );
   let selection: VectorEditorSelection = createVectorEditorSelection();
   let rendererGeneration = 1;
+  let runtimeIdentity = {};
   const reportError = vi.fn();
   const controller = new VectorToolSessionController({
     ...host.dependencies,
     getRendererGeneration: () => rendererGeneration,
+    captureRuntime: () => {
+      const identity = runtimeIdentity, generation = rendererGeneration;
+      return { isCurrent: () => identity === runtimeIdentity && generation === rendererGeneration };
+    },
     getSelection: () => selection,
     setSelection: (next) => { selection = next; },
     reportError,
@@ -91,11 +96,52 @@ const setup = (
     set document(next) { host.replaceDocument(next); },
     get selection() { return selection; },
     get rendererGeneration() { return rendererGeneration; },
-    set rendererGeneration(next) { rendererGeneration = next; }
+    set rendererGeneration(next) { rendererGeneration = next; },
+    replaceRuntime: () => { runtimeIdentity = {}; }
   };
 };
 
 describe('VectorToolSessionController', () => {
+  it('retires a replaced runtime before layer-selection prerequisites can finish old Pen', () => {
+    const state = setup();
+    state.controller.activate('pen');
+    for (const [id, point] of [{ x: 10, y: 10 }, { x: 70, y: 30 }].entries()) {
+      state.controller.pointerDown(id, point, { hitRadius: 3 }); state.controller.pointerUp(id, point);
+    }
+    state.replaceRuntime();
+    expect(state.controller.prepareActiveLayerChange(null)).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.penEditingOverlay()).toBeNull();
+  });
+  it('cancels rather than commits an unmounted viable Pen path', () => {
+    const state = setup(); state.controller.activate('pen');
+    for (const [id, point] of [{ x: 10, y: 10 }, { x: 70, y: 30 }].entries()) {
+      state.controller.pointerDown(id, point, { hitRadius: 3 }); state.controller.pointerUp(id, point);
+    }
+    state.controller.dispose(); expect(state.history).toHaveLength(0);
+  });
+  it.each(['deactivate', 'finishPenPath', 'dispose'] as const)(
+    'retires an equal-id/equal-generation Pen before %s can commit', terminal => {
+      const state = setup();
+      state.controller.activate('pen');
+      for (const [id, point] of [{ x: 10, y: 10 }, { x: 70, y: 30 }].entries()) {
+        state.controller.pointerDown(id, point, { hitRadius: 3 });
+        state.controller.pointerUp(id, point);
+      }
+      state.replaceRuntime();
+      state.controller[terminal]();
+      expect(state.history).toHaveLength(0);
+      expect(state.controller.penEditingOverlay()).toBeNull();
+    });
+  it('rejects a drag on exact runtime replacement despite equal scalar ids', () => {
+    const state = setup(); state.controller.activate('live-shape');
+    state.controller.pointerDown(1, { x: 10, y: 10 }, { hitRadius: 3 });
+    state.controller.pointerMove(1, { x: 70, y: 30 });
+    state.replaceRuntime();
+    expect(state.controller.pointerUp(1, { x: 80, y: 40 })).toBe(false);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.ownsPointer(1)).toBe(false);
+  });
   it('selects an active shape layer when element selection is activated', () => {
     const state = setup();
     const shape = createVectorLiveShape('shape-1', {

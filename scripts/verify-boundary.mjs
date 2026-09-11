@@ -684,7 +684,8 @@ function verifyAdjustmentCutover(relativePath, source) {
   if (normalizedPath.endsWith('/application/interactions/InteractionTransitionCoordinator.ts')) {
     if (!source.includes("'preserve'")
       || !source.includes("'commit-before-mutation'")
-      || !source.includes("'cancel-on-document-retire'")
+      || !source.includes('retireParticipants();')
+      || !source.includes('generation += 1;')
       || !source.includes('await dependencies.settleMountedInteraction()')
       || !source.includes('requestedGeneration !== generation')
       || !source.includes('dependencies.reportFailure(reason)')) {
@@ -800,7 +801,9 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
     const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(\)/g)?.length ?? 0;
     if (directPixelSettlements !== 1
       || !source.includes("interactionTransitions.request('commit-before-mutation')")
-      || !source.includes("interactionTransitions.request('cancel-on-document-retire')")
+      || !source.includes('interactionTransitions.retire(')
+      || !source.includes('selectionSessionController.retire();')
+      || source.includes('cancelPixelInteractionRef')
       || !source.includes("interactionTransitions.request('preserve')")) {
       failures.push(`${relativePath}: mounted-document interaction transitions must have one centralized preserve, settlement and retirement authority`);
     }

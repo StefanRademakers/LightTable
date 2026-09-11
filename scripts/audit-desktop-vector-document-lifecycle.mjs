@@ -16,6 +16,9 @@ const cycles = Number.parseInt(argument('cycles', '6'), 10);
 const expectedBackend = 'hybrid';
 const profileFirstClose = argument('profile-first-close', 'false') === 'true';
 const directClick = argument('direct-click', 'true') === 'true';
+const pendingPen = argument('pending-pen', 'false') === 'true';
+const pendingTransform = argument('pending-transform', 'false') === 'true';
+assert.ok(!(pendingPen && pendingTransform), 'Choose one pending interaction per lifecycle run.');
 const outputDirectory = path.resolve(argument(
   'output', path.join(root, 'tmp', 'quality-audit', 'vector-document-lifecycle')
 ));
@@ -29,7 +32,7 @@ await mkdir(userDataPath, { recursive: true });
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const report = {
-  generatedAt: new Date().toISOString(), sourceFile, cycles, expectedBackend,
+  generatedAt: new Date().toISOString(), sourceFile, cycles, expectedBackend, pendingPen, pendingTransform,
   mode: launch.mode, executablePath: launch.executablePath,
   samples: [], pageErrors: [], consoleErrors: []
 };
@@ -120,6 +123,23 @@ try {
     const workspace = await driver.queryWorkspace();
     const closingId = workspace?.activeDocumentId;
     assert.ok(closingId, `Cycle ${cycle} has no active document to close.`);
+    if (pendingPen) {
+      await page.keyboard.press('p');
+      const viewport = await page.locator('.lighttable-viewport').boundingBox();
+      assert.ok(viewport);
+      const layersBefore = await driver.queryLayers(closingId);
+      await page.mouse.click(viewport.x + viewport.width * 0.25, viewport.y + viewport.height * 0.35);
+      await page.mouse.click(viewport.x + viewport.width * 0.4, viewport.y + viewport.height * 0.5);
+      // Leave a viable two-anchor Pen transaction open, without Enter/tool exit.
+      assert.equal((await driver.queryLayers(closingId)).length, layersBefore.length);
+    }
+    if (pendingTransform) {
+      const target = (await driver.queryLayers(closingId)).findLast(layer => layer.type === 'vector');
+      assert.ok(target, 'The fixture must provide an editable vector transform target.');
+      await page.locator(`[data-layer-id="${target.id}"] .lighttable-layer__name`).click();
+      await page.keyboard.press('Control+t');
+      await page.locator('svg[aria-label="Transform controls"]').waitFor({ state: 'visible', timeout: 10_000 });
+    }
     const closeTimeline = {
       dialogSeenMs: null, dialogAcceptMs: null, clickReturnMs: null, stateCommitMs: null
     };
@@ -156,7 +176,12 @@ try {
 
     const openStartedAt = performance.now();
     const launcherOpen = page.getByRole('button', { name: 'Open', exact: true });
-    if (await launcherOpen.isVisible().catch(() => false)) await launcherOpen.click();
+    if (!closedWorkspace?.activeDocumentId) {
+      // Canonical close precedes React's launcher publication. Wait for the
+      // correct no-document surface, rather than guessing File from a visibility race.
+      await launcherOpen.waitFor({ state: 'visible', timeout: 30_000 });
+      await launcherOpen.click();
+    }
     else {
       await page.getByRole('menuitem', { name: 'File', exact: true }).click();
       await page.locator('.ui-menu:visible').getByRole('menuitem', { name: 'Open', exact: true }).click();
@@ -206,6 +231,9 @@ try {
   }
 } catch (error) {
   report.failure = error instanceof Error ? error.stack ?? error.message : String(error);
+  const failedPage = await app.firstWindow();
+  await failedPage.screenshot({ path: path.join(outputDirectory, 'failure.png') });
+  report.failureBody = await failedPage.locator('body').innerText();
   throw error;
 } finally {
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`).catch(() => {});

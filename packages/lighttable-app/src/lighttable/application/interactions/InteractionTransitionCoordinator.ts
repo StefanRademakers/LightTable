@@ -1,7 +1,6 @@
 export type InteractionTransitionPolicy =
   | 'preserve'
-  | 'commit-before-mutation'
-  | 'cancel-on-document-retire';
+  | 'commit-before-mutation';
 
 export type InteractionTransitionAdmission =
   | { readonly status: 'admitted' }
@@ -9,12 +8,12 @@ export type InteractionTransitionAdmission =
 
 export interface InteractionTransitionDependencies {
   readonly settleMountedInteraction: () => Promise<void>;
-  readonly cancelMountedInteraction: () => void;
   readonly reportFailure: (message: string) => void;
 }
 
 export interface InteractionTransitionCoordinator {
   request(policy: InteractionTransitionPolicy): Promise<InteractionTransitionAdmission>;
+  retire(retireParticipants: () => void): void;
 }
 
 const admitted = (): InteractionTransitionAdmission => ({ status: 'admitted' });
@@ -36,14 +35,12 @@ export const createInteractionTransitionCoordinator = (
   let queue: Promise<void> = Promise.resolve();
 
   return {
+    retire: (retireParticipants) => {
+      generation += 1;
+      retireParticipants();
+    },
     request: (policy) => {
       if (policy === 'preserve') return Promise.resolve(admitted());
-
-      if (policy === 'cancel-on-document-retire') {
-        generation += 1;
-        dependencies.cancelMountedInteraction();
-        return Promise.resolve(admitted());
-      }
 
       const requestedGeneration = generation;
       const admission = queue.then(async () => {

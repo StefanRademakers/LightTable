@@ -10,6 +10,7 @@ import {
   type VectorStyle
 } from '@lighttable/vector-core';
 import { vectorPropertyValuesEqual } from './vectorPropertyValuesEqual';
+import { VectorRuntimeBinding, type VectorRuntimeScope } from './VectorRuntimeBinding';
 import {
   layerIsLocked,
   type ImageDocument,
@@ -64,6 +65,7 @@ export interface VectorToolSessionDependencies extends VectorDocumentControllerD
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
   getRendererGeneration(): number;
+  captureRuntime(): VectorRuntimeScope;
   captureTransformPreview(): VectorTransformPreviewBinding | null;
   reportError(message: string): void;
 }
@@ -128,8 +130,7 @@ export class VectorToolSessionController {
   private readonly pointTools: VectorPointToolController;
   private capturedPointer: CapturedPointer | null = null;
   private activeMode: VectorToolMode | null = null;
-  private documentId: ImageDocument['id'] | null;
-  private rendererGeneration: number;
+  private readonly runtime: VectorRuntimeBinding;
   private disposed = false;
   private readonly rasterizeShape: VectorToolSessionOptions['rasterizeShape'];
   private readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
@@ -140,8 +141,8 @@ export class VectorToolSessionController {
   ) {
     this.rasterizeShape = options.rasterizeShape;
     this.onLiveShapeCommitted = options.onLiveShapeCommitted;
-    this.documentId = dependencies.getDocument()?.id ?? null;
-    this.rendererGeneration = dependencies.getRendererGeneration();
+    this.runtime = new VectorRuntimeBinding(
+      () => dependencies.getDocument()?.id ?? null, () => dependencies.captureRuntime());
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(
       this.documents, dependencies,
@@ -222,6 +223,7 @@ export class VectorToolSessionController {
 
   deactivate() {
     if (!this.assertAvailable()) return false;
+    this.synchronizeRuntime();
     const changed = this.activeMode !== null || this.capturedPointer !== null;
     this.finishActiveMode();
     this.activeMode = null;
@@ -478,6 +480,7 @@ export class VectorToolSessionController {
    */
   prepareActiveLayerChange(nextLayerId: ImageDocument['activeLayerId']) {
     if (!this.assertAvailable()) return false;
+    this.synchronizeRuntime();
     const document = this.dependencies.getDocument();
     if (!document) return true;
     if (document.activeLayerId !== nextLayerId) this.finishActiveMode();
@@ -578,7 +581,7 @@ export class VectorToolSessionController {
 
   dispose() {
     if (this.disposed) return;
-    this.finishActiveMode();
+    this.cancelActiveMode();
     this.directSelection.dispose();
     this.elementSelection.dispose();
     this.pen.dispose();
@@ -598,15 +601,7 @@ export class VectorToolSessionController {
   }
 
   private synchronizeRuntime() {
-    const currentId = this.dependencies.getDocument()?.id ?? null;
-    const currentRendererGeneration = this.dependencies.getRendererGeneration();
-    if (currentId === this.documentId && currentRendererGeneration === this.rendererGeneration) {
-      return currentId !== null;
-    }
-    this.cancelActiveMode();
-    this.documentId = currentId;
-    this.rendererGeneration = currentRendererGeneration;
-    return currentId !== null;
+    return this.runtime.synchronize(() => this.cancelActiveMode());
   }
 
   private prepareSelectionCommand() {

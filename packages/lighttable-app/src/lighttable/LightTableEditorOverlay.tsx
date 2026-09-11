@@ -212,6 +212,7 @@ import { executeSemanticVectorCommand } from './application/vectors/semanticVect
 import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
 import { VectorCommitPublisher } from './application/vectors/VectorCommitPublisher';
+import { usePenPresentation } from './composition/vectors/usePenPresentation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeSemanticLayerStyleSnapshot } from './application/styles/executeSemanticLayerStyleSnapshot';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
@@ -793,7 +794,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const commitTransformRef = useRef<() => void>(() => undefined);
   const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
   const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
-  const cancelPixelInteractionRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const transformPickRevisionRef = useRef(0);
   const resetTransformRef = useRef<() => void>(() => undefined);
@@ -915,7 +915,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   if (!interactionTransitionCoordinatorRef.current) {
     interactionTransitionCoordinatorRef.current = createInteractionTransitionCoordinator({
       settleMountedInteraction: () => settlePixelInteractionRef.current(),
-      cancelMountedInteraction: () => cancelPixelInteractionRef.current(),
       reportFailure: (message) => reportInteractionTransitionFailureRef.current(message)
     });
   }
@@ -939,10 +938,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (admission.status === 'admitted') action();
     });
   };
-  useLayoutEffect(() => () => {
-    persistentToolActivationRef.current.retire();
-    void interactionTransitions.request('cancel-on-document-retire');
-  }, [interactionTransitions, workspaceDocumentId]);
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
@@ -3716,6 +3711,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
     rendererGeneration: rendererSnapshot.generation,
+    sessionIdentity: documentSession,
+    rendererIdentity: engineRef.current,
+    lifecycleIdentity: rendererLifecycle,
+    getSessionIdentity: () => mountedDocumentSessionRef.current,
+    getRendererGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation,
+    captureScope: captureMountedInteractionScope,
     getDocument: () => imageDocumentRef.current,
     getSession: readEditorSession,
     documentMutations: documentMutationController,
@@ -3743,20 +3744,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onPathMutationCommitted: vectorCommitPublisher.path,
     onGradientCommitted: vectorCommitPublisher.gradient
   });
-  finishPenPathRef.current = () => {
-    vectorToolSessionController.finishPenPath();
-    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
-  };
-  cancelPenPathRef.current = () => {
-    const changed = vectorToolSessionController.cancelPenPath();
-    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
-    return changed;
-  };
-  undoPenAnchorRef.current = () => {
-    const changed = vectorToolSessionController.undoPenAnchor();
-    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
-    return changed;
-  };
+  const penPresentation = usePenPresentation(vectorToolSessionController, engineRef.current,
+    documentSession, rendererSnapshot.generation, rendererLifecycle, captureMountedInteractionScope);
+  finishPenPathRef.current = penPresentation.finish;
+  cancelPenPathRef.current = penPresentation.cancel;
+  undoPenAnchorRef.current = penPresentation.undoAnchor;
   const selectedVectorStyle = useMemo(() => resolveSelectedVectorStyle(imageDocument,
     editorSession.vectorSelection), [imageDocument, editorSession.vectorSelection]);
   const selectedShapeGeometry = useMemo(() => resolveSelectedShapeGeometry(imageDocument,
@@ -3945,12 +3937,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onZoomDraftChange: (draft) => {
       engineRef.current?.setZoomEditingOverlay(draft);
     },
-    onPenRubberBandChange: (band) => {
-      engineRef.current?.setPenRubberBandOverlay(band);
-    },
-    onPenEditingOverlayChange: (overlay) => {
-      engineRef.current?.setPenEditingOverlay(overlay);
-    }
+    onPenRubberBandChange: penPresentation.setRubberBand,
+    onPenEditingOverlayChange: penPresentation.setOverlay
   });
   const desktopHorizontalWheelRef = useRef(viewportInteraction.onHorizontalWheel);
   desktopHorizontalWheelRef.current = viewportInteraction.onHorizontalWheel;
@@ -5333,10 +5321,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     await selectionSessionController.settle();
     await transformSession.commitPending();
   };
-  cancelPixelInteractionRef.current = () => {
-    selectionSessionController.reset();
-    transformSession.reset();
-  };
+  const resetMountedTransform = transformSession.reset;
+  useLayoutEffect(() => {
+    const toolActivation = persistentToolActivationRef.current;
+    return () => {
+      toolActivation.retire();
+      interactionTransitions.retire(() => {
+        selectionSessionController.retire();
+        resetMountedTransform();
+      });
+    };
+  }, [interactionTransitions, selectionSessionController, resetMountedTransform, workspaceDocumentId, documentSession]);
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
