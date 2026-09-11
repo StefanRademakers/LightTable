@@ -112,6 +112,11 @@ must be decomposed along the stated owners, not moved wholesale.
    they are not automatically forbidden mutation fallbacks.
 10. Toolbar/context-menu gradient updates differ; SVG async import and GenAI
     base-reference import also need intended-target/lifetime verification.
+11. O03b verification observed one missing preview artifact after Opacity drags,
+    before selection setup. Three subsequent full painted-selection runs passed.
+    Root cause is not established; enhanced harness request/artifact diagnostics
+    preserve the next occurrence. Do not claim this observation fixed or silently
+    retry preview reads. Track under O08 repeated-flow/artifact proof.
 
 ## Baseline evidence and open inventory gate
 

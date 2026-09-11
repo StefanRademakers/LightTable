@@ -147,3 +147,52 @@
   settlement remain named work. No whole-app stability or performance verdict.
 - Next: O03b complete surface/transform selection-publication binding, including
   the distant transform adapter; then remaining lifecycle/terminal policies.
+
+## O03b — Initial blocked gate: publication extraction and surface-history repair
+
+- Dirty extraction removes root's generic optional-session publication branch
+  and distant transform adapter. New binding captures one concrete session;
+  current surface callers already require that session. Overlay is now 8,843
+  physical lines (was 8,952 at accepted HEAD); ceiling is NOT ratcheted yet.
+- Extra packaged resize -> other tab -> return -> undo found old GPU selection
+  stores and renderer closures retained by surface history. First exception:
+  Selection targets are unavailable; compensation addressed a retired renderer.
+- Repair rounds 1/2 replace durable selection-texture dependence with exact
+  snapshots and current same-session/device projection. Compound inverse orders
+  pixels -> surface/selection -> canonical state. Replay admission is explicit.
+  Corrected rebound metadata dimensions and resize shortcut. No fallback.
+- Critic final source PASS is conditional on packaged exact-selection proof.
+  No-selection resize/tab/undo/redo passed. Full transform/Exposure and document
+  UI/Actions/MCP equivalence passed. App typecheck/boundary/structure and 27
+  focused publication/history/renderer tests passed. No full-suite claim.
+- Acceptance FAIL: feathered ellipse copy bounds after resize/tab/undo change
+  from (74,54,292,202) to (67,47,306,216). publishSurface still uses inherited
+  provenance-based support approximation instead of the exact cached mask
+  support. Critic confirms the cause; the bounded follow-up is documented.
+- Stop rule applied: no third silent repair loop, no accepted checkbox/commit.
+  Current package contains unaccepted dirty code. Test report explicitly records
+  failure instead of leaving the earlier passing report in place.
+- Full evidence, scope limits and remaining tasks:
+  O03B_PUBLICATION_ACCEPTANCE_REPORT.md.
+
+## O03b — Accepted after explicitly authorized additional round
+
+- Owner requested: "doe dan nog maar een ronde en maak het af" / "probeer het op te lossen".
+- publishSurface now uses cached exact coverage.measureSupportBounds(), matching
+  transform publication and the kernel contract. No readback/scan, fallback or
+  new owner. Sparse-mask/provenance disagreement and active/clipped-null bounds
+  are tested against actual canonical/editor projection state.
+- Critic PASS. Fresh packaged feathered ellipse and three painted-selection
+  runs pass resize + rotate -> other tab -> return -> undo/redo with exact
+  document preview and clipboard bounds/RGBA equality.
+- One painted-run attempt failed before any selection setup, while obtaining
+  the preview after Opacity gestures. Original assertion omitted request detail;
+  enhanced diagnostics preserve exact request/artifact failure on recurrence.
+  No in-test retry added. Root cause remains unproven and is an O08 risk.
+- Focused final history/session/publication/selection/renderer run: 205 tests
+  across 32 files (history/session filename filters include sharded tests).
+  App typecheck/boundary passed. Overlay 8,843 physical lines, ceiling 8,844.
+- Final package: selection-kernel, transform/Exposure and UI/Actions/MCP document
+  capability equivalence passed. Final painted screenshot visually inspected.
+- This completes O03b only. Next O03c and remaining O02c; WebGpuEngine is still
+  3,979 lines and neither monster-file cleanup nor the overall plan is complete.

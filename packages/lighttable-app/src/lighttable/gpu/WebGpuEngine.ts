@@ -670,11 +670,12 @@ export class WebGpuEngine {
    * initialized again.
    */
   bindExistingDocument(document: ImageDocument, metadata?: LightTableImageMetadata) {
-    const nextMetadata = metadata ?? {
+    const nextMetadata = {
       name: document.name,
+      contentType: 'application/vnd.mediavibe.lighttable.document',
+      ...metadata,
       width: document.width,
-      height: document.height,
-      contentType: 'application/vnd.mediavibe.lighttable.document'
+      height: document.height
     };
     if (
       this.imageDocument?.id === document.id
@@ -792,7 +793,9 @@ export class WebGpuEngine {
     }
     this.documentRenderer.assertDocumentProjection(document);
     const dimensionsChanged = document.width !== this.metadata.width
-      || document.height !== this.metadata.height;
+      || document.height !== this.metadata.height
+      || document.width !== this.imageDocument?.width
+      || document.height !== this.imageDocument?.height;
     if (!dimensionsChanged) {
       this.setDocument(document);
       return;
@@ -1461,6 +1464,19 @@ export class WebGpuEngine {
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
+  }
+
+  /** Durable surface history uses this renderer's projection, never its retired predecessor. */
+  publishDocumentSurfaceHistory(resourceOwner: object,
+    publish: (project: (document: ImageDocument, coverage: SelectionMaskSnapshot) => void) => void,
+    isIndeterminate: (reason: unknown) => boolean): Promise<void> {
+    if (resourceOwner !== this.device) {
+      return Promise.reject(new Error('Surface history resources belong to another GPU device.'));
+    }
+    return this.publishTransformState(() => publish((document, coverage) => {
+      this.resizeDocumentSurface(document);
+      this.documentRenderer!.restoreSurfaceSelectionSnapshot(coverage);
+    }), isIndeterminate);
   }
 
   private prepareSelectionProjection(

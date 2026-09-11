@@ -7,7 +7,10 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const output = path.join(root, 'tmp', 'layer-history-gesture');
+const surfaceSelection = process.env.LIGHTTABLE_SURFACE_SELECTION ?? 'feathered';
+assert.ok(['feathered', 'painted'].includes(surfaceSelection));
+const output = path.join(root, 'tmp', surfaceSelection === 'painted'
+  ? 'layer-history-gesture-painted' : 'layer-history-gesture');
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
@@ -15,6 +18,7 @@ const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: profile }
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
 let app;
+await writeFile(path.join(output, 'report.json'), JSON.stringify({ status: 'running', startedAt: new Date().toISOString() }));
 try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: environment, timeout: 30_000 });
@@ -33,8 +37,9 @@ try {
   const pixels = async () => {
     const state = await driver.queryDocument(documentId);
     const request = await driver.requestDocumentPreview(documentId, state.canonicalRevision, 512);
+    assert.ok(request?.artifact?.id ?? request?.id, `Preview request failed: ${JSON.stringify(request)}`);
     const artifact = await driver.readArtifact(request?.artifact?.id ?? request?.id);
-    assert.ok(artifact?.bytes?.length);
+    assert.ok(artifact?.bytes?.length, `Preview artifact unavailable: ${JSON.stringify(artifact)}`);
     return sharp(artifact.bytes).ensureAlpha().raw().toBuffer();
   };
   const openingPixels = await pixels();
@@ -139,12 +144,92 @@ try {
   await page.keyboard.up('Space');
   await waitTool('brush');
   assert.deepEqual(await pixels(), finalPixels, 'Tab rebind must preserve exact pixels.');
+  await driver.execute(documentId, 'selection.applyShape', {
+    mode: 'replace', shape: { kind: 'ellipse', points: [{ x: 80, y: 60 }, { x: 360, y: 250 }] },
+    featherRadius: 6, antiAlias: true,
+  });
+  if (surfaceSelection === 'painted') {
+    const begun = await driver.beginGesture({ documentId, kind: 'selection-paint', coordinateSpace: 'document',
+      parameters: { mode: 'add', size: 22, hardness: 0.7, opacity: 0.6, smooth: 0 },
+      sample: { x: 35, y: 65, pressure: 1 }, pointerId: 170 });
+    assert.equal(begun.status, 'started');
+    const updated = await driver.updateGesture(begun.gestureId, [
+      { x: 42, y: 74, pressure: 0.7 }, { x: 55, y: 98, pressure: 1 },
+    ]);
+    assert.equal(updated.status, 'updated');
+    assert.equal((await driver.finishGesture(begun.gestureId, true)).status, 'completed');
+  }
+  const selectionPixels = async () => {
+    const copy = await driver.execute(documentId, 'selection.copyPixels', { source: 'active-layer' });
+    const artifact = await driver.readArtifact(copy.value.artifact.id);
+    return { bounds: copy.value.bounds,
+      image: await sharp(artifact.bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true }) };
+  };
+  const initialSelectionPixels = await selectionPixels();
+  await page.keyboard.press('Control+Alt+i');
+  const imageSize = page.getByRole('dialog', { name: 'Image Size' });
+  await imageSize.waitFor();
+  await imageSize.getByLabel('Width', { exact: true }).fill('240');
+  await imageSize.getByLabel('Width', { exact: true }).press('Enter');
+  await imageSize.getByRole('button', { name: 'OK', exact: true }).click();
+  const waitWidth = async width => {
+    try {
+      await page.waitForFunction(({ id, width }) =>
+        window.__lightTableAutomation?.queryDocument(id)?.canvas?.width === width,
+      { id: documentId, width });
+    } catch (error) {
+      const state = await driver.queryDocument(documentId);
+      console.error(JSON.stringify({ width, state, text: (await page.locator('body').innerText()).slice(-2000), pageErrors }));
+      await page.screenshot({ path: path.join(output, 'resize-failure.png') });
+      throw error;
+    }
+  };
+  await waitWidth(240);
+  const resizedPixels = await pixels();
+  const resizedSelectionPixels = await selectionPixels();
+  await page.locator('.ui-document-tabs__title', { hasText: 'Temporary override rebind' }).click();
+  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
+  await driver.waitForRenderedDocument(documentId, 60_000);
+  await page.waitForFunction(() => document.querySelector('.lighttable-viewport')?.getAttribute('aria-busy') === 'false');
+  await page.keyboard.press('Control+z');
+  await waitWidth(480);
+  assert.deepEqual(await pixels(), finalPixels, 'Resize undo after tab rebind must restore exact pixels.');
+  assert.deepEqual(await selectionPixels(), initialSelectionPixels, 'Resize undo must restore the feathered selection copy area.');
+  await page.keyboard.press('Control+Shift+z');
+  await waitWidth(240);
+  assert.deepEqual(await pixels(), resizedPixels, 'Resize redo after rebind must restore exact resized pixels.');
+  assert.deepEqual(await selectionPixels(), resizedSelectionPixels, 'Resize redo must restore exact selection coverage.');
+  await driver.execute(documentId, 'document.applyGeometry', { operation: 'rotate', rotation: 'clockwise-90' });
+  await waitWidth(160);
+  const rotatedPixels = await pixels();
+  const rotatedSelectionPixels = await selectionPixels();
+  await page.locator('.ui-document-tabs__title', { hasText: 'Temporary override rebind' }).click();
+  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
+  await driver.waitForRenderedDocument(documentId, 60_000);
+  await page.keyboard.press('Control+z');
+  await waitWidth(240);
+  assert.deepEqual(await pixels(), resizedPixels, 'Geometry undo after rebind must restore exact pixels.');
+  assert.deepEqual(await selectionPixels(), resizedSelectionPixels, 'Geometry undo must restore exact selection coverage.');
+  await page.keyboard.press('Control+Shift+z');
+  await waitWidth(160);
+  assert.deepEqual(await pixels(), rotatedPixels, 'Geometry redo after rebind must restore exact pixels.');
+  assert.deepEqual(await selectionPixels(), rotatedSelectionPixels, 'Geometry redo must restore exact selection coverage.');
   assert.deepEqual(pageErrors, []);
   await page.screenshot({ path: path.join(output, 'final.png') });
   await writeFile(path.join(output, 'report.json'), JSON.stringify({
-    samples, exactUndoRedo: true, temporaryOverrides: 'pan/zoom/overlap/browser-blur/tab-rebind', pageErrors
+    status: 'passed', samples, exactUndoRedo: true, resizeRebindUndoRedo: true, geometryRebindUndoRedo: true,
+    exactSelectionCopy: true, surfaceSelection,
+    temporaryOverrides: 'pan/zoom/overlap/browser-blur/tab-rebind', pageErrors
   }, null, 2));
   console.log(`Packaged layer gesture/history smoke passed: ${output}`);
+} catch (error) {
+  await writeFile(path.join(output, 'report.json'), JSON.stringify({
+    status: 'failed', error: error instanceof Error ? error.message : String(error), pageErrors,
+  }, null, 2));
+  if (app) await (await app.firstWindow()).screenshot({ path: path.join(output, 'failure.png') });
+  throw error;
 } finally {
   await app?.close();
 }

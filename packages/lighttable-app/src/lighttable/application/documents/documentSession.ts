@@ -318,11 +318,19 @@ export class DocumentSession {
    * must not interleave with another document or editor-state publication.
    */
   acquirePublicationAdmission(reason: string): DocumentPublicationAdmission {
+    return this.createPublicationAdmission(reason, false);
+  }
+
+  acquireHistoryPublicationAdmission(reason: string): DocumentPublicationAdmission {
+    return this.createPublicationAdmission(reason, true);
+  }
+
+  private createPublicationAdmission(reason: string, historyReplay: boolean): DocumentPublicationAdmission {
     this.assertEditable();
     if (this.publicationAdmission) throw new Error(this.publicationAdmission.reason);
     const blockedReason = this.mutationBarriers.values().next().value;
     if (blockedReason) throw new Error(blockedReason);
-    if (this.snapshot.tasks.activeTaskIds.length > 0 || this.snapshot.history.busy) {
+    if (this.snapshot.tasks.activeTaskIds.length > 0 || (!historyReplay && this.snapshot.history.busy)) {
       throw new Error(`Document session ${this.id} still has active work.`);
     }
     const token = Symbol('document-publication-admission');
@@ -330,7 +338,9 @@ export class DocumentSession {
     let historyBarrier: ReturnType<DocumentCommandHistory['acquirePublicationBarrier']> | null = null;
     let taskBarrier: ReturnType<DocumentTaskRegistry['acquireAdmissionBarrier']> | null = null;
     try {
-      historyBarrier = this.history.acquirePublicationBarrier();
+      historyBarrier = historyReplay
+        ? this.history.acquireReplayPublicationBarrier()
+        : this.history.acquirePublicationBarrier();
       taskBarrier = this.tasks.acquireAdmissionBarrier(reason);
     } catch (error) {
       taskBarrier?.release();

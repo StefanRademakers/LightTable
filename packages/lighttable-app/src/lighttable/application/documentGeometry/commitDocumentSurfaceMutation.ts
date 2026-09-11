@@ -4,9 +4,12 @@ import type { DocumentMutationTransaction } from '../documents/useDocumentMutati
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { SelectionMaskSnapshot } from '../../editor/selection/SelectionMaskSnapshot';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
+import { DocumentSurfaceHistoryError, type DocumentSurfaceHistoryBinding } from './DocumentSurfaceHistoryBinding';
 
 export interface ReversibleDocumentSurfaceMutation {
+  readonly resourceOwner: object;
   readonly byteSize?: number;
+  retainForHistory(): void;
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
@@ -40,6 +43,7 @@ export interface CommitDocumentSurfaceMutationInput {
     selectionMask: SelectionMaskSnapshot
   ): void;
   pushHistoryEntry(entry: EditorHistoryEntry): void;
+  publishHistoryState: DocumentSurfaceHistoryBinding['publish'];
 }
 
 interface HistoryState {
@@ -54,35 +58,32 @@ const applyHistoryState = (
   runtimeMutation: ReversibleDocumentSurfaceMutation,
   target: HistoryState,
   rollback: HistoryState
-) => runEditorOperationTransaction(
-  { operation: `${input.history.label} ${target.runtime}` },
-  (operation) => {
-    operation.step(
-      'GPU and document surface state',
-      () => {
-        runtimeMutation.apply(target.runtime);
-        input.resizeDocumentSurface(target.document);
-      },
-      () => {
-        runtimeMutation.apply(rollback.runtime);
-        input.resizeDocumentSurface(rollback.document);
-      }
-    );
-    operation.step(
-      'canonical document and selection state',
-      () => input.publishDocumentSelection(
-        target.document,
-        target.selection,
-        target.selectionMask
-      ),
-      () => input.publishDocumentSelection(
-        rollback.document,
-        rollback.selection,
-        rollback.selectionMask
+) => input.publishHistoryState(runtimeMutation.resourceOwner, projectSurface => {
+  let compensationFailed = false;
+  try {
+    runEditorOperationTransaction(
+      { operation: `${input.history.label} ${target.runtime}`,
+        onEvent: event => { if (event.phase === 'failed') compensationFailed = true; } },
+      operation => operation.step(
+        'pixels, surface, canonical document and selection',
+        () => {
+          runtimeMutation.apply(target.runtime);
+          projectSurface(target.document, target.selectionMask);
+          input.publishDocumentSelection(target.document, target.selection, target.selectionMask);
+        },
+        () => {
+          runtimeMutation.apply(rollback.runtime);
+          projectSurface(rollback.document, rollback.selectionMask);
+          input.publishDocumentSelection(rollback.document, rollback.selection, rollback.selectionMask);
+        }
       )
     );
+  } catch (reason) {
+    if (compensationFailed) throw new DocumentSurfaceHistoryError(
+      'Document surface history could not restore its previous state.', { cause: reason });
+    throw reason;
   }
-);
+});
 
 /**
  * Commits a document-sized GPU mutation, canonical document state, exact
@@ -186,19 +187,14 @@ export const commitDocumentSurfaceMutation = async (
       publicationAdmission.run(() => runEditorOperationTransaction(
           { operation: `${input.history.label} commit` },
           (operation) => {
-            operation.adopt('prepared GPU and document surface state', rollbackPreparedRuntime);
-            operation.step(
-              'canonical document and selection state',
-              () => input.publishDocumentSelection(
+            operation.adopt('prepared pixels, surface, canonical document and selection', () => {
+              rollbackPreparedRuntime();
+              input.publishDocumentSelection(beforeState.document, beforeState.selection, beforeState.selectionMask);
+            });
+            input.publishDocumentSelection(
                 afterState.document,
                 afterState.selection,
                 afterState.selectionMask
-              ),
-              () => input.publishDocumentSelection(
-                beforeState.document,
-                beforeState.selection,
-                beforeState.selectionMask
-              )
             );
             input.pushHistoryEntry({
               type: input.history.type,
@@ -214,6 +210,7 @@ export const commitDocumentSurfaceMutation = async (
           }
         ));
       historyOwnsRuntime = true;
+      mutation.retainForHistory();
       return true;
       } finally {
         publicationAdmission.release();

@@ -315,6 +315,26 @@ export class SelectionShapeProjectionService {
     }
   }
 
+  /** After surface dimensions change, stage exact coverage in newly sized targets. */
+  restoreSurfaceSnapshot(snapshot: SelectionMaskSnapshot): void {
+    const stage = this.options.createStage();
+    try {
+      stage.textures.ensureTargets();
+      if (!stage.restore(snapshot)) throw new Error('Surface selection snapshot could not be restored.');
+      this.options.committedTextures.ensureTargets();
+      const next = stage.textures.detachState();
+      try {
+        const prior = this.options.committedTextures.exchangeState(next);
+        stage.textures.attachState(prior);
+      } catch (reason) {
+        stage.textures.attachState(next);
+        throw reason;
+      }
+    } finally {
+      stage.dispose();
+    }
+  }
+
   async prepareSnapshot(
     document: DocumentAddress,
     baseline: SelectionState,

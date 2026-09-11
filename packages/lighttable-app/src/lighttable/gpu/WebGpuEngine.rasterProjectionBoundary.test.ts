@@ -28,6 +28,29 @@ const fixture = () => {
 };
 
 describe('raster projection publication boundary', () => {
+  it('rebinds presentation dimensions from the edited document, not retained source metadata', () => {
+    const document = createImageDocument('resized', 240, 160, 'source');
+    const initializeDocumentSurface = vi.fn();
+    const setDocument = vi.fn();
+    const engine = Object.assign(Object.create(WebGpuEngine.prototype), {
+      initializeDocumentSurface, setDocument,
+    }) as WebGpuEngine;
+    engine.bindExistingDocument(document, { name: 'original.png', width: 480, height: 320, contentType: 'image/png' });
+    expect(initializeDocumentSurface).toHaveBeenCalledWith({
+      name: 'original.png', width: 240, height: 160, contentType: 'image/png',
+    });
+    expect(setDocument).toHaveBeenCalledWith(document);
+  });
+
+  it('rejects a surface history resource owner from another GPU before queue admission', async () => {
+    const publishTransformState = vi.fn();
+    const engine = Object.assign(Object.create(WebGpuEngine.prototype), {
+      device: {}, publishTransformState,
+    }) as WebGpuEngine;
+    await expect(engine.publishDocumentSurfaceHistory({}, vi.fn(), () => false)).rejects.toThrow('another GPU device');
+    expect(publishTransformState).not.toHaveBeenCalled();
+  });
+
   it.each(['setDocument', 'resizeDocumentSurface', 'synchronizeDocumentForExport'] as const)(
     '%s rejects mismatched pixels before publishing state or touching derived resources', (method) => {
       const { before, after, pixels, renderer } = fixture();

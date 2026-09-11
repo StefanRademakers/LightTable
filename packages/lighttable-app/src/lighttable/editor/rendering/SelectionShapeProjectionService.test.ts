@@ -46,6 +46,24 @@ const magicWand: SelectionOperation = {
 };
 
 describe('SelectionShapeProjectionService', () => {
+  it('rebuilds surface coverage in staged targets and releases only the old projection', () => {
+    const committed = store();
+    committed.ensureTargets();
+    const prior = [committed.mask!, committed.result!, committed.shape!];
+    const staged = store();
+    const restore = vi.fn(() => true);
+    const service = new SelectionShapeProjectionService({ committedTextures: committed,
+      createStage: () => ({ textures: staged, restore,
+        apply: () => true, applyOperation: () => true, transform: () => true, paint: () => true,
+        capture: async () => SelectionMaskSnapshot.inactive(40, 30), measure: async () => null,
+        dispose: () => staged.destroy() }) });
+    const snapshot = SelectionMaskSnapshot.inactive(40, 30);
+    service.restoreSurfaceSnapshot(snapshot);
+    expect(restore).toHaveBeenCalledWith(snapshot);
+    expect(prior).not.toContain(committed.mask);
+    for (const target of prior) expect(target.destroy).toHaveBeenCalledOnce();
+    expect(committed.mask!.destroy).not.toHaveBeenCalled();
+  });
   it('activates the first selection when committed targets are still lazy', async () => {
     const committed = store();
     const staged = store();

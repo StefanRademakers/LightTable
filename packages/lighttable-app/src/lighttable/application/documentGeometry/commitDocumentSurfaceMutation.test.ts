@@ -36,6 +36,7 @@ const setup = (
   let runtimeCurrent = true;
   let loseOriginAfterRestore = false;
   let loseRuntimeDuringCapture = false;
+  let rejectNextPublication = false;
   const historyEntries: EditorHistoryEntry[] = [];
   const dispose = vi.fn();
   const disposeAfterOwnershipLoss = vi.fn();
@@ -90,7 +91,9 @@ const setup = (
     createRuntimeMutation: () => {
       runtimeState = 'after';
       return {
+        resourceOwner: {},
         byteSize: 512,
+        retainForHistory: vi.fn(),
         setAfterSelectionActive,
         apply,
         dispose,
@@ -98,7 +101,15 @@ const setup = (
       };
     },
     resizeDocumentSurface: (document) => { surfaceDocument = document; },
-    publishDocumentSelection: (document) => { currentDocument = document; },
+    publishHistoryState: async (_owner, publish) => publish(document => { surfaceDocument = document; }),
+    publishDocumentSelection: (document) => {
+      expect(surfaceDocument.width).toBe(document.width);
+      currentDocument = document;
+      if (rejectNextPublication) {
+        rejectNextPublication = false;
+        throw new Error('Editor projection failed after canonical publication.');
+      }
+    },
     pushHistoryEntry: (entry) => {
       if (rejectHistory) throw new Error('History rejected the entry.');
       capturePause?.pushHistoryEntry?.(entry);
@@ -118,7 +129,8 @@ const setup = (
     get surfaceDocument() { return surfaceDocument; },
     get runtimeState() { return runtimeState; },
     loseOriginOnRestore() { loseOriginAfterRestore = true; },
-    loseRendererDuringCapture() { loseRuntimeDuringCapture = true; }
+    loseRendererDuringCapture() { loseRuntimeDuringCapture = true; },
+    rejectNextPublication() { rejectNextPublication = true; }
   };
 };
 
@@ -146,12 +158,12 @@ describe('commitDocumentSurfaceMutation', () => {
       + SelectionMaskSnapshot.inactive(state.after.width, state.after.height).byteSize
     );
 
-    state.historyEntries[0]!.undo();
+    await state.historyEntries[0]!.undo();
     expect(state.currentDocument).toBe(state.before);
     expect(state.surfaceDocument).toBe(state.before);
     expect(state.runtimeState).toBe('before');
 
-    state.historyEntries[0]!.redo();
+    await state.historyEntries[0]!.redo();
     expect(state.currentDocument).toBe(state.after);
     expect(state.surfaceDocument).toBe(state.after);
     expect(state.runtimeState).toBe('after');
@@ -165,6 +177,19 @@ describe('commitDocumentSurfaceMutation', () => {
     expect(state.surfaceDocument).toBe(state.before);
     expect(state.runtimeState).toBe('before');
     expect(state.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('restores pixels and dimensions before canonical compensation after a failed undo publication', async () => {
+    const state = setup(false, true);
+    await state.commit();
+    state.rejectNextPublication();
+    await expect(state.historyEntries[0]!.undo()).rejects.toThrow('Editor projection failed');
+    expect(state.currentDocument).toBe(state.after);
+    expect(state.surfaceDocument).toBe(state.after);
+    expect(state.runtimeState).toBe('after');
+    await state.historyEntries[0]!.undo();
+    expect(state.currentDocument).toBe(state.before);
+    expect(state.runtimeState).toBe('before');
   });
 
   it('revalidates ownership after asynchronous selection restore and before the first GPU write', async () => {

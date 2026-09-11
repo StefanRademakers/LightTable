@@ -1091,6 +1091,11 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionShapeProjection.prepare(...parameters);
   }
 
+  restoreSurfaceSelectionSnapshot(snapshot: SelectionMaskSnapshot) {
+    this.assertCommittedSelectionAccess();
+    this.runtime.selectionShapeProjection.restoreSurfaceSnapshot(snapshot);
+  }
+
   prepareSelectionSnapshotProjection(
     ...parameters: Parameters<LayerDocumentRendererRuntime['selectionShapeProjection']['prepareSnapshot']>
   ) {

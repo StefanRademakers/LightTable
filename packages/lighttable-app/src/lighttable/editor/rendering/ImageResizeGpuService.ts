@@ -185,7 +185,9 @@ const estimatedUniqueTextureBytes = (
 };
 
 export interface ReversibleGpuImageResize {
+  readonly resourceOwner: object;
   readonly byteSize: number;
+  retainForHistory(): void;
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
@@ -204,7 +206,9 @@ export class ImageResizeGpuService {
 
   resize(document: ImageDocument, plan: ResizePlan, noiseReduction: number): ReversibleGpuImageResize {
     if (!plan.resolvedMethod) return {
+      resourceOwner: this.options.device,
       byteSize: 0,
+      retainForHistory: () => undefined,
       setAfterSelectionActive: () => undefined,
       apply: () => undefined,
       dispose: () => undefined,
@@ -379,8 +383,24 @@ export class ImageResizeGpuService {
         destroyUniqueTextures(transients);
         buffers.forEach((buffer) => buffer.destroy());
       });
+      let selectionReleased = false;
+      const releaseSelection = () => {
+        if (selectionReleased) return;
+        selectionReleased = true;
+        if (!selectionExchange || !selectionRuntimeExchange) return;
+        const detached = selectionRuntimeExchange.current === 'after'
+          ? selectionExchange.before : selectionExchange.after;
+        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+          destroyUniqueTextures([detached.mask, detached.result, detached.shape]);
+        });
+      };
       return {
+        resourceOwner: this.options.device,
         byteSize,
+        retainForHistory: () => {
+          atomicExchanges = atomicExchanges.filter(exchange => exchange !== selectionRuntimeExchange);
+          releaseSelection();
+        },
         setAfterSelectionActive: (active) => {
           if (!selectionExchange || !selectionRuntimeExchange) return;
           (selectionExchange.after as { active: boolean }).active = active;
@@ -403,12 +423,7 @@ export class ImageResizeGpuService {
           for (const record of maskExchanges) {
             detachedTextures.push(record.exchange.current === 'after' ? record.before : record.after);
           }
-          if (selectionExchange && selectionRuntimeExchange) {
-            const detached = selectionRuntimeExchange.current === 'after'
-              ? selectionExchange.before
-              : selectionExchange.after;
-            detachedTextures.push(detached.mask, detached.result, detached.shape);
-          }
+          releaseSelection();
           // A history entry can be evicted while the detached snapshot still
           // participates in a submitted frame. Defer destruction until all
           // preceding GPU work is complete instead of relying on timing.

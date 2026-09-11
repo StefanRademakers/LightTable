@@ -292,6 +292,18 @@ export class DocumentCommandHistory {
   /** Blocks foreign history work while allowing one admitted terminal publish. */
   acquirePublicationBarrier(): DocumentHistoryPublicationBarrier {
     if (this.busy) throw new Error(`Document history ${this.documentId} is busy.`);
+    return this.createPublicationBarrier();
+  }
+
+  /** The active undo/redo already owns history; extend that ownership across projection preparation. */
+  acquireReplayPublicationBarrier(): DocumentHistoryPublicationBarrier {
+    if (!this.busy || !this.activeNode || this.activeReservation || this.admissionBarriers.size > 0) {
+      throw new Error('History replay publication requires one active undo or redo.');
+    }
+    return this.createPublicationBarrier();
+  }
+
+  private createPublicationBarrier(): DocumentHistoryPublicationBarrier {
     const token = Symbol('history-publication-barrier');
     this.admissionBarriers.add(token);
     this.publish();

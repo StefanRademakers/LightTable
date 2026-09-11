@@ -478,8 +478,14 @@ function verifyTransformCutover(relativePath, source) {
     }
   }
   if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
-    if (!source.includes('publishTransformDocumentSelection(')) {
+    if (!source.includes('applyDocumentAndSelection: documentSelectionPublication.publishTransform,')) {
       failures.push(`${relativePath}: transform selection publication must use its lease-bound route`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/documents/DocumentSelectionPublicationBinding.ts')) {
+    if (!source.includes('publishTransformDocumentSelection(') || !source.includes('publishBoundSelection(')
+      || !source.includes('rendererIsAddressable') || !source.includes('isSessionCurrent()')) {
+      failures.push(`${relativePath}: compound publication must preserve exact session, lease and renderer-bound transform admission`);
     }
   }
 }

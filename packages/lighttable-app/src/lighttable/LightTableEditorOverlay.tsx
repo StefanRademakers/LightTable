@@ -86,10 +86,7 @@ import {
   zoomViewToScaleAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
-import {
-  selectionOperationsBounds,
-  selectionOperationsSupportBounds
-} from './editor/tools/transform/selectionTransform';
+import { selectionOperationsBounds } from './editor/tools/transform/selectionTransform';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -220,6 +217,7 @@ import {
   type DocumentGeometryRequest
 } from './application/documentGeometry/documentGeometryModel';
 import { commitDocumentSurfaceMutation } from './application/documentGeometry/commitDocumentSurfaceMutation';
+import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/DocumentSurfaceHistoryBinding';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
@@ -354,11 +352,7 @@ import type {
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
-import { publishBoundSelection } from './application/tools/transform/BoundSelectionPublication';
-import {
-  publishTransformDocumentSelection as publishTransformSelectionTransaction
-}
-  from './application/tools/transform/publishTransformDocumentSelection';
+import { DocumentSelectionPublicationBinding } from './application/documents/DocumentSelectionPublicationBinding';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
@@ -1811,103 +1805,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;
   const applyCanonicalAdjustmentProjection = documentProjectionController.applyCanonicalAdjustmentProjection;
 
-  const publishDocumentSelection = useCallback((
-    document: ImageDocument,
-    selection: readonly SelectionOperation[],
-    selectionMaskSnapshot: SelectionMaskSnapshot,
-    expectedSelectionRevision?: number,
-    bindingIsCurrent: () => boolean = () => true
-  ) => {
-    const supportBounds = selectionMaskSnapshot.active
-      ? selectionOperationsSupportBounds([...selection], {
-          x: 0, y: 0, width: document.width, height: document.height
-        })
-      : null;
-    const publish = () => {
-      if (documentSession) {
-        const store = new DocumentSelectionStateStore(documentSession);
-        const sessionSnapshot = documentSession.getSnapshot();
-        const expectedDocument = sessionSnapshot.document;
-        if (!expectedDocument) throw new Error('The selection document is unavailable.');
-        const lease = store.acquire(sessionSnapshot.documentRevision);
-        if ((expectedSelectionRevision !== undefined
-          && Number(lease.selection.revision) !== expectedSelectionRevision) || !bindingIsCurrent())
-          throw new Error('The selection publication lease is no longer current.');
-        const committed = store.compareAndSwapForDocument(lease.selection.revision, expectedDocument, {
-          ...lease.selection,
-          revision: (Number(lease.selection.revision) + 1) as typeof lease.selection.revision,
-          canvas: { width: document.width, height: document.height },
-          active: selectionMaskSnapshot.active,
-          coverage: selectionMaskSnapshot,
-          supportBounds,
-          provenance: [...selection]
-        }, document);
-        if (!committed) throw new Error('The selection changed during compound publication.');
-        if (!bindingIsCurrent()) throw new Error('The renderer changed during compound publication.');
-        applyDocumentSnapshot(document);
-        editorSessionRef.current = {
-          ...editorSessionRef.current,
-          pointerId: null,
-          selection: [...selection],
-          selectionMaskSnapshot,
-          selectionRevision: editorSessionRef.current.selectionRevision + 1,
-          selectionSupportBounds: supportBounds
-        };
-      } else {
-        if ((expectedSelectionRevision !== undefined
-          && editorSessionRef.current.selectionRevision !== expectedSelectionRevision)
-          || !bindingIsCurrent()) {
-          throw new Error('The selection publication lease is no longer current.');
-        }
-        applyDocumentSnapshot(document);
-        setEditorSession((current) => ({
-          ...current,
-          pointerId: null,
-          selection: [...selection],
-          selectionMaskSnapshot,
-          selectionRevision: current.selectionRevision + 1,
-          selectionSupportBounds: supportBounds
-        }));
-      }
-    };
-    if (documentSession) documentSession.runPublication(publish);
-    else publish();
-  }, [applyDocumentSnapshot, documentSession, setEditorSession]);
-
-  const publishTransformDocumentSelection = useCallback((
-    document: ImageDocument,
-    selection: readonly SelectionOperation[],
-    selectionMaskSnapshot: SelectionMaskSnapshot,
-    expectedLease: import('./application/tools/selection/DocumentSelectionStateStore')
-      .LightTableSelectionReadLease,
-    bindingIsCurrent: () => boolean,
-    rendererIsAddressable: () => boolean,
-    publishPixels: () => () => void
-  ) => {
-    if (!documentSession) throw new Error('The transform selection document is unavailable.');
-    publishTransformSelectionTransaction({
-      session: documentSession,
-      document,
-      selection,
-      coverage: selectionMaskSnapshot,
-      expectedLease,
-      bindingIsCurrent,
-      rendererIsAddressable,
-      publishPixels,
-      getProjectedDocument: () => imageDocumentRef.current,
-      applyDocumentSnapshot,
-      publishEditorProjection: (next) => {
-        editorSessionRef.current = {
-          ...editorSessionRef.current,
-          pointerId: null,
-          selection: [...next.selection],
-          selectionMaskSnapshot: next.coverage,
-          selectionRevision: next.selectionRevision,
-          selectionSupportBounds: next.supportBounds
-        };
-      }
-    });
-  }, [applyDocumentSnapshot, documentSession]);
+  const mountedDocumentSessionRef = useRef(documentSession);
+  mountedDocumentSessionRef.current = documentSession;
+  const documentSelectionPublication = useMemo(() => new DocumentSelectionPublicationBinding(documentSession, {
+    isSessionCurrent: () => mountedDocumentSessionRef.current === documentSession,
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getRendererGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation,
+    applyDocumentSnapshot,
+    publishEditorProjection: (next) => {
+      editorSessionRef.current = {
+        ...editorSessionRef.current, pointerId: null, selection: [...next.selection],
+        selectionMaskSnapshot: next.coverage, selectionRevision: next.selectionRevision,
+        selectionSupportBounds: next.supportBounds
+      };
+    }
+  }), [applyDocumentSnapshot, documentSession]);
+  const publishDocumentSelection = documentSelectionPublication.publishSurface;
+  const documentSurfaceHistory = useMemo(() => new DocumentSurfaceHistoryBinding(documentSession, {
+    isSessionCurrent: () => mountedDocumentSessionRef.current === documentSession,
+    getRenderer: () => engineRef.current,
+    getGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation,
+  }), [documentSession]);
 
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
@@ -2380,6 +2299,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           && rendererLifecycle.getSnapshot().generation === rendererGeneration,
         captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
         restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
+        publishHistoryState: documentSurfaceHistory.publish,
         createRuntimeMutation: () => renderer.resizeImagePixels(
           before,
           plan,
@@ -2470,6 +2390,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           && rendererLifecycle.getSnapshot().generation === rendererGeneration,
         captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
         restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
+        publishHistoryState: documentSurfaceHistory.publish,
         createRuntimeMutation: () => renderer.applyDocumentGeometryPixels(before, plan),
         resizeDocumentSurface: (document) => renderer.resizeDocumentSurface(document),
         publishDocumentSelection,
@@ -6609,37 +6530,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererGeneration: rendererSnapshot.generation,
     documentMutations: documentMutationController,
     applyDocumentSnapshot,
-    applyDocumentAndSelection: async (document, selection, selectionMaskSnapshot, binding) => {
-      const rendererDocumentBindingIsCurrent = () => engineRef.current === binding.renderer
-        && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration
-        && imageDocumentRef.current === binding.expectedDocument;
-      const bindingIsCurrent = () => {
-        if (!rendererDocumentBindingIsCurrent() || !documentSession) return false;
-        const lease = new DocumentSelectionStateStore(documentSession).acquire(
-          documentSession.getSnapshot().documentRevision
-        );
-        return lease.document.sessionId === binding.expectedSelectionLease.document.sessionId
-          && lease.document.revision === binding.expectedSelectionLease.document.revision
-          && lease.selection.revision === binding.expectedSelectionLease.selection.revision
-          && lease.selection.coverage === binding.expectedSelectionLease.selection.coverage;
-      };
-      await publishBoundSelection({
-        renderer: binding.renderer,
-        bindingIsCurrent,
-        publish: () => {
-          publishTransformDocumentSelection(
-          document,
-          selection,
-          selectionMaskSnapshot,
-          binding.expectedSelectionLease,
-          rendererDocumentBindingIsCurrent,
-          () => engineRef.current === binding.renderer
-            && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration,
-          binding.publishPixels
-          );
-        }
-      });
-    },
+    applyDocumentAndSelection: documentSelectionPublication.publishTransform,
     reserveHistoryEntry: documentHistoryController.reserve,
     setError,
     setStatus: setGradeStatus,

@@ -97,7 +97,9 @@ const estimatedUniqueTextureBytes = (
 ) => new Set(textures).size * Math.max(1, width) * Math.max(1, height) * 2;
 
 export interface ReversibleGpuDocumentGeometry {
+  readonly resourceOwner: object;
   readonly byteSize: number;
+  retainForHistory(): void;
   setAfterSelectionActive(active: boolean): void;
   apply(state: 'before' | 'after'): void;
   dispose(): void;
@@ -224,8 +226,24 @@ export class DocumentGeometryGpuService {
         () => this.options.device.queue.onSubmittedWorkDone(),
         () => settings.destroy()
       );
+      let selectionReleased = false;
+      const releaseSelection = () => {
+        if (selectionReleased) return;
+        selectionReleased = true;
+        if (!selectionExchange || !selectionRuntimeExchange) return;
+        const detached = selectionRuntimeExchange.current === 'after'
+          ? selectionExchange.before : selectionExchange.after;
+        releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
+          destroyUniqueTextures([detached.mask, detached.result, detached.shape]);
+        });
+      };
       return {
+        resourceOwner: this.options.device,
         byteSize,
+        retainForHistory: () => {
+          atomicExchanges = atomicExchanges.filter(exchange => exchange !== selectionRuntimeExchange);
+          releaseSelection();
+        },
         setAfterSelectionActive: (active) => {
           if (!selectionExchange || !selectionRuntimeExchange) return;
           (selectionExchange.after as { active: boolean }).active = active;
@@ -242,12 +260,7 @@ export class DocumentGeometryGpuService {
           const detached = exchanges.map((record) => record.exchange.current === 'after'
             ? record.before
             : record.after);
-          if (selectionExchange && selectionRuntimeExchange) {
-            const targets = selectionRuntimeExchange.current === 'after'
-              ? selectionExchange.before
-              : selectionExchange.after;
-            detached.push(targets.mask, targets.result, targets.shape);
-          }
+          releaseSelection();
           releaseAfterSubmittedWork(() => this.options.device.queue.onSubmittedWorkDone(), () => {
             destroyUniqueTextures(detached);
           });

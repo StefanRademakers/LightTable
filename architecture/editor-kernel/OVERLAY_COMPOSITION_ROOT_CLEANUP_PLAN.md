@@ -146,7 +146,13 @@ class names: reuse existing owners before creating a new one.
   - [x] O03a: document/processing projection binding and contextual source cache.
     Critic PASS, no repair needed. Fresh packaged transform/Exposure, layer
     opacity/history/tab rebind and layer-subtarget flows passed.
-  - [ ] O03b: exact document/selection publication including distant transform binding.
+  - [x] O03b: exact document/selection publication including distant transform binding.
+    Accepted after the owner explicitly authorized one additional repair round.
+    Exact cached mask support replaces provenance-derived bounds. Packaged
+    feathered AND painted selection resize/rotate/tab/undo/redo preserve preview
+    pixels and clipboard bounds/bytes. Critic PASS. See Task 416
+    `O03B_PUBLICATION_ACCEPTANCE_REPORT.md`, including the unresolved pre-selection
+    preview-read flake; this is not complete lifecycle/whole-app acceptance.
   - [ ] O03c: open/rebind/retire and disposal orchestration.
 - [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
