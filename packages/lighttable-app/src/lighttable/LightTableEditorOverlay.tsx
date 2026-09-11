@@ -58,9 +58,7 @@ import { projectAdjustmentSnapshot } from './application/adjustments/projectAdju
 import { resolveAdjustmentPresentation } from './application/adjustments/resolveAdjustmentPresentation';
 import { DocumentProcessingBinding } from './application/adjustments/DocumentProcessingBinding';
 import { AdjustmentPresentationRuntime } from './application/adjustments/AdjustmentPresentationRuntime';
-import {
-  commitColorLookupAssetTransaction
-} from './application/adjustments/commitColorLookupAssetTransaction';
+import { GradeAssetCommandService } from './application/adjustments/GradeAssetCommandService';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
   createAdjustmentInteractionCoordinator,
@@ -194,7 +192,6 @@ import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
 import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
 import {
   copyLightTableGrade,
-  pasteGradeSettings,
   useLightTableGradeClipboard
 } from './lightTableGradeClipboard';
 import {
@@ -383,7 +380,6 @@ import {
   siblingLayers,
   walkLayerTree
 } from './editor/document/layerTree';
-import { parseCubeLut } from './processing/colorLookupCube';
 import {
   imagePickerAccept
 } from './image-io/supportedImageFormats';
@@ -2736,109 +2732,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => interactionHandle
     ? adjustmentInteractions.change(interactionHandle, recipe, domain)
     : adjustmentInteractions.discreteChange(recipe, domain);
+  const gradeAssetCommands = new GradeAssetCommandService({
+    mutations: documentMutationController,
+    captureScope: captureMountedInteractionScope,
+    getSession: () => mountedDocumentSessionRef.current,
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    finishAdjustment: endAdjustmentTransaction,
+    settleInteraction: finishOpenHistoryTransactions,
+    getDocumentAdjustments: processingBinding.getDocumentAdjustments,
+    resolveTarget: (document) => ({
+      identity: resolveAdjustmentTargetIdentity(document),
+      layerId: resolveAdjustmentTargetLayerId(document),
+      adjustments: resolveCanonicalAdjustmentSnapshot(document)
+    }),
+    applyCanonicalProjection: (projection) => applyCanonicalAdjustmentProjection(projection, 'grade'),
+    pushHistoryEntry,
+    changeGrade: (recipe) => adjustmentTransactionController.change(recipe, 'grade')
+  });
   const loadCubeAsset = async (file: File, purpose: 'photoshop-color-lookup' | 'grade-look') => {
-    if (!/\.cube$/i.test(file.name)) throw new Error('Choose a 3D .cube LUT file.');
-    if (file.size <= 0 || file.size > 32 * 1024 * 1024) {
-      throw new Error('A .cube LUT must be between 1 byte and 32 MiB.');
-    }
-    endAdjustmentTransaction();
-    const renderer = engineRef.current;
-    const beforeDocument = imageDocumentRef.current;
-    if (!renderer || !beforeDocument) throw new Error('Open a document before loading a LUT.');
-    const canonicalAdjustments = resolveCanonicalAdjustmentSnapshot(beforeDocument);
-    if (!canonicalAdjustments) throw new Error('Select a Grade owner before loading a LUT.');
-    const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
-    const beforeDocumentAdjustments = cloneAdjustments(processingBinding.getDocumentAdjustments());
-    const beforeDocumentAdjustmentsIdentity = processingBinding.getDocumentAdjustments();
-    const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
-    const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
-    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
-    const bindingIsCurrent = () => imageDocumentRef.current === beforeDocument
-      && engineRef.current === renderer
-      && rendererLifecycle.getSnapshot().generation === rendererGeneration
-      && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
-      && (targetLayerId !== null
-        || processingBinding.getDocumentAdjustments() === beforeDocumentAdjustmentsIdentity);
-    const historyType = purpose === 'grade-look'
-      ? 'adjustment.grade-look'
-      : 'adjustment.color-lookup';
-    const historyLabel = purpose === 'grade-look'
-      ? 'Load Grade Look'
-      : 'Load Color Lookup';
-    const transaction = documentMutationController.begin(
-      historyType,
-      { label: historyLabel, type: historyType },
-      undefined,
-      'cancel'
-    );
-    if (!transaction) throw new Error('Another document operation is still completing.');
-
-    const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
-    try {
-      const parsed = parseCubeLut(await file.text());
-      if (!transaction.active
-        || !bindingIsCurrent()) {
-        throw new Error('The LUT target changed while the file was loading.');
-      }
-      const nextAdjustments = purpose === 'grade-look' ? {
-        ...beforeAdjustments,
-        gradeLook: {
-          ...beforeAdjustments.gradeLook,
-          assetId
-        }
-      } : {
-        ...beforeAdjustments,
-        photoshopAdjustment: {
-          ...beforeAdjustments.photoshopAdjustment,
-          kind: 'color-lookup' as const,
-          colorLookupPreset: 'none' as const,
-          colorLookupAssetId: assetId
-        }
-      };
-      const withAsset: ImageDocument = {
-        ...beforeDocument,
-        assets: {
-          ...beforeDocument.assets,
-          colorLookups: [
-            ...beforeDocument.assets.colorLookups,
-            {
-              id: assetId,
-              name: parsed.title || file.name,
-              size: parsed.size,
-              domainMin: parsed.domainMin,
-              domainMax: parsed.domainMax,
-              byteLength: file.size,
-              revision: 0
-            }
-          ]
-        },
-        revision: beforeDocument.revision + 1,
-        modifiedAt: Date.now()
-      };
-      if (!transaction.stage(() => withAsset)) {
-        throw new Error('The LUT operation lost its document ownership.');
-      }
-      await commitColorLookupAssetTransaction({
-        transaction,
-        runtime: renderer,
-        source: file,
-        assetId,
-        beforeDocument,
-        beforeDocumentAdjustments,
-        nextEditorAdjustments: nextAdjustments,
-        targetLayerId,
-        history: { type: historyType, label: historyLabel },
-        bindingIsCurrent,
-        documentIsActive: (documentId) => imageDocumentRef.current?.id === documentId,
-        applyCanonicalProjection: (projection) =>
-          applyCanonicalAdjustmentProjection(projection, 'grade'),
-        pushHistoryEntry
-      });
-      setGradeStatus(`Loaded ${parsed.title || file.name} · ${parsed.size}³ LUT`);
-    } catch (error) {
-      transaction.cancel();
-      throw error;
-    }
+    const loaded = await gradeAssetCommands.load(file, purpose);
+    setGradeStatus(`Loaded ${loaded.name} · ${loaded.size}³ LUT`);
   };
   const loadColorLookup = (file: File) => loadCubeAsset(file, 'photoshop-color-lookup');
   const loadGradeLook = (file: File) => loadCubeAsset(file, 'grade-look');
@@ -2974,115 +2888,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setGradeStatus('Grade copied');
     return capture;
   };
-  const applyGradeCapture = async (
-    capture: LightTableGradeClipboardCapture
-  ) => {
-    let settings = cloneAdjustments(capture.settings);
-    const document = imageDocumentRef.current;
-    const renderer = engineRef.current;
-    const copiedAssetId = settings.gradeLook.assetId;
-    if (copiedAssetId && document) {
-      if (document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
-        // A same-document paste can reuse the already loaded immutable LUT.
-        // Importing a fresh UUID here would create an orphan asset on every
-        // paste and turn an otherwise identical Grade into a false change.
-      } else if (capture.gradeLookAsset?.assetId === copiedAssetId) {
-        if (!renderer) throw new Error('The document renderer is not ready to import this LUT.');
-        endAdjustmentTransaction();
-        const beforeDocument = document;
-        const canonicalAdjustments = resolveCanonicalAdjustmentSnapshot(beforeDocument);
-        if (!canonicalAdjustments) {
-          throw new Error('Select a Grade owner before pasting a LUT-backed Grade.');
-        }
-        const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
-        const beforeDocumentAdjustments = cloneAdjustments(processingBinding.getDocumentAdjustments());
-        const beforeDocumentAdjustmentsIdentity = processingBinding.getDocumentAdjustments();
-        const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
-        const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
-        const rendererGeneration = rendererLifecycle.getSnapshot().generation;
-        const bindingIsCurrent = () => imageDocumentRef.current === beforeDocument
-          && engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === rendererGeneration
-          && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
-          && (targetLayerId !== null
-            || processingBinding.getDocumentAdjustments() === beforeDocumentAdjustmentsIdentity);
-        const transaction = documentMutationController.begin(
-          'adjustment.grade.paste',
-          { label: `Load ${capture.name}`, type: 'adjustment.grade.paste' },
-          undefined,
-          'cancel'
-        );
-        if (!transaction) throw new Error('Another document operation is still completing.');
-        const source = capture.gradeLookAsset.source;
-        const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
-        try {
-          const parsed = parseCubeLut(await source.text());
-          if (!transaction.active
-            || !bindingIsCurrent()) {
-            throw new Error('The Grade target changed while its LUT was loading.');
-          }
-          settings = { ...settings, gradeLook: { ...settings.gradeLook, assetId } };
-          const nextAdjustments = pasteGradeSettings(beforeAdjustments, settings);
-          const withAsset: ImageDocument = {
-            ...beforeDocument,
-            assets: {
-              ...beforeDocument.assets,
-              colorLookups: [...beforeDocument.assets.colorLookups, {
-                id: assetId,
-                name: parsed.title || capture.gradeLookAsset.name,
-                size: parsed.size,
-                domainMin: parsed.domainMin,
-                domainMax: parsed.domainMax,
-                byteLength: source.size,
-                revision: 0
-              }]
-            },
-            revision: beforeDocument.revision + 1,
-            modifiedAt: Date.now()
-          };
-          if (!transaction.stage(() => withAsset)) {
-            throw new Error('The Grade paste lost its document ownership.');
-          }
-          await commitColorLookupAssetTransaction({
-            transaction,
-            runtime: renderer,
-            source,
-            assetId,
-            beforeDocument,
-            beforeDocumentAdjustments,
-            nextEditorAdjustments: nextAdjustments,
-            targetLayerId,
-            history: { type: 'adjustment.grade.paste', label: `Load ${capture.name}` },
-            bindingIsCurrent,
-            documentIsActive: (documentId) => imageDocumentRef.current?.id === documentId,
-            applyCanonicalProjection: (projection) =>
-              applyCanonicalAdjustmentProjection(projection, 'grade'),
-            pushHistoryEntry
-          });
-          setGradeStatus(`Loaded ${capture.name}`);
-          return {
-            name: capture.name,
-            changed: true,
-            hasLookAsset: true,
-            importedLookAsset: true
-          };
-        } catch (error) {
-          transaction.cancel();
-          throw error;
-        }
-      } else if (!document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
-        // A persisted text-only clipboard cannot safely refer to another
-        // document's missing binary LUT. Paste the remaining Grade honestly.
-        settings = { ...settings, gradeLook: { ...settings.gradeLook, assetId: null } };
-      }
-    }
-    const changed = adjustmentCommands.pasteGrade(capture.name, settings);
-    return {
-      name: capture.name,
-      changed,
-      hasLookAsset: Boolean(capture.gradeLookAsset),
-      importedLookAsset: false
-    };
+  const applyGradeCapture = async (capture: LightTableGradeClipboardCapture) => {
+    const result = await gradeAssetCommands.paste(capture);
+    setGradeStatus(`Loaded ${capture.name}`);
+    return result;
   };
   const copyCurrentGrade = async () => {
     try {

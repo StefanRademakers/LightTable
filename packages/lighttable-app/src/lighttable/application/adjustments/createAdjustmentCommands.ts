@@ -202,7 +202,6 @@ export interface AdjustmentCommands {
   readonly resetGroup: (group: keyof GroupVisibility) => void;
   readonly resetGrade: () => void;
   readonly copyGrade: () => void;
-  readonly pasteGrade: (name: string, settings: BasicAdjustments) => boolean;
 }
 
 export const createAdjustmentCommands = (
@@ -787,15 +786,6 @@ export const createAdjustmentCommands = (
     ports.publishGradeStatus('Global Grade reset');
   };
 
-  const pasteGrade = (name: string, settings: BasicAdjustments) => {
-    ports.endAdjustment();
-    const changed = ports.changeAdjustments(
-      (current) => pasteGradeSettings(current, settings),
-      'grade'
-    );
-    ports.publishGradeStatus(`Loaded ${name}`);
-    return changed;
-  };
 
   return {
     updateAdjustment,
@@ -859,6 +849,5 @@ export const createAdjustmentCommands = (
     resetGroup,
     resetGrade,
     copyGrade,
-    pasteGrade
   };
 };

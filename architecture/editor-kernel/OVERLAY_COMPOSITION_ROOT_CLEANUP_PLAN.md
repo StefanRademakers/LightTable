@@ -183,7 +183,11 @@ class names: reuse existing owners before creating a new one.
       lifecycle-ordered renderer projection. Removed 14 unused layer-panel props
       and their dead root mutation callbacks. Exact fresh PNG/tab/history and
       current Exposure control proof passed; remaining pickers/gestures open.
-  - [ ] O04c: LUT/Grade asset command lifetime and clipboard integration.
+  - [x] O04c: GradeAssetCommandService owns scoped LUT import/paste planning;
+    existing asset transaction retains GPU/rollback/history. Plain/same-LUT
+    paste completes synchronously through the existing adjustment controller
+    after admission. Critic and packaged UI/Actions/MCP, both file routes,
+    exact rebind/history and genuine no-op proof passed.
 - [ ] O05 — Complete domain tool boundaries, separately: (a) text hit-testing,
   activation/creation/formatting; (b) vector/path/shape interaction glue;
   (c) transform/snapping; (d) warp/face-warp; (e) remaining selection, paint,

@@ -9,6 +9,7 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 import { mcpResult } from './action-route-equivalence.mjs';
 import { startPackagedMcpTestSession } from './packaged-mcp-test-session.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
+import { proveGradeAssetRebind } from './grade-asset-rebind-proof.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const source = path.resolve(process.argv[2]
@@ -40,8 +41,7 @@ const environment = {
   ...process.env,
   ...mcpSession.desktopEnvironment,
   LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-  LIGHTTABLE_AUTOMATION_OPEN_FILE: source,
-  LIGHTTABLE_AUTOMATION_HEADLESS: '1'
+  LIGHTTABLE_AUTOMATION_OPEN_FILE: source
 };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
@@ -81,8 +81,11 @@ const strictRenderPolicy = {
   maximumP95PixelDelta: 0, maximumChangedPixelRatioAt16: 0
 };
 
+let page;
+const pageErrors = [];
 try {
-  const page = await app.firstWindow({ timeout: 30_000 });
+  page = await app.firstWindow({ timeout: 30_000 });
+  page.on('pageerror', error => pageErrors.push(error.message));
   const open = await waitForDesktopLauncher({
     app, page, outputDirectory: output, sourceFile: source, label: 'grade-look'
   });
@@ -111,7 +114,7 @@ try {
     .getByRole('menuitem', { name: 'New Grade layer', exact: true }).click();
   const panel = page.getByLabel('Grade Layer properties', { exact: true }).last();
   await panel.waitFor({ state: 'visible', timeout: 30_000 });
-  const section = panel.locator('.lighttable-group').filter({ hasText: 'Look' }).first();
+  const section = panel.locator('.lighttable-effect').filter({ has: page.getByRole('button', { name: 'Look', exact: true }) });
   const toggle = section.getByRole('button', { name: 'Look', exact: true });
   if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
   const neutral = await exportMean();
@@ -121,7 +124,7 @@ try {
   const chooserPromise = page.waitForEvent('filechooser');
   await section.getByRole('button', { name: 'Load .cube...', exact: true }).click();
   await (await chooserPromise).setFiles(lut);
-  await section.locator('select').waitFor({ state: 'visible' });
+  await section.getByRole('combobox').waitFor({ state: 'visible' });
   await page.waitForTimeout(300);
   const full = await exportMean();
 
@@ -274,12 +277,16 @@ try {
   const destinationDocumentId = openedDestination.value?.documentId;
   if (!destinationDocumentId) throw new Error('Cross-document Look smoke did not open its destination.');
   await driver.waitForDocument(destinationDocumentId, 120_000);
-  const destinationNeutral = await exportMean(destinationDocumentId);
+  const destinationNeutralOutput = await exportPng(destinationDocumentId);
+  const destinationNeutral = destinationNeutralOutput.mean;
 
   await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
   await page.getByRole('menuitem', { name: /Paste grade:/ }).click();
-  const destinationLook = page.locator('.lighttable-grade-panel:visible .lighttable-group')
-    .filter({ hasText: 'Look' }).first();
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
+  const destinationLook = page.locator('.lighttable-grade-panel:visible .lighttable-effect')
+    .filter({ has: page.getByRole('button', { name: 'Look', exact: true }) });
+  const destinationLookToggle = destinationLook.getByRole('button', { name: 'Look', exact: true });
+  if (await destinationLookToggle.getAttribute('aria-expanded') !== 'true') await destinationLookToggle.click();
   const destinationStrength = destinationLook.getByRole('slider', { name: 'Strength', exact: true });
   await destinationStrength.waitFor({ state: 'attached', timeout: 30_000 });
   await page.waitForTimeout(200);
@@ -292,6 +299,11 @@ try {
   if (distance(destinationNeutral, destinationLookMean) < 1) {
     throw new Error('Cross-document Grade paste did not apply the embedded Look.');
   }
+  const assetLifetime = await proveGradeAssetRebind({ page, driver, sourceId: documentId,
+    destinationId: destinationDocumentId, neutral: destinationNeutralOutput.bytes, exportPng, lut });
+  assert.deepEqual(pageErrors, []);
+  await page.screenshot({ path: path.join(output, 'asset-rebind-final.png') });
+  await writeFile(path.join(output, 'asset-rebind-report.json'), JSON.stringify(assetLifetime, null, 2));
   await writeFile(path.join(evidenceDirectory, 'capture-report.json'), `${JSON.stringify({
     schema: 1,
     generatedAt: new Date().toISOString(),
@@ -299,6 +311,7 @@ try {
     caseManifestSha256: sha256(caseManifestBytes),
     packagedDesktop: launch.mode === 'production-packaged',
     passed: true,
+    assetLifetime,
     inputs: {
       source: { file: source, sha256: sha256(await readFile(source)) },
       lut: { file: lut, sha256: sha256(await readFile(lut)) },
@@ -320,6 +333,13 @@ try {
   process.stdout.write(`Grade Look smoke passed: neutral=${neutral.map((value) => value.toFixed(2))}; `
     + `full=${full.map((value) => value.toFixed(2))}; half=${half.map((value) => value.toFixed(2))}; `
     + `zero=${bypass.map((value) => value.toFixed(2))}; cross-document strength=62.\n`);
+} catch (error) {
+  await writeFile(path.join(output, 'asset-rebind-report.json'), JSON.stringify({
+    status: 'failed', error: error.stack ?? String(error), pageErrors,
+    body: page ? await page.locator('body').innerText() : null
+  }, null, 2));
+  if (page) await page.screenshot({ path: path.join(output, 'failure.png') });
+  throw error;
 } finally {
   await app.close().catch(() => undefined);
   await mcpSession.close().catch(() => undefined);

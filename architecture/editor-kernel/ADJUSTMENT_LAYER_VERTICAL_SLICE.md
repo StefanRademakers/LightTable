@@ -122,6 +122,17 @@ S08 proof.
 
 ## Forbidden compatibility path
 
+LUT file import and LUT-backed Grade paste are planned by GradeAssetCommandService.
+It binds session/renderer/target before settlement, then captures the settled
+document/processing baseline. Parse/upload retain strict opening ownership;
+history may rebind the renderer/inspector but cannot address another session.
+commitColorLookupAssetTransaction remains the sole upload/rollback/resource-history
+owner. Same-document LUTs are reused; a text-only foreign Grade drops only its
+unresolvable binary reference. After existing interaction admission, ordinary Grade
+paste calls the existing adjustment controller synchronously and returns its actual
+change result. Never return optimistic success before a deferred adjustment: that
+manufactures revisions for no-ops and can record a second Action after command exit.
+
 The removed multi-publication creation flow is not a fallback or extension
 point. New adjustment kinds must enter through the catalog, semantic command,
 canonical document transaction and shared projection route above.

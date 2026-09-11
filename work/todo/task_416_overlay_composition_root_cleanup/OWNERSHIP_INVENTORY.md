@@ -145,6 +145,13 @@ Fourteen LayerPanel props were only declared/forwarded, never consumed: their
 strength/reset/copy/inspect controls and root callbacks are removed, not extracted.
 Live strength persistence/render/flatten history and menu Grade copy/paste remain.
 
+O04c relocation: root loadCubeAsset/applyGradeCapture import and branch policy ->
+GradeAssetCommandService. One planning route, existing asset transaction retained.
+Removed obsolete createAdjustmentCommands.pasteGrade fire-and-forget API after its
+only consumer migrated. Normal paste now returns actual controller completion/no-op;
+the old route created an extra recorded adjustment.setSnapshot and optimistic dirty
+revision. Packaged UI/Actions/MCP + both LUT imports/rebind/history now pass.
+
 O04a relocation: resize/geometry admission, planning and compound-publication
 orchestration -> DocumentSurfaceCommandService (stateless, narrow renderer and
 publication ports). beginDocumentCrop resolves exact committed selection intent;

@@ -1,5 +1,37 @@
 # Task 416 progress
 
+## O04c — LUT/Grade asset commands (accepted)
+
+- Done/deleted: two root import transactions and Grade paste branching now live
+  in one 150-line GradeAssetCommandService. Overlay 8,375 -> 8,184 physical lines.
+  Root only supplies narrow ports, calls load/paste and presents status. Import
+  uses existing commitColorLookupAssetTransaction for upload/rollback/resources.
+- Scope: session/renderer/generation/target captured before settlement; baseline
+  captured after adjustment/transform settlement. Strict parse/upload ownership
+  differs from replay, which permits new same-session renderer/inspector only.
+  Same-document asset reuse and text-only missing-reference semantics retained.
+- Critic repair: normal paste's old deferred callback returned true before actual
+  commit. Real app recording exposed a fourth adjustment.setSnapshot after the
+  expected copy/setBasic/paste commands. Removed the now-unused factory paste API;
+  after already-awaited admission, the service calls the existing controller
+  synchronously and returns its real result. No new admission queue/fallback.
+- Proof: 47 focused real service/controller/transaction/command tests, typecheck,
+  boundary/structure, fresh instrumented package; processing rebind smoke passes.
+  Full Grade Look UI/Actions/MCP routes reproduce exactly three commands and two
+  logical edits with exact output equivalence. Both foreign Grade LUT paste and
+  Color Lookup file import survive real tabs/undo/redo with fresh PNG pixel equality.
+  Same-owner copied Grade paste leaves revision/history/pixels unchanged.
+  tmp/grade-look/asset-rebind-report.json and asset-rebind-final.png (inspected).
+- Harness corrections: old CSS/native-select assumptions updated to current shared
+  controls; opening a document correctly preserves Actions panel, so test explicitly
+  selects Properties. Hidden-window screenshot timed out; final run uses the normal
+  visible packaged host. No pixel/history tolerances were relaxed. The isolated MCP
+  fixture emits its existing TLS-verification warning; no production setting changed.
+- No new pointer-frequency work, GPU copy/readback or asset cache. Export-based
+  equality is final-output proof, not an input-latency benchmark. True editor unmount
+  replay and other deferred adjustment callers remain outside this accepted slice.
+- Next: O04b canvas picker ownership and depth-job cancellation, then O05 domains.
+
 ## O04b.1 — Processing ownership and lifecycle projection (accepted)
 
 - Removed canonical adjustment/visibility/strength mirrors and contextual root ref.
