@@ -30,7 +30,7 @@ import { DocumentRendererLifecycle } from './application/rendering/documentRende
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
 import { captureVectorTransformPreviewBinding } from './application/vectors/VectorTransformPreviewBinding';
 import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
-import { releaseDocumentGpuResources } from './application/rendering/documentGpuResourceRegistry';
+import { bindDocumentGpuResourceLifetime } from './application/rendering/documentGpuResourceRegistry';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import {
   centerClipboardBounds,
@@ -51,6 +51,7 @@ import { createInteractionTransitionCoordinator } from './application/interactio
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { DocumentLoadedSourceBinding } from './application/documents/DocumentLoadedSourceBinding';
+import { DocumentInteractionResetPolicy } from './application/documents/DocumentInteractionResetPolicy';
 import { useEditorDocumentFonts } from './composition/documents/useEditorDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
@@ -797,15 +798,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
-  const resourceDisposerSessionsRef = useRef(new WeakSet<DocumentSession>());
   useEffect(() => {
-    if (!documentSession || resourceDisposerSessionsRef.current.has(documentSession)) return;
-    resourceDisposerSessionsRef.current.add(documentSession);
-    // The disposer belongs to the canonical document session, not to this
-    // active React binding. Deliberately do not unregister it on a tab switch.
-    documentSession.registerDisposer(() => {
-      releaseDocumentGpuResources(String(documentSession.id));
-    });
+    if (documentSession) bindDocumentGpuResourceLifetime(documentSession);
   }, [documentSession]);
   const [globalGradeStrength, setGlobalGradeStrengthState] = React.useState(
     () => documentSession?.getSnapshot().processing.globalGradeStrength
@@ -3342,6 +3336,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void executeRegisteredCommand('history.redo', {});
   }, [executeRegisteredCommand]);
 
+  const documentInteractionReset = useMemo(() => new DocumentInteractionResetPolicy({
+    finishTextEditing: () => { finishTextEditingRef.current(); },
+    selection: {
+      resetGesture: () => selectionGestureRef.current.reset(),
+      clearDraft: () => setSelectionDraft(null),
+      clearClipboardFeedback: () => setSelectionClipboardAvailable(false),
+      closeDialogs: () => { editorDialogs.closeFeather(); editorDialogs.closeSelectionMorphology(); },
+      publishNewEditorSession: setEditorSession,
+      clearPublishedGeometry: () => setEditorSession(current => ({ ...current, selection: [] }))
+    },
+    resetPaint: () => resetPaintSessionRef.current(),
+    resetTransform: () => resetTransformRef.current(),
+    lensBlur: {
+      resetDepth: resetLensBlurDepth,
+      clearPickers: () => { setFocusPickerActive(false); setPointColorPickerActive(false); },
+      showResult: () => setLensBlurViewportModeState('result')
+    }
+  }), [setEditorSession, resetLensBlurDepth, editorDialogs.closeFeather, editorDialogs.closeSelectionMorphology]);
+
   const getDocumentPublicationPorts = useCallback(() => ({
     commitPublication: (publish: () => void) => {
       if (documentSession) documentSession.runPublication(publish);
@@ -3367,18 +3380,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishPsdDifference: setPsdDifferenceMetrics,
     publishSource: loadedSourceBinding.publishSource,
     resetDocumentInteraction: () => {
-      resetLensBlurDepth();
-      setFocusPickerActive(false);
-      setPointColorPickerActive(false);
-      selectionGestureRef.current.reset();
-      resetPaintSessionRef.current();
-      setSelectionDraft(null);
-      resetTransformRef.current();
-      setEditorSession((current) => ({ ...current, selection: [] }));
-      setSelectionClipboardAvailable(false);
-      editorDialogs.closeFeather();
-      editorDialogs.closeSelectionMorphology();
-      setLensBlurViewportModeState('result');
+      documentInteractionReset.sourcePublished();
       clearEditorHistory();
       resetHistogram();
       setZoomMode('fit');
@@ -3399,6 +3401,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     clearEditorHistory,
     documentSession,
     loadedSourceBinding,
+    documentInteractionReset,
     publishAdjustmentPresentation,
     resetHistogram,
     resetLensBlurDepth,
@@ -3413,7 +3416,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     globalGradeStrengthRef.current = startingGlobalGradeStrength;
     setGlobalGradeStrengthState(startingGlobalGradeStrength);
     globalGradeStrengthGestureRef.current = null;
-    finishTextEditingRef.current();
+    documentInteractionReset.prepareNewSource();
     resetDocumentFontsForOpen();
     resetDocumentOpenPresentation({
       initialAdjustments: initialRecipe?.settings,
@@ -3429,22 +3432,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setImageDocument(null);
           setThumbnailDocumentReadyId(null);
         },
-        resetSelection: (editorSession) => {
-          setEditorSession(editorSession);
-          selectionGestureRef.current.reset();
-          resetPaintSessionRef.current();
-          setSelectionDraft(null);
-          setSelectionClipboardAvailable(false);
-          editorDialogs.closeFeather();
-          editorDialogs.closeSelectionMorphology();
-          resetTransformRef.current();
-        },
-        resetLensBlur: () => {
-          resetLensBlurDepth();
-          setFocusPickerActive(false);
-          setPointColorPickerActive(false);
-          setLensBlurViewportModeState('result');
-        },
+        resetSelection: documentInteractionReset.initializeNewSelection,
+        resetLensBlur: documentInteractionReset.initializeLensBlur,
         publishAdjustments: (startingAdjustments) => {
           publishAdjustmentPresentation(startingAdjustments);
         },
@@ -3504,6 +3493,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     fileNameBase,
     initialRecipe,
     loadedSourceBinding,
+    documentInteractionReset,
     resetDocumentFontsForOpen,
     resetHistogram,
     resetLensBlurDepth,
@@ -3518,12 +3508,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const existingDocument = snapshot?.document;
     if (!snapshot || !existingDocument) return;
 
-    finishTextEditingRef.current();
-    selectionGestureRef.current.reset();
-    resetPaintSessionRef.current();
-    resetTransformRef.current();
-    setSelectionDraft(null);
-    setSelectionClipboardAvailable(false);
+    documentInteractionReset.rebindExisting();
     setError(null);
     setScopeError(null);
     setGradeStatus(null);
@@ -3559,6 +3544,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [
     documentSession,
     loadedSourceBinding,
+    documentInteractionReset,
     publishAdjustmentPresentation,
     setImageDocument
   ]);
@@ -3588,7 +3574,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const afterDocumentClose = useCallback(() => {
     cancelAutoAlignRef.current();
-    engineRef.current = null;
   }, []);
 
   const restoreDocumentSelectionState = useCallback(async (

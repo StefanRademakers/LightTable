@@ -1,5 +1,34 @@
 # Task 416 progress
 
+## O03c.2 / O03c.3a — Interaction resets and resource retirement (accepted)
+
+- Ownership: DocumentInteractionResetPolicy names the distinct source-open,
+  source-publication and rebind participant order. Participants still own their
+  own sessions; rebind never clears committed selection, processing or history.
+  Document GPU close binding registers once per concrete session across remounts.
+  DocumentOpenController alone retires its presentation renderer.
+- Deleted: root reset lists, component-local resource binding WeakSet and the
+  unconditional root engine-slot clear. Overlay 8,748 -> 8,733 physical lines.
+  This small line reduction is not monster-file completion. No new GPU work,
+  readback, pointer scheduling or global manager introduced.
+- Critic: reset policy PASS; removed a vacuous disconnected-state assertion.
+  Retirement review exposed pending first-start publication before controller
+  ownership. Repaired immediate presentation detach while retaining startup's
+  physical cleanup until hydration unwinds; successful startup hands ownership
+  over before task-completion yield. Integrated real request/controller test
+  proves close clears the slot, does not destroy during hydration, and late
+  cleanup neither clears nor destroys a newly opened replacement. Final PASS.
+- Proof: 144 focused/related reset/resource tests and 252 controller/startup
+  tests (overlapping related shards, not additive coverage); app typecheck;
+  instrumented packaged layer/history gesture, font/source lifecycle and document
+  pixel-retention all pass. Reports in tmp/layer-history-gesture/report.json,
+  tmp/font-source-lifecycle/report.json, tmp/document-pixel-retention-smoke/report.json.
+- Scope limits: arbitrary throwing observer/discard callbacks are not certified.
+  Existing performance and preview parity observations above remain open; these
+  lifecycle runs are not whole-app or owner-feel acceptance.
+- Next: O04a surface commands. O03c processing restore stays with O04b's complete
+  processing owner to avoid splitting its mirrored state across new services.
+
 ## O03c.1 — Loaded sources and document font hydration (accepted)
 
 - Ownership: DocumentLoadedSourceBinding writes loaded source data only inside

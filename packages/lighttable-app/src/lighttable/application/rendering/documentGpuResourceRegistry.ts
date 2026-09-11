@@ -92,6 +92,21 @@ export class DocumentGpuResourceRegistry {
 
 const documentGpuResources = new DocumentGpuResourceRegistry();
 
+interface DocumentResourceLifetime {
+  readonly id: DocumentGpuResourceKey;
+  registerDisposer(dispose: () => void): () => void;
+}
+
+const boundDocumentLifetimes = new WeakSet<DocumentResourceLifetime>();
+
+/** One close hook per concrete session, surviving presentation remounts. */
+export const bindDocumentGpuResourceLifetime = (document: DocumentResourceLifetime): void => {
+  if (boundDocumentLifetimes.has(document)) return;
+  const key = document.id;
+  document.registerDisposer(() => { documentGpuResources.releaseDocument(key); });
+  boundDocumentLifetimes.add(document);
+};
+
 export const bindDocumentGpuResources = (
   documentId: DocumentGpuResourceKey,
   owner: SubmittedResourceOwner,

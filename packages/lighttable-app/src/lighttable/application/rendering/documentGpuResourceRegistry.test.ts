@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DocumentSession, type DocumentSessionId } from '../documents/documentSession';
 import {
   DocumentGpuResourceRegistry,
+  bindDocumentGpuResourceLifetime,
+  bindDocumentGpuResources,
   type SubmittedResourceOwner
 } from './documentGpuResourceRegistry';
 
@@ -14,6 +17,26 @@ const settle = async () => {
 };
 
 describe('DocumentGpuResourceRegistry', () => {
+  it('registers one session close obligation across presentation remounts and isolates sibling sessions', async () => {
+    const create = (id: string) => new DocumentSession({ id: id as DocumentSessionId,
+      source: { id: 'same-source', name: 'same-source', mediaType: 'image/png' } });
+    const a = create('resource-lifetime-a'), b = create('resource-lifetime-b');
+    const registered = vi.spyOn(a, 'registerDisposer');
+    bindDocumentGpuResourceLifetime(a); bindDocumentGpuResourceLifetime(a);
+    bindDocumentGpuResourceLifetime(b);
+    expect(registered).toHaveBeenCalledOnce();
+    const device = owner(), anotherDevice = owner();
+    const releaseA = vi.fn(), releaseA2 = vi.fn(), releaseB = vi.fn();
+    bindDocumentGpuResources(a.id, device, () => releaseA);
+    bindDocumentGpuResources(a.id, anotherDevice, () => releaseA2);
+    bindDocumentGpuResources(b.id, device, () => releaseB);
+    expect(releaseA).not.toHaveBeenCalled();
+    a.dispose(); await settle();
+    expect(releaseA).toHaveBeenCalledOnce(); expect(releaseA2).toHaveBeenCalledOnce();
+    expect(releaseB).not.toHaveBeenCalled();
+    b.dispose(); await settle(); expect(releaseB).toHaveBeenCalledOnce();
+  });
+
   it('releases every device generation exactly once on document close', async () => {
     const registry = new DocumentGpuResourceRegistry();
     const firstOwner = owner();

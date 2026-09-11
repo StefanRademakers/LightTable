@@ -159,9 +159,16 @@ class names: reuse existing owners before creating a new one.
       is separate. Removed root font/source asset mirrors and async generation
       policy. Critic PASS after two repairs; packaged native font-byte/final-PNG
       roundtrip, tab rebind, Type/Path Text and layer/history passed.
-    - [ ] O03c.2: distinct new-source/published-source/rebind interaction resets.
-    - [ ] O03c.3: read-only processing restore, remaining presentation setup and
-      renderer/resource retirement wiring.
+    - [x] O03c.2: distinct new-source/published-source/rebind interaction resets.
+      Named participant policy preserves ordering without acquiring domain state.
+      Critic PASS; packaged layer/history, font/source and pixel-retention passed.
+    - [ ] O03c.3: read-only processing restore and remaining presentation setup.
+      Processing mirrors/restore move together with O04b, not into another owner.
+      - [x] O03c.3a: renderer/resource retirement. Removed duplicate root renderer
+        clearing; pending startup detaches presentation immediately, destroys only
+        after hydration unwinds. Document resource close registration is session-
+        lifetime and idempotent across remounts. Critic PASS after pending-start
+        repair; integrated replacement safety and packaged lifecycle proof passed.
 - [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms

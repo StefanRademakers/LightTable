@@ -125,8 +125,11 @@ DocumentLoadedSourceBinding; pending/error and late completion -> document-owned
 DocumentFontHydrationOwner; standalone registry construction/subscription/reset/
 deferred disposal -> useEditorDocumentFonts. Session source assets are read from
 canonical loadedSource at export; root write-only font mirror deleted. No new
-open controller or lifecycle manager. O03c.2 still owns the three distinct reset
-lists; O03c.3 still owns processing presentation restore and retirement wiring.
+open controller or lifecycle manager. O03c.2 moved the three distinct reset lists
+to DocumentInteractionResetPolicy with narrow domain participants. O03c.3a moved
+resource close registration to the registry lifetime binding and deleted root
+renderer-slot retirement; DocumentOpenController owns exact pending/live detach.
+O03c processing presentation restore stays with the O04b processing-state owner.
 Additional O08 observations: command-driver text replace1217ms exceeded its
 1000ms ceiling; outline/atlas ordinary previews are not byte-identical across
 native reopen. Final-output font PNG roundtrip is exact; do not conflate it with

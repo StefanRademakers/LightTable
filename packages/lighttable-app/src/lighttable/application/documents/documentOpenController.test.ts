@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DocumentRendererLifecycle } from '../rendering/documentRendererLifecycle';
 import { DocumentTaskRegistry } from '../tasks/documentTaskRegistry';
 import type { DocumentSessionId } from './documentSession';
+import { createEditorDocumentOpenRequest } from '../../editor/documents/createEditorDocumentOpenRequest';
 import {
   DocumentOpenController
 } from './documentOpenController';
@@ -19,6 +20,42 @@ const deferred = <T>() => {
 const renderer = () => ({ destroy: vi.fn() });
 
 describe('DocumentOpenController', () => {
+  it('detaches the initial pending slot on close, then destroys only that renderer after hydration unwinds', async () => {
+    const make = () => ({ destroy: vi.fn(), setLensBlurDepthVisualization: vi.fn(),
+      setScopeOptions: vi.fn(), initializeScopes: vi.fn(async () => undefined),
+      waitForPresentation: vi.fn(async () => undefined) });
+    type Renderer = ReturnType<typeof make>;
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController<Renderer>(
+      new DocumentTaskRegistry('pending-slot' as DocumentSessionId), lifecycle);
+    const old = make(), replacement = make();
+    let slot: Renderer | null = null;
+    const started = deferred<void>(), hydration = deferred<void>();
+    const discarded = vi.fn();
+    const request = (target: Renderer, hydrate: () => Promise<void>) => createEditorDocumentOpenRequest({
+      createRenderer: async () => target, resolveSource: async () => new Blob(), hydrate,
+      rendererSlot: { get: () => slot, set: value => { slot = value; } },
+      lifecycleBridge: { callbacks: {}, onRendererReady: vi.fn(), onRendererDiscarded: discarded,
+        onSourceReady: vi.fn(), onFailed: vi.fn(), onSettled: vi.fn() }
+    });
+    const opening = controller.open(request(old, () => { started.resolve(); return hydration.promise; }));
+    await started.promise;
+    expect(slot).toBe(old);
+    controller.close();
+    expect(slot).toBeNull();
+    expect(lifecycle.getSnapshot().status).toBe('idle');
+    expect(old.destroy).not.toHaveBeenCalled();
+    await controller.open(request(replacement, async () => undefined));
+    expect(slot).toBe(replacement);
+    hydration.resolve(); await opening;
+    expect(slot).toBe(replacement);
+    expect(old.destroy).toHaveBeenCalledOnce();
+    expect(discarded.mock.calls.filter(([value]) => value === old)).toHaveLength(1);
+    expect(replacement.destroy).not.toHaveBeenCalled();
+    controller.close(); expect(replacement.destroy).toHaveBeenCalledOnce();
+    expect(slot).toBeNull();
+  });
+
   it('retains one successfully hydrated renderer until close', async () => {
     const lifecycle = new DocumentRendererLifecycle();
     const controller = new DocumentOpenController(

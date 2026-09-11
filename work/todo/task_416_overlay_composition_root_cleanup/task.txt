@@ -1,6 +1,6 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O02a/O02b/O02c.1/O02c.2a/O03a/O03b accepted; broader O01/O02 and O03-O09 remain open.
+Status: in progress. O02a/b/c.1/c.2a, O03a/b/c.1/c.2/c.3a accepted; broader O01/O02 and O03-O09 remain open.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:
@@ -19,8 +19,11 @@ Temporary override state (O02c.2a) and projection binding (O03a) accepted.
 The owner authorized one additional O03b repair round; exact mask bounds now
 pass the strict packaged feathered/painted resize/geometry/tab/undo/redo gate.
 Evidence and an unresolved pre-selection preview-read flake are preserved in
-O03B_PUBLICATION_ACCEPTANCE_REPORT.md. Next: O03c lifecycle and remaining O02c
-host/target/file terminal policies. Neither whole-app cleanup nor release is done.
+O03B_PUBLICATION_ACCEPTANCE_REPORT.md. Source/font lifetime, explicit reset policy
+and renderer/resource retirement now pass focused and packaged proof (PROGRESS.md).
+Next: O04a document-surface commands. Remaining O03c processing restoration moves
+with O04b's processing ownership; O02c host/target/file terminal policies stay open.
+Neither whole-app cleanup nor release is done.
 Use the plan's independent critic and evidence-driven repair/re-review loop.
 Latest owner direction authorizes two/three rounds and further bounded repairs
 as needed; continue to the next task without stopping solely at an iteration count.

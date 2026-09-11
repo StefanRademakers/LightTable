@@ -56,6 +56,7 @@ export class DocumentOpenController<
   private readonly lifecycle: DocumentRendererLifecycle;
   private renderer: Renderer | null = null;
   private rendererDiscard: ((renderer: Renderer) => void) | null = null;
+  private detachPendingPresentation: (() => void) | null = null;
   private generation = 0;
   private token = 0;
   private unsettledOpenCount = 0;
@@ -121,6 +122,7 @@ export class DocumentOpenController<
             }
             return reusableRenderer;
           }
+          const pendingPresentation = { detach: null as (() => void) | null };
           const renderer = await startDocumentRenderer({
             createRenderer: request.createRenderer,
             loadSource: () => request.loadSource(task.signal),
@@ -131,13 +133,35 @@ export class DocumentOpenController<
             },
             isCanceled,
             onRendererReady: (created, elapsedMs) => {
+              let attached = true;
+              pendingPresentation.detach = () => {
+                if (!attached) return;
+                attached = false;
+                if (this.detachPendingPresentation === pendingPresentation.detach) {
+                  this.detachPendingPresentation = null;
+                }
+                request.onRendererDiscarded?.(created);
+              };
+              this.detachPendingPresentation = pendingPresentation.detach;
               request.onRendererReady?.(created, elapsedMs, generation);
             },
-            onRendererDiscarded: request.onRendererDiscarded,
+            onRendererDiscarded: () => { pendingPresentation.detach?.(); },
             onSourceReady: request.onSourceReady,
             disposeSource: request.disposeSource,
           });
-          task.throwIfCanceled();
+          // Startup owns physical teardown until hydration settles. Close may
+          // already have detached its external slot while that work unwound.
+          if (isCanceled()) {
+            try { pendingPresentation.detach?.(); } finally { renderer.destroy(); }
+            task.throwIfCanceled();
+          }
+          if (this.detachPendingPresentation === pendingPresentation.detach) {
+            this.detachPendingPresentation = null;
+          }
+          // Transfer resource ownership before yielding to the task completion:
+          // a close in that interval must still find and destroy this renderer.
+          this.renderer = renderer;
+          this.rendererDiscard = request.onRendererDiscarded ?? null;
           return renderer;
         },
       );
@@ -165,7 +189,7 @@ export class DocumentOpenController<
 
   close(): void {
     this.cancelOpen();
-    this.retireRenderer();
+    try { this.detachPendingPresentation?.(); } finally { this.retireRenderer(); }
   }
 
   /** Cancels only source/hydration work while retaining the presentation engine. */
