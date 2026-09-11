@@ -1,6 +1,6 @@
 # Overlay composition-root cleanup
 
-Status: **executing; O02a/b, O02c.1/2a and O03a/b accepted; O03c in progress**.
+Status: **executing; bounded O02/O03 extractions, O04a and O04b.1 accepted; remaining checklist open**.
 Owner requested 2026-09-11.
 Checkpoint: `df000cc5` (`main`), before cleanup. No push requested.
 
@@ -179,6 +179,10 @@ class names: reuse existing owners before creating a new one.
     and dialog/viewport presentation. Critic PASS; packaged geometry, Image Size,
     feathered/painted surface history and UI/Actions/MCP equivalence passed.
   - [ ] O04b: processing presentation/state, individual gestures and pickers.
+    - [x] O04b.1: canonical processing binding, shared contextual inspector and
+      lifecycle-ordered renderer projection. Removed 14 unused layer-panel props
+      and their dead root mutation callbacks. Exact fresh PNG/tab/history and
+      current Exposure control proof passed; remaining pickers/gestures open.
   - [ ] O04c: LUT/Grade asset command lifetime and clipboard integration.
 - [ ] O05 — Complete domain tool boundaries, separately: (a) text hit-testing,
   activation/creation/formatting; (b) vector/path/shape interaction glue;

@@ -42,20 +42,6 @@ export interface LayersWorkspacePanelProps {
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
   onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
-  documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
-  onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
-  onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
-  globalGradeStrength: number;
-  globalGradeModified: boolean;
-  globalLensFxModified: boolean;
-  copiedGradeName: string | null;
-  onGlobalGradeStrength: (strength: number) => void;
-  onGlobalGradeStrengthInteractionStart: () => void;
-  onGlobalGradeStrengthInteractionEnd: () => void;
-  onResetGlobalGrade: () => void;
-  onResetGlobalLensFx: () => void;
-  onCopyGlobalGrade: () => void;
-  onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
   onAddStyle: (kind: LayerStyleKind) => void;
 }
@@ -89,20 +75,6 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   inspectorTarget,
   onInspectLayer,
   onInspectProcessing,
-  documentProcessingVisibility,
-  onDocumentProcessingVisibility,
-  onInspectDocumentProcessing,
-  globalGradeStrength,
-  globalGradeModified,
-  globalLensFxModified,
-  copiedGradeName,
-  onGlobalGradeStrength,
-  onGlobalGradeStrengthInteractionStart,
-  onGlobalGradeStrengthInteractionEnd,
-  onResetGlobalGrade,
-  onResetGlobalLensFx,
-  onCopyGlobalGrade,
-  onPasteGlobalGrade,
   onInspectAttachedAdjustment,
   onAddStyle
 }) => {
@@ -193,20 +165,6 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         inspectorTarget={inspectorTarget}
         onInspectLayer={onInspectLayer}
         onInspectProcessing={onInspectProcessing}
-        documentProcessingVisibility={documentProcessingVisibility}
-        onDocumentProcessingVisibility={onDocumentProcessingVisibility}
-        onInspectDocumentProcessing={onInspectDocumentProcessing}
-        globalGradeStrength={globalGradeStrength}
-        globalGradeModified={globalGradeModified}
-        globalLensFxModified={globalLensFxModified}
-        copiedGradeName={copiedGradeName}
-        onGlobalGradeStrength={onGlobalGradeStrength}
-        onGlobalGradeStrengthInteractionStart={onGlobalGradeStrengthInteractionStart}
-        onGlobalGradeStrengthInteractionEnd={onGlobalGradeStrengthInteractionEnd}
-        onResetGlobalGrade={onResetGlobalGrade}
-        onResetGlobalLensFx={onResetGlobalLensFx}
-        onCopyGlobalGrade={onCopyGlobalGrade}
-        onPasteGlobalGrade={onPasteGlobalGrade}
         onInspectAttachedAdjustment={onInspectAttachedAdjustment}
       />
     </div>

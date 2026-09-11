@@ -1,5 +1,40 @@
 # Task 416 progress
 
+## O04b.1 — Processing ownership and lifecycle projection (accepted)
+
+- Removed canonical adjustment/visibility/strength mirrors and contextual root ref.
+  DocumentProcessingBinding reads DocumentSession; AdjustmentPresentationRuntime
+  owns only the one mounted inspector's staged/published projection. Partial
+  processing publication clones supplied fields only; unchanged identities survive.
+  Overlay 8,572 -> 8,375 physical lines; ceiling 8,376. No new GPU readback, queue
+  or per-sample canonical publication. Full processing cleanup remains open.
+- Removed 14 dead props through LayerPanel, LayersWorkspacePanel and Overlay,
+  including unreachable global-strength gesture/reset callbacks. No visible controls
+  removed. Live persistence/GPU/finalization strength and menu Grade clipboard remain.
+- Critic rounds: corrected stale document-binding dependencies and inspector-runtime
+  sharing; code search proved the proposed strength gesture was dead plumbing, so
+  it was deleted instead of rebuilt. Packaged second-create then exposed a stale
+  React-ready effect trying to project before renderer binding. Moved projection
+  into the existing lifecycle, after resources/selection and before ready; exact
+  current renderer required. Final source PASS; no swallowed exception/fallback.
+- Proof: eight binding tests plus related processing/publication/layer-command
+  runs (347/819 tests overlap; not additive), app typecheck, boundary/structure,
+  fresh instrumented package. Final transform/immediate Exposure, layer subtarget,
+  layer/history and font/native reopen smokes pass. Document pixel retention
+  passed before final dead-prop-only removal. Reports in their tmp smoke folders.
+- New tmp/processing-rebind/report.json: real global and local Grade, five tab
+  changes, uncached final PNG exact equality, both undo/redo levels, current local
+  Exposure control restoring -0.5/0/-0.5; no page errors, screenshot inspected.
+  Automated tab click-to-ready 132–151ms includes driver overhead, not input latency.
+- Proof corrections: initial wait compared session revision with ImageDocument
+  revision; these diverge for global Grade. Shared driver remains unchanged and
+  its diagnostics defect is tracked at O08. Preview caching could also mask rebind,
+  so every comparison now uses a fresh PNG export. Export flushes rendering: this
+  proves processing/resource retention, not autonomous first-frame latency.
+  Shared inspector lifetime covers tab rebind, not a true Overlay unmount/remount.
+- Next: O04c live LUT/Grade asset command lifetime, then remaining pickers/domain
+  boundaries. No whole-plan, whole-app stability or monster-file completion claim.
+
 ## O04a — Document surface commands and crop intent (accepted)
 
 - Done/deleted: removed duplicate resize/geometry transaction implementations

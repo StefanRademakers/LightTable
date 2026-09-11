@@ -21,8 +21,10 @@ pass the strict packaged feathered/painted resize/geometry/tab/undo/redo gate.
 Evidence and an unresolved pre-selection preview-read flake are preserved in
 O03B_PUBLICATION_ACCEPTANCE_REPORT.md. Source/font lifetime, explicit reset policy
 and renderer/resource retirement now pass focused and packaged proof (PROGRESS.md).
-Next: O04a document-surface commands. Remaining O03c processing restoration moves
-with O04b's processing ownership; O02c host/target/file terminal policies stay open.
+O04a document-surface commands and O04b.1 processing binding/restoration are accepted.
+Next: O04c LUT/Grade asset commands; remaining O04b pickers/gesture wiring and
+O02c host/target/file terminal policies stay open. The renderer telemetry revision
+is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.
 Use the plan's independent critic and evidence-driven repair/re-review loop.
 Latest owner direction authorizes two/three rounds and further bounded repairs

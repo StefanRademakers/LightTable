@@ -56,7 +56,8 @@ import { useEditorDocumentFonts } from './composition/documents/useEditorDocumen
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { resolveAdjustmentPresentation } from './application/adjustments/resolveAdjustmentPresentation';
-import { AdjustmentPresentationSynchronizer } from './application/adjustments/AdjustmentPresentationSynchronizer';
+import { DocumentProcessingBinding } from './application/adjustments/DocumentProcessingBinding';
+import { AdjustmentPresentationRuntime } from './application/adjustments/AdjustmentPresentationRuntime';
 import {
   commitColorLookupAssetTransaction
 } from './application/adjustments/commitColorLookupAssetTransaction';
@@ -72,14 +73,13 @@ import { executeSemanticGradePatch } from './application/adjustments/executeSema
 import { executeSemanticAdjustmentSnapshot } from './application/adjustments/executeSemanticAdjustmentSnapshot';
 import { executeSemanticProcessingStructure } from './application/adjustments/executeSemanticProcessingStructure';
 import { adjustmentTargetIsPresented } from './application/adjustments/adjustmentTargetIsPresented';
-import { runEditorOperationTransaction } from './application/commands/editorOperationTransaction';
 import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
 } from './application/commands/semanticAdjustmentCreationCommandContract';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
-import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
+import { useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionBinding } from './application/documents/documentProjectionBinding';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
@@ -130,7 +130,6 @@ import {
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
   adjustmentStackGradeGroupIsEnabled,
-  adjustmentStackOwnerHasAuthoredSettings,
   type GradeModuleGroup,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
@@ -363,7 +362,6 @@ import {
   useDocumentViewportState
 } from './editor/hooks/useDocumentEditorState';
 import {
-  createDefaultGroupVisibility,
   type GroupVisibility
 } from './application/adjustments/groupVisibility';
 import {
@@ -793,16 +791,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
+  const mountedDocumentSessionRef = useRef(documentSession);
+  mountedDocumentSessionRef.current = documentSession;
+  const adjustmentPresentationRuntime = useMemo(() => new AdjustmentPresentationRuntime(), []);
+  const processingBinding = useMemo(() => new DocumentProcessingBinding(documentSession, adjustmentPresentationRuntime, {
+    isCurrent: () => mountedDocumentSessionRef.current === documentSession
+      && workspaceDocumentIdRef.current === workspaceDocumentId,
+    getRenderer: () => engineRef.current
+  }), [documentSession, workspaceDocumentId, adjustmentPresentationRuntime]);
+  const groupVisibility = useSyncExternalStore(processingBinding.subscribe, processingBinding.getGroupVisibility);
   useEffect(() => {
     if (documentSession) bindDocumentGpuResourceLifetime(documentSession);
   }, [documentSession]);
-  const [globalGradeStrength, setGlobalGradeStrengthState] = React.useState(
-    () => documentSession?.getSnapshot().processing.globalGradeStrength
-      ?? initialRecipe?.globalGradeStrength
-      ?? 100
-  );
-  const globalGradeStrengthRef = useRef(globalGradeStrength);
-  const globalGradeStrengthGestureRef = useRef<number | null>(null);
   const {
     presentedDocumentId: presentedWorkspaceDocumentId,
     residentDocumentId: residentWorkspaceDocumentId,
@@ -817,22 +817,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererRef: engineRef,
     publishThumbnail: onDocumentThumbnailChange
   });
-  const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
-  const adjustmentPresentationStoreRef = useRef<AdjustmentPresentationStore | null>(null);
-  if (!adjustmentPresentationStoreRef.current) {
-    adjustmentPresentationStoreRef.current = new AdjustmentPresentationStore(
-      adjustmentsRef.current
-    );
-  }
-  const adjustmentPresentationStore = adjustmentPresentationStoreRef.current;
-  const adjustmentPresentation = useMemo(() => new AdjustmentPresentationSynchronizer((next, domain) => {
-    adjustmentsRef.current = next;
-    adjustmentPresentationStore.publish(next, domain);
-  }), [adjustmentPresentationStore]);
-  const publishAdjustmentPresentation = adjustmentPresentation.publishPresentation;
-  const documentAdjustmentsRef = useRef<BasicAdjustments>(
-    documentSession?.getSnapshot().processing.adjustments ?? createDefaultAdjustments()
-  );
+  const adjustmentPresentationStore = processingBinding.presentationStore;
+  const adjustmentPresentation = processingBinding.presentation;
+  const publishAdjustmentPresentation = processingBinding.publishPresentation;
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetActiveAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => Promise<void>>(async () => undefined);
@@ -902,9 +889,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const updateSelectionContentMoveRef = useRef<(x: number, y: number) => void>(() => undefined);
   const finishSelectionContentMoveRef = useRef<(commit: boolean) => void>(() => undefined);
-  const groupVisibilityRef = useRef<GroupVisibility>(
-    documentSession?.getSnapshot().processing.groupVisibility ?? createDefaultGroupVisibility()
-  );
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
@@ -1040,27 +1024,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [sourceName, setSourceName] = useState(
     () => documentSession?.getSnapshot().loadedSource.name ?? fileNameBase
   );
-  const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>(
-    () => documentSession?.getSnapshot().processing.groupVisibility
-      ?? createDefaultGroupVisibility()
-  );
-  const publishDocumentAdjustmentsState = useCallback((next: BasicAdjustments) => {
-    const cloned = cloneAdjustments(next);
-    documentAdjustmentsRef.current = cloned;
-    documentSession?.updateProcessing((current) => ({
-      ...current,
-      adjustments: cloned
-    }));
-  }, [documentSession]);
-  const publishGroupVisibilityState = useCallback((next: GroupVisibility) => {
-    const cloned = { ...next };
-    groupVisibilityRef.current = cloned;
-    setGroupVisibility(cloned);
-    documentSession?.updateProcessing((current) => ({
-      ...current,
-      groupVisibility: cloned
-    }));
-  }, [documentSession]);
+  const publishDocumentAdjustmentsState = processingBinding.publishDocumentAdjustments;
+  const publishGroupVisibilityState = processingBinding.publishGroupVisibility;
   const [shiftPressed, setShiftPressed] = useState(false);
   const [altPressed, setAltPressed] = useState(false);
   const [preciseBrushCursor, setPreciseBrushCursor] = useState(false);
@@ -1722,7 +1687,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         imageDocumentRef.current = document;
         setImageDocument(document);
       },
-      getDocumentAdjustments: () => documentAdjustmentsRef.current,
+      getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
       publishDocumentAdjustments: (nextAdjustments) => {
         publishDocumentAdjustmentsState(nextAdjustments);
       },
@@ -1730,9 +1695,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         publishAdjustmentPresentation(nextAdjustments, domain);
       },
       stageEditorAdjustments: (nextAdjustments) => {
-        adjustmentsRef.current = nextAdjustments;
+        processingBinding.stageEditorAdjustments(nextAdjustments);
       },
-      getGroupVisibility: () => groupVisibilityRef.current,
+      getGroupVisibility: () => processingBinding.getGroupVisibility(),
       publishGroupVisibility: (visibility) => {
         publishGroupVisibilityState(visibility);
       },
@@ -1743,7 +1708,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         engineRef.current?.setAdjustments(nextAdjustments);
       }
     }),
-    [adjustmentPresentation, publishAdjustmentPresentation, setImageDocument]
+    [adjustmentPresentation, processingBinding, publishAdjustmentPresentation, setImageDocument]
   );
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
@@ -1772,8 +1737,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;
   const applyCanonicalAdjustmentProjection = documentProjectionController.applyCanonicalAdjustmentProjection;
 
-  const mountedDocumentSessionRef = useRef(documentSession);
-  mountedDocumentSessionRef.current = documentSession;
   const documentSelectionPublication = useMemo(() => new DocumentSelectionPublicationBinding(documentSession, {
     isSessionCurrent: () => mountedDocumentSessionRef.current === documentSession,
     getDocument: () => imageDocumentRef.current,
@@ -2683,13 +2646,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     target: PropertiesInspectorTarget = propertiesTargetRef.current
   ) => resolveAdjustmentPresentation(
     document,
-    documentAdjustmentsRef.current,
+    processingBinding.getDocumentAdjustments(),
     target
   )?.adjustments ?? null;
   const adjustmentTransactionController = useAdjustmentTransactionController({
     getDocumentId: () => imageDocumentRef.current?.id ?? null,
     getDocument: () => imageDocumentRef.current,
-    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
     getCanonicalAdjustments: () => {
       const document = imageDocumentRef.current;
       return document ? resolveCanonicalAdjustmentSnapshot(document) : null;
@@ -2711,10 +2674,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitDocumentProcessing: (snapshot, domain) =>
       applyAdjustmentSnapshot(snapshot, null, domain),
     stageEditorAdjustments: (snapshot) => {
-      adjustmentsRef.current = snapshot;
+      processingBinding.stageEditorAdjustments(snapshot);
     },
     restoreStagedSnapshot: (snapshot) => {
-      adjustmentsRef.current = cloneAdjustments(snapshot);
+      processingBinding.stageEditorAdjustments(cloneAdjustments(snapshot));
     },
     discardPreview: documentProjectionController.discardAdjustmentPreview,
     pushProcessingHistoryEntry: pushHistoryEntry,
@@ -2785,8 +2748,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const canonicalAdjustments = resolveCanonicalAdjustmentSnapshot(beforeDocument);
     if (!canonicalAdjustments) throw new Error('Select a Grade owner before loading a LUT.');
     const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
-    const beforeDocumentAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-    const beforeDocumentAdjustmentsIdentity = documentAdjustmentsRef.current;
+    const beforeDocumentAdjustments = cloneAdjustments(processingBinding.getDocumentAdjustments());
+    const beforeDocumentAdjustmentsIdentity = processingBinding.getDocumentAdjustments();
     const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
     const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
     const rendererGeneration = rendererLifecycle.getSnapshot().generation;
@@ -2795,7 +2758,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       && rendererLifecycle.getSnapshot().generation === rendererGeneration
       && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
       && (targetLayerId !== null
-        || documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity);
+        || processingBinding.getDocumentAdjustments() === beforeDocumentAdjustmentsIdentity);
     const historyType = purpose === 'grade-look'
       ? 'adjustment.grade-look'
       : 'adjustment.color-lookup';
@@ -2909,8 +2872,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const adjustmentCommands = useMemo(() => createAdjustmentCommands({
     endAdjustment: endAdjustmentTransaction,
     changeAdjustments,
-    getAdjustments: () => adjustmentsRef.current,
-    getGroupVisibility: () => groupVisibilityRef.current,
+    getAdjustments: () => processingBinding.getEditorAdjustments(),
+    getGroupVisibility: () => processingBinding.getGroupVisibility(),
     publishGroupVisibility: (visibility) => {
       documentProjectionController.applyGroupVisibilitySnapshot(visibility);
     },
@@ -2989,7 +2952,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const document = imageDocumentRef.current;
     const renderer = engineRef.current;
     const canonical = document ? resolveCanonicalAdjustmentSnapshot(document) : null;
-    const settings = cloneAdjustments(canonical ?? documentAdjustmentsRef.current);
+    const settings = cloneAdjustments(canonical ?? processingBinding.getDocumentAdjustments());
     const assetId = settings.gradeLook.assetId;
     let gradeLookAsset: LightTableGradeClipboardCapture['gradeLookAsset'];
     if (assetId && document && renderer) {
@@ -3032,8 +2995,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           throw new Error('Select a Grade owner before pasting a LUT-backed Grade.');
         }
         const beforeAdjustments = cloneAdjustments(canonicalAdjustments);
-        const beforeDocumentAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-        const beforeDocumentAdjustmentsIdentity = documentAdjustmentsRef.current;
+        const beforeDocumentAdjustments = cloneAdjustments(processingBinding.getDocumentAdjustments());
+        const beforeDocumentAdjustmentsIdentity = processingBinding.getDocumentAdjustments();
         const targetLayerId = resolveAdjustmentTargetLayerId(beforeDocument);
         const targetIdentity = resolveAdjustmentTargetIdentity(beforeDocument);
         const rendererGeneration = rendererLifecycle.getSnapshot().generation;
@@ -3042,7 +3005,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           && rendererLifecycle.getSnapshot().generation === rendererGeneration
           && resolveAdjustmentTargetIdentity(beforeDocument) === targetIdentity
           && (targetLayerId !== null
-            || documentAdjustmentsRef.current === beforeDocumentAdjustmentsIdentity);
+            || processingBinding.getDocumentAdjustments() === beforeDocumentAdjustmentsIdentity);
         const transaction = documentMutationController.begin(
           'adjustment.grade.paste',
           { label: `Load ${capture.name}`, type: 'adjustment.grade.paste' },
@@ -3194,6 +3157,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }), [setEditorSession, resetLensBlurDepth, editorDialogs.closeFeather, editorDialogs.closeSelectionMorphology]);
 
+  const documentOpenGeneration = useMemo(() => ({}), [
+    editorSourceFileKey,
+    initialRecipe,
+    initialSourceBlob,
+    initialSourceName,
+    loadSource,
+    projectId,
+    sourceDecodeMode,
+    documentCreationSettings,
+    rendererRecoverySequence
+  ]);
+
   const getDocumentPublicationPorts = useCallback(() => ({
     commitPublication: (publish: () => void) => {
       if (documentSession) documentSession.runPublication(publish);
@@ -3226,8 +3201,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setView({ scale: 1, panX: 0, panY: 0 });
     },
     publishAdjustments: (nextAdjustments: BasicAdjustments) => {
-      publishDocumentAdjustmentsState(nextAdjustments);
-      publishAdjustmentPresentation(nextAdjustments);
+      processingBinding.publishLoadedProcessing(documentOpenGeneration, nextAdjustments);
     },
     publishStatus: setGradeStatus,
     reportDifferenceFailure: (failure: unknown) => {
@@ -3241,7 +3215,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     loadedSourceBinding,
     documentInteractionReset,
-    publishAdjustmentPresentation,
+    processingBinding,
+    documentOpenGeneration,
     resetHistogram,
     resetLensBlurDepth,
     setEditorSession,
@@ -3251,10 +3226,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ]);
 
   const beforeDocumentOpen = useCallback(() => {
-    const startingGlobalGradeStrength = initialRecipe?.globalGradeStrength ?? 100;
-    globalGradeStrengthRef.current = startingGlobalGradeStrength;
-    setGlobalGradeStrengthState(startingGlobalGradeStrength);
-    globalGradeStrengthGestureRef.current = null;
+    processingBinding.prepareNewSource(documentOpenGeneration, initialRecipe?.globalGradeStrength ?? 100);
     documentInteractionReset.prepareNewSource();
     resetDocumentFontsForOpen();
     resetDocumentOpenPresentation({
@@ -3322,7 +3294,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           editorDialogs.reset();
         },
         publishGroupVisibility: (visibility) => {
-          publishGroupVisibilityState(visibility);
+          processingBinding.stageOpeningVisibility(documentOpenGeneration, visibility);
         }
       }
     });
@@ -3331,6 +3303,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     fileNameBase,
     initialRecipe,
+    processingBinding,
+    documentOpenGeneration,
     loadedSourceBinding,
     documentInteractionReset,
     resetDocumentFontsForOpen,
@@ -3354,29 +3328,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
     loadedSourceBinding.presentExisting();
 
-    const processing = snapshot.processing;
-    // Restoring the active presentation is read-only with respect to the
-    // document session. Do not route these values through publication helpers:
-    // those helpers are reserved for authored edits and write canonical state.
-    const restoredDocumentAdjustments = cloneAdjustments(processing.adjustments);
-    documentAdjustmentsRef.current = restoredDocumentAdjustments;
-    const restoredPresentation = resolveAdjustmentPresentation(
-      existingDocument,
-      restoredDocumentAdjustments,
-      propertiesTargetRef.current
-    );
-    if (restoredPresentation) {
-      adjustmentsRef.current = cloneAdjustments(restoredPresentation.adjustments);
-      publishAdjustmentPresentation(
-        restoredPresentation.adjustments,
-        restoredPresentation.domain
-      );
-    }
-    const restoredGroupVisibility = { ...processing.groupVisibility };
-    groupVisibilityRef.current = restoredGroupVisibility;
-    setGroupVisibility(restoredGroupVisibility);
-    globalGradeStrengthRef.current = processing.globalGradeStrength;
-    setGlobalGradeStrengthState(processing.globalGradeStrength);
+    processingBinding.presentExisting(documentOpenGeneration, existingDocument, propertiesTargetRef.current);
     imageDocumentRef.current = existingDocument;
     setImageDocument(existingDocument);
     setThumbnailDocumentReadyId(existingDocument.id);
@@ -3384,7 +3336,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     loadedSourceBinding,
     documentInteractionReset,
-    publishAdjustmentPresentation,
+    processingBinding,
+    documentOpenGeneration,
     setImageDocument
   ]);
 
@@ -3396,24 +3349,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   }), []);
 
-  const documentOpenGeneration = useMemo(() => ({}), [
-    editorSourceFileKey,
-    initialRecipe,
-    initialSourceBlob,
-    initialSourceName,
-    loadSource,
-    projectId,
-    sourceDecodeMode,
-    documentCreationSettings,
-    rendererRecoverySequence
-  ]);
-
   const existingDocumentForRebind = documentSession?.getSnapshot().document ?? null;
   const existingMetadataForRebind = documentSession?.getSnapshot().loadedSource.metadata ?? null;
 
   const afterDocumentClose = useCallback(() => {
+    processingBinding.retireOpening(documentOpenGeneration);
     cancelAutoAlignRef.current();
-  }, []);
+  }, [processingBinding, documentOpenGeneration]);
 
   const restoreDocumentSelectionState = useCallback(async (
     renderer: DocumentRendererPort
@@ -3455,8 +3397,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       existingDocument: existingDocumentForRebind,
       existingMetadata: existingMetadataForRebind
     },
-    getGroupVisibility: () => groupVisibilityRef.current,
+    getGroupVisibility: () => processingBinding.getGroupVisibility(),
     getPublicationPorts: getDocumentPublicationPorts,
+    projectProcessing: processingBinding.projectReadyRenderer,
     getScopeOptions: getDocumentOpenScopeOptions,
     publishHistogram,
     publishGpuMemory: setGpuMemoryBytes,
@@ -3465,7 +3408,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishInitialThumbnail: publishDocumentThumbnail,
     restoreSelectionState: restoreDocumentSelectionState,
     publishError: setError,
-    publishOpenFailure: onDocumentOpenFailed,
+    publishOpenFailure: (message) => {
+      processingBinding.retireOpening(documentOpenGeneration);
+      onDocumentOpenFailed?.(message);
+    },
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {
       appendDebugMessage('error', `GPU feature: ${featureId}`, message);
@@ -3953,123 +3899,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       result
     )
   };
-  const publishGlobalGradeStrength = React.useCallback((strength: number) => {
-    const next = Math.min(100, Math.max(0, strength));
-    globalGradeStrengthRef.current = next;
-    setGlobalGradeStrengthState(next);
-    documentSession?.updateProcessing((current) => ({
-      ...current,
-      globalGradeStrength: next
-    }));
-    engineRef.current?.setGlobalGradeStrength(next);
-  }, [documentSession]);
-  const beginGlobalGradeStrength = React.useCallback(() => {
-    globalGradeStrengthGestureRef.current = globalGradeStrengthRef.current;
-  }, []);
-  const endGlobalGradeStrength = React.useCallback(() => {
-    const before = globalGradeStrengthGestureRef.current;
-    globalGradeStrengthGestureRef.current = null;
-    const after = globalGradeStrengthRef.current;
-    if (before === null || before === after) return;
-    runEditorOperationTransaction({ operation: 'Global Grade Strength' }, (transaction) => {
-      // The slider preview is already live. History acceptance transfers
-      // ownership; before that, failure must restore the gesture origin.
-      transaction.adopt(
-        'published global grade strength',
-        () => publishGlobalGradeStrength(before)
-      );
-      pushHistoryEntry({
-        type: 'adjustment.global-grade-strength',
-        label: 'Global Grade Strength',
-        undo: () => publishGlobalGradeStrength(before),
-        redo: () => publishGlobalGradeStrength(after)
-      });
-    });
-  }, [publishGlobalGradeStrength, pushHistoryEntry]);
-  const resetGlobalGrade = React.useCallback(() => {
-    endAdjustmentTransaction();
-    const documentId = imageDocumentRef.current?.id ?? null;
-    if (!documentId) return;
-    const beforeAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-    const beforeStrength = globalGradeStrengthRef.current;
-    const afterAdjustments = pasteGradeSettings(beforeAdjustments, createDefaultAdjustments());
-    const apply = (adjustments: BasicAdjustments, strength: number) => {
-      if (imageDocumentRef.current?.id !== documentId) return;
-      applyAdjustmentSnapshot(cloneAdjustments(adjustments), null, 'grade');
-      publishGlobalGradeStrength(strength);
-    };
-    if (JSON.stringify(beforeAdjustments) === JSON.stringify(afterAdjustments)
-      && beforeStrength === 100) return;
-    runEditorOperationTransaction({ operation: 'Reset Global Grade' }, (transaction) => {
-      transaction.step(
-        'publish global grade reset',
-        () => apply(afterAdjustments, 100),
-        () => apply(beforeAdjustments, beforeStrength)
-      );
-      pushHistoryEntry({
-        type: 'adjustment.global-grade-reset',
-        label: 'Reset Global Grade',
-        undo: () => apply(beforeAdjustments, beforeStrength),
-        redo: () => apply(afterAdjustments, 100)
-      });
-    });
-  }, [
-    applyAdjustmentSnapshot,
-    endAdjustmentTransaction,
-    publishGlobalGradeStrength,
-    pushHistoryEntry
-  ]);
-  const resetGlobalLensFx = React.useCallback(() => {
-    endAdjustmentTransaction();
-    const documentId = imageDocumentRef.current?.id ?? null;
-    if (!documentId) return;
-    const beforeAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
-    const defaults = createDefaultAdjustments();
-    const afterAdjustments: BasicAdjustments = {
-      ...cloneAdjustments(beforeAdjustments),
-      effects: cloneAdjustments(defaults).effects
-    };
-    if (JSON.stringify(beforeAdjustments) === JSON.stringify(afterAdjustments)) return;
-    const apply = (adjustments: BasicAdjustments) => {
-      if (imageDocumentRef.current?.id !== documentId) return;
-      applyAdjustmentSnapshot(cloneAdjustments(adjustments), null, 'lens-fx');
-      setFocusPickerActive(false);
-      setLensBlurViewportModeState('result');
-    };
-    runEditorOperationTransaction({ operation: 'Reset Global Lens FX' }, (transaction) => {
-      transaction.step(
-        'publish global Lens FX reset',
-        () => apply(afterAdjustments),
-        () => apply(beforeAdjustments)
-      );
-      pushHistoryEntry({
-        type: 'adjustment.global-lens-fx-reset',
-        label: 'Reset Global Lens FX',
-        undo: () => apply(beforeAdjustments),
-        redo: () => apply(afterAdjustments)
-      });
-    });
-  }, [applyAdjustmentSnapshot, endAdjustmentTransaction, pushHistoryEntry]);
+  const publishGlobalGradeStrength = processingBinding.publishStrength;
 
-  const globalGradeModified = useAdjustmentPresentationSelector(
-    adjustmentPresentationStore,
-    () => adjustmentStackOwnerHasAuthoredSettings(documentAdjustmentsRef.current, 'grade')
-  ) || globalGradeStrength !== 100;
-  const globalLensFxModified = useAdjustmentPresentationSelector(
-    adjustmentPresentationStore,
-    () => adjustmentStackOwnerHasAuthoredSettings(documentAdjustmentsRef.current, 'lens-fx')
-  );
-
-  useEffect(() => {
-    if (rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended') {
-      // A document switch reuses the presentation engine. Re-apply the active
-      // document's processing state after its resource repository is bound;
-      // otherwise the engine can briefly (or permanently, without another UI
-      // edit) retain the adjustments from the previously active document.
-      engineRef.current?.setAdjustments(documentAdjustmentsRef.current);
-      engineRef.current?.setGlobalGradeStrength(globalGradeStrengthRef.current);
-    }
-  }, [rendererSnapshot.generation, rendererSnapshot.status]);
   const rasterGradientControllerRef = useRef<RasterGradientCommandController | null>(null);
   rasterGradientControllerRef.current ??= new RasterGradientCommandController(
     () => rasterGradientPortsRef.current
@@ -4844,7 +4675,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         y,
         metadata.width,
         metadata.height,
-        adjustmentsRef.current.effects.lensDistortion
+        processingBinding.getEditorAdjustments().effects.lensDistortion
       );
       const selectedDepth = sampleMedianDepth(depthResult, sourceUv.x, sourceUv.y);
       if (selectedDepth === null) return;
@@ -5082,15 +4913,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSelectionClipboardAvailable,
     setStatus: setGradeStatus,
     setError,
-    getDocumentAdjustments: () => documentAdjustmentsRef.current,
-    getPanelAdjustments: () => adjustmentsRef.current,
+    getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
+    getPanelAdjustments: () => processingBinding.getEditorAdjustments(),
     publishDocumentAdjustments: (next) => {
       publishDocumentAdjustmentsState(next);
     },
     publishPanelAdjustments: (next) => {
       publishAdjustmentPresentation(cloneAdjustments(next));
     },
-    getGlobalGradeStrength: () => globalGradeStrengthRef.current,
+    getGlobalGradeStrength: () => processingBinding.getStrength(),
     publishGlobalGradeStrength
   });
   const {
@@ -5384,7 +5215,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   })), [executeRegisteredCommand]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
-    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
     mutateDocument: applyDocumentChange,
     publishPanelAdjustments: (next) => {
       publishAdjustmentPresentation(cloneAdjustments(next));
@@ -5902,7 +5733,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             && currentPropertiesTarget.layerId === command.target.layerId
             && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
         return executeSemanticGradePatch({
-          document, documentAdjustments: documentAdjustmentsRef.current,
+          document, documentAdjustments: processingBinding.getDocumentAdjustments(),
           target: command.target, values: command.values,
           historyType: 'adjustment.basic', historyLabel: 'Set Basic Grade',
           mutate: (snapshot, values) => Object.assign(snapshot, values),
@@ -5924,7 +5755,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             && currentPropertiesTarget.layerId === command.target.layerId
             && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
         return executeSemanticGradePatch({
-          document, documentAdjustments: documentAdjustmentsRef.current,
+          document, documentAdjustments: processingBinding.getDocumentAdjustments(),
           target: command.target, values: command.values,
           historyType: 'adjustment.detail', historyLabel: 'Set Detail',
           mutate: (snapshot, values) => Object.assign(snapshot.detail, values),
@@ -5944,7 +5775,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const presented = adjustmentTargetIsPresented(command.target, currentTarget);
         return executeSemanticAdjustmentSnapshot({
           document,
-          documentAdjustments: documentAdjustmentsRef.current,
+          documentAdjustments: processingBinding.getDocumentAdjustments(),
           target: command.target,
           snapshot: command.snapshot,
           changeDocument: documentMutationController.change,
@@ -6027,7 +5858,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (!document) return null;
         const resolved = resolveBasicAdjustmentTarget(
           document,
-          documentAdjustmentsRef.current,
+          processingBinding.getDocumentAdjustments(),
           target,
           { allowLocked: true }
         );
@@ -6046,7 +5877,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const document = imageDocumentRef.current;
         if (!document) return null;
         return projectAdjustmentQuery(workspaceDocumentId, document,
-          documentAdjustmentsRef.current, document.revision, target);
+          processingBinding.getDocumentAdjustments(), document.revision, target);
       },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
@@ -6191,8 +6022,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (reconciledPropertiesTarget.kind === 'document-processing'
       && reconciledPropertiesTarget.owner === 'grade') {
       documentProjectionController.applyGroupVisibilitySnapshot({
-        ...groupVisibilityRef.current,
-        globalGrade: !groupVisibilityRef.current.globalGrade
+        ...processingBinding.getGroupVisibility(),
+        globalGrade: !processingBinding.getGroupVisibility().globalGrade
       });
       return;
     }
@@ -6672,10 +6503,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
-    getFlatAdjustments: () => adjustmentsRef.current,
-    getDocumentAdjustments: () => documentAdjustmentsRef.current,
-    getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
-    getGlobalGradeStrength: () => globalGradeStrengthRef.current,
+    getFlatAdjustments: () => processingBinding.getEditorAdjustments(),
+    getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
+    getEffectiveLayeredAdjustments: () => processingBinding.getDocumentAdjustments(),
+    getGlobalGradeStrength: () => processingBinding.getStrength(),
     getPreservedSourceAssets: () => [...loadedSourceBinding.getPreservedSources()],
     getFontAssets: async () => {
       const embeddedFonts = imageDocumentRef.current?.assets.fonts
@@ -6860,16 +6691,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const hybridPlan = planHybridPdfPageExport({
           document,
           textPlan: plan,
-          documentProcessingActive: pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+          documentProcessingActive: pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
         });
         const vectorPlan = planHybridPdfVectorPageExport(
           document,
-          pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+          pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
         );
         const nativePlan = planHybridPdfNativePageExport({
           document,
           textPlan: plan,
-          documentProcessingActive: pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+          documentProcessingActive: pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
         });
         editorDialogs.openPdfExportPreflight({
           plan,
@@ -7220,17 +7051,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onLayerNamePointerDown={handleLayerNamePointerDown}
       consumeLayerNameRenameGesture={consumeLayerNameRenameGesture}
       cancelLayerNameRenameGesture={cancelLayerNameRenameGesture}
-      globalGradeStrength={globalGradeStrength}
-      globalGradeModified={globalGradeModified}
-      globalLensFxModified={globalLensFxModified}
-      copiedGradeName={copiedGrade?.name ?? null}
-      onGlobalGradeStrength={publishGlobalGradeStrength}
-      onGlobalGradeStrengthInteractionStart={beginGlobalGradeStrength}
-      onGlobalGradeStrengthInteractionEnd={endGlobalGradeStrength}
-      onResetGlobalGrade={resetGlobalGrade}
-      onResetGlobalLensFx={resetGlobalLensFx}
-      onCopyGlobalGrade={copyCurrentGrade}
-      onPasteGlobalGrade={pasteCurrentGrade}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
         pointTextController.cancel();
@@ -7248,23 +7068,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onInspectProcessing={(layerId, owner) => {
         showProperties({ kind: 'processing', layerId, owner });
-      }}
-      documentProcessingVisibility={{
-        grade: groupVisibility.globalGrade,
-        lensFx: groupVisibility.globalLensFx
-      }}
-      onDocumentProcessingVisibility={(owner, visible) => {
-        documentProjectionController.applyGroupVisibilitySnapshot({
-          ...groupVisibilityRef.current,
-          [owner === 'grade' ? 'globalGrade' : 'globalLensFx']: visible
-        });
-      }}
-      onInspectDocumentProcessing={(owner) => {
-        publishAdjustmentPresentation(
-          cloneAdjustments(documentAdjustmentsRef.current),
-          owner === 'grade' ? 'grade' : 'lens-fx'
-        );
-        showProperties({ kind: 'document-processing', owner });
       }}
       onInspectAttachedAdjustment={(layerId, adjustmentId) => {
         const currentDocument = imageDocumentRef.current;

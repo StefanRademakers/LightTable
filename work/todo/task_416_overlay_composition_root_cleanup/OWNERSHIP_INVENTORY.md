@@ -117,6 +117,12 @@ must be decomposed along the stated owners, not moved wholesale.
     Root cause is not established; enhanced harness request/artifact diagnostics
     preserve the next occurrence. Do not claim this observation fixed or silently
     retry preview reads. Track under O08 repeated-flow/artifact proof.
+12. O04b proof exposed a telemetry-contract defect: presentedDocumentRevision is
+    the current ImageDocument revision, whereas canonicalRevision also advances
+    for document-wide processing. Neither query-time counter proves the submitted
+    frame. O08 needs a render-submission-owned stamp in the correct revision domain;
+    do not substitute another query-time revision. Same-revision preview artifacts
+    can be cached, so rebind pixel proof uses fresh file.exportPng tasks.
 
 ## Baseline evidence and open inventory gate
 
@@ -130,6 +136,14 @@ to DocumentInteractionResetPolicy with narrow domain participants. O03c.3a moved
 resource close registration to the registry lifetime binding and deleted root
 renderer-slot retirement; DocumentOpenController owns exact pending/live detach.
 O03c processing presentation restore stays with the O04b processing-state owner.
+
+O04b.1 relocation: canonical processing access and new-source initializer ->
+DocumentProcessingBinding; contextual stage/store -> AdjustmentPresentationRuntime.
+Three canonical mirrors and contextual adjustmentsRef deleted. Processing projection
+now runs in the existing document lifecycle after hydration/selection, before ready.
+Fourteen LayerPanel props were only declared/forwarded, never consumed: their
+strength/reset/copy/inspect controls and root callbacks are removed, not extracted.
+Live strength persistence/render/flatten history and menu Grade copy/paste remain.
 
 O04a relocation: resize/geometry admission, planning and compound-publication
 orchestration -> DocumentSurfaceCommandService (stateless, narrow renderer and

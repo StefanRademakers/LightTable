@@ -54,6 +54,8 @@ export interface EditorDocumentLifecycleControllerOptions {
     readonly existingMetadata?: LightTableImageMetadata | null;
   };
   readonly getGroupVisibility: () => GroupVisibility;
+  /** Runs after this source's resource/selection binding, before publishing ready. */
+  readonly projectProcessing: (renderer: DocumentRendererPort) => void;
   readonly getPublicationPorts: () => PreparedDocumentPublicationPorts;
   readonly getScopeOptions: () => {
     readonly histogramVisible: boolean;
@@ -113,6 +115,7 @@ export const useEditorDocumentLifecycleController = ({
   telemetryRef,
   source,
   getGroupVisibility,
+  projectProcessing,
   getPublicationPorts,
   getScopeOptions,
   publishHistogram,
@@ -171,6 +174,7 @@ export const useEditorDocumentLifecycleController = ({
         source.existingMetadata ?? undefined
       );
       await restoreSelectionState?.(renderer);
+      if (isCurrent() && task.isCurrent()) projectProcessing(renderer);
       return;
     }
     await loadSource({
@@ -186,6 +190,7 @@ export const useEditorDocumentLifecycleController = ({
     });
     if (isCurrent() && task.isCurrent()) {
       await restoreSelectionState?.(renderer);
+      if (isCurrent() && task.isCurrent()) projectProcessing(renderer);
     }
     if (
       isCurrent()
@@ -194,7 +199,7 @@ export const useEditorDocumentLifecycleController = ({
     ) {
       void publishInitialThumbnail?.(renderer);
     }
-  }, [loadSource, publishInitialThumbnail, rendererLifecycle, restoreSelectionState, source]);
+  }, [loadSource, projectProcessing, publishInitialThumbnail, rendererLifecycle, restoreSelectionState, source]);
 
   const createRequest = useEditorDocumentOpenRequestFactory({
     documentResourceKey,

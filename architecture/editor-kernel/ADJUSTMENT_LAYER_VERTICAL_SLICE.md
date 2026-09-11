@@ -31,9 +31,18 @@ Properties interaction
 - `DocumentSession.processing.adjustments` owns only document-wide processing.
   Editing a layer owner must never clear, copy or replace this independent
   document owner.
-- `AdjustmentPresentationStore` and `adjustmentsRef` are presentation caches.
+- `AdjustmentPresentationRuntime` owns the mounted editor's contextual staged
+  value, `AdjustmentPresentationStore` and presentation synchronizer. These are
+  presentation caches shared across same-mounted-editor document rebinds.
   They are derived from the current canonical owner and are never history
   payloads or rollback authorities.
+- `DocumentProcessingBinding` reads session processing directly; no root mirrors.
+  `DocumentSession.publishProcessing` clones supplied fields only and preserves
+  omitted identities. New-source controls are temporary, generation-bound open
+  presentation until the prepared-source batch publishes hydrated processing.
+  Existing-document rebind is read-only. The document lifecycle projects processing
+  onto its exact renderer after resources/selection and before publishing ready,
+  never from a React effect using a possibly stale ready snapshot.
 - The renderer owns evaluated pipelines, textures and pointer-rate previews.
   It does not create authored module identities and cannot commit document
   state.

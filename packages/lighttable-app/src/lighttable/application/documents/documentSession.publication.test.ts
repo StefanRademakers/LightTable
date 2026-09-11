@@ -27,10 +27,9 @@ describe('DocumentSession publication transaction', () => {
         blob: new Blob(['pixels']),
         identity: 'new-source'
       }));
-      session.updateProcessing((current) => ({
-        ...current,
-        adjustments: { ...current.adjustments, exposureEV: 1 }
-      }));
+      session.publishProcessing({
+        adjustments: { ...session.getSnapshot().processing.adjustments, exposureEV: 1 }
+      });
     });
 
     expect(observed).toHaveBeenCalledOnce();

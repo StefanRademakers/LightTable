@@ -128,20 +128,6 @@ interface LayerPanelProps {
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
   onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
-  documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
-  onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
-  onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
-  globalGradeStrength: number;
-  globalGradeModified: boolean;
-  globalLensFxModified: boolean;
-  copiedGradeName: string | null;
-  onGlobalGradeStrength: (strength: number) => void;
-  onGlobalGradeStrengthInteractionStart: () => void;
-  onGlobalGradeStrengthInteractionEnd: () => void;
-  onResetGlobalGrade: () => void;
-  onResetGlobalLensFx: () => void;
-  onCopyGlobalGrade: () => void;
-  onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
@@ -315,20 +301,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   inspectorTarget,
   onInspectLayer,
   onInspectProcessing,
-  documentProcessingVisibility,
-  onDocumentProcessingVisibility,
-  onInspectDocumentProcessing,
-  globalGradeStrength,
-  globalGradeModified,
-  globalLensFxModified,
-  copiedGradeName,
-  onGlobalGradeStrength,
-  onGlobalGradeStrengthInteractionStart,
-  onGlobalGradeStrengthInteractionEnd,
-  onResetGlobalGrade,
-  onResetGlobalLensFx,
-  onCopyGlobalGrade,
-  onPasteGlobalGrade,
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);

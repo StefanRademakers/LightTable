@@ -496,12 +496,16 @@ export class DocumentSession {
     });
   }
 
-  updateProcessing(
-    updater: (current: DocumentProcessingState) => DocumentProcessingState
-  ): void {
+  /** Publishes supplied fields once; omitted canonical fields retain their identity. */
+  publishProcessing(patch: Partial<DocumentProcessingState>): void {
     this.assertEditable();
+    const current = this.snapshot.processing;
     this.update({
-      processing: cloneProcessingState(updater(cloneProcessingState(this.snapshot.processing)))
+      processing: {
+        adjustments: patch.adjustments === undefined ? current.adjustments : structuredClone(patch.adjustments),
+        groupVisibility: patch.groupVisibility === undefined ? current.groupVisibility : { ...patch.groupVisibility },
+        globalGradeStrength: patch.globalGradeStrength ?? current.globalGradeStrength
+      }
     });
   }
 

@@ -106,12 +106,12 @@ describe('WorkspaceSession', () => {
     const second = workspace.open({ source: source('second') });
     if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
 
-    first.value.updateProcessing((current) => ({
-      ...current,
+    const current = first.value.getSnapshot().processing;
+    first.value.publishProcessing({
       globalGradeStrength: 42,
       adjustments: { ...current.adjustments, exposureEV: 1.5 },
       groupVisibility: { ...current.groupVisibility, globalLensFx: false }
-    }));
+    });
 
     workspace.activate(second.value.id);
     expect(workspace.getActiveDocument()?.getSnapshot().processing).toMatchObject({
