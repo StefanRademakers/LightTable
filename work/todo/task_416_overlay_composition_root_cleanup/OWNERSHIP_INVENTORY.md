@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O04b.5 accepted: useAdjustmentGestures owns mounted binding only; required-scope
+AdjustmentInteractionCoordinator owns pending/control leases and reset epoch.
+Existing AdjustmentTransactionController remains canonical mutation/preview owner.
+Removed stale first-render lifecycle closure, root gesture adapters and optional
+admissionless coordinator branch. No new React pointer-frequency state.
+
 O04b.4 accepted: resolveAdjustmentContext reconciles target once for consumers'
 identity/destination/settings; GradeInspectorController owns contextual master
 and section policy. Neither retains canonical state. Semantic layer commands

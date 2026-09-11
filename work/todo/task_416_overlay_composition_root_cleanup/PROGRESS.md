@@ -1,5 +1,30 @@
 # Task 416 progress
 
+## O04b.5 — Mounted adjustment gesture binding (accepted)
+
+- useAdjustmentGestures binds latest ports, exact mounted lifecycle/renderer scope
+  and reconciled target; removed first-render lifecycle capture and gesture adapter
+  bodies from Overlay. Root 8,055 -> 8,028 physical lines. Existing coordinator
+  203 -> 116 lines; tiny composition hook, no replacement edit/history owner.
+- Deleted optional admissionless coordinator implementation. All production and
+  tests use required admission plus captured owner. Reset epoch retires ended-but-
+  unadmitted and discrete continuations; latest pending absolute sample only.
+- Critic repair: queued sample/terminal failure cancels its acquired token and
+  reports the original error (both errors if cancellation also fails). No silent
+  recovery/global reset of a successor. Controller.begin failure cleanup is its
+  own responsibility and is not newly certified by these coordinator tests.
+- 20 coordinator tests plus transaction/scope focused checks pass; app typecheck,
+  boundary, structure and fresh instrumented package PASS. Boundary guard updated
+  from old WeakMap spelling to required scope/epoch/handle/admission invariants.
+- Packaged transform/Exposure, processing-rebind including attached Grade master,
+  and adjustment-menu live Levels/Curves/Color Grading + Actions/history PASS.
+  Reports: tmp/transform-kernel-smoke/report.json, tmp/processing-rebind/report.json,
+  tmp/adjustment-menu-smoke/report.json. Transform-to-Exposure harness duration
+  207.94ms is NOT input-to-presented latency; no general performance pass inferred.
+- Critic repaired-source PASS. The discrete boolean remains UI acceptance, not
+  semantic command completion; Grade asset commands use their accepted awaited
+  route. Observed-command adaptation remains for O06; broad O05 tools still open.
+
 ## O04b.4 — Contextual Grade inspector (accepted)
 
 - resolveAdjustmentContext supplies reconciled identity, destination and lazy

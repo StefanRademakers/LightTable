@@ -61,10 +61,8 @@ import { DocumentProcessingBinding } from './application/adjustments/DocumentPro
 import { AdjustmentPresentationRuntime } from './application/adjustments/AdjustmentPresentationRuntime';
 import { GradeAssetCommandService } from './application/adjustments/GradeAssetCommandService';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
-import {
-  createAdjustmentInteractionCoordinator,
-  type AdjustmentInteractionHandle
-} from './application/adjustments/AdjustmentInteractionCoordinator';
+import type { AdjustmentInteractionHandle } from './application/adjustments/AdjustmentInteractionCoordinator';
+import { useAdjustmentGestures } from './composition/adjustments/useAdjustmentGestures';
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
@@ -2661,42 +2659,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     }
   });
-  const adjustmentInteractions = useMemo(
-    () => createAdjustmentInteractionCoordinator(
-      adjustmentTransactionController,
-      () => interactionTransitions.request('commit-before-mutation'),
-      () => {
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        return JSON.stringify({
-          documentId: document.id,
-          targetLayerId: resolveAdjustmentTargetLayerId(document),
-          targetIdentity: resolveAdjustmentTargetIdentity(document),
-          rendererGeneration: rendererLifecycle.getSnapshot().generation
-        });
-      }
-    ),
-    [adjustmentTransactionController, interactionTransitions]
-  );
+  const { interactions: adjustmentInteractions, beginAdjustment: beginAdjustmentTransaction,
+    endAdjustment: endAdjustmentTransaction, cancelAdjustment: cancelAdjustmentTransaction,
+    changeAdjustments } = useAdjustmentGestures(documentSession ?? workspaceDocumentId, {
+    controller: adjustmentTransactionController,
+    requestAdmission: () => interactionTransitions.request('commit-before-mutation'),
+    captureScope: captureMountedInteractionScope,
+    getTargetIdentity: () => readAdjustmentContext()?.identity ?? null,
+    reportFailure: error => setError(error instanceof Error ? error.message : String(error))
+  });
   resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;
   resetActiveAdjustmentTransactionRef.current = adjustmentTransactionController.reset;
-
-  const beginAdjustmentTransaction = adjustmentInteractions.begin;
-  const endAdjustmentTransaction = (handle?: AdjustmentInteractionHandle | void) => {
-    if (handle) adjustmentInteractions.end(handle);
-    else adjustmentInteractions.finish();
-  };
-  const cancelAdjustmentTransaction = (handle?: AdjustmentInteractionHandle | void) => {
-    if (handle) adjustmentInteractions.cancel(handle);
-    else adjustmentInteractions.reset();
-  };
-  const changeAdjustments = (
-    recipe: Parameters<typeof adjustmentTransactionController.change>[0],
-    domain?: Parameters<typeof adjustmentTransactionController.change>[1],
-    interactionHandle?: AdjustmentInteractionHandle | void
-  ) => interactionHandle
-    ? adjustmentInteractions.change(interactionHandle, recipe, domain)
-    : adjustmentInteractions.discreteChange(recipe, domain);
   const gradeAssetCommands = new GradeAssetCommandService({
     mutations: documentMutationController,
     captureScope: captureMountedInteractionScope,

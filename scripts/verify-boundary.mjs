@@ -669,11 +669,15 @@ function verifyAdjustmentCutover(relativePath, source) {
     }
   }
   if (normalizedPath.endsWith('/application/adjustments/AdjustmentInteractionCoordinator.ts')) {
-    if (!source.includes('if (!handle || lease !== handle) return')
-      || !source.includes('const pending = new WeakMap<AdjustmentInteractionHandle, PendingAdjustmentInteraction>()')
+    if (!source.includes("state?.handle !== handle || state.terminal !== 'active'")
+      || !source.includes('lease?.handle === handle')
       || !source.includes("state.terminal = 'cancel'")
-      || !source.includes('controller.change(mutate, domain, lease.token)')
-      || !source.includes('if (lease) cancelLease(lease)')) {
+      || !source.includes('controller.change(mutate, domain, state.token)')
+      || !source.includes('if (lease) cancelState(lease)')
+      || !source.includes('state.epoch === epoch')
+      || !source.includes('state.owner?.isCurrent()')
+      || !source.includes('requestAdmission: AdjustmentInteractionAdmission,')
+      || source.includes('if (requestAdmission)')) {
       failures.push(`${relativePath}: adjustment controls must retain opaque gesture ownership and ignore stale changes and terminal callbacks`);
     }
   }

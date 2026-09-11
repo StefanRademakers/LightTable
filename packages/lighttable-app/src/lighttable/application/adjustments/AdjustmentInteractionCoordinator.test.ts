@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultAdjustments } from '../../types';
-import { createAdjustmentInteractionCoordinator } from './AdjustmentInteractionCoordinator';
+import { createAdjustmentInteractionCoordinator as createCoordinator, type AdjustmentInteractionAdmission } from './AdjustmentInteractionCoordinator';
+import { captureInteractionScope } from '../interactions/captureInteractionScope';
 import type {
   AdjustmentInteractionToken,
   AdjustmentTransactionController
@@ -8,7 +9,105 @@ import type {
 
 const token = (sequence: number): AdjustmentInteractionToken => ({ sequence });
 
+const createAdjustmentInteractionCoordinator = (controller: AdjustmentTransactionController,
+  admission: AdjustmentInteractionAdmission = async () => ({ status: 'admitted' }),
+  readIdentity: () => string = () => 'test-owner') => createCoordinator(controller, admission, () => {
+    const identity = readIdentity(); return { isCurrent: () => identity === readIdentity() };
+  }, error => { throw error; });
+
 describe('AdjustmentInteractionCoordinator', () => {
+  it.each(['change', 'end'] as const)('retires its acquired token and reports a queued %s failure', async method => {
+    const failure = new Error('delivery failed');
+    const controller = { active: false, begin: vi.fn(() => token(7)), end: vi.fn(),
+      cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+    controller[method].mockImplementation(() => { throw failure; });
+    const report = vi.fn();
+    const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
+      () => ({ isCurrent: () => true }), report);
+    const handle = interactions.begin('exposure');
+    interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+    interactions.end(handle);
+    await Promise.resolve(); await Promise.resolve();
+    expect(controller.cancel).toHaveBeenCalledExactlyOnceWith(token(7));
+    expect(controller.reset).not.toHaveBeenCalled();
+    expect(report).toHaveBeenCalledExactlyOnceWith(failure);
+  });
+
+  it.each(['lifecycle', 'renderer', 'workspace', 'generation'] as const)(
+    'rejects pending samples when exact %s changes, even if target identity is unchanged', async field => {
+      let release!: () => void;
+      const wait = new Promise<void>(resolve => { release = resolve; });
+      const state = { lifecycle: {}, renderer: {}, workspace: 'document-a', generation: 1 };
+      const controller = { active: false, begin: vi.fn(() => token(1)),
+        end: vi.fn(), cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+      const interactions = createCoordinator(controller,
+        async () => { await wait; return { status: 'admitted' }; },
+        () => captureInteractionScope({ getWorkspaceId: () => state.workspace,
+          getLifecycleIdentity: () => state.lifecycle, getRenderer: () => state.renderer,
+          getRendererGeneration: () => state.generation }), error => { throw error; });
+      const handle = interactions.begin('exposure');
+      interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+      interactions.end(handle);
+      interactions.discreteChange(value => ({ ...value, contrast: 10 }));
+      if (field === 'lifecycle' || field === 'renderer') state[field] = {};
+      else if (field === 'workspace') state.workspace = 'document-b';
+      else state.generation = 2;
+      release(); await wait; await Promise.resolve();
+      expect(controller.begin).not.toHaveBeenCalled();
+      expect(controller.change).not.toHaveBeenCalled();
+    });
+
+  it('reset invalidates already-ended and discrete admission without needing a retained handle', async () => {
+    let release!: () => void;
+    const wait = new Promise<void>(resolve => { release = resolve; });
+    const controller = { active: false, begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+    const interactions = createAdjustmentInteractionCoordinator(controller,
+      async () => { await wait; return { status: 'admitted' }; });
+    const handle = interactions.begin('exposure');
+    interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+    interactions.end(handle);
+    interactions.discreteChange(value => ({ ...value, contrast: 10 }));
+    interactions.reset();
+    release(); await wait; await Promise.resolve();
+    expect(controller.begin).not.toHaveBeenCalled();
+    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.reset).toHaveBeenCalledOnce();
+    // A fresh interaction remains available after a Strict Mode reconnect.
+    const fresh = interactions.begin('exposure');
+    interactions.change(fresh, value => ({ ...value, exposureEV: 3 }));
+    interactions.end(fresh);
+    await Promise.resolve(); await Promise.resolve();
+    expect(controller.change).toHaveBeenCalledOnce();
+  });
+
+  it('does not request admission without a canonical processing owner', () => {
+    const controller = { active: false, begin: vi.fn(), end: vi.fn(), cancel: vi.fn(),
+      reset: vi.fn(), change: vi.fn() };
+    const admission = vi.fn(async () => ({ status: 'admitted' as const }));
+    const interactions = createCoordinator(controller, admission, () => null, vi.fn());
+    const handle = interactions.begin('exposure');
+    expect(interactions.change(handle, value => value)).toBe(false);
+    expect(interactions.discreteChange(value => value)).toBe(false);
+    expect(admission).not.toHaveBeenCalled();
+    expect(controller.change).not.toHaveBeenCalled();
+  });
+
+  it('cancels only the opening token when owner retirement happens after admission', async () => {
+    let current = true;
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(),
+      cancel: vi.fn(), reset: vi.fn(), change: vi.fn() };
+    const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
+      () => ({ isCurrent: () => current }), vi.fn());
+    const handle = interactions.begin('exposure'); await Promise.resolve();
+    current = false;
+    expect(interactions.change(handle, value => value)).toBe(false);
+    interactions.end(handle);
+    expect(controller.cancel).toHaveBeenCalledWith(token(1));
+    expect(controller.reset).not.toHaveBeenCalled();
+    expect(controller.end).not.toHaveBeenCalled();
+  });
+
   it('queues one adjustment gesture until an open pixel interaction has settled', async () => {
     let releaseAdmission: () => void = () => undefined;
     const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
@@ -209,7 +308,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     expect(controller.change).not.toHaveBeenCalled();
   });
 
-  it('makes stale terminal callbacks from another control inert', () => {
+  it('makes stale terminal callbacks from another control inert', async () => {
     const first = token(1);
     const second = token(2);
     const controller: AdjustmentTransactionController = {
@@ -225,7 +324,9 @@ describe('AdjustmentInteractionCoordinator', () => {
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
     const exposure = interactions.begin('exposure');
+    await Promise.resolve();
     const contrast = interactions.begin('contrast');
+    await Promise.resolve();
     interactions.end(exposure);
     interactions.change(contrast, (current) => ({ ...current, contrast: 12 }));
     interactions.end(contrast);
@@ -236,7 +337,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     expect(controller.end).toHaveBeenCalledWith(second);
   });
 
-  it('rejects stale changes after another control owns the transaction', () => {
+  it('rejects stale changes after another control owns the transaction', async () => {
     const first = token(1);
     const second = token(2);
     const controller: AdjustmentTransactionController = {
@@ -252,7 +353,9 @@ describe('AdjustmentInteractionCoordinator', () => {
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
     const exposure = interactions.begin('exposure');
+    await Promise.resolve();
     const contrast = interactions.begin('contrast');
+    await Promise.resolve();
 
     expect(interactions.change(
       exposure,
@@ -270,7 +373,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     );
   });
 
-  it('does not turn a rejected gesture into discrete per-sample writes', () => {
+  it('does not turn a rejected gesture into discrete per-sample writes', async () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => null),
@@ -282,6 +385,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
     const rejected = interactions.begin('exposure');
+    await Promise.resolve();
     expect(rejected.token).toBeNull();
     expect(interactions.change(rejected, () => createDefaultAdjustments())).toBe(false);
     interactions.end(rejected);
@@ -290,7 +394,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     expect(controller.reset).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores old end and cancel callbacks after the same control starts again', () => {
+  it('ignores old end and cancel callbacks after the same control starts again', async () => {
     const first = token(1);
     const second = token(2);
     const third = token(3);
@@ -305,7 +409,9 @@ describe('AdjustmentInteractionCoordinator', () => {
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
     const oldEnd = interactions.begin('exposure');
+    await Promise.resolve();
     const currentAfterEnd = interactions.begin('exposure');
+    await Promise.resolve();
     interactions.end(oldEnd);
     interactions.change(currentAfterEnd, (value) => value);
     expect(controller.change).toHaveBeenLastCalledWith(
@@ -314,6 +420,7 @@ describe('AdjustmentInteractionCoordinator', () => {
 
     const oldCancel = currentAfterEnd;
     const currentAfterCancel = interactions.begin('exposure');
+    await Promise.resolve();
     interactions.cancel(oldCancel);
     interactions.end(currentAfterCancel);
 
