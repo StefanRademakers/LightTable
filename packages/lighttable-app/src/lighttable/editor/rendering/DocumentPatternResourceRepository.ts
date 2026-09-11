@@ -26,12 +26,21 @@ export class DocumentPatternResourceRepository {
   }
 
   release(key: DocumentPatternResourceKey): boolean {
-    const set = this.sets.get(key);
-    if (!set) return false;
-    set.forEach(({ texture }) => texture.destroy());
-    set.clear();
-    this.sets.delete(key);
+    const destroy = this.detach(key);
+    if (!destroy) return false;
+    destroy();
     return true;
+  }
+
+  /** Detaches an exact generation now so a later fence cannot hit its replacement. */
+  detach(key: DocumentPatternResourceKey): (() => void) | null {
+    const set = this.sets.get(key);
+    if (!set) return null;
+    this.sets.delete(key);
+    return () => {
+      set.forEach(({ texture }) => texture.destroy());
+      set.clear();
+    };
   }
 }
 

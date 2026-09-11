@@ -56,4 +56,24 @@ describe('DocumentLayerResourceRepository', () => {
     expect(repository.has('document-a')).toBe(false);
     expect(repository.has('document-b')).toBe(true);
   });
+
+  it('detaches an exact set before a replacement generation uses the same key', () => {
+    const repository = new DocumentLayerResourceRepository();
+    const oldPixels = texture();
+    repository.acquire('document').rasterRuntimes.set('old' as LayerId, {
+      texture: oldPixels, width: 1, height: 1, maskTexture: null, maskId: null
+    });
+
+    const destroyDetached = repository.detach('document');
+    const newPixels = texture();
+    repository.acquire('document').rasterRuntimes.set('new' as LayerId, {
+      texture: newPixels, width: 1, height: 1, maskTexture: null, maskId: null
+    });
+    destroyDetached?.();
+
+    expect(oldPixels.destroy).toHaveBeenCalledOnce();
+    expect(newPixels.destroy).not.toHaveBeenCalled();
+    expect(repository.get('document')?.rasterRuntimes.get('new' as LayerId)?.texture)
+      .toBe(newPixels);
+  });
 });

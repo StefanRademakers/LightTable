@@ -17,13 +17,15 @@ export type DocumentRendererPort = Omit<WebGpuEngine, never>;
 export type WebGpuDocumentRendererFactory = (
   canvas: HTMLCanvasElement,
   callbacks?: DocumentRendererCallbacks,
-  scopeCanvases?: DocumentRendererScopeCanvases
+  scopeCanvases?: DocumentRendererScopeCanvases,
+  documentResourceKey?: string | symbol
 ) => Promise<DocumentRendererPort>;
 
 export const createWebGpuDocumentRenderer = (
   canvas: HTMLCanvasElement,
   callbacks: DocumentRendererCallbacks = {},
   scopeCanvases?: DocumentRendererScopeCanvases,
+  documentResourceKey: string | symbol = Symbol('detached-renderer'),
   createEngine: WebGpuDocumentRendererFactory = WebGpuEngine.create
 ): Promise<DocumentRendererPort> =>
-  createEngine(canvas, callbacks, scopeCanvases);
+  createEngine(canvas, callbacks, scopeCanvases, documentResourceKey);

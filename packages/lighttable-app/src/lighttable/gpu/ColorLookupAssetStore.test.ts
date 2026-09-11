@@ -75,4 +75,29 @@ describe('ColorLookupAssetStore', () => {
     expect(store.getSource(lutId, 'document-a')).toBe(source);
     expect(store.getSource(lutId, 'document-b')).toBeNull();
   });
+
+  it('does not publish or allocate after its document closes during parsing', async () => {
+    const texture = { destroy: vi.fn() };
+    const device = {
+      createTexture: vi.fn(() => texture),
+      queue: { writeTexture: vi.fn() }
+    } as unknown as GPUDevice;
+    const repository = new DocumentColorLookupResourceRepository();
+    const store = new ColorLookupAssetStore(device, repository, 'session-a');
+    const lutId = 'lut-closing' as DocumentAssetId;
+    const source = new Blob([cube], { type: 'application/x-cube' });
+    let finishReading!: (value: string) => void;
+    vi.spyOn(source, 'text').mockReturnValue(new Promise((resolve) => {
+      finishReading = resolve;
+    }));
+    let current = true;
+
+    const loading = store.load({ lutId, source }, 'session-a', () => current);
+    current = false;
+    finishReading(cube);
+
+    await expect(loading).rejects.toThrow('closed while restoring its color lookup');
+    expect(device.createTexture).not.toHaveBeenCalled();
+    expect(repository.has('session-a')).toBe(false);
+  });
 });

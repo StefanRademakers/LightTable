@@ -22,6 +22,11 @@ interface DirectWebGpuDeviceProvider {
 
 export type SharedWebGpuDeviceLostListener = (info: GPUDeviceLostInfo) => void;
 
+interface DeviceLostSubscription {
+  readonly device: GPUDevice;
+  readonly listener: SharedWebGpuDeviceLostListener;
+}
+
 export interface SharedWebGpuDiagnosticSnapshot {
   readonly vendor: string;
   readonly architecture: string;
@@ -45,7 +50,7 @@ export class SharedWebGpuDeviceManager {
   private pending: Promise<GPUDevice> | null = null;
   private adapterSnapshot: SharedWebGpuDiagnosticSnapshot | null = null;
   private pendingDirectRelease: Promise<void> | null = null;
-  private readonly lostListeners = new Set<SharedWebGpuDeviceLostListener>();
+  private readonly lostListeners = new Set<DeviceLostSubscription>();
 
   constructor(
     private readonly adapterProvider: WebGpuAdapterProvider,
@@ -59,9 +64,10 @@ export class SharedWebGpuDeviceManager {
     return this.pending;
   }
 
-  subscribeLost(listener: SharedWebGpuDeviceLostListener): () => void {
-    this.lostListeners.add(listener);
-    return () => this.lostListeners.delete(listener);
+  subscribeLost(device: GPUDevice, listener: SharedWebGpuDeviceLostListener): () => void {
+    const subscription = { device, listener };
+    this.lostListeners.add(subscription);
+    return () => this.lostListeners.delete(subscription);
   }
 
   diagnostics(): SharedWebGpuDiagnosticSnapshot | null {
@@ -147,7 +153,9 @@ export class SharedWebGpuDeviceManager {
           void pending.catch(() => undefined);
         }
       }
-      for (const listener of this.lostListeners) listener(info);
+      for (const subscription of this.lostListeners) {
+        if (subscription.device === device) subscription.listener(info);
+      }
     });
   }
 }
@@ -201,8 +209,9 @@ export const prepareSharedWebGpuDevice = (): Promise<void> =>
   Promise.resolve().then(() => requestSharedWebGpuDevice()).then(() => undefined);
 
 export const subscribeSharedWebGpuDeviceLost = (
+  device: GPUDevice,
   listener: SharedWebGpuDeviceLostListener
-): (() => void) => getBrowserManager().subscribeLost(listener);
+): (() => void) => getBrowserManager().subscribeLost(device, listener);
 
 /** Read-only; never initializes WebGPU or requests another adapter. */
 export const sharedWebGpuDiagnostics = (): SharedWebGpuDiagnosticSnapshot | null =>

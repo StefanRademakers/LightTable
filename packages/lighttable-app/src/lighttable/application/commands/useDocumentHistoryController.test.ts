@@ -21,7 +21,6 @@ const setup = (
   const history = new DocumentCommandHistory(documentId, historyOptions);
   let document: ImageDocument | null = createImageDocument('Image', 32, 24, 'image');
   const pruneLayerRuntimes = vi.fn<(
-    documentResourceKey: string,
     rasterIds: ReadonlySet<LayerId>,
     maskIds: ReadonlySet<LayerId>,
     colorLookupIds: ReadonlySet<DocumentAssetId>
@@ -126,8 +125,7 @@ describe('document history controller', () => {
       undo: () => undefined,
       redo: () => undefined
     });
-    const [resourceKey, keep] = state.pruneLayerRuntimes.mock.lastCall!;
-    expect(resourceKey).toBe(state.getDocument()!.id);
+    const [keep] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(keep?.has(retained)).toBe(true);
     expect(keep?.size).toBeGreaterThan(1);
   });
@@ -147,7 +145,7 @@ describe('document history controller', () => {
       redo: () => undefined
     });
 
-    const [, keepRaster, keepMasks] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [keepRaster, keepMasks] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(keepRaster.has(evicted)).toBe(false);
     expect(keepMasks.has(evicted)).toBe(false);
     expect(keepRaster.has(retained)).toBe(true);
@@ -165,7 +163,7 @@ describe('document history controller', () => {
 
     state.controller.pruneResources();
 
-    const [, rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(rasterIds.has(textId)).toBe(false);
     expect(maskIds.has(textId)).toBe(true);
   });
@@ -195,7 +193,7 @@ describe('document history controller', () => {
       redo: () => undefined
     });
 
-    const [, , , colorLookupIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [, , colorLookupIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(colorLookupIds).toEqual(new Set([active, retained]));
   });
 
@@ -215,7 +213,7 @@ describe('document history controller', () => {
       redo: () => undefined
     });
 
-    const [, rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(rasterIds.has(textId)).toBe(false);
     expect(maskIds.has(textId)).toBe(true);
   });

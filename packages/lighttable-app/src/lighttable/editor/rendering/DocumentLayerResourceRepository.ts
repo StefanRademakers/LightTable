@@ -62,11 +62,18 @@ export class DocumentLayerResourceRepository {
   }
 
   release(key: DocumentLayerResourceKey): boolean {
-    const set = this.sets.get(key);
-    if (!set) return false;
-    destroySet(set);
-    this.sets.delete(key);
+    const destroy = this.detach(key);
+    if (!destroy) return false;
+    destroy();
     return true;
+  }
+
+  /** Detaches an exact generation now so a later fence cannot hit its replacement. */
+  detach(key: DocumentLayerResourceKey): (() => void) | null {
+    const set = this.sets.get(key);
+    if (!set) return null;
+    this.sets.delete(key);
+    return () => destroySet(set);
   }
 
   destroy(): void {

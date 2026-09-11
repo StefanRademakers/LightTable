@@ -23,6 +23,9 @@ export const guardDocumentRendererCallbacks = (
   onDeviceLost: (message) => {
     if (isCurrent()) callbacks.onDeviceLost?.(message);
   },
+  onRendererError: (message) => {
+    if (isCurrent()) callbacks.onRendererError?.(message);
+  },
   onScopeError: (message) => {
     if (isCurrent()) callbacks.onScopeError?.(message);
   },

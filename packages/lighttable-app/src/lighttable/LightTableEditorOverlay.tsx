@@ -30,6 +30,7 @@ import { DocumentRendererLifecycle } from './application/rendering/documentRende
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
 import { captureVectorTransformPreviewBinding } from './application/vectors/VectorTransformPreviewBinding';
 import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
+import { releaseDocumentGpuResources } from './application/rendering/documentGpuResourceRegistry';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import {
   centerClipboardBounds,
@@ -829,8 +830,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // The disposer belongs to the canonical document session, not to this
     // active React binding. Deliberately do not unregister it on a tab switch.
     documentSession.registerDisposer(() => {
-      const documentId = documentSession.getSnapshot().document?.id;
-      if (documentId) engineRef.current?.releaseDocumentResources(String(documentId));
+      releaseDocumentGpuResources(String(documentSession.id));
     });
   }, [documentSession]);
   const [globalGradeStrength, setGlobalGradeStrengthState] = React.useState(
@@ -3820,6 +3820,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const documentLifecycleController = useEditorDocumentLifecycleController({
     enabled: open && workspaceDocumentKind === 'image',
+    documentResourceKey: String(workspaceDocumentId),
     generation: documentOpenGeneration,
     tasks: taskRegistry,
     rendererLifecycle,

@@ -78,6 +78,13 @@ export const createDocumentRendererLifecycleBridge = <
     },
     onTextRenderPresentation: options.publishTextRenderPresentation,
     onCompositeRendered: options.publishCompositeRendered,
+    onRendererError: (message) => {
+      options.publishError(message);
+      options.lifecycle.markFailed(
+        options.lifecycle.getSnapshot().generation,
+        message
+      );
+    },
     onDeviceLost: (message) => {
       options.publishError(message);
       options.lifecycle.markFailed(

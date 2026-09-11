@@ -69,6 +69,8 @@ export interface TextRenderPresentationSnapshot {
 
 export interface DocumentRendererCallbacks {
   onHistogram?: (histogram: RgbHistogram) => void;
+  /** Terminal failure of this renderer that is not a physical device loss. */
+  onRendererError?: (message: string) => void;
   onDeviceLost?: (message: string) => void;
   onScopeError?: (message: string) => void;
   onFeatureError?: (featureId: string, message: string) => void;

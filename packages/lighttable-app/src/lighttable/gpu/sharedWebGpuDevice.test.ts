@@ -105,9 +105,8 @@ describe('SharedWebGpuDeviceManager', () => {
     const { provider } = createProvider([first.device, second.device]);
     const manager = new SharedWebGpuDeviceManager(provider);
     const listener = vi.fn();
-    const unsubscribe = manager.subscribeLost(listener);
-
     expect(await manager.request()).toBe(first.device);
+    const unsubscribe = manager.subscribeLost(first.device, listener);
     const info = { message: 'reset', reason: 'unknown' } as GPUDeviceLostInfo;
     first.lost.resolve(info);
     await first.device.lost;
@@ -121,6 +120,25 @@ describe('SharedWebGpuDeviceManager', () => {
     second.lost.resolve(info);
     await second.device.lost;
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies only renderers bound to the device generation that was lost', async () => {
+    const first = createDevice();
+    const unrelated = createDevice();
+    const { provider } = createProvider([first.device]);
+    const manager = new SharedWebGpuDeviceManager(provider);
+    const current = vi.fn();
+    const other = vi.fn();
+    expect(await manager.request()).toBe(first.device);
+    manager.subscribeLost(first.device, current);
+    manager.subscribeLost(unrelated.device, other);
+
+    const info = { message: 'reset', reason: 'unknown' } as GPUDeviceLostInfo;
+    first.lost.resolve(info);
+    await first.device.lost;
+    await Promise.resolve();
+    expect(current).toHaveBeenCalledWith(info);
+    expect(other).not.toHaveBeenCalled();
   });
 
   it('allows a clean retry after adapter acquisition fails', async () => {

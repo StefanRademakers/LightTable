@@ -71,6 +71,7 @@ const waitForActivePresentation = async (
 };
 
 export interface EditorDocumentOpenRequestFactoryOptions {
+  readonly documentResourceKey: string;
   readonly canvases: EditorDocumentScopeCanvasRefs;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
   readonly rendererLifecycle: DocumentRendererLifecycle;
@@ -116,6 +117,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
  * publication/retirement stay inside this infrastructure-facing boundary.
  */
 export const useEditorDocumentOpenRequestFactory = ({
+  documentResourceKey,
   canvases,
   rendererRef,
   rendererLifecycle,
@@ -166,7 +168,9 @@ export const useEditorDocumentOpenRequestFactory = ({
       telemetryRef.current.markTimelineStage('gpu-device-requested', { warmReuse: false });
       return createWebGpuDocumentRenderer(
         resolvedCanvases.viewport,
-        lifecycleBridge.callbacks as DocumentRendererCallbacks
+        lifecycleBridge.callbacks as DocumentRendererCallbacks,
+        undefined,
+        documentResourceKey
       );
     },
     resolveSource: source.existingDocument
@@ -208,6 +212,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   });
 }, [
   canvases,
+  documentResourceKey,
   getScopeOptions,
   hydrate,
   logTimings,

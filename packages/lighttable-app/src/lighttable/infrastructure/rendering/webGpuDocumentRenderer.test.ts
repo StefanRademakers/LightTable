@@ -27,8 +27,11 @@ describe('createWebGpuDocumentRenderer', () => {
       canvas,
       callbacks,
       scopeCanvases,
+      'session-one',
       createEngine
     )).resolves.toBe(renderer);
-    expect(createEngine).toHaveBeenCalledWith(canvas, callbacks, scopeCanvases);
+    expect(createEngine).toHaveBeenCalledWith(
+      canvas, callbacks, scopeCanvases, 'session-one'
+    );
   });
 });

@@ -117,6 +117,36 @@ describe('createDocumentRendererLifecycleBridge', () => {
     expect(publishLoading).not.toHaveBeenCalled();
   });
 
+  it('separates renderer failure from physical device loss while failing the generation', () => {
+    const publishError = vi.fn();
+    const lifecycle = new DocumentRendererLifecycle();
+    const generation = lifecycle.beginStart();
+    const bridge = createDocumentRendererLifecycleBridge({
+      isCurrent: () => true,
+      telemetry: new DocumentStartupTelemetry(() => 0),
+      lifecycle,
+      scopeCanvases: null,
+      getScopeOptions: () => ({
+        histogramVisible: false,
+        options: {
+          hueDistributionVisible: false, paradeVisible: false,
+          vectorscopeVisible: false, quality: 'medium', traceBrightness: 0.8,
+          vectorscopeRange: 'all', vectorscopeZoom2x: false
+        }
+      }),
+      publishHistogram: vi.fn(), publishGpuMemory: vi.fn(), publishError,
+      publishScopeError: vi.fn(), publishFeatureError: vi.fn(),
+      publishTimings: vi.fn(), publishLoading: vi.fn()
+    });
+
+    bridge.callbacks.onRendererError?.('render validation failed');
+
+    expect(publishError).toHaveBeenCalledWith('render validation failed');
+    expect(lifecycle.getSnapshot()).toMatchObject({
+      generation, status: 'failed', error: 'render validation failed'
+    });
+  });
+
   it('starts a background document renderer suspended', () => {
     const lifecycle = new DocumentRendererLifecycle();
     lifecycle.setActive(false);

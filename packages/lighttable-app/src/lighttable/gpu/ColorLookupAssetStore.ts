@@ -64,13 +64,13 @@ export class ColorLookupAssetStore {
 
   async load(
     asset: ColorLookupAssetBlob,
-    resourceKey: DocumentColorLookupResourceKey = this.resourceKey
+    resourceKey: DocumentColorLookupResourceKey = this.resourceKey,
+    isCurrent: () => boolean = () => true
   ): Promise<ColorLookupGpuAsset> {
-    // Capture the target set before parsing. A document switch may rebind the
-    // store while source.text() is pending; that must not move this asset into
-    // the newly active document.
-    const assets = this.repository.acquire(resourceKey);
     const parsed = parseCubeLut(await asset.source.text());
+    if (!isCurrent()) {
+      throw new Error('LightTable was closed while restoring its color lookup.');
+    }
     const texture = this.device.createTexture({
       label: `LightTable Color Lookup: ${asset.lutId}`,
       size: [parsed.size, parsed.size, parsed.size],
@@ -95,6 +95,12 @@ export class ColorLookupAssetStore {
         domainMin: parsed.domainMin,
         domainMax: parsed.domainMax
       };
+      if (!isCurrent()) {
+        throw new Error('LightTable was closed while restoring its color lookup.');
+      }
+      // Acquire only at publication time. A close during parsing can therefore
+      // never publish into an already detached, unreachable Map.
+      const assets = this.repository.acquire(resourceKey);
       const previous = assets.get(asset.lutId);
       assets.set(asset.lutId, runtime);
       previous?.texture.destroy();

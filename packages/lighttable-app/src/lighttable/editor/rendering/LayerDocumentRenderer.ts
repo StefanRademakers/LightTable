@@ -123,7 +123,8 @@ export class LayerDocumentRenderer {
     onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void,
     onTextRenderError?: (message: string) => void,
     documentLayerResources?: Parameters<typeof createLayerDocumentRendererRuntime>[5],
-    documentPatternResources?: Parameters<typeof createLayerDocumentRendererRuntime>[6]
+    documentPatternResources?: Parameters<typeof createLayerDocumentRendererRuntime>[6],
+    private readonly documentResourceKey: string | symbol = Symbol('standalone-document')
   ) {
     this.runtime = createLayerDocumentRendererRuntime(
       device,
@@ -149,8 +150,8 @@ export class LayerDocumentRenderer {
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
-    this.runtime.layerResources.bind(document.id);
-    this.runtime.patternAssets.bind(document.id);
+    this.runtime.layerResources.bind(this.documentResourceKey);
+    this.runtime.patternAssets.bind(this.documentResourceKey);
     const retainedPixels = this.runtime.layerResources.hasResources();
     this.runtime.imageResources.begin(document.width, document.height);
     this.syncDocument(document);
@@ -160,8 +161,8 @@ export class LayerDocumentRenderer {
   }
 
   syncDocument(document: ImageDocument) {
-    this.runtime.layerResources.bind(document.id);
-    this.runtime.patternAssets.bind(document.id);
+    this.runtime.layerResources.bind(this.documentResourceKey);
+    this.runtime.patternAssets.bind(this.documentResourceKey);
     this.document = document;
     // Keep detached runtimes alive for the bounded editor history. This makes
     // delete/create/duplicate undo lossless without a synchronous GPU readback.
@@ -238,7 +239,7 @@ export class LayerDocumentRenderer {
   }
 
   pruneDetachedRuntimes(
-    documentResourceKey: string,
+    documentResourceKey: string | symbol,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>
   ) {

@@ -67,6 +67,10 @@ import {
   documentColorLookupResourceRepositoryFor,
   type DocumentColorLookupResourceRepository
 } from './DocumentColorLookupResourceRepository';
+import {
+  bindDocumentGpuResources,
+  releaseDeviceGpuResources
+} from '../application/rendering/documentGpuResourceRegistry';
 import type { ReversiblePixelEdit } from '../editor/history/ReversiblePixelEdit';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
 import type {
@@ -260,7 +264,8 @@ export class WebGpuEngine {
     device: GPUDevice,
     context: GPUCanvasContext,
     canvasFormat: GPUTextureFormat,
-    callbacks: DocumentRendererCallbacks
+    callbacks: DocumentRendererCallbacks,
+    private readonly documentResourceKey: string | symbol
   ) {
     this.canvas = canvas;
     this.device = device;
@@ -280,10 +285,8 @@ export class WebGpuEngine {
       this.adjustmentLayerResources
     );
     this.p0FilterRenderer = new P0FilterRenderer(device, (id) => {
-      const document = this.imageDocument;
-      return document
-        ? this.documentLayerResources.get(document.id)?.rasterRuntimes.get(id as LayerId)?.texture ?? null
-        : null;
+      return this.documentLayerResources
+        .get(this.documentResourceKey)?.rasterRuntimes.get(id as LayerId)?.texture ?? null;
     });
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.selectionAntsAnimator = new SelectionAntsAnimator({
@@ -301,18 +304,21 @@ export class WebGpuEngine {
       () => this.requestRender()
     );
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
-      if (!this.destroyed) {
-        this.callbacks.onDeviceLost?.(`LightTable WebGPU runtime error: ${event.error.message}`);
-      }
+      this.failRenderer(`LightTable WebGPU runtime error: ${event.error.message}`);
     }) as EventListener;
     this.deviceLostListener = (info) => {
       if (!this.destroyed) {
         this.documentRenderer?.handleDeviceLoss();
-        this.callbacks.onDeviceLost?.(`WebGPU device lost: ${info.message || info.reason}`);
+        try { releaseDeviceGpuResources(this.device); } catch (reason) {
+          console.error('LightTable lost-device resource cleanup failed.', reason);
+        }
+        const onDeviceLost = this.callbacks.onDeviceLost;
+        this.destroy();
+        onDeviceLost?.(`WebGPU device lost: ${info.message || info.reason}`);
       }
     };
     this.device.addEventListener('uncapturederror', this.deviceErrorListener);
-    this.unsubscribeDeviceLost = subscribeSharedWebGpuDeviceLost(this.deviceLostListener);
+    this.unsubscribeDeviceLost = subscribeSharedWebGpuDeviceLost(this.device, this.deviceLostListener);
   }
 
   private basicPipeline: GPURenderPipeline | null = null;
@@ -408,7 +414,8 @@ export class WebGpuEngine {
   static async create(
     canvas: HTMLCanvasElement,
     callbacks: DocumentRendererCallbacks = {},
-    scopeCanvases?: DocumentRendererScopeCanvases
+    scopeCanvases?: DocumentRendererScopeCanvases,
+    documentResourceKey: string | symbol = Symbol('detached-renderer')
   ) {
     // The adapter/device is independent from a particular editor canvas.
     // Reusing it removes a sizeable repeated startup cost when reopening the tool.
@@ -422,7 +429,14 @@ export class WebGpuEngine {
       alphaMode: 'premultiplied',
       colorSpace: 'srgb'
     });
-    const engine = new WebGpuEngine(canvas, device, context, canvasFormat, callbacks);
+    const engine = new WebGpuEngine(
+      canvas,
+      device,
+      context,
+      canvasFormat,
+      callbacks,
+      documentResourceKey
+    );
     try {
       const initialization = await runGpuDeviceErrorScopeTransaction(
         device,
@@ -603,7 +617,8 @@ export class WebGpuEngine {
       (snapshot) => this.callbacks.onTextRenderPresentation?.(snapshot),
       (message) => this.callbacks.onFeatureError?.('text-renderer', message),
       this.documentLayerResources,
-      this.documentPatternResources
+      this.documentPatternResources,
+      this.documentResourceKey
     );
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
@@ -764,7 +779,26 @@ export class WebGpuEngine {
 
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
-    this.colorLookupAssets.bind(document.id);
+    this.colorLookupAssets.bind(this.documentResourceKey);
+    const layerResources = this.documentLayerResources;
+    const patternResources = this.documentPatternResources;
+    const colorLookupResources = this.documentColorLookupResources;
+    const resourceKey = this.documentResourceKey;
+    bindDocumentGpuResources(resourceKey, this.device, () => {
+      const failures: unknown[] = [];
+      const release = (operation: () => void) => {
+        try { operation(); } catch (reason) { failures.push(reason); }
+      };
+      const destroyers = [
+        layerResources.detach(resourceKey),
+        patternResources.detach(resourceKey),
+        colorLookupResources.detach(resourceKey)
+      ].filter((destroy): destroy is () => void => Boolean(destroy));
+      return () => {
+        for (const destroy of destroyers) release(destroy);
+        if (failures.length) throw new AggregateError(failures);
+      };
+    });
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
     if (firstDocument) {
@@ -826,14 +860,6 @@ export class WebGpuEngine {
     stageStartedAt = performance.now();
     this.markDocumentDirty();
     measure('dirty-scheduling', stageStartedAt);
-  }
-
-  /** Releases canonical GPU pixels only when the owning document closes. */
-  releaseDocumentResources(documentId: string) {
-    const layers = this.documentLayerResources.release(documentId);
-    const patterns = this.documentPatternResources.release(documentId);
-    const colorLookups = this.documentColorLookupResources.release(documentId);
-    return layers || patterns || colorLookups;
   }
 
   /**
@@ -954,23 +980,24 @@ export class WebGpuEngine {
     if (!hasActiveStyle(document.layers)) return;
 
     const renderer = this.documentRenderer;
+    const rendererCallbacks = this.callbacks;
     const initialization = renderer.initializeLayerStylePipeline();
     this.layerStyleInitialization = initialization;
     void initialization.then(
       () => {
-        if (this.destroyed) return;
+        if (this.destroyed || this.callbacks !== rendererCallbacks) return;
         this.markDocumentDirty();
         this.requestRender();
       },
       async (reason) => {
         this.layerStyleInitializationFailed = true;
-        if (this.destroyed) return;
+        if (this.destroyed || this.callbacks !== rendererCallbacks) return;
         const layerStyleErrors = await renderer.layerStyleShaderErrors();
         const details = layerStyleErrors.length
           ? `\nLayer Style shader:\n${layerStyleErrors.join('\n')}`
           : '';
         const pipelineMessage = reason instanceof Error ? reason.message : String(reason);
-        this.callbacks.onDeviceLost?.(
+        this.failRenderer(
           `LightTable Layer Style pipeline creation failed: ${pipelineMessage}${details}`
         );
       }
@@ -1067,18 +1094,17 @@ export class WebGpuEngine {
   }
 
   pruneLayerRuntimes(
-    documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>,
     keepColorLookupAssetIds: ReadonlySet<DocumentAssetId>
   ) {
     this.documentRenderer?.pruneDetachedRuntimes(
-      documentResourceKey,
+      this.documentResourceKey,
       keepRasterLayerIds,
       keepMaskLayerIds
     );
     this.documentColorLookupResources.prune(
-      documentResourceKey,
+      this.documentResourceKey,
       keepColorLookupAssetIds
     );
   }
@@ -1574,7 +1600,9 @@ export class WebGpuEngine {
           signal.throwIfAborted();
           return this.imageResources.finalTexture;
         },
-        reportValidationError: (message) => this.callbacks.onDeviceLost?.(message),
+        reportValidationError: (message) => this.callbacks.onFeatureError?.(
+          'selection-projection', message
+        ),
       });
     });
   }
@@ -1802,26 +1830,40 @@ export class WebGpuEngine {
   }
 
   getColorLookupAssetSource(
-    documentResourceKey: string,
+    documentId: string,
     assetId: DocumentAssetId
   ): Blob | null {
-    return this.colorLookupAssets.getSource(assetId, documentResourceKey);
+    return this.colorLookupAssets.getSource(
+      assetId,
+      this.resolveDocumentResourceKey(documentId)
+    );
   }
 
   async loadColorLookupAsset(
-    documentResourceKey: string,
+    documentId: string,
     asset: ColorLookupAssetBlob
   ): Promise<void> {
-    await this.colorLookupAssets.load(asset, documentResourceKey);
+    const resourceKey = this.resolveDocumentResourceKey(documentId);
+    const isCurrent = () => !this.destroyed
+      && this.imageDocument?.id === documentId
+      && this.documentResourceKey === resourceKey;
+    await this.colorLookupAssets.load(asset, resourceKey, isCurrent);
+    if (!isCurrent()) {
+      this.colorLookupAssets.remove(asset.lutId, resourceKey);
+      throw new Error('The color lookup renderer is no longer current.');
+    }
     this.adjustmentLayerResources.invalidateColorLookupAsset(asset.lutId);
     this.markDocumentDirty();
   }
 
   removeColorLookupAsset(
-    documentResourceKey: string,
+    documentId: string,
     assetId: DocumentAssetId
   ): boolean {
-    const removed = this.colorLookupAssets.remove(assetId, documentResourceKey);
+    const removed = this.colorLookupAssets.remove(
+      assetId,
+      this.resolveDocumentResourceKey(documentId)
+    );
     if (removed) this.adjustmentLayerResources.invalidateColorLookupAsset(assetId);
     return removed;
   }
@@ -1875,17 +1917,28 @@ export class WebGpuEngine {
 
   async loadLayerAssets(assets: DocumentAssetBlob[]) {
     if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
-    const documentResourceKey = this.imageDocument?.id;
-    if (!documentResourceKey) throw new Error('Load a document before loading its assets.');
+    const documentId = this.imageDocument?.id;
+    if (!documentId) throw new Error('Load a document before loading its assets.');
+    const resourceKey = this.documentResourceKey;
+    const isCurrent = () => !this.destroyed
+      && this.imageDocument?.id === documentId
+      && this.documentResourceKey === resourceKey;
     for (const asset of assets) {
       if (!('lutId' in asset)) continue;
-      await this.colorLookupAssets.load(asset, documentResourceKey);
+      await this.colorLookupAssets.load(asset, resourceKey, isCurrent);
       this.adjustmentLayerResources.invalidateColorLookupAsset(asset.lutId);
     }
     await this.documentRenderer.loadDocumentAssets(
       assets.filter((asset) => !('lutId' in asset))
     );
     this.markDocumentDirty();
+  }
+
+  private resolveDocumentResourceKey(documentId: string): string | symbol {
+    if (this.destroyed || this.imageDocument?.id !== documentId) {
+      throw new Error('The requested document does not own this renderer.');
+    }
+    return this.documentResourceKey;
   }
 
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId) {
@@ -3416,8 +3469,8 @@ export class WebGpuEngine {
     if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordSubmittedFrame();
     void this.device.popErrorScope().then(
       (validationError) => {
-        if (!this.destroyed && validationError) {
-          submittedCallbacks.onDeviceLost?.(
+        if (!this.destroyed && this.callbacks === submittedCallbacks && validationError) {
+          this.failRenderer(
             `LightTable render validation failed: ${validationError.message}`
           );
         }
@@ -3926,6 +3979,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
   }
 
   destroy() {
+    if (this.destroyed) return;
     this.destroyed = true;
     const cleanupErrors: unknown[] = [];
     const release = (operation: () => void) => {
@@ -3984,6 +4038,13 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     if (cleanupErrors.length) {
       console.error('LightTable WebGPU cleanup failed.', new AggregateError(cleanupErrors));
     }
+  }
+
+  private failRenderer(message: string): void {
+    if (this.destroyed) return;
+    const onRendererError = this.callbacks.onRendererError;
+    this.destroy();
+    onRendererError?.(message);
   }
 
   private resolvePresentationWaiters(generation: number): void {

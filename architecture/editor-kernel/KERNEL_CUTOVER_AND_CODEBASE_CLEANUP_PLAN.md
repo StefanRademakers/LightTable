@@ -121,7 +121,7 @@ but cannot inherit another item's acceptance.
 | C10 | Layer styles/effects and filter lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C12 | Shared history, command routing, Actions and MCP equivalence | accepted | [x] | [x] | [x] | [ ] C14 |
-| C13 | WebGPU/render projection, device loss and resource lifetime | queued | [ ] | [ ] | [ ] | [ ] |
+| C13 | WebGPU/render projection, device loss and resource lifetime | accepted | [x] | [x] | [x] | [ ] C14 |
 | C14 | Integration-root decomposition, docs purge and final proof | queued | [ ] | [ ] | [ ] | [ ] |
 
 ## C00 -- prevent architectural relapse
@@ -569,6 +569,43 @@ but cannot inherit another item's acceptance.
    deliberately unchecked and mandatory in C14 rather than being hidden by an
    optimistic C12 checkbox.
 7. **Next** -- C13 WebGPU/render projection, device loss and resource lifetime.
+
+## C13 acceptance record -- 2026-09-11
+
+1. **Done** -- every open workspace document now owns a unique GPU resource
+   session key. Layer pixels, patterns and color lookups bind through one
+   document/device registry; persisted source IDs no longer make duplicate opens
+   share mutable GPU state. History pruning resolves the same private key.
+2. **Cleanup and failure** -- close detaches exact repository generations before
+   waiting on submitted GPU work, so delayed destruction cannot free a newer
+   generation. Device loss is subscribed and released per exact device.
+   Terminal renderer failures retire and unsubscribe before the guarded failure
+   publication. Asynchronous LUT parsing checks generation at allocation and
+   publication and cannot resurrect a closed repository.
+3. **Exclusive route** -- overlay session disposal captures the workspace
+   session key and registry lease, not `engineRef.current` or the persisted
+   image-document ID. Renderer creation, projection binding, history pruning,
+   close and device loss all address that same owner. Selection projection
+   validation remains a feature failure and can no longer masquerade as device
+   loss.
+4. **Proof** -- app typecheck; boundary, command-contract, source-structure and
+   architecture-doc audits; full workspace tests (597 app files / 3,790 app
+   tests); web build and fresh instrumented desktop package. Packaged automatic
+   SVG recovery and raster checkpoint-required device-loss audits passed. A
+   six-cycle vector close/reopen audit produced six distinct session IDs, zero
+   GPU-estimate drift, 256 KiB settled heap growth, maximum 416 ms open and
+   21 ms close.
+5. **Critic** -- round one rejected delayed cleanup of replacement generations,
+   persisted-ID sharing, stale asynchronous LUT publication and terminal errors
+   that left a live renderer. Round two found history pruning still used the
+   persisted ID. All accepted findings were repaired; final independent verdict:
+   **ACCEPT**, no C13 P0/P1.
+6. **Hotspot** -- `WebGpuEngine.ts` is 4,391 lines after this cut-over and
+   `LightTableEditorOverlay.tsx` is 9,581. C13 introduced the 105-line bounded
+   registry but did not materially reduce either integration root. The C13
+   hotspot box therefore remains unchecked and is mandatory C14 work.
+7. **Next** -- C14 Integration-root decomposition, fallback/docs purge and final
+   proof.
 
 ## Slice-specific acceptance
 

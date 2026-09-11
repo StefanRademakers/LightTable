@@ -26,7 +26,6 @@ export interface EditorHistoryEntry {
 
 export interface HistoryRuntimePruner {
   pruneLayerRuntimes(
-    documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>,
     keepColorLookupAssetIds: ReadonlySet<DocumentAssetId>
@@ -110,7 +109,6 @@ export const createDocumentHistoryController = (
       });
       if (document) {
         dependencies.getRenderer()?.pruneLayerRuntimes(
-          document.id,
           keepRasterLayers,
           keepMasks,
           keepColorLookups

@@ -32,6 +32,7 @@ import type { PreparedDocumentOpenSource } from '../../application/documents/pre
 
 export interface EditorDocumentLifecycleControllerOptions {
   readonly enabled: boolean;
+  readonly documentResourceKey: string;
   readonly generation: object;
   readonly tasks: DocumentTaskRegistry;
   readonly rendererLifecycle: DocumentRendererLifecycle;
@@ -102,6 +103,7 @@ export interface EditorDocumentLifecycleController {
  */
 export const useEditorDocumentLifecycleController = ({
   enabled,
+  documentResourceKey,
   generation,
   tasks,
   rendererLifecycle,
@@ -195,6 +197,7 @@ export const useEditorDocumentLifecycleController = ({
   }, [loadSource, publishInitialThumbnail, rendererLifecycle, restoreSelectionState, source]);
 
   const createRequest = useEditorDocumentOpenRequestFactory({
+    documentResourceKey,
     canvases,
     rendererRef,
     rendererLifecycle,
