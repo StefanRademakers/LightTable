@@ -1,5 +1,14 @@
 # Overlay ownership inventory
 
+O05a.2c2 accepted: TextPointerRouter owns pointer priority and deferred miss
+replay, participants retain all gestures. Root viewport wiring no longer decides
+which gesture receives samples/terminal or whether misses create path/paragraph.
+O05b.1 mapped next: property projection/intents only (former3805-3943), reuse
+VectorToolSessionController and VectorDocumentController atomic edits. Toolbar
+and context menu must use the same gradient intent; creation-only shape settings
+must not manufacture geometry/history edits. Remaining session construction,
+pen terminal, raster-gradient and Pixels finalization are separate O05b slices.
+
 O05a.2c1 accepted: TextEditingEntry owns synchronous current-font gating and
 scoped Layers/font-report/post-replacement entry. Existing replacement transactions
 are unchanged. Recovery request is an application contract, not a UI-owned type.

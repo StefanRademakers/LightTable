@@ -223,7 +223,11 @@ class names: reuse existing owners before creating a new one.
       gate, observed tool departure cancellation and recovery request contract.
       Critic PASS after repair; packaged recovery preview/cancel/replace/history
       and Type reentry pass. Shared activation-error reporting remains O02/O06.
-    - [ ] O05a.2c2: remaining text pointer routing.
+    - [x] O05a.2c2: text pointer precedence and deferred miss routing. Existing
+      gesture owners retain their own state; delayed replay reaches the actual
+      handle/draft owner. Critic PASS; packaged Type/Paragraph/Path Actions pass.
+  - [ ] O05b.1: vector/shape/gradient property projection and intents; unify
+    toolbar/context gradient route and separate creation options from geometry.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

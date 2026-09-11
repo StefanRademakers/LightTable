@@ -201,8 +201,8 @@ import { DocumentSurfaceCommandService } from './application/documentGeometry/Do
 import { beginDocumentCrop } from './application/documentGeometry/beginDocumentCrop';
 import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/DocumentSurfaceHistoryBinding';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import { resolvePathTextCreationTargetAtPoint } from './application/text/pointTextCreation';
 import { useTextCreation } from './composition/text/useTextCreation';
+import { useTextPointerRouter } from './composition/text/useTextPointerRouter';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { TextPropertyGestureController } from './application/text/TextPropertyGestureController';
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
@@ -3984,43 +3984,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     requestEditing: requestExistingFlowTextEditing,
     selectLayer: layerId => Promise.resolve(selectLayerRef.current(layerId)),
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason)),
-    miss: (intent, { point, radius, tool, clickCount, extend }) => {
-      if (tool === 'text-path') {
-        const current = imageDocumentRef.current;
-        const creationPoint = intent?.current ?? point;
-        const target = current ? resolvePathTextCreationTargetAtPoint(
-          current, editorSessionRef.current.vectorSelection, creationPoint, radius
-        ) : { kind: 'none' as const };
-        if (target.kind === 'resolved') void beginPointTextCreation(creationPoint, target.target);
-        else setError(target.kind === 'live-shape'
-          ? 'Path text requires a native path. Convert the selected shape to a path first.'
-          : target.kind === 'ambiguous-subpath'
-            ? 'Select exactly one contour for Path Text.'
-            : 'Click one native path before creating Path Text.');
-        return;
-      }
-      if (!intent) { void beginPointTextCreation(point); return; }
-      if (!beginParagraphTextCreation(intent.pointerId, intent.start, clickCount, extend, true)) return;
-      if (intent.current.x !== intent.start.x || intent.current.y !== intent.start.y) {
-        textCreationInteraction.move(intent.pointerId, intent.current);
-      }
-      if (intent.finished) finishParagraphTextCreation(intent.pointerId, intent.current);
-    }
+    miss: (intent, context) => textPointerRouter.miss(intent, context)
   });
-  const beginExistingFlowTextEditing = existingTextActivation.begin;
-
-  const beginPointTextCreation = textCreationInteraction.beginPoint;
-  const beginParagraphTextCreation = (
-    pointerId: number, origin: { x: number; y: number }, clickCount = 1,
-    extend = false, skipExistingText = false
-  ) => {
-    if (paragraphFrameResizeController.begin(pointerId, origin, 8 / Math.max(activeScale, 1e-6))) return true;
-    if (!skipExistingText
-      && beginExistingFlowTextEditing(origin, 'any', pointerId, clickCount, extend)) return true;
-    textEditingController.finish();
-    return textCreationInteraction.beginParagraph(pointerId, origin);
-  };
-  const finishParagraphTextCreation = textCreationInteraction.finish;
+  const textPointerRouter = useTextPointerRouter({
+    getDocument: () => imageDocumentRef.current,
+    getTool: () => readEditorSession().activeTool,
+    getScale: () => activeScale,
+    getVectorSelection: () => readEditorSession().vectorSelection,
+    activation: existingTextActivation,
+    pendingHit: existingTextHitController,
+    layerMove: textLayerMoveGestureController,
+    pathHandle: pathTextHandleController,
+    frameResize: paragraphFrameResizeController,
+    selection: textSelectionGestureController,
+    creation: textCreationInteraction,
+    finishEditing: () => { textEditingController.finish(); },
+    reportFailure: setError
+  });
 
   const pickTransformAtPoint = (point: { x: number; y: number }, extend = false) => {
     if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
@@ -4094,75 +4074,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onFocusPickerEnd: canvasPickers.disarmFocus,
     onFill: fillActiveTarget,
-    onPointTextCreate: (point, clickCount, extend) => {
-      if (beginExistingFlowTextEditing(point, 'any', undefined, clickCount, extend)) return;
-      textEditingController.finish();
-      if (editorSession.activeTool === 'text-path') {
-        const resolution = imageDocumentRef.current
-          ? resolvePathTextCreationTargetAtPoint(
-              imageDocumentRef.current,
-              editorSession.vectorSelection,
-              point,
-              8 / Math.max(activeScale, 1e-6)
-            )
-          : { kind: 'none' as const };
-        if (resolution.kind !== 'resolved') {
-          setError(resolution.kind === 'live-shape'
-            ? 'Path text requires a native path. Convert the selected shape to a path first.'
-            : resolution.kind === 'ambiguous-subpath'
-              ? 'Select exactly one contour for Path Text.'
-              : 'Select exactly one native path before creating Path Text.');
-          return;
-        }
-        void beginPointTextCreation(point, resolution.target);
-        return;
-      }
-      void beginPointTextCreation(point);
-    },
-    textGesture: {
-      beginPoint: (pointerId, point, temporaryMove, clickCount, extend) => (temporaryMove
-        && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
-          pointerId, point, 8 / Math.max(activeScale, 1e-6)
-        ) || beginExistingFlowTextEditing(point, 'any', pointerId, clickCount, extend),
-      beginParagraph: (pointerId, point, temporaryMove, clickCount, extend) => (temporaryMove
-        && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
-          pointerId, point, 8 / Math.max(activeScale, 1e-6)
-        ) || beginParagraphTextCreation(pointerId, point, clickCount, extend),
-      owns: (pointerId) => existingTextHitController.owns(pointerId)
-        || textLayerMoveGestureController.owns(pointerId)
-        || textSelectionGestureController.owns(pointerId)
-        || pathTextHandleController.owns(pointerId)
-        || paragraphFrameResizeController.owns(pointerId)
-        || textCreationInteraction.owns(pointerId),
-      move: (pointerId, point) => existingTextHitController.owns(pointerId)
-        ? existingTextHitController.move(pointerId, point)
-        : textLayerMoveGestureController.owns(pointerId)
-        ? textLayerMoveGestureController.move(pointerId, point)
-        : textSelectionGestureController.owns(pointerId)
-          ? textSelectionGestureController.move(pointerId, point)
-        : pathTextHandleController.owns(pointerId)
-          ? pathTextHandleController.move(pointerId, point)
-          : paragraphFrameResizeController.owns(pointerId)
-            ? paragraphFrameResizeController.move(pointerId, point)
-            : textCreationInteraction.move(pointerId, point),
-      finish: (pointerId, point) => existingTextHitController.owns(pointerId)
-        ? existingTextHitController.finish(pointerId, point)
-        : textLayerMoveGestureController.owns(pointerId)
-        ? textLayerMoveGestureController.finish(pointerId, point)
-        : textSelectionGestureController.owns(pointerId)
-          ? textSelectionGestureController.finish(pointerId, point)
-        : pathTextHandleController.owns(pointerId)
-          ? pathTextHandleController.finish(pointerId, point)
-          : paragraphFrameResizeController.owns(pointerId)
-            ? paragraphFrameResizeController.finish(pointerId, point)
-            : finishParagraphTextCreation(pointerId, point),
-      cancel: (pointerId) => existingTextHitController.cancelPointer(pointerId)
-        || textLayerMoveGestureController.cancel(pointerId)
-        || textSelectionGestureController.cancel(pointerId)
-        || pathTextHandleController.cancel(pointerId)
-        || paragraphFrameResizeController.cancel(pointerId)
-        || (textCreationInteraction.owns(pointerId) ? textCreationInteraction.cancelParagraph() : false)
-    },
+    onPointTextCreate: textPointerRouter.createAtPoint,
+    textGesture: textPointerRouter,
     selection: selectionSessionController,
     smartSelection: smartSelectionController,
     paint: paintSessionController,

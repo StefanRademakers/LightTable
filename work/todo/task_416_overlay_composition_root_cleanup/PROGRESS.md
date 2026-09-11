@@ -1,5 +1,25 @@
 # Task 416 progress
 
+## O05a.2c2 — Text pointer precedence (accepted)
+
+- TextPointerRouter owns point/paragraph/path hit/handle/create precedence and
+  deferred miss replay. Existing six participants retain gesture/terminal state.
+  Root now wires participants and passes one viewport port; no second gesture
+  owner, per-frame allocation/queue/readback or new canonical authority.
+- Delayed miss replay now delivers move/finish to the actual winning frame or
+  draft owner; previously it unconditionally addressed paragraph creation.
+  Captured deferred path hit radius preserved after critic review. Source PASS.
+- Overlay 7,522 -> 7,435 lines; router102/hook7. 47 focused tests/3 files,
+  typecheck, boundary/structure and fresh instrumented package pass. Packaged
+  Type Tool, Path Text Actions and Paragraph pass with no page errors. Paragraph
+  screenshot inspected; typing/selection and existing resize smoke exercised.
+  Reports: tmp/type-tool-smoke/type-tool.json and
+  tmp/screenshots/desktop-paragraph-smoke.json. This is not exhaustive handle
+  geometry or whole-editor latency qualification; O08 mixed-flow proof remains.
+- Next: O05b.1 property projection/intents. Read-only inventory finds divergent
+  context-menu Gradient route and creation-only shape options manufacturing
+  geometry edits. Pointer sessions/raster finalization remain separate work.
+
 ## O05a.2c1 — Scoped text/recovery entry (accepted)
 
 - TextEditingEntry owns direct font gating and select/activate/enter for Layers,

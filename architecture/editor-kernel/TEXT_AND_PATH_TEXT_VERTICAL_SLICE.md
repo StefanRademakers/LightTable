@@ -73,7 +73,10 @@ hand-off remain open.
   captured authoring intent; useTextCreation retires on tool/document/renderer/
   font registry replacement. Preparation never configures a successor renderer.
   Both awaited preparation and its continuation reject and retire stale drafts.
-  Missing-font entry and pointer routing remain the next Task416 extraction;
+  TextEditingEntry owns current-font gating and scoped layer/recovery entry;
+  TextPointerRouter owns pointer precedence and deferred miss routing, not
+  gesture state. Existing handle/selection/draft controllers keep their lifetime.
+  Remaining controller construction/presentation cleanup follows Task416;
   do not add policy to the Overlay.
 
 ## Acceptance matrix
