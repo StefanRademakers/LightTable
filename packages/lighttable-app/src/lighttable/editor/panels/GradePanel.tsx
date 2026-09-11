@@ -102,9 +102,6 @@ export interface GradePanelCommands {
   readonly setGradeLookAsset: (assetId: string | null) => void;
   readonly updateGradeLookStrength: (strength: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradeLook: () => void;
-  readonly addPointColorSample: (
-    id: string, lightness: number, chroma: number, hue: number
-  ) => void;
   readonly updatePointColorSample: (
     id: string,
     key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,

@@ -48,6 +48,12 @@ export const clonePointColor = (value: PointColorAdjustments): PointColorAdjustm
   samples: value.samples.slice(0, MAX_POINT_COLOR_SAMPLES).map((sample) => ({ ...sample }))
 });
 
+export const appendPointColorSample = (value: PointColorAdjustments, id: string,
+  lightness: number, chroma: number, hue: number): PointColorAdjustments =>
+  value.samples.length >= MAX_POINT_COLOR_SAMPLES ? value : {
+    samples: [...clonePointColor(value).samples, createPointColorSample(id, lightness, chroma, hue)]
+  };
+
 export const pointColorIsActive = (value: PointColorAdjustments) => value.samples.some((sample) =>
   Math.abs(sample.hueShift) > 1e-6
   || Math.abs(sample.saturationShift) > 1e-6

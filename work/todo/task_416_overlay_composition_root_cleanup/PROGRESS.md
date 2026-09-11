@@ -1,5 +1,33 @@
 # Task 416 progress
 
+## O04b.2 — Canvas pickers (accepted)
+
+- Ownership/deletion: CanvasPickerController (102 lines) owns click request,
+  readback/admission lifetime and terminal picker state; tiny React subscriber
+  owns no edit policy. Root 8,184 -> 8,154 lines; deleted conversion/depth-sampling
+  bodies and unused addPointColorSample factory/panel prop. Point Color algorithm
+  stays in its existing domain helper; adjustment controller owns publication.
+- Same request is checked after readback and after existing interaction settlement.
+  New request, scope/renderer retirement, changed target/tool and unmount invalidate
+  old callbacks. Normal focus cursor disarm preserves its already accepted click.
+  No new slider queue, pointer-frequency React work, GPU copy/readback or cache.
+- Critic: added real-controller tests for maximum-sample no-op, exact history,
+  undo/redo, rejected history rollback, stale focus/brush/ports and visible errors.
+  31 focused tests pass; typecheck, boundary/structure and fresh package pass.
+- Real baseline revealed Point Color Visualize Range crashed the renderer because
+  creativeBindGroup was used with another pipeline's exclusive auto layout. One
+  shared explicit layout now owns both entry points. First repair incorrectly
+  required filtering for float32 LUTs; critic and GPU validation caught it. Corrected
+  binding types to actual shader access; descriptor tests prevent recurrence.
+- Packaged Point Color full control/range/overlap/remove-all and clean-export smoke
+  now passes (baseline PNG SHA 7398e196a58186a5c1926f901fe01ce189ee8989d15d8c4dfc9814b853962a23).
+  Lens FX six effects exact bypass, continuous distortion preview and actual focus
+  pick pass: 0.805 -> 0.005, one entry, exact final-PNG undo/redo. Final panel inspected.
+  These are output and continuity proofs, not input-latency qualification.
+- Final critic PASS after GPU repair. Depth-analysis reset/failure ownership and
+  cached-resource rebind remain separate; no whole-O04 or whole-app claim.
+
+
 ## O04c — LUT/Grade asset commands (accepted)
 
 - Done/deleted: two root import transactions and Grade paste branching now live

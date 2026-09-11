@@ -12,10 +12,8 @@ import {
   type ColorMixerValues
 } from '../../colorMixer';
 import {
-  clonePointColor,
   createDefaultPointColor,
   createPointColorSample,
-  MAX_POINT_COLOR_SAMPLES,
   type PointColorSample
 } from '../../pointColor';
 import {
@@ -159,9 +157,6 @@ export interface AdjustmentCommands {
   readonly setGradeLookAsset: (assetId: string | null) => void;
   readonly updateGradeLookStrength: (strength: number, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetGradeLook: () => void;
-  readonly addPointColorSample: (
-    id: string, lightness: number, chroma: number, hue: number
-  ) => void;
   readonly updatePointColorSample: (
     id: string,
     key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
@@ -559,26 +554,6 @@ export const createAdjustmentCommands = (
     }), 'grade');
   };
 
-  const addPointColorSample = (
-    id: string,
-    lightness: number,
-    chroma: number,
-    hue: number
-  ) => {
-    ports.endAdjustment();
-    ports.changeAdjustments((current) => {
-      if (current.pointColor.samples.length >= MAX_POINT_COLOR_SAMPLES) return current;
-      return {
-        ...current,
-        pointColor: {
-          samples: [
-            ...clonePointColor(current.pointColor).samples,
-            createPointColorSample(id, lightness, chroma, hue)
-          ]
-        }
-      };
-    });
-  };
 
   const updatePointColorSample = (
     id: string,
@@ -828,7 +803,6 @@ export const createAdjustmentCommands = (
     setGradeLookAsset,
     updateGradeLookStrength,
     resetGradeLook,
-    addPointColorSample,
     updatePointColorSample,
     resetPointColorSample,
     removePointColorSample,

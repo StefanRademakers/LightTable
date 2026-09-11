@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O04b.2 accepted: CanvasPickerController owns request generations, exact opening
+scope/target and post-readback/admission publication. useCanvasPickers only binds
+retirement and UI subscription. Root retains intent/error presentation ports.
+Removed unused sample-creation panel/factory route. Shared creative GPU layout
+repaired at pipeline construction after actual diagnostic validation failure.
+Depth-analysis subscription and cached depth realization are the next separate owner.
+
 Baseline: `df000cc5`, 9,090 physical lines. Read-only inventory by the main agent
 and two independent agents, 2026-09-11. Ranges below cover the file; symbols and
 domains, not moving line numbers, are the continuation anchors. This is a

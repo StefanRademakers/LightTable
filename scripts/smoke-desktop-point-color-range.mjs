@@ -36,8 +36,7 @@ const sourceBytes = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/
 
 const environment = {
   ...process.env,
-  LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-  LIGHTTABLE_AUTOMATION_HEADLESS: '1'
+  LIGHTTABLE_AUTOMATION_USER_DATA: userData
 };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
@@ -116,6 +115,7 @@ try {
 
   const exportPng = async () => {
     const request = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
+    if (!request.taskId) throw new Error(`Point Color export response: ${JSON.stringify({ request, document: await driver.queryDocument(documentId), workspace: await driver.queryWorkspace(), runtimeErrors, body: await page.locator('body').innerText() })}`);
     const task = await driver.waitForTask(documentId, request.taskId, 120_000);
     const artifact = task.artifact && await driver.readArtifact(task.artifact.id);
     if (!artifact) throw new Error('Point Color smoke export produced no artifact.');

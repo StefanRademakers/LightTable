@@ -183,6 +183,12 @@ class names: reuse existing owners before creating a new one.
       lifecycle-ordered renderer projection. Removed 14 unused layer-panel props
       and their dead root mutation callbacks. Exact fresh PNG/tab/history and
       current Exposure control proof passed; remaining pickers/gestures open.
+    - [x] O04b.2: request-scoped canvas color/focus pickers; root conversion and
+      late publication removed. Real-controller cancellation/history/no-op and
+      packaged Point Color/Lens FX/focus undo/redo pass. Critic PASS after shared
+      creative-pipeline layout repair; depth-analysis jobs remain O04b.3.
+    - [ ] O04b.3: depth-analysis cancellation, initiating failure target and
+      cached-depth renderer rebind; then remaining adjustment gesture adapters.
   - [x] O04c: GradeAssetCommandService owns scoped LUT import/paste planning;
     existing asset transaction retains GPU/rollback/history. Plain/same-LUT
     paste completes synchronously through the existing adjustment controller

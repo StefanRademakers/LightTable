@@ -69,10 +69,11 @@ export const getCorePipelineBundle = (
     label: string,
     fragmentCode: string,
     format: GPUTextureFormat,
-    entryPoint = 'main'
+    entryPoint = 'main',
+    layout: GPUPipelineLayout | 'auto' = 'auto'
   ) => device.createRenderPipeline({
     label,
-    layout: 'auto',
+    layout,
     vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
     fragment: {
       module: device.createShaderModule({
@@ -95,6 +96,23 @@ export const getCorePipelineBundle = (
 
   let precisionSourceResolve: GPURenderPipeline | null = null;
   let differenceMetrics: GPUComputePipeline | null = null;
+  // Creative output and its pre-Point-Color diagnostic consume the same inputs.
+  // Auto layouts are pipeline-exclusive even when their shaders share bindings.
+  const creativeLayout = device.createPipelineLayout({
+    bindGroupLayouts: [device.createBindGroupLayout({
+      label: 'LightTable shared creative inputs',
+      entries: [
+        ...[0, 1, 8].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: 'float' as const, viewDimension: '2d' as const } })),
+        { binding: 4, visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: 'unfilterable-float', viewDimension: '2d' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+        ...[5, 6, 7, 9].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: 'unfilterable-float' as const, viewDimension: '3d' as const } }))
+      ]
+    })]
+  });
   const bundle: CorePipelineBundle = {
     vertexModule,
     basic: createRenderPipeline(
@@ -115,13 +133,16 @@ export const getCorePipelineBundle = (
     creative: createRenderPipeline(
       'LightTable creative grade',
       CREATIVE_GRADE_WGSL,
-      'rgba16float'
+      'rgba16float',
+      'main',
+      creativeLayout
     ),
     pointColorInput: createRenderPipeline(
       'LightTable Point Color node input',
       CREATIVE_GRADE_WGSL,
       'rgba16float',
-      'pointColorInput'
+      'pointColorInput',
+      creativeLayout
     ),
     globalGradeMix: createRenderPipeline(
       'LightTable Global Grade strength mix',

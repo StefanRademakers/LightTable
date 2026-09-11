@@ -23,7 +23,8 @@ O03B_PUBLICATION_ACCEPTANCE_REPORT.md. Source/font lifetime, explicit reset poli
 and renderer/resource retirement now pass focused and packaged proof (PROGRESS.md).
 O04a document-surface commands and O04b.1 processing binding/restoration are accepted.
 O04c LUT/Grade asset commands are also accepted, including truthful paste completion.
-Next: remaining O04b canvas pickers/depth lifetime and gesture wiring;
+O04b.2 canvas color/focus pickers accepted, including Point Color GPU layout repair.
+Next: O04b.3 depth lifetime and remaining gesture wiring;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
 is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.

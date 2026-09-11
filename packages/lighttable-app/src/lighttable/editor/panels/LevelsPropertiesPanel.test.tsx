@@ -20,7 +20,7 @@ const commands = () => {
     resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
     setBlackWhiteMixEnabled: noop, updateBlackWhiteMix: noop, resetBlackWhiteMix: noop,
     setGradeLookAsset: noop, updateGradeLookStrength: noop, resetGradeLook: noop,
-    addPointColorSample: noop, updatePointColorSample: noop,
+    updatePointColorSample: noop,
     resetPointColorSample: noop, removePointColorSample: noop, togglePointColorPicker: noop,
     setPointColorRangeVisualization: noop,
     updateColorGradingWheel: noop, updateColorGradingLuminance: noop,

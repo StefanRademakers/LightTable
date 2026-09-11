@@ -18,6 +18,25 @@ const createDevice = () => {
 };
 
 describe('getCorePipelineBundle', () => {
+  it('shares one explicit input layout between creative output and Point Color capture', () => {
+    const device = createDevice(); getCorePipelineBundle(device, 'bgra8unorm');
+    const descriptors = vi.mocked(device.createRenderPipeline).mock.calls.map(([descriptor]) => descriptor);
+    const creative = descriptors.find(descriptor => descriptor.label === 'LightTable creative grade')!;
+    const capture = descriptors.find(descriptor => descriptor.label === 'LightTable Point Color node input')!;
+    expect(creative.layout).not.toBe('auto');
+    expect(capture.layout).toBe(creative.layout);
+    const inputs = vi.mocked(device.createBindGroupLayout).mock.calls
+      .find(([descriptor]) => descriptor.label === 'LightTable shared creative inputs')![0];
+    expect(Array.from(inputs.entries, entry => entry.binding).sort((a, b) => a - b))
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const entries = Array.from(inputs.entries);
+    for (const binding of [4, 5, 6, 7, 9]) {
+      expect(entries.find(entry => entry.binding === binding)?.texture?.sampleType).toBe('unfilterable-float');
+    }
+    for (const binding of [0, 1, 8]) {
+      expect(entries.find(entry => entry.binding === binding)?.texture?.sampleType).toBe('float');
+    }
+  });
   it('reuses immutable pipelines for one device and canvas format', () => {
     const device = createDevice();
 

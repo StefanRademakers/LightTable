@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
+import assert from 'node:assert/strict';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
@@ -187,6 +188,34 @@ try {
   await page.waitForTimeout(2_000);
   const lensBlur = await exportPng('lens-blur');
   metrics['Lens Blur'] = await difference(neutral, lensBlur);
+  const beforePick = await driver.queryDocument(documentId);
+  const beforeFocus = await focusDistance.inputValue();
+  await lensBlurSection.getByRole('button', { name: 'Pick focus', exact: true }).click();
+  const viewport = page.locator('.lighttable-viewport');
+  const pickPoint = await viewport.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    for (const [xRatio, yRatio] of [[0.4, 0.4], [0.25, 0.5], [0.5, 0.3]]) {
+      const x = bounds.left + bounds.width * xRatio;
+      const y = bounds.top + bounds.height * yRatio;
+      if (document.elementFromPoint(x, y)?.closest('.lighttable-viewport') === element) return { x, y };
+    }
+    return null;
+  });
+  assert.ok(pickPoint, 'No unobstructed focus point.');
+  await page.mouse.click(pickPoint.x, pickPoint.y);
+  await page.waitForFunction(({ id, depth }) => {
+    const doc = window.__lightTableAutomation?.queryDocument(id);
+    return doc?.history.undoDepth === depth + 1 && !doc.history.busy;
+  }, { id: documentId, depth: beforePick.history.undoDepth });
+  const afterFocus = await focusDistance.inputValue();
+  assert.notEqual(afterFocus, beforeFocus, 'Focus pick did not change the control.');
+  const picked = await exportPng('lens-blur-picked');
+  await driver.execute(documentId, 'history.undo', {});
+  assert.equal(await difference(lensBlur, await exportPng('lens-blur-pick-undo')), 0);
+  await driver.execute(documentId, 'history.redo', {});
+  assert.equal(await difference(picked, await exportPng('lens-blur-pick-redo')), 0);
+  interactionTelemetry['Focus picker'] = { beforeFocus, afterFocus, historyEntries: 1, exactUndoRedo: true };
+  await driver.execute(documentId, 'history.undo', {});
   await lensBlurSection.getByRole('radio', { name: 'Depth', exact: true }).click();
   const depthView = await exportPng('lens-blur-depth');
   metrics['Lens Blur Depth View'] = await difference(lensBlur, depthView);

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { appendPointColorSample } from '../../pointColor';
 import {
   createDefaultGroupVisibility,
   type GroupVisibility
@@ -98,16 +99,16 @@ describe('createAdjustmentCommands', () => {
     expect(harness.endAdjustment).toHaveBeenCalled();
   });
 
-  it('authors, edits and removes an independent Point Color sample', () => {
+  it('edits and removes an existing independent Point Color sample', () => {
     const harness = createHarness();
-    harness.commands.addPointColorSample('skin', 0.7, 0.12, 0.8);
+    harness.adjustments().pointColor = appendPointColorSample(harness.adjustments().pointColor, 'skin', 0.7, 0.12, 0.8);
     harness.commands.updatePointColorSample('skin', 'hueShift', 35, harness.interactionHandle);
     harness.commands.updatePointColorSample('skin', 'luminanceRange', 72, harness.interactionHandle);
 
     expect(harness.adjustments().pointColor.samples[0]).toMatchObject({
       id: 'skin', hueShift: 35, luminanceRange: 72
     });
-    expect(harness.changeAdjustments.mock.calls.slice(1, 3)
+    expect(harness.changeAdjustments.mock.calls.slice(0, 2)
       .every((call) => call[2] === harness.interactionHandle)).toBe(true);
 
     harness.commands.removePointColorSample('skin');

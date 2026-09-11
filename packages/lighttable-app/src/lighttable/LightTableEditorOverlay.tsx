@@ -75,7 +75,7 @@ import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
 } from './application/commands/semanticAdjustmentCreationCommandContract';
-import { linearRgbToOklab, srgbToLinear } from './colorMath';
+import { useCanvasPickers } from './composition/adjustments/useCanvasPickers';
 import type { PointColorSample } from './pointColor';
 import { useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
@@ -199,11 +199,7 @@ import {
   resolveLightTableSaveSourceKey,
   type LightTableRecipe
 } from './lightTableRecipe';
-import {
-  mapLensDistortionUv
-} from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
-import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { BackgroundRemovalDialog } from './editor/ui/BackgroundRemovalDialog';
 import type { ImageSizeRequest } from './application/imageSize/imageSizeModel';
@@ -489,10 +485,6 @@ const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   const active = findDocumentLayer(document, document.activeLayerId);
   return active?.type === 'raster' || active?.type === 'adjustment';
 };
-
-const rgba8ToHex = (color: readonly number[]) => `#${color.slice(0, 3)
-  .map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0'))
-  .join('')}`;
 
 export interface WorkspaceViewControls {
   readonly zoomPercent: number;
@@ -1037,8 +1029,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [sourceIdentity, setSourceIdentity] = useState(
     () => documentSession?.getSnapshot().loadedSource.identity ?? ''
   );
-  const [focusPickerActive, setFocusPickerActive] = useState(false);
-  const [pointColorPickerActive, setPointColorPickerActive] = useState(false);
   const [pointColorRangeVisualization, setPointColorRangeVisualization] = useState<{
     readonly ownerId: string | null;
     readonly sample: PointColorSample;
@@ -2783,6 +2773,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
 
+  const { controller: canvasPickers, pointColorActive: pointColorPickerActive, focusActive: focusPickerActive } = useCanvasPickers(documentSession ?? workspaceDocumentId, {
+    captureScope: captureMountedInteractionScope,
+    getTargetIdentity: () => imageDocumentRef.current
+      ? resolveAdjustmentTargetIdentity(imageDocumentRef.current) : null,
+    getBrushIntent: () => editorSessionRef.current.activeTool,
+    getRenderer: () => engineRef.current,
+    getFocusSource: () => depthResult && metadata ? {
+      depth: depthResult, width: metadata.width, height: metadata.height,
+      distortion: processingBinding.getEditorAdjustments().effects.lensDistortion
+    } : null,
+    finishAdjustment: endAdjustmentTransaction,
+    settleInteraction: finishOpenHistoryTransactions,
+    change: (recipe, domain) => adjustmentTransactionController.change(recipe, domain),
+    publishBrushColor: (color) => updateBrush({ color })
+  });
+
   const adjustmentCommands = useMemo(() => createAdjustmentCommands({
     endAdjustment: endAdjustmentTransaction,
     changeAdjustments,
@@ -2791,7 +2797,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishGroupVisibility: (visibility) => {
       documentProjectionController.applyGroupVisibilitySnapshot(visibility);
     },
-    setFocusPickerActive,
+    setFocusPickerActive: canvasPickers.setFocusActive,
     publishLensBlurViewportMode: (mode) => {
       setLensBlurViewportModeState(mode);
     },
@@ -2842,7 +2848,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setBlackWhiteMixEnabled,
     updateBlackWhiteMix,
     resetBlackWhiteMix,
-    addPointColorSample,
     updatePointColorSample,
     resetPointColorSample,
     removePointColorSample,
@@ -2961,7 +2966,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetTransform: () => resetTransformRef.current(),
     lensBlur: {
       resetDepth: resetLensBlurDepth,
-      clearPickers: () => { setFocusPickerActive(false); setPointColorPickerActive(false); },
+      clearPickers: canvasPickers.reset,
       showResult: () => setLensBlurViewportModeState('result')
     }
   }), [setEditorSession, resetLensBlurDepth, editorDialogs.closeFeather, editorDialogs.closeSelectionMorphology]);
@@ -4455,51 +4460,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     sampleSourceActive: (editorSession.activeTool === 'clone-stamp'
       || editorSession.activeTool === 'healing-brush') && altPressed,
     onColorPick: (point) => {
-      void engineRef.current?.sampleDisplayColor(point).then((color) => {
-        if (pointColorPickerActive) {
-          const lab = linearRgbToOklab(srgbToLinear([
-            color[0] / 255,
-            color[1] / 255,
-            color[2] / 255
-          ]));
-          addPointColorSample(
-            `point-color-${globalThis.crypto.randomUUID()}`,
-            lab[0],
-            Math.hypot(lab[1], lab[2]),
-            Math.atan2(lab[2], lab[1])
-          );
-          setPointColorPickerActive(false);
-          return;
-        }
-        updateBrush({ color: rgba8ToHex(color) });
-      }).catch((reason: unknown) => {
+      void canvasPickers.pickColor(point).catch((reason: unknown) => {
         setGradeStatus(reason instanceof Error ? reason.message : 'The color could not be sampled.');
       });
     },
     focusPickerActive: focusPickerActive && Boolean(depthResult),
-    onFocusPick: ({ x, y }) => {
-      if (!metadata || !depthResult) return;
-      const sourceUv = mapLensDistortionUv(
-        x,
-        y,
-        metadata.width,
-        metadata.height,
-        processingBinding.getEditorAdjustments().effects.lensDistortion
-      );
-      const selectedDepth = sampleMedianDepth(depthResult, sourceUv.x, sourceUv.y);
-      if (selectedDepth === null) return;
-      changeAdjustments((current) => ({
-        ...current,
-        effects: {
-          ...current.effects,
-          lensBlur: {
-            ...current.effects.lensBlur,
-            focusDistance: selectedDepth
-          }
-        }
-      }), 'lens-fx');
+    onFocusPick: (point) => {
+      void canvasPickers.pickFocus(point).catch((reason: unknown) => {
+        setGradeStatus(reason instanceof Error ? reason.message : 'The focus could not be sampled.');
+      });
     },
-    onFocusPickerEnd: () => setFocusPickerActive(false),
+    onFocusPickerEnd: canvasPickers.disarmFocus,
     onFill: fillActiveTarget,
     onPointTextCreate: (point, clickCount, extend) => {
       if (beginExistingFlowTextEditing(point, 'any', undefined, clickCount, extend)) return;
@@ -8016,7 +7987,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     setShape: setLensBlurShape,
                     setQuality: setLensBlurQuality,
                     setViewportMode: setLensBlurViewportMode,
-                    toggleFocusPicker: () => setFocusPickerActive((current) => !current)
+                    toggleFocusPicker: canvasPickers.toggleFocus
                   }
                 }
               },
@@ -8056,11 +8027,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   setGradeLookAsset: adjustmentCommands.setGradeLookAsset,
                   updateGradeLookStrength: adjustmentCommands.updateGradeLookStrength,
                   resetGradeLook: adjustmentCommands.resetGradeLook,
-                  addPointColorSample,
                   updatePointColorSample,
                   resetPointColorSample,
                   removePointColorSample,
-                  togglePointColorPicker: () => setPointColorPickerActive((current) => !current),
+                  togglePointColorPicker: canvasPickers.togglePointColor,
                   setPointColorRangeVisualization: updatePointColorRangeVisualization,
                   updateColorGradingWheel,
                   updateColorGradingLuminance,
