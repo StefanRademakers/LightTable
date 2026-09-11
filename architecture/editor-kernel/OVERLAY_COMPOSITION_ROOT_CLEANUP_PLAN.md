@@ -1,6 +1,6 @@
 # Overlay composition-root cleanup
 
-Status: **executing; bounded O02/O03 extractions, O04a and O04b.1 accepted; remaining checklist open**.
+Status: **executing; bounded extractions accepted as recorded below; remaining checklist open**.
 Owner requested 2026-09-11.
 Checkpoint: `df000cc5` (`main`), before cleanup. No push requested.
 
@@ -237,7 +237,10 @@ class names: reuse existing owners before creating a new one.
     - [x] O05b.2b: exact session/renderer retirement and Pen presentation.
       Critic repairs accepted; packaged idle/Pen/Transform close-reopen exposed
       and verified selection-retirement repair. Selection and Exposure pass.
-  - [ ] O05c.1: transform frame/snap presentation and exact renderer binding.
+  - [x] O05c.1: transform frame/snap presentation and exact renderer binding.
+    Critic PASS; packaged visible snapping/exact undo-redo, full transform,
+    selection and active-transform close/reopen pass. Wider performance O08 open.
+  - [ ] O05d.1: Face Warp domain intents, mesh presentation and exact binding.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

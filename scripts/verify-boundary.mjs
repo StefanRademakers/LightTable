@@ -799,6 +799,14 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       failures.push(`${relativePath}: document-wide geometry policy belongs only to DocumentSurfaceCommandService`);
     }
     const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(\)/g)?.length ?? 0;
+    if (!source.includes('useTransformPresentation(')
+      || source.includes('buildTransformEditingFrame(')
+      || source.includes('buildSmartGuideEditingFrame(')
+      || source.includes('.setTransformEditingFrame(')
+      || source.includes('.setSmartGuideEditingFrame(')
+      || source.includes('transformSnapMatchesRef')) {
+      failures.push(`${relativePath}: transform cage and shared smart-guide presentation belong to the renderer-scoped presentation binding`);
+    }
     if (directPixelSettlements !== 1
       || !source.includes("interactionTransitions.request('commit-before-mutation')")
       || !source.includes('interactionTransitions.retire(')

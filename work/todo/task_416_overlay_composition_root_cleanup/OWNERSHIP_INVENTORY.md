@@ -198,6 +198,14 @@ must be decomposed along the stated owners, not moved wholesale.
 
 ## Baseline evidence and open inventory gate
 
+O05c.1: root transform frame builders, transient frame publication, snap-match
+ref, current snap-target projection and competing smart-guide clears ->
+TransformPresentationBinding plus selective React projection adapter. Domain
+transform/transaction owner unchanged. Temporary move hides cage; exact bound
+callbacks reject retired renderer/session; selection shares one guide arbiter.
+Root grid/guides/pan remain separate. Packaged exact alignment/history and
+full transform/selection/close proof pass; latency qualification remains O08.
+
 O05b.2b: vector runtime admission now captures concrete session/lifecycle/renderer;
 PenPresentationBinding owns exact renderer overlay/terminal callbacks, not paths.
 Packaged close revealed selection.reset publishing into disposed DocumentSession.

@@ -303,14 +303,7 @@ import { DocumentSelectionStateStore } from './application/tools/selection/Docum
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
 import { pickCurrentTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
-import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
-import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
-import type {
-  AffineMatrix,
-  TransformQuad,
-  TransformSessionState
-} from './editor/tools/transform/transformTypes';
-import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
+import { useTransformPresentation } from './composition/transforms/useTransformPresentation';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
 import { DocumentSelectionPublicationBinding } from './application/documents/DocumentSelectionPublicationBinding';
@@ -1240,7 +1233,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const temporaryPanActive = temporaryTool.snapshot.tool === 'view';
   const temporaryZoomActive = temporaryTool.snapshot.tool === 'zoom';
   const temporaryZoomOutActive = temporaryTool.snapshot.zoomOut;
-  const transformSnapMatchesRef = useRef<readonly SnapMatch[]>([]);
   const [selectionSnapFeedback, setSelectionSnapFeedback] = useState<{
     matches: readonly SnapMatch[];
     bounds: Rect | null;
@@ -5196,52 +5188,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   const transformState = transformSession.state;
   const temporarySelectionMoveActive = transformSession.ownsTemporaryMove();
-  const activeTransformFrame = useMemo(() => transformState && !temporarySelectionMoveActive
-    ? transformSession.frameOverride ?? transformSessionFrame(
-        transformState,
-        toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
-      )
-    : null, [
-      temporarySelectionMoveActive,
-      toolPreferences?.preserveTransformLocalAxes,
-      transformSession.frameOverride,
-      transformState
-    ]);
-  const transformFrame = useMemo(() => transformState && !temporarySelectionMoveActive
-    ? buildTransformEditingFrame(transformState, activeScale, activeTransformFrame ?? undefined)
-    : null, [activeScale, activeTransformFrame, temporarySelectionMoveActive, transformState]);
-  const getTransformSnapTargets = useCallback(() => {
-    const document = imageDocumentRef.current;
-    const snap = editorSessionRef.current.snap;
-    return document && transformState
-      ? buildLayerSnapTargets(document, {
-        excludedLayerIds: new Set([
-          transformState.layerId,
-          ...selectedLayerIdsRef.current
-        ]),
-        includeCanvas: snap.targets.documentBounds,
-        includeLayers: snap.targets.layers,
-        includeGuides: snap.targets.guides,
-        movingBounds: transformFrame?.bounds
-      })
-      : [];
-  }, [transformFrame?.bounds, transformState]);
-  useEffect(() => {
-    engineRef.current?.setTransformEditingFrame(transformFrame);
-  }, [transformFrame]);
-  useEffect(() => {
-    engineRef.current?.setSmartGuideEditingFrame(
-      editorSession.snap.extrasVisible !== false
-        && editorSession.snap.smartGuidesVisible
-        && (transformFrame || selectionSnapFeedback.bounds)
-        ? buildSmartGuideEditingFrame(
-            transformFrame ? transformSnapMatchesRef.current : selectionSnapFeedback.matches,
-            transformFrame?.bounds ?? selectionSnapFeedback.bounds!,
-            activeScale
-          )
-        : null
-    );
-  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame]);
+  const transformPresentation = useTransformPresentation(engineRef.current, documentSession,
+    rendererSnapshot.generation, rendererLifecycle, captureMountedInteractionScope,
+    () => ({ state: transformSession.state, frameOverride: transformSession.frameOverride,
+      temporaryMove: transformSession.ownsTemporaryMove(), scale: activeScale,
+      frameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
+      snap: readEditorSession().snap, selectionFeedback: selectionSnapFeedback,
+      document: imageDocumentRef.current, selectedLayerIds: selectedLayerIdsRef.current }),
+    transformSession);
   useEffect(() => {
     const engine = engineRef.current;
     engine?.setDocumentGuideEditingFrame(
@@ -5262,51 +5216,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : null
     );
   }, [activeScale, editorSession.snap, effectiveDocumentGuides, imageDocument]);
-  useEffect(() => {
-    if (!transformState) {
-      transformSnapMatchesRef.current = [];
-      engineRef.current?.setSmartGuideEditingFrame(null);
-    }
-  }, [transformState]);
-  const publishTransientTransformFrame = useCallback((next: TransformSessionState | null) => {
-    if (!next) return;
-    const frame = transformSession.frameOverride ?? transformSessionFrame(
-      next,
-      toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
-    );
-    const editingFrame = buildTransformEditingFrame(next, activeScale, frame);
-    const engine = engineRef.current;
-    engine?.setTransformEditingFrame(editingFrame);
-    engine?.setSmartGuideEditingFrame(
-      editorSession.snap.extrasVisible !== false
-        && editorSession.snap.smartGuidesVisible
-        ? buildSmartGuideEditingFrame(
-            transformSnapMatchesRef.current,
-            editingFrame.bounds,
-            activeScale
-          )
-        : null
-    );
-  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible,
-    toolPreferences?.preserveTransformLocalAxes, transformSession.frameOverride]);
-  const updateTransformMatrix = useCallback((matrix: AffineMatrix, matches: readonly SnapMatch[]) => {
-    const next = transformSession.update(matrix);
-    transformSnapMatchesRef.current = next ? matches : [];
-    publishTransientTransformFrame(next);
-    if (!next) engineRef.current?.setSmartGuideEditingFrame(null);
-    return next !== null;
-  }, [publishTransientTransformFrame, transformSession.update]);
-  const updateTransformProjective = useCallback((quad: TransformQuad, matches: readonly SnapMatch[]) => {
-    const next = transformSession.updateProjective(quad);
-    transformSnapMatchesRef.current = next ? matches : [];
-    publishTransientTransformFrame(next);
-    if (!next) engineRef.current?.setSmartGuideEditingFrame(null);
-    return next !== null;
-  }, [publishTransientTransformFrame, transformSession.updateProjective]);
-  const publishTransformSnapMatches = useCallback((matches: readonly SnapMatch[]) => {
-    transformSnapMatchesRef.current = matches;
-    if (matches.length === 0) engineRef.current?.setSmartGuideEditingFrame(null);
-  }, []);
   const panTransformViewport = useCallback((deltaX: number, deltaY: number) => {
     setZoomMode('custom');
     setView((current) => ({
@@ -6440,12 +6349,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           event.stopPropagation();
           setToolOptionsMenu({ x: event.clientX, y: event.clientY });
         },
-        onTransformChange: updateTransformMatrix,
-        onTransformProjectiveChange: updateTransformProjective,
+        onTransformChange: transformPresentation.update,
+        onTransformProjectiveChange: transformPresentation.updateProjective,
         onTransformCommitGesture: transformSession.checkpoint,
         onTransformDuplicateChange: transformSession.setDuplicate,
         onTransformPick: pickTransformAtPoint,
-        getTransformSnapTargets,
+        getTransformSnapTargets: transformPresentation.getSnapTargets,
         transformSnapEnabled: editorSession.snap.enabled,
         transformSnapGrid: editorSession.snap.targets.grid && editorSession.snap.gridVisible ? {
           spacing: editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
@@ -6454,7 +6363,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         } : null,
         transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
         transformFrameOverride: transformSession.frameOverride,
-        onTransformSnapMatches: publishTransformSnapMatches,
+        onTransformSnapMatches: transformPresentation.setSnapMatches,
         onTransformViewportPan: panTransformViewport,
         documentGuides: effectiveDocumentGuides,
         rulersVisible: editorSession.snap.rulersVisible,

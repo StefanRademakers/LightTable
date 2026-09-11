@@ -1,5 +1,44 @@
 # Task 416 progress
 
+## O05c.1 — Transform cage and shared smart-guide presentation (accepted)
+
+- TransformPresentationBinding owns only renderer-bound presentation, retained
+  latest preview, snap matches and current candidate projection. Existing
+  transform controller retains all edits, transactions and source geometry.
+  An unchanged React checkpoint cannot replace a newer direct pointer preview;
+  rejected preview clears the old cage. A single guide arbiter preserves
+  selection feedback after transform exit instead of a separate nulling effect.
+- Overlay 7,267 -> 7,176 lines. New owner111 + React adapter29 lines. Global
+  grid/guides and viewport pan remain separate. Root no longer imports frame
+  builders, owns snap matches or writes transform/smart-guide renderer slots;
+  boundary guard enforces that deletion. Exact mounted/session/renderer binding;
+  StrictMode setup replay supported. No new queue, history or pixel readback.
+- Review repair: projection effect uses explicit relevant dependencies, not
+  every React render. No extra geometry/resourceKey cache was introduced.
+  Final independent source PASS; further repair not required. Focused27 tests,
+  app typecheck, boundary/structure, diff and fresh instrumented package pass.
+- Same packaged before/after fixture aligns two native shapes (resolved400px
+  translation from a near miss), visible magenta smart guides, one history entry
+  and exact undo/redo. Screenshots inspected. New script
+  scripts/smoke-desktop-transform-presentation.mjs; reports/screenshots in
+  tmp/transform-presentation-before and tmp/transform-presentation. Fixture
+  fixes: use semantic bounds, not ink bounds of full-canvas raster; measure fit
+  viewport scale, not saved custom scale. No production accommodation.
+- Full transform package passes twice afterward (edge pan, selected pixels,
+  multi-layer, Exposure), selection kernel passes; three active-transform close/
+  reopen cycles pass with GPU estimate delta0 and heap tail growth978272 bytes.
+  tmp/transform-kernel-smoke/report.json and
+  tmp/quality-audit/transform-presentation-retirement/report.json. No page errors.
+- Harness end-to-end ms, baseline / after1 / after2: edge468/483/470;
+  selected-pixel362/355/355; Exposure210/238/221; multi-layer236/254/268.
+  These include scripted input/waits and vary between runs; not a controlled
+  input-to-presented-frame benchmark. O08 performance qualification remains open,
+  including investigating repeatable latency regressions, not waived by these passes.
+- Additional baseline limitation: imported SVG root group selected + Ctrl+T did
+  not show controls. Active-close proof selects an editable vector child; group-
+  node activation remains an O05/O08 question, distinct from passing multi-select.
+  Next O05d.1 Face Warp policy/mesh ownership; whole plan remains open.
+
 ## O05b.2b — Exact vector runtime and Pen presentation (accepted)
 
 - VectorRuntimeBinding compares exact session/renderer/lifecycle scope rather

@@ -33,7 +33,8 @@ O05b.1 vector/shape/gradient property intent and projection accepted;
 O05b.2 current vector reads, observations, exact lifetime and Pen presentation accepted;
 packaged close/reopen exposed selection reset writing after disposal: explicit
 retirement now invalidates queued work/releases leases without canonical writes.
-Next O05c.1 transform frame/snap presentation and exact renderer binding;
+O05c.1 transform frame/snap presentation and exact renderer binding accepted;
+Next O05d.1 Face Warp domain intents and mesh presentation;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
 is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.
