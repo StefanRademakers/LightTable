@@ -130,6 +130,11 @@ class names: reuse existing owners before creating a new one.
     in O03/O05, not certified by this extraction.
   - [ ] O02c: history/save/export/target-change prerequisites, temporary tools
     and host deactivation; reconcile all scattered terminal policies.
+    - [x] O02c.1: history prerequisite ordering and layer-panel gesture owner;
+      current lifecycle scope checks. Critic PASS after repair 1; packaged held
+      Opacity drags plus keyboard exact pixel undo/redo and transform smoke passed.
+    - [ ] O02c.2: temporary overrides and host/target transitions.
+    - [ ] O02c.3: save/export prerequisite consolidation.
 - [ ] O03 — Extract document publication and lifecycle binding. Move semantic
   snapshot application policy, exact session binding, open/rebind/retire
   orchestration and disposal out of Overlay, retaining existing document,

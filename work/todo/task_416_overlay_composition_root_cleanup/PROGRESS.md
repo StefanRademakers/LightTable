@@ -41,7 +41,7 @@
   including same-turn updates; no React-render-lag mirror used for activation.
   Opening binding is workspace-session ID plus renderer object/generation;
   retirement also invalidates request revision. Overlay 9,072 -> 9,051 physical
-  lines; hard ceiling ratcheted to audit count 9,052. New owner is 118 lines,
+  lines; hard ceiling ratcheted to audit count 9,052. New owner is 104 lines,
   not a replacement integration root. Remaining tool algorithms stay put.
 - Critic: repair 1 included queued nudge readiness in the existing pending-work
   probe. Final PASS; repair 2 not needed. Mocked readiness tests do not claim
@@ -68,3 +68,29 @@
   was not redesigned. Temporary tools, history/save/layer-change and host-blur
   terminal policies still require O02c. Wider baseline matrix remains O01 work.
 - Next: O02c history prerequisites, preserving exact opening scope across await.
+
+## O02c.1 — History prerequisites and layer document gestures
+
+- Done/deleted: history prerequisite ordering and the retained layer-panel
+  transaction handle leave Overlay. Existing document mutation/history owners
+  still perform every edit. Scope capture checks current workspace, renderer,
+  lifecycle identity and generation across awaits, not canonical revision.
+- Ownership: stable LayerDocumentInteractionOwner survives ordinary rerenders
+  and binding updates. No fallback, second queue or canonical state introduced.
+  Overlay 9,051 -> 9,035 physical lines; hard audit ceiling 9,036. These initial
+  extractions remove authority, but have not yet materially reduced root size.
+- Critic: repair 1 fixed owner recreation on host-binding change and a stale
+  lifecycle getter. Re-review PASS; repair 2 not needed. Provider-rebind unit
+  tests are not a claim of React lifecycle simulation.
+- Proof: 14 focused tests, app typecheck, boundary/structure checks, fresh
+  instrumented desktop package. New packaged layer-history-gesture smoke holds
+  three Opacity drags across preview rerenders, observes zero interim history
+  entries and exactly one terminal entry each, then keyboard undo/redo restores
+  byte-identical document previews. Full transform kernel smoke also passed.
+  Reports: tmp/layer-history-gesture/report.json and
+  tmp/transform-kernel-smoke/report.json. No page errors. No per-sample GPU work
+  or scheduling added; no new latency benchmark claimed for this slice.
+- Open: existing text-creation terminal return handling is unchanged, not
+  universal text durability proof. Save/export, temporary tools, host and target
+  transitions remain O02c work; broader document lifecycle remains O03.
+- Next: temporary override ownership and its focus/retirement wiring.

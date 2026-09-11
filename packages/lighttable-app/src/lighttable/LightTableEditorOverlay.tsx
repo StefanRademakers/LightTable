@@ -102,6 +102,9 @@ import { useEditorNotifications } from './editor/notifications/useEditorNotifica
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { PersistentToolActivationOwner, applyPersistentToolPreference } from './application/tools/PersistentToolActivationOwner';
 import { cancelActiveEditorOperation } from './application/interactions/cancelActiveEditorOperation';
+import { captureInteractionScope } from './application/interactions/captureInteractionScope';
+import { settleHistoryInteractions } from './application/interactions/settleHistoryInteractions';
+import { useLayerDocumentInteractionOwner } from './application/layers/useLayerDocumentInteractionOwner';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import type { PaintBrushStrokePlan } from './editor/tools/paint/sampledBrushTypes';
@@ -868,7 +871,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetActiveAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => Promise<void>>(async () => undefined);
-  const layerDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
   const resetFaceWarpSessionRef = useRef<() => void>(() => undefined);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>(
     [...(documentSession?.getSnapshot().loadedSource.preservedSources ?? [])]
@@ -1015,6 +1017,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }
   const interactionTransitions = interactionTransitionCoordinatorRef.current;
+  const currentRendererLifecycleRef = useRef(rendererLifecycle);
+  currentRendererLifecycleRef.current = rendererLifecycle;
+  const captureMountedInteractionScope = useCallback(() => captureInteractionScope({
+    getWorkspaceId: () => workspaceDocumentIdRef.current,
+    getLifecycleIdentity: () => currentRendererLifecycleRef.current,
+    getRenderer: () => engineRef.current,
+    getRendererGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation
+  }), []);
   const settleMountedDocumentInteraction = async () => {
     const admission = await interactionTransitions.request('commit-before-mutation');
     if (admission.status === 'rejected') throw new Error(admission.reason);
@@ -1788,16 +1798,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
-  const finishOpenHistoryTransactions = useCallback(async () => {
-    // Undo/redo must retire pending selection work as well as the renderer's
-    // active transform preview before either can restore shared GPU state.
-    await settleMountedDocumentInteraction();
-    commitPointTextRef.current();
-    commitParagraphTextRef.current();
-    finishTextEditingRef.current();
-    resetAdjustmentTransactionRef.current();
-    await resetDocumentTransactionRef.current();
-  }, []);
+  const finishOpenHistoryTransactions = () => settleHistoryInteractions({
+    assertCurrent: captureMountedInteractionScope().assertCurrent,
+    settlePixels: settleMountedDocumentInteraction,
+    commitPointCreation: commitPointTextRef.current,
+    commitParagraphCreation: commitParagraphTextRef.current,
+    finishTextEditing: finishTextEditingRef.current,
+    resetAdjustment: resetAdjustmentTransactionRef.current,
+    resetDocumentTransaction: resetDocumentTransactionRef.current
+  });
 
   const documentHistoryController = useDocumentHistoryController({
     documentId: workspaceDocumentId as DocumentSessionId,
@@ -2019,45 +2028,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       faceWarpDetectionController.reset();
     }
   }, [editorSession.activeTool, faceWarpDetectionController, faceWarpSessionController]);
-  resetDocumentTransactionRef.current = async () => {
-    await documentMutationController.waitForIdle();
-    layerDocumentTransactionRef.current = null;
-    resetFaceWarpSessionRef.current();
-    textPropertyGestureControllerRef.current?.cancelDocumentGesture();
-    documentMutationController.cancelActive();
-  };
-  const commitActiveDocumentTransaction = () => {
-    layerDocumentTransactionRef.current = null;
-    const textPropertyCommit = textPropertyGestureControllerRef.current?.commitDocumentGesture();
-    if (textPropertyCommit !== null && textPropertyCommit !== undefined) return textPropertyCommit;
-    return documentMutationController.commitActive();
-  };
+  const layerDocumentInteractions = useLayerDocumentInteractionOwner(() => {
+    const textProperties = textPropertyGestureControllerRef.current;
+    if (!textProperties) throw new Error('Text property interaction owner is not initialized.');
+    return {
+      mutations: documentMutationController,
+      assertCurrent: captureMountedInteractionScope().assertCurrent,
+      resetFaceWarp: resetFaceWarpSessionRef.current,
+      cancelTextProperties: () => { textProperties.cancelDocumentGesture(); },
+      commitTextProperties: () => textProperties.commitDocumentGesture()
+    };
+  });
+  resetDocumentTransactionRef.current = layerDocumentInteractions.resetForHistory;
+  const commitActiveDocumentTransaction = layerDocumentInteractions.commitActive;
   const pushDocumentHistory = documentMutationController.record;
-  const beginLayerDocumentTransaction = () => {
-    if (layerDocumentTransactionRef.current?.active) return false;
-    const transaction = documentMutationController.begin('layer-panel');
-    layerDocumentTransactionRef.current = transaction;
-    return transaction !== null;
-  };
-  const changeLayerDocument = (
-    change: (document: ImageDocument) => ImageDocument,
-    recordHistory = true
-  ) => {
-    const transaction = layerDocumentTransactionRef.current;
-    return transaction?.active
-      ? transaction.change(change)
-      : documentMutationController.change(change, recordHistory);
-  };
-  const commitLayerDocumentTransaction = () => {
-    const transaction = layerDocumentTransactionRef.current;
-    layerDocumentTransactionRef.current = null;
-    return transaction?.commit() ?? false;
-  };
-  const cancelLayerDocumentTransaction = () => {
-    const transaction = layerDocumentTransactionRef.current;
-    layerDocumentTransactionRef.current = null;
-    return transaction?.cancel() ?? false;
-  };
+  const beginLayerDocumentTransaction = layerDocumentInteractions.begin;
+  const changeLayerDocument = layerDocumentInteractions.change;
+  const commitLayerDocumentTransaction = layerDocumentInteractions.commit;
+  const cancelLayerDocumentTransaction = layerDocumentInteractions.cancel;
   const beginFaceWarpDocumentTransaction = () => {
     return faceWarpSessionController.beginEdit();
   };
@@ -7054,13 +7042,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
 
   const activatePersistentTool = (requestedTool: ToolId, afterActivation?: () => void) => {
-    const openingDocumentId = workspaceDocumentIdRef.current;
-    const openingRenderer = engineRef.current;
-    const openingGeneration = rendererLifecycle.getSnapshot().generation;
+    const scope = captureMountedInteractionScope();
     const operation = persistentToolActivationRef.current.activate(requestedTool, {
-      isCurrent: () => workspaceDocumentIdRef.current === openingDocumentId
-        && engineRef.current === openingRenderer
-        && rendererLifecycle.getSnapshot().generation === openingGeneration,
+      isCurrent: scope.isCurrent,
       currentTool: () => readEditorSession().activeTool,
       clearCrop: () => setCropBounds(null),
       text: {
