@@ -1,5 +1,29 @@
 # Task 416 progress
 
+## O05a.2c1 — Scoped text/recovery entry (accepted)
+
+- TextEditingEntry owns direct font gating and select/activate/enter for Layers,
+  font report and post-replacement editing. Existing missing-font replacement
+  keeps all preview/mutation/history ownership. Gate derives current authored
+  font runs/assets directly, not possibly stale React diagnostics. Recovery
+  request type moves to application boundary with all callers updated.
+- Captures document/source/registry/renderer scope before layer selection;
+  rechecks at activation callback. Direct hits supersede pending report entry.
+  Critic repair adds phase-aware observed tool departure cancellation (including
+  away/back) and scoped selection errors, allowing its own Type activation.
+  Final source PASS. This observes mounted tool changes, not a new application
+  tool-event stream. Shared activation/command error wrappers remain O02/O06.
+- Root 7,558 -> 7,522 lines; owner99/hook11/request11. No added per-frame work,
+  font loading or document/history owner. Current errors remain visible.
+- 20 tests/2 files (entry + existing replacement transactions), app typecheck,
+  boundary/structure and fresh instrumented package pass. Missing-font harness
+  now requires the actual packaged executable. Real preview/cancel/replacement,
+  one-step undo/redo and Type Tool reentry pass; no page errors. Screenshot
+  inspected. tmp/missing-font-recovery-smoke/missing-font-recovery.json and
+  tmp/type-tool-smoke/type-tool.json. No whole-editor performance claim.
+- Next: text pointer hit/handle/draft routing out of Overlay; wider cleanup and
+  endpoint source review remain open.
+
 ## O05a.2b — Text creation lifetime (accepted)
 
 - TextCreationInteraction owns existing point/paragraph drafts, captured settings,

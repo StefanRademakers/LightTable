@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O05a.2c1 accepted: TextEditingEntry owns synchronous current-font gating and
+scoped Layers/font-report/post-replacement entry. Existing replacement transactions
+are unchanged. Recovery request is an application contract, not a UI-owned type.
+Observed tool changes retire pending entry while allowing its own Type activation;
+broader shared activation error presentation remains O02/O06.
+
 O05a.2b accepted: TextCreationInteraction owns the existing draft controllers,
 font/probe preparation intent, captured options/path/renderer, pending terminal
 and post-command editing entry. Root generation/path/pending caches and five

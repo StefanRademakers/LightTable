@@ -28,7 +28,7 @@ O04b.3 depth request lifetime and cached GPU rebind accepted (PROGRESS.md).
 O04b.4 contextual owner/visibility and O04b.5 scoped gesture binding accepted.
 O05a.1 text-property intents/projection accepted, including scoped font requests.
 O05a.2a existing-text activation and O05a.2b creation lifetime accepted;
-next O05a.2c missing-font entry and remaining text pointer routing;
+O05a.2c1 missing-font/layer edit entry accepted; next O05a.2c2 text pointer routing;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
 is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.

@@ -4,9 +4,11 @@ import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { writePsdUint8Array } from 'ag-psd';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
+const executablePath = launch.executablePath;
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'missing-font-recovery-smoke');
 const sourceFile = path.resolve(process.argv[2] ?? path.join(outputDirectory, 'missing-font.psd'));
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
@@ -42,7 +44,7 @@ if (!process.argv[2]) {
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath, args: [path.join(workspaceRoot, 'apps', 'desktop')], cwd: workspaceRoot,
+  executablePath, args: launch.args, cwd: workspaceRoot,
   env: { ...environment, LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile,
     LIGHTTABLE_AUTOMATION_USER_DATA: userDataPath }, timeout: 30_000
 });

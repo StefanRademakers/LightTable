@@ -1,19 +1,10 @@
 import { useCallback, useState } from 'react';
 import type { LayerId } from '../document/documentTypes';
 import type { PdfExportPreflightRequest } from '../pdf/PdfExportPreflightDialog';
+import type { MissingFontRecoveryRequest } from '../../application/text/textRecoveryRequest';
 
 export interface TextToShapeRequest {
   readonly layerId: LayerId;
-}
-
-export interface MissingFontRecoveryRequest {
-  readonly layerId: LayerId;
-  readonly sourceIdentity: string;
-  readonly requestedFont: string | null;
-  readonly layerName: string;
-  readonly metricsChanged: boolean;
-  readonly offset?: number;
-  readonly affinity?: 'upstream' | 'downstream';
 }
 
 export const useEditorDialogController = () => {

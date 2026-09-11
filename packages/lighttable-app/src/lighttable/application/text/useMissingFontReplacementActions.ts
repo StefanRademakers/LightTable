@@ -4,7 +4,7 @@ import { registerBundledTextFontByAssetId } from '../../text/fonts/bundledTextFo
 import { documentTextFontDiagnostics } from '../../text/fonts/textLayerFontStatus';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import type { MissingFontRecoveryRequest } from '../../editor/ui/useEditorDialogController';
+import type { MissingFontRecoveryRequest } from './textRecoveryRequest';
 import { replaceMissingTextFont, replaceMissingTextFonts } from './replaceMissingTextFont';
 import type {
   DocumentMutationController,

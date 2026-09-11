@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { textFontSourceMetrics } from '../../text/fonts/textLayerFontStatus';
-import type { MissingFontRecoveryRequest } from './useEditorDialogController';
+import type { MissingFontRecoveryRequest } from '../../application/text/textRecoveryRequest';
 import { FontAssetPicker } from './FontAssetPicker';
 
 export interface MissingFontRecoveryDialogProps {

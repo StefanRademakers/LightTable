@@ -219,7 +219,11 @@ class names: reuse existing owners before creating a new one.
     - [x] O05a.2b: point/paragraph/path creation intent, readiness and cancellation.
       Exact renderer/font/tool/target scope; stale draft and post-prepare race
       repaired. Critic PASS after two rounds; packaged Type/Path/Paragraph pass.
-    - [ ] O05a.2c: scoped missing-font edit entry and remaining text pointer routing.
+    - [x] O05a.2c1: scoped missing-font/layer edit entry; current authored-font
+      gate, observed tool departure cancellation and recovery request contract.
+      Critic PASS after repair; packaged recovery preview/cancel/replace/history
+      and Type reentry pass. Shared activation-error reporting remains O02/O06.
+    - [ ] O05a.2c2: remaining text pointer routing.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

@@ -162,8 +162,7 @@ import { sharedWebGpuDiagnostics } from './gpu/sharedWebGpuDevice';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
 import {
   documentTextFontDiagnostics,
-  summarizeTextFontDiagnostics,
-  textLayerFontStatus
+  summarizeTextFontDiagnostics
 } from './text/fonts/textLayerFontStatus';
 import type { DocumentOpenMode } from './application/documents/documentSourceProbe';
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
@@ -208,6 +207,7 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { TextPropertyGestureController } from './application/text/TextPropertyGestureController';
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { useExistingTextActivation } from './composition/text/useExistingTextActivation';
+import { useTextEditingEntry } from './composition/text/useTextEditingEntry';
 import { executeSemanticTextCommand } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
@@ -3937,43 +3937,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
 
-  const requestExistingFlowTextEditing = (
-    layerId: LayerId,
-    offset?: number,
-    affinity: 'upstream' | 'downstream' = 'downstream'
-  ) => {
-    const document = imageDocumentRef.current;
-    const layer = document ? findDocumentLayer(document, layerId) : null;
-    const unresolved = layer?.type === 'text'
-      && textLayerFontStatus(
-        layer,
-        textFontRegistry.availableAssets,
-        DEFAULT_TEXT_SUBSTITUTION_FAMILIES
-      ).kind !== 'exact';
-    if (layer?.type === 'text'
-      && layer.text.source.kind === 'flow'
-      && unresolved) {
-      const diagnostic = fontDiagnostics.find((entry) => (
-        entry.layerId === layerId
-        && entry.issue === 'font-missing'
-        && entry.sourceIdentity
-      )) ?? fontDiagnostics.find((entry) => (
-        entry.layerId === layerId && entry.sourceIdentity
-      ));
-      if (!diagnostic?.sourceIdentity) return false;
-      editorDialogs.requestMissingFontRecovery({
-        layerId,
-        sourceIdentity: diagnostic.sourceIdentity,
-        requestedFont: diagnostic.requestedFont,
-        layerName: diagnostic.layerName,
-        metricsChanged: diagnostic.metricsChanged,
-        offset,
-        affinity
-      });
-      return false;
-    }
-    return textEditingController.begin(layerId, offset, affinity);
-  };
+  const textEditingEntry = useTextEditingEntry(documentSession ?? workspaceDocumentId,
+    editorSession.activeTool, rendererSnapshot.generation, textFontRegistry, {
+    getDocument: () => imageDocumentRef.current,
+    getTool: () => readEditorSession().activeTool,
+    getFontRegistry: () => textFontRegistry,
+    getFonts: () => textFontRegistry.availableAssets,
+    substitutionFamilies: DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
+    captureScope: captureMountedInteractionScope,
+    selectLayer: layerId => layerPanelController.select(layerId),
+    activateType: after => activatePersistentTool('text-point', after),
+    cancelCreation: textCreationInteraction.cancel,
+    beginEditing: (layerId, offset, affinity) => textEditingController.begin(layerId, offset, affinity),
+    requestRecovery: editorDialogs.requestMissingFontRecovery,
+    showProperties: layerId => showProperties({ kind: 'layer', layerId }),
+    closeReport: editorDialogs.closePsdReport,
+    reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
+  });
+  const requestExistingFlowTextEditing = textEditingEntry.request;
 
   const missingFontReplacementActions = useMissingFontReplacementActions({
     documentId: workspaceDocumentId,
@@ -3984,12 +3965,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     closeRecovery: editorDialogs.closeMissingFontRecovery,
     requestRecovery: editorDialogs.requestMissingFontRecovery,
     beginEditing: (layerId, offset, affinity) => {
-      void layerPanelController.select(layerId).then(() => {
-        activatePersistentTool('text-point', () => {
-          textEditingController.begin(layerId, offset, affinity ?? 'downstream');
-          showProperties({ kind: 'layer', layerId });
-        });
-      });
+      void textEditingEntry.selectAndEnter(layerId, { offset, affinity });
     },
     setStatus: setGradeStatus,
     setError
@@ -6410,8 +6386,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       cancelLayerNameRenameGesture={cancelLayerNameRenameGesture}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
-        textCreationInteraction.cancelPoint();
-        activatePersistentTool('text-point', () => requestExistingFlowTextEditing(layerId));
+        void textEditingEntry.selectAndEnter(layerId);
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
       onConvertTextToShape={requestTextToShape}
@@ -6978,18 +6953,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               void layerPanelController.select(layerId).then(editorDialogs.closePsdReport);
             },
             onResolveTextFont: (layerId) => {
-              const layer = imageDocumentRef.current
-                ? findDocumentLayer(imageDocumentRef.current, layerId)
-                : null;
-              if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
-              void layerPanelController.select(layerId).then(() => {
-                editorDialogs.closePsdReport();
-                textCreationInteraction.cancelPoint();
-                activatePersistentTool('text-point', () => {
-                  requestExistingFlowTextEditing(layerId);
-                  showProperties({ kind: 'layer', layerId });
-                });
-              });
+              void textEditingEntry.selectAndEnter(layerId, { closeReport: true });
             },
             onPreviewTextFont: missingFontReplacementActions.preview,
             onCancelTextFontPreview: missingFontReplacementActions.cancelPreview,
