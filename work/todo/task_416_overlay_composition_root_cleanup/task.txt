@@ -25,7 +25,9 @@ O04a document-surface commands and O04b.1 processing binding/restoration are acc
 O04c LUT/Grade asset commands are also accepted, including truthful paste completion.
 O04b.2 canvas color/focus pickers accepted, including Point Color GPU layout repair.
 O04b.3 depth request lifetime and cached GPU rebind accepted (PROGRESS.md).
-Next: O04b.4 contextual owner/visibility and remaining gesture wiring;
+O04b.4 contextual owner/visibility and O04b.5 scoped gesture binding accepted.
+O05a.1 text-property intents/projection accepted, including scoped font requests.
+Next: O05a.2 separate text hit/activation/creation;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
 is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.

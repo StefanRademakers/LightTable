@@ -1,5 +1,7 @@
 import type { FlowTextSource, ParagraphStyleRun, TextPaint, TextStyleRun } from '@lighttable/text-core';
-import type { DocumentFontAsset } from '../../editor/document/documentTypes';
+import type { DocumentFontAsset, ImageDocument } from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
+import type { FlowTextEditingSessionController } from './flowTextEditingSession';
 import type { TextSelectionRange } from './flowTextEditing';
 import {
   projectFlowTextStyleProperty,
@@ -37,6 +39,36 @@ export interface TextPropertyPresentation {
   readonly spaceAfter: MixedValue<number>;
   readonly advancedUnavailableReason: string;
 }
+
+/** Pure contextual projection; no panel snapshot is an authoring authority. */
+export const resolveTextProperties = (document: ImageDocument | null,
+  editing: Pick<FlowTextEditingSessionController, 'getSnapshot' | 'formatProjection'>,
+  fonts: readonly DocumentFontAsset[]) => {
+  const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
+  const source = layer?.type === 'text' && layer.text.source.kind === 'flow' ? layer.text.source : null;
+  const snapshot = editing.getSnapshot();
+  const targetsLayer = snapshot.status === 'editing' && snapshot.layerId === layer?.id;
+  const format = targetsLayer ? editing.formatProjection() : null;
+  const style = format?.target === 'insertion' && format.style.kind === 'value'
+    ? { ...format.style.value, start: 0, end: 0 } : undefined;
+  const paragraph = format?.target === 'insertion' && format.paragraph.kind === 'value'
+    ? { ...format.paragraph.value, start: 0, end: 0 } : undefined;
+  const unavailable = { kind: 'unavailable' as const };
+  const model: TextPropertyPresentation | null = source
+    ? buildTextPropertyPresentation(source, targetsLayer ? snapshot.selection : null, fonts, style, paragraph)
+    : layer?.type === 'text' ? {
+      target: 'layer', family: unavailable, face: unavailable, size: unavailable,
+      fillEnabled: unavailable, fill: unavailable, strokeColor: unavailable, strokeWidth: unavailable,
+      tracking: unavailable, kerning: unavailable, baselineShift: unavailable,
+      horizontalScale: unavailable, verticalScale: unavailable, syntheticBold: unavailable,
+      syntheticItalic: unavailable, underline: unavailable, writingMode: unavailable,
+      alignment: unavailable, lineHeight: unavailable, firstLineIndent: unavailable,
+      startIndent: unavailable, endIndent: unavailable, spaceBefore: unavailable, spaceAfter: unavailable,
+      advancedUnavailableReason: 'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
+    } : null;
+  return { layer, model, layoutMode: source?.layout.mode === 'point' || source?.layout.mode === 'paragraph'
+    ? source.layout.mode : null };
+};
 
 const mapValue = <Input, Output>(
   value: MixedValue<Input>,

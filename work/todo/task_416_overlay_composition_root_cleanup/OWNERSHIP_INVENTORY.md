@@ -1,5 +1,14 @@
 # Overlay ownership inventory
 
+O05a.1 mapped before extraction: Overlay text-property block (formerly6832-7040)
+is projection plus defaults/discrete format/paint/font/layout intent policy.
+Live consumers: Properties, tool options and text context menu. Reuse existing
+TextPropertyGestureController for format transactions/RAF paint, existing semantic
+commands and conversion algorithms. Pending font currently rediscovers active
+layer after await; writing-mode completion lacks original request identity.
+Bounded replacement separates pure resolveTextProperties and property-only
+TextPropertyCommandController; hit testing/creation remain separate O05a.2.
+
 O04b.5 accepted: useAdjustmentGestures owns mounted binding only; required-scope
 AdjustmentInteractionCoordinator owns pending/control leases and reset epoch.
 Existing AdjustmentTransactionController remains canonical mutation/preview owner.

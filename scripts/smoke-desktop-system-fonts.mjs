@@ -2,9 +2,11 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
+const executablePath = launch.executablePath;
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'system-font-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const reportPath = path.join(outputDirectory, 'system-fonts.json');
@@ -14,7 +16,7 @@ delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const startedAt = performance.now();
 const app = await electron.launch({
   executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,

@@ -207,6 +207,12 @@ class names: reuse existing owners before creating a new one.
   gradient, mask and background-removal integration. Inspect every toolbar tool
   in O01; already well-owned tools need only thin composition, not rewrites.
   Move session refs and lifecycle decisions with their responsibility.
+  - [x] O05a.1: text-property intents and pure contextual projection; reuse
+    existing gestures/semantic commands. Font target/range/request lifetime and
+    writing-mode continuation repaired. Critic PASS after two findings; packaged
+    font picker, font source roundtrip and UI/Actions/MCP text-format proof pass.
+  - [ ] O05a.2: existing-text hit/activation and point/paragraph/path creation
+    lifetimes, separately from property formatting.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

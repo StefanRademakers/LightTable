@@ -1,5 +1,33 @@
 # Task 416 progress
 
+## O05a.1 — Text property intents and presentation (accepted)
+
+- Removed root defaults/format/font/fill/stroke/layout policy; pure contextual
+  resolveTextProperties reuses existing style projection. Property-only controller
+  owns intents and pending request identity, not typing, hit/creation, font bytes,
+  canonical state or history. Existing TextPropertyGestureController retains
+  formatting and RAF paint coalescing; semantic commands/conversions unchanged.
+- Font loading captures document/layer/source, editing range, tool, registry and
+  exact renderer scope before await. Newest request only; no transaction waits for
+  font bytes. Unmount retires pending work. Writing-mode completion checks request,
+  scope, layer and tool before activating anything.
+- Critic repair round: preserve explicitly chosen font face on family change;
+  invalidate predecessor writing-mode continuation. Source rereview PASS, no
+  additional repair required. Genuine load/command errors remain observable.
+- 28 focused tests/3 files, app typecheck, boundary, structure and fresh package
+  pass. Packaged UI/Actions/MCP equivalence passes actual Properties Bold and
+  semantic text.format recording; system font picker/authoring passes (460 faces),
+  and native font-source bytes/PNG roundtrip plus tab rebind passes.
+  Evidence: tmp/route-equivalence-smoke/evidence.json,
+  tmp/system-font-smoke/system-fonts.json, tmp/font-source-lifecycle/report.json.
+  System-font screenshot inspected; text starts near right edge in this fixture,
+  so this is authoring/property proof, not full text-layout visual qualification.
+- Overlay 8,028 -> 7,844 physical lines; controller155, composition hook9,
+  existing presentation helper remains under250. No new per-frame document clone,
+  readback, renderer wait or hidden compatibility route.
+- Next O05a.2: text hit/activation/creation; wider text engine measurement,
+  performance and all remaining O02/O03/O05-O09 work remain open.
+
 ## O04b.5 — Mounted adjustment gesture binding (accepted)
 
 - useAdjustmentGestures binds latest ports, exact mounted lifecycle/renderer scope

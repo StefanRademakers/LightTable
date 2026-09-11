@@ -206,7 +206,6 @@ import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
   PointTextCreationController,
-  defaultTextStyleForFamily,
   resolvePathTextCreationTargetAtPoint,
   type PathTextCreationTarget,
   resolveTextToolFont,
@@ -217,8 +216,7 @@ import { TextPropertyGestureController } from './application/text/TextPropertyGe
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateCommand,
   pointTextCreateCommand,
-  textCreateCommandParameters,
-  semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
+  textCreateCommandParameters } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
@@ -239,17 +237,8 @@ import { useMissingFontReplacementActions } from './application/text/useMissingF
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
 import { type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
-import {
-  buildTextPropertyPresentation,
-  textFillEnabledPatch,
-  textFillPatchFromHex,
-  textFontPatch,
-  textStrokePatch
-} from './application/text/textPropertyPresentation';
-import {
-  convertParagraphTextToPoint,
-  convertPointTextToParagraph
-} from './editor/document/textLayerCommands';
+import { resolveTextProperties } from './application/text/textPropertyPresentation';
+import { useTextPropertyCommands } from './composition/text/useTextPropertyCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import {
   BUNDLED_TEXT_FONT_CATALOG,
@@ -6829,216 +6818,43 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       warp: { ...current.warp, ...change }
     }));
   };
-  const updateText = (change: Partial<EditorSession['text']>) => {
-    setEditorSession((current) => {
-      if (!change.family || change.family === current.text.family) {
-        return { ...current, text: { ...current.text, ...change } };
-      }
-      const style = defaultTextStyleForFamily(selectableTextFonts, change.family);
-      return {
-        ...current,
-        text: {
-          ...current.text,
-          ...change,
-          style: style ?? current.text.style
-        }
-      };
-    });
-  };
-  const activeTextPropertyLayer = imageDocument
-    ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
-    : null;
-  const activeFlowTextPropertyLayer = activeTextPropertyLayer?.type === 'text'
-    && activeTextPropertyLayer.text.source.kind === 'flow'
-    ? activeTextPropertyLayer : null;
-  const activeFlowTextPropertySource = activeFlowTextPropertyLayer?.text.source.kind === 'flow'
-    ? activeFlowTextPropertyLayer.text.source : null;
-  const editingTargetsActiveLayer = textEditing.status === 'editing'
-    && textEditing.layerId === activeFlowTextPropertyLayer?.id;
-  const textFormatProjection = editingTargetsActiveLayer
-    ? textEditingController.formatProjection()
-    : null;
-  const projectedInsertionStyle = textFormatProjection?.target === 'insertion'
-    && textFormatProjection.style.kind === 'value'
-    ? { ...textFormatProjection.style.value, start: 0, end: 0 }
-    : undefined;
-  const projectedInsertionParagraph = textFormatProjection?.target === 'insertion'
-    && textFormatProjection.paragraph.kind === 'value'
-    ? { ...textFormatProjection.paragraph.value, start: 0, end: 0 }
-    : undefined;
-  const textPropertyPresentation = activeFlowTextPropertyLayer && activeFlowTextPropertySource
-    ? buildTextPropertyPresentation(
-        activeFlowTextPropertySource,
-        editingTargetsActiveLayer
-          ? textEditing.selection : null,
-        availableFontAssets,
-        projectedInsertionStyle,
-        projectedInsertionParagraph
-      )
-    : activeTextPropertyLayer?.type === 'text' ? {
-        target: 'layer' as const,
-        family: { kind: 'unavailable' as const },
-        face: { kind: 'unavailable' as const },
-        size: { kind: 'unavailable' as const },
-        fillEnabled: { kind: 'unavailable' as const },
-        fill: { kind: 'unavailable' as const },
-        strokeColor: { kind: 'unavailable' as const },
-        strokeWidth: { kind: 'unavailable' as const },
-        tracking: { kind: 'unavailable' as const },
-        kerning: { kind: 'unavailable' as const },
-        baselineShift: { kind: 'unavailable' as const },
-        horizontalScale: { kind: 'unavailable' as const },
-        verticalScale: { kind: 'unavailable' as const },
-        syntheticBold: { kind: 'unavailable' as const },
-        syntheticItalic: { kind: 'unavailable' as const },
-        underline: { kind: 'unavailable' as const },
-        writingMode: { kind: 'unavailable' as const },
-        alignment: { kind: 'unavailable' as const },
-        lineHeight: { kind: 'unavailable' as const },
-        firstLineIndent: { kind: 'unavailable' as const },
-        startIndent: { kind: 'unavailable' as const },
-        endIndent: { kind: 'unavailable' as const },
-        spaceBefore: { kind: 'unavailable' as const },
-        spaceAfter: { kind: 'unavailable' as const },
-        advancedUnavailableReason:
-          'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
-      } : null;
+  const { layer: activeTextPropertyLayer, model: textPropertyPresentation,
+    layoutMode: textLayoutMode } = resolveTextProperties(imageDocument, textEditingController, availableFontAssets);
   const positionedTextRecovery = activeTextPropertyLayer?.type === 'text'
     && activeTextPropertyLayer.text.source.kind === 'positioned'
-    ? positionedTextRecoveryController.analyze(activeTextPropertyLayer.id)
-    : null;
-  const textLayoutMode = activeFlowTextPropertySource?.layout.mode === 'point'
-    || activeFlowTextPropertySource?.layout.mode === 'paragraph'
-    ? activeFlowTextPropertySource.layout.mode
-    : null;
-  const changeTextLayoutMode = (mode: 'point' | 'paragraph') => {
-    const editing = textEditingController.getSnapshot();
-    const layerId = activeFlowTextPropertyLayer?.id;
-    if (!layerId || mode === textLayoutMode) return;
-    const firstBaselineOffset = engineRef.current
-      ?.textEditingLayout(layerId)?.layout.firstBaselineOffset ?? 0;
-    const restoreEditing = editing.status === 'editing' && editing.layerId === layerId;
-    const restoreOffset = restoreEditing
-      ? textEditingController.getSnapshot().selection.focus
-      : undefined;
-    if (restoreEditing) textEditingController.finish();
-    const changed = documentMutationController.change(
-      (document) => mode === 'paragraph'
-        ? convertPointTextToParagraph(document, layerId, {
-            width: 240,
-            height: 120,
-            firstBaselineOffset
-          })
-        : convertParagraphTextToPoint(document, layerId, { firstBaselineOffset }),
-      true,
-      { label: mode === 'paragraph' ? 'Convert to Paragraph Text' : 'Convert to Point Text',
-        type: 'text.set-layout', layerIds: [layerId] }
-    );
-    if (!changed) return;
-    activatePersistentTool('text-point', () => {
-      if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
-    });
-  };
-  const beginTextPropertyGesture = () =>
-    textPropertyGestureController.begin(activeFlowTextPropertyLayer?.id);
-  const applyTextPropertyPatch = (
-    patch: TextStylePatch,
-    paragraphPatch: ParagraphStylePatch = {}
-  ) => textPropertyGestureController.apply(patch, paragraphPatch);
-  const queueTextPaintPreview = (patch: TextStylePatch) =>
-    textPropertyGestureController.queuePaint(patch);
-  const commitTextPropertyGesture = () => textPropertyGestureController.commit();
-  const cancelTextPropertyGesture = () => textPropertyGestureController.cancel();
-  const dispatchDiscreteTextFormat = (stylePatch: TextStylePatch, paragraphPatch: ParagraphStylePatch) => {
-    const document = imageDocumentRef.current; const layerId = document?.activeLayerId;
-    const style = semanticStylePatchFromCanonical(stylePatch);
-    const paragraph = semanticParagraphPatchFromCanonical(paragraphPatch);
-    if (!layerId || !style || !paragraph) return false;
-    const editing = textEditingController.getSnapshot();
-    const selection = editing.status === 'editing' && editing.layerId === layerId ? editing.selection : null;
-    if (selection) {
-      if (!beginTextPropertyGesture()) return false;
-      applyTextPropertyPatch(stylePatch, paragraphPatch);
-      commitTextPropertyGesture();
-      return true;
-    }
-    void executeRegisteredCommand('text.format', { layerId,
-      ...(Object.keys(style).length ? { style } : {}),
-      ...(Object.keys(paragraph).length ? { paragraph } : {}) });
-    return true;
-  };
-  const applyDiscreteTextProperty = (patch: TextStylePatch) => {
-    dispatchDiscreteTextFormat(patch, {});
-  };
-  const applyDiscreteTextParagraph = (patch: ParagraphStylePatch) => {
-    dispatchDiscreteTextFormat({}, patch);
-  };
+    ? positionedTextRecoveryController.analyze(activeTextPropertyLayer.id) : null;
+  const textPropertyCommands = useTextPropertyCommands(documentSession ?? workspaceDocumentId, {
+    getDocument: () => imageDocumentRef.current,
+    getTool: () => editorSessionRef.current.activeTool,
+    captureScope: captureMountedInteractionScope,
+    getFontRegistry: () => textFontRegistry,
+    getFonts: () => selectableTextFonts,
+    loadFont: async assetId => await registerBundledTextFontByAssetId(textFontRegistry, assetId)
+      ?? textFontRegistry.availableAssets.find(font => font.assetId === assetId) ?? null,
+    getPresentation: () => textPropertyPresentation,
+    getBrushColor: () => editorSessionRef.current.brush.color,
+    updateBrushColor: color => updateBrush({ color }),
+    updateDefaults: recipe => setEditorSession(current => ({ ...current, text: recipe(current.text) })),
+    getFirstBaselineOffset: layerId => engineRef.current?.textEditingLayout(layerId)?.layout.firstBaselineOffset ?? 0,
+    gestures: textPropertyGestureController,
+    editing: textEditingController,
+    mutations: documentMutationController,
+    execute: executeRegisteredCommand,
+    activateTool: activatePersistentTool,
+    reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
+  });
+  const {
+    updateDefaults: updateText, begin: beginTextPropertyGesture, apply: applyTextPropertyPatch,
+    commit: commitTextPropertyGesture, cancel: cancelTextPropertyGesture,
+    applyStyle: applyDiscreteTextProperty, applyParagraph: applyDiscreteTextParagraph,
+    applyFill: applyTextFill, applyFillPaint: applyTextFillPaint, applyFillEnabled: applyTextFillEnabled,
+    applyStrokeColor: applyTextStrokeColor, applyStrokeWidth: applyTextStrokeWidth, changeLayoutMode: changeTextLayoutMode
+  } = textPropertyCommands;
   const applyTextFontAsset = (assetId: string) => {
-    void (async () => {
-      const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
-      const asset = bundled ?? textFontRegistry.availableAssets.find((font) => font.assetId === assetId);
-      if (!asset) return;
-      if (!textPropertyPresentation) {
-        updateText({ family: asset.familyNames[0]!, style: asset.styleName });
-      } else {
-        applyDiscreteTextProperty(textFontPatch(asset));
-      }
-    })().catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'The selected font could not be loaded.');
-    });
+    void textPropertyCommands.applyFont(assetId).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
   };
-  const applyTextFill = (fill: string) => {
-    if (!textPropertyPresentation) {
-      updateBrush({ color: fill });
-      return;
-    }
-    // Native colour pickers can emit far more input events than the compositor
-    // can present. Coalesce them to one canonical paint update per frame while
-    // retaining the final value on gesture commit.
-    const patch = textFillPatchFromHex(fill);
-    if (patch) queueTextPaintPreview(patch);
-  };
-  const applyTextFillPaint = (fill: TextPaint) => {
-    queueTextPaintPreview({ fill: structuredClone(fill) });
-  };
-  const applyTextFillEnabled = (enabled: boolean) => {
-    if (!textPropertyPresentation) {
-      updateText({ fillEnabled: enabled });
-      return;
-    }
-    const fallback = textPropertyPresentation.fill.kind === 'value'
-      ? textPropertyPresentation.fill.value : editorSession.brush.color;
-    applyDiscreteTextProperty(textFillEnabledPatch(enabled, fallback));
-  };
-  const applyTextStrokeColor = (stroke: string) => {
-    const width = textPropertyPresentation?.strokeWidth.kind === 'value'
-      && textPropertyPresentation.strokeWidth.value > 0
-      ? textPropertyPresentation.strokeWidth.value : 1;
-    const patch = textStrokePatch(stroke, width);
-    if (patch) queueTextPaintPreview(patch);
-  };
-  const applyTextStrokeWidth = (width: number) => {
-    const stroke = textPropertyPresentation?.strokeColor.kind === 'value'
-      ? textPropertyPresentation.strokeColor.value : '#000000';
-    const patch = textStrokePatch(stroke, width);
-    if (patch) applyTextPropertyPatch(patch);
-  };
-  const applyTextWritingMode = (
-    writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
-  ) => {
-    const before = imageDocumentRef.current;
-    const layerId = before?.activeLayerId;
-    if (!before || !layerId) return;
-    const layer = findDocumentLayer(before, layerId);
-    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow'
-      || layer.text.source.layout.mode === 'path') return;
-    textEditingController.finish();
-    const execution = executeRegisteredCommand('text.setLayout', { layerId, writingMode });
-    void execution?.then((result) => {
-      if (result.status === 'completed') {
-        activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
-      }
-    });
+  const applyTextWritingMode = (mode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => {
+    void textPropertyCommands.applyWritingMode(mode).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
   };
   const textPropertiesPanel = textPropertyPresentation ? {
     model: textPropertyPresentation,
