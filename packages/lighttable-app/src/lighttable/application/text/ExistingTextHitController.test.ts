@@ -39,7 +39,7 @@ describe('ExistingTextHitController', () => {
     };
     const publish = vi.fn();
     const controller = new ExistingTextHitController({
-      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => 3
+      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => 3, reportFailure: vi.fn()
     });
 
     expect(controller.resolve([layer], { x: 10, y: 10 }, 4, publish, vi.fn())).toBe('pending');
@@ -67,7 +67,7 @@ describe('ExistingTextHitController', () => {
     let generation = 1;
     const publish = vi.fn();
     const controller = new ExistingTextHitController({
-      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => generation
+      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => generation, reportFailure: vi.fn()
     });
 
     expect(controller.resolve([layer], { x: 10, y: 10 }, 4, publish, vi.fn())).toBe('pending');
@@ -88,7 +88,7 @@ describe('ExistingTextHitController', () => {
     };
     const miss = vi.fn();
     const controller = new ExistingTextHitController({
-      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => 1
+      getDocument: () => document, getRenderer: () => renderer, getRendererGeneration: () => 1, reportFailure: vi.fn()
     });
 
     expect(controller.resolve(

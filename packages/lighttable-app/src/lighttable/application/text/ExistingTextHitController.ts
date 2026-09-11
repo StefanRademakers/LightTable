@@ -14,6 +14,7 @@ export interface ExistingTextHitControllerDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): ExistingTextHitRenderer | null;
   getRendererGeneration(): number;
+  reportFailure(error: unknown): void;
 }
 
 export interface ExistingTextHitResult {
@@ -83,7 +84,14 @@ export class ExistingTextHitController {
         if (resolved) publish(resolved, pending?.pointer?.finished ?? false);
         else miss(pending?.pointer ?? null);
       })
-      .catch(() => undefined);
+      .catch(error => {
+        if (revision !== this.revision || abort.signal.aborted
+          || this.dependencies.getDocument() !== document
+          || this.dependencies.getRenderer() !== renderer
+          || this.dependencies.getRendererGeneration() !== rendererGeneration) return;
+        if (this.pending?.abort === abort) this.pending = null;
+        this.dependencies.reportFailure(error);
+      });
     return 'pending';
   }
 

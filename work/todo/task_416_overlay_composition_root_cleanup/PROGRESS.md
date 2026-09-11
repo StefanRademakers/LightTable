@@ -1,5 +1,26 @@
 # Task 416 progress
 
+## O05a.2a — Existing-text activation (accepted)
+
+- ExistingTextActivationController owns candidate order, immediate selection
+  granularity and select-await-rehit. Existing hit/layout, editing and selection
+  controllers retain their algorithms. Hook cancels on document/tool/renderer
+  replacement and unmount; root getter now reads the current lifecycle generation.
+- Deleted root activation revision/ref, ordering/rehit implementation and duplicate
+  effect cancellation. Root 7,844 -> 7,751 physical lines; new controller88 and
+  composition hook10. No new frame work, readback or command queue.
+- Current layout failures release pending intent and report the original error,
+  never create text. Critic repair: late selection rejection also checks request
+  lifetime before reporting; canceled/retired/newer-click tests included.
+- 20 tests/3 files, app typecheck, boundary and structure pass. Fresh instrumented
+  package passes Type Tool plus Path Text Actions with explicit packaged executable.
+  Type creation/edit/reentry/transform/history and Path Text recording/replay pass;
+  no page errors. tmp/type-tool-smoke/type-tool.json; screenshot inspected.
+  Recorded Type input-to-submit P95 26.5ms, input-to-GPU P95 34.1ms is a sample,
+  not a matched whole-editor latency qualification.
+- Next: creation-only generation/pending font/path/draft lifetime, then scoped
+  missing-font edit entry. Broader O02/O03/O05-O09 and owner acceptance stay open.
+
 ## O05a.1 — Text property intents and presentation (accepted)
 
 - Removed root defaults/format/font/fill/stroke/layout policy; pure contextual

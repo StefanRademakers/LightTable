@@ -213,6 +213,9 @@ class names: reuse existing owners before creating a new one.
     font picker, font source roundtrip and UI/Actions/MCP text-format proof pass.
   - [ ] O05a.2: existing-text hit/activation and point/paragraph/path creation
     lifetimes, separately from property formatting.
+    - [x] O05a.2a: exact hit-to-edit activation owner and scoped failure reporting.
+      Critic repair suppresses obsolete selection failure UI; current failures stay
+      visible. Packaged Type Tool and Path Text/Actions pass. Creation stays next.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

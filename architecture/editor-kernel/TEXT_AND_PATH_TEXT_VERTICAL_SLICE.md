@@ -33,7 +33,7 @@ hand-off remain open.
 | Typing/IME edit grouping | `FlowTextEditingSessionController` + `textEditTransactionController` | `TextInputBridge` |
 | Glyph layout and GPU source | none | `TextLayerRenderCoordinator` |
 | Caret/selection overlay | editing controller selection | `FlowTextEditingRuntime` |
-| Existing-text click waiting | none | `ExistingTextHitController` |
+| Existing-text click waiting and edit activation | none | `ExistingTextHitController` + `ExistingTextActivationController` |
 | Path Text target | stable layer/element/subpath ids in document | cursor hit projection, selection fallback |
 | Text transform | document mutation transaction | transform semantic preview |
 | Convert/rasterize | registered document command | renderer final-output source lease |
@@ -65,10 +65,12 @@ hand-off remain open.
   realization, and telemetry.
 - Text commands may depend on renderer ports for derived output, never on React
   state or component lifetime.
-- The post-hit activation adapter is still overlay-local. Before any further
-  text-tool policy is added, extract it with its activation token into a
-  dedicated text-tool interaction adapter/hook. This is accepted P2 structural
-  debt, not permission to grow the 9k-line overlay.
+- ExistingTextActivationController owns candidate ordering, scoped post-hit
+  selection/rehit and editing-selection entry. useExistingTextActivation binds
+  cancellation to document/tool/renderer generation and unmount. Genuine current
+  layout/selection failures are reported; retired requests cannot publish UI.
+  Point/paragraph/path creation and missing-font entry remain the next Task416
+  extraction; do not add policy to the Overlay.
 
 ## Acceptance matrix
 
