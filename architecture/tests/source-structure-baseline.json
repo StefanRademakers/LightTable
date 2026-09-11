@@ -6,7 +6,7 @@
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
       "baselineLines": 9023,
-      "maxLines": 9000,
+      "maxLines": 8953,
       "classification": "mixed-authority",
       "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
       "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],

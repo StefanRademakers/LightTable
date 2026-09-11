@@ -143,6 +143,11 @@ class names: reuse existing owners before creating a new one.
   orchestration and disposal out of Overlay, retaining existing document,
   history, renderer and recovery owners. No second store or ownership change
   disguised as an extraction. Remove obsolete cross-system refs.
+  - [x] O03a: document/processing projection binding and contextual source cache.
+    Critic PASS, no repair needed. Fresh packaged transform/Exposure, layer
+    opacity/history/tab rebind and layer-subtarget flows passed.
+  - [ ] O03b: exact document/selection publication including distant transform binding.
+  - [ ] O03c: open/rebind/retire and disposal orchestration.
 - [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms

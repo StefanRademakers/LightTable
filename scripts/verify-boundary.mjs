@@ -786,8 +786,15 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
     }
     if (!source.includes('resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;')
       || !source.includes('resetActiveAdjustmentTransactionRef.current = adjustmentTransactionController.reset;')
-      || !/const applyDocumentSnapshot[\s\S]{0,700}resetActiveAdjustmentTransactionRef\.current\(\);/.test(source)) {
+      || !source.includes('resetActiveAdjustmentPreview: () => resetActiveAdjustmentTransactionRef.current()')
+      || !source.includes('const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;')) {
       failures.push(`${relativePath}: canonical publication must retire an active adjustment preview without cancelling the successor gesture waiting for interaction admission`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/documents/documentProjectionBinding.ts')) {
+    if (!/applyDocumentSnapshot:[\s\S]{0,130}port\.resetActiveAdjustmentPreview\(\);\s*projection\.applyDocumentSnapshot\(document\);/.test(source)
+      || source.includes('resetAdjustmentTransaction') || source.includes('adjustmentInteractions.reset')) {
+      failures.push(`${relativePath}: canonical projection must reset only the active adjustment preview before publication, preserving successor admission`);
     }
   }
   if (normalizedPath.endsWith('/application/documentGeometry/commitDocumentSurfaceMutation.ts')

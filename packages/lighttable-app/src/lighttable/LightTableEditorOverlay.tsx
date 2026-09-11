@@ -53,15 +53,10 @@ import type { ExportedPsdDocument } from './application/documents/PsdExportClien
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
+import { resolveAdjustmentPresentation } from './application/adjustments/resolveAdjustmentPresentation';
+import { AdjustmentPresentationSynchronizer } from './application/adjustments/AdjustmentPresentationSynchronizer';
 import {
-  materializeAdjustmentPresentationSource,
-  resolveAdjustmentPresentation,
-  resolveAdjustmentPresentationSource,
-  type AdjustmentPresentationSource
-} from './application/adjustments/resolveAdjustmentPresentation';
-import {
-  commitColorLookupAssetTransaction,
-  type ColorLookupCanonicalProjection
+  commitColorLookupAssetTransaction
 } from './application/adjustments/commitColorLookupAssetTransaction';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
@@ -84,7 +79,7 @@ import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
-import { createDocumentProjectionController } from './application/documents/documentProjectionController';
+import { createDocumentProjectionBinding } from './application/documents/documentProjectionBinding';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import {
   resolveWheelPanDeltas,
@@ -856,15 +851,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }
   const adjustmentPresentationStore = adjustmentPresentationStoreRef.current;
-  const adjustmentPresentationSourceRef = useRef<AdjustmentPresentationSource | null>(null);
-  const publishAdjustmentPresentation = useCallback((
-    next: BasicAdjustments,
-    domain: AdjustmentPresentationDomain = 'all'
-  ) => {
-    adjustmentPresentationSourceRef.current = null;
+  const adjustmentPresentation = useMemo(() => new AdjustmentPresentationSynchronizer((next, domain) => {
     adjustmentsRef.current = next;
     adjustmentPresentationStore.publish(next, domain);
-  }, [adjustmentPresentationStore]);
+  }), [adjustmentPresentationStore]);
+  const publishAdjustmentPresentation = adjustmentPresentation.publishPresentation;
   const documentAdjustmentsRef = useRef<BasicAdjustments>(
     documentSession?.getSnapshot().processing.adjustments ?? createDefaultAdjustments()
   );
@@ -1761,7 +1752,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }, [appendDebugMessage, fontDiagnostics, imageDocument?.id]);
   const documentProjectionController = useMemo(
-    () => createDocumentProjectionController({
+    () => createDocumentProjectionBinding({
+      presentation: adjustmentPresentation,
+      getPropertiesTarget: () => propertiesTargetRef.current,
+      resetActiveAdjustmentPreview: () => resetActiveAdjustmentTransactionRef.current(),
       getDocument: () => imageDocumentRef.current,
       publishDocument: (document) => {
         imageDocumentRef.current = document;
@@ -1788,7 +1782,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         engineRef.current?.setAdjustments(nextAdjustments);
       }
     }),
-    [publishAdjustmentPresentation, setImageDocument]
+    [adjustmentPresentation, publishAdjustmentPresentation, setImageDocument]
   );
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
@@ -1814,49 +1808,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearEditorHistory = documentHistoryController.clear;
   const pushHistoryEntry = documentHistoryController.record;
 
-  const applyDocumentSnapshot = useCallback((document: ImageDocument) => {
-    // A canonical document command supersedes any pointer-rate adjustment
-    // preview. Hidden contextual panels can receive a later blur event; that
-    // event must not commit an interaction that belonged to the old layer.
-    // Canonical publication retires only a preview that already owns the old
-    // document. A successor adjustment may currently be waiting for this
-    // transform publication through InteractionTransitionCoordinator; do not
-    // cancel that admitted-next gesture here.
-    resetActiveAdjustmentTransactionRef.current();
-    documentProjectionController.applyDocumentSnapshot(document);
-    const source = resolveAdjustmentPresentationSource(
-      document,
-      documentAdjustmentsRef.current,
-      propertiesTargetRef.current
-    );
-    const previousSource = adjustmentPresentationSourceRef.current;
-    if (source && (source.key !== previousSource?.key
-      || source.source !== previousSource.source)) {
-      const presentation = materializeAdjustmentPresentationSource(source);
-      publishAdjustmentPresentation(presentation.adjustments, presentation.domain);
-      adjustmentPresentationSourceRef.current = source;
-    }
-  }, [documentProjectionController, publishAdjustmentPresentation]);
-  const applyCanonicalAdjustmentProjection = useCallback((
-    projection: ColorLookupCanonicalProjection,
-    domain: AdjustmentPresentationDomain
-  ) => {
-    documentProjectionController.applyProjectedAdjustmentSnapshot(
-      { ...projection, editorAdjustments: projection.documentAdjustments },
-      domain,
-      false
-    );
-    if (!projection.document) return;
-    const source = resolveAdjustmentPresentationSource(
-      projection.document,
-      projection.documentAdjustments,
-      propertiesTargetRef.current
-    );
-    if (!source) return;
-    const presentation = materializeAdjustmentPresentationSource(source);
-    publishAdjustmentPresentation(presentation.adjustments, presentation.domain);
-    adjustmentPresentationSourceRef.current = source;
-  }, [documentProjectionController, publishAdjustmentPresentation]);
+  const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;
+  const applyCanonicalAdjustmentProjection = documentProjectionController.applyCanonicalAdjustmentProjection;
 
   const publishDocumentSelection = useCallback((
     document: ImageDocument,

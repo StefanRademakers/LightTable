@@ -121,3 +121,29 @@
   (O03a) is the next substantive extraction, as it gives those lifecycle routes
   named publication/discard ports without changing terminal policy. Critic
   reviewed this dependency ordering; neither O02 nor O03 is marked complete.
+
+## O03a — Document/processing projection binding
+
+- Done/deleted: contextual presentation source-cache ref, invalidating publisher,
+  active-preview retirement and canonical LUT/inspector reconciliation move out
+  of Overlay. AdjustmentPresentationSynchronizer owns only derived panel caching;
+  documentProjectionBinding composes the existing documentProjectionController,
+  which retains its single previewDocument. Canonical owners are unchanged.
+- Root remains explicit wiring. Controller identity remains scoped by the
+  document adapter's setImageDocument callback, not each canonical revision.
+  Overlay 8,999 -> 8,952 physical lines; hard audit ceiling 8,953. No new waits,
+  queues, copies/readbacks or pointer-frequency subscriptions introduced.
+- Critic PASS, repair rounds 1/2 not needed. Boundary protection moved to the
+  actual policy owner while still enforcing root's active-preview-only binding.
+- Proof: 22 projection/source tests, app typecheck, boundary/structure, fresh
+  instrumented package. Full transform-kernel smoke includes first immediate
+  Exposure after paste/transform with exact history/pixel restoration. Packaged
+  layer-history-gesture and layer-subtargets passed (grade/style targeting,
+  repeated opacity, exact undo/redo and two-document rebind). No page errors.
+  Reports: tmp/transform-kernel-smoke/report.json,
+  tmp/layer-history-gesture/report.json, tmp/layer-subtarget-smoke/report.json.
+- Open: this is not full lifecycle or native host suspension proof. Optional
+  embedded document handling, exact selection publication and broader command
+  settlement remain named work. No whole-app stability or performance verdict.
+- Next: O03b complete surface/transform selection-publication binding, including
+  the distant transform adapter; then remaining lifecycle/terminal policies.

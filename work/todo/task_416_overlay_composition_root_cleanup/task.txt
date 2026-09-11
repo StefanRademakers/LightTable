@@ -15,7 +15,8 @@ Inventory: OWNERSHIP_INVENTORY.md (source coverage, lifetimes, transition map,
 unproven risk register and baseline evidence; wider baseline gate remains open).
 Completed bounded extractions: O02a Escape precedence and O02b persistent tool
 activation/successor admission (PROGRESS.md).
-Temporary override state accepted (O02c.2a). Next: O03a document/processing
-projection binding, then remaining O02c host/target/file terminal policies.
+Temporary override state (O02c.2a) and projection binding (O03a) accepted.
+Next: O03b exact document/selection publication, then remaining lifecycle and
+O02c host/target/file terminal policies.
 Use the plan's independent critic and maximum two repair rounds per slice.
 No push requested. Recovery files are preserved locally outside Git.
