@@ -2,9 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type {
   EditorSession,
-  ToolId,
-  VectorEditorSelection,
-  VectorToolStyleSettings
+  VectorEditorSelection
 } from '../../editor/session/editorSession';
 import {
   isVectorEditorTool,
@@ -20,12 +18,8 @@ import type { VectorTransformPreviewBinding } from './VectorTransformPreviewBind
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
   readonly rendererGeneration: number;
-  readonly selection: VectorEditorSelection;
-  readonly activeTool: ToolId;
-  readonly foregroundColor: string;
-  readonly gradient: EditorSession['gradient'];
-  readonly shape: EditorSession['shape'];
-  readonly style: VectorToolStyleSettings;
+  readonly getDocument: () => ImageDocument | null;
+  readonly getSession: () => EditorSession;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
   readonly captureTransformPreview: () => VectorTransformPreviewBinding | null;
@@ -48,87 +42,33 @@ export interface VectorToolSessionHookOptions {
  * controller and an in-flight gesture never changes transaction boundary
  * because React published a newer render closure.
  */
-export const useVectorToolSessionController = ({
-  document,
-  rendererGeneration,
-  selection,
-  activeTool,
-  foregroundColor,
-  gradient,
-  shape,
-  style,
-  documentMutations,
-  publishSelection,
-  captureTransformPreview,
-  reportError,
-  rasterizeShape,
-  requestGradientColorEditor,
-  onLiveShapeCommitted,
-  onPenPathCommitted,
-  onPathMutationCommitted,
-  onGradientCommitted
-}: VectorToolSessionHookOptions): VectorToolSessionController => {
-  const portsRef = useRef({
-    document,
-    rendererGeneration,
-    selection,
-    foregroundColor,
-    gradient,
-    shape,
-    activeTool,
-    style,
-    documentMutations,
-    publishSelection,
-    captureTransformPreview,
-    reportError,
-    rasterizeShape,
-    requestGradientColorEditor,
-    onLiveShapeCommitted,
-    onPenPathCommitted,
-    onPathMutationCommitted,
-    onGradientCommitted
-  });
-  portsRef.current = {
-    document,
-    rendererGeneration,
-    selection,
-    foregroundColor,
-    gradient,
-    shape,
-    activeTool,
-    style,
-    documentMutations,
-    publishSelection,
-    captureTransformPreview,
-    reportError,
-    rasterizeShape,
-    requestGradientColorEditor,
-    onLiveShapeCommitted,
-    onPenPathCommitted,
-    onPathMutationCommitted,
-    onGradientCommitted
-  };
+export const useVectorToolSessionController = (
+  options: VectorToolSessionHookOptions
+): VectorToolSessionController => {
+  const { document, rendererGeneration } = options;
+  const { activeTool, gradient, shape } = options.getSession();
+  const portsRef = useRef(options);
+  portsRef.current = options;
 
   const controllerRef = useRef<VectorToolSessionController | null>(null);
   if (!controllerRef.current) {
     controllerRef.current = new VectorToolSessionController({
-      getDocument: () => portsRef.current.document,
+      getDocument: () => portsRef.current.getDocument(),
       getRendererGeneration: () => portsRef.current.rendererGeneration,
       documentMutations: {
         begin: (...args) => portsRef.current.documentMutations.begin(...args),
         change: (...args) => portsRef.current.documentMutations.change(...args)
       },
-      getSelection: () => portsRef.current.selection,
+      getSelection: () => portsRef.current.getSession().vectorSelection,
       setSelection: (next) => {
-        portsRef.current.selection = next;
         portsRef.current.publishSelection(next);
       },
       captureTransformPreview: () => portsRef.current.captureTransformPreview(),
       reportError: (message) => portsRef.current.reportError(message)
     }, {
-      penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
-      liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
-      gradientSettings: () => portsRef.current.gradient,
+      penStyle: () => vectorStyleFromToolSettings(portsRef.current.getSession().vectorStyle),
+      liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.getSession().vectorStyle),
+      gradientSettings: () => portsRef.current.getSession().gradient,
       requestGradientColorEditor: (endpoint) => portsRef.current.requestGradientColorEditor?.(endpoint),
       rasterizeShape: (transaction, generation) => portsRef.current.rasterizeShape(
         transaction,

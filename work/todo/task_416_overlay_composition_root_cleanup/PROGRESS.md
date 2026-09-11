@@ -1,5 +1,30 @@
 # Task 416 progress
 
+## O05b.2a — Current vector reads and committed observations (accepted)
+
+- Existing vector host now reads current application document, session settings
+  and selection through required getters. Removed its duplicated operational
+  render snapshots, including selection mirror. Rendered renderer generation
+  remains operational until O05b.2b; this round does NOT certify exact lifetime.
+- Gradient creation/update retains the final transaction snapshot before commit;
+  creation takes its target from commitElementCreationWithResult. It no longer
+  rediscovers the active layer through a potentially stale post-commit React
+  projection. VectorCommitPublisher owns committed result selection/semantic
+  observation only; no second edit/history. Root mapping deleted.
+- Overlay 7,317 -> 7,272 lines; vector hook 194 -> 127 lines. Focused 11 tests/2
+  files pass, including real domain transactions with React rerenders withheld
+  and a deliberately stale host read. This proves read/observation freshness,
+  not React effect/rebinding lifecycle. Typecheck/boundary/structure and fresh
+  instrumented package pass. Independent source PASS; repairs not required.
+- Packaged Pen, Path Text Actions, shape/Pixels and gradient property/history
+  pass. Gradient harness now also records actual creation and subsequent drag:
+  exactly one vector.create with Gradient Fill metadata and one vector.update.
+  tmp/vector-properties/report.json, tmp/pen-tools-smoke/pen-tools.json and
+  tmp/shape-geometry-smoke/report.json. No page errors. Existing property Actions
+  observation gap remains explicitly outside this pointer-commit proof.
+- Next O05b.2b exact session/renderer identity, retirement before Pen completion,
+  and bound Pen presentation. No whole-app/latency completion claim.
+
 ## O05b.1 — Vector/shape/gradient property boundary (accepted)
 
 - VectorPropertyIntents owns synchronous property intent/default partition;

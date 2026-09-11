@@ -30,7 +30,8 @@ O05a.1 text-property intents/projection accepted, including scoped font requests
 O05a.2a existing-text activation and O05a.2b creation lifetime accepted;
 O05a.2c1 missing-font/layer entry and O05a.2c2 text pointer routing accepted;
 O05b.1 vector/shape/gradient property intent and projection accepted;
-next O05b.2 vector commit observation, Pen terminals and mounted lifetimes;
+O05b.2a current vector reads and committed observations accepted;
+next O05b.2b exact vector lifetime and Pen presentation;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
 is not a render-submission stamp; O08 must resolve this diagnostics limitation.
 Neither whole-app cleanup nor release is done.

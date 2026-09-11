@@ -211,8 +211,7 @@ import { executeSemanticTextCommand } from './application/text/semanticTextComma
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
-import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
-  observedVectorPathUpdateCommand } from './application/vectors/semanticVectorObservation';
+import { VectorCommitPublisher } from './application/vectors/VectorCommitPublisher';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeSemanticLayerStyleSnapshot } from './application/styles/executeSemanticLayerStyleSnapshot';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
@@ -3709,15 +3708,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSelectedLayerIds([layerId]);
   }, []);
 
+  const vectorCommitPublisher = useMemo(() => new VectorCommitPublisher({
+    documentId: workspaceDocumentId as DocumentSessionId,
+    selectLayer: replaceLayerSelection,
+    record: (...args) => commandService.recordObservedCommand(...args)
+  }), [workspaceDocumentId, replaceLayerSelection, commandService]);
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
     rendererGeneration: rendererSnapshot.generation,
-    selection: editorSession.vectorSelection,
-    activeTool: editorSession.activeTool,
-    foregroundColor: editorSession.brush.color,
-    gradient: gradientToolSettings,
-    shape: editorSession.shape,
-    style: editorSession.vectorStyle,
+    getDocument: () => imageDocumentRef.current,
+    getSession: readEditorSession,
     documentMutations: documentMutationController,
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
@@ -3738,55 +3738,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transaction,
       rendererGeneration
     ),
-    onLiveShapeCommitted: ({ layerId, element, existingLayerId, layerName }) => {
-      replaceLayerSelection(layerId);
-      const parameters = observedLiveShapeCreateCommand(element, existingLayerId, layerName);
-      if (!parameters) return;
-      commandService.recordObservedCommand(
-        'vector.create',
-        workspaceDocumentId as DocumentSessionId,
-        parameters,
-        { layerId, elementId: element.id }
-      );
-    },
-    onPenPathCommitted: ({ operation, layerId, layerName, path, existingLayerId }) => {
-      if (operation === 'create') replaceLayerSelection(layerId);
-      const parameters = operation === 'create'
-        ? observedVectorPathCreateCommand(path, existingLayerId, layerName)
-        : observedVectorPathUpdateCommand(path, layerId);
-      commandService.recordObservedCommand(
-        operation === 'create' ? 'vector.create' : 'vector.update',
-        workspaceDocumentId as DocumentSessionId,
-        parameters,
-        { layerId, elementId: path.id }
-      );
-    },
-    onPathMutationCommitted: ({ layerId, pathId, path }) => {
-      commandService.recordObservedCommand(
-        path ? 'vector.update' : 'vector.remove',
-        workspaceDocumentId as DocumentSessionId,
-        path ? observedVectorPathUpdateCommand(path, layerId) : { layerId, elementId: pathId },
-        { layerId, elementId: pathId }
-      );
-    },
-    onGradientCommitted: ({ operation, layerId, layerName, layerRole, layerOpacity,
-      layerBlendMode, element }) => {
-      if (operation === 'create') replaceLayerSelection(layerId);
-      const parameters = operation === 'create'
-        ? observedLiveShapeCreateCommand(element, undefined, layerName, {
-            role: layerRole,
-            opacity: layerOpacity,
-            blendMode: layerBlendMode
-          })
-        : observedLiveShapeUpdateCommand(element, layerId);
-      if (!parameters) return;
-      commandService.recordObservedCommand(
-        operation === 'create' ? 'vector.create' : 'vector.update',
-        workspaceDocumentId as DocumentSessionId,
-        parameters,
-        { layerId, elementId: element.id }
-      );
-    }
+    onLiveShapeCommitted: vectorCommitPublisher.shape,
+    onPenPathCommitted: vectorCommitPublisher.pen,
+    onPathMutationCommitted: vectorCommitPublisher.path,
+    onGradientCommitted: vectorCommitPublisher.gradient
   });
   finishPenPathRef.current = () => {
     vectorToolSessionController.finishPenPath();

@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O05b.2a accepted: existing vector host reads current document/settings/selection
+through their owning getters; no operational React snapshot/selection mirror.
+VectorCommitPublisher observes exact committed payloads only. Gradient captures
+its final transaction document before commit and uses returned target address.
+Numeric renderer generation is still read from rendered ports; exact runtime
+retirement and Pen presentation remain O05b.2b, not certified by this extraction.
+
 O05b.1 accepted: property defaults/authored intent is VectorPropertyIntents;
 selected properties/shape algorithms are vectorPropertyProjection. Existing
 vector session and document mutation owners retain atomic/history authority.

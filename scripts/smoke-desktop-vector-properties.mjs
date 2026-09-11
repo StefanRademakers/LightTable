@@ -26,6 +26,18 @@ try {
   const driver = await attachLightTableAutomation(page, 'vector-properties');
   const id = (await driver.queryWorkspace()).activeDocumentId;
   const doc = () => driver.queryDocument(id);
+  const actions = page.getByRole('complementary', { name: 'Actions' });
+  if (!await actions.isVisible()) {
+    const tab = page.getByRole('tab', { name: 'Actions', exact: true });
+    if (await tab.isVisible()) await tab.click();
+    else {
+      await page.getByRole('menuitem', { name: 'View' }).click();
+      await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+      if (await tab.isVisible()) await tab.click();
+    }
+  }
+  await actions.waitFor();
+  await actions.locator('.lighttable-action-recorder').getByRole('button', { name: 'Record', exact: true }).click();
   const choose = async (scope, label, option) => {
     await scope.getByLabel(label, { exact: true }).click();
     await page.getByRole('option', { name: option, exact: true }).click();
@@ -42,6 +54,11 @@ try {
   const created = await doc();
   if (created.history.undoDepth !== before.history.undoDepth + 1) throw new Error('Gradient creation was not one edit.');
   const layerId = created.activeLayerId;
+  const creationRecording = await driver.queryActionRecording();
+  const creationSteps = creationRecording.steps.filter(step => step.command === 'vector.create');
+  if (creationSteps.length !== 1 || creationSteps[0].parameters.layerRole !== 'gradient-fill') {
+    throw new Error('Gradient creation did not publish one correctly attributed Action: ' + JSON.stringify(creationRecording));
+  }
   const openingVector = await driver.queryVector(id, layerId);
   await choose(page, 'Gradient type', 'Radial');
   const toolbar = await doc();
@@ -72,10 +89,17 @@ try {
   await page.keyboard.press('Control+Shift+z');
   const redoneVector = await driver.queryVector(id, layerId);
   if (JSON.stringify(redoneVector) !== JSON.stringify(toolbarVector)) throw new Error('Gradient redo differs from authored vector.');
+  await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.3);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.45, { steps: 6 });
+  await page.mouse.up();
+  const recording = await driver.queryActionRecording();
+  const updates = recording.steps.filter(step => step.command === 'vector.update');
+  if (updates.length !== 1) throw new Error('Gradient gesture did not publish one update Action: ' + JSON.stringify(recording));
   if (errors.length) throw new Error(errors.join('\n'));
   await writeFile(path.join(output, 'report.json'), JSON.stringify({
     executablePath: launch.executablePath, before, created, toolbar, contextual,
-    openingVector, toolbarVector, contextVector, errors
+    openingVector, toolbarVector, contextVector, creationRecording, recording, errors
   }, null, 2));
   console.log('Packaged vector property toolbar/context parity and exact history passed.');
 } catch (error) {

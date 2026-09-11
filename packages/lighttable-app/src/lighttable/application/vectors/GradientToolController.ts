@@ -298,10 +298,11 @@ export class GradientToolController {
         layerId: this.edit.target.layerId,
         elementId: this.edit.target.elementId
       };
+      const document = this.documents.currentDocument();
       const committed = this.documents.commitElementMutation();
       if (committed) {
         this.selectTarget(target);
-        this.publishCommit('update', target);
+        this.publishCommit('update', target, document);
       }
       this.reset();
       return committed;
@@ -310,15 +311,13 @@ export class GradientToolController {
       this.reset();
       return false;
     }
-    const elementId = this.shape.id;
-    const committed = this.documents.commitElementCreation();
     const document = this.documents.currentDocument();
-    if (committed && document?.activeLayerId) this.publishCommit('create', {
-      layerId: document.activeLayerId,
-      elementId
-    });
+    const result = this.documents.commitElementCreationWithResult();
+    if (result) this.publishCommit('create', {
+      layerId: result.layerId, elementId: result.element.id
+    }, document);
     this.reset();
-    return committed;
+    return Boolean(result);
   }
 
   cancel() {
@@ -343,8 +342,8 @@ export class GradientToolController {
     this.mutationStarted = false;
   }
 
-  private publishCommit(operation: GradientToolCommit['operation'], target: GradientToolSelectionTarget) {
-    const document = this.documents.currentDocument();
+  private publishCommit(operation: GradientToolCommit['operation'], target: GradientToolSelectionTarget,
+    document: ImageDocument | null) {
     const layer = document ? findDocumentLayer(document, target.layerId) : null;
     const element = layer?.type === 'vector'
       ? layer.elements.find(({ id }) => id === target.elementId)
