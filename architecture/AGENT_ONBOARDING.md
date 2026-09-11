@@ -62,8 +62,10 @@ for earlier cut-over evidence. The owner-requested follow-up is now
 [Overlay composition-root cleanup](editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md)
 (Task 416, checkpoint `df000cc5`). That ledger governs integration-root cleanup;
 earlier checked migration boxes do not prove it complete. Do not invent another
-parallel checklist or skip its independent critic, maximum two repair loops
-and packaged real-app proof. Overlay must end as UI composition and explicit
+parallel checklist or skip its independent critic, evidence-driven repair loops
+and packaged real-app proof. The owner explicitly authorized continued work on
+2026-09-11: re-review after two or three rounds as needed, self-resolve further
+bounded findings and proceed; do not stop solely at an iteration count. Overlay must end as UI composition and explicit
 wiring only, without moving its authority into a replacement god object.
 
 The continuation rules are strict:
@@ -134,8 +136,10 @@ Image Size, Canvas Size, Crop and document Rotate share one document-surface
 mutation contract. `DocumentSession.updateDocumentAndEditorIf` publishes the
 new canonical document and exact document-sized selection in one notification;
 never return to sequential `setDocument`/selection publication. Geometry GPU
-services exchange every layer mask and all selection targets under the same
-history owner. Apply a document mapping to root layer transforms once, but
+services retain authored raster/mask exchanges in history; disposable selection
+textures are released after initial commit. History reprojects the exact stored
+selection through the current same-session/device renderer under replay
+publication admission. Apply a document mapping to root layer transforms once, but
 project document-space masks recursively at every tree depth. An active
 selection may have no in-canvas support after crop/resize and must remain active
 and movable. Surface dimension changes invalidate renderer-internal clipboard

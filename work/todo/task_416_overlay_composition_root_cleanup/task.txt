@@ -21,5 +21,7 @@ pass the strict packaged feathered/painted resize/geometry/tab/undo/redo gate.
 Evidence and an unresolved pre-selection preview-read flake are preserved in
 O03B_PUBLICATION_ACCEPTANCE_REPORT.md. Next: O03c lifecycle and remaining O02c
 host/target/file terminal policies. Neither whole-app cleanup nor release is done.
-Use the plan's independent critic and maximum two repair rounds per slice.
+Use the plan's independent critic and evidence-driven repair/re-review loop.
+Latest owner direction authorizes two/three rounds and further bounded repairs
+as needed; continue to the next task without stopping solely at an iteration count.
 No push requested. Recovery files are preserved locally outside Git.

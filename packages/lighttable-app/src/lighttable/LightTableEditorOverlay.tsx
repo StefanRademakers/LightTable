@@ -50,7 +50,8 @@ import { useEditorArtifactExportRefs } from './application/documents/useEditorAr
 import { createInteractionTransitionCoordinator } from './application/interactions/InteractionTransitionCoordinator';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
-import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
+import { DocumentLoadedSourceBinding } from './application/documents/DocumentLoadedSourceBinding';
+import { useEditorDocumentFonts } from './composition/documents/useEditorDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { resolveAdjustmentPresentation } from './application/adjustments/resolveAdjustmentPresentation';
@@ -267,8 +268,6 @@ import {
   convertPointTextToParagraph
 } from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
-import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
-import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
 import {
   BUNDLED_TEXT_FONT_CATALOG,
   registerBundledTextFontsForDocument,
@@ -390,10 +389,6 @@ import {
   siblingLayers,
   walkLayerTree
 } from './editor/document/layerTree';
-import {
-  type FontAssetBlob,
-  type PreservedSourceAssetBlob
-} from './editor/persistence/layeredDocumentFormat';
 import { parseCubeLut } from './processing/colorLookupCube';
 import {
   imagePickerAccept
@@ -763,13 +758,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     () => hostPresentationDeactivateRef.current()
   );
   const hostPresentationActive = hostPresentationActivity.active;
-  const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
-  if (!documentSession && !standaloneFontRegistryRef.current) {
-    standaloneFontRegistryRef.current = new DocumentFontRegistry({
-      parser: new FontationsFontFaceParser()
-    });
-  }
-  const textFontRegistry = documentSession?.fonts ?? standaloneFontRegistryRef.current!;
+  const { registry: textFontRegistry, hydration: documentFontHydration,
+    availabilityRevision: fontAvailabilityRevision, resetForOpen: resetDocumentFontsForOpen
+  } = useEditorDocumentFonts(documentSession, workspaceDocumentId);
   const {
     history: commandHistory,
     tasks: taskRegistry,
@@ -857,15 +848,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetActiveAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => Promise<void>>(async () => undefined);
   const resetFaceWarpSessionRef = useRef<() => void>(() => undefined);
-  const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>(
-    [...(documentSession?.getSnapshot().loadedSource.preservedSources ?? [])]
-  );
-  const fontAssetsRef = useRef<FontAssetBlob[]>(
-    [...(documentSession?.getSnapshot().loadedSource.fontAssets ?? [])]
-  );
-  const [fontAvailabilityRevision, setFontAvailabilityRevision] = useState(0);
   const [fontHydrationPending, setFontHydrationPending] = useState(false);
-  const fontHydrationGenerationRef = useRef(0);
   const paintGestureRef = useRef(new PaintGestureController());
   const resetPaintSessionRef = useRef<() => void>(() => undefined);
   const selectionGestureRef = useRef(new SelectionGestureController());
@@ -1113,6 +1096,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  const loadedSourceScopeRef = useRef({ documentSession, workspaceDocumentId });
+  loadedSourceScopeRef.current = { documentSession, workspaceDocumentId };
+  const loadedSourceBinding = useMemo(() => new DocumentLoadedSourceBinding(documentSession, documentFontHydration, {
+    isCurrent: () => loadedSourceScopeRef.current.documentSession === documentSession
+      && loadedSourceScopeRef.current.workspaceDocumentId === workspaceDocumentId,
+    getDocument: () => imageDocumentRef.current,
+    metadata: setMetadata,
+    source: (name, blob, identity) => {
+      setSourceName(name); setSourceBlob(blob); setSourceIdentity(identity);
+    },
+    fontPending: setFontHydrationPending,
+    fontError: setError
+  }), [documentSession, documentFontHydration, workspaceDocumentId, imageDocumentRef, setError]);
+  useEffect(loadedSourceBinding.connect, [loadedSourceBinding]);
   const activePresentationRef = useRef(active);
   activePresentationRef.current = active;
   useEffect(() => {
@@ -1422,28 +1419,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingControllerRef.current?.finish();
   }, [paragraphTextController, pointTextController]);
 
-  const standaloneFontRegistryDisposalGenerationRef = useRef(0);
-  useEffect(() => {
-    standaloneFontRegistryDisposalGenerationRef.current += 1;
-    return () => {
-      // React StrictMode performs a synthetic setup/cleanup/setup cycle. A
-      // synchronous dispose here leaves that same mounted render holding a
-      // dead registry, which is especially visible when a video is the first
-      // document and the image editor surface never opens. Delay actual
-      // destruction until a microtask and cancel it when the overlay acquires
-      // the resource again during StrictMode replay.
-      const generation = ++standaloneFontRegistryDisposalGenerationRef.current;
-      queueMicrotask(() => {
-        if (standaloneFontRegistryDisposalGenerationRef.current !== generation) return;
-        standaloneFontRegistryRef.current?.dispose();
-        standaloneFontRegistryRef.current = null;
-      });
-    };
-  }, []);
 
   useEffect(() => {
     temporaryTool.clear();
-    fontHydrationGenerationRef.current += 1;
     pointTextCapabilityGenerationRef.current += 1;
     pathTextCreationTargetRef.current = null;
     pointTextController.cancel();
@@ -3378,60 +3356,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     publishDocument: (nextDocument: ImageDocument) => {
       imageDocumentRef.current = nextDocument;
-      // PSD sources are converted into native LightTable assets. The source
-      // file itself is not duplicated in the native document.
-      preservedSourceAssetsRef.current = [];
-      fontAssetsRef.current = [];
-      setFontHydrationPending(nextDocument.assets.fonts.length > 0);
       setImageDocument(nextDocument);
       setThumbnailDocumentReadyId(nextDocument.id);
     },
-    publishMetadata: (nextMetadata: LightTableImageMetadata) => {
-      setMetadata(nextMetadata);
-      documentSession?.updateLoadedSource((current) => ({
-        ...current,
-        metadata: nextMetadata
-      }));
-    },
-    publishBinaryAssets: (fontAssets: readonly FontAssetBlob[], preservedSources: readonly PreservedSourceAssetBlob[]) => {
-      fontAssetsRef.current = [...fontAssets];
-      preservedSourceAssetsRef.current = [...preservedSources];
-      documentSession?.updateLoadedSource((current) => ({
-        ...current,
-        fontAssets: [...fontAssets],
-        preservedSources: [...preservedSources]
-      }));
-      const hydrationGeneration = fontHydrationGenerationRef.current;
-      const hydrationDocumentId = imageDocumentRef.current?.id ?? null;
-      const hydrationRegistry = documentSession?.fonts ?? standaloneFontRegistryRef.current!;
-      const fontMetadata = imageDocumentRef.current?.assets.fonts ?? [];
-      void hydrateDocumentFonts(hydrationRegistry, fontAssets, fontMetadata).catch((reason) => {
-        if (
-          hydrationGeneration === fontHydrationGenerationRef.current
-          && hydrationDocumentId === imageDocumentRef.current?.id
-        ) setError(reason instanceof Error ? reason.message : 'Document fonts could not be loaded.');
-      }).finally(() => {
-        if (
-          hydrationGeneration === fontHydrationGenerationRef.current
-          && hydrationDocumentId === imageDocumentRef.current?.id
-        ) setFontHydrationPending(false);
-      });
-    },
+    publishMetadata: loadedSourceBinding.publishMetadata,
+    publishBinaryAssets: loadedSourceBinding.publishBinaryAssets,
     publishPsdImport: setPsdImportInfo,
     publishPsdCompatibility: (entries: readonly PsdImportCompatibilityEntry[]) =>
       setPsdCompatibility([...entries]),
     publishPsdDifference: setPsdDifferenceMetrics,
-    publishSource: (nextName: string, nextBlob: Blob, identity: string) => {
-      setSourceName(nextName);
-      setSourceBlob(nextBlob);
-      setSourceIdentity(identity);
-      documentSession?.updateLoadedSource((current) => ({
-        ...current,
-        name: nextName,
-        blob: nextBlob,
-        identity
-      }));
-    },
+    publishSource: loadedSourceBinding.publishSource,
     resetDocumentInteraction: () => {
       resetLensBlurDepth();
       setFocusPickerActive(false);
@@ -3464,7 +3398,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }), [
     clearEditorHistory,
     documentSession,
-    textFontRegistry,
+    loadedSourceBinding,
     publishAdjustmentPresentation,
     resetHistogram,
     resetLensBlurDepth,
@@ -3474,26 +3408,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setZoomMode
   ]);
 
-  useEffect(() => {
-    return textFontRegistry.subscribeAvailability(() => {
-      setFontAvailabilityRevision((revision) => revision + 1);
-    });
-  }, [textFontRegistry]);
-
   const beforeDocumentOpen = useCallback(() => {
     const startingGlobalGradeStrength = initialRecipe?.globalGradeStrength ?? 100;
     globalGradeStrengthRef.current = startingGlobalGradeStrength;
     setGlobalGradeStrengthState(startingGlobalGradeStrength);
     globalGradeStrengthGestureRef.current = null;
     finishTextEditingRef.current();
-    fontHydrationGenerationRef.current += 1;
-    if (!documentSession) {
-      standaloneFontRegistryRef.current?.dispose();
-      standaloneFontRegistryRef.current = new DocumentFontRegistry({
-        parser: new FontationsFontFaceParser()
-      });
-      setFontAvailabilityRevision((revision) => revision + 1);
-    }
+    resetDocumentFontsForOpen();
     resetDocumentOpenPresentation({
       initialAdjustments: initialRecipe?.settings,
       port: {
@@ -3502,17 +3423,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setStartupTimings(null);
           setLoading(true);
         },
-        resetSource: () => {
-          setSourceName(fileNameBase);
-          setSourceBlob(null);
-          setSourceIdentity('');
-        },
+        resetSource: () => loadedSourceBinding.resetPresentation(fileNameBase),
         resetDocument: () => {
-          setMetadata(null);
           imageDocumentRef.current = null;
-          preservedSourceAssetsRef.current = [];
-          fontAssetsRef.current = [];
-          setFontHydrationPending(false);
           setImageDocument(null);
           setThumbnailDocumentReadyId(null);
         },
@@ -3590,6 +3503,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     fileNameBase,
     initialRecipe,
+    loadedSourceBinding,
+    resetDocumentFontsForOpen,
     resetHistogram,
     resetLensBlurDepth,
     setEditorSession,
@@ -3613,18 +3528,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setScopeError(null);
     setGradeStatus(null);
 
-    const loaded = snapshot.loadedSource;
-    setMetadata(loaded.metadata ?? {
-      name: existingDocument.name,
-      width: existingDocument.width,
-      height: existingDocument.height,
-      contentType: snapshot.source.mediaType
-    });
-    setSourceName(loaded.name);
-    setSourceBlob(loaded.blob);
-    setSourceIdentity(loaded.identity);
-    fontAssetsRef.current = [...loaded.fontAssets];
-    preservedSourceAssetsRef.current = [...loaded.preservedSources];
+    loadedSourceBinding.presentExisting();
 
     const processing = snapshot.processing;
     // Restoring the active presentation is read-only with respect to the
@@ -3654,6 +3558,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setThumbnailDocumentReadyId(existingDocument.id);
   }, [
     documentSession,
+    loadedSourceBinding,
     publishAdjustmentPresentation,
     setImageDocument
   ]);
@@ -6947,7 +6852,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getGlobalGradeStrength: () => globalGradeStrengthRef.current,
-    getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
+    getPreservedSourceAssets: () => [...loadedSourceBinding.getPreservedSources()],
     getFontAssets: async () => {
       const embeddedFonts = imageDocumentRef.current?.assets.fonts
         .filter(({ source }) => source !== 'system') ?? [];

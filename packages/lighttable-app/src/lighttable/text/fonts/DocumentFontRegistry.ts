@@ -235,8 +235,10 @@ export class DocumentFontRegistry {
 
   async registerBytes(bytes: Uint8Array, registration: FontRegistration) {
     this.assertActive();
+    const generation = this.generation;
     this.assertByteLength(bytes.byteLength);
     const fingerprint = await fingerprintFontBytes(bytes);
+    this.assertGeneration(generation);
     if (
       registration.fingerprintSha256
       && registration.fingerprintSha256.toLowerCase() !== fingerprint
@@ -291,6 +293,7 @@ export class DocumentFontRegistry {
     if (!loaded) return null;
     this.assertByteLength(loaded.byteLength);
     const fingerprint = await fingerprintFontBytes(loaded);
+    this.assertGeneration(generation);
     if (fingerprint !== asset.fingerprintSha256) {
       throw new Error(`System font ${asset.assetId} changed after it was registered.`);
     }
@@ -323,7 +326,9 @@ export class DocumentFontRegistry {
       }
       this.parsedFaces.set(cacheKey, parsed);
       return parsed;
-    })().finally(() => this.parsePromises.delete(cacheKey));
+    })().finally(() => {
+      if (generation === this.generation) this.parsePromises.delete(cacheKey);
+    });
     this.parsePromises.set(cacheKey, request);
     return request;
   }
@@ -337,9 +342,21 @@ export class DocumentFontRegistry {
     return resolveFontRequest(this.availableAssets, request, style, substitutionFamilies);
   }
 
+  /** Starts a fresh embedded document without replacing runtime ports/listeners. */
+  reset() {
+    this.assertActive();
+    this.clearResources();
+    this.notifyAvailability();
+  }
+
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearResources();
+    this.availabilityListeners.clear();
+  }
+
+  private clearResources() {
     this.generation += 1;
     this.parsedFaces.forEach((face) => face.dispose?.());
     this.parsedFaces.clear();
@@ -347,7 +364,12 @@ export class DocumentFontRegistry {
     this.bytesByFingerprint.clear();
     this.assetsById.clear();
     this.byteLengthByFingerprint.clear();
-    this.availabilityListeners.clear();
+  }
+
+  private assertGeneration(generation: number) {
+    if (this.disposed || generation !== this.generation) {
+      throw new Error('The document font registry was disposed or reset while loading font bytes.');
+    }
   }
 
   private assertActive() {

@@ -1,6 +1,6 @@
 # Overlay composition-root cleanup
 
-Status: **executing; O02a/O02b accepted, wider O01/O02 open**.
+Status: **executing; O02a/b, O02c.1/2a and O03a/b accepted; O03c in progress**.
 Owner requested 2026-09-11.
 Checkpoint: `df000cc5` (`main`), before cleanup. No push requested.
 
@@ -154,6 +154,14 @@ class names: reuse existing owners before creating a new one.
     `O03B_PUBLICATION_ACCEPTANCE_REPORT.md`, including the unresolved pre-selection
     preview-read flake; this is not complete lifecycle/whole-app acceptance.
   - [ ] O03c: open/rebind/retire and disposal orchestration.
+    - [x] O03c.1: loaded-source publication and document font hydration lifetime.
+      Session-owned pending/error survives rebind; embedded runtime reset/disposal
+      is separate. Removed root font/source asset mirrors and async generation
+      policy. Critic PASS after two repairs; packaged native font-byte/final-PNG
+      roundtrip, tab rebind, Type/Path Text and layer/history passed.
+    - [ ] O03c.2: distinct new-source/published-source/rebind interaction resets.
+    - [ ] O03c.3: read-only processing restore, remaining presentation setup and
+      renderer/resource retirement wiring.
 - [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms
@@ -214,10 +222,12 @@ their own commit/cancel. A generic coordinator must not grow tool algorithms.
 4. Have a separate **read-only architecture critic** review ownership, lifetime,
    semantic equivalence, performance, deletion completeness and dependency size.
    Evaluate findings against evidence; do not apply suggestions mechanically.
-5. Repair round 1 if needed, rerun relevant proof, request re-review. Repeat once
-   for round 2 if needed. Record “not needed” honestly; do not manufacture edits.
-   Accepted P0/P1 still open after two rounds blocks the slice, not a third
-   unbounded repair loop or optimistic checkbox.
+5. Repair findings against evidence and rerun relevant proof/review; use two or
+   three rounds as needed. Owner continuation authorization (2026-09-11) replaces
+   the former two-round stop rule: resolve further bounded findings independently
+   and proceed to the next item. Do not stop solely at a round count or mark an
+   unresolved P0/P1 accepted. Escalate only a genuine missing choice/authority or
+   an impasse after safe alternatives; record “not needed” without invented edits.
 6. Record deleted responsibility, before/after line counts, dependency edges,
    test/build identity, real-flow evidence, timings, critic result and remaining
    risks. Commit the cohesive accepted extraction and ratchet its size ceiling.

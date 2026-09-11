@@ -120,6 +120,18 @@ must be decomposed along the stated owners, not moved wholesale.
 
 ## Baseline evidence and open inventory gate
 
+O03c.1 relocation: loaded-source publication/hydration callbacks ->
+DocumentLoadedSourceBinding; pending/error and late completion -> document-owned
+DocumentFontHydrationOwner; standalone registry construction/subscription/reset/
+deferred disposal -> useEditorDocumentFonts. Session source assets are read from
+canonical loadedSource at export; root write-only font mirror deleted. No new
+open controller or lifecycle manager. O03c.2 still owns the three distinct reset
+lists; O03c.3 still owns processing presentation restore and retirement wiring.
+Additional O08 observations: command-driver text replace1217ms exceeded its
+1000ms ceiling; outline/atlas ordinary previews are not byte-identical across
+native reopen. Final-output font PNG roundtrip is exact; do not conflate it with
+preview-purpose parity or use this evidence as a complete performance pass.
+
 Before code extraction, the existing fresh-checkpoint instrumented package ran
 the rectangle copy/paste/translate -> immediate Exposure scenario successfully:
 `tmp/transform-kernel-smoke/handoff-rectangle-translate-normal.json`.

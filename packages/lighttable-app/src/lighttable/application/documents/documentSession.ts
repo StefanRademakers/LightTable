@@ -20,6 +20,7 @@ import {
   type SystemFontByteProvider
 } from '../../text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from '../../text/fonts/FontationsFontFaceParser';
+import { DocumentFontHydrationOwner } from './DocumentFontHydrationOwner';
 import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import {
   createDefaultGroupVisibility,
@@ -179,6 +180,7 @@ export class DocumentSession {
   readonly history: DocumentCommandHistory;
   readonly tasks: DocumentTaskRegistry;
   readonly fonts: DocumentFontRegistry;
+  readonly fontHydration: DocumentFontHydrationOwner;
 
   private snapshot: DocumentSessionSnapshot;
   private startupTimeline: DocumentStartupTimeline | null = null;
@@ -200,7 +202,8 @@ export class DocumentSession {
       parser: new FontationsFontFaceParser(),
       systemProvider: options.systemFontProvider
     });
-    this.disposers.add(() => this.fonts.dispose());
+    this.fontHydration = new DocumentFontHydrationOwner(this.fonts);
+    this.disposers.add(() => { this.fontHydration.dispose(); this.fonts.dispose(); });
     this.snapshot = {
       id: options.id,
       source: { ...options.source },

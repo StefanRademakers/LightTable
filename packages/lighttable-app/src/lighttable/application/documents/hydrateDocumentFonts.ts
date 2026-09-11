@@ -6,9 +6,11 @@ import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry
 export const hydrateDocumentFonts = async (
   registry: DocumentFontRegistry,
   binaries: readonly FontAssetBlob[],
-  metadata: readonly DocumentFontAsset[]
+  metadata: readonly DocumentFontAsset[],
+  isCurrent: () => boolean = () => true
 ) => {
   await Promise.all(binaries.map(async (binary) => {
+    if (!isCurrent()) return;
     const faces = metadata.filter((asset) =>
       asset.fingerprintSha256 === binary.fingerprintSha256
     );
@@ -16,9 +18,8 @@ export const hydrateDocumentFonts = async (
     if (!first) return;
     faces.forEach((face) => registry.registerReference(face));
     const { byteLength: _byteLength, ...registration } = first;
-    await registry.registerBytes(
-      new Uint8Array(await binary.source.arrayBuffer()),
-      registration
-    );
+    const bytes = new Uint8Array(await binary.source.arrayBuffer());
+    if (!isCurrent()) return;
+    await registry.registerBytes(bytes, registration);
   }));
 };

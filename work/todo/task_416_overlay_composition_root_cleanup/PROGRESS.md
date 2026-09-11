@@ -1,5 +1,45 @@
 # Task 416 progress
 
+## O03c.1 — Loaded sources and document font hydration (accepted)
+
+- Ownership: DocumentLoadedSourceBinding writes loaded source data only inside
+  the existing prepared-source batch; existing-session restoration is read-only.
+  DocumentSession.fontHydration owns pending/error and exact load operation;
+  the mounted binding subscribes. useEditorDocumentFonts owns only embedded-host
+  resources and connects to session fonts without destroying them on tab change.
+- Deleted: Overlay's write-only fontAssetsRef, redundant preserved-source mirror
+  for session documents, font generation/promise callbacks, registry construction,
+  availability subscription and StrictMode disposal policy. 8,843 -> 8,748 lines.
+  No shader, hot-pointer work, new readback/wait or general command queue added.
+- Critic repair 1: retain pending/error across unmount; reject late registry
+  writes after both fingerprint awaits. Embedded reset keeps stable runtime ports.
+  Repair 2: re-project retained font errors after the generic rebind diagnostic
+  clear. Final independent source PASS. Controlled delayed Blob/digest tests and
+  runtime-factory StrictMode sequencing pass; the latter is not a mounted React test.
+- Proof: 309 focused/related tests across 56 files; app typecheck, boundary,
+  source-structure and fresh instrumented desktop package. Type Tool, Path Text
+  Actions, layer-history gesture and two font-source-lifecycle runs passed.
+  Native manifest font payloads match declared SHA-256/byte length; text, styles,
+  layout and transform survive reopen; final-output PNG pixels match exactly
+  before/after native reopen and across five real tab transitions. History and
+  canonical revision remain unchanged on rebind. Screenshots inspected.
+- Reports: tmp/font-source-lifecycle/report.json (+before/after/final.png),
+  tmp/type-tool-smoke/type-tool.json, tmp/layer-history-gesture/report.json.
+  Path Text harness prints completion and checks page errors; no JSON claim.
+  Latest font run: export253ms, reopen290ms, automated tab click-to-ready92–158ms.
+  These include driver/startup overhead, not input-latency or baseline-delta proof.
+- Known limits: initial ordinary preview comparison differed at glyph edges;
+  diagnostics show outline/cached versus atlas purposes. We did NOT raise a pixel
+  tolerance: the critic required existing final-output PNG export on both sides,
+  which passes exact equality. Cross-preview rendering parity remains separate.
+  Initial Inter family resolved a system font (intentionally not embedded);
+  the fixture now names the existing bundled asset explicitly to exercise real
+  native binary hydration. Harness schema/default-fixture mistakes were corrected.
+  Broad command-driver run stopped on text.replaceRange1217ms (>1000ms gate),
+  before native roundtrip; it remains a failed performance observation, not a pass.
+- Next: O03c.2 distinct interaction reset participants, then O03c.3. Whole
+  lifecycle/Overlay cleanup and WebGpuEngine decomposition remain unfinished.
+
 ## O02a — Escape precedence
 
 - Done: one application policy selects exactly one Escape participant in the

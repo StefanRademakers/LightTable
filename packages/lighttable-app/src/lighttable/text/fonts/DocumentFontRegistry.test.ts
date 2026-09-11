@@ -35,6 +35,35 @@ const setup = (overrides: Partial<ConstructorParameters<typeof DocumentFontRegis
 };
 
 describe('DocumentFontRegistry', () => {
+  it.each(['dispose', 'reset'] as const)('rejects register completion after %s during fingerprinting', async terminal => {
+    const { registry } = setup();
+    const digest = vi.spyOn(crypto.subtle, 'digest');
+    let finish!: (buffer: ArrayBuffer) => void;
+    digest.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = registry.registerBytes(new Uint8Array([1, 2, 3]), registration('late', 'Late'));
+    registry[terminal]();
+    finish(new Uint8Array(32).buffer);
+    await expect(pending).rejects.toThrow(/disposed or reset/);
+    expect(registry.assets).toEqual([]); expect(registry.byteSize).toBe(0);
+    digest.mockRestore(); registry.dispose();
+  });
+
+  it('rejects system font bytes after close during fingerprinting', async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const fingerprintSha256 = await fingerprintFontBytes(bytes);
+    const { registry } = setup({ systemProvider: { load: async () => bytes } });
+    registry.registerReference({ ...registration('system', 'System', { source: 'system' }),
+      fingerprintSha256, byteLength: bytes.length });
+    const digest = vi.spyOn(crypto.subtle, 'digest');
+    let finish!: (buffer: ArrayBuffer) => void;
+    digest.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = registry.bytes('system');
+    await Promise.resolve();
+    registry.dispose(); finish(new Uint8Array(32).buffer);
+    await expect(pending).rejects.toThrow(/disposed or reset/);
+    expect(registry.byteSize).toBe(0); digest.mockRestore();
+  });
+
   it('deduplicates immutable bytes by fingerprint while retaining distinct faces', async () => {
     const { registry } = setup();
     const bytes = new Uint8Array([0, 1, 2, 3, 4]);
