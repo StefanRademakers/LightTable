@@ -58,9 +58,13 @@ history, rendering or command-route work, read
 [Editor kernel migration](editor-kernel/README.md) and its routed contract
 before editing. Use the
 [kernel cut-over and codebase cleanup plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
-for the current acceptance evidence and remaining completion gates. Do not
-invent a parallel checklist or skip its independent critic, maximum two repair
-loops and packaged real-app proof.
+for earlier cut-over evidence. The owner-requested follow-up is now
+[Overlay composition-root cleanup](editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md)
+(Task 416, checkpoint `df000cc5`). That ledger governs integration-root cleanup;
+earlier checked migration boxes do not prove it complete. Do not invent another
+parallel checklist or skip its independent critic, maximum two repair loops
+and packaged real-app proof. Overlay must end as UI composition and explicit
+wiring only, without moving its authority into a replacement god object.
 
 The continuation rules are strict:
 

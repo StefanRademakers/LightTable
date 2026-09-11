@@ -101,6 +101,9 @@ for (const record of records.filter(({ kind }) => kind === 'handwritten')) {
       || !['low', 'medium', 'high'].includes(review.productRisk) || !review.decision) {
       failures.push(`${record.path} has an incomplete ownership review`);
     }
+    if (review.maxLines !== undefined && record.lines > review.maxLines) {
+      failures.push(`${record.path} exceeds its cleanup ceiling (${record.lines} > ${review.maxLines}); remove ownership rather than raising the ceiling`);
+    }
     if (record.lines > Math.ceil(review.baselineLines * baseline.growthReviewRatio)) {
       failures.push(`${record.path} grew ${Math.round((record.lines / review.baselineLines - 1) * 100)}% since ownership review; re-review responsibilities and lifecycle`);
     }

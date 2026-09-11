@@ -1,10 +1,12 @@
 # Editor kernel migration
 
-Status: **active production cut-over**, introduced 2026-09-08 and entering
-fallback removal on 2026-09-10. The cut-over ledger is the authority for whether
-an existing editor workflow is exclusively kernel-owned.
+Status: **supported production mutation architecture**, introduced 2026-09-08.
+The cut-over ledger records earlier exclusive-route evidence. The active
+integration cleanup is [Overlay composition-root cleanup](OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md),
+requested 2026-09-11 and executing from checkpoint `df000cc5`.
+Do not infer whole-app stability or composition-only roots from cut-over status.
 
-The kernel is the future semantic control plane for an edit. It coordinates a
+The kernel and its application owners form the semantic control plane for an edit. They coordinate a
 document-scoped transaction from validated command through preview, commit or
 cancel, history, resources and renderer invalidation. React is a UI adapter and
 WebGPU is a projection/execution adapter. Neither is canonical edit authority.
@@ -16,8 +18,9 @@ for a complete edit. A tool, React controller, document command and renderer can
 each mutate or restore part of the same operation. Local fixes then leave pixels,
 selection, layer affordances, history and GPU resources at different revisions.
 
-This package is built beside the legacy editor. It is not a repository-wide
-rewrite and it must not become a second partial mutation path.
+The package was introduced beside the old editor, but that is not an extension
+pattern. Only the supported kernel/application route may own an edit. Cleanup
+is not a repository-wide rewrite and must not create a second mutation path.
 
 ## Non-negotiable boundary
 
@@ -36,8 +39,10 @@ document/history   renderer/WebGPU/UI
 - The kernel contains no React, DOM, Electron or concrete WebGPU types.
 - UI, Action and MCP routes dispatch the same semantic command.
 - A migrated operation is kernel-owned from start to terminal state.
-- A legacy operation stays entirely legacy until its vertical slice passes.
-- Canonical state is serializable; GPU handles are disposable projections.
+- No legacy mutation fallback may be added or revived during cleanup.
+- Canonical semantic state is serializable; authored raster resources may hold
+  the only current pixels and are not disposable caches. Follow the explicit
+  ownership and history-retention rules in [Resource lifetime](RESOURCE_LIFETIME.md).
 - Preview never becomes a history entry and never replaces its baseline.
 - Commit or cancel reaches one terminal state and disposes temporary resources.
 
@@ -50,7 +55,9 @@ document/history   renderer/WebGPU/UI
 5. [Resource lifetime](RESOURCE_LIFETIME.md)
 6. [Render projection](RENDER_PROJECTION.md)
 7. [Layer capabilities](LAYER_CAPABILITIES.md)
-8. [Cut-over and codebase cleanup](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
+8. [Overlay composition-root cleanup](OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md),
+   with [earlier cut-over evidence](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
+   consulted when relevant, not treated as current acceptance.
 9. The relevant vertical-slice contract, beginning with
    [Selection](SELECTION_VERTICAL_SLICE.md) and
    [Layer finalization](LAYER_FINALIZATION_VERTICAL_SLICE.md).

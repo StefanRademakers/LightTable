@@ -71,5 +71,7 @@ changes; it does not claim complete revision/preview admission or redesign mask
 and derived-preview lifetime.
 
 This contract does not make `WebGpuEngine` a suitably small facade. Its remaining
-projection, diagnostics, readback and allocation authorities are C14 cleanup
-work; the resource-lifetime cut-over must not be used to justify further growth.
+projection, diagnostics, readback and allocation authorities remain cleanup
+work. The [composition-root follow-up](OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md)
+keeps that engine work explicitly separate (O09); the earlier C14 acceptance
+must not be used to call the engine decomposed or justify further growth.

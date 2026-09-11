@@ -101,6 +101,7 @@ import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnost
 import { useEditorNotifications } from './editor/notifications/useEditorNotifications';
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
+import { cancelActiveEditorOperation } from './application/interactions/cancelActiveEditorOperation';
 import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
 import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brushPresets';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
@@ -4284,47 +4285,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       fitZoom: workspaceViewControls?.onZoomFit ?? fitZoom,
       actualZoom: workspaceViewControls?.onZoomActual ?? actualZoom,
-      cancelActiveOperation: () => {
-        if (pendingFaceWarpDetectionForActiveLayer) {
-          cancelPendingFaceWarpDetection();
-          return;
-        }
-        if (toolOptionsMenu) {
-          setToolOptionsMenu(null);
-          return;
-        }
-        if (cropBounds) {
-          setCropBounds(null);
-          return;
-        }
-        if (textEditingController.getSnapshot().status === 'editing') {
-          textEditingController.finish();
-          return;
-        }
-        if (cancelParagraphTextRef.current()) return;
-        if (cancelPointTextRef.current()) return;
-        if (transformActiveRef.current()) {
-          cancelTransformRef.current();
-          return;
-        }
-        if (autoAlignPreview) {
-          cancelAutoAlignRef.current();
-          return;
-        }
-        if (warpSessionController.active) {
-          warpSessionController.reset();
-          return;
-        }
-        if (selectionSessionController.draft) {
-          selectionSessionController.reset();
-          return;
-        }
-        if (cancelPenPathRef.current()) return;
-        if (editorSession.selection.length) {
-          clearCurrentSelection();
-          return;
-        }
-      }
+      cancelActiveOperation: () => cancelActiveEditorOperation({
+        faceDetection: {
+          isActive: () => Boolean(pendingFaceWarpDetectionForActiveLayer),
+          cancel: cancelPendingFaceWarpDetection
+        },
+        toolMenu: { isActive: () => Boolean(toolOptionsMenu), cancel: () => setToolOptionsMenu(null) },
+        crop: { isActive: () => Boolean(cropBounds), cancel: () => setCropBounds(null) },
+        textEditing: {
+          isActive: () => textEditingController.getSnapshot().status === 'editing',
+          cancel: () => textEditingController.finish()
+        },
+        cancelParagraphCreation: () => cancelParagraphTextRef.current(),
+        cancelPointCreation: () => cancelPointTextRef.current(),
+        transform: { isActive: () => transformActiveRef.current(), cancel: () => cancelTransformRef.current() },
+        autoAlign: { isActive: () => Boolean(autoAlignPreview), cancel: () => cancelAutoAlignRef.current() },
+        warp: { isActive: () => warpSessionController.active, cancel: () => warpSessionController.reset() },
+        selectionDraft: {
+          isActive: () => Boolean(selectionSessionController.draft), cancel: () => selectionSessionController.reset()
+        },
+        cancelPenPath: () => cancelPenPathRef.current(),
+        selection: { isActive: () => editorSession.selection.length > 0, cancel: clearCurrentSelection }
+      })
     },
     temporaryPanActive: () => temporaryToolRef.current.activeTool === 'view',
     releaseTemporaryPan: () => {

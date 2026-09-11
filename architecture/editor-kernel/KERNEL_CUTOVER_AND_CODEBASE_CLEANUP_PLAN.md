@@ -1,6 +1,13 @@
 # Editor-kernel cut-over and codebase cleanup
 
-Status: **active execution authority**. Started 2026-09-10.
+Status: **earlier cut-over evidence ledger**. Started 2026-09-10.
+
+Follow-up 2026-09-11: the owner requested
+[Overlay composition-root cleanup](OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md).
+It is the active execution ledger for remaining integration ownership, starting
+at checkpoint `df000cc5`. The accepted milestones below record their scoped
+evidence; they do not prove that the large roots are composition-only or that
+all user workflows are stable. Do not carry these checkmarks into the new plan.
 
 This plan closes the editor-kernel transition. It replaces the incremental
 rule that kept a complete legacy route beside an accepted kernel route. The
