@@ -70,7 +70,7 @@ import type { VectorToolSessionController } from '../../application/vectors/Vect
 import type { RasterGradientCommandController } from '../../application/tools/gradient/RasterGradientCommandController';
 import { isVectorEditorTool } from '../tools/vectorToolCatalog';
 import { routeFreehandPointerMove } from './routeFreehandPointerMove';
-import { clampEdgePanDelta, edgePanVelocity } from '../interaction/edgePan';
+import { MarqueeEdgePanController } from '../../application/input/MarqueeEdgePanController';
 
 interface ViewportSize {
   width: number;
@@ -80,26 +80,6 @@ interface ViewportSize {
 interface ViewportBounds {
   readonly left: number;
   readonly top: number;
-}
-
-interface MarqueeEdgePanState {
-  readonly pointerId: number;
-  clientX: number;
-  clientY: number;
-  bounds: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  };
-  imageRect: Rect;
-  point: BrushPoint;
-  readonly scale: number;
-  readonly repositionDraft: boolean;
-  readonly marqueeModifiers?: { constrainAspect: boolean; fromCenter: boolean };
-  readonly constrainTranslation: boolean;
-  lastFrameMs: number;
-  readonly owner: ViewportFrameOwner;
 }
 
 interface ViewportInteractionOptions {
@@ -295,12 +275,18 @@ export const useViewportInteractionController = ({
     ready: boolean;
     ended: boolean | null;
   } | null>(null);
-  const marqueeEdgePanRef = useRef<MarqueeEdgePanState | null>(null);
-  const marqueeEdgePanFrameRef = useRef<number | null>(null);
-  const interactionImageRectRef = useRef(imageRect);
-  if (!marqueeEdgePanRef.current) interactionImageRectRef.current = imageRect;
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const setZoomModeRef = useRef(setZoomMode);
+  setZoomModeRef.current = setZoomMode;
+  const marqueeEdgePanControllerRef = useRef<MarqueeEdgePanController | null>(null);
+  marqueeEdgePanControllerRef.current ??= new MarqueeEdgePanController(imageRect, {
+    isOwnerCurrent: (owner) => viewportPresentation.isCurrent(owner),
+    moveSelection: (...args) => { selectionRef.current.move(...args); },
+    setCustomZoomMode: () => setZoomModeRef.current('custom')
+  });
+  const marqueeEdgePan = marqueeEdgePanControllerRef.current;
+  marqueeEdgePan.setImageRect(imageRect);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastBrushPointRef = useRef<BrushPoint | null>(null);
   const textClickCounterRef = useRef<PointerClickCounter | null>(null);
@@ -319,83 +305,7 @@ export const useViewportInteractionController = ({
     if (effectiveTool !== 'vector-pen') onPenEditingOverlayChangeRef.current(null);
   }, [effectiveTool]);
   const stopMarqueeEdgePan = (pointerId?: number) => {
-    if (pointerId !== undefined && marqueeEdgePanRef.current?.pointerId !== pointerId) return;
-    if (marqueeEdgePanFrameRef.current !== null) {
-      cancelAnimationFrame(marqueeEdgePanFrameRef.current);
-      marqueeEdgePanFrameRef.current = null;
-    }
-    marqueeEdgePanRef.current = null;
-  };
-
-  const runMarqueeEdgePanFrame = (frameMs: number) => {
-    marqueeEdgePanFrameRef.current = null;
-    const state = marqueeEdgePanRef.current;
-    if (!state) return;
-    if (!viewportPresentation.isCurrent(state.owner)) {
-      stopMarqueeEdgePan(state.pointerId);
-      return;
-    }
-
-    const elapsedMs = Math.min(Math.max(frameMs - state.lastFrameMs, 0), 32);
-    state.lastFrameMs = frameMs;
-    const velocityX = edgePanVelocity(state.clientX, state.bounds.left, state.bounds.width);
-    const velocityY = edgePanVelocity(state.clientY, state.bounds.top, state.bounds.height);
-    if (velocityX === 0 && velocityY === 0) {
-      marqueeEdgePanRef.current = null;
-      return;
-    }
-    // A callback may still belong to the frame in which it was requested.
-    // Keep that zero-duration frame alive; the next display frame will carry
-    // real elapsed time and start moving the viewport.
-    if (elapsedMs === 0) {
-      marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
-      return;
-    }
-    const elapsedSeconds = elapsedMs / 1_000;
-    const requestedX = velocityX * elapsedSeconds;
-    const requestedY = velocityY * elapsedSeconds;
-    const deltaX = clampEdgePanDelta(
-      requestedX,
-      state.imageRect.x,
-      state.imageRect.width,
-      state.bounds.width
-    );
-    const deltaY = clampEdgePanDelta(
-      requestedY,
-      state.imageRect.y,
-      state.imageRect.height,
-      state.bounds.height
-    );
-
-    if (deltaX === 0 && deltaY === 0) {
-      marqueeEdgePanRef.current = null;
-      return;
-    }
-
-    state.imageRect = {
-      ...state.imageRect,
-      x: state.imageRect.x + deltaX,
-      y: state.imageRect.y + deltaY
-    };
-    interactionImageRectRef.current = state.imageRect;
-    state.point = {
-      ...state.point,
-      x: state.point.x - deltaX / Math.max(state.scale, 1e-6),
-      y: state.point.y - deltaY / Math.max(state.scale, 1e-6)
-    };
-    state.owner.setView((current) => ({
-      ...current,
-      panX: current.panX + deltaX,
-      panY: current.panY + deltaY
-    }));
-    selectionRef.current.move(
-      state.pointerId,
-      state.point,
-      state.repositionDraft,
-      state.marqueeModifiers,
-      state.constrainTranslation
-    );
-    marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
+    marqueeEdgePan.stop(pointerId);
   };
 
   const updateMarqueeEdgePan = (
@@ -403,37 +313,7 @@ export const useViewportInteractionController = ({
     bounds: DOMRect,
     point: BrushPoint
   ) => {
-    if (
-      editorSession.activeTool !== 'select-rectangle'
-      && editorSession.activeTool !== 'select-ellipse'
-    ) {
-      stopMarqueeEdgePan(event.pointerId);
-      return;
-    }
-    const velocityX = edgePanVelocity(event.clientX, bounds.left, bounds.width);
-    const velocityY = edgePanVelocity(event.clientY, bounds.top, bounds.height);
-    if (velocityX === 0 && velocityY === 0) {
-      stopMarqueeEdgePan(event.pointerId);
-      return;
-    }
-    const marqueeModifiers = editorSession.selection.length === 0
-      && editorSession.selectionCombineMode === 'replace'
-      ? { constrainAspect: event.shiftKey, fromCenter: event.altKey }
-      : undefined;
-    const current = marqueeEdgePanRef.current;
-    if (current?.pointerId === event.pointerId) {
-      current.clientX = event.clientX;
-      current.clientY = event.clientY;
-      current.bounds = {
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height
-      };
-      current.point = point;
-      return;
-    }
-    marqueeEdgePanRef.current = {
+    marqueeEdgePan.update({
       pointerId: event.pointerId,
       clientX: event.clientX,
       clientY: event.clientY,
@@ -443,21 +323,17 @@ export const useViewportInteractionController = ({
         width: bounds.width,
         height: bounds.height
       },
-      imageRect: { ...interactionImageRectRef.current },
       point,
+      activeTool: editorSession.activeTool,
+      selectionEmpty: editorSession.selection.length === 0,
+      combineMode: editorSession.selectionCombineMode,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
       scale: activeScale,
       repositionDraft: temporaryPan,
-      ...(marqueeModifiers ? { marqueeModifiers } : {}),
-      constrainTranslation: event.shiftKey,
-      lastFrameMs: performance.now(),
       owner: viewportFrameOwner
-    };
-    if (marqueeEdgePanFrameRef.current === null) {
-      setZoomMode('custom');
-      marqueeEdgePanFrameRef.current = requestAnimationFrame(runMarqueeEdgePanFrame);
-    }
+    });
   };
-
   useLayoutEffect(() => {
     // A workspace tab can replace the document-owned setter without
     // unmounting this hook. Commit and clear every transient owner before the
@@ -476,6 +352,7 @@ export const useViewportInteractionController = ({
   useEffect(() => () => {
     stopMarqueeEdgePan();
     viewportPresentation.dispose();
+    marqueeEdgePan.dispose();
     viewportPresentationRef.current = null;
   }, []);
 
@@ -540,7 +417,7 @@ export const useViewportInteractionController = ({
         { x: sample.clientX, y: sample.clientY },
         { x: bounds.left, y: bounds.top }
       ),
-      interactionImageRectRef.current,
+      marqueeEdgePan.currentImageRect,
       activeScale,
       metadata,
       normalizePointerPressure(sample.pressure, sample.pointerType),

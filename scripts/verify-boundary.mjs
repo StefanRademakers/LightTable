@@ -548,16 +548,25 @@ function verifyTextCutover(relativePath, source) {
       || !source.includes('const editingLayout = renderer?.currentTextEditingLayout(layerId)')) {
       failures.push(`${relativePath}: text geometry gestures must begin from exact current renderer layouts`);
     }
-    if (!source.includes('new DocumentTextPropertyGestureController(transaction')) {
-      failures.push(`${relativePath}: document text-property gestures must use frame-coalesced transaction projection`);
+    if (!source.includes('new TextPropertyGestureController(')) {
+      failures.push(`${relativePath}: text-property gestures must delegate their complete lifetime to the application owner`);
     }
-    if (!source.includes('runAfterTextEditingTerminal(textEditingController')
+    if (!source.includes('textPropertyGestureController.finishBeforeTransition(')
       || !source.includes('onActiveDocumentChange={activateWorkspaceDocument}')
       || !source.includes('closeActiveDocument: () => closeWorkspaceDocument(workspaceDocumentId)')
       || !source.includes('closeWorkspaceDocument(workspaceDocument.id)')
       || source.includes('onActivateWorkspaceDocument(nextDocument.id)')
       || source.includes('onActivateWorkspaceDocument?.(workspaceDocument.id)')) {
-      failures.push(`${relativePath}: workspace activation must cross the text-edit terminal boundary`);
+      failures.push(`${relativePath}: workspace activation must cross the complete text-property terminal owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/TextPropertyGestureController.ts')) {
+    if (!source.includes('new DocumentTextPropertyGestureController(transaction')
+      || !source.includes('this.pendingPaintPatch = patch;')
+      || !source.includes("dependencies.recordObservedCommand('text.format'")
+      || !source.includes('gesture.projection.cancel()')
+      || !source.includes('finishBeforeTransition(transition: () => void)')) {
+      failures.push(`${relativePath}: text-property gesture owner must retain coalesced projection, semantic observation and cancel`);
     }
   }
   if (normalizedPath.endsWith('/application/text/FlowTextEditingRuntime.tsx')) {

@@ -22,18 +22,11 @@ import {
   TransformController,
   type TransformRendererPort
 } from './transformController';
-import {
-  duplicateLayer,
-  setLayerTransform
-} from '../../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../../editor/document/layerTree';
 import {
   matrixApproximatelyEqual,
   multiplyMatrices,
   identityMatrix,
-  aroundPoint,
-  rotationMatrix,
-  scaleMatrix,
   transformedBounds
 } from '../../../editor/tools/transform/affine';
 import {
@@ -58,6 +51,13 @@ import {
   type TransformSelectionPublicationBinding
 } from './TransformPublicationOwner';
 import { AuxiliaryTransformSessionOwner } from './AuxiliaryTransformSessionOwner';
+import {
+  fixedTransformDelta,
+  repeatLayerTransform,
+  type FixedTransformOperation
+} from './fixedTransformCommands';
+
+export type { FixedTransformOperation } from './fixedTransformCommands';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -136,10 +136,6 @@ export interface TransformSessionController {
   setDuplicate(duplicate: boolean): void;
   applyFixed(operation: FixedTransformOperation): Promise<FixedTransformTarget | null>;
 }
-
-export type FixedTransformOperation =
-  | 'rotate-180' | 'rotate-clockwise-90' | 'rotate-counter-clockwise-90'
-  | 'flip-horizontal' | 'flip-vertical';
 
 export type FixedTransformTarget = 'selection' | 'mask' | 'layer' | 'layer-group';
 
@@ -684,16 +680,7 @@ export const useTransformSessionController = (
     const target: FixedTransformTarget = auxiliaryOwnerRef.current?.kind === 'mask'
       ? 'mask'
       : auxiliaryOwnerRef.current?.kind === 'group' ? 'layer-group' : active?.sourceKind ?? 'layer';
-    const pivot = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
-    const delta = aroundPoint(
-      operation === 'rotate-180' ? rotationMatrix(Math.PI)
-        : operation === 'rotate-clockwise-90' ? rotationMatrix(Math.PI / 2)
-          : operation === 'rotate-counter-clockwise-90' ? rotationMatrix(-Math.PI / 2)
-            : operation === 'flip-horizontal' ? scaleMatrix(-1, 1)
-              : scaleMatrix(1, -1),
-      pivot
-    );
-    update(delta);
+    update(fixedTransformDelta(operation, bounds));
     await finish(true);
     dependenciesRef.current.setStatus(operation.startsWith('rotate') ? 'Layer rotated' : 'Layer flipped');
     return target;
@@ -736,17 +723,7 @@ export const useTransformSessionController = (
       return;
     }
     const changed = current.documentMutations.change(
-      (before) => {
-        if (!before.activeLayerId) return before;
-        const withTarget = duplicate ? duplicateLayer(before, before.activeLayerId) : before;
-        const target = findDocumentLayer(withTarget, withTarget.activeLayerId);
-        if (!target) return before;
-        return setLayerTransform(
-          withTarget,
-          target.id,
-          multiplyMatrices(delta, target.transform)
-        );
-      },
+      (before) => repeatLayerTransform(before, delta, duplicate),
       true,
       {
         label: duplicate ? 'Duplicate and Transform Again' : 'Transform Again',

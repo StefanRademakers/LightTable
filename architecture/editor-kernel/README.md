@@ -55,9 +55,9 @@ document/history   renderer/WebGPU/UI
    [Selection](SELECTION_VERTICAL_SLICE.md) and
    [Layer finalization](LAYER_FINALIZATION_VERTICAL_SLICE.md).
 
-`MIGRATION_PLAYBOOK.md`, `MIGRATION_STATUS.md` and
-`STABILIZATION_EXECUTION_LEDGER.md` are superseded evidence records. They must
-not be used as extension guidance and are scheduled for deletion in C14.
+Superseded migration playbooks, status ledgers and interim assessments were
+deleted in C14. Git history is the only archive for those transition records;
+they are not valid extension guidance.
 
 ## Package-shape rule
 

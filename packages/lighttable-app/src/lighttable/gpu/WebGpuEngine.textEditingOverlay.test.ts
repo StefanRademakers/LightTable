@@ -1,6 +1,7 @@
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { describe, expect, it, vi } from 'vitest';
 import { WebGpuEngine } from './WebGpuEngine';
+import { DocumentEditingOverlayState } from './DocumentEditingOverlayState';
 
 const overlay: TextEditingOverlay = {
   layerId: 'text', resourceKey: 'text:layout:0:0', quads: [], lines: [], markers: []
@@ -11,8 +12,7 @@ describe('WebGpuEngine text editing overlay presentation', () => {
     const invalidate = vi.fn();
     const requestRender = vi.fn();
     const engine = {
-      textEditingOverlay: null,
-      textCaretVisible: true,
+      editingOverlays: new DocumentEditingOverlayState(),
       renderDirty: { invalidate },
       requestRender
     } as unknown as WebGpuEngine;

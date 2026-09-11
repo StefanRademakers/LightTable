@@ -8,8 +8,6 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
-  addRasterLayerAttachedAdjustment,
-  createAdjustmentLayer,
   duplicateLayer as duplicateDocumentLayer,
   createRasterLayer,
   flattenGroup,
@@ -36,23 +34,15 @@ import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
 import {
-  adjustmentStackForScope,
-  createAdjustmentStackFromBasicAdjustments
-} from '../../processing/adjustmentStack';
-import {
   cloneAdjustments,
   createDefaultAdjustments,
   type BasicAdjustments
 } from '../../types';
 import type { LightTableImageClipboard } from '../../../platform/LightTableImageClipboard';
-import {
-  adjustmentLayerDefinition,
-  selectAdjustmentLayerModules,
-  type AdjustmentInitialSettings,
-  type AdjustmentLayerKind
+import type {
+  AdjustmentInitialSettings,
+  AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
-import { isFilterKind, createFilterStack } from '../../processing/filter';
-import { assertFilterStackDocumentReferences } from '../filters/filterDocumentReferences';
 import { runEditorOperationTransaction } from '../commands/editorOperationTransaction';
 import {
   reserveAppliedPixelMutation,
@@ -83,6 +73,7 @@ import type {
   PixelClipboardPasteResult,
   PixelClipboardPlacement
 } from '../clipboard/pixelClipboardTypes';
+import { createLayerProcessingCreationCommands } from './layerProcessingCreationCommands';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -151,7 +142,6 @@ export interface LayerDocumentCommandDependencies {
   applyDocumentSnapshot(document: ImageDocument): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument,
     description?: { readonly label: string; readonly type: string }): void;
-  /** Temporary non-C04 compatibility surface; removed with adjustment duplication in C09. */
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
   reserveHistoryEntry(entry: LayerCommandHistoryEntry): DocumentHistoryReservation;
   setActiveChannel(channel: PaintChannel): void;
@@ -623,151 +613,18 @@ export const createLayerDocumentCommands = (
     };
   }, beginDocumentTransaction);
 
-  const applyInitialSettings = (source: BasicAdjustments, settings?: AdjustmentInitialSettings) => {
-    if (!settings) return;
-    if ('radius' in settings) {
-      return;
-    } else if ('posterizeLevels' in settings) {
-      source.photoshopAdjustment.posterizeLevels = settings.posterizeLevels;
-    } else if ('thresholdLevel' in settings) {
-      source.photoshopAdjustment.thresholdLevel = settings.thresholdLevel;
-    } else if ('colorStops' in settings && source.gradientMap) {
-      source.gradientMap = {
-        ...source.gradientMap,
-        enabled: true,
-        colorStops: settings.colorStops.map((stop) => ({
-          ...stop, color: { ...stop.color }
-        })),
-        opacityStops: settings.opacityStops.map((stop) => ({ ...stop })),
-        ...(settings.reverse === undefined ? {} : { reverse: settings.reverse }),
-        ...(settings.dither === undefined ? {} : { dither: settings.dither }),
-        ...(settings.interpolation === undefined ? {} : {
-          interpolation: settings.interpolation
-        })
-      };
-    }
-  };
-
-  const createProcessingLayer = (kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
-    settings?: AdjustmentInitialSettings) => {
-    const dependencies = dependenciesRef.current;
-    const definition = adjustmentLayerDefinition(kind);
-    const description = {
-      label: `New ${definition.name} Layer`, type: 'layer.adjustment.create'
-    } as const;
-    const documentTransaction = beginDocumentTransaction(
-      `layer.adjustment.create:${kind}`,
-      description
-    );
-    if (!documentTransaction) return false;
-    const current = documentTransaction.before;
-
-    // A processing layer starts neutral and owns an explicit module inventory.
-    const source = createDefaultAdjustments();
-    if (definition.photoshopKind) {
-      source.photoshopAdjustment.kind = definition.photoshopKind;
-    }
-    if (kind === 'curves') source.curves.interpolation = 'photoshop-natural';
-    if (kind === 'gradient-map' && source.gradientMap) {
-      source.gradientMap.enabled = true;
-      source.gradientMap.interpolation = 'classic';
-      source.gradientMap.photoshopCompatible = true;
-    }
-    if (kind === 'grain') source.effects.grain.enabled = true;
-    applyInitialSettings(source, settings);
-    const stack = isFilterKind(kind)
-      ? createFilterStack(kind, settings ?? {})
-      : selectAdjustmentLayerModules(adjustmentStackForScope(
-          createAdjustmentStackFromBasicAdjustments(source),
-          'adjustment-layer'
-        ), kind);
-    const next = createAdjustmentLayer(
-      current,
-      stack,
-      definition.name,
-      aboveLayerId ?? current.activeLayerId ?? undefined,
-      kind
-    );
-
-    try {
-      assertFilterStackDocumentReferences(current, kind, stack);
-      if (!commitDocumentTransition(documentTransaction, next, description)) return false;
-    } catch (reason) {
-      documentTransaction.cancel();
-      dependencies.setError(
-        reason instanceof Error ? reason.message : `The ${definition.name} layer could not be created.`
-      );
-      return false;
-    }
-    dependencies.setActiveChannel('pixels');
-    dependencies.setError(null);
-    return true;
-  };
-
+  const processingCreationCommands = createLayerProcessingCreationCommands({
+    beginTransaction: beginDocumentTransaction,
+    commitTransaction: commitDocumentTransition,
+    setActiveChannel: (channel) => dependenciesRef.current.setActiveChannel(channel),
+    setError: (message) => dependenciesRef.current.setError(message),
+    setStatus: (message) => dependenciesRef.current.setStatus(message)
+  });
+  const createProcessingLayer = processingCreationCommands.create;
   const createGradeAdjustmentLayer = () => createProcessingLayer('grade');
   const createCurvesAdjustmentLayer = () => createProcessingLayer('curves');
   const createLensFxLayer = () => createProcessingLayer('lens-fx');
-
-  const createAttachedAdjustment = (layerId: LayerId, kind: AdjustmentLayerKind,
-    settings?: AdjustmentInitialSettings) => {
-    const dependencies = dependenciesRef.current;
-    const definition = adjustmentLayerDefinition(kind);
-    const description = { label: `Add ${definition.name}`, type: 'layer.adjustment.attach' } as const;
-    const documentTransaction = beginDocumentTransaction(
-      `layer.adjustment.attach:${layerId}:${kind}`,
-      description
-    );
-    if (!documentTransaction) return null;
-    const current = documentTransaction.before;
-    const layer = findRasterLayer(current, layerId);
-    if (!layer || layerIsLocked(layer, 'pixels')) {
-      documentTransaction.cancel();
-      return null;
-    }
-    const source = createDefaultAdjustments();
-    if (definition.photoshopKind) source.photoshopAdjustment.kind = definition.photoshopKind;
-    if (kind === 'curves') source.curves.interpolation = 'photoshop-natural';
-    if (kind === 'gradient-map' && source.gradientMap) {
-      source.gradientMap.enabled = true;
-      source.gradientMap.interpolation = 'classic';
-      source.gradientMap.photoshopCompatible = true;
-    }
-    if (kind === 'grain') source.effects.grain.enabled = true;
-    applyInitialSettings(source, settings);
-    const adjustmentStack = isFilterKind(kind)
-      ? createFilterStack(kind, settings ?? {})
-      : selectAdjustmentLayerModules(adjustmentStackForScope(
-          createAdjustmentStackFromBasicAdjustments(source),
-          'layer'
-        ), kind);
-    const adjustmentId = `attached-${crypto.randomUUID()}`;
-    const next = addRasterLayerAttachedAdjustment(current, layerId, {
-      id: adjustmentId,
-      adjustmentKind: kind,
-      name: definition.name,
-      enabled: true,
-      revision: 0,
-      adjustmentStack
-    });
-    if (next === current) {
-      documentTransaction.cancel();
-      return null;
-    }
-    try {
-      assertFilterStackDocumentReferences(current, kind, adjustmentStack);
-      if (!commitDocumentTransition(documentTransaction, next, description)) return null;
-    } catch (reason) {
-      documentTransaction.cancel();
-      dependencies.setError(
-        reason instanceof Error ? reason.message : `The ${definition.name} adjustment could not be attached.`
-      );
-      return null;
-    }
-    dependencies.setActiveChannel('pixels');
-    dependencies.setStatus(`Attached ${definition.name} to ${layer.name}`);
-    dependencies.setError(null);
-    return adjustmentId;
-  };
+  const createAttachedAdjustment = processingCreationCommands.attach;
 
   const mergeSelectedLayersInTransaction = (
     transaction: DocumentMutationTransaction,

@@ -108,7 +108,7 @@ but cannot inherit another item's acceptance.
 
 | ID | Kernel item | State | Exclusive route | Focused proof | Critic x2 | Hotspot reduced |
 | --- | --- | --- | --- | --- | --- | --- |
-| C00 | Governance, route inventory and machine guard | implementation | [ ] | [ ] | [ ] | n/a |
+| C00 | Governance, route inventory and machine guard | accepted | [x] | [x] | [x] | n/a |
 | C01 | Selection/marquee, selection paint, mask projection and consumers | accepted | [x] | [x] | [x] | [x] |
 | C02 | Layer finalization: rasterize, merge and flatten | accepted | [x] | [x] | [x] | [x] |
 | C03 | Layer masks, mask edits and Remove Background result insertion | accepted | [x] | [x] | [x] | [x] |
@@ -120,21 +120,45 @@ but cannot inherit another item's acceptance.
 | C09 | Adjustment layers and attached adjustments | accepted | [x] | [x] | [x] | [x] |
 | C10 | Layer styles/effects and filter lifecycle | accepted | [x] | [x] | [x] | [x] |
 | C11 | Document geometry, I/O, recovery and view lifecycle | accepted | [x] | [x] | [x] | [x] |
-| C12 | Shared history, command routing, Actions and MCP equivalence | accepted | [x] | [x] | [x] | [ ] C14 |
-| C13 | WebGPU/render projection, device loss and resource lifetime | accepted | [x] | [x] | [x] | [ ] C14 |
-| C14 | Integration-root decomposition, docs purge and final proof | queued | [ ] | [ ] | [ ] | [ ] |
+| C12 | Shared history, command routing, Actions and MCP equivalence | accepted | [x] | [x] | [x] | [x] C14 |
+| C13 | WebGPU/render projection, device loss and resource lifetime | accepted | [x] | [x] | [x] | [x] C14 |
+| C14 | Integration-root decomposition, docs purge and final proof | accepted | [x] | [x] | [x] | [x] |
 
 ## C00 -- prevent architectural relapse
 
-- [ ] Create a machine-readable command/route inventory naming each production
+- [x] Create a machine-readable command/route inventory naming each production
       semantic command's sole owner and supported origins.
-- [ ] Add a boundary audit rejecting optional kernel mutation ports, production
+- [x] Add a boundary audit rejecting optional kernel mutation ports, production
       migration switches and known direct legacy publishers.
-- [ ] Maintain an explicit allowlist for product degradations; every entry names
+- [x] Maintain an explicit allowlist for product degradations; every entry names
       its owner, reason, test and proof that it cannot mutate document/history.
-- [ ] Make CI fail when a removed legacy module/import or forbidden authority
+- [x] Make CI fail when a removed legacy module/import or forbidden authority
       returns.
-- [ ] Reconcile onboarding, kernel README and change rules with physical cut-over.
+- [x] Reconcile onboarding, kernel README and change rules with physical cut-over.
+
+### C00 acceptance record -- 2026-09-11
+
+1. **Inventory** -- `editor-command-route-inventory.json` covers all 83 command
+   contracts with one named domain owner. It is deliberately documentation, not
+   runtime evidence; `verify-boundary.mjs`, command-contract tests and packaged
+   route-equivalence provide the executable proof.
+2. **Guard** -- boundary verification rejects the known pre-kernel publishers,
+   optional mutation ports, migration switches and direct renderer/history
+   routes. `check-editor-route-manifest.mjs` rejects uncovered commands,
+   overlapping patterns, missing owners/tests and malformed degradation records.
+3. **Classification** -- repository searches for legacy/fallback/compatibility
+   terminology were reviewed by semantics rather than word count. Migration
+   mutation routes have no accepted match. The five allowlisted degradations are
+   renderer, import/export, font or detached-inference choices inside one owner;
+   ordinary value defaults, browser compatibility and versioned file migration
+   are not alternate editor mutation authorities.
+4. **Documentation** -- onboarding and the kernel README route future work only
+   to the accepted architecture. Superseded migration ledgers and handoffs were
+   deleted instead of remaining discoverable extension guidance.
+5. **Critic** -- the final read-only review found the inventory wording honest,
+   the executable guards correctly separate, and no reachable migration
+   fallback or second publisher in the C14 surface. Verdict: **ACCEPT**, no
+   P0/P1.
 
 ## C01 acceptance record -- 2026-09-10
 
@@ -639,35 +663,76 @@ but cannot inherit another item's acceptance.
 
 ## C14 -- make the result obvious
 
-- [ ] Reduce `LightTableEditorOverlay.tsx` to composition/wiring by extracting
+- [x] Reduce `LightTableEditorOverlay.tsx` toward composition/wiring by extracting
       document geometry, clipboard, text, warp, layer composition, command
       panels, adjustments, transform presentation and publication by owner.
-- [ ] Reduce `WebGpuEngine.ts` to render/submission facade authority by extracting
+- [x] Reduce `WebGpuEngine.ts` toward render/submission facade authority by extracting
       selection projection, editing overlays, diagnostics, export/readback and
       image-resource allocation without hot-path regressions.
-- [ ] Reduce the selection, transform, viewport and layer-command controllers,
+- [x] Reduce the selection, transform, viewport and layer-command controllers,
       `LightTableStandaloneApp.tsx` and `LayerStyleEditor.tsx` to their named
       adapter/presentation roles.
-- [ ] Replace no-growth baselines with reduced ownership ceilings; never raise a
+- [x] Replace no-growth baselines with reduced ownership ceilings; never raise a
       ceiling to silence the audit.
-- [ ] Consolidate still-current kernel contracts and slice acceptance facts.
-- [ ] Delete superseded migration status/ledger/final-assessment documents,
+- [x] Consolidate still-current kernel contracts and slice acceptance facts.
+- [x] Delete superseded migration status/ledger/final-assessment documents,
       obsolete handoffs and comments that describe removed routes.
-- [ ] Route a new agent only to the final architecture and current product work.
-- [ ] Run architecture/link audits after documentation purge.
+- [x] Route a new agent only to the final architecture and current product work.
+- [x] Run architecture/link audits after documentation purge.
+
+### C14 acceptance record -- 2026-09-11
+
+1. **Ownership moved** -- Layers-panel command/gesture lifetime,
+   adjustment/effect creation, text-property gestures, selection-paint preview,
+   marquee edge-pan, fixed transforms, standalone recovery and mutable GPU
+   editing-overlay state now live in bounded named owners. Their roots compose
+   them and do not retain parallel mutable copies.
+2. **Hotspots reduced** -- the source audit counts
+   `LightTableEditorOverlay.tsx` at 9,023 lines (9,581 after C13),
+   `WebGpuEngine.ts` at 3,921 (4,391), the selection controller at 1,021,
+   viewport controller at 1,527, layer-command adapter at 1,458, transform
+   controller at 958, standalone root at 1,397 and `LayerStyleEditor.tsx` at
+   199. Every ceiling was lowered. The first two files remain large high-risk
+   composition/facade roots; C14 has made their growth fail closed, not declared
+   their remaining size desirable.
+3. **Cleanup** -- four interim kernel reports and seven obsolete handoffs were
+   deleted after current contracts were consolidated into onboarding, the
+   kernel README and this plan. No replacement status ledger was introduced.
+4. **Proof** -- boundary, route-manifest, source-structure and architecture-link
+   audits; workspace typecheck; all workspace tests (601 app files / 3,801 app
+   tests); web build; and a fresh instrumented desktop package passed. That
+   package passed selection, transform, mask, raster paint, merge/finalization,
+   warp, point/paragraph/path text, Layer Style, command/History/Actions/MCP,
+   recovery, canvas-interaction and device-loss workflows.
+5. **Performance/lifetime** -- eight normal document-switch cycles measured
+   29/41 ms first/repeated image presentation, 84 ms median and 90 ms maximum
+   roundtrip, with zero settled DOM-node or listener growth. Canvas interaction
+   retained a flat GPU high-water mark. Raster device loss correctly required a
+   checkpoint; canonical SVG state recovered automatically.
+6. **Critic** -- an early final review found text formatting could commit during
+   document switch without Action observation and against the wrong current
+   document. The gesture owner was repaired to capture its opening session and
+   order commit -> observation -> editor finish -> transition. The final full
+   read-only review then returned **ACCEPT**, no P0/P1.
+7. **Residual risk** -- this closes migration ambiguity, not product acceptance.
+   Large integration roots and broad editor behavior remain regression risks;
+   future changes must continue owner-by-owner extraction under the reduced
+   ceilings. Manual artist workflows remain the next independent evidence.
 
 ## Final gate before owner testing
 
-- [ ] Repository-wide fallback classification has zero unreviewed matches.
-- [ ] Route inventory and source-boundary guard are green.
-- [ ] C01-C13 have exclusive-route evidence and accepted critic verdicts.
-- [ ] Source-structure audit is green against reduced ceilings.
-- [ ] Full boundary, typecheck, test, web build and desktop package verification
+- [x] Repository-wide migration-fallback classification has zero unreviewed
+      mutation-route matches.
+- [x] Route inventory and source-boundary guard are green.
+- [x] C01-C13 have exclusive-route evidence and accepted critic verdicts.
+- [x] Source-structure audit is green against reduced ceilings.
+- [x] Full boundary, typecheck, test, web build and desktop package verification
       pass on one commit.
-- [ ] Packaged cross-domain workflow, multi-document/device-loss soak and
+- [x] Packaged cross-domain workflow, multi-document/device-loss soak and
       performance comparison pass on that same commit.
-- [ ] Worktree contains no temporary harness output or superseded migration docs.
-- [ ] Only then ask the owner to begin manual product acceptance.
+- [x] Worktree contains no tracked temporary harness output or superseded
+      migration docs.
+- [x] Only then ask the owner to begin manual product acceptance.
 
 ## Progress report after every item
 

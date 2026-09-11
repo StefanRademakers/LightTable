@@ -160,7 +160,7 @@ try {
     return bridge instanceof HTMLTextAreaElement && bridge.value === expected;
   }, authoredText, { timeout: 30_000 });
   diagnostics.typingMs = performance.now() - typingStartedAt;
-  await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
+  await window.locator('.lighttable-layer__text-status--editing', { hasText: 'Editing' })
     .waitFor({ state: 'visible', timeout: 30_000 });
 
   await input.press('Control+End');
@@ -189,11 +189,11 @@ try {
   diagnostics.finalText, { timeout: 1_000 });
   diagnostics.immediateEditKeys = { delete: true, enter: true };
 
-  const fontTrigger = window.locator('.lighttable-font-picker__trigger');
+  const fontTrigger = window.getByRole('combobox', { name: 'Font', exact: true });
   await fontTrigger.click();
   const fontSearch = window.getByRole('searchbox', { name: 'Search fonts' });
   await fontSearch.fill('Source Serif');
-  const matchingFonts = await window.locator('.lighttable-font-picker__option').allTextContents();
+  const matchingFonts = await window.getByRole('option').allTextContents();
   if (!matchingFonts.length || matchingFonts.some((family) => !/source serif/i.test(family))) {
     throw new Error(`Font search returned unexpected options: ${matchingFonts.join(', ')}`);
   }
@@ -216,16 +216,21 @@ try {
   }
   diagnostics.formatHotkeys = { bold: true, italic: true, underline: true };
 
-  await window.getByLabel('Foreground color').fill('#d02040');
+  const foregroundColor = window.getByLabel('Foreground color');
+  await foregroundColor.click();
+  await window.getByLabel('Hex color').fill('#d02040');
+  await input.focus();
   await input.press('Control+Shift+ArrowLeft');
   await input.press('Alt+Backspace');
-  const textFill = window.locator('.lighttable-tool-options__color-field input[type="color"]').first();
-  await window.waitForFunction(() => document
-    .querySelector('.lighttable-tool-options__color-field input[type="color"]')?.value === '#d02040',
-  undefined, { timeout: 1_000 });
+  const textFill = window.getByLabel('Text fill').locator('.ui-paint-field__preview');
+  await window.waitForTimeout(250);
+  const textFillPreview = await textFill.evaluate((element) => getComputedStyle(element).backgroundImage);
+  if (!textFillPreview.replace(/\s+/g, '').toLowerCase().includes('208,32,64')) {
+    throw new Error(`Alt+Backspace did not apply the foreground color to the active text selection: ${textFillPreview}`);
+  }
   diagnostics.foregroundFillHotkey = {
-    foreground: await window.getByLabel('Foreground color').inputValue(),
-    textFill: await textFill.inputValue(),
+    foreground: '#d02040',
+    textFill: textFillPreview,
     selection: await input.evaluate((bridge) => ({
       start: bridge.selectionStart, end: bridge.selectionEnd
     }))
@@ -411,7 +416,13 @@ try {
   }));
 
   await window.waitForTimeout(750);
-  await window.getByRole('tab', { name: 'Debug', exact: true }).click();
+  let debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
+  if (!await debugTab.count()) {
+    await window.getByRole('menuitem', { name: 'View', exact: true }).click();
+    await window.getByRole('menuitem', { name: 'Debug panel', exact: true }).click();
+    debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
+  }
+  await debugTab.click();
   const debugPanel = window.getByRole('region', { name: 'LightTable debug log' });
   await debugPanel.waitFor({ state: 'visible' });
   await window.waitForFunction(() => {
@@ -458,8 +469,8 @@ try {
   if (!diagnostics.cacheStats || diagnostics.cacheStats.layoutHits < 1) {
     throw new Error('No layout-cache reuse was observed while editing paragraph text.');
   }
-  if (diagnostics.layers.filter(({ statuses }) => statuses.includes('Flow')).length !== 1) {
-    throw new Error('Expected exactly one editable Flow paragraph layer.');
+  if (diagnostics.layers.filter(({ statuses }) => statuses.includes('Editing')).length !== 1) {
+    throw new Error('Expected exactly one actively editable paragraph layer.');
   }
   if (!diagnostics.dragSelection || diagnostics.dragSelection.start === diagnostics.dragSelection.end) {
     throw new Error('Viewport mouse drag did not produce a text selection.');

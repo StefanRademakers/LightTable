@@ -27,14 +27,12 @@ one owner enforceable across complete user workflows. Further broad mutation of
 the legacy editor is therefore paused. The target control plane is now being
 built beside it as the isolated `@lighttable/editor-kernel` package.
 
-The authoritative migration rules are in
-[Editor kernel migration](editor-kernel/README.md). Existing algorithms and
-working interactions remain in place until a complete vertical slice is proven.
-Within one semantic command, legacy and kernel transaction ownership may not be
-mixed. The first intended proof is the selection/marquee vertical recorded in
-[Migration playbook](editor-kernel/MIGRATION_PLAYBOOK.md); its actual progress
-is recorded separately in
-[Migration status](editor-kernel/MIGRATION_STATUS.md).
+The authoritative implementation rules are in
+[Editor kernel](editor-kernel/README.md). Accepted vertical slices may only be
+extended through their named kernel/application owner. Within one semantic
+command, transaction, history and renderer ownership may not be mixed. Current
+acceptance evidence and remaining cleanup gates are recorded in the
+[kernel cut-over plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md).
 
 This decision changes the continuation method, not the evidence below. Entries
 in this stabilization document remain historical/current implementation facts

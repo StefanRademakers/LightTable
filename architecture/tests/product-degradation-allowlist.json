@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "font-substitution",
+      "owner": "packages/lighttable-app/src/lighttable/text/fonts/DocumentFontRegistry.ts",
+      "test": "packages/lighttable-app/src/lighttable/text/fonts/DocumentFontRegistry.test.ts",
+      "reason": "A missing font may use an explicit substitute while editable text remains canonical.",
+      "nonMutationInvariant": "Font resolution returns layout resources and cannot publish document or history state."
+    },
+    {
+      "id": "vector-backend-degradation",
+      "owner": "packages/lighttable-app/src/lighttable/editor/rendering/VectorLayerRenderer.ts",
+      "test": "packages/lighttable-app/src/lighttable/editor/rendering/VectorLayerRenderer.test.ts",
+      "reason": "Unsupported Vello islands may render through the native backend.",
+      "nonMutationInvariant": "Backend choice changes disposable rendering only and never document data or history."
+    },
+    {
+      "id": "psd-import-appearance-recovery",
+      "owner": "packages/lighttable-app/src/lighttable/editor/psd/psdDocumentAdapter.ts",
+      "test": "packages/lighttable-app/src/lighttable/editor/psd/psdDocumentAdapter.test.ts",
+      "reason": "Unsupported PSD semantics may retain a bounded imported appearance.",
+      "nonMutationInvariant": "Recovery is decided inside one open transaction before the canonical document is published."
+    },
+    {
+      "id": "export-delivery-degradation",
+      "owner": "packages/lighttable-app/src/lighttable/application/documents/documentExportDelivery.ts",
+      "test": "packages/lighttable-app/src/lighttable/application/documents/documentExportDelivery.test.ts",
+      "reason": "A host without a native save picker may deliver the same completed artifact through the browser.",
+      "nonMutationInvariant": "Delivery consumes an immutable artifact and cannot alter document, renderer or history state."
+    },
+    {
+      "id": "smart-selection-backend-profile",
+      "owner": "packages/lighttable-app/src/lighttable/application/tools/smartSelection/smartSelectionBackendFactory.ts",
+      "test": "packages/lighttable-app/src/lighttable/application/tools/smartSelection/SmartSelectionToolController.test.ts",
+      "reason": "Model availability selects a declared inference backend or an unavailable capability.",
+      "nonMutationInvariant": "Inference returns a detached mask; only the selection kernel may publish it."
+    }
+  ]
+}

@@ -35,9 +35,7 @@ import {
   PolygonalSelectionGestureController
 } from '../../../editor/tools/selection/polygonalSelectionGestureController';
 import type { Rect } from '../../../editor/document/documentTypes';
-import type { BrushDab, BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
-import { StrokeBuilder } from '../../../editor/tools/brush/strokeBuilder';
-import { StrokeSmoother } from '../../../editor/tools/brush/strokeSmoother';
+import type { BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
 import { selectionOperationsEditingBounds } from '../../../editor/tools/transform/selectionTransform';
 import {
   solveSnap,
@@ -47,11 +45,11 @@ import {
 } from '../snapping/snapEngine';
 import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import type {
-  SelectionPaintPreviewPort,
   SelectionRendererPort,
   SelectionSessionDependencies,
 } from './selectionSessionPorts';
 import { committedSelectionContainsPoint } from './selectionHitTesting';
+import { SelectionPaintGestureController } from './SelectionPaintGestureController';
 export type { SelectionRendererPort, SelectionSessionDependencies } from './selectionSessionPorts';
 
 export interface SelectionSessionController {
@@ -191,24 +189,6 @@ export const createSelectionSessionController = (
 ): SelectionSessionController => {
   let magicWandGeneration = 0;
   const magicWandAborts = new Set<AbortController>();
-  let paintGesture: {
-    pointerId: number;
-    document: ImageDocument;
-    renderer: SelectionRendererPort;
-    preview: SelectionPaintPreviewPort;
-    before: SelectionOperation[];
-    beforeMask: Promise<SelectionMaskSnapshot>;
-    mode: 'add' | 'subtract';
-    size: number;
-    hardness: number;
-    opacity: number;
-    smooth: number;
-    builder: StrokeBuilder;
-    smoother: StrokeSmoother;
-    dabs: BrushDab[];
-    samples: BrushPoint[];
-    renderQueue: Promise<boolean>;
-  } | null = null;
   let marqueeTool: GeometricSelectionToolId | null = null;
   let marqueeSnapMatches: readonly SnapMatch[] = [];
   let gestureOwner: {
@@ -282,7 +262,7 @@ export const createSelectionSessionController = (
   const documentCommittedMask = (
     dependencies: SelectionSessionDependencies,
     document: ImageDocument,
-    operations = dependencies.getSelection()
+    operations: readonly SelectionOperation[] = dependencies.getSelection()
   ): SelectionMaskSnapshot | null => {
     const snapshot = dependencies.getSelectionMaskSnapshot();
     if (snapshot?.width === document.width && snapshot.height === document.height) {
@@ -309,6 +289,14 @@ export const createSelectionSessionController = (
       );
     }
   };
+  const paint = new SelectionPaintGestureController({
+    resolveDependencies,
+    queueCommit,
+    isCurrent,
+    cloneSelection: cloneSelectionOperations,
+    committedMask: documentCommittedMask,
+    notifyObservedCommit
+  });
 
   const commitSnapshot = (
     after: SelectionOperation[],
@@ -376,24 +364,6 @@ export const createSelectionSessionController = (
       } else latest.setError('The selection could not be applied.');
       return applied;
     });
-    return true;
-  };
-
-  const applyPaintDabs = (points: readonly BrushPoint[]): boolean => {
-    const current = paintGesture;
-    if (!current || !points.length) return false;
-    current.samples.push(...points.map((point) => ({ ...point })));
-    const dabs = points.flatMap((point) => current.builder.add(current.smoother.add(point)));
-    if (!dabs.length) return true;
-    const request = current.preview.paintSelectionDabs(
-      dabs,
-      current.hardness,
-      current.opacity,
-      current.mode
-    );
-    current.renderQueue = Promise.all([current.renderQueue, request])
-      .then(([previous, applied]) => previous && applied, () => false);
-    current.dabs.push(...dabs.map((dab) => ({ ...dab })));
     return true;
   };
 
@@ -824,189 +794,11 @@ export const createSelectionSessionController = (
         return latest.commitRasterMask({ mask, mode, provenance: operation }, signal);
       });
     },
-    beginPaint: (pointerId, point, mode, options) => {
-      const dependencies = resolveDependencies();
-      const document = dependencies.getDocument();
-      const renderer = dependencies.getRenderer();
-      if (!document || !renderer || paintGesture) return false;
-      const size = Math.max(1, Math.min(1000, options.size));
-      const smooth = Math.max(0, Math.min(1, options.smooth));
-      const builder = new StrokeBuilder(
-        size,
-        0.05
-      );
-      const smoother = new StrokeSmoother(
-        smooth,
-        size
-      );
-      const before = cloneSelectionOperations(dependencies.getSelection());
-      const first = builder.begin(smoother.begin(point));
-      const exactBefore = documentCommittedMask(dependencies, document, before);
-      if (!exactBefore) {
-        dependencies.setError('The document selection has no exact committed coverage.');
-        return false;
-      }
-      const beforeMask = Promise.resolve(exactBefore);
-      const preview = renderer.beginSelectionPaintPreview(exactBefore);
-      if (!preview) {
-        dependencies.setError('The selection paint preview is unavailable.');
-        return false;
-      }
-      let firstRender: Promise<boolean>;
-      try {
-        firstRender = preview.paintSelectionDabs(
-          first,
-          Math.max(0, Math.min(1, options.hardness)),
-          Math.max(0.01, Math.min(1, options.opacity)),
-          mode
-        );
-      } catch (reason) {
-        preview.release();
-        throw reason;
-      }
-      paintGesture = {
-        pointerId,
-        document,
-        renderer,
-        preview,
-        before,
-        beforeMask,
-        mode,
-        size,
-        hardness: Math.max(0, Math.min(1, options.hardness)),
-        opacity: Math.max(0.01, Math.min(1, options.opacity)),
-        smooth,
-        builder,
-        smoother,
-        dabs: first.map((dab) => ({ ...dab })),
-        samples: [{ ...point }],
-        renderQueue: firstRender
-      };
-      dependencies.publishSelection(before, pointerId);
-      return true;
-    },
-    movePaint: (pointerId, points) => paintGesture?.pointerId === pointerId
-      ? applyPaintDabs(points)
-      : false,
-    finishPaint: (pointerId) => {
-      const current = paintGesture;
-      if (!current || current.pointerId !== pointerId) return false;
-      const tail = current.smoother.finish().flatMap((point) => current.builder.add(point));
-      if (tail.length) {
-        const request = current.preview.paintSelectionDabs(
-          tail,
-          current.hardness,
-          current.opacity,
-          current.mode
-        );
-        current.renderQueue = Promise.all([current.renderQueue, request])
-          .then(([previous, applied]) => previous && applied, () => false);
-        current.dabs.push(...tail.map((dab) => ({ ...dab })));
-      }
-      paintGesture = null;
-      const operation: SelectionOperation = {
-        mode: current.mode,
-        source: {
-          kind: 'selection-paint',
-          dabs: current.dabs.map((dab) => ({ ...dab })),
-          hardness: current.hardness,
-          opacity: current.opacity
-        },
-        shape: createFullCanvasSelection(current.document.width, current.document.height)[0].shape
-      };
-      void queueCommit(async () => {
-        let beforeMask: SelectionMaskSnapshot | null = null;
-        let handedOffToKernel = false;
-        try {
-          beforeMask = await current.beforeMask;
-          const applied = await current.renderQueue;
-          if (!applied || !isCurrent(current.document, current.renderer)) {
-            if (isCurrent(current.document, current.renderer)) {
-              await current.preview.restoreSelectionSnapshot(beforeMask);
-              resolveDependencies().publishSelection(current.before, null, beforeMask);
-              resolveDependencies().setError('The selection brush stroke could not be applied.');
-            }
-            return;
-          }
-          if (!await current.preview.restoreSelectionSnapshot(beforeMask)
-            || !isCurrent(current.document, current.renderer)) {
-            throw new Error('The selection brush baseline could not be restored.');
-          }
-          // The live preview is fully rolled back. End its exclusive resource
-          // ownership before the kernel activates the prepared committed state.
-          current.preview.release();
-          handedOffToKernel = true;
-          const committed = await resolveDependencies().commitPaint({
-            dabs: current.dabs,
-            hardness: current.hardness,
-            opacity: current.opacity,
-            mode: current.mode,
-            provenance: operation,
-          });
-          if (!committed) throw new Error('The selection brush stroke could not be committed.');
-          const latest = resolveDependencies();
-          latest.setError(null);
-          notifyObservedCommit(latest, () => latest.onPaintCommitted?.({
-            kind: 'selection-paint',
-            mode: current.mode,
-            dabs: current.dabs.map((dab) => ({ ...dab })),
-            samples: current.samples.map((sample) => ({ ...sample })),
-            size: current.size,
-            hardness: current.hardness,
-            opacity: current.opacity,
-            smooth: current.smooth
-          }));
-          return;
-        } catch (reason) {
-          if (handedOffToKernel) {
-            // The kernel now exclusively owns CAS, activation and rollback.
-            // Restoring the gesture baseline could overwrite a newer winner.
-            if (isCurrent(current.document, current.renderer)) {
-              resolveDependencies().setError(
-                reason instanceof Error
-                  ? reason.message
-                  : 'The selection brush stroke could not be applied.'
-              );
-            }
-          } else if (beforeMask && isCurrent(current.document, current.renderer)) {
-            await current.preview.restoreSelectionSnapshot(beforeMask).catch(() => false);
-            resolveDependencies().publishSelection(current.before, null, beforeMask);
-            resolveDependencies().setError(
-              reason instanceof Error
-                ? reason.message
-                : 'The selection brush stroke could not be applied.'
-            );
-          }
-        } finally {
-          if (!handedOffToKernel) current.preview.release();
-        }
-      });
-      return true;
-    },
-    cancelPaint: (pointerId) => {
-      const current = paintGesture;
-      if (!current || current.pointerId !== pointerId) return false;
-      paintGesture = null;
-      void queueCommit(async () => {
-        const beforeMask = await current.beforeMask;
-        await current.renderQueue;
-        if (!isCurrent(current.document, current.renderer)) return;
-        if (!await current.preview.restoreSelectionSnapshot(beforeMask)) {
-          throw new Error('The selection could not be restored.');
-        }
-        if (isCurrent(current.document, current.renderer)) {
-          resolveDependencies().publishSelection(current.before, null, beforeMask);
-        }
-      }).catch((reason) => {
-        if (isCurrent(current.document, current.renderer)) {
-          resolveDependencies().setError(
-            reason instanceof Error ? reason.message : 'The selection could not be restored.'
-          );
-        }
-      }).finally(() => current.preview.release());
-      return true;
-    },
-    ownsPaint: (pointerId) => paintGesture?.pointerId === pointerId,
+    beginPaint: (pointerId, point, mode, options) => paint.begin(pointerId, point, mode, options),
+    movePaint: (pointerId, points) => paint.move(pointerId, points),
+    finishPaint: (pointerId) => paint.finish(pointerId),
+    cancelPaint: (pointerId) => paint.cancel(pointerId),
+    ownsPaint: (pointerId) => paint.owns(pointerId),
     applyShape,
     finishPolygon: () => (
       polygonGesture.active
@@ -1024,13 +816,12 @@ export const createSelectionSessionController = (
     reset: () => {
       const dependencies = resolveDependencies();
       const interruptedTranslation = translation;
-      const interruptedPaint = paintGesture;
+      paint.reset();
       magicWandGeneration += 1;
       magicWandAborts.forEach((controller) => controller.abort());
       magicWandAborts.clear();
       if (interruptedTranslation) interruptedTranslation.stopped = true;
       translation = null;
-      paintGesture = null;
       marqueeTool = null;
       marqueeSnapMatches = [];
       gestureOwner = null;
@@ -1039,30 +830,8 @@ export const createSelectionSessionController = (
       polygonGesture.reset();
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);
-      if (interruptedTranslation || interruptedPaint) {
-        const interrupted = interruptedTranslation ?? interruptedPaint!;
-        if (interruptedTranslation) {
-          interrupted.renderer.setCommittedSelectionProjection(interrupted.before);
-        } else {
-          const interruptedPaintGesture = interruptedPaint!;
-          void queueCommit(async () => {
-            const beforeMask = await interruptedPaintGesture.beforeMask;
-            await interruptedPaintGesture.renderQueue;
-            if (!isCurrent(interrupted.document, interrupted.renderer)) return;
-            if (!await interruptedPaintGesture.preview.restoreSelectionSnapshot(beforeMask)) {
-              throw new Error('The selection could not be restored.');
-            }
-            if (isCurrent(interrupted.document, interrupted.renderer)) {
-              resolveDependencies().publishSelection(interrupted.before, null, beforeMask);
-            }
-          }).catch((reason) => {
-            if (isCurrent(interrupted.document, interrupted.renderer)) {
-              resolveDependencies().setError(
-                reason instanceof Error ? reason.message : 'The selection could not be restored.'
-              );
-            }
-          }).finally(() => interruptedPaintGesture.preview.release());
-        }
+      if (interruptedTranslation) {
+        interruptedTranslation.renderer.setCommittedSelectionProjection(interruptedTranslation.before);
       }
     },
     selectAll: () => {

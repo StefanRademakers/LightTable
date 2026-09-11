@@ -1,41 +1,42 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WebGpuEngine } from './WebGpuEngine';
+import { DocumentEditingOverlayState } from './DocumentEditingOverlayState';
 
 describe('WebGpuEngine presentation ownership', () => {
   it('drops document interaction projections at detach without touching canonical repositories', () => {
     const setSelectionVisible = vi.fn();
-    const setSmartSelectionMask = vi.fn();
-    const clearSceneCache = vi.fn();
     const canonicalLayers = { release: vi.fn() };
     const canonicalPatterns = { release: vi.fn() };
     const canonicalLookups = { release: vi.fn() };
+    const editingOverlays = new DocumentEditingOverlayState();
+    editingOverlays.vectorSelection = { elements: ['old-layer'] as never[], paths: [], anchors: [], active: null };
+    editingOverlays.vectorSelectionPreviewTransform = { a: 1, b: 0, c: 0, d: 1, tx: 12, ty: 9 };
+    editingOverlays.selectionOperations = [{ id: 'old-selection' }] as never[];
+    editingOverlays.selectionPreviewProjectionActive = true;
+    editingOverlays.selectionPreviewTranslation = { x: 12, y: 9 };
+    editingOverlays.selectionDraft = { kind: 'rectangle', points: [] };
+    editingOverlays.selectionVisible = true;
+    editingOverlays.selectionPaintVisible = true;
+    editingOverlays.textOverlay = { resourceKey: 'old-text' } as never;
+    editingOverlays.textCaretVisible = false;
+    editingOverlays.zoomDraft = { kind: 'rectangle', points: [] };
+    editingOverlays.brushCursor = { center: { x: 1, y: 1 }, diameter: 10 };
+    editingOverlays.penRubberBand = { from: { x: 0, y: 0 }, to: { x: 1, y: 1 } };
+    editingOverlays.penOverlay = { resourceKey: 'old-pen' } as never;
+    editingOverlays.faceWarpOverlay = { resourceKey: 'old-warp' } as never;
+    editingOverlays.faceWarpMode = 'sculpt';
+    editingOverlays.transformFrame = { bounds: {} } as never;
+    editingOverlays.smartGuideFrame = { bounds: {} } as never;
+    editingOverlays.documentGuideFrame = { bounds: {} } as never;
+    editingOverlays.documentGridFrame = { bounds: {} } as never;
+    const clearDocument = vi.fn();
     const engine = {
       paintInteractionActive: true,
       warpInteractionActive: true,
       pendingTextInteractionTrace: { inputId: 1 },
-      vectorSelection: { layerIds: ['old-layer'], pointIds: ['old-point'] },
-      vectorSelectionPreviewTransform: { a: 1, b: 0, c: 0, d: 1, tx: 12, ty: 9 },
-      vectorEditingSceneCache: { clear: clearSceneCache },
-      selectionOverlayOperations: [{ id: 'old-selection' }],
-      selectionPreviewProjectionActive: true,
-      selectionPreviewTranslation: { x: 12, y: 9 },
-      selectionOverlayDraft: { kind: 'rectangle', points: [] },
-      selectionOverlayVisible: true,
-      selectionPaintOverlayVisible: true,
+      editingOverlays,
+      editingOverlayRenderer: { clearDocument },
       selectionAntsAnimator: { setSelectionVisible },
-      smartSelectionOverlayBackend: { setMask: setSmartSelectionMask },
-      textEditingOverlay: { resourceKey: 'old-text' },
-      textCaretVisible: false,
-      zoomOverlayDraft: { kind: 'rectangle', points: [] },
-      brushCursorOverlay: { center: { x: 1, y: 1 }, diameter: 10 },
-      penRubberBand: { from: { x: 0, y: 0 }, to: { x: 1, y: 1 } },
-      penEditingOverlay: { resourceKey: 'old-pen' },
-      faceWarpEditingOverlay: { resourceKey: 'old-warp' },
-      faceWarpInteractionMode: 'sculpt',
-      transformEditingFrame: { bounds: {} },
-      smartGuideEditingFrame: { bounds: {} },
-      documentGuideEditingFrame: { bounds: {} },
-      documentGridEditingFrame: { bounds: {} },
       documentLayerResources: canonicalLayers,
       documentPatternResources: canonicalPatterns,
       documentColorLookupResources: canonicalLookups
@@ -49,31 +50,30 @@ describe('WebGpuEngine presentation ownership', () => {
     expect(detached.paintInteractionActive).toBe(false);
     expect(detached.warpInteractionActive).toBe(false);
     expect(detached.pendingTextInteractionTrace).toBeNull();
-    expect(detached.vectorSelection).toEqual({
+    expect(editingOverlays.vectorSelection).toEqual({
       elements: [], paths: [], anchors: [], active: null
     });
-    expect(detached.vectorSelectionPreviewTransform).toBeNull();
-    expect(clearSceneCache).toHaveBeenCalledOnce();
-    expect(detached.selectionOverlayOperations).toEqual([]);
-    expect(detached.selectionPreviewProjectionActive).toBe(false);
-    expect(detached.selectionPreviewTranslation).toEqual({ x: 0, y: 0 });
-    expect(detached.selectionOverlayDraft).toBeNull();
-    expect(detached.selectionOverlayVisible).toBe(false);
-    expect(detached.selectionPaintOverlayVisible).toBe(false);
+    expect(editingOverlays.vectorSelectionPreviewTransform).toBeNull();
+    expect(editingOverlays.selectionOperations).toEqual([]);
+    expect(editingOverlays.selectionPreviewProjectionActive).toBe(false);
+    expect(editingOverlays.selectionPreviewTranslation).toEqual({ x: 0, y: 0 });
+    expect(editingOverlays.selectionDraft).toBeNull();
+    expect(editingOverlays.selectionVisible).toBe(false);
+    expect(editingOverlays.selectionPaintVisible).toBe(false);
     expect(setSelectionVisible).toHaveBeenCalledWith(false);
-    expect(setSmartSelectionMask).toHaveBeenCalledWith(null);
-    expect(detached.textEditingOverlay).toBeNull();
-    expect(detached.textCaretVisible).toBe(true);
-    expect(detached.zoomOverlayDraft).toBeNull();
-    expect(detached.brushCursorOverlay).toBeNull();
-    expect(detached.penRubberBand).toBeNull();
-    expect(detached.penEditingOverlay).toBeNull();
-    expect(detached.faceWarpEditingOverlay).toBeNull();
-    expect(detached.faceWarpInteractionMode).toBeNull();
-    expect(detached.transformEditingFrame).toBeNull();
-    expect(detached.smartGuideEditingFrame).toBeNull();
-    expect(detached.documentGuideEditingFrame).toBeNull();
-    expect(detached.documentGridEditingFrame).toBeNull();
+    expect(clearDocument).toHaveBeenCalledOnce();
+    expect(editingOverlays.textOverlay).toBeNull();
+    expect(editingOverlays.textCaretVisible).toBe(true);
+    expect(editingOverlays.zoomDraft).toBeNull();
+    expect(editingOverlays.brushCursor).toBeNull();
+    expect(editingOverlays.penRubberBand).toBeNull();
+    expect(editingOverlays.penOverlay).toBeNull();
+    expect(editingOverlays.faceWarpOverlay).toBeNull();
+    expect(editingOverlays.faceWarpMode).toBeNull();
+    expect(editingOverlays.transformFrame).toBeNull();
+    expect(editingOverlays.smartGuideFrame).toBeNull();
+    expect(editingOverlays.documentGuideFrame).toBeNull();
+    expect(editingOverlays.documentGridFrame).toBeNull();
     expect(canonicalLayers.release).not.toHaveBeenCalled();
     expect(canonicalPatterns.release).not.toHaveBeenCalled();
     expect(canonicalLookups.release).not.toHaveBeenCalled();

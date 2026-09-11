@@ -5,20 +5,20 @@
   "generatedFiles": {},
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
-      "baselineLines": 9535,
+      "baselineLines": 9023,
       "classification": "mixed-authority",
       "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
       "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],
       "productRisk": "high",
-      "decision": "S00-S13 re-review: terminal domain owners have moved behind kernel/application controllers, while this remains a high-risk composition root. It is no-growth; the next touched interaction family must remove a named owner rather than add orchestration."
+      "decision": "C14 moved Layers-panel command/gesture lifetime and Text-properties transaction/preview lifetime to dedicated application owners. The remaining high-risk composition root has a lower hard ceiling; every touched family must continue removing a complete owner."
     },
     "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": {
-      "baselineLines": 4616,
+      "baselineLines": 3921,
       "classification": "mixed-authority",
       "responsibilities": ["GPU device and queue", "pipeline and texture resources", "document compositing", "viewport presentation", "GPU readback and effect execution"],
       "lifecycleOwners": ["shared device lifetime", "document renderer lifetime", "frame submission and loss recovery", "explicit texture and readback leases"],
       "productRisk": "high",
-      "decision": "S00-S13 re-review: presentation detach and device-global error-scope ownership are externalized; the renderer remains a high-risk facade. Preserve one render authority and extract a named projection/resource owner before adding another interaction family."
+      "decision": "C14 moved all mutable editing-overlay state, encoding resources and disposal to DocumentEditingOverlayState/Renderer. Preserve one render authority and keep extracting named projection/resource owners."
     },
     "packages/lighttable-app/src/lighttable/gpu/shaders.ts": {
       "baselineLines": 2367,
@@ -85,12 +85,12 @@
       "decision": "Split by independently testable PSD semantic family, preserving fail-closed mapping policy."
     },
     "packages/lighttable-app/src/lighttable/editor/hooks/useViewportInteractionController.ts": {
-      "baselineLines": 1651,
+      "baselineLines": 1527,
       "classification": "cohesive-heavy",
       "responsibilities": ["pointer and wheel interpretation", "tool and selection gesture routing", "pan and zoom state", "interaction settle scheduling"],
       "lifecycleOwners": ["viewport mount", "active pointer gesture", "selection content move", "animation-frame and settle timer"],
       "productRisk": "high",
-      "decision": "S00-S13 re-review: retained pan/zoom publication is application-owned and tool sessions own terminal work. Keep this as DOM input adaptation, make it no-growth, and extract the next independently cancelable gesture owner before adding behavior."
+      "decision": "C14 moved marquee edge-pan RAF, viewport-owner and document-boundary lifetime to MarqueeEdgePanController. Keep this as DOM input adaptation and extract the next independently cancelable gesture before adding behavior."
     },
     "packages/lighttable-app/src/lighttable/editor/ui/ToolOptionsBar.tsx": {
       "baselineLines": 1122,
@@ -117,12 +117,12 @@
       "decision": "Keep one dock authority and stable document host; document-kind changes may alter panel visibility but must never rebuild the document surface or canonical session. Move panel content to feature owners."
     },
     "packages/lighttable-app/src/lighttable/application/layers/useLayerDocumentCommands.ts": {
-      "baselineLines": 1778,
+      "baselineLines": 1458,
       "classification": "mixed-authority",
       "responsibilities": ["layer action bindings", "document command adaptation", "selection-sensitive operations"],
       "lifecycleOwners": ["mounted document", "active layer selection"],
       "productRisk": "medium",
-      "decision": "S00-S13 re-review: finalization, masks, adjustment duplication and document geometry use named command owners, but this mounted adapter remains mixed and no-growth. Extract the next changed command family with explicit document/selection inputs."
+      "decision": "C14 additionally moved adjustment/attached-processing creation to layerProcessingCreationCommands. This mounted adapter remains mixed and may only shrink by complete command family."
     },
     "packages/lighttable-app/src/lighttable/editor/panels/GradePanel.tsx": {
       "baselineLines": 1037,
@@ -133,12 +133,12 @@
       "decision": "Keep Camera Raw-style workflow cohesion; split sections only with shared preview semantics intact."
     },
     "packages/lighttable-app/src/standalone/LightTableStandaloneApp.tsx": {
-      "baselineLines": 1506,
+      "baselineLines": 1397,
       "classification": "mixed-authority",
       "responsibilities": ["host capability composition", "typed document workspace lifecycle", "open/save/recovery and recent previews", "application dialogs"],
       "lifecycleOwners": ["application mount", "one typed workspace session", "host subscriptions", "bounded object-URL preview registries"],
       "productRisk": "high",
-      "decision": "S00-S13 re-review: open/save/recovery transitions and document presentation now have application owners. This is still a high-risk host composition root and is no-growth; future workflows must begin in an application service."
+      "decision": "C14 moved recovery listing, preview URL, open admission and record disposal to useStandaloneRecoveryController. This host composition root remains no-growth; future workflows must begin in an application service."
     },
     "packages/lighttable-app/src/lighttable/editor/menus/createEditorMenuOptions.ts": {
       "baselineLines": 1008,
@@ -173,20 +173,20 @@
       "decision": "Retain one selection raster authority while moving only independently owned algorithms out; every submitted temporary must release on both queue completion and device loss."
     },
     "packages/lighttable-app/src/lighttable/application/tools/selection/useSelectionSessionController.ts": {
-      "baselineLines": 1654,
+      "baselineLines": 1021,
       "classification": "cohesive-heavy",
-      "responsibilities": ["selection pointer and polygon gestures", "selection paint and translation transactions", "selection-only history publication", "stale async renderer-result rejection"],
+      "responsibilities": ["selection pointer and polygon gestures", "selection translation adaptation", "kernel commit delegation", "stale async renderer-result rejection"],
       "lifecycleOwners": ["mounted editor selection session", "active pointer or polygon gesture", "document-and-renderer-bound async transaction"],
       "productRisk": "high",
-      "decision": "S00-S13 re-review: kernel services own terminal selection publication/history and renderer leases own previews, but this React input adapter remains high-risk and no-growth. Extract a complete tool-family adapter without weakening document/renderer staleness or cancellation."
+      "decision": "C14 moved selection-paint preview, rollback and kernel hand-off to SelectionPaintGestureController. The remaining selection adapter is no-growth and must preserve exact document/renderer staleness."
     },
     "packages/lighttable-app/src/lighttable/application/tools/transform/useTransformSessionController.ts": {
-      "baselineLines": 1002,
+      "baselineLines": 958,
       "classification": "mixed-authority",
       "responsibilities": ["transform pointer and key sampling", "gesture admission and mode routing", "renderer-bound preview adaptation", "terminal publication delegation"],
       "lifecycleOwners": ["mounted transform input adapter", "active pointer gesture", "document-renderer-generation binding"],
       "productRisk": "high",
-      "decision": "S04/S13 ownership review: snapping, auxiliary preview and terminal publication have dedicated owners, while this remains a high-risk React adapter. It is no-growth; extract the next independently cancelable gesture adapter before adding another transform mode."
+      "decision": "C14 moved fixed-transform planning and Transform Again canonical mutation to fixedTransformCommands. The remaining high-risk React adapter is no-growth; extract the next independently cancelable gesture before adding a mode."
     },
     "packages/lighttable-app/src/lighttable/editor/rendering/VectorLayerRenderer.ts": {
       "baselineLines": 1325,
@@ -197,12 +197,12 @@
       "decision": "Preserve one vector facade while backend-specific caches and surfaces remain explicit owners with bounded memory and destroy paths. Do not move document semantics or React state into this renderer."
     },
     "packages/lighttable-app/src/lighttable/editor/ui/LayerStyleEditor.tsx": {
-      "baselineLines": 1077,
+      "baselineLines": 199,
       "classification": "cohesive-heavy",
-      "responsibilities": ["Layer Style editing UI", "effect-specific controls", "preview commit/cancel"],
-      "lifecycleOwners": ["style editor dialog", "temporary effect preview"],
+      "responsibilities": ["Layer Style dialog composition", "effect selection and panel routing"],
+      "lifecycleOwners": ["style editor dialog presentation"],
       "productRisk": "medium",
-      "decision": "S09/S13 re-review: transaction/history authority is outside this UI, which retains effect-specific presentation and gesture sampling. Decompose by cohesive control family before further growth; never restore canonical preview ownership here."
+      "decision": "C14 moved draft interaction lifetime to useLayerStyleDraftInteraction and controls to LayerStyleEffectControls. Keep this file presentation-only; never restore preview or canonical mutation ownership."
     }
   }
 }

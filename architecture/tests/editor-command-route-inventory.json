@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Documentation manifest only; executable ownership is proved by boundary and route-equivalence tests.",
+  "catalog": "packages/command-contract/catalog.json",
+  "routes": [
+    { "idPattern": "^(command\\.batch|task\\.cancel)$", "owner": "packages/lighttable-app/src/lighttable/application/commands/lightTableCommandService.ts" },
+    { "idPattern": "^history\\.", "owner": "packages/lighttable-app/src/lighttable/application/commands/useDocumentHistoryController.ts" },
+    { "idPattern": "^view\\.", "owner": "packages/lighttable-app/src/lighttable/application/rendering/viewportRenderState.ts" },
+    { "idPattern": "^(document\\.(create|duplicate)|file\\.openArtifact)$", "owner": "packages/lighttable-app/src/standalone/LightTableStandaloneApp.tsx" },
+    { "idPattern": "^(document\\.(resizeImage|applyGeometry|assignProfile)|file\\.export)", "owner": "packages/lighttable-app/src/lighttable/application/documents/useDocumentMutationController.ts" },
+    { "idPattern": "^(selection\\.(applyShape|applyMagicWand|selectSubject|modify)|tool\\.commitGesture)$", "owner": "packages/lighttable-app/src/lighttable/application/tools/selection/SelectionShapeCommandService.ts" },
+    { "idPattern": "^(raster\\.(fill|applyGradient|invert)|selection\\.(cutPixels|copyPixels|pastePixels)|layer\\.copyToNewLayer)$", "owner": "packages/lighttable-app/src/lighttable/application/layers/useLayerDocumentCommands.ts" },
+    { "idPattern": "^(layer\\.(rasterize|merge|flattenGroup)|document\\.flattenImage|text\\.rasterize)$", "owner": "packages/lighttable-app/src/lighttable/application/layers/rasterFinalizationTransaction.ts" },
+    { "idPattern": "^(layer\\.(setMask|removeBackground))$", "owner": "packages/lighttable-app/src/lighttable/application/commands/pixelMutationTransaction.ts" },
+    { "idPattern": "^layer\\.autoAlign$", "owner": "packages/lighttable-app/src/lighttable/application/tools/autoAlign/useAutoAlignController.ts" },
+    { "idPattern": "^(layer\\.(createRaster|createGradientFill|createGroup|group|ungroup|duplicate|delete|move|reorder|setOpacity|setVectorAntiAlias|setBlendMode|setClipping|setTransform|setLock|placeArtifact|rename|setVisibility|setFillOpacity))$", "owner": "packages/lighttable-app/src/lighttable/application/layers/useLayerPanelController.ts" },
+    { "idPattern": "^transform\\.", "owner": "packages/lighttable-app/src/lighttable/application/tools/transform/TransformPublicationOwner.ts" },
+    { "idPattern": "^(adjustment\\.|grade\\.)", "owner": "packages/lighttable-app/src/lighttable/application/adjustments/useAdjustmentTransactionController.ts" },
+    { "idPattern": "^filter\\.", "owner": "packages/lighttable-app/src/lighttable/application/filters/useP0FilterController.ts" },
+    { "idPattern": "^layer\\.(style|effect)\\.", "owner": "packages/lighttable-app/src/lighttable/application/styles/useLayerStyleEditorController.ts" },
+    { "idPattern": "^text\\.(create|replaceRange|format|setLayout|convertToShape)$", "owner": "packages/lighttable-app/src/lighttable/application/text/textEditTransactionController.ts" },
+    { "idPattern": "^vector\\.", "owner": "packages/lighttable-app/src/lighttable/application/vectors/VectorDocumentController.ts" },
+    { "idPattern": "^warp\\.", "owner": "packages/lighttable-app/src/lighttable/application/tools/transform/TransformPublicationOwner.ts" },
+    { "idPattern": "^faceWarp\\.", "owner": "packages/lighttable-app/src/lighttable/application/tools/faceWarp/FaceWarpInteractionSessionController.ts" }
+  ]
+}

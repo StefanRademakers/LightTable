@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WebGpuEngine } from './WebGpuEngine';
+import { DocumentEditingOverlayState } from './DocumentEditingOverlayState';
 
 describe('WebGpuEngine zoom editing overlay presentation', () => {
   it('keeps the drag rectangle in the viewport-only GPU overlay path', () => {
     const invalidate = vi.fn();
     const requestRender = vi.fn();
     const engine = {
-      zoomOverlayDraft: null,
+      editingOverlays: new DocumentEditingOverlayState(),
       renderDirty: { invalidate },
       requestRender
     } as unknown as WebGpuEngine;

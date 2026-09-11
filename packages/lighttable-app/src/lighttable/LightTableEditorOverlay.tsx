@@ -121,16 +121,8 @@ import { executeSemanticMaskCommand } from './application/layers/executeSemantic
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController, type LayerPanelController } from './application/layers/useLayerPanelController';
+import { useCommandLayerPanelController } from './application/layers/useCommandLayerPanelController';
 import { createLayerMaskCommandBridge } from './application/layers/createLayerMaskCommandBridge';
-import {
-  canRestoreLayerVisibility,
-  captureLayerVisibility,
-  planAllLayerVisibility,
-  planRestoreLayerVisibility,
-  planSoloLayerVisibility,
-  type LayerVisibilityChange,
-  type LayerVisibilitySnapshot
-} from './application/layers/layerVisibilityIsolation';
 import { useP0FilterController } from './application/filters/useP0FilterController';
 import { executeSemanticFilterSnapshot } from './application/filters/executeSemanticFilterSnapshot';
 import { resolveFilterSnapshotOwner } from './application/filters/filterSnapshotOwner';
@@ -240,6 +232,7 @@ import {
   textCreationKind
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
+import { TextPropertyGestureController } from './application/text/TextPropertyGestureController';
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateCommand,
   pointTextCreateCommand,
@@ -260,13 +253,11 @@ import { waitForExactCommandRender } from './application/rendering/waitForExactC
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { visibleTextLayersTopmostFirst } from './application/geometry/layerGeometryQuery';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
-import { DocumentTextPropertyGestureController } from './application/text/DocumentTextPropertyGestureController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
-import { runAfterTextEditingTerminal } from './application/text/textDocumentTransition';
-import { formatFlowTextSource, type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
+import { type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import {
   buildTextPropertyPresentation,
   textFillEnabledPatch,
@@ -275,7 +266,6 @@ import {
   textStrokePatch
 } from './application/text/textPropertyPresentation';
 import {
-  applyTextLayerDataMutation,
   convertParagraphTextToPoint,
   convertPointTextToParagraph
 } from './editor/document/textLayerCommands';
@@ -925,7 +915,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => Promise<boolean>>(async () => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
-  const soloLayerVisibilityRef = useRef<LayerVisibilitySnapshot | null>(null);
   const toggleSelectedLayerVisibilityRef = useRef<() => void>(() => undefined);
   const showAllLayersRef = useRef<() => void>(() => undefined);
   const [transformActivationRevision, setTransformActivationRevision] = useState(0);
@@ -1303,19 +1292,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const editorSessionRef = useRef(editorSession);
   editorSessionRef.current = editorSession;
-  const fallbackGradientSettingsRef = useRef(createGradientToolSettings());
-  const gradientToolSettings = editorSession.gradient ?? fallbackGradientSettingsRef.current;
+  const gradientToolSettings = editorSession.gradient;
   const [gradientEditorRequest, setGradientEditorRequest] = useState<{
     revision: number;
     endpoint: 'start' | 'end';
   } | null>(null);
-  useEffect(() => {
-    if (editorSession.gradient) return;
-    setEditorSession((current) => ({
-      ...current,
-      gradient: current.gradient ?? fallbackGradientSettingsRef.current
-    }));
-  }, [editorSession.gradient, setEditorSession]);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const [cropBounds, setCropBounds] = useState<Rect | null>(null);
   const editorDialogs = useEditorDialogController();
@@ -1397,17 +1378,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     readonly layerId: LayerId;
     readonly start: LightTableGestureSample;
   } | null>(null);
-  const textPropertyGestureRef = useRef<
-    | { readonly kind: 'text'; readonly layerId: LayerId;
-        readonly range: { readonly start: number; readonly end: number } | null;
-        style: TextStylePatch; paragraph: ParagraphStylePatch; recordable: boolean }
-    | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId;
-        readonly projection: DocumentTextPropertyGestureController; style: TextStylePatch;
-        paragraph: ParagraphStylePatch; recordable: boolean }
-    | null
-  >(null);
-  const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
-  const textPaintPreviewFrameRef = useRef<number | null>(null);
+  const textPropertyGestureControllerRef = useRef<TextPropertyGestureController | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void | Promise<void>>(() => undefined);
   const paragraphTextCreation = useSyncExternalStore(
     paragraphTextController.subscribe,
@@ -2013,19 +1984,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     await documentMutationController.waitForIdle();
     layerDocumentTransactionRef.current = null;
     resetFaceWarpSessionRef.current();
-    if (textPropertyGestureRef.current?.kind === 'document') {
-      textPropertyGestureRef.current.projection.cancel();
-      textPropertyGestureRef.current = null;
-    }
+    textPropertyGestureControllerRef.current?.cancelDocumentGesture();
     documentMutationController.cancelActive();
   };
   const commitActiveDocumentTransaction = () => {
     layerDocumentTransactionRef.current = null;
-    if (textPropertyGestureRef.current?.kind === 'document') {
-      const committed = textPropertyGestureRef.current.projection.commit();
-      textPropertyGestureRef.current = null;
-      return committed;
-    }
+    const textPropertyCommit = textPropertyGestureControllerRef.current?.commitDocumentGesture();
+    if (textPropertyCommit !== null && textPropertyCommit !== undefined) return textPropertyCommit;
     return documentMutationController.commitActive();
   };
   const pushDocumentHistory = documentMutationController.record;
@@ -2628,12 +2593,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelPreviewFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textEditingController = textEditingControllerRef.current;
+  textPropertyGestureControllerRef.current ??= new TextPropertyGestureController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    getCommandDocumentId: () => workspaceDocumentIdRef.current as DocumentSessionId,
+    documentMutations: textEditingPortsRef.current.documentMutations,
+    textEditing: textEditingController,
+    recordObservedCommand: (commandId, documentId, parameters, result) => {
+      textEditingPortsRef.current.commandService.recordObservedCommand(
+        commandId, documentId, parameters, result
+      );
+    },
+    reportError: (message) => textEditingPortsRef.current.reportError(message),
+    requestFrame: (callback) => window.requestAnimationFrame(callback),
+    cancelFrame: (frame) => window.cancelAnimationFrame(frame)
+  }));
+  const textPropertyGestureController = textPropertyGestureControllerRef.current;
   const activateWorkspaceDocument = useCallback((documentId: string) => {
     if (!onActivateWorkspaceDocument || documentId === workspaceDocumentId) return;
-    runAfterTextEditingTerminal(textEditingController, () => {
+    textPropertyGestureController.finishBeforeTransition(() => {
       onActivateWorkspaceDocument(documentId);
     });
-  }, [onActivateWorkspaceDocument, textEditingController, workspaceDocumentId]);
+  }, [onActivateWorkspaceDocument, textPropertyGestureController, workspaceDocumentId]);
   const closeWorkspaceDocument = useCallback((documentId: string) => {
     const close = () => {
       if (onCloseWorkspaceDocument) onCloseWorkspaceDocument(documentId);
@@ -2643,8 +2623,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       close();
       return;
     }
-    runAfterTextEditingTerminal(textEditingController, close);
-  }, [onClose, onCloseWorkspaceDocument, textEditingController, workspaceDocumentId]);
+    textPropertyGestureController.finishBeforeTransition(close);
+  }, [onClose, onCloseWorkspaceDocument, textPropertyGestureController, workspaceDocumentId]);
   const existingTextHitControllerRef = useRef<ExistingTextHitController | null>(null);
   existingTextHitControllerRef.current ??= new ExistingTextHitController({
     getDocument: () => imageDocumentRef.current,
@@ -2654,9 +2634,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const existingTextHitController = existingTextHitControllerRef.current;
   const existingTextActivationRevisionRef = useRef(0);
   useEffect(() => () => {
+    textPropertyGestureController.dispose();
     textEditingController.reset();
     existingTextHitController.cancel();
-  }, [existingTextHitController, textEditingController]);
+  }, [existingTextHitController, textEditingController, textPropertyGestureController]);
   useEffect(() => {
     existingTextActivationRevisionRef.current += 1;
     existingTextHitController.cancel();
@@ -2772,33 +2753,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textLayerMoveGestureController.cancel();
     paragraphFrameResizeController.cancel();
     pathTextHandleController.cancel();
-    const propertyGesture = textPropertyGestureRef.current;
-    textPropertyGestureRef.current = null;
-    if (propertyGesture?.kind === 'document') propertyGesture.projection.cancel();
-    else if (propertyGesture?.kind === 'text') textEditingController.cancelFormatting();
-    pendingTextPaintPatchRef.current = null;
-    if (textPaintPreviewFrameRef.current !== null) {
-      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
-      textPaintPreviewFrameRef.current = null;
-    }
+    textPropertyGestureController.cancel();
     textEditingController.reset();
   }, [
     paragraphFrameResizeController,
     pathTextHandleController,
     textLayerMoveGestureController,
     textEditingController,
+    textPropertyGestureController,
     workspaceDocumentId
   ]);
 
   useEffect(() => {
-    if (textEditing.status !== 'editing' || imageDocument?.activeLayerId === textEditing.layerId) return;
-    const gesture = textPropertyGestureRef.current;
-    if (gesture?.kind === 'text' && gesture.layerId === textEditing.layerId) {
-      textEditingController.endFormatting();
-      textPropertyGestureRef.current = null;
-    }
-    textEditingController.finish();
-  }, [imageDocument?.activeLayerId, textEditing.layerId, textEditing.status, textEditingController]);
+    textPropertyGestureController.finishIfEditingLayerChanged(imageDocument?.activeLayerId ?? null);
+  }, [imageDocument?.activeLayerId, textEditing.layerId, textEditing.status,
+    textPropertyGestureController]);
 
   const selectionShapeCommandService = useMemo(() => documentSession
     ? new SelectionShapeCommandService(
@@ -4741,7 +4710,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const paintChange = change.paint;
     setEditorSession((current) => ({
       ...current,
-      gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+      gradient: { ...current.gradient, ...change }
     }));
     if (!paintChange
       || editorSession.activeTool !== 'gradient'
@@ -6025,7 +5994,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       || rendererSnapshot.status !== 'ready') return;
     // A tab activation publishes workspace state before the persistent GPU
     // renderer has rebound to that document. During that short hand-off the
-    // registry must fall back to the document-owned canonical ports; mounting
+    // registry keeps resolving the document-owned canonical ports; mounting
     // the previous renderer under the new document ID can otherwise export
     // pixels from the tab we just left.
     if (documentSession
@@ -6529,426 +6498,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerPanelController, rendererSnapshot.status, workspaceDocumentId,
     workspaceDocumentKind]);
 
-  const executeLayerVisibilityChanges = useCallback((
-    changes: readonly LayerVisibilityChange[],
-    name: string
-  ) => {
-    const operations = changes.flatMap((change, changeIndex) => {
-      const chunks: LayerId[][] = [];
-      for (let offset = 0; offset < change.layerIds.length; offset += 256) {
-        chunks.push(change.layerIds.slice(offset, offset + 256) as LayerId[]);
-      }
-      return chunks.map((layerIds, chunkIndex) => ({
-        operationId: `visibility-${changeIndex}-${chunkIndex}`,
-        command: 'layer.setVisibility',
-        parameters: { layerIds, visible: change.visible }
-      }));
-    });
-    if (!operations.length) return;
-    if (operations.length === 1) {
-      const parameters = operations[0]!.parameters;
-      void executeRegisteredCommand('layer.setVisibility', parameters);
-      return;
-    }
-    void executeRegisteredCommand('command.batch', { name, operations });
-  }, [executeRegisteredCommand, layerPanelController]);
+  const resolveLayerPanelDocument = useCallback(() => imageDocumentRef.current, []);
+  const commandLayerPanelController = useCommandLayerPanelController({
+    controller: layerPanelController,
+    commandService,
+    documentId: workspaceDocumentId as DocumentSessionId,
+    executeCommand: executeRegisteredCommand,
+    getDocument: resolveLayerPanelDocument,
+    reportError: setError
+  });
 
-  const layerInteractionSequenceRef = useRef(0);
-  const layerVisibilityInteractionRef = useRef<{
-    readonly token: number;
-    readonly documentId: DocumentSessionId;
-    initial: Map<LayerId, boolean>;
-  } | null>(null);
-  const layerOpacityInteractionRef = useRef<{
-    readonly token: number;
-    readonly documentId: DocumentSessionId;
-    initialOpacity: Map<LayerId, number>;
-    initialFillOpacity: Map<LayerId, number>;
-  } | null>(null);
-
-  useEffect(() => () => {
-    if (layerVisibilityInteractionRef.current) {
-      layerVisibilityInteractionRef.current = null;
-      layerPanelController.cancelVisibilityInteraction();
-    }
-    if (layerOpacityInteractionRef.current) {
-      layerOpacityInteractionRef.current = null;
-      layerPanelController.cancelOpacityInteraction();
-    }
-  }, [layerPanelController, workspaceDocumentId]);
-
-  const commandLayerPanelController = useMemo<LayerPanelController>(() => ({
-    // Selection and channel choice are presentation state; every document edit
-    // below is either dispatched or recorded once at its gesture boundary.
-    select: layerPanelController.select,
-    changeChannel: layerPanelController.changeChannel,
-    createRasterLayer: () => { void executeRegisteredCommand('layer.createRaster', {}); },
-    rename: (layerId: LayerId, name: string) => { void executeRegisteredCommand('layer.rename', { layerId, name }); },
-    setVisibility: (layerIds: LayerId[], visible: boolean) => {
-      soloLayerVisibilityRef.current = null;
-      void executeRegisteredCommand('layer.setVisibility', { layerIds, visible });
-    },
-    toggleSoloVisibility: (layerId: LayerId) => {
-      const document = imageDocumentRef.current;
-      if (!document) return;
-      const snapshot = soloLayerVisibilityRef.current;
-      if (snapshot?.targetLayerId === layerId
-        && canRestoreLayerVisibility(document, snapshot)) {
-        executeLayerVisibilityChanges(
-          planRestoreLayerVisibility(document, snapshot),
-          'Restore layer visibility'
-        );
-        soloLayerVisibilityRef.current = null;
-        return;
-      }
-      soloLayerVisibilityRef.current = captureLayerVisibility(document, layerId);
-      executeLayerVisibilityChanges(
-        planSoloLayerVisibility(document, layerId),
-        'Solo layer'
-      );
-    },
-    setOtherLayersVisibility: (layerId: LayerId, visible: boolean) => {
-      soloLayerVisibilityRef.current = null;
-      const document = imageDocumentRef.current;
-      if (document) executeLayerVisibilityChanges(
-        visible
-          ? planAllLayerVisibility(document, true, layerId)
-          : planSoloLayerVisibility(document, layerId),
-        `${visible ? 'Show' : 'Hide'} other layers`
-      );
-    },
-    setAllLayersVisibility: (visible: boolean) => {
-      soloLayerVisibilityRef.current = null;
-      const document = imageDocumentRef.current;
-      if (document) executeLayerVisibilityChanges(
-        planAllLayerVisibility(document, visible),
-        `${visible ? 'Show' : 'Hide'} all layers`
-      );
-    },
-    beginVisibilityInteraction: () => {
-      soloLayerVisibilityRef.current = null;
-      if (layerVisibilityInteractionRef.current) return false;
-      if (!layerPanelController.beginVisibilityInteraction()) return false;
-      layerVisibilityInteractionRef.current = {
-        token: ++layerInteractionSequenceRef.current,
-        documentId: workspaceDocumentId as DocumentSessionId,
-        initial: new Map()
-      };
-      return true;
-    },
-    previewVisibility: (layerIds, visible) => {
-      const interaction = layerVisibilityInteractionRef.current;
-      if (!interaction || interaction.documentId !== workspaceDocumentId) return;
-      const document = imageDocumentRef.current;
-      if (document) {
-        for (const layerId of layerIds) {
-          if (!interaction.initial.has(layerId)) {
-            const layer = findDocumentLayer(document, layerId);
-            if (layer) interaction.initial.set(layerId, layer.visible);
-          }
-        }
-      }
-      layerPanelController.previewVisibility(layerIds, visible);
-    },
-    endVisibilityInteraction: () => {
-      const interaction = layerVisibilityInteractionRef.current;
-      if (!interaction) return;
-      layerVisibilityInteractionRef.current = null;
-      if (interaction.documentId !== workspaceDocumentId) {
-        layerPanelController.cancelVisibilityInteraction();
-        return;
-      }
-      layerPanelController.endVisibilityInteraction();
-      const document = imageDocumentRef.current;
-      const changed = document ? [...interaction.initial].flatMap(([layerId, initial]) => {
-        const layer = findDocumentLayer(document, layerId);
-        return layer && layer.visible !== initial ? [{ layerId, visible: layer.visible }] : [];
-      }) : [];
-      interaction.initial.clear();
-      const finals = [false, true].flatMap((visible) => {
-        const layerIds = changed.filter((change) => change.visible === visible).map(({ layerId }) => layerId);
-        return layerIds.length ? [{ layerIds, visible }] : [];
-      });
-      if (finals.length === 1) {
-        commandService.recordObservedCommand(
-          'layer.setVisibility', interaction.documentId,
-          finals[0], finals[0]
-        );
-      } else if (finals.length > 1) {
-        const operations = finals.map((parameters, index) => ({
-          operationId: `visibility-${index}`,
-          command: 'layer.setVisibility' as const,
-          parameters
-        }));
-        commandService.recordObservedCommand(
-          'command.batch', interaction.documentId,
-          { name: 'Set layer visibility', operations },
-          { results: operations.map(({ operationId, parameters }) => ({ operationId, value: parameters })) }
-        );
-      }
-    },
-    cancelVisibilityInteraction: () => {
-      if (!layerVisibilityInteractionRef.current) return;
-      layerVisibilityInteractionRef.current = null;
-      layerPanelController.cancelVisibilityInteraction();
-    },
-    setOpacity: (layerId, opacity) => {
-      const interaction = layerOpacityInteractionRef.current;
-      if (interaction) {
-        if (interaction.documentId !== workspaceDocumentId) return;
-        const current = imageDocumentRef.current
-          ? findDocumentLayer(imageDocumentRef.current, layerId)
-          : null;
-        if (current && !interaction.initialOpacity.has(layerId)) {
-          interaction.initialOpacity.set(layerId, current.opacity);
-        }
-        layerPanelController.setOpacity(layerId, opacity);
-      } else {
-        void executeRegisteredCommand('layer.setOpacity', { layerId, opacity });
-      }
-    },
-    setVectorAntiAlias: (layerId, antiAlias) => {
-      void executeRegisteredCommand('layer.setVectorAntiAlias', { layerId, antiAlias });
-    },
-    setFillOpacity: (layerId, opacity) => {
-      const interaction = layerOpacityInteractionRef.current;
-      if (interaction) {
-        if (interaction.documentId !== workspaceDocumentId) return;
-        const current = imageDocumentRef.current
-          ? findDocumentLayer(imageDocumentRef.current, layerId)
-          : null;
-        if (current && !interaction.initialFillOpacity.has(layerId)) {
-          interaction.initialFillOpacity.set(layerId, current.fillOpacity);
-        }
-        layerPanelController.setFillOpacity(layerId, opacity);
-      } else {
-        void executeRegisteredCommand('layer.setFillOpacity', { layerId, opacity });
-      }
-    },
-    beginOpacityInteraction: () => {
-      if (layerOpacityInteractionRef.current) return false;
-      if (!layerPanelController.beginOpacityInteraction()) return false;
-      layerOpacityInteractionRef.current = {
-        token: ++layerInteractionSequenceRef.current,
-        documentId: workspaceDocumentId as DocumentSessionId,
-        initialOpacity: new Map(),
-        initialFillOpacity: new Map()
-      };
-      return true;
-    },
-    endOpacityInteraction: () => {
-      const interaction = layerOpacityInteractionRef.current;
-      if (!interaction) return;
-      layerOpacityInteractionRef.current = null;
-      if (interaction.documentId !== workspaceDocumentId) {
-        layerPanelController.cancelOpacityInteraction();
-        return;
-      }
-      layerPanelController.endOpacityInteraction();
-      const document = imageDocumentRef.current;
-      const observed: Array<{
-        command: 'layer.setOpacity' | 'layer.setFillOpacity';
-        parameters: { layerId: LayerId; opacity: number };
-      }> = [];
-      if (document) {
-        for (const [layerId, initial] of interaction.initialOpacity) {
-          const opacity = findDocumentLayer(document, layerId)?.opacity;
-          if (opacity !== undefined && opacity !== initial) observed.push({
-            command: 'layer.setOpacity', parameters: { layerId, opacity }
-          });
-        }
-        for (const [layerId, initial] of interaction.initialFillOpacity) {
-          const opacity = findDocumentLayer(document, layerId)?.fillOpacity;
-          if (opacity !== undefined && opacity !== initial) observed.push({
-            command: 'layer.setFillOpacity', parameters: { layerId, opacity }
-          });
-        }
-      }
-      if (observed.length === 1) {
-        commandService.recordObservedCommand(
-          observed[0]!.command, interaction.documentId,
-          observed[0]!.parameters, observed[0]!.parameters
-        );
-      } else if (observed.length > 1) {
-        const operations = observed.map(({ command, parameters }, index) => ({
-          operationId: `opacity-${index}`, command, parameters
-        }));
-        commandService.recordObservedCommand(
-          'command.batch', interaction.documentId,
-          { name: 'Set layer opacity', operations },
-          { results: operations.map(({ operationId, parameters }) => ({ operationId, value: parameters })) }
-        );
-      }
-      interaction.initialOpacity.clear();
-      interaction.initialFillOpacity.clear();
-    },
-    cancelOpacityInteraction: () => {
-      if (!layerOpacityInteractionRef.current) return;
-      layerOpacityInteractionRef.current = null;
-      layerPanelController.cancelOpacityInteraction();
-    },
-    duplicateActive: () => {
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (layerId) void executeRegisteredCommand('layer.duplicate', { layerId });
-    },
-    rasterizeActive: () => {
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (!layerId) return setError('Select a layer to rasterize.');
-      executeRegisteredCommand('layer.rasterize', { layerId });
-    },
-    deleteSelection: (layerIds: LayerId[]) => {
-      void executeRegisteredCommand('layer.delete', { layerIds });
-    },
-    move: (layerId: LayerId, direction: 'up' | 'down') => {
-      void executeRegisteredCommand('layer.move', { layerId, direction });
-    },
-    moveActive: (direction: 'up' | 'down') => {
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (layerId) void executeRegisteredCommand('layer.move', { layerId, direction });
-    },
-    setBlendMode: (layerId: LayerId, blendMode: Parameters<typeof layerPanelController.setBlendMode>[1]) => {
-      void executeRegisteredCommand('layer.setBlendMode', { layerId, blendMode });
-    },
-    setClipping: (layerId: LayerId, clipping: boolean) => {
-      void executeRegisteredCommand('layer.setClipping', { layerId, clipping });
-    },
-    reorder: (layerIds, targetLayerId, placement) => {
-      void executeRegisteredCommand('layer.reorder', { layerIds, targetLayerId, placement });
-    },
-    addMask: layerPanelController.addMask,
-    loadMaskSelection: layerPanelController.loadMaskSelection,
-    loadTransparencySelection: (layerId) => {
-      void executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'load-transparency', layerId
-      });
-    },
-    toggleMask: layerPanelController.toggleMask,
-    setMaskLinked: layerPanelController.setMaskLinked,
-    removeMask: layerPanelController.removeMask,
-    setLock: (layerIds: LayerId[], lock: Parameters<typeof layerPanelController.setLock>[1], locked: boolean) => {
-      void executeRegisteredCommand('layer.setLock', { layerIds, lock, locked });
-    },
-    createAdjustmentLayer: () => {
-      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
-      const created = layerPanelController.createAdjustmentLayer();
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (created && layerId) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind: 'grade', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
-        { kind: 'grade', placement: 'adjustment-layer', layerId }
-      );
-      return created;
-    },
-    createCurvesAdjustmentLayer: () => {
-      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
-      const created = layerPanelController.createCurvesAdjustmentLayer();
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (created && layerId) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind: 'curves', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
-        { kind: 'curves', placement: 'adjustment-layer', layerId }
-      );
-      return created;
-    },
-    createLocalProcessing: (layerId, kind) => {
-      const revision = imageDocumentRef.current?.revision;
-      layerPanelController.createLocalProcessing(layerId, kind);
-      if (imageDocumentRef.current?.revision !== revision) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind, placement: 'local', layerId }, { kind, placement: 'local', layerId }
-      );
-    },
-    createGradientFillLayer: () => { void executeRegisteredCommand('layer.createGradientFill', {}); },
-    createLensFxLayer: () => {
-      const aboveLayerId = imageDocumentRef.current?.activeLayerId ?? undefined;
-      const created = layerPanelController.createLensFxLayer();
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (created && layerId) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind: 'lens-fx', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
-        { kind: 'lens-fx', placement: 'adjustment-layer', layerId }
-      );
-      return created;
-    },
-    createAdjustmentLayerOfKind: (kind, aboveLayerId, settings) => {
-      const created = layerPanelController.createAdjustmentLayerOfKind(kind, aboveLayerId, settings);
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (created && layerId) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind, placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}),
-          ...(settings ? { settings } : {}) },
-        { kind, placement: 'adjustment-layer', layerId }
-      );
-      return created;
-    },
-    createAttachedAdjustment: (layerId, kind, settings) => {
-      const adjustmentId = layerPanelController.createAttachedAdjustment(layerId, kind, settings);
-      if (adjustmentId) commandService.recordObservedCommand(
-        'adjustment.create', workspaceDocumentId as DocumentSessionId,
-        { kind, placement: 'attached', layerId, ...(settings ? { settings } : {}) },
-        { kind, placement: 'attached', layerId, adjustmentId }
-      );
-      return adjustmentId;
-    },
-    createGroup: () => { void executeRegisteredCommand('layer.createGroup', {}); },
-    groupSelection: (layerIds) => { void executeRegisteredCommand('layer.group', { layerIds }); },
-    ungroupSelection: (layerIds) => { void executeRegisteredCommand('layer.ungroup', { layerIds }); },
-    setStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => {
-      void executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled });
-    },
-    setStyleStackEnabled: (layerId: LayerId, enabled: boolean) => {
-      void executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled });
-    },
-    mergeDown: layerPanelController.mergeDown,
-    mergeSelected: layerPanelController.mergeSelected,
-    flattenGroup: layerPanelController.flattenGroup,
-    flattenImage: layerPanelController.flattenImage,
-    editStyles: layerPanelController.editStyles,
-    removeStyle: layerPanelController.removeStyle,
-    clearStyles: layerPanelController.clearStyles,
-    setLocalGradeEnabled: (layerId, enabled) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'grade' }, enabled
-      });
-    },
-    setLocalCurvesEnabled: (layerId, enabled) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'curves' }, enabled
-      });
-    },
-    setLocalLensFxEnabled: (layerId, enabled) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'set-enabled', target: { kind: 'local', layerId, owner: 'lens-fx' }, enabled
-      });
-    },
-    setGradeGroupEnabled: (ownerId, group, enabled) => {
-      const attached = parseAttachedAdjustmentOwnerId(ownerId);
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'set-grade-group-enabled',
-        target: attached
-          ? { kind: 'attached', layerId: attached.layerId, adjustmentId: attached.adjustmentId }
-          : { kind: 'layer', layerId: ownerId },
-        group,
-        enabled
-      });
-    },
-    removeLocalProcessing: (layerId, owner) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'remove', target: { kind: 'local', layerId, owner }
-      });
-    },
-    setAttachedAdjustmentEnabled: (layerId, adjustmentId, enabled) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'set-enabled', target: { kind: 'attached', layerId, adjustmentId }, enabled
-      });
-    },
-    removeAttachedAdjustment: (layerId, adjustmentId) => {
-      void executeRegisteredCommand('adjustment.modifyStructure', {
-        operation: 'remove', target: { kind: 'attached', layerId, adjustmentId }
-      });
-    }
-  }), [commandService, executeLayerVisibilityChanges, executeRegisteredCommand,
-    layerPanelController, workspaceDocumentId]);
   toggleSelectedLayerVisibilityRef.current = () => {
     const document = imageDocumentRef.current;
     if (!document) return;
@@ -8381,123 +7940,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activatePersistentTool('text-point');
     if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
   };
-  const beginTextPropertyGesture = (): boolean => {
-    if (textPropertyGestureRef.current) return false;
-    const document = imageDocumentRef.current;
-    const layerId = document?.activeLayerId;
-    if (!document || !layerId || layerId !== activeFlowTextPropertyLayer?.id) return false;
-    const editing = textEditingController.getSnapshot();
-    if (editing.status === 'editing' && editing.layerId === layerId) {
-      if (!textEditingController.beginFormatting()) return false;
-      const start = Math.min(editing.selection.anchor, editing.selection.focus);
-      const end = Math.max(editing.selection.anchor, editing.selection.focus);
-      textPropertyGestureRef.current = {
-        kind: 'text', layerId, range: { start, end },
-        style: {}, paragraph: {}, recordable: true
-      };
-      return true;
-    }
-    const transaction = documentMutationController.begin('text-properties');
-    if (!transaction) return false;
-    const projection = new DocumentTextPropertyGestureController(transaction, {
-      request: (callback) => window.requestAnimationFrame(callback),
-      cancel: (frame) => window.cancelAnimationFrame(frame),
-      reportError: (message) => setError(message)
-    });
-    textPropertyGestureRef.current = {
-      kind: 'document', documentId: document.id, layerId, projection,
-      style: {}, paragraph: {}, recordable: true
-    };
-    return true;
-  };
+  const beginTextPropertyGesture = () =>
+    textPropertyGestureController.begin(activeFlowTextPropertyLayer?.id);
   const applyTextPropertyPatch = (
     patch: TextStylePatch,
     paragraphPatch: ParagraphStylePatch = {}
-  ) => {
-    const gesture = textPropertyGestureRef.current;
-    if (!gesture) return;
-    gesture.style = { ...gesture.style, ...patch };
-    gesture.paragraph = { ...gesture.paragraph, ...paragraphPatch };
-    if (!semanticStylePatchFromCanonical(gesture.style)
-      || !semanticParagraphPatchFromCanonical(gesture.paragraph)) {
-      gesture.recordable = false;
-    }
-    if (gesture.kind === 'text') {
-      const editing = textEditingController.getSnapshot();
-      if (editing.status !== 'editing' || editing.layerId !== gesture.layerId) return;
-      textEditingController.format(patch, paragraphPatch);
-      return;
-    }
-    if (imageDocumentRef.current?.id !== gesture.documentId) return;
-    const layerId = gesture.layerId;
-    gesture.projection.stage((document) => {
-      const layer = findDocumentLayer(document, layerId);
-      if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
-      return applyTextLayerDataMutation(document, layerId, {
-        ...layer.text,
-        source: formatFlowTextSource(layer.text.source, null, patch, paragraphPatch)
-      });
-    });
-  };
-  const cancelPendingTextPaintPreview = () => {
-    pendingTextPaintPatchRef.current = null;
-    if (textPaintPreviewFrameRef.current === null) return;
-    window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
-    textPaintPreviewFrameRef.current = null;
-  };
-  const flushPendingTextPaintPreview = () => {
-    const patch = pendingTextPaintPatchRef.current;
-    pendingTextPaintPatchRef.current = null;
-    if (textPaintPreviewFrameRef.current !== null) {
-      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
-      textPaintPreviewFrameRef.current = null;
-    }
-    if (patch) applyTextPropertyPatch(patch);
-  };
-  const queueTextPaintPreview = (patch: TextStylePatch) => {
-    pendingTextPaintPatchRef.current = patch;
-    if (textPaintPreviewFrameRef.current !== null) return;
-    textPaintPreviewFrameRef.current = window.requestAnimationFrame(() => {
-      textPaintPreviewFrameRef.current = null;
-      flushPendingTextPaintPreview();
-    });
-  };
-  const commitTextPropertyGesture = () => {
-    flushPendingTextPaintPreview();
-    const gesture = textPropertyGestureRef.current;
-    if (!gesture) return;
-    const changed = gesture.kind === 'text'
-      ? textEditingController.endFormatting()
-      : gesture.projection.commit();
-    textPropertyGestureRef.current = null;
-    if (!changed || !gesture.recordable) return;
-    const style = semanticStylePatchFromCanonical(gesture.style);
-    const paragraph = semanticParagraphPatchFromCanonical(gesture.paragraph);
-    if (!style || !paragraph || (!Object.keys(style).length && !Object.keys(paragraph).length)) return;
-    const parameters = {
-      layerId: gesture.layerId,
-      ...(gesture.kind === 'text' && gesture.range ? gesture.range : {}),
-      ...(Object.keys(style).length ? { style } : {}),
-      ...(Object.keys(paragraph).length ? { paragraph } : {})
-    };
-    commandService.recordObservedCommand(
-      'text.format',
-      workspaceDocumentId as DocumentSessionId,
-      parameters,
-      { layerId: gesture.layerId }
-    );
-  };
-  const cancelTextPropertyGesture = () => {
-    cancelPendingTextPaintPreview();
-    const gesture = textPropertyGestureRef.current;
-    if (!gesture) return;
-    if (gesture.kind === 'text') {
-      textEditingController.cancelFormatting();
-    } else {
-      gesture.projection.cancel();
-    }
-    textPropertyGestureRef.current = null;
-  };
+  ) => textPropertyGestureController.apply(patch, paragraphPatch);
+  const queueTextPaintPreview = (patch: TextStylePatch) =>
+    textPropertyGestureController.queuePaint(patch);
+  const commitTextPropertyGesture = () => textPropertyGestureController.commit();
+  const cancelTextPropertyGesture = () => textPropertyGestureController.cancel();
   const dispatchDiscreteTextFormat = (stylePatch: TextStylePatch, paragraphPatch: ParagraphStylePatch) => {
     const document = imageDocumentRef.current; const layerId = document?.activeLayerId;
     const style = semanticStylePatchFromCanonical(stylePatch);
@@ -8589,17 +8041,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     });
   };
-  useEffect(() => () => {
-    const gesture = textPropertyGestureRef.current;
-    textPropertyGestureRef.current = null;
-    if (gesture?.kind === 'document') gesture.projection.cancel();
-    else if (gesture?.kind === 'text') textEditingController.cancelFormatting();
-    pendingTextPaintPatchRef.current = null;
-    if (textPaintPreviewFrameRef.current !== null) {
-      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
-      textPaintPreviewFrameRef.current = null;
-    }
-  }, [textEditingController]);
   const textPropertiesPanel = textPropertyPresentation ? {
     model: textPropertyPresentation,
     fonts: availableFontAssets,
@@ -9090,7 +8531,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             })),
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
-              gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+              gradient: { ...current.gradient, ...change }
             })),
             onShapeChange: (change) => setEditorSession((current) => ({
               ...current, shape: { ...current.shape, ...change }

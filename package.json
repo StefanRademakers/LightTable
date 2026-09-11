@@ -249,6 +249,7 @@
     "test": "npm run test:text-wasm && npm run test:release-soak-policy && npm run test:automation-driver && npm run test:render-evidence && npm run test:adjustment-parity-policy && npm run test:structural-audit-policy && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:wasm && npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
+    "check:editor-route-manifest": "node scripts/check-editor-route-manifest.mjs",
     "audit:source-structure": "node scripts/audit-source-structure.mjs",
     "audit:web-delivery": "node scripts/audit-web-delivery.mjs",
     "test:structural-audit-policy": "node --test scripts/structural-audit-policy.test.mjs",
@@ -265,7 +266,7 @@
     "smoke:mcp:local-codex:a-z": "node scripts/local-codex-mcp-session.mjs --probe --a-z",
     "mcp:bridge": "node scripts/lighttable-mcp-automation-bridge.mjs",
     "smoke:mcp": "node scripts/smoke-lighttable-mcp.mjs",
-    "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
+    "verify": "npm run verify:boundary && npm run check:editor-route-manifest && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
   },
   "devDependencies": {
     "ag-psd": "^31.0.2",

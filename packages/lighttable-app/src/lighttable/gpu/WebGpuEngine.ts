@@ -140,68 +140,18 @@ import {
   documentRenderStatesEqual
 } from '../application/rendering/documentRenderState';
 import type { WarpDebugView } from '../effects/warp/warpTypes';
-import {
-  BRUSH_CURSOR_THEME,
-  GRADIENT_GIZMO_THEME,
-  SELECTION_OUTLINE_THEME,
-  UNPAINTED_ELEMENT_OUTLINE_THEME,
-  VectorEditingOverlayBackend,
-  type VectorEditingOverlayTheme,
-  type VectorEditingOverlayTarget
-} from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
-import {
-  VectorDocumentEditingSceneCache,
-  transformVectorDocumentEditingSceneOverlay
-} from '../application/vectors/vectorEditingOverlay';
 import { vectorLayerLocalPaintBounds } from '../application/vectors/vectorSceneQueries';
-import {
-  cloneVectorEditorSelection,
-  createVectorEditorSelection,
-  vectorEditorSelectionsEqual,
-  type VectorEditorSelection
-} from '../editor/session/editorSession';
-import {
-  buildBrushCursorEditingOverlay,
-  buildSampledBrushSourceEditingOverlay,
-  buildSelectionEditingOverlay,
-  directSelectionShape
-} from '../editor/selection/selectionEditingOverlay';
-import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
+import type { VectorEditorSelection } from '../editor/session/editorSession';
 import { withSelectionProjectionPresentation } from '../editor/rendering/preparedSelectionProjectionPresentation';
-import { SelectionPaintOverlayBackend } from '../editor/rendering/SelectionPaintOverlayBackend';
-import { SmartSelectionOverlayBackend } from '../editor/rendering/SmartSelectionOverlayBackend';
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
-import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 import { ColorLookupAssetStore } from './ColorLookupAssetStore';
 import { WaveletDetailRuntime } from './WaveletDetailRuntime';
 import type { PointColorSample } from '../pointColor';
 import { runGpuDeviceErrorScopeTransaction } from '@lighttable/webgpu-runtime';
-
-const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
-  pathColor: [0.1, 0.82, 0.95, 1],
-  handleColor: [0.92, 0.98, 1, 1],
-  pathWidthPx: 1,
-  handleWidthPx: 1,
-  curveSubdivisions: 1
-};
-
-const FACE_WARP_RELAX_CURSOR_THEME: VectorEditingOverlayTheme = {
-  ...BRUSH_CURSOR_THEME,
-  pathColor: [0.2, 0.9, 1, 1],
-  underlayColor: [0.02, 0.12, 0.16, 0.95],
-  dashLengthPx: 5,
-  gapLengthPx: 3
-};
-
-const FACE_WARP_RESTORE_CURSOR_THEME: VectorEditingOverlayTheme = {
-  ...BRUSH_CURSOR_THEME,
-  pathColor: [1, 0.68, 0.18, 1],
-  underlayColor: [0.16, 0.08, 0.01, 0.95],
-  dashLengthPx: 1,
-  gapLengthPx: 3
-};
+import { DocumentEditingOverlayState } from './DocumentEditingOverlayState';
+import { DocumentEditingOverlayRenderer } from './DocumentEditingOverlayRenderer';
 
 export interface WebGpuPngExportOptions {
   readonly excludedLayerIds?: readonly LayerId[];
@@ -272,6 +222,7 @@ export class WebGpuEngine {
     this.context = context;
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
+    this.editingOverlayRenderer = new DocumentEditingOverlayRenderer(device, canvasFormat);
     this.documentLayerResources = documentLayerResourceRepositoryFor(device);
     this.documentPatternResources = documentPatternResourceRepositoryFor(device);
     this.documentColorLookupResources = documentColorLookupResourceRepositoryFor(device);
@@ -377,39 +328,8 @@ export class WebGpuEngine {
   private paintInteractionActive = false;
   private warpInteractionActive = false;
   private lastReportedGpuBytes = -1;
-  private vectorSelection = createVectorEditorSelection();
-  private vectorSelectionPreviewTransform: AffineMatrix | null = null;
-  private readonly vectorEditingSceneCache = new VectorDocumentEditingSceneCache();
-  private selectionOverlayOperations: SelectionOperation[] = [];
-  private selectionPreviewProjectionActive = false;
-  private selectionPreviewTranslation = { x: 0, y: 0 };
-  private selectionOverlayDraft: SelectionShape | null = null;
-  private selectionOverlayVisible = false;
-  private selectionPaintOverlayVisible = false;
-  private selectionPaintOverlayColor: [number, number, number] = [1, 0, 0];
-  private zoomOverlayDraft: SelectionShape | null = null;
-  private brushCursorOverlay: {
-    center: { x: number; y: number };
-    diameter: number;
-    hardness?: number;
-    sourceCenter?: { x: number; y: number };
-    sourceMarkerSize?: number;
-  } | null = null;
-  private penEditingOverlay: VectorEditingOverlay | null = null;
-  private faceWarpEditingOverlay: VectorEditingOverlay | null = null;
-  private faceWarpInteractionMode: 'sculpt' | 'relax' | 'restore' | null = null;
-  private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
-  private transformEditingFrame: VectorSelectionFrame | null = null;
-  private smartGuideEditingFrame: VectorSelectionFrame | null = null;
-  private documentGuideEditingFrame: VectorSelectionFrame | null = null;
-  private documentGridEditingFrame: VectorSelectionFrame | null = null;
-  private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
-  private textEditingOverlayBackend: TextEditingOverlayBackend | null = null;
-  private textEditingOverlay: TextEditingOverlay | null = null;
-  private textCaretVisible = true;
-  private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
-  private selectionPaintOverlayBackend: SelectionPaintOverlayBackend | null = null;
-  private smartSelectionOverlayBackend: SmartSelectionOverlayBackend | null = null;
+  private readonly editingOverlays = new DocumentEditingOverlayState();
+  private readonly editingOverlayRenderer: DocumentEditingOverlayRenderer;
 
   static async create(
     canvas: HTMLCanvasElement,
@@ -802,8 +722,7 @@ export class WebGpuEngine {
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
     if (firstDocument) {
-      this.textEditingOverlay = null;
-      this.vectorSelectionPreviewTransform = null;
+      this.editingOverlays.resetForDocument();
     }
     this.imageDocument = document;
     this.p0FilterRenderer.syncDocument(document);
@@ -2493,16 +2412,13 @@ export class WebGpuEngine {
   }
 
   setVectorEditingSelection(selection: VectorEditorSelection) {
-    if (vectorEditorSelectionsEqual(this.vectorSelection, selection)) return;
-    this.vectorSelection = cloneVectorEditorSelection(selection);
-    this.vectorSelectionPreviewTransform = null;
+    if (!this.editingOverlays.setVectorSelection(selection)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setVectorSelectionPreviewTransform(matrix: AffineMatrix | null) {
-    if (!matrix && !this.vectorSelectionPreviewTransform) return;
-    this.vectorSelectionPreviewTransform = matrix ? { ...matrix } : null;
+    if (!this.editingOverlays.setVectorPreviewTransform(matrix)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2513,30 +2429,7 @@ export class WebGpuEngine {
     visible: boolean,
     paintOverlay?: { visible: boolean; color: string }
   ) {
-    if (!this.selectionPreviewProjectionActive) {
-      this.selectionOverlayOperations = operations.map((operation) => ({
-        ...operation,
-        shape: {
-          ...operation.shape,
-          points: operation.shape.points.map((point) => ({ ...point }))
-        }
-      }));
-    }
-    this.selectionOverlayDraft = draft ? {
-      ...draft,
-      points: draft.points.map((point) => ({ ...point }))
-    } : null;
-    this.selectionOverlayVisible = visible;
-    this.selectionPaintOverlayVisible = paintOverlay?.visible === true;
-    const match = paintOverlay?.color.match(/^#([0-9a-f]{6})$/i);
-    if (match) {
-      const value = Number.parseInt(match[1]!, 16);
-      this.selectionPaintOverlayColor = [
-        ((value >> 16) & 255) / 255,
-        ((value >> 8) & 255) / 255,
-        (value & 255) / 255
-      ];
-    }
+    this.editingOverlays.setSelection(operations, draft, visible, paintOverlay);
     const trace = (
       globalThis as typeof globalThis & {
         __LIGHTTABLE_SELECTION_OVERLAY_TRACE__?: Array<{
@@ -2548,13 +2441,13 @@ export class WebGpuEngine {
       }
     ).__LIGHTTABLE_SELECTION_OVERLAY_TRACE__;
     trace?.push({
-      operationCount: this.selectionOverlayOperations.length,
-      sourceKind: this.selectionOverlayOperations.at(-1)?.source?.kind ?? null,
+      operationCount: this.editingOverlays.selectionOperations.length,
+      sourceKind: this.editingOverlays.selectionOperations.at(-1)?.source?.kind ?? null,
       visible,
       maskActive: Boolean(this.documentRenderer?.selectionMaskTexture())
     });
     this.selectionAntsAnimator.setSelectionVisible(
-      visible && !this.selectionPaintOverlayVisible && this.selectionOverlayOperations.length > 0
+      this.editingOverlays.selectionAntsVisible
     );
     this.renderDirty.invalidate('viewport');
     this.requestRender();
@@ -2562,18 +2455,8 @@ export class WebGpuEngine {
 
   /** Synchronous committed projection used by the selection kernel activation. */
   setCommittedSelectionProjection(operations: readonly SelectionOperation[]) {
-    this.selectionPreviewProjectionActive = false;
-    this.selectionPreviewTranslation = { x: 0, y: 0 };
-    this.selectionOverlayOperations = operations.map((operation) => ({
-      ...operation,
-      shape: { ...operation.shape,
-        points: operation.shape.points.map((point) => ({ ...point })) }
-    }));
-    this.selectionAntsAnimator.setSelectionVisible(
-      this.selectionOverlayVisible
-      && !this.selectionPaintOverlayVisible
-      && this.selectionOverlayOperations.length > 0
-    );
+    this.editingOverlays.setCommittedSelection(operations);
+    this.selectionAntsAnimator.setSelectionVisible(this.editingOverlays.selectionAntsVisible);
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2583,32 +2466,14 @@ export class WebGpuEngine {
     operations: readonly SelectionOperation[],
     translation: Readonly<{ x: number; y: number }> = { x: 0, y: 0 }
   ) {
-    this.selectionPreviewProjectionActive = true;
-    this.selectionPreviewTranslation = { ...translation };
-    this.selectionOverlayOperations = operations.map((operation) => ({
-      ...operation,
-      shape: { ...operation.shape,
-        points: operation.shape.points.map((point) => ({ ...point })) }
-    }));
-    this.selectionAntsAnimator.setSelectionVisible(
-      this.selectionOverlayVisible
-      && !this.selectionPaintOverlayVisible
-      && this.selectionOverlayOperations.length > 0
-    );
+    this.editingOverlays.setSelectionPreview(operations, translation);
+    this.selectionAntsAnimator.setSelectionVisible(this.editingOverlays.selectionAntsVisible);
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setZoomEditingOverlay(draft: SelectionShape | null) {
-    const currentKey = this.zoomOverlayDraft
-      ? JSON.stringify(this.zoomOverlayDraft.points)
-      : '';
-    const nextKey = draft ? JSON.stringify(draft.points) : '';
-    if (currentKey === nextKey) return;
-    this.zoomOverlayDraft = draft ? {
-      kind: 'rectangle',
-      points: draft.points.map((point) => ({ ...point }))
-    } : null;
+    if (!this.editingOverlays.setZoomDraft(draft)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2619,11 +2484,8 @@ export class WebGpuEngine {
     trace: TextInteractionTraceIdentity | null = null
   ) {
     if (
-      this.textEditingOverlay?.resourceKey === overlay?.resourceKey
-      && this.textCaretVisible === caretVisible
+      !this.editingOverlays.setTextOverlay(overlay, caretVisible)
     ) return;
-    this.textEditingOverlay = overlay;
-    this.textCaretVisible = caretVisible;
     if (trace) {
       this.pendingTextInteractionTrace = trace;
       recordTextInteractionTrace(trace, 'overlay-set');
@@ -2639,27 +2501,7 @@ export class WebGpuEngine {
     sourceCenter?: { x: number; y: number };
     sourceMarkerSize?: number;
   } | null) {
-    const current = this.brushCursorOverlay;
-    if (
-      current === null && cursor === null
-      || current !== null && cursor !== null
-        && current.center.x === cursor.center.x
-        && current.center.y === cursor.center.y
-        && current.diameter === cursor.diameter
-        && current.hardness === cursor.hardness
-        && current.sourceCenter?.x === cursor.sourceCenter?.x
-        && current.sourceCenter?.y === cursor.sourceCenter?.y
-        && current.sourceMarkerSize === cursor.sourceMarkerSize
-    ) return;
-    this.brushCursorOverlay = cursor ? {
-      center: { ...cursor.center },
-      diameter: cursor.diameter,
-      ...(cursor.hardness !== undefined ? { hardness: cursor.hardness } : {}),
-      ...(cursor.sourceCenter ? { sourceCenter: { ...cursor.sourceCenter } } : {}),
-      ...(cursor.sourceMarkerSize !== undefined
-        ? { sourceMarkerSize: cursor.sourceMarkerSize }
-        : {})
-    } : null;
+    if (!this.editingOverlays.setBrushCursor(cursor)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2668,37 +2510,25 @@ export class WebGpuEngine {
     from: { x: number; y: number };
     to: { x: number; y: number };
   } | null) {
-    const current = this.penRubberBand;
-    if (current === null && band === null
-      || current && band
-        && current.from.x === band.from.x && current.from.y === band.from.y
-        && current.to.x === band.to.x && current.to.y === band.to.y) return;
-    this.penRubberBand = band ? {
-      from: { ...band.from },
-      to: { ...band.to }
-    } : null;
+    if (!this.editingOverlays.setPenRubberBand(band)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setPenEditingOverlay(overlay: VectorEditingOverlay | null) {
-    if (this.penEditingOverlay?.resourceKey === overlay?.resourceKey) return;
-    this.penEditingOverlay = overlay;
+    if (!this.editingOverlays.setResourceOverlay('penOverlay', overlay)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setFaceWarpEditingOverlay(overlay: VectorEditingOverlay | null) {
-    if (this.faceWarpEditingOverlay?.resourceKey === overlay?.resourceKey) return;
-    this.faceWarpEditingOverlay = overlay;
-    if (!overlay) this.faceWarpInteractionMode = null;
+    if (!this.editingOverlays.setResourceOverlay('faceWarpOverlay', overlay)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setFaceWarpInteractionMode(mode: 'sculpt' | 'relax' | 'restore' | null) {
-    if (this.faceWarpInteractionMode === mode) return;
-    this.faceWarpInteractionMode = mode;
+    if (!this.editingOverlays.setFaceWarpMode(mode)) return;
     // Interaction feedback is presentation-only. Never dirty the document or
     // any correction/composite stage merely because a modifier changed.
     this.renderDirty.invalidate('viewport');
@@ -2706,12 +2536,7 @@ export class WebGpuEngine {
   }
 
   setSmartSelectionPreview(mask: RasterSelectionMask | null) {
-    if (!mask && !this.smartSelectionOverlayBackend) return;
-    this.smartSelectionOverlayBackend ??= new SmartSelectionOverlayBackend(
-      this.device,
-      this.canvasFormat
-    );
-    this.smartSelectionOverlayBackend.setMask(mask);
+    if (!this.editingOverlayRenderer.setSmartSelectionPreview(mask)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2726,50 +2551,25 @@ export class WebGpuEngine {
   }
 
   setTransformEditingFrame(frame: VectorSelectionFrame | null) {
-    if (this.transformEditingFrame?.resourceKey === frame?.resourceKey) return;
-    this.transformEditingFrame = frame ? {
-      ...frame,
-      bounds: { ...frame.bounds },
-      pivot: { ...frame.pivot },
-      edges: frame.edges.map(({ start, end }) => ({
-        start: { ...start },
-        end: { ...end }
-      })),
-      handles: frame.handles.map((handle) => ({
-        ...handle,
-        point: { ...handle.point }
-      }))
-    } : null;
+    if (!this.editingOverlays.setFrame('transformFrame', frame)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setSmartGuideEditingFrame(frame: VectorSelectionFrame | null) {
-    if (this.smartGuideEditingFrame?.resourceKey === frame?.resourceKey) return;
-    this.smartGuideEditingFrame = frame ? {
-      ...frame,
-      bounds: { ...frame.bounds },
-      pivot: { ...frame.pivot },
-      edges: frame.edges.map(({ start, end }) => ({
-        start: { ...start },
-        end: { ...end }
-      })),
-      handles: []
-    } : null;
+    if (!this.editingOverlays.setFrame('smartGuideFrame', frame)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setDocumentGuideEditingFrame(frame: VectorSelectionFrame | null) {
-    if (this.documentGuideEditingFrame?.resourceKey === frame?.resourceKey) return;
-    this.documentGuideEditingFrame = frame;
+    if (!this.editingOverlays.setFrame('documentGuideFrame', frame)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
   setDocumentGridEditingFrame(frame: VectorSelectionFrame | null) {
-    if (this.documentGridEditingFrame?.resourceKey === frame?.resourceKey) return;
-    this.documentGridEditingFrame = frame;
+    if (!this.editingOverlays.setFrame('documentGridFrame', frame)) return;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2974,7 +2774,7 @@ export class WebGpuEngine {
         + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
         + (this.waveletDetailRuntime?.estimatedTextureBytes() ?? 0)
         + this.p0FilterRenderer.estimatedTextureBytes()
-    }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0)
+    }) + this.editingOverlayRenderer.estimatedBytes()
       + (this.imageResources.pointColorInputTexture
         ? this.metadata.width * this.metadata.height * 8
         : 0);
@@ -3464,8 +3264,7 @@ export class WebGpuEngine {
         }
       }, () => undefined);
     }
-    void this.vectorEditingOverlayBackend?.notifySubmitted();
-    void this.textEditingOverlayBackend?.notifySubmitted();
+    this.editingOverlayRenderer.notifySubmitted();
     if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordSubmittedFrame();
     void this.device.popErrorScope().then(
       (validationError) => {
@@ -4023,18 +3822,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     release(() => this.p0FilterRenderer.destroy());
     release(() => this.documentRenderer?.destroy());
     this.documentRenderer = null;
-    release(() => this.vectorEditingOverlayBackend?.dispose());
-    this.vectorEditingOverlayBackend = null;
-    this.vectorEditingSceneCache.clear();
-    release(() => this.textEditingOverlayBackend?.dispose());
-    this.textEditingOverlayBackend = null;
-    release(() => this.selectionContourOverlayBackend?.dispose());
-    this.selectionContourOverlayBackend = null;
-    release(() => this.selectionPaintOverlayBackend?.dispose());
-    this.selectionPaintOverlayBackend = null;
-    release(() => this.smartSelectionOverlayBackend?.dispose());
-    this.smartSelectionOverlayBackend = null;
-    this.textEditingOverlay = null;
+    release(() => this.editingOverlayRenderer.dispose());
     if (cleanupErrors.length) {
       console.error('LightTable WebGPU cleanup failed.', new AggregateError(cleanupErrors));
     }
@@ -4066,261 +3854,23 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     encoder: GPUCommandEncoder,
     canvasView: GPUTextureView
   ) {
-    const viewportRenderState = this.viewportPresentation.state;
-    if (!this.imageDocument || !viewportRenderState) return;
-    const canonicalOverlayScene = this.vectorEditingSceneCache.resolve(
-      this.imageDocument,
-      this.vectorSelection
-    );
-    const overlayScene = this.vectorSelectionPreviewTransform
-      ? transformVectorDocumentEditingSceneOverlay(
-          canonicalOverlayScene,
-          this.vectorSelectionPreviewTransform
-        )
-      : canonicalOverlayScene;
-    const selectionTransformPreviewActive =
-      this.documentRenderer?.selectionTransformPreviewActive() === true;
-    const directShape = this.selectionOverlayVisible
-      && this.selectionPreviewProjectionActive
-      && !this.selectionPaintOverlayVisible
-      && !selectionTransformPreviewActive
-      ? directSelectionShape(this.selectionOverlayOperations)
-      : null;
-    // A draft may extend over the pasteboard. Once committed, the selection
-    // mask is authoritative because it is clipped to the document bounds.
-    const selectionShape = (this.selectionPreviewProjectionActive || directShape?.points.every((point) => (
-      point.x >= 0
-      && point.y >= 0
-      && point.x <= this.imageDocument!.width
-      && point.y <= this.imageDocument!.height
-    ))) ? directShape : null;
-    const selectionDraft = this.selectionOverlayVisible
-      ? this.selectionOverlayDraft
-      : null;
-    const selectionMask = this.selectionOverlayVisible && !selectionShape
-      ? this.documentRenderer?.selectionMaskTexture() ?? null
-      : null;
-    if (
-      !overlayScene.paths.length
-      && !overlayScene.unpaintedElementOutlines.length
-      && !overlayScene.gradientHandles.length
-      && !overlayScene.selectionFrame
-      && !selectionShape
-      && !selectionDraft
-      && !this.zoomOverlayDraft
-      && !selectionMask
-      && !this.smartSelectionOverlayBackend?.visible
-      && !this.transformEditingFrame
-      && !this.smartGuideEditingFrame
-      && !this.documentGuideEditingFrame
-      && !this.documentGridEditingFrame
-      && !this.brushCursorOverlay
-      && !this.penEditingOverlay
-      && !this.faceWarpEditingOverlay
-      && !this.penRubberBand
-      && !this.textEditingOverlay
-    ) return;
-    const uniforms = viewportRenderState.uniforms;
-    const target: VectorEditingOverlayTarget = {
-      colorView: canvasView,
-      format: this.canvasFormat,
-      width: viewportRenderState.pixelWidth,
-      height: viewportRenderState.pixelHeight,
-      documentToViewport: {
-        a: uniforms[4] / this.imageDocument.width,
-        b: 0,
-        c: 0,
-        d: uniforms[5] / this.imageDocument.height,
-        tx: uniforms[2],
-        ty: uniforms[3]
-      }
-    };
-    const animatedSelectionTheme = {
-      ...SELECTION_OUTLINE_THEME,
-      dashOffsetPx: this.selectionAntsAnimator.phasePx
-    };
-    this.vectorEditingOverlayBackend ??= new VectorEditingOverlayBackend(this.device);
-    for (let index = overlayScene.unpaintedElementOutlines.length - 1; index >= 0; index -= 1) {
-      this.vectorEditingOverlayBackend.encode(
-        encoder,
-        overlayScene.unpaintedElementOutlines[index]!,
-        target,
-        UNPAINTED_ELEMENT_OUTLINE_THEME
-      );
-    }
-    // Queries return topmost-first. Encode bottom-to-top so the topmost path's
-    // handles remain the final visible editing affordance.
-    for (let index = overlayScene.paths.length - 1; index >= 0; index -= 1) {
-      this.vectorEditingOverlayBackend.encode(encoder, overlayScene.paths[index]!, target);
-    }
-    for (const overlay of overlayScene.gradientHandles) {
-      this.vectorEditingOverlayBackend.encode(encoder, overlay, target, GRADIENT_GIZMO_THEME);
-    }
-    if (this.penEditingOverlay) {
-      this.vectorEditingOverlayBackend.encode(encoder, this.penEditingOverlay, target);
-    }
-    if (this.faceWarpEditingOverlay) {
-      this.vectorEditingOverlayBackend.encodeIsolated(
-        encoder,
-        this.faceWarpEditingOverlay,
-        target,
-        FACE_WARP_MESH_THEME,
-        0.5
-      );
-    }
-    if (this.penRubberBand) {
-      const rubberBand: VectorEditingOverlay = {
-        pathId: 'pen-rubber-band',
-        resourceKey: `pen-rubber-band:${this.penRubberBand.from.x}:${this.penRubberBand.from.y}:${this.penRubberBand.to.x}:${this.penRubberBand.to.y}`,
-        geometryRevision: 0,
-        transformRevision: 0,
-        cubics: [{
-          subpathId: 'pen-rubber-band', segmentIndex: 0,
-          p0: this.penRubberBand.from, p1: this.penRubberBand.from,
-          p2: this.penRubberBand.to, p3: this.penRubberBand.to
-        }],
-        anchors: [],
-        handles: []
-      };
-      this.vectorEditingOverlayBackend.encode(encoder, rubberBand, target);
-    }
-    if (overlayScene.selectionFrame) {
-      this.vectorEditingOverlayBackend.encodeSelectionFrame(
-        encoder,
-        overlayScene.selectionFrame,
-        target
-      );
-    }
-    if (this.transformEditingFrame) {
-      this.vectorEditingOverlayBackend.encodeTransformFrame(
-        encoder,
-        this.transformEditingFrame,
-        target
-      );
-    }
-    if (this.smartGuideEditingFrame) {
-      this.vectorEditingOverlayBackend.encodeSmartGuideFrame(
-        encoder,
-        this.smartGuideEditingFrame,
-        target
-      );
-    }
-    if (this.documentGridEditingFrame) {
-      this.vectorEditingOverlayBackend.encodeDocumentGridFrame(
-        encoder,
-        this.documentGridEditingFrame,
-        target
-      );
-    }
-    if (this.documentGuideEditingFrame) {
-      this.vectorEditingOverlayBackend.encodeDocumentGuideFrame(
-        encoder,
-        this.documentGuideEditingFrame,
-        target
-      );
-    }
-    if (selectionShape) {
-      this.vectorEditingOverlayBackend.encode(
-        encoder,
-        buildSelectionEditingOverlay(selectionShape, 'committed'),
-        target,
-        animatedSelectionTheme
-      );
-    }
-    if (selectionMask && this.coreResources) {
-      if (this.selectionPaintOverlayVisible) {
-        this.selectionPaintOverlayBackend ??= new SelectionPaintOverlayBackend(
-          this.device,
-          this.canvasFormat
-        );
-        this.selectionPaintOverlayBackend.encode(
-          encoder,
-          canvasView,
-          selectionMask,
-          this.coreResources.sampler,
-          this.coreResources.viewBuffer,
-          this.selectionPaintOverlayColor
-        );
-      } else {
-        this.selectionContourOverlayBackend ??= new SelectionContourOverlayBackend(
-          this.device,
-          this.canvasFormat
-        );
-        this.selectionContourOverlayBackend.encode(
-          encoder,
-          canvasView,
-          selectionMask,
-          this.coreResources.sampler,
-          this.coreResources.viewBuffer,
-          this.selectionAntsAnimator.phasePx,
-          this.selectionPreviewTranslation
-        );
-      }
-    }
-    if (this.smartSelectionOverlayBackend?.visible && this.coreResources) {
-      this.smartSelectionOverlayBackend.encode(
-        encoder,
-        canvasView,
-        this.coreResources.sampler,
-        this.coreResources.viewBuffer
-      );
-    }
-    if (selectionDraft) {
-      this.vectorEditingOverlayBackend.encode(
-        encoder,
-        buildSelectionEditingOverlay(selectionDraft, 'draft'),
-        target,
-        animatedSelectionTheme
-      );
-    }
-    if (this.zoomOverlayDraft) {
-      this.vectorEditingOverlayBackend.encode(
-        encoder,
-        buildSelectionEditingOverlay(this.zoomOverlayDraft, 'draft'),
-        target,
-        SELECTION_OUTLINE_THEME
-      );
-    }
-    if (this.brushCursorOverlay) {
-      const brushCursorTheme = this.faceWarpInteractionMode === 'relax'
-        ? FACE_WARP_RELAX_CURSOR_THEME
-        : this.faceWarpInteractionMode === 'restore'
-          ? FACE_WARP_RESTORE_CURSOR_THEME
-          : BRUSH_CURSOR_THEME;
-      this.vectorEditingOverlayBackend.encode(
-        encoder,
-        buildBrushCursorEditingOverlay(
-          this.brushCursorOverlay.center,
-          this.brushCursorOverlay.diameter,
-          this.brushCursorOverlay.hardness
-        ),
-        target,
-        brushCursorTheme
-      );
-      if (this.brushCursorOverlay.sourceCenter) {
-        this.vectorEditingOverlayBackend.encode(
-          encoder,
-          buildSampledBrushSourceEditingOverlay(
-            this.brushCursorOverlay.sourceCenter,
-            this.brushCursorOverlay.diameter,
-            this.brushCursorOverlay.sourceMarkerSize ?? 10
-          ),
-          target,
-          BRUSH_CURSOR_THEME
-        );
-      }
-    }
-    if (this.textEditingOverlay) {
-      this.textEditingOverlayBackend ??= new TextEditingOverlayBackend(this.device);
-      this.textEditingOverlayBackend.encode(
-        encoder,
-        this.textEditingOverlay,
-        target,
-        this.textCaretVisible
-      );
-    }
+    const viewport = this.viewportPresentation.state;
+    const document = this.imageDocument;
+    if (!document || !viewport) return;
+    this.editingOverlayRenderer.encode({
+      encoder,
+      canvasView,
+      document,
+      viewport,
+      selectionMask: this.documentRenderer?.selectionMaskTexture() ?? null,
+      selectionTransformPreviewActive:
+        this.documentRenderer?.selectionTransformPreviewActive() === true,
+      sampler: this.coreResources?.sampler ?? null,
+      viewBuffer: this.coreResources?.viewBuffer ?? null,
+      selectionAntsPhasePx: this.selectionAntsAnimator.phasePx,
+      state: this.editingOverlays
+    });
   }
-
   private destroyImageResources() {
     this.clearDocumentInteractionPresentation();
     this.documentRenderer?.destroyImageResources();
@@ -4364,28 +3914,8 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.paintInteractionActive = false;
     this.warpInteractionActive = false;
     this.pendingTextInteractionTrace = null;
-    this.vectorSelection = createVectorEditorSelection();
-    this.vectorSelectionPreviewTransform = null;
-    this.vectorEditingSceneCache.clear();
-    this.selectionOverlayOperations = [];
-    this.selectionPreviewProjectionActive = false;
-    this.selectionPreviewTranslation = { x: 0, y: 0 };
-    this.selectionOverlayDraft = null;
-    this.selectionOverlayVisible = false;
-    this.selectionPaintOverlayVisible = false;
+    this.editingOverlays.clear();
     this.selectionAntsAnimator.setSelectionVisible(false);
-    this.smartSelectionOverlayBackend?.setMask(null);
-    this.textEditingOverlay = null;
-    this.textCaretVisible = true;
-    this.zoomOverlayDraft = null;
-    this.brushCursorOverlay = null;
-    this.penRubberBand = null;
-    this.penEditingOverlay = null;
-    this.faceWarpEditingOverlay = null;
-    this.faceWarpInteractionMode = null;
-    this.transformEditingFrame = null;
-    this.smartGuideEditingFrame = null;
-    this.documentGuideEditingFrame = null;
-    this.documentGridEditingFrame = null;
+    this.editingOverlayRenderer.clearDocument();
   }
 }

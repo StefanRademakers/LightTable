@@ -16,6 +16,7 @@ vi.mock('../editor/rendering/SmartSelectionOverlayBackend', () => ({
 }));
 
 import { WebGpuEngine } from './WebGpuEngine';
+import { DocumentEditingOverlayRenderer } from './DocumentEditingOverlayRenderer';
 
 describe('WebGpuEngine smart-selection preview presentation', () => {
   beforeEach(() => {
@@ -30,7 +31,10 @@ describe('WebGpuEngine smart-selection preview presentation', () => {
     const engine = {
       device: { label: 'device' },
       canvasFormat: 'rgba8unorm',
-      smartSelectionOverlayBackend: null,
+      editingOverlayRenderer: new DocumentEditingOverlayRenderer(
+        { label: 'device' } as GPUDevice,
+        'rgba8unorm'
+      ),
       renderDirty: { invalidate, invalidateCorrectionFrom },
       requestRender
     } as unknown as WebGpuEngine;
@@ -53,7 +57,10 @@ describe('WebGpuEngine smart-selection preview presentation', () => {
     const engine = {
       device: { label: 'device' },
       canvasFormat: 'rgba8unorm',
-      smartSelectionOverlayBackend: null,
+      editingOverlayRenderer: new DocumentEditingOverlayRenderer(
+        { label: 'device' } as GPUDevice,
+        'rgba8unorm'
+      ),
       renderDirty: { invalidate },
       requestRender
     } as unknown as WebGpuEngine;

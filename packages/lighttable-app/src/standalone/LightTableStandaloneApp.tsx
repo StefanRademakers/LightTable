@@ -45,10 +45,6 @@ import {
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
 import { createDocumentSessionCommandPorts } from '../lighttable/application/commands/documentSessionCommandPorts';
-import type {
-  LightTableRecoveryListing,
-  LightTableRecoveryRecord
-} from '../platform/LightTableRecoveryStore';
 import type { GuidedSampleSession } from './GuidedSampleCoach';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
@@ -73,6 +69,13 @@ import { discardDocumentRecovery } from './discardDocumentRecovery';
 import { DocumentRecoveryTransitionGate } from './DocumentRecoveryTransitionGate';
 import { prepareWorkspaceApplicationClose } from './prepareWorkspaceApplicationClose';
 import { waitForActiveDocumentRenderer } from './waitForActiveDocumentRenderer';
+import {
+  clearRecoveryAttempt,
+  newestRecoveryRecords,
+  useStandaloneRecoveryController
+} from './useStandaloneRecoveryController';
+
+export { newestRecoveryRecords, planRecoveryWorkspace } from './useStandaloneRecoveryController';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -135,22 +138,7 @@ const normalizePlaceableDroppedImage = (file: File): File | null => {
   });
 };
 
-const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
 const MAX_PROJECT_ASSET_TRANSFER_BYTES = 256 * 1024 * 1024;
-const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
-const hasRecoveryAttempt = (recoveryId: string): boolean => {
-  try {
-    return localStorage.getItem(recoveryAttemptKey(recoveryId)) !== null;
-  } catch {
-    return false;
-  }
-};
-const markRecoveryAttempt = (recoveryId: string): void => {
-  try { localStorage.setItem(recoveryAttemptKey(recoveryId), new Date().toISOString()); } catch { /* optional */ }
-};
-const clearRecoveryAttempt = (recoveryId: string): void => {
-  try { localStorage.removeItem(recoveryAttemptKey(recoveryId)); } catch { /* optional */ }
-};
 const pickBrowserPlacedImage = () => new Promise<File | null>((resolve) => {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/svg+xml';
@@ -160,7 +148,9 @@ const pickBrowserPlacedImage = () => new Promise<File | null>((resolve) => {
   input.addEventListener('cancel', () => finish(null), { once: true });
   input.click();
 });
-const waitForReadyDocument = (session: import('../lighttable/application/documents/documentSession').DocumentSession) => new Promise<void>((resolve, reject) => {
+const waitForReadyDocument = (
+  session: import('../lighttable/application/documents/documentSession').DocumentSession
+) => new Promise<void>((resolve, reject) => {
   const inspect = () => {
     const state = session.getSnapshot();
     if (state.lifecycle === 'ready') { unsubscribe(); resolve(); }
@@ -171,34 +161,6 @@ const waitForReadyDocument = (session: import('../lighttable/application/documen
   const unsubscribe = session.subscribe(inspect);
   inspect();
 });
-export const newestRecoveryRecords = (
-  listing: LightTableRecoveryListing
-): readonly LightTableRecoveryRecord[] => {
-  const seen = new Set<string>();
-  return [...listing.records]
-    .sort((left, right) => right.updatedAt - left.updatedAt)
-    .filter((record) => {
-      if (seen.has(record.documentIdHash)) return false;
-      seen.add(record.documentIdHash);
-      return true;
-    });
-};
-
-export const planRecoveryWorkspace = (
-  listing: LightTableRecoveryListing,
-  attempted: (recoveryId: string) => boolean
-): { readonly records: readonly LightTableRecoveryRecord[]; readonly activeRecoveryId: string | null } => {
-  const records = newestRecoveryRecords(listing)
-    .filter((record) => !attempted(record.recoveryId))
-    .sort((left, right) => (left.workspaceOrder ?? 0) - (right.workspaceOrder ?? 0));
-  return {
-    records,
-    activeRecoveryId: records.find((record) => record.wasActive)?.recoveryId
-      ?? records.at(-1)?.recoveryId
-      ?? null
-  };
-};
-
 /**
  * Host-neutral workspace shell.
  *
@@ -612,17 +574,22 @@ export function LightTableStandaloneApp({
       return next;
     });
   }, [documents]);
-  const [recoveryListing, setRecoveryListing] = useState<LightTableRecoveryListing>({
-    records: [],
-    rejections: []
+  const {
+    listing: recoveryListing,
+    previews: recoveryPreviews,
+    error: recoveryError,
+    setError: setRecoveryError,
+    refresh: refreshRecoveries,
+    open: openRecovery,
+    preview: previewRecovery,
+    resolve: resolveRecovery
+  } = useStandaloneRecoveryController({
+    host,
+    documentCount: snapshot.documentOrder.length,
+    transitions: recoveryTransitions,
+    openRecoveredDocument,
+    setOpening
   });
-  const [recoveryPreviews, setRecoveryPreviews] = useState<Record<string, string>>({});
-  const recoveryPreviewsRef = useRef(recoveryPreviews);
-  recoveryPreviewsRef.current = recoveryPreviews;
-  const recoveryListingRef = useRef(recoveryListing);
-  recoveryListingRef.current = recoveryListing;
-  const recoveryRefreshRequestRef = useRef(0);
-  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const activateDocumentSafely = useCallback(async (documentId: DocumentSessionId) => {
     try {
       await recoveryTransitions.activateLatest(documentId, activateDocument);
@@ -663,48 +630,6 @@ export function LightTableStandaloneApp({
     });
     return () => { cancelled = true; };
   }, [controller, host]);
-
-  const refreshRecoveries = useCallback(async () => {
-    const request = ++recoveryRefreshRequestRef.current;
-    if (!host.recovery) {
-      setRecoveryListing({ records: [], rejections: [] });
-      return;
-    }
-    try {
-      const listing = await host.recovery.list();
-      if (request !== recoveryRefreshRequestRef.current) return;
-      setRecoveryListing(listing);
-      const validIds = new Set(listing.records.map(({ recoveryId }) => recoveryId));
-      setRecoveryPreviews((current) => {
-        const next = { ...current };
-        let changed = false;
-        for (const [recoveryId, url] of Object.entries(current)) {
-          if (validIds.has(recoveryId)) continue;
-          URL.revokeObjectURL(url);
-          delete next[recoveryId];
-          changed = true;
-        }
-        return changed ? next : current;
-      });
-      for (const key of Object.keys(localStorage)) {
-        if (key.startsWith(RECOVERY_ATTEMPT_PREFIX)
-          && !validIds.has(key.slice(RECOVERY_ATTEMPT_PREFIX.length))) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch (reason) {
-      if (request !== recoveryRefreshRequestRef.current) return;
-      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
-    }
-  }, [host]);
-
-  useEffect(() => {
-    if (snapshot.documentOrder.length === 0) void refreshRecoveries();
-  }, [refreshRecoveries, snapshot.documentOrder.length]);
-
-  useEffect(() => () => {
-    Object.values(recoveryPreviewsRef.current).forEach((url) => URL.revokeObjectURL(url));
-  }, []);
 
   const changeScreenMode = useCallback((mode: EditorScreenMode) => {
     setScreenMode(mode);
@@ -1030,94 +955,6 @@ export function LightTableStandaloneApp({
     if (!file) return;
     await placeArtifactFile(documentId, file);
   }, [host, placeArtifactFile]);
-
-  const openRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
-    if (!host.recovery) return null;
-    setOpening(true);
-    setRecoveryError(null);
-    try {
-      const entry = await host.recovery.read(record.recoveryId);
-      if (!entry) throw new Error('The recovery snapshot is missing or failed validation.');
-      const originalName = record.sourceName || 'Recovered document';
-      const base = originalName.replace(/\.[^.]+$/, '') || 'Recovered document';
-      const file = new File(
-        [entry.artifact],
-        `${base}-recovered-lighttable.png`,
-        { type: entry.record.mediaType || 'image/png' }
-      );
-      const crashLoop = hasRecoveryAttempt(record.recoveryId);
-      markRecoveryAttempt(record.recoveryId);
-      const opened = await recoveryTransitions.runTransition(() => {
-        const result = openRecoveredDocument(file, record, crashLoop);
-        if (result.ok) {
-          recoveryTransitions.setActiveDocument(result.value.id);
-          recoveryTransitions.noteCommittedTransition();
-        }
-        return result;
-      });
-      if (!opened.ok) {
-        clearRecoveryAttempt(record.recoveryId);
-        throw new Error(`Recovered work could not be opened: ${opened.error.code}.`);
-      }
-      return opened.value.id;
-    } catch (reason) {
-      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
-      return null;
-    } finally {
-      setOpening(false);
-    }
-  }, [host, openRecoveredDocument, recoveryTransitions]);
-
-  const previewRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
-    if (!host.recovery) return null;
-    if (recoveryPreviews[record.recoveryId]) return recoveryPreviews[record.recoveryId];
-    setRecoveryError(null);
-    try {
-      const entry = await host.recovery.read(record.recoveryId);
-      if (!entry) throw new Error('The recovery preview is missing or corrupt.');
-      if (!recoveryListingRef.current.records.some(({ recoveryId }) => recoveryId === record.recoveryId)) {
-        return null;
-      }
-      const url = URL.createObjectURL(entry.artifact);
-      setRecoveryPreviews((current) => {
-        if (!recoveryListingRef.current.records.some(
-          ({ recoveryId }) => recoveryId === record.recoveryId
-        )) {
-          URL.revokeObjectURL(url);
-          return current;
-        }
-        const previous = current[record.recoveryId];
-        if (previous) URL.revokeObjectURL(previous);
-        return { ...current, [record.recoveryId]: url };
-      });
-      return url;
-    } catch (reason) {
-      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
-      return null;
-    }
-  }, [host, recoveryPreviews]);
-
-  const resolveRecovery = useCallback(async (recoveryId: string) => {
-    try {
-      await host.recovery?.removeRecord(recoveryId);
-      clearRecoveryAttempt(recoveryId);
-      setRecoveryPreviews((current) => {
-        const preview = current[recoveryId];
-        if (!preview) return current;
-        URL.revokeObjectURL(preview);
-        const next = { ...current };
-        delete next[recoveryId];
-        return next;
-      });
-      await refreshRecoveries();
-      return true;
-    } catch (reason) {
-      setRecoveryError(`Recovery record was not removed: ${
-        reason instanceof Error ? reason.message : String(reason)
-      }`);
-      return false;
-    }
-  }, [host, refreshRecoveries]);
 
   useEffect(() => {
     const handleApplicationShortcut = (event: KeyboardEvent) => {

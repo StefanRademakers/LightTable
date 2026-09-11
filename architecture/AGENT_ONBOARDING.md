@@ -47,25 +47,20 @@ Do not preload `work/done/`, `architecture/reference/`, `obsolete/`, every test
 or every source file. Search those collections only to answer a concrete
 question. Context is a working set, not a measure of diligence.
 
-### Editor-kernel migration -- mandatory for editor mutations
+### Editor kernel -- mandatory for editor mutations
 
-Updated 2026-09-08. A new isolated `@lighttable/editor-kernel` foundation is
-being built beside the legacy editor. Its purpose is to establish one
-enforceable owner for a complete edit transaction; it is not evidence that the
-current tools have already migrated or become stable.
+Updated 2026-09-11. `@lighttable/editor-kernel` and its application owners are
+the only supported mutation architecture. Never reconstruct a pre-kernel route
+from source history, an old audit or a product-degradation branch.
 
 For selection, transform, layer finalization, text, adjustments/effects,
 history, rendering or command-route work, read
 [Editor kernel migration](editor-kernel/README.md) and its routed contract
-before editing. Check
-[Migration status](editor-kernel/MIGRATION_STATUS.md) to distinguish target,
-partial and proven behavior.
-Use the
+before editing. Use the
 [kernel cut-over and codebase cleanup plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
-for work order and completion gates. The earlier incremental migration ledger
-is superseded and may not justify keeping a fallback. Do not invent a parallel
-checklist or skip its independent critic, maximum two repair loops and packaged
-real-app proof.
+for the current acceptance evidence and remaining completion gates. Do not
+invent a parallel checklist or skip its independent critic, maximum two repair
+loops and packaged real-app proof.
 
 The continuation rules are strict:
 
