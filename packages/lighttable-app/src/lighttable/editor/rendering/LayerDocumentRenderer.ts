@@ -150,6 +150,7 @@ export class LayerDocumentRenderer {
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
+    this.assertDocumentProjection(document);
     this.runtime.layerResources.bind(this.documentResourceKey);
     this.runtime.patternAssets.bind(this.documentResourceKey);
     const retainedPixels = this.runtime.layerResources.hasResources();
@@ -160,7 +161,12 @@ export class LayerDocumentRenderer {
     }
   }
 
+  assertDocumentProjection(document: ImageDocument): void {
+    this.runtime.layerResources.assertRasterSurfacesMatch(document.layers, this.documentResourceKey);
+  }
+
   syncDocument(document: ImageDocument) {
+    this.assertDocumentProjection(document);
     this.runtime.layerResources.bind(this.documentResourceKey);
     this.runtime.patternAssets.bind(this.documentResourceKey);
     this.document = document;
@@ -691,6 +697,10 @@ export class LayerDocumentRenderer {
 
   commitTransform(): ReversiblePixelEdit | null {
     return this.runtime.transformRasterizer.commit();
+  }
+
+  captureTransformSelectionPreview() {
+    return this.runtime.transformRasterizer.captureSelectionPreview();
   }
 
   cancelTransform() {

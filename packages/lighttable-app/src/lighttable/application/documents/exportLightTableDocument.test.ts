@@ -118,7 +118,7 @@ describe('LightTable document export policy', () => {
 
       expect(created).toEqual([{ width: 1, height: 1 }]);
       expect(renderer.exportPng).not.toHaveBeenCalled();
-      expect(renderer.synchronizeDocumentForExport).toHaveBeenCalledWith(document);
+      expect(renderer.synchronizeDocumentForExport).not.toHaveBeenCalled();
       await expect(parseLayeredDocumentFile(output.file)).resolves.toMatchObject({
         previewKind: 'placeholder'
       });

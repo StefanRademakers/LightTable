@@ -99,12 +99,20 @@ describe('editor keymap', () => {
     )).toBe(command);
   });
 
-  it('routes primary+shift+S to Quick Export PNG', () => {
+  it.each([{ ctrlKey: true }, { metaKey: true }])('routes primary+alt+S to Quick Export PNG (%o)', (modifiers) => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
-      input({ key: 's', code: 'KeyS', metaKey: true, shiftKey: true }),
+      input({ key: 's', code: 'KeyS', ...modifiers, altKey: true }),
       context({ editable: true })
     )).toBe('quick-export-png');
+  });
+
+  it('no longer exports PNG on primary+shift+S', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 's', code: 'KeyS', ctrlKey: true, shiftKey: true }),
+      context()
+    )).toBeNull();
   });
 
   it('routes Photoshop Image Size without requiring an active layer', () => {

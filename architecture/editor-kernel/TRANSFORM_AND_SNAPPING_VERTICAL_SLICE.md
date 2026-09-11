@@ -150,9 +150,16 @@ compensate or retry; it must not destroy the only recovery snapshot.
 - `TransformPublicationOwner` owns terminal semantic/raster/selected-pixel
   publication. Selected pixels carry the admitted selection revision and exact
   renderer generation through restore, CAS, history and compensation.
-- `BoundSelectionPublication` restores a mask and publishes canonical state
-  under one binding, revalidating after its async renderer await. It never
-  publishes against a replacement generation.
+- `BoundSelectionPublication` waits for the selection queue, then revalidates
+  the binding and activates synchronously. It must NOT pre-restore a target
+  mask: the reversible transform owns both color and mask swaps, including
+  the source mask from which its inverse is captured.
+- Selection-preview readback completes while the transform still owns its
+  preview. Canonical CAS, live pixel/mask exchange and renderer projection
+  then execute without an async gap. Undo, redo and compensation use the same
+  admitted activation. A failed projection invokes the synchronous pixel
+  inverse BEFORE projecting old document dimensions. Indeterminate recovery
+  fails the renderer before another frame can reconcile incompatible surfaces.
 - `AuxiliaryTransformSessionOwner` owns group/mask admission, preview, terminal
   plan and cleanup. Group preview scene terms are captured once; pointer frames
   perform matrix projection only, not document reconstruction.

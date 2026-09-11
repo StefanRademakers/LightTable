@@ -1,60 +1,42 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
 import { publishBoundSelection } from './BoundSelectionPublication';
 
 describe('publishBoundSelection', () => {
-  it('never publishes onto a replacement renderer generation after await', async () => {
-    const before = SelectionMaskSnapshot.inactive(8, 8);
-    const after = SelectionMaskSnapshot.inactive(8, 8);
-    let generation = 1;
+  it('revalidates after queue admission, before any live mutation', async () => {
+    let current = true;
     const publish = vi.fn();
-    const renderer = {
-      restoreSelectionSnapshot: vi.fn(async () => {
-        generation = 2;
-        return true;
-      })
-    };
-
     await expect(publishBoundSelection({
-      renderer, beforeMask: before, afterMask: after,
-      bindingIsCurrent: () => generation === 1,
-      rendererIsAddressable: () => generation === 1,
-      publish
+      renderer: { publishTransformState: async (activate) => {
+        await Promise.resolve();
+        current = false;
+        activate();
+      } },
+      bindingIsCurrent: () => current, publish
     })).rejects.toThrow('changed during restoration');
-
     expect(publish).not.toHaveBeenCalled();
-    expect(renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('restores the admitted mask when canonical publication rejects its lease', async () => {
-    const before = SelectionMaskSnapshot.inactive(8, 8);
-    const after = SelectionMaskSnapshot.inactive(8, 8);
-    const renderer = { restoreSelectionSnapshot: vi.fn(async () => true) };
-    await expect(publishBoundSelection({
-      renderer, beforeMask: before, afterMask: after,
+  it('does not restore a target mask over the compound edit source mask', async () => {
+    const order: string[] = [];
+    await publishBoundSelection({
+      renderer: { publishTransformState: async (activate) => {
+        await Promise.resolve();
+        order.push('admitted');
+        activate();
+        order.push('activated');
+      } },
       bindingIsCurrent: () => true,
-      rendererIsAddressable: () => true,
-      publish: () => { throw new Error('CAS rejected'); }
-    })).rejects.toThrow('CAS rejected');
-    expect(renderer.restoreSelectionSnapshot).toHaveBeenNthCalledWith(1, after);
-    expect(renderer.restoreSelectionSnapshot).toHaveBeenNthCalledWith(2, before);
+      publish: () => { order.push('pixels-mask-document'); }
+    });
+    expect(order).toEqual(['admitted', 'pixels-mask-document', 'activated']);
   });
 
-  it('retains the applied mask when publication state is explicitly indeterminate', async () => {
-    const before = SelectionMaskSnapshot.inactive(8, 8);
-    const after = SelectionMaskSnapshot.inactive(8, 8);
-    const failure = new Error('indeterminate');
-    const renderer = { restoreSelectionSnapshot: vi.fn(async () => true) };
-
+  it('propagates publication failure without another asynchronous restoration', async () => {
+    const failure = new Error('publication failed');
     await expect(publishBoundSelection({
-      renderer, beforeMask: before, afterMask: after,
+      renderer: { publishTransformState: async (activate) => { activate(); } },
       bindingIsCurrent: () => true,
-      rendererIsAddressable: () => true,
-      restoreBeforeOnPublishError: (reason) => reason !== failure,
       publish: () => { throw failure; }
     })).rejects.toBe(failure);
-
-    expect(renderer.restoreSelectionSnapshot).toHaveBeenCalledTimes(1);
-    expect(renderer.restoreSelectionSnapshot).toHaveBeenCalledWith(after);
   });
 });

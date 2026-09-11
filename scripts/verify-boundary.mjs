@@ -454,6 +454,11 @@ function verifyTransformCutover(relativePath, source) {
     if (!source.includes('reserveHistoryEntry(entry: TransformHistoryEntry)')) {
       failures.push(`${relativePath}: transform sessions must expose pre-mutation history admission`);
     }
+    if (!source.includes('new TransformSettlementOwner()')
+      || !source.includes('settlementOwnerRef.current!.publish(pending')
+      || !/const commitPending[\s\S]{0,900}const settlement = isActive\(\) \? finish\(true\) : settlementOwnerRef\.current!\.read\(\);[\s\S]{0,500}requireTransformSettlementRecovery\([\s\S]{0,200}publicationOwnerRef\.current!\.recover\(\)/.test(source)) {
+      failures.push(`${relativePath}: transform publication failures must remain rejected through command admission while UI error reporting observes them separately`);
+    }
   }
   if (normalizedPath.endsWith('/application/tools/selection/DocumentSelectionStateStore.ts')) {
     if (source.includes('SelectionMaskSnapshot.inactive(')) {
@@ -467,7 +472,8 @@ function verifyTransformCutover(relativePath, source) {
   }
   if (normalizedPath.endsWith('/application/tools/transform/publishTransformDocumentSelection.ts')) {
     if (!source.includes('Transform selection publication rollback failed.')
-      || !source.includes('compareAndSwapForDocument(')) {
+      || !source.includes('compareAndSwapForDocument(')
+      || !source.includes('input.coverage.measureSupportBounds()')) {
       failures.push(`${relativePath}: post-CAS transform publication must restore the opening canonical value`);
     }
   }
@@ -658,10 +664,21 @@ function verifyAdjustmentCutover(relativePath, source) {
   }
   if (normalizedPath.endsWith('/application/adjustments/AdjustmentInteractionCoordinator.ts')) {
     if (!source.includes('if (!handle || lease !== handle) return')
-      || !source.includes('if (!handle || lease !== handle || !lease.token) return false')
+      || !source.includes('const pending = new WeakMap<AdjustmentInteractionHandle, PendingAdjustmentInteraction>()')
+      || !source.includes("state.terminal = 'cancel'")
       || !source.includes('controller.change(mutate, domain, lease.token)')
-      || !source.includes('if (lease?.token) controller.cancel(lease.token)')) {
+      || !source.includes('if (lease) cancelLease(lease)')) {
       failures.push(`${relativePath}: adjustment controls must retain opaque gesture ownership and ignore stale changes and terminal callbacks`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/interactions/InteractionTransitionCoordinator.ts')) {
+    if (!source.includes("'preserve'")
+      || !source.includes("'commit-before-mutation'")
+      || !source.includes("'cancel-on-document-retire'")
+      || !source.includes('await dependencies.settleMountedInteraction()')
+      || !source.includes('requestedGeneration !== generation')
+      || !source.includes('dependencies.reportFailure(reason)')) {
+      failures.push(`${relativePath}: mounted-document transitions must preserve host blur, settle before mutation, invalidate retired work and expose failures`);
     }
   }
   if (normalizedPath.endsWith('/application/adjustments/commitColorLookupAssetTransaction.ts')) {
@@ -759,6 +776,18 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
     if (!source.includes('Image Size requires an admitted document session.')
       || !source.includes('Document geometry requires an admitted document session.')) {
       failures.push(`${relativePath}: document-wide geometry must fail closed without a document-session admission owner`);
+    }
+    const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(\)/g)?.length ?? 0;
+    if (directPixelSettlements !== 1
+      || !source.includes("interactionTransitions.request('commit-before-mutation')")
+      || !source.includes("interactionTransitions.request('cancel-on-document-retire')")
+      || !source.includes("interactionTransitions.request('preserve')")) {
+      failures.push(`${relativePath}: mounted-document interaction transitions must have one centralized preserve, settlement and retirement authority`);
+    }
+    if (!source.includes('resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;')
+      || !source.includes('resetActiveAdjustmentTransactionRef.current = adjustmentTransactionController.reset;')
+      || !/const applyDocumentSnapshot[\s\S]{0,700}resetActiveAdjustmentTransactionRef\.current\(\);/.test(source)) {
+      failures.push(`${relativePath}: canonical publication must retire an active adjustment preview without cancelling the successor gesture waiting for interaction admission`);
     }
   }
   if (normalizedPath.endsWith('/application/documentGeometry/commitDocumentSurfaceMutation.ts')

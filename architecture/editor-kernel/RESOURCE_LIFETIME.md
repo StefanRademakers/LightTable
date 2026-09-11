@@ -47,6 +47,29 @@ lifetime strategy and is forbidden from pointer-hot paths without evidence.
 - History pruning addresses the private session resource key and therefore
   cannot prune a sibling open of the same persisted document.
 
+## Authored raster surfaces are not disposable caches
+
+The live raster texture can contain the only current authored pixels. A
+document metadata projection must not destroy or recreate that texture merely
+because its dimensions differ. `LayerRuntimeStore.assertRasterSurfacesMatch`
+preflights every existing raster in the addressed session before synchronization
+changes any resource. Engine document, resize and export projection entrypoints
+also preflight before publishing metadata or invalidating derived targets.
+
+New raster IDs still allocate normally. Transform and paint-surface promotion
+exchange prepared color surfaces through `exchangeRasterPixels`; Image Size
+exchanges complete runtimes through `exchangeRaster`. Their existing admitted
+mutation/history owners retain the displaced surfaces and explicitly exchange
+them on undo/redo before projecting matching metadata. `ensureRaster` cannot
+reinterpret a retained raster as a differently sized destination.
+
+A mismatch is a missing or stale ownership transfer, not permission to resize,
+copy, clear, silently retain incompatible metadata, or run an alternate route.
+The preflight performs CPU dimension comparisons only: no GPU readback,
+submission, allocation or wait. This boundary protects color-surface dimension
+changes; it does not claim complete revision/preview admission or redesign mask
+and derived-preview lifetime.
+
 This contract does not make `WebGpuEngine` a suitably small facade. Its remaining
 projection, diagnostics, readback and allocation authorities are C14 cleanup
 work; the resource-lifetime cut-over must not be used to justify further growth.

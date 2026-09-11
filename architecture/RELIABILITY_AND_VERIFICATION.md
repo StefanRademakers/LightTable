@@ -23,6 +23,16 @@ the atomic writer below. Browsers use OPFS with explicit quota/error results.
 Two generations per document, 20 documents, 30 days and 2 GiB are retained.
 Only a verified Save or explicit discard removes a valid checkpoint.
 
+Recovery is a reader, never a renderer-projection author. It defers while a
+document transaction or history admission owns an edit. Immediately before
+capture it revalidates ownership after font/host awaits. It then captures all
+uncached raster, mask and derived-preview inputs in one synchronous GPU copy
+batch; asynchronous encoding reads only those immutable copies and releases
+them after use. It must not call `synchronizeDocumentForExport` on the live
+renderer. Later edits supersede the checkpoint normally, not as a persistence
+failure. Copy time and temporary GPU memory remain measured costs; encoding
+must not hold document mutation admission or block pointer interaction.
+
 Recovery scheduling observes the canonical `DocumentSession`, not a React
 projection or history alone. Switching/opening waits for the active document's
 flush. Closing acquires one retained admission across semantic commands,

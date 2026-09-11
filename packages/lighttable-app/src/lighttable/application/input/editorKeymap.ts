@@ -279,7 +279,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     }),
     command(
       'file.quick-export-png',
-      { key: 's', primary: true, alt: false, shift: true },
+      { key: 's', primary: true, alt: true, shift: false },
       'quick-export-png',
       {
         allowWhileEditing: true,

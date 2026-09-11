@@ -52,6 +52,10 @@ import {
 } from './TransformPublicationOwner';
 import { AuxiliaryTransformSessionOwner } from './AuxiliaryTransformSessionOwner';
 import {
+  requireTransformSettlementRecovery,
+  TransformSettlementOwner
+} from './TransformSettlementOwner';
+import {
   fixedTransformDelta,
   repeatLayerTransform,
   type FixedTransformOperation
@@ -60,9 +64,11 @@ import {
 export type { FixedTransformOperation } from './fixedTransformCommands';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
+  publishTransformState(publish: () => void, isIndeterminate: (reason: unknown) => boolean): Promise<void>;
   setDocument(document: ImageDocument): void;
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
   captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
+  captureTransformSelectionPreview(): Promise<SelectionMaskSnapshot>;
   restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
   measureLayerMaskContent(layer: LayerNode): Promise<SelectionCoverageBounds | null>;
   updateLayerGeometryPreviews?(
@@ -158,7 +164,8 @@ export const useTransformSessionController = (
   const controllerDocumentIdRef = useRef<ImageDocument['id'] | null>(null);
   const controllerDocumentRevisionRef = useRef<number | null>(null);
   const controllerSelectionLeaseRef = useRef<LightTableSelectionReadLease | null>(null);
-  const finishPromiseRef = useRef<Promise<void>>(Promise.resolve());
+  const settlementOwnerRef = useRef<TransformSettlementOwner | null>(null);
+  settlementOwnerRef.current ??= new TransformSettlementOwner();
   const launchPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const [state, setState] = useState<TransformSessionState | null>(null);
   const [frameOverride, setFrameOverrideState] = useState<TransformSessionFrame | null>(null);
@@ -261,12 +268,12 @@ export const useTransformSessionController = (
       setState(null);
       if (result.kind === 'none' || result.kind === 'cancelled' || result.kind === 'unchanged') {
         transaction?.cancel();
-        return finishPromiseRef.current;
+        return settlementOwnerRef.current!.read();
       }
       if (result.kind === 'error') {
         transaction?.cancel();
         current.setError(result.message);
-        return finishPromiseRef.current;
+        return settlementOwnerRef.current!.read();
       }
       if (!transaction?.stage(() => result.after) || !transaction.commit()) {
         current.setError(`The layer ${result.target} transform could not be committed.`);
@@ -279,10 +286,10 @@ export const useTransformSessionController = (
           );
         }
       }
-      return finishPromiseRef.current;
+      return settlementOwnerRef.current!.read();
     }
     const controller = controllerRef.current;
-    if (!controller?.state) return finishPromiseRef.current;
+    if (!controller?.state) return settlementOwnerRef.current!.read();
     const current = dependenciesRef.current;
     const transaction = documentTransactionRef.current;
     const document = current.getDocument();
@@ -332,7 +339,7 @@ export const useTransformSessionController = (
     if (commit && !belongsToActiveDocument) {
       transaction?.cancel();
       current.setError('The document or selection changed during the transform; the preview was discarded.');
-      return finishPromiseRef.current;
+      return settlementOwnerRef.current!.read();
     }
     const pending = applyFinishedTransform(
       result,
@@ -342,14 +349,12 @@ export const useTransformSessionController = (
       openingRendererGeneration,
       openingSelectionLease
     )
-      .catch((reason) => {
+      .finally(() => { controllerSelectionLeaseRef.current = null; });
+    return settlementOwnerRef.current!.publish(pending, (reason) => {
         dependenciesRef.current.setError(
           reason instanceof Error ? reason.message : 'The transform could not be finished.'
         );
-      })
-      .finally(() => { controllerSelectionLeaseRef.current = null; });
-    finishPromiseRef.current = pending;
-    return pending;
+      });
   }, [applyFinishedTransform, setFrameOverride]);
 
   const reset = useCallback(() => {
@@ -362,8 +367,10 @@ export const useTransformSessionController = (
   }, [discardOwnedTransformPreview]);
 
   const beginNow = useCallback(async (reportEmptyLayer = true, allowInactiveTool = false) => {
-    if (isActive()) await finish(true);
-    await finishPromiseRef.current;
+    // Capture one operation identity. Its observer may rotate the shared slot
+    // to idle, but this admission must still receive this operation's failure.
+    const settlement = isActive() ? finish(true) : settlementOwnerRef.current!.read();
+    await settlement;
     const current = dependenciesRef.current;
     if (!await publicationOwnerRef.current!.recover()) {
       current.setError(
@@ -785,8 +792,14 @@ export const useTransformSessionController = (
     // selection, otherwise the preview can be newer than the command state.
     await nudgeTransactionRef.current;
     await launchPromiseRef.current;
-    if (isActive()) await finish(true);
-    await finishPromiseRef.current;
+    const settlement = isActive() ? finish(true) : settlementOwnerRef.current!.read();
+    // A previous failed publication may have left an exact rollback owner in
+    // quarantine after its rejected operation was observed. Every semantic
+    // mutation crosses this boundary, not only the next Transform launch.
+    await requireTransformSettlementRecovery(
+      settlement,
+      () => publicationOwnerRef.current!.recover()
+    );
   }, [finish, isActive]);
 
   const beginTemporaryMove = useCallback(async (duplicate = false) => {

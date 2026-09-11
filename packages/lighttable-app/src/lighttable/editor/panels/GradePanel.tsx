@@ -322,6 +322,7 @@ onEnabledChange={() => commands.toggleVisibility(group)}>
             <AdjustmentSlider
               key={slider.key}
               label={slider.label}
+              publishIntervalMs={1000 / 60}
               value={slider.key in histogramPreview
                 ? histogramPreview[slider.key as GradeHistogramControlKey]!
                 : adjustments[slider.key]}

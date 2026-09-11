@@ -17,11 +17,11 @@ import type { FinishTransformResult } from './transformController';
 import { TransformSelectionPublicationError } from './publishTransformDocumentSelection';
 
 export interface TransformPublicationRenderer {
+  publishTransformState(publish: () => void, isIndeterminate: (reason: unknown) => boolean): Promise<void>;
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
   commitLayerTransform(): ReversiblePixelEdit | null;
   cancelLayerTransform(): boolean | void;
-  captureSelectionSnapshot(): Promise<SelectionMaskSnapshot>;
-  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
+  captureTransformSelectionPreview(): Promise<SelectionMaskSnapshot>;
 }
 
 export interface TransformPublicationHistoryEntry {
@@ -39,6 +39,8 @@ export interface TransformSelectionPublicationBinding {
   rendererGeneration: number;
   expectedDocument: ImageDocument;
   expectedSelectionLease: LightTableSelectionReadLease;
+  /** Invoked synchronously with canonical publication, after async mask preparation. */
+  publishPixels(): () => void;
 }
 
 export interface TransformPublicationDependencies {
@@ -302,18 +304,9 @@ export class TransformPublicationOwner {
         }
 
         historyReservation = opening.reserveHistoryEntry(historyProxy);
-        pixelEdit = renderer.commitLayerTransform();
-        if (!pixelEdit) {
-          historyReservation.cancel();
-          historyReservation = null;
-          renderer.cancelLayerTransform();
-          throw new Error('The transform could not be committed.');
-        }
-        editOwned = true;
-
         let afterMask: SelectionMaskSnapshot;
         try {
-          afterMask = await renderer.captureSelectionSnapshot();
+          afterMask = await renderer.captureTransformSelectionPreview();
         } catch (reason) {
           this.dependencies().setError(reason instanceof Error
             ? `The transformed selection could not be captured: ${reason.message}`
@@ -334,8 +327,22 @@ export class TransformPublicationOwner {
             renderer,
             rendererGeneration: request.rendererGeneration,
             expectedDocument: before,
-            expectedSelectionLease: openingSelectionLease
+            expectedSelectionLease: openingSelectionLease,
+            publishPixels: () => {
+              pixelEdit = renderer.commitLayerTransform();
+              if (!pixelEdit) throw new Error('The transform could not be committed.');
+              editOwned = true;
+              return () => {
+                if (!pixelEdit || !this.applyOpeningPixel(
+                  renderer, request.rendererGeneration, pixelEdit, 'undo'
+                )) throw new Error('The transform pixel publication could not be reverted.');
+                pixelEdit.destroy();
+                pixelEdit = null;
+                editOwned = false;
+              };
+            }
           });
+          if (!pixelEdit) throw new Error('Transform publication did not transfer its pixels.');
           canonicalAfterPublished = true;
           const undoTransition = new AsyncPixelStateTransitionOwner();
           const redoTransition = new AsyncPixelStateTransitionOwner();
@@ -374,15 +381,15 @@ export class TransformPublicationOwner {
                   targetPixels === 'undo' ? 'redo' : 'undo'
                 );
               },
-              restoreSource: () => this.applyBoundState(
+              restoreSource: (publishPixels) => this.applyBoundState(
                 renderer, request.rendererGeneration!,
                 sourceDocument, sourceMask,
-                sourceDocument, sourceSelection, sourceMask
+                sourceDocument, sourceSelection, sourceMask, publishPixels
               ),
-              restoreTarget: () => this.applyBoundState(
+              restoreTarget: (publishPixels) => this.applyBoundState(
                 renderer, request.rendererGeneration!,
                 sourceDocument, sourceMask,
-                targetDocument, targetSelection, targetMask
+                targetDocument, targetSelection, targetMask, publishPixels
               )
             });
             if (!outcome.ok) throw outcome.reason instanceof Error
@@ -415,6 +422,7 @@ export class TransformPublicationOwner {
         } catch (reason) {
           historyReservation?.cancel();
           historyReservation = null;
+          if (!pixelEdit) throw reason;
           if (reason instanceof TransformSelectionPublicationError
             && reason.phase === 'indeterminate') {
             this.indeterminatePixelEdit = {
@@ -446,15 +454,15 @@ export class TransformPublicationOwner {
             applyPixel: (direction) => this.applyOpeningPixel(
               renderer, request.rendererGeneration, pixelEdit!, direction
             ),
-            restoreBefore: () => this.applyBoundState(
+            restoreBefore: (publishPixels) => this.applyBoundState(
               renderer, request.rendererGeneration!,
               after, afterMask,
-              before, result.beforeSelection, beforeSelectionMask
+              before, result.beforeSelection, beforeSelectionMask, publishPixels
             ),
-            restoreAfter: () => this.applyBoundState(
+            restoreAfter: (publishPixels) => this.applyBoundState(
               renderer, request.rendererGeneration!,
               after, afterMask,
-              after, result.afterSelection, afterMask
+              after, result.afterSelection, afterMask, publishPixels
             )
           });
           editOwned = false;
@@ -512,7 +520,8 @@ export class TransformPublicationOwner {
     expectedMask: SelectionMaskSnapshot,
     targetDocument: ImageDocument,
     targetSelection: SelectionOperation[],
-    targetMask: SelectionMaskSnapshot
+    targetMask: SelectionMaskSnapshot,
+    publishPixels: () => () => void
   ): Promise<void> {
     const current = this.dependencies();
     const currentLease = current.getSelectionLease();
@@ -526,7 +535,8 @@ export class TransformPublicationOwner {
       renderer,
       rendererGeneration,
       expectedDocument,
-      expectedSelectionLease: currentLease
+      expectedSelectionLease: currentLease,
+      publishPixels
     });
   }
 

@@ -20,8 +20,10 @@ import type {
 } from '../persistence/layeredDocumentFormat';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { PreparedLayerTexture } from './LayerTextureCodec';
+import type { LayerAssetExportSnapshot } from './LayerAssetExportSnapshot';
 
 export interface LayerDocumentAssetPorts {
+  createExportSnapshot: () => LayerAssetExportSnapshot;
   rasterTexture: (layerId: LayerId) => GPUTexture | null;
   derivedPreviewTexture: (layerId: LayerId) => GPUTexture | null;
   maskTexture: (layerId: LayerId) => GPUTexture | null;
@@ -105,60 +107,91 @@ export class LayerDocumentAssetService {
 
   async export(document: ImageDocument): Promise<DocumentAssetBlob[]> {
     this.pruneDocumentCache(document);
-    const assets: DocumentAssetBlob[] = [];
-    for (const { layer } of walkRasterLayers(document.layers)) {
-      const texture = this.ports.rasterTexture(layer.id);
-      if (!texture) throw new Error(`Layer ${layer.name} is not available for saving.`);
-      const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
-      if (!maskTexture) this.drop(this.maskCache, layer.id);
-      assets.push({
-        layerId: layer.id,
-        pixels: await this.cached(this.rasterCache, layer.id,
-          `${layer.pixelRevision}:${layer.width}:${layer.height}`,
-          () => this.ports.encodeTexture(layer.id, texture, false)),
-        mask: maskTexture
-          ? await this.cached(this.maskCache, layer.id,
-            `${layer.mask!.id}:${layer.mask!.pixelRevision}`,
-            () => this.ports.encodeTexture(layer.id, maskTexture, true))
-          : null
-      });
-      await yieldToInteraction();
-    }
+    const snapshot = this.ports.createExportSnapshot();
+    const jobs: Array<() => Promise<DocumentAssetBlob>> = [];
+    // Capture every cache miss before the first await. Later edits may replace
+    // or destroy the live texture while PNG encoding yields to interaction.
+    const prepare = (cache: Map<LayerId, EncodedAssetCacheEntry>, layerId: LayerId,
+      key: string, texture: GPUTexture, maskChannel: boolean) => {
+      const cached = cache.get(layerId);
+      if (cached?.key === key) {
+        cache.set(layerId, { ...cached, usedAt: ++this.cacheSequence });
+        return async () => cached.blob;
+      }
+      const retained = snapshot.retain(texture);
+      return async () => {
+        try {
+          const blob = await this.ports.encodeTexture(layerId, retained, maskChannel);
+          this.remember(cache, layerId, key, blob);
+          return blob;
+        } finally {
+          snapshot.release(retained);
+        }
+      };
+    };
+    try {
+      const assets: DocumentAssetBlob[] = [];
+      for (const { layer } of walkRasterLayers(document.layers)) {
+        const texture = this.ports.rasterTexture(layer.id);
+        if (!texture) throw new Error(`Layer ${layer.name} is not available for saving.`);
+        const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
+        if (layer.mask && !maskTexture) throw new Error(`Mask ${layer.name} is not available for saving.`);
+        if (!maskTexture) this.drop(this.maskCache, layer.id);
+        const pixels = prepare(this.rasterCache, layer.id,
+          `${layer.pixelRevision}:${layer.width}:${layer.height}`, texture, false);
+        const mask = maskTexture ? prepare(this.maskCache, layer.id,
+          `${layer.mask!.id}:${layer.mask!.pixelRevision}`, maskTexture, true) : async () => null;
+        jobs.push(async () => ({
+          layerId: layer.id,
+          pixels: await pixels(), mask: await mask()
+        }));
+      }
 
-    for (const { node } of walkLayerTree(document.layers)) {
-      if (node.type === 'raster' || !node.mask) continue;
-      const maskTexture = this.ports.maskTexture(node.id);
-      if (!maskTexture) throw new Error(`Mask ${node.name} is not available for saving.`);
-      assets.push({
-        layerId: node.id,
-        pixels: node.derivedPreview
-          ? await this.encodeDerivedPreview(node.id, node.name,
-            `${node.derivedPreview.dependencyKey}:${node.derivedPreview.width}:${node.derivedPreview.height}`)
-          : new Blob(),
-        mask: await this.cached(this.maskCache, node.id,
-          `${node.mask.id}:${node.mask.pixelRevision}`,
-          () => this.ports.encodeTexture(node.id, maskTexture, true))
-      });
-      await yieldToInteraction();
-    }
+      for (const { node } of walkLayerTree(document.layers)) {
+        if (node.type === 'raster' || !node.mask) continue;
+        const maskTexture = this.ports.maskTexture(node.id);
+        if (!maskTexture) throw new Error(`Mask ${node.name} is not available for saving.`);
+        const previewTexture = node.derivedPreview ? this.ports.derivedPreviewTexture(node.id) : null;
+        if (node.derivedPreview && !previewTexture) throw new Error(`Derived preview ${node.name} is not available for saving.`);
+        const pixels = previewTexture ? prepare(this.previewCache, node.id,
+          `${node.derivedPreview!.dependencyKey}:${node.derivedPreview!.width}:${node.derivedPreview!.height}`,
+          previewTexture, false) : async () => new Blob();
+        const mask = prepare(this.maskCache, node.id,
+          `${node.mask.id}:${node.mask.pixelRevision}`, maskTexture, true);
+        jobs.push(async () => ({
+          layerId: node.id,
+          pixels: await pixels(), mask: await mask()
+        }));
+      }
 
-    for (const { node } of walkLayerTree(document.layers)) {
-      if (node.type === 'raster' || node.mask || !node.derivedPreview) continue;
-      assets.push({
-        layerId: node.id,
-        pixels: await this.encodeDerivedPreview(node.id, node.name,
-          `${node.derivedPreview.dependencyKey}:${node.derivedPreview.width}:${node.derivedPreview.height}`),
-        mask: null
-      });
-      await yieldToInteraction();
-    }
+      for (const { node } of walkLayerTree(document.layers)) {
+        if (node.type === 'raster' || node.mask || !node.derivedPreview) continue;
+        const texture = this.ports.derivedPreviewTexture(node.id);
+        if (!texture) throw new Error(`Derived preview ${node.name} is not available for saving.`);
+        const pixels = prepare(this.previewCache, node.id,
+          `${node.derivedPreview.dependencyKey}:${node.derivedPreview.width}:${node.derivedPreview.height}`,
+          texture, false);
+        jobs.push(async () => ({
+          layerId: node.id,
+          pixels: await pixels(),
+          mask: null
+        }));
+      }
 
-    for (const pattern of document.assets.patterns) {
-      const source = this.ports.patternSource(pattern.id);
-      if (!source) throw new Error(`Pattern ${pattern.name} is not available for saving.`);
-      assets.push({ patternId: pattern.id, source });
+      for (const pattern of document.assets.patterns) {
+        const source = this.ports.patternSource(pattern.id);
+        if (!source) throw new Error(`Pattern ${pattern.name} is not available for saving.`);
+        jobs.push(async () => ({ patternId: pattern.id, source }));
+      }
+      snapshot.submit();
+      for (const job of jobs) {
+        assets.push(await job());
+        await yieldToInteraction();
+      }
+      return assets;
+    } finally {
+      snapshot.dispose();
     }
-    return assets;
   }
 
   /** Exports tight, document-space PSD previews and bakes arbitrary raster affines. */
@@ -367,29 +400,6 @@ export class LayerDocumentAssetService {
         throw reason;
       }
     }
-  }
-
-  private async encodeDerivedPreview(layerId: LayerId, name: string, key: string) {
-    const texture = this.ports.derivedPreviewTexture(layerId);
-    if (!texture) throw new Error(`Derived preview ${name} is not available for saving.`);
-    return this.cached(this.previewCache, layerId, key,
-      () => this.ports.encodeTexture(layerId, texture, false));
-  }
-
-  private async cached(
-    cache: Map<LayerId, EncodedAssetCacheEntry>,
-    layerId: LayerId,
-    key: string,
-    encode: () => Promise<Blob>
-  ): Promise<Blob> {
-    const existing = cache.get(layerId);
-    if (existing?.key === key) {
-      cache.set(layerId, { ...existing, usedAt: ++this.cacheSequence });
-      return existing.blob;
-    }
-    const blob = await encode();
-    this.remember(cache, layerId, key, blob);
-    return blob;
   }
 
   private remember(cache: Map<LayerId, EncodedAssetCacheEntry>, layerId: LayerId, key: string, blob: Blob): void {

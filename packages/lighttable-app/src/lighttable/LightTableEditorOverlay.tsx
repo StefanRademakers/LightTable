@@ -44,8 +44,10 @@ import {
 } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useWorkspaceDocumentPresentation } from './composition/documents/useWorkspaceDocumentPresentation';
+import { documentPresentationAvailability } from './composition/documents/documentPresentationAvailability';
 import { useEditorHostPresentationActivity } from './composition/rendering/useEditorHostPresentationActivity';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
+import { createInteractionTransitionCoordinator } from './application/interactions/InteractionTransitionCoordinator';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
@@ -357,8 +359,7 @@ import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
 import { publishBoundSelection } from './application/tools/transform/BoundSelectionPublication';
 import {
-  publishTransformDocumentSelection as publishTransformSelectionTransaction,
-  TransformSelectionPublicationError
+  publishTransformDocumentSelection as publishTransformSelectionTransaction
 }
   from './application/tools/transform/publishTransformDocumentSelection';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
@@ -866,6 +867,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession?.getSnapshot().processing.adjustments ?? createDefaultAdjustments()
   );
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
+  const resetActiveAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => Promise<void>>(async () => undefined);
   const layerDocumentTransactionRef = useRef<DocumentMutationTransaction | null>(null);
   const resetFaceWarpSessionRef = useRef<() => void>(() => undefined);
@@ -884,6 +886,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const commitTransformRef = useRef<() => void>(() => undefined);
   const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
   const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
+  const cancelPixelInteractionRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const transformPickRevisionRef = useRef(0);
   const resetTransformRef = useRef<() => void>(() => undefined);
@@ -1000,6 +1003,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     setError
   } = useEditorNotifications(workspaceDocumentId);
+  const reportInteractionTransitionFailureRef = useRef(setError);
+  reportInteractionTransitionFailureRef.current = setError;
+  const interactionTransitionCoordinatorRef = useRef<
+    ReturnType<typeof createInteractionTransitionCoordinator> | null
+  >(null);
+  if (!interactionTransitionCoordinatorRef.current) {
+    interactionTransitionCoordinatorRef.current = createInteractionTransitionCoordinator({
+      settleMountedInteraction: () => settlePixelInteractionRef.current(),
+      cancelMountedInteraction: () => cancelPixelInteractionRef.current(),
+      reportFailure: (message) => reportInteractionTransitionFailureRef.current(message)
+    });
+  }
+  const interactionTransitions = interactionTransitionCoordinatorRef.current;
+  const settleMountedDocumentInteraction = async () => {
+    const admission = await interactionTransitions.request('commit-before-mutation');
+    if (admission.status === 'rejected') throw new Error(admission.reason);
+  };
+  const runAfterMountedDocumentAdmission = (
+    action: () => void
+  ) => {
+    void interactionTransitions.request('commit-before-mutation').then((admission) => {
+      if (admission.status === 'admitted') action();
+    });
+  };
+  useLayoutEffect(() => () => {
+    void interactionTransitions.request('cancel-on-document-retire');
+  }, [interactionTransitions, workspaceDocumentId]);
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
@@ -1761,7 +1791,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const finishOpenHistoryTransactions = useCallback(async () => {
     // Undo/redo must retire pending selection work as well as the renderer's
     // active transform preview before either can restore shared GPU state.
-    await settlePixelInteractionRef.current();
+    await settleMountedDocumentInteraction();
     commitPointTextRef.current();
     commitParagraphTextRef.current();
     finishTextEditingRef.current();
@@ -1784,7 +1814,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // A canonical document command supersedes any pointer-rate adjustment
     // preview. Hidden contextual panels can receive a later blur event; that
     // event must not commit an interaction that belonged to the old layer.
-    resetAdjustmentTransactionRef.current();
+    // Canonical publication retires only a preview that already owns the old
+    // document. A successor adjustment may currently be waiting for this
+    // transform publication through InteractionTransitionCoordinator; do not
+    // cancel that admitted-next gesture here.
+    resetActiveAdjustmentTransactionRef.current();
     documentProjectionController.applyDocumentSnapshot(document);
     const source = resolveAdjustmentPresentationSource(
       document,
@@ -1890,7 +1924,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     expectedLease: import('./application/tools/selection/DocumentSelectionStateStore')
       .LightTableSelectionReadLease,
     bindingIsCurrent: () => boolean,
-    rendererIsAddressable: () => boolean
+    rendererIsAddressable: () => boolean,
+    publishPixels: () => () => void
   ) => {
     if (!documentSession) throw new Error('The transform selection document is unavailable.');
     publishTransformSelectionTransaction({
@@ -1901,6 +1936,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       expectedLease,
       bindingIsCurrent,
       rendererIsAddressable,
+      publishPixels,
       getProjectedDocument: () => imageDocumentRef.current,
       applyDocumentSnapshot,
       publishEditorProjection: (next) => {
@@ -3034,10 +3070,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
   const adjustmentInteractions = useMemo(
-    () => createAdjustmentInteractionCoordinator(adjustmentTransactionController),
-    [adjustmentTransactionController]
+    () => createAdjustmentInteractionCoordinator(
+      adjustmentTransactionController,
+      () => interactionTransitions.request('commit-before-mutation'),
+      () => {
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        return JSON.stringify({
+          documentId: document.id,
+          targetLayerId: resolveAdjustmentTargetLayerId(document),
+          targetIdentity: resolveAdjustmentTargetIdentity(document),
+          rendererGeneration: rendererLifecycle.getSnapshot().generation
+        });
+      }
+    ),
+    [adjustmentTransactionController, interactionTransitions]
   );
   resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;
+  resetActiveAdjustmentTransactionRef.current = adjustmentTransactionController.reset;
 
   const beginAdjustmentTransaction = adjustmentInteractions.begin;
   const endAdjustmentTransaction = (handle?: AdjustmentInteractionHandle | void) => {
@@ -3934,28 +3984,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [hostPresentationActive]);
 
   const selectAllContent = () => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'all'
       });
     });
   };
   const clearCurrentSelection = () => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'clear'
       });
     });
   };
   const invertCurrentSelection = () => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'invert'
       });
     });
   };
   const selectSimilarColors = () => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       const document = imageDocumentRef.current;
       if (!document?.activeLayerId || !editorSessionRef.current.selection.length) return;
       const magicWand = editorSessionRef.current.magicWand;
@@ -3971,7 +4021,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
   const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
       });
@@ -3982,7 +4032,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     amount: number,
     applyAtCanvasBounds: boolean
   ) => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       const parameters = operation === 'border'
         ? { kind: 'modify' as const, operation, width: amount }
         : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
@@ -4325,7 +4375,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const fillActiveTarget = fillCommandController.fill;
   fillActiveTargetRef.current = (color, preserveTransparency) => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       fillActiveTarget(color, preserveTransparency);
     });
   };
@@ -5530,7 +5580,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return Boolean(executeRegisteredCommand('layer.merge', { layerIds }));
   }, [executeRegisteredCommand]);
   const mergeSelectionOrActiveDown = useCallback(async () => {
-    await settlePixelInteractionRef.current();
+    await settleMountedDocumentInteraction();
     const selectedLayerIds = selectedLayerIdsRef.current;
     if (selectedLayerIds.length > 1) {
       if (import.meta.env.DEV) {
@@ -5571,7 +5621,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   const copyPixels = async (source: 'active-layer' | 'merged') => {
-    await settlePixelInteractionRef.current();
+    await settleMountedDocumentInteraction();
     const execution = executeRegisteredCommand('selection.copyPixels', { source });
     if (execution) await execution;
   };
@@ -5579,7 +5629,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   copySelectedContentRef.current = copySelectedContent;
 
   const cutPixels = async () => {
-    await settlePixelInteractionRef.current();
+    await settleMountedDocumentInteraction();
     const document = imageDocumentRef.current;
     const layerId = document?.activeLayerId;
     if (!document || !layerId || editorSessionRef.current.selection.length === 0) return null;
@@ -5609,7 +5659,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pasteSelectedContent = () => {
     const targetDocumentId = workspaceDocumentId;
     void (async () => {
-      await settlePixelInteractionRef.current();
+      await settleMountedDocumentInteraction();
       if (workspaceDocumentIdRef.current !== targetDocumentId) return;
       // Always inspect the host clipboard. A prior LightTable copy must never
       // shadow a newer image copied from another application.
@@ -5848,7 +5898,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
     },
     loadLayerTransparencySelection: async (layerId) => {
-      await settlePixelInteractionRef.current();
+      await settleMountedDocumentInteraction();
       await selectionSessionController.selectLayerTransparency(layerId);
     },
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
@@ -5977,7 +6027,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (target === 'pixel-selection') {
-      void settlePixelInteractionRef.current().then(() => {
+      runAfterMountedDocumentAdmission(() => {
         fillCommandController.clearSelection();
       });
       return;
@@ -6023,7 +6073,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         // during a transform. All semantic document commands first publish
         // presentation-owned selection/transform state through its owner.
         if (command === 'view.setZoom') return;
-        await settlePixelInteractionRef.current();
+        const admission = await interactionTransitions.request('commit-before-mutation');
+        if (admission.status === 'rejected') throw new Error(admission.reason);
       },
       supportsCommand: isMountedDocumentCommand,
       resizeImage: (request) => commitImageSize(request, false),
@@ -6053,7 +6104,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       createRasterLayer: layerPanelController.createRasterLayer,
       copyPixels: async (source) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         return source === 'active-layer'
           ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
           : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection);
@@ -6112,11 +6163,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`,
       }),
       executeFillCommand: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         return fillCommandController.apply(command);
       },
       executeRasterGradientCommand: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         return rasterGradientController.apply(command);
       },
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, {
@@ -6138,7 +6189,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           return layerId ? { sourceLayerId: command.layerId, layerId } : null;
         }
         if (command.kind === 'copy-to-new-layer') {
-          await settlePixelInteractionRef.current();
+          await settleMountedDocumentInteraction();
           const result = layerDocumentCommands.layerViaCopy(command.layerId);
           return result ? { sourceLayerId: command.layerId, ...result } : null;
         }
@@ -6178,7 +6229,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (command.kind === 'set-mask') {
           return executeSemanticMaskCommand(command, {
             commands: layerDocumentCommands,
-            settlePixelInteraction: () => settlePixelInteractionRef.current(),
+            settlePixelInteraction: settleMountedDocumentInteraction,
             waitForPresentation: waitForStableLayerCommandFrame,
             loadMaskAsSelection: selectionSessionController.selectLayerMask,
             changeDocument: documentMutationController.change
@@ -6218,7 +6269,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
       executeSelectionCommand: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         if (command.kind === 'modify') {
           if (command.operation === 'load-transparency') {
             const applied = await selectionSessionController.selectLayerTransparency(command.layerId);
@@ -6367,7 +6418,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         });
       },
       executeRasterInvert: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         return layerDocumentCommands.invertLayerColors(
           command.layerId, command.channel
         ) ? command : null;
@@ -6396,14 +6447,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : null;
       },
       executeLayerMerge: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.mergeLayersWhenReady([...command.layerIds])) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId ? { layerIds: command.layerIds, outputLayerId } : null;
       },
       executeFlattenGroup: async (command) => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.flattenWhenReady({
           kind: 'group', groupId: command.groupId
@@ -6412,7 +6463,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return outputLayerId ? { groupId: command.groupId, outputLayerId } : null;
       },
       executeFlattenImage: async () => {
-        await settlePixelInteractionRef.current();
+        await settleMountedDocumentInteraction();
         await waitForStableLayerCommandFrame();
         if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
@@ -6681,24 +6732,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       };
       await publishBoundSelection({
         renderer: binding.renderer,
-        beforeMask: binding.expectedSelectionLease.selection.coverage,
-        afterMask: selectionMaskSnapshot,
         bindingIsCurrent,
-        rendererIsAddressable: () => engineRef.current === binding.renderer
-          && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration,
-        restoreBeforeOnPublishError: (reason) => !(
-          reason instanceof TransformSelectionPublicationError
-          && reason.phase === 'indeterminate'
-        ),
-        publish: () => publishTransformDocumentSelection(
+        publish: () => {
+          publishTransformDocumentSelection(
           document,
           selection,
           selectionMaskSnapshot,
           binding.expectedSelectionLease,
           rendererDocumentBindingIsCurrent,
           () => engineRef.current === binding.renderer
-            && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration
-        )
+            && rendererLifecycle.getSnapshot().generation === binding.rendererGeneration,
+          binding.publishPixels
+          );
+        }
       });
     },
     reserveHistoryEntry: documentHistoryController.reserve,
@@ -6856,17 +6902,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     await selectionSessionController.settle();
     await transformSession.commitPending();
   };
+  cancelPixelInteractionRef.current = () => {
+    selectionSessionController.reset();
+    transformSession.reset();
+  };
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
   repeatTransformRef.current = transformSession.repeat;
   nudgeTransformRef.current = transformSession.nudge;
   hostPresentationDeactivateRef.current = () => {
+    void interactionTransitions.request('preserve');
     viewportInteraction.cancelActiveGesture();
     adjustmentInteractions.reset();
     rasterGradientController.cancel();
     cancelAutoAlignRef.current();
-    if (transformSession.isActive()) transformSession.cancel();
   };
   applyFixedTransformRef.current = async (operation) => {
     if (fixedTransformCommandRunningRef.current) return null;
@@ -7076,7 +7126,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   activateToolRef.current = activatePersistentTool;
 
   const invertActiveLayerColors = () => {
-    void settlePixelInteractionRef.current().then(() => {
+    runAfterMountedDocumentAdmission(() => {
       const layerId = imageDocumentRef.current?.activeLayerId;
       const channel = editorSessionRef.current.activeChannel;
       if (layerId) void executeRegisteredCommand('raster.invert', { layerId, channel });
@@ -7176,6 +7226,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus
   });
   const recoveryJournal = useEditorRecoveryJournal({ store: recoveryStore,
+    canCaptureSnapshot: () => !documentMutationController.active,
     enabled: recoveryPreferences?.enabled ?? true,
     intervalMs: recoveryPreferences?.intervalMs,
     documentId: workspaceDocumentId,
@@ -7770,9 +7821,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (layerId) setIsolatedCompositeChannel(null);
       }}
       onSelectCompositeChannel={(channel) => {
-        void settlePixelInteractionRef.current().then(() => (
-          selectionSessionController.selectCompositeChannel(channel)
-        ));
+        runAfterMountedDocumentAdmission(() => {
+          void selectionSessionController.selectCompositeChannel(channel);
+        });
       }}
       onSelectLayerMask={(layerId) => {
         void executeRegisteredCommand('layer.setMask', {
@@ -8121,6 +8172,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showProperties({ kind: 'layer', layerId: activeTextPropertyLayer.id });
     }
   }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
+  const currentDocumentPresentation = documentPresentationAvailability({
+    documentId: workspaceDocumentId,
+    presentedDocumentId: presentedWorkspaceDocumentId,
+    residentDocumentId: residentWorkspaceDocumentId,
+    rendererStatus: rendererSnapshot.status
+  });
   const imageDocumentSurface = (
     <EditorDocumentSurface
       viewport={{
@@ -8144,10 +8201,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         scale: activeScale,
         viewportSize,
         transformState: temporarySelectionMoveActive ? null : transformState,
-        presentationReady: presentedWorkspaceDocumentId === workspaceDocumentId
-          && rendererSnapshot.status === 'ready',
-        presentationResident: residentWorkspaceDocumentId === workspaceDocumentId
-          && (rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended'),
+        presentationReady: currentDocumentPresentation.ready,
+        presentationResident: currentDocumentPresentation.resident,
+        presentationError: rendererSnapshot.status === 'failed' ? rendererSnapshot.error : null,
         loading,
         unavailable: Boolean(error && !metadata),
         inputBridge: textEditing.status === 'editing' ? (
@@ -8678,7 +8734,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             }]).map((workspaceDocument) => ({
               ...workspaceDocument,
               ready: workspaceDocument.id === workspaceDocumentId && workspaceDocumentKind === 'image'
-                ? presentedWorkspaceDocumentId === workspaceDocumentId
+                ? currentDocumentPresentation.available
                 : true,
               presentationError: workspaceDocument.id === workspaceDocumentId && rendererSnapshot.status === 'failed'
                 ? rendererSnapshot.error ?? 'The document could not be presented.' : undefined,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   RecoveryJournalScheduler,
+  RecoveryCheckpointSupersededError,
   recoveryScheduleForPreferences,
   recoveryScheduleForSourceBytes,
   type RecoveryJournalRevision
@@ -17,6 +18,41 @@ const revision = (
 });
 
 describe('RecoveryJournalScheduler', () => {
+  it('defers the same dirty revision across a paint barrier and resumes on release', async () => {
+    vi.useFakeTimers();
+    const checkpoint = vi.fn(async () => undefined);
+    const scheduler = new RecoveryJournalScheduler({ checkpoint });
+    scheduler.observe(revision(1));
+    await vi.advanceTimersByTimeAsync(4000);
+    scheduler.observe({ ...revision(1), blocked: true });
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(checkpoint).not.toHaveBeenCalled();
+    scheduler.observe({ ...revision(1), blocked: false });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(checkpoint).toHaveBeenCalledOnce();
+    scheduler.dispose();
+    vi.useRealTimers();
+  });
+
+  it('does not exhaust failure retries while a long preview defers snapshot capture', async () => {
+    vi.useFakeTimers();
+    let editing = true;
+    const onError = vi.fn();
+    const checkpoint = vi.fn(async () => {
+      if (editing) throw new RecoveryCheckpointSupersededError();
+    });
+    const scheduler = new RecoveryJournalScheduler({ checkpoint, onError });
+    scheduler.observe(revision(1));
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(onError).not.toHaveBeenCalled();
+    editing = false;
+    await vi.advanceTimersByTimeAsync(5000);
+    const calls = checkpoint.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(checkpoint).toHaveBeenCalledTimes(calls);
+    scheduler.dispose();
+    vi.useRealTimers();
+  });
   it('gives large sources a measured quiet window without exceeding two minutes', () => {
     expect(recoveryScheduleForSourceBytes(31 * 1024 * 1024)).toEqual({ debounceMs: 5_000, maxDelayMs: 30_000 });
     expect(recoveryScheduleForSourceBytes(32 * 1024 * 1024)).toEqual({ debounceMs: 30_000, maxDelayMs: 120_000 });

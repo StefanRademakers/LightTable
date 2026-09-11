@@ -2,6 +2,14 @@ local grade ook geen rasterize, local filter ook geen rasterize
 
 RESOLVED 2026-09-11
 
-The canonical command handoff now makes processing ownership visible before
-capability projection. Packaged proof confirms rasterize for both Local Grade
-and an attached Gaussian Blur.
+The canonical command handoff makes processing ownership visible before
+capability projection.
+
+REOPENED AND RESOLVED 2026-09-11
+
+The first proof only checked DOM visibility on the original raster layer. It
+missed that the shared TextInput flex rule could push the status column outside
+the layer row, making the rasterize affordance inaccessible. The packaged proof
+now includes the exact Pasted Selection -> deselect -> Local Grade route and
+requires the rasterize control to be inside the row and hit-testable. The layer
+name now owns only the row's remaining width, so fixed controls remain usable.

@@ -12,6 +12,7 @@ import {
 } from '../document/documentTypes';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import { LayerDocumentAssetService, type LayerDocumentAssetPorts } from './LayerDocumentAssetService';
+import { LayerAssetExportSnapshot } from './LayerAssetExportSnapshot';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
@@ -36,6 +37,8 @@ const documentWith = () => {
 };
 
 const createPorts = (): LayerDocumentAssetPorts => ({
+  createExportSnapshot: () => new LayerAssetExportSnapshot(
+    (source) => ({ ...source, destroy: vi.fn() }) as GPUTexture, vi.fn()),
   rasterTexture: vi.fn(() => texture),
   derivedPreviewTexture: vi.fn(() => null),
   maskTexture: vi.fn(() => maskTexture),
@@ -55,6 +58,50 @@ const deferred = () => {
 };
 
 describe('LayerDocumentAssetService', () => {
+  it('captures all live inputs before encoding yields, retaining no live texture across awaits', async () => {
+    const ports = createPorts();
+    const pause = deferred();
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    document.layers.push({ ...layer, id: 'second' as LayerId });
+    const snapshots: GPUTexture[] = [];
+    ports.createExportSnapshot = () => new LayerAssetExportSnapshot((source) => {
+      const snapshot = { ...source, destroy: vi.fn() } as GPUTexture;
+      snapshots.push(snapshot);
+      return snapshot;
+    }, vi.fn());
+    ports.encodeTexture = vi.fn(async (_id, source) => {
+      expect(snapshots).toContain(source);
+      await pause.promise;
+      return pixels;
+    });
+    const service = new LayerDocumentAssetService(ports);
+    const exporting = service.export(document);
+    expect(snapshots).toHaveLength(2);
+    // A new edit can remove the original resources during encoding.
+    ports.rasterTexture = vi.fn(() => null);
+    pause.resolve();
+    await exporting;
+    for (const snapshot of snapshots) expect(snapshot.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('releases all captured textures when an encode fails', async () => {
+    const ports = createPorts();
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    document.layers.push({ ...layer, id: 'second' as LayerId });
+    ports.encodeTexture = vi.fn(async () => { throw new Error('encode failed'); });
+    const snapshots: GPUTexture[] = [];
+    ports.createExportSnapshot = () => new LayerAssetExportSnapshot((source) => {
+      const snapshot = { ...source, destroy: vi.fn() } as GPUTexture;
+      snapshots.push(snapshot);
+      return snapshot;
+    }, vi.fn());
+    await expect(new LayerDocumentAssetService(ports).export(document)).rejects.toThrow('encode failed');
+    for (const snapshot of snapshots) {
+      expect(snapshot.destroy).toHaveBeenCalledOnce();
+    }
+  });
   it('exports raster pixels, optional masks and immutable patterns', async () => {
     const ports = createPorts();
     const service = new LayerDocumentAssetService(ports);
@@ -79,8 +126,8 @@ describe('LayerDocumentAssetService', () => {
       { layerId, pixels, mask },
       { patternId, source: pattern }
     ]);
-    expect(ports.encodeTexture).toHaveBeenNthCalledWith(1, layerId, texture, false);
-    expect(ports.encodeTexture).toHaveBeenNthCalledWith(2, layerId, maskTexture, true);
+    expect(ports.encodeTexture).toHaveBeenNthCalledWith(1, layerId, expect.objectContaining(texture), false);
+    expect(ports.encodeTexture).toHaveBeenNthCalledWith(2, layerId, expect.objectContaining(maskTexture), true);
   });
 
   it('routes persisted assets to their canonical GPU destinations', async () => {
@@ -276,7 +323,7 @@ describe('LayerDocumentAssetService', () => {
       { layerId: text.id, pixels, mask: null },
       { patternId, source: pattern }
     ]);
-    expect(ports.encodeTexture).toHaveBeenCalledWith(text.id, previewTexture, false);
+    expect(ports.encodeTexture).toHaveBeenCalledWith(text.id, expect.objectContaining(previewTexture), false);
     expect(ports.decodeTexture).toHaveBeenCalledWith(text.id, pixels, previewTexture, false);
   });
 

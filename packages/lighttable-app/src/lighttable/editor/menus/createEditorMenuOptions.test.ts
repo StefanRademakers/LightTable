@@ -328,7 +328,7 @@ describe('createEditorMenuOptions', () => {
       { label: 'Open', shortcut: undefined },
       { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
-      { label: 'Export PNG', shortcut: 'Ctrl+Shift+S' },
+      { label: 'Export PNG', shortcut: 'Ctrl+Alt+S' },
       { label: 'Export', shortcut: undefined },
       { label: 'Exit', shortcut: undefined }
     ]);

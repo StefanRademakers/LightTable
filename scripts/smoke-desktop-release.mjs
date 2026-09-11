@@ -56,7 +56,7 @@ try {
     .waitFor({ state: 'visible', timeout: 15_000 });
   await window.screenshot({ path: path.join(output, 'about-update.png') });
   await window.getByRole('button', { name: 'Close', exact: true }).click();
-  await window.keyboard.press('Control+Shift+S');
+  await window.keyboard.press('Control+Alt+S');
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (await stat(savedFile).then(() => true).catch(() => false)) break;
     await window.waitForTimeout(100);

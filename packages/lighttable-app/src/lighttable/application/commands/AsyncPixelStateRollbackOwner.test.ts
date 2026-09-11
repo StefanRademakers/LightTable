@@ -15,8 +15,8 @@ describe('AsyncPixelStateRollbackOwner', () => {
         applied = direction === 'redo';
         return true;
       },
-      restoreBefore: async () => { side = 'before'; },
-      restoreAfter: async () => { side = 'after'; }
+      restoreBefore: async (publish) => { publish(); side = 'before'; },
+      restoreAfter: async (publish) => { publish(); side = 'after'; }
     })).toEqual({ ok: true, compensationFailed: false });
     expect({ applied, side }).toEqual({ applied: false, side: 'before' });
     expect(destroy).toHaveBeenCalledOnce();
@@ -38,11 +38,12 @@ describe('AsyncPixelStateRollbackOwner', () => {
         applied = direction === 'redo';
         return true;
       },
-      restoreBefore: async () => {
+      restoreBefore: async (publish: () => void) => {
+        publish();
         if (rejectBefore) throw new Error('publication failed');
         side = 'before';
       },
-      restoreAfter: async () => { side = 'after'; }
+      restoreAfter: async (publish: () => void) => { publish(); side = 'after'; }
     };
 
     expect(await owner.rollback(input)).toEqual({ ok: false, compensationFailed: false });

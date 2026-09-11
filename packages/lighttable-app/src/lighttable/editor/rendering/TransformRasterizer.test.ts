@@ -129,6 +129,30 @@ afterEach(() => {
 });
 
 describe('TransformRasterizer', () => {
+  it('preserves distinct source and transformed GPU masks through commit, undo and redo', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const harness = createHarness({ width: 23, height: 17 });
+    const contents = new Map<GPUTexture, string>();
+    harness.copyTextureToTexture.mockImplementation((source, destination) => {
+      contents.set(destination.texture, contents.get(source.texture)!);
+    });
+    harness.selectionTextures.active = true;
+    harness.selectionTextures.mask = gpuTexture();
+    harness.selectionTextures.result = gpuTexture();
+    contents.set(harness.selectionTextures.mask, 'opening mask');
+    harness.rasterizer.begin(rasterLayer({ width: 23, height: 17 }), true);
+    const preview = harness.sessions.current!.selectionPreview!;
+    contents.set(preview, 'rotated translated mask');
+    const edit = harness.rasterizer.commit()!;
+    expect(contents.get(harness.selectionTextures.mask)).toBe('rotated translated mask');
+    expect(edit.undo()).toBe(true);
+    expect(contents.get(harness.selectionTextures.mask)).toBe('opening mask');
+    expect(harness.runtime.width).toBe(23);
+    expect(edit.redo()).toBe(true);
+    expect(contents.get(harness.selectionTextures.mask)).toBe('rotated translated mask');
+    expect(harness.runtime.width).toBe(64);
+  });
+
   it('keeps complete-layer transforms as geometry without compiling raster pipelines', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
     const harness = createHarness();

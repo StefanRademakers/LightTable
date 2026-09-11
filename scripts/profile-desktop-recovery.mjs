@@ -89,6 +89,28 @@ for (const [index, sourceFile] of sources.entries()) {
       if (text.includes('[Recovery]')) source.recoveryLog.push({ at: Date.now(), type: message.type(), text });
     });
     await page.evaluate(() => {
+      globalThis.__recoverySnapshotMemory = { liveBytes: 0, peakBytes: 0 };
+      const snapshots = new Map();
+      const createTexture = GPUDevice.prototype.createTexture;
+      const destroy = GPUTexture.prototype.destroy;
+      GPUDevice.prototype.createTexture = function (descriptor) {
+        const texture = createTexture.call(this, descriptor);
+        if (descriptor.label?.startsWith('LightTable export snapshot:')) {
+          const bytes = texture.width * texture.height * (texture.format === 'r16float' ? 2 : 8);
+          snapshots.set(texture, bytes);
+          const memory = globalThis.__recoverySnapshotMemory;
+          memory.liveBytes += bytes;
+          memory.peakBytes = Math.max(memory.peakBytes, memory.liveBytes);
+        }
+        return texture;
+      };
+      GPUTexture.prototype.destroy = function () {
+        if (snapshots.has(this)) {
+          globalThis.__recoverySnapshotMemory.liveBytes -= snapshots.get(this);
+          snapshots.delete(this);
+        }
+        return destroy.call(this);
+      };
       globalThis.__lightTableRecoveryLongTasks = [];
       if (PerformanceObserver.supportedEntryTypes.includes('longtask')) new PerformanceObserver((list) => {
         globalThis.__lightTableRecoveryLongTasks.push(...list.getEntries().map((entry) => ({
@@ -181,6 +203,7 @@ for (const [index, sourceFile] of sources.entries()) {
     source.recoveryLongTasks = await page.evaluate(() => globalThis.__lightTableRecoveryLongTasks ?? []);
     source.recoveryLongTaskSummary = summarize(source.recoveryLongTasks.map(({ duration }) => duration));
     source.heapAfterBytes = await heap();
+    source.exportSnapshotMemory = await page.evaluate(() => globalThis.__recoverySnapshotMemory);
     source.heapDeltaBytes = source.heapAfterBytes === null || source.heapBeforeBytes === null
       ? null : source.heapAfterBytes - source.heapBeforeBytes;
     const recoveryDirectory = path.join(userData, 'recovery-v1');
@@ -208,7 +231,9 @@ for (const [index, sourceFile] of sources.entries()) {
       app, page: restoredPage, outputDirectory: output, sourceFile,
       pageErrors: source.pageErrors, label: `recovery-restore-launcher-${index}`
     });
-    const recoverButton = restoredPage.getByRole('button', { name: /Open recovered copy|Retry recovered copy/ });
+    await restoredPage.getByRole('button', { name: /^Recovery Records/ }).click();
+    const recoverButton = restoredPage.locator('.lighttable-launcher-gallery__card')
+      .filter({ hasText: path.basename(sourceFile) }).getByRole('button').first();
     try {
       await recoverButton.waitFor({ state: 'visible', timeout: 30_000 });
     } catch (error) {

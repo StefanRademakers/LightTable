@@ -9,6 +9,206 @@ import type {
 const token = (sequence: number): AdjustmentInteractionToken => ({ sequence });
 
 describe('AdjustmentInteractionCoordinator', () => {
+  it('queues one adjustment gesture until an open pixel interaction has settled', async () => {
+    let releaseAdmission: () => void = () => undefined;
+    const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
+    const admittedToken = token(1);
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => admittedToken),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      () => admission.then(() => ({ status: 'admitted' as const }))
+    );
+
+    const exposure = interactions.begin('exposure');
+    expect(interactions.change(
+      exposure,
+      (current) => ({ ...current, exposureEV: 1.25 })
+    )).toBe(true);
+    expect(interactions.change(
+      exposure,
+      (current) => ({ ...current, exposureEV: 2.5 })
+    )).toBe(true);
+    interactions.end(exposure);
+    expect(controller.begin).not.toHaveBeenCalled();
+
+    releaseAdmission();
+    await admission;
+    await Promise.resolve();
+
+    expect(controller.begin).toHaveBeenCalledOnce();
+    expect(controller.change).toHaveBeenCalledWith(
+      expect.any(Function), 'grade', admittedToken
+    );
+    expect(controller.change).toHaveBeenCalledOnce();
+    const latestMutation = vi.mocked(controller.change).mock.calls[0]?.[0];
+    expect(latestMutation?.(createDefaultAdjustments()).exposureEV).toBe(2.5);
+    expect(controller.end).toHaveBeenCalledWith(admittedToken);
+  });
+
+  it('preserves the successor gesture when predecessor publication resets only the active controller', async () => {
+    let releasePublication: () => void = () => undefined;
+    const publication = new Promise<void>((resolve) => { releasePublication = resolve; });
+    const admittedToken = token(1);
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => admittedToken),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      async () => {
+        await publication;
+        // Transform publication may retire an adjustment preview that owned
+        // the old document, but must not reset the coordinator lease waiting
+        // to become the next owner.
+        controller.reset();
+        return { status: 'admitted' as const };
+      },
+      () => 'document-a:layer-a:grade:renderer-1'
+    );
+
+    const exposure = interactions.begin('exposure');
+    interactions.change(exposure, (current) => ({ ...current, exposureEV: 3 }));
+    interactions.end(exposure);
+    releasePublication();
+    await publication;
+    await Promise.resolve();
+
+    expect(controller.reset).toHaveBeenCalledOnce();
+    expect(controller.begin).toHaveBeenCalledOnce();
+    expect(controller.change).toHaveBeenCalledOnce();
+    expect(controller.end).toHaveBeenCalledWith(admittedToken);
+  });
+
+  it('drops a queued gesture when its semantic target drifts during admission', async () => {
+    let releaseAdmission: () => void = () => undefined;
+    const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
+    let ownerIntent = 'document-a:layer-a:grade:renderer-1';
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      () => admission.then(() => ({ status: 'admitted' as const })),
+      () => ownerIntent
+    );
+
+    const exposure = interactions.begin('exposure');
+    interactions.change(exposure, (current) => ({ ...current, exposureEV: 2 }));
+    interactions.end(exposure);
+    ownerIntent = 'document-a:layer-b:grade:renderer-1';
+    releaseAdmission();
+    await admission;
+    await Promise.resolve();
+
+    expect(controller.begin).not.toHaveBeenCalled();
+    expect(controller.change).not.toHaveBeenCalled();
+  });
+
+  it('drops a queued discrete change when its semantic target drifts during admission', async () => {
+    let releaseAdmission: () => void = () => undefined;
+    const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
+    let ownerIntent = 'document-a:layer-a:grade:renderer-1';
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      () => admission.then(() => ({ status: 'admitted' as const })),
+      () => ownerIntent
+    );
+
+    interactions.discreteChange((current) => ({ ...current, exposureEV: 2 }));
+    ownerIntent = 'document-b:layer-a:grade:renderer-1';
+    releaseAdmission();
+    await admission;
+    await Promise.resolve();
+
+    expect(controller.change).not.toHaveBeenCalled();
+  });
+
+  it('does not admit or replay a queued adjustment after cancellation', async () => {
+    let releaseAdmission: () => void = () => undefined;
+    const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      () => admission.then(() => ({ status: 'admitted' as const }))
+    );
+    const exposure = interactions.begin('exposure');
+    interactions.change(exposure, (current) => ({ ...current, exposureEV: 2 }));
+    interactions.cancel(exposure);
+
+    releaseAdmission();
+    await admission;
+    await Promise.resolve();
+
+    expect(controller.begin).not.toHaveBeenCalled();
+    expect(controller.change).not.toHaveBeenCalled();
+  });
+
+  it('queues a discrete reset until mutation admission succeeds', async () => {
+    let releaseAdmission: () => void = () => undefined;
+    const admission = new Promise<void>((resolve) => { releaseAdmission = resolve; });
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      () => admission.then(() => ({ status: 'admitted' as const }))
+    );
+
+    expect(interactions.discreteChange(() => createDefaultAdjustments())).toBe(true);
+    expect(controller.change).not.toHaveBeenCalled();
+    releaseAdmission();
+    await admission;
+    await Promise.resolve();
+
+    expect(controller.change).toHaveBeenCalledOnce();
+  });
+
+  it('drops queued continuous and discrete mutations when admission is rejected', async () => {
+    const controller: AdjustmentTransactionController = {
+      active: false,
+      begin: vi.fn(() => token(1)),
+      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
+      change: vi.fn(() => true)
+    };
+    const interactions = createAdjustmentInteractionCoordinator(
+      controller,
+      async () => ({ status: 'rejected', reason: 'settlement failed' })
+    );
+    const exposure = interactions.begin('exposure');
+    interactions.change(exposure, (current) => ({ ...current, exposureEV: 2 }));
+    interactions.end(exposure);
+    interactions.discreteChange(() => createDefaultAdjustments());
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(controller.begin).not.toHaveBeenCalled();
+    expect(controller.change).not.toHaveBeenCalled();
+  });
+
   it('makes stale terminal callbacks from another control inert', () => {
     const first = token(1);
     const second = token(2);

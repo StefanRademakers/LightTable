@@ -106,12 +106,31 @@ try {
     await selectLayer(layerId);
     const row = page.locator(`[data-layer-id="${layerId}"]`);
     const button = row.locator('.lighttable-layer__rasterize');
-    const state = await row.evaluate((element) => ({
-      html: element.outerHTML,
-      rowBounds: element.getBoundingClientRect().toJSON()
-    }));
+    const state = await row.evaluate((element) => {
+      const rasterize = element.querySelector('.lighttable-layer__rasterize');
+      const rowBounds = element.getBoundingClientRect();
+      const buttonBounds = rasterize?.getBoundingClientRect() ?? null;
+      const hitTarget = buttonBounds
+        ? document.elementFromPoint(
+          buttonBounds.left + (buttonBounds.width / 2),
+          buttonBounds.top + (buttonBounds.height / 2)
+        )
+        : null;
+      return {
+        html: element.outerHTML,
+        rowBounds: rowBounds.toJSON(),
+        buttonBounds: buttonBounds?.toJSON() ?? null,
+        buttonInsideRow: Boolean(buttonBounds
+          && buttonBounds.left >= rowBounds.left
+          && buttonBounds.right <= rowBounds.right),
+        buttonHitTestable: Boolean(rasterize && hitTarget && rasterize.contains(hitTarget))
+      };
+    });
     const count = await button.count();
-    const visible = count === 1 && await button.isVisible();
+    const visible = count === 1
+      && await button.isVisible()
+      && state.buttonInsideRow
+      && state.buttonHitTestable;
     observations.push({ label, layerId, count, visible, state });
     if (visible !== expected) {
       throw new Error(`${label}: expected rasterize affordance ${expected ? 'visible' : 'absent'}, got ${JSON.stringify({ count, visible, state })}`);
@@ -185,7 +204,7 @@ try {
   const pastedGradient = await driver.execute(documentId, 'selection.pastePixels', {
     artifactId: copiedArtifactId,
     bounds: copyBounds,
-    name: 'Gradient selection copy'
+    name: 'Pasted Selection'
   });
   const pastedGradientId = pastedGradient.value?.layerId;
   const pastedGradientLayer = (await driver.queryLayers(documentId) ?? [])
@@ -211,6 +230,15 @@ try {
     copiedVersusSource,
     pastedVersusClipboard
   });
+  await page.keyboard.press('Control+d');
+  await driver.execute(documentId, 'adjustment.create', {
+    kind: 'grade',
+    placement: 'local',
+    layerId: pastedGradientId
+  });
+  await assertAffordance('compact-pasted-raster-with-local-grade', pastedGradientId);
+  await driver.execute(documentId, 'history.undo', {});
+  await driver.execute(documentId, 'history.undo', {});
   await driver.execute(documentId, 'history.undo', {});
   await driver.execute(documentId, 'history.undo', {});
   await driver.execute(documentId, 'history.undo', {});

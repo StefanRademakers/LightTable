@@ -131,14 +131,14 @@ try {
   const nativeStat = await stat(saveTarget);
   const nativeHeader = (await readFile(saveTarget)).subarray(0, 8).toString('hex');
   await window.waitForTimeout(30);
-  await window.keyboard.press('Control+Shift+S');
+  await window.keyboard.press('Control+Alt+S');
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const bytes = await readFile(saveTarget);
     if (bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a') break;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   const exportHeader = (await readFile(saveTarget)).subarray(0, 8).toString('hex');
-  if (exportHeader !== '89504e470d0a1a0a') throw new Error('Ctrl+Shift+S did not export PNG.');
+  if (exportHeader !== '89504e470d0a1a0a') throw new Error('Ctrl+Alt+S did not export PNG.');
   report.journey.push({ id: 'save-and-export', nativeBytes: nativeStat.size, nativeHeader, exportHeader });
 
   const missingNames = await window.locator('button, input, select, textarea, [role="tab"], [role="treeitem"]').evaluateAll((elements) =>

@@ -1,0 +1,12 @@
+Task 415 - Painting loses pasted pixels while automatic recovery reads live GPU state
+
+Status: implemented and independently reviewed; owner acceptance pending.
+Do not close as a whole-editor stability/performance milestone.
+
+See PAINT_RECOVERY_FIX_REPORT.md for the proven fault, scope, packaged evidence,
+performance costs and remaining uncertainty about the owner's exact renderer error.
+
+Resource-boundary follow-up: RASTER_RESOURCE_BOUNDARY_REPORT.md records removal
+of metadata-driven color-surface replacement, prepublication checks, independent
+review and packaged paint/recovery/transform/resize proof. Owner acceptance and
+the broader interaction handoff work are still separate.

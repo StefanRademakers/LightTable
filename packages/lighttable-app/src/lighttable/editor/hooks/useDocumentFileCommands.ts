@@ -165,6 +165,7 @@ export const useDocumentFileCommands = (
     // Font materialization may yield while the shared renderer is rebound to
     // another tab. Refuse stale ownership before synchronizeDocumentForExport
     // can mutate that renderer; retain the final assertion for async readback.
+    runtime.assertSnapshotCurrent?.();
     binding.assertCurrent('Document export');
     const output = await exportLightTableDocument({
       document: imageDocument,
@@ -179,6 +180,7 @@ export const useDocumentFileCommands = (
       preservedSourceAssets: current.getPreservedSourceAssets(),
       fontAssets
     }, runtime);
+    runtime.assertSnapshotCurrent?.();
     binding.assertCurrent('Document export');
     return output;
   }, []);

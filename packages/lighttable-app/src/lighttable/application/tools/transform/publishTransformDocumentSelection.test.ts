@@ -39,6 +39,31 @@ const fixture = () => {
 };
 
 describe('publishTransformDocumentSelection', () => {
+  it('reverts pixels synchronously before projecting old dimensions on publication failure', () => {
+    const state = fixture();
+    let pixelSide = 'before';
+    const order: string[] = [];
+    expect(() => publishTransformDocumentSelection({
+      session: state.session, document: state.after, selection: [],
+      coverage: state.afterMask, expectedLease: state.expectedLease,
+      bindingIsCurrent: () => true, rendererIsAddressable: () => true,
+      publishPixels: () => {
+        expect(state.session.getSnapshot().document).toBe(state.after);
+        pixelSide = 'after'; order.push('pixels-after');
+        return () => { pixelSide = 'before'; order.push('pixels-before'); };
+      },
+      getProjectedDocument: state.projectedDocument,
+      applyDocumentSnapshot: (document) => {
+        expect(pixelSide).toBe(document === state.after ? 'after' : 'before');
+        order.push(document === state.after ? 'project-after' : 'project-before');
+        state.applyDocumentSnapshot(document);
+      },
+      publishEditorProjection: () => { throw new Error('projection failed'); }
+    })).toThrow('projection failed');
+    expect(order).toEqual(['pixels-after', 'project-after', 'pixels-before', 'project-before']);
+    expect(state.session.getSnapshot().document).toBe(state.before);
+  });
+
   it('publishes successfully when the production opening predicate becomes stale after CAS', () => {
     const state = fixture();
     const openingIsCurrent = () => {
@@ -56,6 +81,7 @@ describe('publishTransformDocumentSelection', () => {
       coverage: state.afterMask,
       expectedLease: state.expectedLease,
       bindingIsCurrent: openingIsCurrent,
+      publishPixels: () => () => undefined,
       rendererIsAddressable: () => true,
       getProjectedDocument: state.projectedDocument,
       applyDocumentSnapshot: state.applyDocumentSnapshot,
@@ -80,6 +106,7 @@ describe('publishTransformDocumentSelection', () => {
       coverage: state.afterMask,
       expectedLease: state.expectedLease,
       bindingIsCurrent: () => false,
+      publishPixels: () => () => undefined,
       rendererIsAddressable: () => true,
       getProjectedDocument: state.projectedDocument,
       applyDocumentSnapshot: state.applyDocumentSnapshot,
@@ -104,6 +131,7 @@ describe('publishTransformDocumentSelection', () => {
       coverage: state.afterMask,
       expectedLease: state.expectedLease,
       bindingIsCurrent: () => true,
+      publishPixels: () => () => undefined,
       rendererIsAddressable: () => ++rendererChecks < 2,
       getProjectedDocument: state.projectedDocument,
       applyDocumentSnapshot: state.applyDocumentSnapshot,
@@ -136,6 +164,7 @@ describe('publishTransformDocumentSelection', () => {
         coverage: state.afterMask,
         expectedLease: state.expectedLease,
         bindingIsCurrent: () => true,
+        publishPixels: () => () => undefined,
         rendererIsAddressable: () => ++rendererChecks < 2,
         getProjectedDocument: state.projectedDocument,
         applyDocumentSnapshot,

@@ -1,4 +1,5 @@
 export interface RecoveryJournalRevision {
+  readonly blocked?: boolean;
   readonly canonicalRevision: number;
   readonly historyStateId: number;
   readonly savedStateId: number;
@@ -26,7 +27,11 @@ const sameRevision = (
   && left!.canonicalRevision === right.canonicalRevision
   && left!.historyStateId === right.historyStateId
   && left!.savedStateId === right.savedStateId
-  && left!.dirty === right.dirty;
+  && left!.dirty === right.dirty
+  && Boolean(left!.blocked) === Boolean(right.blocked);
+
+/** Expected cancellation before snapshot capture, not an export/storage failure. */
+export class RecoveryCheckpointSupersededError extends Error {}
 
 export const recoveryScheduleForSourceBytes = (sourceByteLength = 0) => (
   sourceByteLength >= 32 * 1024 * 1024
@@ -94,7 +99,7 @@ export class RecoveryJournalScheduler {
     this.failureAttempts = 0;
     this.lastError = null;
     this.latest = { ...revision };
-    if (!revision.dirty) {
+    if (!revision.dirty || revision.blocked) {
       this.dirtySince = null;
       this.cancelTimer();
       return;
@@ -121,6 +126,7 @@ export class RecoveryJournalScheduler {
         await new Promise<void>((resolve) => this.idleWaiters.add(resolve));
       }
       if (!this.latest?.dirty) return;
+      if (this.latest.blocked) throw new Error('Finish the active edit before flushing recovery.');
       if (sameRevision(this.written, this.latest)) return;
       if (sameRevision(this.attempted, this.latest)) {
         if (this.lastError) throw this.lastError;
@@ -147,7 +153,7 @@ export class RecoveryJournalScheduler {
   }
 
   private async run(): Promise<void> {
-    if (this.disposed || this.running || !this.latest?.dirty) return;
+    if (this.disposed || this.running || !this.latest?.dirty || this.latest.blocked) return;
     const revision = { ...this.latest };
     if (sameRevision(this.attempted, revision)) return;
     this.running = true;
@@ -158,13 +164,15 @@ export class RecoveryJournalScheduler {
       && sameRevision(this.latest, revision);
     try {
       await this.checkpoint(revision, isCurrent);
-      if (!this.disposed) {
+      if (isCurrent()) {
         this.written = revision;
         this.failureAttempts = 0;
         this.lastError = null;
       }
     } catch (reason) {
-      if (!this.disposed) {
+      if (reason instanceof RecoveryCheckpointSupersededError) {
+        this.attempted = null;
+      } else if (!this.disposed) {
         failed = true;
         this.failureAttempts += 1;
         this.lastError = reason instanceof Error ? reason : new Error(String(reason));
@@ -180,7 +188,7 @@ export class RecoveryJournalScheduler {
         this.attempted = null;
         this.dirtySince = this.now();
         this.schedule();
-      } else if (this.latest?.dirty && !sameRevision(this.attempted, this.latest)) {
+      } else if (this.latest?.dirty && !this.latest.blocked && !sameRevision(this.attempted, this.latest)) {
         this.dirtySince = this.now();
         this.schedule();
       } else {

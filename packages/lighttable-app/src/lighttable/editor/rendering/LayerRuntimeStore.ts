@@ -77,7 +77,32 @@ export class LayerRuntimeStore {
       || this.nodeMasks.size > 0;
   }
 
+  /** Projection never owns a resize: the pixel transaction must exchange its
+   * prepared surface first. Validate the whole tree before allocating or
+   * touching masks, so a rejected projection leaves every resource intact. */
+  assertRasterSurfacesMatch(
+    nodes: readonly LayerNode[],
+    resourceKey: DocumentLayerResourceKey = this.resourceKey
+  ): void {
+    const resources = this.repository.get(resourceKey);
+    if (!resources) return;
+    this.assertRasterTree(nodes, resources.rasterRuntimes);
+  }
+
+  private assertRasterTree(nodes: readonly LayerNode[], runtimes: ReadonlyMap<LayerId, RasterLayerRuntime>): void {
+    for (const node of nodes) {
+      if (node.type === 'group') this.assertRasterTree(node.children, runtimes);
+      if (node.type !== 'raster') continue;
+      const existing = runtimes.get(node.id);
+      if (existing && (existing.width !== node.width || existing.height !== node.height)) {
+        throw new Error(`Raster pixel surface ${node.id} is ${existing.width}x${existing.height}; `
+          + `projection requests ${node.width}x${node.height} without a pixel ownership transfer.`);
+      }
+    }
+  }
+
   sync(nodes: readonly LayerNode[]) {
+    this.assertRasterSurfacesMatch(nodes);
     walkRasterLayers(nodes).forEach(({ layer }) => {
       const existing = this.rasterRuntimes.get(layer.id);
       if (!existing) {
@@ -95,16 +120,6 @@ export class LayerRuntimeStore {
           maskId: layer.mask?.id ?? null
         });
       } else {
-        if (existing.width !== layer.width || existing.height !== layer.height) {
-          existing.texture.destroy();
-          existing.texture = this.options.createRasterTexture(
-            `LightTable layer: ${layer.name}`,
-            layer.width,
-            layer.height
-          );
-          existing.width = layer.width;
-          existing.height = layer.height;
-        }
         if (!layer.mask && existing.maskTexture) {
           existing.maskTexture.destroy();
           existing.maskTexture = null;
@@ -238,6 +253,7 @@ export class LayerRuntimeStore {
 
   /** Reserves a raster destination and transfers an existing node mask without readback. */
   ensureRaster(layer: RasterLayer): RasterLayerRuntime {
+    this.assertRasterSurfacesMatch([layer]);
     const existing = this.rasterRuntimes.get(layer.id);
     if (existing) {
       const nodeMask = this.nodeMasks.get(layer.id);

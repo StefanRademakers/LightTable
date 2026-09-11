@@ -3,8 +3,8 @@ import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEd
 export interface AsyncPixelStateRollback {
   readonly edit: ReversiblePixelEdit;
   readonly applyPixel: (direction: 'undo' | 'redo') => boolean;
-  readonly restoreBefore: () => Promise<void>;
-  readonly restoreAfter: () => Promise<void>;
+  readonly restoreBefore: (publishPixels: () => () => void) => Promise<void>;
+  readonly restoreAfter: (publishPixels: () => () => void) => Promise<void>;
 }
 
 export interface AsyncPixelStateRollbackOutcome {
@@ -42,7 +42,17 @@ export class AsyncPixelStateRollbackOwner {
     };
     const restoreSafely = async (side: 'before' | 'after') => {
       try {
-        await (side === 'before' ? pending.restoreBefore() : pending.restoreAfter());
+        await (side === 'before' ? pending.restoreBefore : pending.restoreAfter)(() => {
+          if (pending.applied === (side === 'after')) return () => undefined;
+          if (!applySafely(side === 'before' ? 'undo' : 'redo')) {
+            throw new Error('The rollback pixel state is unavailable.');
+          }
+          return () => {
+            if (!applySafely(side === 'before' ? 'redo' : 'undo')) {
+              throw new Error('The rollback pixel publication could not be reverted.');
+            }
+          };
+        });
         return true;
       } catch {
         return false;
@@ -51,19 +61,12 @@ export class AsyncPixelStateRollbackOwner {
 
     // A prior compensation may have stopped between the pixel and canonical
     // state surfaces. Re-establish the fully-applied side before retrying.
-    if (!pending.applied && !applySafely('redo')) {
-      return { ok: false, compensationFailed: true };
-    }
     if (!await restoreSafely('after')) {
       return { ok: false, compensationFailed: true };
     }
-    if (!applySafely('undo')) {
-      return { ok: false, compensationFailed: false };
-    }
     if (!await restoreSafely('before')) {
-      const pixelsRestored = applySafely('redo');
-      const stateRestored = pixelsRestored && await restoreSafely('after');
-      return { ok: false, compensationFailed: !pixelsRestored || !stateRestored };
+      const stateRestored = await restoreSafely('after');
+      return { ok: false, compensationFailed: !stateRestored };
     }
 
     pending.edit.destroy();

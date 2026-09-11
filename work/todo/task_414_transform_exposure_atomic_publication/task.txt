@@ -1,0 +1,51 @@
+Task 414 - Pasted selection disappears on first Exposure drag after transform
+
+2026-09-11: implementation and automated packaged proof complete; owner acceptance pending.
+
+Owner reproduction:
+Open image -> select -> Ctrl+C/V -> move and rotate the pasted selection ->
+first Local Grade Exposure drag. Pasted pixels and thumbnail become empty.
+Reported with 0014_parkiet_3d_transparent.webp. That source file was not located
+in LightTableTestFiles; automated reproduction uses the 2560x1440 image fixture.
+
+Proven cause:
+TransformRasterizer.commit exchanged a tight 425x395 live texture for its
+2560x1440 preview, then TransformPublicationOwner awaited mask readback before
+publishing the corresponding canonical document. During that wait the compositor
+synced the old document: LayerRuntimeStore destroyed the new texture and made
+a blank 425x395 texture. Canonical publication then resized that blank texture
+back to 2560x1440. Two test runs with 100ms delayed mapAsync reproduced this.
+Temporary stack diagnostics proved both destructive resizes; diagnostics removed.
+
+Correction:
+Read the selection preview before live exchange. Queue admission waits before
+activation; canonical CAS, raster/mask exchange and renderer projection do not
+yield. The pixel edit exclusively owns both GPU pixel and selection-mask swaps.
+Undo/redo and rollback use this same admitted activation. Failed publication
+invokes the synchronous inverse before projecting old dimensions. Indeterminate
+failure stops the renderer visibly instead of continuing on uncertain resources.
+No mismatch skip, fallback path, artificial production wait or swallowed success.
+
+Critic:
+Independent presentation_critic reviewed the ownership boundary. Two repair
+rounds addressed target-mask pre-restore corrupting redo and preventing further
+rendering after indeterminate inverse failure. Final confirmation PASS.
+
+Verification:
+- Packaged app: cold copy/paste, first Grade creation via real slider, move away
+  from original bounds, free-selection rotation with delayed mapAsync: passes.
+- Same without delay: passes; rectangle scaling with delay: passes.
+- Exact layer-preview bytes restored across Grade undo, transform undo,
+  transform redo, Grade redo. Selected copy bounds and decoded pixels after
+  redo match the original transformed/graded copy (free-rotate delayed run).
+- Full packaged transform smoke: passes, including focus and tool transitions.
+- Focused transform/adjustment/interaction/rendering suites: 433 tests passed.
+- App TypeScript check and boundary check pass; instrumented desktop packaged.
+- Screenshots and per-variant reports: tmp/transform-kernel-smoke/handoff-*.
+
+Limits:
+This proves the diagnosed transition, not global editor stability. Slider DOM
+feedback measured about one frame in these runs; scripted transaction duration
+contains intentional waits and is NOT input-to-GPU-visible latency. Full latency
+acceptance remains unproven. Owner's exact file and manual acceptance remain open.
+Do not mark this task accepted on the basis of the test count.

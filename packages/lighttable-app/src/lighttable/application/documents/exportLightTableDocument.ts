@@ -58,6 +58,8 @@ export interface ExportedLightTableDocument {
 }
 
 export interface ExportLightTableRuntimeOptions {
+  /** Checked after host/font awaits, immediately before synchronous GPU capture. */
+  readonly assertSnapshotCurrent?: () => void;
   /** Recovery prioritizes canonical layer state over an expensive full-size thumbnail. */
   readonly lightweightPreview?: boolean;
   /** Workspace forks require authored pixels even for a single flat raster node. */
@@ -109,10 +111,18 @@ export const exportLightTableDocument = async ({
   // Actions and MCP may save in the same event turn as a semantic mutation.
   // Materialize that exact canonical revision without treating React paint or
   // visible presentation as a command/resource fence.
-  renderer.synchronizeDocumentForExport(document);
-  const preview = runtime.lightweightPreview
-    ? await lightweightPreview()
-    : await renderer.exportPng();
+  runtime.assertSnapshotCurrent?.();
+  // Background recovery observes canonical pixels. It must never replace an
+  // interactive renderer projection. Asset export captures immutable inputs
+  // synchronously, before placeholder/PNG encoding can yield to another edit.
+  if (!runtime.lightweightPreview) renderer.synchronizeDocumentForExport(document);
+  const adjustmentStack = createAdjustmentStackFromBasicAdjustments(
+    documentAdjustments, renderer.getAdjustmentStack()
+  );
+  const capturedAssets = runtime.lightweightPreview ? renderer.exportLayerAssets(document) : null;
+  const [preview, recoveryAssets] = runtime.lightweightPreview
+    ? await Promise.all([lightweightPreview(), capturedAssets!])
+    : [await renderer.exportPng(), null];
   const outputName = buildLightTableOutputName(fileNameBase);
 
   if (!runtime.forceLayered && !runtime.lightweightPreview && canExportAsFlatRecipe(document)) {
@@ -123,14 +133,10 @@ export const exportLightTableDocument = async ({
   }
 
   const assets = [
-    ...await renderer.exportLayerAssets(document),
+    ...(recoveryAssets ?? await renderer.exportLayerAssets(document)),
     ...preservedSourceAssets,
     ...fontAssets
   ];
-  const adjustmentStack = createAdjustmentStackFromBasicAdjustments(
-    documentAdjustments,
-    renderer.getAdjustmentStack()
-  );
   return {
     file: buildLayeredDocumentFile(
       preview,

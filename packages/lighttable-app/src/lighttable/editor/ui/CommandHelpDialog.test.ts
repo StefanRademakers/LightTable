@@ -8,6 +8,6 @@ describe('command help catalog', () => {
     expect(entries.get('Save')).toBe('Ctrl+S');
     expect(entries.get('Undo')).toBe('Ctrl+Z');
     expect(entries.get('Text')).toBe('T');
-    expect(entries.get('Quick export PNG')).toBe('Ctrl+Alt+Shift+W');
+    expect(entries.get('Export PNG')).toBe('Ctrl+Alt+S');
   });
 });

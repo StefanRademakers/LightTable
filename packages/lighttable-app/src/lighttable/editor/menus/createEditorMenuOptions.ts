@@ -281,7 +281,7 @@ export const createEditorMenuOptions = (
         value: 'export-png',
         label: 'Export PNG',
         separatorBefore: true,
-        shortcut: labels.primaryShortcut('S', true),
+        shortcut: labels.primaryShortcut('Alt+S'),
         onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
       },

@@ -15,6 +15,7 @@ export interface TransformDocumentSelectionPublication {
   readonly expectedLease: LightTableSelectionReadLease;
   bindingIsCurrent(): boolean;
   rendererIsAddressable(): boolean;
+  publishPixels(): () => void;
   getProjectedDocument(): ImageDocument | null;
   applyDocumentSnapshot(document: ImageDocument): void;
   publishEditorProjection(input: {
@@ -63,7 +64,7 @@ export const publishTransformDocumentSelection = (
   if (!sameLease(currentLease, input.expectedLease) || !input.bindingIsCurrent()) {
     throw beforeError('The transform selection lease is no longer current.');
   }
-  const supportBounds = input.coverage.measureBounds()?.supportBounds ?? null;
+  const supportBounds = input.coverage.measureSupportBounds();
   const next = {
     ...currentLease.selection,
     revision: (Number(currentLease.selection.revision) + 1) as typeof currentLease.selection.revision,
@@ -77,6 +78,7 @@ export const publishTransformDocumentSelection = (
     currentLease.selection.revision, expectedDocument, next, input.document
   )) throw beforeError('The transform selection changed during compound publication.');
 
+  let revertPixels: (() => void) | null = null;
   try {
     // The opening lease is obsolete by construction after the CAS above. From
     // this point onward, ownership is the exact state written by that CAS plus
@@ -84,6 +86,7 @@ export const publishTransformDocumentSelection = (
     if (!input.rendererIsAddressable()) {
       throw new Error('The transform renderer changed during publication.');
     }
+    revertPixels = input.publishPixels();
     input.applyDocumentSnapshot(input.document);
     if (!input.rendererIsAddressable()) {
       throw new Error('The transform renderer changed during projection.');
@@ -96,6 +99,15 @@ export const publishTransformDocumentSelection = (
     });
   } catch (reason) {
     const rollbackErrors: unknown[] = [reason];
+    try {
+      revertPixels?.();
+    } catch (rollbackReason) {
+      // Never project the old dimensions over pixels whose inverse failed.
+      throw new TransformSelectionPublicationError(
+        'Transform pixel rollback failed.', 'indeterminate',
+        { cause: new AggregateError([reason, rollbackReason]) }
+      );
+    }
     try {
       const rollbackSnapshot = input.session.getSnapshot();
       const rollbackLease = store.acquire(rollbackSnapshot.documentRevision);

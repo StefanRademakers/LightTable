@@ -2,8 +2,8 @@ export interface AsyncPixelStateTransition {
   readonly identity: object;
   applyTarget(): boolean;
   applySource(): boolean;
-  restoreSource(): Promise<void>;
-  restoreTarget(): Promise<void>;
+  restoreSource(publishPixels: () => () => void): Promise<void>;
+  restoreTarget(publishPixels: () => () => void): Promise<void>;
 }
 
 export interface AsyncPixelStateTransitionResult {
@@ -30,32 +30,30 @@ export class AsyncPixelStateTransitionOwner {
     }
     this.pending ??= { input, pixelSide: 'source' };
     const pending = this.pending;
+    const publishSource = () => {
+      if (pending.pixelSide === 'source') return () => undefined;
+      if (!pending.input.applySource()) throw new Error('The pixel-state compensation could not be retried.');
+      pending.pixelSide = 'source';
+      return () => {
+        if (!pending.input.applyTarget()) throw new Error('The source pixel publication could not be reverted.');
+        pending.pixelSide = 'target';
+      };
+    };
     try {
       if (pending.pixelSide === 'target') {
-        if (!pending.input.applySource()) {
-          return { ok: false, compensationFailed: true,
-            reason: new Error('The pixel-state compensation could not be retried.') };
-        }
-        pending.pixelSide = 'source';
-        await pending.input.restoreSource();
+        await pending.input.restoreSource(publishSource);
       }
-      if (!pending.input.applyTarget()) {
-        this.pending = null;
-        return { ok: false, compensationFailed: false,
-          reason: new Error('The target pixel state is unavailable.') };
-      }
-      pending.pixelSide = 'target';
-      await pending.input.restoreTarget();
+      await pending.input.restoreTarget(() => {
+        if (!pending.input.applyTarget()) throw new Error('The target pixel state is unavailable.');
+        pending.pixelSide = 'target';
+        return publishSource;
+      });
       this.pending = null;
       return { ok: true, compensationFailed: false };
     } catch (reason) {
       let compensationFailed = false;
-      if (pending.pixelSide === 'target') {
-        if (pending.input.applySource()) pending.pixelSide = 'source';
-        else compensationFailed = true;
-      }
       try {
-        await pending.input.restoreSource();
+        await pending.input.restoreSource(publishSource);
       } catch {
         compensationFailed = true;
       }

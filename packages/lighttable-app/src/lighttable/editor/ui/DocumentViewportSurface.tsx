@@ -1,4 +1,5 @@
 import React from "react";
+import { DocumentViewportStatus } from './DocumentViewportStatus';
 import type { DocumentGuide, Rect } from "../document/documentTypes";
 import { SelectionOverlay } from "../selection/SelectionOverlay";
 import type {
@@ -51,6 +52,7 @@ export interface DocumentViewportSurfaceProps {
   presentationReady?: boolean;
   /** True while the canvas still contains a proven frame for this document generation. */
   presentationResident?: boolean;
+  presentationError?: string | null;
   loading: boolean;
   unavailable: boolean;
   onWheel: React.WheelEventHandler<HTMLDivElement>;
@@ -121,6 +123,7 @@ export const DocumentViewportSurface: React.FC<
   transformState,
   presentationReady = true,
   presentationResident = presentationReady,
+  presentationError = null,
   loading,
   unavailable,
   onWheel,
@@ -184,7 +187,7 @@ export const DocumentViewportSurface: React.FC<
     <div
       ref={viewportRef}
       className={`lighttable-viewport lighttable-viewport--${effectiveTool}${presentationReady ? "" : " lighttable-viewport--presentation-pending"}${presentationResident ? " lighttable-viewport--presentation-resident" : ""}${zoomOutActive ? " lighttable-viewport--zoom-out" : ""}${preciseBrushCursor ? " lighttable-viewport--precise-brush" : ""}${eyedropperActive ? " lighttable-viewport--eyedropper" : ""}${dragging ? " lighttable-viewport--dragging" : ""}${focusPickerActive ? " lighttable-viewport--focus-picker" : ""}`}
-      aria-busy={!presentationReady || loading}
+      aria-busy={!presentationError && (!presentationReady || loading)}
       data-presentation-ready={presentationReady ? "true" : "false"}
       data-presentation-resident={presentationResident ? "true" : "false"}
       onWheel={presentationReady ? onWheel : undefined}
@@ -279,16 +282,8 @@ export const DocumentViewportSurface: React.FC<
           onViewportPan={onTransformViewportPan}
         />
       ) : null}
-      {loading || !presentationResident ? (
-        <div className="lighttable-viewport__message">
-          Loading image and WebGPU pipeline...
-        </div>
-      ) : null}
-      {!loading && presentationReady && unavailable ? (
-        <div className="lighttable-viewport__message">
-          LightTable is unavailable for this image.
-        </div>
-      ) : null}
+      <DocumentViewportStatus error={presentationError} loading={loading}
+        resident={presentationResident} ready={presentationReady} unavailable={unavailable} />
     </div>
   );
 };

@@ -1,38 +1,25 @@
-import type { SelectionMaskSnapshot } from '../../../editor/selection/SelectionMaskSnapshot';
+import { TransformSelectionPublicationError } from './publishTransformDocumentSelection';
 
 export interface BoundSelectionRenderer {
-  restoreSelectionSnapshot(snapshot: SelectionMaskSnapshot): Promise<boolean>;
+  publishTransformState(publish: () => void, isIndeterminate: (reason: unknown) => boolean): Promise<void>;
 }
 
-/** Restores renderer selection state and publishes canonical state under one binding. */
+/** Queue admission precedes the synchronous compound transform publication. */
 export const publishBoundSelection = async (input: {
   renderer: BoundSelectionRenderer;
-  beforeMask: SelectionMaskSnapshot;
-  afterMask: SelectionMaskSnapshot;
   bindingIsCurrent(): boolean;
-  rendererIsAddressable(): boolean;
-  restoreBeforeOnPublishError?(reason: unknown): boolean;
   publish(): void;
 }): Promise<void> => {
   if (!input.bindingIsCurrent()) {
     throw new Error('The transform renderer or selection lease is no longer current.');
   }
-  if (!await input.renderer.restoreSelectionSnapshot(input.afterMask)) {
-    throw new Error('The exact selection state could not be restored.');
-  }
-  if (!input.bindingIsCurrent()) {
-    if (input.rendererIsAddressable()) {
-      await input.renderer.restoreSelectionSnapshot(input.beforeMask);
-    }
-    throw new Error('The transform renderer or selection changed during restoration.');
-  }
-  try {
-    input.publish();
-  } catch (reason) {
-    if ((input.restoreBeforeOnPublishError?.(reason) ?? true)
-      && input.rendererIsAddressable()) {
-      await input.renderer.restoreSelectionSnapshot(input.beforeMask);
-    }
-    throw reason;
-  }
+  await input.renderer.publishTransformState(
+    () => {
+      if (!input.bindingIsCurrent()) {
+        throw new Error('The transform renderer or selection changed during restoration.');
+      }
+      input.publish();
+    },
+    (reason) => reason instanceof TransformSelectionPublicationError && reason.phase === 'indeterminate'
+  );
 };

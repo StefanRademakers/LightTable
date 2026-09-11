@@ -28,6 +28,7 @@ export class SelectionMaskSnapshot {
 
   readonly #raw: Uint16Array | null;
   readonly #runs: Uint32Array | null;
+  readonly #supportBounds: Rect | null;
 
   private constructor(
     width: number,
@@ -36,6 +37,7 @@ export class SelectionMaskSnapshot {
     encoding: SelectionMaskSnapshotEncoding,
     raw: Uint16Array | null,
     runs: Uint32Array | null,
+    supportBounds: Rect | null,
     translation: SelectionTranslationLineage | null = null
   ) {
     this.width = width;
@@ -44,6 +46,7 @@ export class SelectionMaskSnapshot {
     this.encoding = encoding;
     this.#raw = raw;
     this.#runs = runs;
+    this.#supportBounds = supportBounds;
     this.translation = translation;
     this.byteSize = (raw?.byteLength ?? runs?.byteLength ?? 0) + SNAPSHOT_OVERHEAD_BYTES
       + (translation ? translation.source.byteSize : 0);
@@ -51,7 +54,7 @@ export class SelectionMaskSnapshot {
 
   static inactive(width: number, height: number) {
     assertDimensions(width, height);
-    return new SelectionMaskSnapshot(width, height, false, 'rle-r16float', null, null);
+    return new SelectionMaskSnapshot(width, height, false, 'rle-r16float', null, null, null);
   }
 
   static fromRaw(width: number, height: number, values: Uint16Array) {
@@ -63,10 +66,10 @@ export class SelectionMaskSnapshot {
       );
     }
     const raw = new Uint16Array(values);
-    const runs = encodeRuns(raw);
+    const { runs, supportBounds } = encodeRuns(raw, width);
     return runs.byteLength < raw.byteLength
-      ? new SelectionMaskSnapshot(width, height, true, 'rle-r16float', null, runs)
-      : new SelectionMaskSnapshot(width, height, true, 'raw-r16float', raw, null);
+      ? new SelectionMaskSnapshot(width, height, true, 'rle-r16float', null, runs, supportBounds)
+      : new SelectionMaskSnapshot(width, height, true, 'raw-r16float', raw, null, supportBounds);
   }
 
   /**
@@ -92,8 +95,14 @@ export class SelectionMaskSnapshot {
       this.encoding,
       this.#raw,
       this.#runs,
+      this.#supportBounds,
       { source: root, x: rootX + x, y: rootY + y }
     );
+  }
+
+  /** Exact non-zero mask extent captured during the existing encoding pass. */
+  measureSupportBounds(): Rect | null {
+    return this.#supportBounds ? { ...this.#supportBounds } : null;
   }
 
   toRaw(): Uint16Array {
@@ -154,7 +163,7 @@ export class SelectionMaskSnapshot {
         height: maxY - minY + 1,
       };
     };
-    const supportBounds = scan(Number.MIN_VALUE);
+    const supportBounds = this.measureSupportBounds();
     const coreBounds = scan(peak * 0.5);
     return supportBounds && coreBounds
       ? { supportBounds, coreBounds, peakCoverage: peak }
@@ -191,12 +200,37 @@ const assertDimensions = (width: number, height: number) => {
   }
 };
 
-const encodeRuns = (values: Uint16Array) => {
-  if (values.length === 0) return new Uint32Array();
+const encodeRuns = (values: Uint16Array, width: number) => {
+  if (values.length === 0) return { runs: new Uint32Array(), supportBounds: null };
   const encoded: number[] = [];
+  let minX = width;
+  let minY = Math.ceil(values.length / width);
+  let maxX = -1;
+  let maxY = -1;
+  const includeSupportRun = (start: number, length: number) => {
+    if (value === 0 || length === 0) return;
+    const end = start + length - 1;
+    const startX = start % width;
+    const startY = Math.floor(start / width);
+    const endX = end % width;
+    const endY = Math.floor(end / width);
+    minY = Math.min(minY, startY);
+    maxY = Math.max(maxY, endY);
+    if (startY === endY) {
+      minX = Math.min(minX, startX);
+      maxX = Math.max(maxX, endX);
+    } else {
+      // A contiguous run crossing a row boundary contains both the final
+      // column of its first row and the first column of its last row.
+      minX = 0;
+      maxX = width - 1;
+    }
+  };
   let value = values[0]!;
+  let runStart = 0;
   let length = 1;
   const flush = () => {
+    includeSupportRun(runStart, length);
     while (length > 0) {
       const part = Math.min(length, 0x10000);
       encoded.push((value << 16) | (part - 1));
@@ -211,10 +245,19 @@ const encodeRuns = (values: Uint16Array) => {
     }
     flush();
     value = next;
+    runStart = index;
     length = 1;
   }
   flush();
-  return Uint32Array.from(encoded);
+  return {
+    runs: Uint32Array.from(encoded),
+    supportBounds: maxX < minX || maxY < minY ? null : {
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1
+    }
+  };
 };
 
 const decodeRuns = (runs: Uint32Array, expectedLength: number) => {

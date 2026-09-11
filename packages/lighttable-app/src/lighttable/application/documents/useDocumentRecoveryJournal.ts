@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { DocumentCommandHistory } from '../commands/documentCommandHistory';
-import type { ExportedLightTableDocument } from './exportLightTableDocument';
-import { RecoveryJournalScheduler, recoveryScheduleForPreferences } from './RecoveryJournalScheduler';
+import type { ExportedLightTableDocument, ExportLightTableRuntimeOptions } from './exportLightTableDocument';
+import { RecoveryJournalScheduler, RecoveryCheckpointSupersededError, recoveryScheduleForPreferences } from './RecoveryJournalScheduler';
 import {
   LIGHTTABLE_RECOVERY_VERSION,
   sha256Hex,
@@ -11,6 +11,7 @@ import {
 import { RecoveryArtifactHasher } from './RecoveryArtifactHasher';
 
 export interface DocumentRecoveryJournalOptions {
+  readonly canCaptureSnapshot: () => boolean;
   readonly store?: LightTableRecoveryStore;
   readonly enabled?: boolean;
   readonly intervalMs?: number;
@@ -32,7 +33,7 @@ export interface DocumentRecoveryJournalOptions {
     readonly savedStateId: number;
     readonly dirty: boolean;
   };
-  readonly exportOutput: (options?: { readonly lightweightPreview?: boolean }) => Promise<ExportedLightTableDocument>;
+  readonly exportOutput: (options?: ExportLightTableRuntimeOptions) => Promise<ExportedLightTableDocument>;
   readonly onStatus?: (status: 'available' | 'failed', message: string) => void;
 }
 
@@ -63,7 +64,8 @@ export const useDocumentRecoveryJournal = ({
   exportOutput,
   onStatus,
   subscribe,
-  getRevision
+  getRevision,
+  canCaptureSnapshot
 }: DocumentRecoveryJournalOptions): DocumentRecoveryJournalHandle => {
   const schedulerRef = useRef<RecoveryJournalScheduler | null>(null);
   const handleRef = useRef<DocumentRecoveryJournalHandle>({
@@ -79,7 +81,7 @@ export const useDocumentRecoveryJournal = ({
     sourceLastModified,
     workspaceOrder,
     wasActive,
-    getRevision
+    getRevision, canCaptureSnapshot
   });
   currentRef.current = {
     getCanonicalRevision,
@@ -91,7 +93,7 @@ export const useDocumentRecoveryJournal = ({
     sourceLastModified,
     workspaceOrder,
     wasActive,
-    getRevision
+    getRevision, canCaptureSnapshot
   };
 
   useEffect(() => {
@@ -104,7 +106,14 @@ export const useDocumentRecoveryJournal = ({
       async checkpoint(revision, isCurrent) {
         const startedAt = performance.now();
         console.info(`[Recovery] Preparing revision ${revision.canonicalRevision}.`);
-        const output = await currentRef.current.exportOutput({ lightweightPreview: true });
+        const output = await currentRef.current.exportOutput({ lightweightPreview: true,
+          assertSnapshotCurrent: () => {
+            if (!isCurrent() || commandHistory.isWriteAdmissionBlocked()
+              || !currentRef.current.canCaptureSnapshot()) {
+              throw new RecoveryCheckpointSupersededError('Recovery snapshot superseded by an edit.');
+            }
+          }
+        });
         const preparedAt = performance.now();
         console.info(
           `[Recovery] Revision ${revision.canonicalRevision} prepared in `
@@ -171,11 +180,12 @@ export const useDocumentRecoveryJournal = ({
 
     const observe = () => {
       if (currentRef.current.getRevision) {
-        scheduler.observe(currentRef.current.getRevision());
+        scheduler.observe({ ...currentRef.current.getRevision(), blocked: commandHistory.isWriteAdmissionBlocked() });
         return;
       }
       const snapshot = commandHistory.getSnapshot();
       scheduler.observe({
+        blocked: commandHistory.isWriteAdmissionBlocked(),
         canonicalRevision: Math.max(
           currentRef.current.getCanonicalRevision(),
           snapshot.currentStateId

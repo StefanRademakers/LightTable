@@ -699,6 +699,7 @@ export class WebGpuEngine {
 
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
+    this.documentRenderer.assertDocumentProjection(document);
     this.colorLookupAssets.bind(this.documentResourceKey);
     const layerResources = this.documentLayerResources;
     const patternResources = this.documentPatternResources;
@@ -789,6 +790,7 @@ export class WebGpuEngine {
     if (!this.metadata || !this.documentRenderer || !this.imageResources.sourceTexture) {
       throw new Error('Load an image before resizing its document.');
     }
+    this.documentRenderer.assertDocumentProjection(document);
     const dimensionsChanged = document.width !== this.metadata.width
       || document.height !== this.metadata.height;
     if (!dimensionsChanged) {
@@ -849,6 +851,7 @@ export class WebGpuEngine {
     if (!this.documentRenderer || !this.imageResources.sourceTexture) {
       throw new Error('Load an image before exporting its LightTable document.');
     }
+    this.documentRenderer.assertDocumentProjection(document);
     this.imageDocument = document;
     this.adjustmentLayerRenderer.setDocumentColorContext(
       document.colorSettings.blendProfile,
@@ -1065,6 +1068,17 @@ export class WebGpuEngine {
     const edit = this.documentRenderer?.commitTransform() ?? null;
     if (edit) this.markDocumentDirty();
     return edit;
+  }
+
+  async captureTransformSelectionPreview() {
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    if (!renderer || !document) throw new Error('The transform renderer is unavailable.');
+    const snapshot = await renderer.captureTransformSelectionPreview();
+    if (this.destroyed || this.documentRenderer !== renderer || this.imageDocument !== document) {
+      throw new Error('The transform renderer changed during selection preparation.');
+    }
+    return snapshot;
   }
 
   cancelLayerTransform() {
@@ -1416,6 +1430,34 @@ export class WebGpuEngine {
       this.renderDirty.invalidate('viewport');
       this.requestRender();
       return true;
+    });
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  /** Admission may wait; activation and compensation never yield to a frame. */
+  publishTransformState(
+    publish: () => void, isIndeterminate: (reason: unknown) => boolean
+  ): Promise<void> {
+    const renderer = this.documentRenderer;
+    const document = this.imageDocument;
+    const task = this.selectionQueue.then(() => {
+      if (!renderer || this.destroyed || this.documentRenderer !== renderer
+        || this.imageDocument !== document) {
+        throw new Error('The transform selection publication renderer is no longer current.');
+      }
+      // The reversible edit owns BOTH color and mask swaps. Pre-restoring a
+      // target mask would overwrite the source mask needed by its inverse.
+      try {
+        publish();
+      } catch (reason) {
+        if (isIndeterminate(reason)) {
+          this.failRenderer('Transform publication could not be restored; reload from a saved checkpoint.');
+        }
+        throw reason;
+      }
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
     });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;

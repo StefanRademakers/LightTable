@@ -69,6 +69,10 @@ export const createDocumentRendererLifecycleBridge = <
   options: DocumentRendererLifecycleBridgeOptions<Renderer>
 ): DocumentRendererLifecycleBridge<Renderer> => {
   let renderer: Renderer | null = null;
+  const reportRendererFailure = (message: string) => {
+    options.lifecycle.markFailed(options.lifecycle.getSnapshot().generation, message);
+    options.publishError('Rendering stopped. Technical details are shown on the canvas.');
+  };
 
   const callbacks = guardDocumentRendererCallbacks(options.isCurrent, {
     onHistogram: options.publishHistogram,
@@ -78,20 +82,8 @@ export const createDocumentRendererLifecycleBridge = <
     },
     onTextRenderPresentation: options.publishTextRenderPresentation,
     onCompositeRendered: options.publishCompositeRendered,
-    onRendererError: (message) => {
-      options.publishError(message);
-      options.lifecycle.markFailed(
-        options.lifecycle.getSnapshot().generation,
-        message
-      );
-    },
-    onDeviceLost: (message) => {
-      options.publishError(message);
-      options.lifecycle.markFailed(
-        options.lifecycle.getSnapshot().generation,
-        message
-      );
-    },
+    onRendererError: reportRendererFailure,
+    onDeviceLost: reportRendererFailure,
     onScopeError: options.publishScopeError,
     onFeatureError: options.publishFeatureError,
     onFirstFrame: () => {

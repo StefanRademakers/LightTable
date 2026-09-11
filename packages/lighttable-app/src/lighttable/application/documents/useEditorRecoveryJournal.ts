@@ -6,6 +6,7 @@ import type { DocumentSession } from './documentSession';
 import type { DocumentRecoveryJournalHandle } from './useDocumentRecoveryJournal';
 
 export interface EditorRecoveryJournalOptions {
+  readonly canCaptureSnapshot: () => boolean;
   readonly store?: LightTableRecoveryStore;
   readonly enabled?: boolean;
   readonly intervalMs?: number;
@@ -24,9 +25,10 @@ export interface EditorRecoveryJournalOptions {
 
 export const useEditorRecoveryJournal = ({
   store, enabled, intervalMs, documentId, sourceKey, sourceName, sourceBlob, workspaceOrder, active,
-  commandHistory, documentSession, getCanonicalRevision, exportOutput, setStatus
+  commandHistory, documentSession, getCanonicalRevision, exportOutput, setStatus, canCaptureSnapshot
 }: EditorRecoveryJournalOptions): DocumentRecoveryJournalHandle => useDocumentRecoveryJournal({
   store,
+  canCaptureSnapshot,
   enabled,
   intervalMs,
   documentId,

@@ -9,6 +9,7 @@ import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { VectorContentPreviewStore } from './VectorContentPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
+import { createLayerAssetExportSnapshot } from './LayerAssetExportSnapshot';
 import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
@@ -464,15 +465,12 @@ export const createLayerDocumentRendererRuntime = (
       || (layerDerivedPreviewIsCurrent(layer) && Boolean(layerResources.derivedPreview(layer.id)))
   });
   const documentAssets = new LayerDocumentAssetService({
+    createExportSnapshot: () => createLayerAssetExportSnapshot(device),
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
     derivedPreviewTexture: (layerId) => layerResources.derivedPreview(layerId)?.texture ?? null,
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     encodeTexture: (layerId, texture, maskChannel, output) => {
-      const { width, height } = maskChannel
-        ? resources.dimensions()
-        : layerResources.raster(layerId)
-          ?? layerResources.derivedPreview(layerId)
-          ?? resources.dimensions();
+      const { width, height } = texture;
       return textureCodec.encode(
         texture,
         maskChannel,

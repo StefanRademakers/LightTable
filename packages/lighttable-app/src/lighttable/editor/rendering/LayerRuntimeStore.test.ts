@@ -14,6 +14,73 @@ import { DocumentLayerResourceRepository } from './DocumentLayerResourceReposito
 const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 
 describe('LayerRuntimeStore', () => {
+  it('rejects a metadata-only resize before changing any resources', () => {
+    const createRasterTexture = vi.fn(texture);
+    const store = new LayerRuntimeStore({ createRasterTexture, createMaskTexture: texture });
+    const document = createImageDocument('test', 64, 32, 'source');
+    const raster = document.layers[0] as RasterLayer;
+    store.sync([raster]);
+    const pixels = store.raster(raster.id)!.texture;
+    const fresh = { ...raster, id: 'new-layer' as RasterLayer['id'] };
+
+    expect(() => store.sync([fresh, { ...raster, width: 128 }]))
+      .toThrow(/pixel surface.*64x32.*128x32/i);
+    expect(store.raster(raster.id)).toMatchObject({ texture: pixels, width: 64, height: 32 });
+    expect(pixels.destroy).not.toHaveBeenCalled();
+    expect(store.raster(fresh.id)).toBeNull();
+    expect(createRasterTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires explicit pixel exchange for resize, undo and redo without reallocating', () => {
+    const createRasterTexture = vi.fn(texture);
+    const store = new LayerRuntimeStore({ createRasterTexture, createMaskTexture: texture });
+    const document = createImageDocument('test', 64, 32, 'source');
+    const before = document.layers[0] as RasterLayer;
+    const after = { ...before, width: 128, height: 96 };
+    store.sync([before]);
+    const original = store.raster(before.id)!.texture;
+    const edited = texture();
+    let retained = store.exchangeRasterPixels(before.id, { texture: edited, width: 128, height: 96 });
+    store.sync([after]);
+    // A delayed pre-edit projection cannot replace the newly authored pixels.
+    expect(() => store.sync([before])).toThrow(/pixel surface/i);
+    expect(store.raster(before.id)!.texture).toBe(edited);
+    retained = store.exchangeRasterPixels(before.id, retained);
+    store.sync([before]);
+    expect(store.raster(before.id)!.texture).toBe(original);
+    retained = store.exchangeRasterPixels(before.id, retained);
+    store.sync([after]);
+    expect(store.raster(before.id)!.texture).toBe(edited);
+    expect(retained.texture).toBe(original);
+    expect(original.destroy).not.toHaveBeenCalled();
+    expect(edited.destroy).not.toHaveBeenCalled();
+    expect(createRasterTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a nested mismatch before removing an earlier layer mask or reserving a destination', () => {
+    const store = new LayerRuntimeStore({ createRasterTexture: texture, createMaskTexture: texture });
+    const document = createImageDocument('test', 64, 32, 'source');
+    const first = document.layers[0] as RasterLayer;
+    first.mask = {
+      id: 'mask', enabled: true, linked: true, transform: first.transform,
+      density: 1, feather: 0, revision: 0, pixelRevision: 0, dirtyBounds: null
+    };
+    const nested = { ...first, id: 'nested' as RasterLayer['id'], mask: null };
+    const group = createGroupLayer('group');
+    group.children = [nested];
+    store.sync([first, group]);
+    const pixels = store.raster(first.id)!.texture;
+    const mask = store.maskTexture(first.id)!;
+    expect(() => store.sync([
+      { ...first, mask: null }, { ...group, children: [{ ...nested, width: 128 }] }
+    ])).toThrow(/pixel surface/);
+    expect(() => store.ensureRaster({ ...first, width: 128 })).toThrow(/pixel surface/);
+    expect(store.raster(first.id)!.texture).toBe(pixels);
+    expect(store.maskTexture(first.id)).toBe(mask);
+    expect(pixels.destroy).not.toHaveBeenCalled();
+    expect(mask.destroy).not.toHaveBeenCalled();
+  });
+
   it('rebinds renderer facades without destroying another document pixels', () => {
     const repository = new DocumentLayerResourceRepository();
     const options = { createRasterTexture: texture, createMaskTexture: texture };

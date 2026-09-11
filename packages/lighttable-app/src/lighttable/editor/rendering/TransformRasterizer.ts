@@ -8,6 +8,8 @@ import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 import type { TransformSessionStore } from './TransformSessionStore';
+import { readR16FloatTexture } from '../../gpu/gpuReadback';
+import { SelectionMaskSnapshot } from '../selection/SelectionMaskSnapshot';
 
 const isIntegerTranslation = (matrix: AffineMatrix, epsilon = 1e-5) =>
   Math.abs(matrix.a - 1) <= epsilon
@@ -333,6 +335,21 @@ export class TransformRasterizer {
     }
     device.queue.submit([encoder.finish()]);
     return true;
+  }
+
+  /** Read the prepared mask without transferring the live pixel surface. */
+  async captureSelectionPreview(): Promise<SelectionMaskSnapshot> {
+    const session = this.options.sessions.current;
+    if (!session?.selectionPreview) throw new Error('The transform selection preview is unavailable.');
+    const { width, height } = this.options.dimensions();
+    const values = await readR16FloatTexture(
+      this.options.device, session.selectionPreview, width, height,
+      'LightTable prepared transform selection'
+    );
+    if (this.options.sessions.current !== session) {
+      throw new Error('The transform changed during selection preparation.');
+    }
+    return SelectionMaskSnapshot.fromRaw(width, height, values);
   }
 
   commit(): ReversiblePixelEdit | null {

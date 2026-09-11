@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 export const LIGHTTABLE_COMMAND_HELP = [
   ['New document', 'Ctrl+N', 'File'], ['Open', 'Ctrl+O', 'File'],
   ['Save', 'Ctrl+S', 'File'], ['Save as', 'Ctrl+Shift+S', 'File'],
-  ['Quick export PNG', 'Ctrl+Alt+Shift+W', 'Export'], ['Export PSD', '', 'Export'],
+  ['Export PNG', 'Ctrl+Alt+S', 'Export'], ['Export PSD', '', 'Export'],
   ['Undo', 'Ctrl+Z', 'Edit'], ['Redo', 'Ctrl+Shift+Z', 'Edit'],
   ['Copy', 'Ctrl+C', 'Edit'], ['Paste', 'Ctrl+V', 'Edit'],
   ['Transform', 'V', 'Tools'], ['Brush', 'B', 'Tools'], ['Text', 'T', 'Tools'],

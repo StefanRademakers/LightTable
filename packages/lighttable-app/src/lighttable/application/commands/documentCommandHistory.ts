@@ -284,6 +284,11 @@ export class DocumentCommandHistory {
     } };
   }
 
+  /** Recovery may observe committed pixels only outside pending edit ownership. */
+  isWriteAdmissionBlocked(): boolean {
+    return this.busy || this.admissionBarriers.size > 0;
+  }
+
   /** Blocks foreign history work while allowing one admitted terminal publish. */
   acquirePublicationBarrier(): DocumentHistoryPublicationBarrier {
     if (this.busy) throw new Error(`Document history ${this.documentId} is busy.`);

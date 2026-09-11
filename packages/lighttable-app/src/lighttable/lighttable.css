@@ -1403,6 +1403,15 @@
   pointer-events: none;
 }
 
+.lighttable-viewport__message--error {
+  padding: 24px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  user-select: text;
+}
+
 .lighttable-toolbar {
   flex: 0 0 auto;
   min-height: var(--lt-layout-statusbar-height);
@@ -3080,10 +3089,10 @@
   outline: 1px solid var(--lt-focus-ring);
   outline-offset: 1px;
 }
-.lighttable-layer__name {
+.lighttable-layer > .lighttable-layer__name {
   min-width: 0;
-  width: auto;
-  flex: 1 1 auto;
+  width: 0;
+  flex: 1 1 0;
   padding: 0;
   border: 0;
   outline: 0;
@@ -3099,17 +3108,17 @@
   user-select: none;
   -webkit-user-select: none;
 }
-.lighttable-layer__name:not([readonly]) {
+.lighttable-layer > .lighttable-layer__name:not([readonly]) {
   cursor: text;
   caret-color: auto;
   user-select: text;
   -webkit-user-select: text;
 }
-.lighttable-layer__name:not([readonly])::selection {
+.lighttable-layer > .lighttable-layer__name:not([readonly])::selection {
   color: var(--lt-text-primary);
   background: var(--lt-surface-inset);
 }
-.lighttable-layer__name:focus { outline: 0; background: transparent; }
+.lighttable-layer > .lighttable-layer__name:focus { outline: 0; background: transparent; }
 .lighttable-layer__lock {
   width: 13px;
   height: 13px;

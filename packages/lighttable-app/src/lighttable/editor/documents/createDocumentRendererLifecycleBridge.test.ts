@@ -141,7 +141,7 @@ describe('createDocumentRendererLifecycleBridge', () => {
 
     bridge.callbacks.onRendererError?.('render validation failed');
 
-    expect(publishError).toHaveBeenCalledWith('render validation failed');
+    expect(publishError).toHaveBeenCalledWith('Rendering stopped. Technical details are shown on the canvas.');
     expect(lifecycle.getSnapshot()).toMatchObject({
       generation, status: 'failed', error: 'render validation failed'
     });

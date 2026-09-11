@@ -10,8 +10,8 @@ describe('AsyncPixelStateTransitionOwner', () => {
       identity: {},
       applyTarget: () => { pixels = 'target'; return true; },
       applySource: () => { pixels = 'source'; return true; },
-      restoreSource: async () => { state = 'source'; },
-      restoreTarget: async () => { throw new Error('target failed'); }
+      restoreSource: async (publish) => { publish(); state = 'source'; },
+      restoreTarget: async (publish) => { publish(); throw new Error('target failed'); }
     });
     expect(result).toMatchObject({ ok: false, compensationFailed: false });
     expect({ pixels, state, blocked: owner.blocked })
@@ -33,8 +33,9 @@ describe('AsyncPixelStateTransitionOwner', () => {
         pixels = 'source';
         return true;
       }),
-      restoreSource: async () => { state = 'source'; },
-      restoreTarget: async () => {
+      restoreSource: async (publish: () => void) => { publish(); state = 'source'; },
+      restoreTarget: async (publish: () => void) => {
+        publish();
         if (rejectTarget) throw new Error('target failed');
         state = 'target';
       }

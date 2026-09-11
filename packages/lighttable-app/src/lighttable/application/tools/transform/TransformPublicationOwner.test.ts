@@ -69,6 +69,7 @@ const fixture = () => {
     destroy
   };
   const renderer: TransformPublicationRenderer = {
+    publishTransformState: async (publish) => { publish(); },
     applyPixelHistory: vi.fn((_edit, direction) => {
       if (pixelsApplied !== (direction === 'undo')) return false;
       pixelsApplied = direction === 'redo';
@@ -81,8 +82,7 @@ const fixture = () => {
     cancelLayerTransform: vi.fn(() => {
       pixelsApplied = false;
     }),
-    captureSelectionSnapshot: vi.fn(async () => afterMask),
-    restoreSelectionSnapshot: vi.fn(async () => true)
+    captureTransformSelectionPreview: vi.fn(async () => afterMask),
   };
   const history: TransformPublicationHistoryEntry[] = [];
   const selectionLease = (): LightTableSelectionReadLease => ({
@@ -106,7 +106,8 @@ const fixture = () => {
     getRendererGeneration: () => rendererGeneration,
     getSelectionLease: selectionLease,
     applyDocumentSnapshot: (next) => { document = next; },
-    applyDocumentAndSelection: async (next, nextSelection, nextMask) => {
+    applyDocumentAndSelection: async (next, nextSelection, nextMask, binding) => {
+      binding.publishPixels();
       document = next;
       currentSelection = nextSelection;
       currentMask = nextMask;
@@ -145,6 +146,39 @@ const fixture = () => {
 };
 
 describe('TransformPublicationOwner', () => {
+  it('keeps live pixels untouched throughout delayed preview capture and publication admission', async () => {
+    const state = fixture();
+    let finishCapture!: (mask: SelectionMaskSnapshot) => void;
+    let admitPublication!: () => void;
+    state.renderer.captureTransformSelectionPreview = () => new Promise((resolve) => { finishCapture = resolve; });
+    const publish = state.dependencies.applyDocumentAndSelection;
+    state.dependencies.applyDocumentAndSelection = async (...args) => {
+      await new Promise<void>((resolve) => { admitPublication = resolve; });
+      await publish(...args);
+    };
+    const owner = new TransformPublicationOwner(() => state.dependencies);
+    const completion = owner.apply({
+      result: {
+        kind: 'selection', beforeDocument: state.before, afterDocument: state.after,
+        beforeSelection: state.beforeSelection, afterSelection: state.afterSelection,
+        layerId: state.before.activeLayerId!
+      },
+      beforeSelectionMask: state.beforeMask, transaction: transaction(state.before),
+      renderer: state.renderer, rendererGeneration: 1,
+      openingSelectionLease: state.selectionLease()
+    });
+    expect(state.renderer.commitLayerTransform).not.toHaveBeenCalled();
+    finishCapture(state.afterMask);
+    await Promise.resolve();
+    expect(state.renderer.commitLayerTransform).not.toHaveBeenCalled();
+    expect(state.document()).toBe(state.before);
+    admitPublication();
+    await completion;
+    expect(state.pixelsApplied()).toBe(true);
+    expect(state.document()).toBe(state.after);
+    expect(state.history).toHaveLength(1);
+  });
+
   it('does not turn a committed semantic transform into failure when notification throws', async () => {
     const state = fixture();
     state.dependencies.onLayerTransformCommitted = () => { throw new Error('observer failed'); };
@@ -272,14 +306,14 @@ describe('TransformPublicationOwner', () => {
     });
     state.setRendererGeneration(2);
 
-    await expect(state.history[0].undo()).rejects.toThrow('target pixel state is unavailable');
+    await expect(state.history[0].undo()).rejects.toThrow('transform state binding is no longer current');
     expect({ document: state.document(), pixels: state.pixelsApplied() })
       .toEqual({ document: state.after, pixels: true });
   });
 
   it('rejects a renderer-generation rebind without addressing its replacement', async () => {
     const state = fixture();
-    state.renderer.captureSelectionSnapshot = vi.fn(async () => {
+    state.renderer.captureTransformSelectionPreview = vi.fn(async () => {
       state.setRendererGeneration(2);
       return state.afterMask;
     });
@@ -297,9 +331,9 @@ describe('TransformPublicationOwner', () => {
       openingSelectionLease: state.selectionLease()
     })).rejects.toThrow('publication lease is no longer current');
 
-    expect(state.pixelsApplied()).toBe(true);
+    expect(state.pixelsApplied()).toBe(false);
     expect(state.renderer.applyPixelHistory).not.toHaveBeenCalled();
-    expect(state.destroy).toHaveBeenCalledOnce();
+    expect(state.destroy).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
     expect(state.dependencies.setError).toHaveBeenCalledWith(
       'The document changed while the transform was finishing; the transform was rolled back.'
@@ -308,7 +342,7 @@ describe('TransformPublicationOwner', () => {
 
   it('rejects a logically newer selection even when object identities are reused', async () => {
     const state = fixture();
-    state.renderer.captureSelectionSnapshot = vi.fn(async () => {
+    state.renderer.captureTransformSelectionPreview = vi.fn(async () => {
       state.setSelectionRevision(1);
       return state.afterMask;
     });
@@ -328,7 +362,7 @@ describe('TransformPublicationOwner', () => {
 
     expect(state.pixelsApplied()).toBe(false);
     expect(state.history).toHaveLength(0);
-    expect(state.destroy).toHaveBeenCalledOnce();
+    expect(state.destroy).not.toHaveBeenCalled();
   });
 
   it('directly rolls back terminal pixels when canonical publication never completed', async () => {
@@ -356,12 +390,13 @@ describe('TransformPublicationOwner', () => {
     expect(state.history).toHaveLength(0);
     expect(owner.selectionRollback.blocked).toBe(false);
     expect(owner.unpublishedRollback.blocked).toBe(false);
-    expect(state.destroy).toHaveBeenCalledOnce();
+    expect(state.destroy).not.toHaveBeenCalled();
   });
 
   it('quarantines an indeterminate publication without guessing which side to restore', async () => {
     const state = fixture();
-    state.dependencies.applyDocumentAndSelection = async () => {
+    state.dependencies.applyDocumentAndSelection = async (_document, _selection, _mask, binding) => {
+      binding.publishPixels();
       throw new TransformSelectionPublicationError(
         'publication rollback failed',
         'indeterminate'
@@ -392,7 +427,8 @@ describe('TransformPublicationOwner', () => {
 
   it('retires an indeterminate edit when the active document session changes', async () => {
     const state = fixture();
-    state.dependencies.applyDocumentAndSelection = async () => {
+    state.dependencies.applyDocumentAndSelection = async (_document, _selection, _mask, binding) => {
+      binding.publishPixels();
       throw new TransformSelectionPublicationError('publication rollback failed', 'indeterminate');
     };
     const owner = new TransformPublicationOwner(() => state.dependencies);
@@ -417,7 +453,8 @@ describe('TransformPublicationOwner', () => {
 
   it('retires an indeterminate edit when its renderer generation is retired', async () => {
     const state = fixture();
-    state.dependencies.applyDocumentAndSelection = async () => {
+    state.dependencies.applyDocumentAndSelection = async (_document, _selection, _mask, binding) => {
+      binding.publishPixels();
       throw new TransformSelectionPublicationError('publication rollback failed', 'indeterminate');
     };
     const owner = new TransformPublicationOwner(() => state.dependencies);
