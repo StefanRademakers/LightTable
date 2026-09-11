@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { filterDefinition } from '@lighttable/filter-core';
-import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { useDocumentPalette, useLayerPalette } from './application/color/useDocumentPalette';
@@ -321,9 +320,10 @@ import { useVectorToolSessionController } from './application/vectors/useVectorT
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
 import {
-  patchVectorStyle,
-  vectorElementStyleSettings
-} from './application/vectors/vectorStylePresentation';
+  selectedVectorStyle as resolveSelectedVectorStyle,
+  selectedShapeGeometry as resolveSelectedShapeGeometry
+} from './application/vectors/vectorPropertyProjection';
+import { useVectorPropertyIntents } from './composition/vectors/useVectorPropertyIntents';
 import {
   useDocumentImageState,
   useDocumentEditorSession,
@@ -3802,140 +3802,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
     return changed;
   };
-  const selectedVectorStyle = useMemo(() => {
-    const reference = editorSession.vectorSelection.elements[0];
-    if (!reference || !imageDocument) return null;
-    if (reference.layerId !== imageDocument.activeLayerId) return null;
-    const layer = findDocumentLayer(imageDocument, reference.layerId);
-    const element = layer?.type === 'vector'
-      ? layer.elements.find(({ id }) => id === reference.elementId)
-      : null;
-    return element ? vectorElementStyleSettings(element) : null;
-  }, [editorSession.vectorSelection.elements, imageDocument]);
-  const selectedShapeGeometry = useMemo(() => {
-    const reference = editorSession.vectorSelection.elements[0];
-    if (!reference || !imageDocument) return null;
-    if (reference.layerId !== imageDocument.activeLayerId) return null;
-    const layer = findDocumentLayer(imageDocument, reference.layerId);
-    const element = layer?.type === 'vector'
-      ? layer.elements.find(({ id }) => id === reference.elementId)
-      : null;
-    if (element?.type !== 'live-shape'
-      || (element.geometry.kind !== 'rectangle'
-        && element.geometry.kind !== 'ellipse'
-        && element.geometry.kind !== 'line')) return null;
-    const geometry = element.geometry;
-    const lineDelta = geometry.kind === 'line' ? {
-      x: geometry.end.x - geometry.start.x,
-      y: geometry.end.y - geometry.start.y
-    } : null;
-    return {
-      kind: geometry.kind,
-      settings: {
-        ...editorSession.shape,
-        width: geometry.kind === 'line' ? Math.abs(lineDelta!.x) : geometry.width,
-        height: geometry.kind === 'line' ? Math.abs(lineDelta!.y) : geometry.height,
-        rectangleCornerRadii: geometry.kind === 'rectangle'
-          ? [...geometry.cornerRadii] as [number, number, number, number]
-          : editorSession.shape.rectangleCornerRadii,
-        linkedCorners: geometry.kind === 'rectangle'
-          ? geometry.linkedCorners : editorSession.shape.linkedCorners,
-        lineStartArrow: geometry.kind === 'line'
-          ? Boolean(geometry.startArrow) : editorSession.shape.lineStartArrow,
-        lineEndArrow: geometry.kind === 'line'
-          ? Boolean(geometry.endArrow) : editorSession.shape.lineEndArrow,
-        lineArrowWidth: geometry.kind === 'line'
-          ? geometry.startArrow?.width ?? geometry.endArrow?.width ?? editorSession.shape.lineArrowWidth
-          : editorSession.shape.lineArrowWidth,
-        lineArrowLength: geometry.kind === 'line'
-          ? geometry.startArrow?.length ?? geometry.endArrow?.length ?? editorSession.shape.lineArrowLength
-          : editorSession.shape.lineArrowLength,
-        lineRotationDegrees: geometry.kind === 'line'
-          ? Math.atan2(lineDelta!.y, lineDelta!.x) * 180 / Math.PI
-          : editorSession.shape.lineRotationDegrees
-      }
-    };
-  }, [editorSession.shape, editorSession.vectorSelection.elements, imageDocument]);
-  const updateSelectedVectorStyle = (change: Partial<EditorSession['vectorStyle']>) => {
-    vectorToolSessionController.editSelectedElementStyles(
-      (style) => patchVectorStyle(style, change)
-    );
-  };
-  const updateGradientSettings = (change: Partial<EditorSession['gradient']>) => {
-    const paintChange = change.paint;
-    setEditorSession((current) => ({
-      ...current,
-      gradient: { ...current.gradient, ...change }
-    }));
-    if (!paintChange
-      || editorSession.activeTool !== 'gradient'
-      || gradientToolSettings.application !== 'fill-layer') return;
-    const reference = editorSession.vectorSelection.elements[0];
-    const activeGradientLayer = reference && imageDocument?.activeLayerId === reference.layerId
-      ? findDocumentLayer(imageDocument, reference.layerId)
-      : null;
-    if (activeGradientLayer?.type !== 'vector'
-      || activeGradientLayer.role !== 'gradient-fill') return;
-    vectorToolSessionController.editSelectedElementStyles((style) => {
-      const fill = style.fill;
-      if (!fill || !('kind' in fill)) return style;
-      return {
-        ...style,
-        fill: {
-          ...cloneGradientPaint(paintChange),
-          coordinateSpace: fill.coordinateSpace,
-          transform: { ...fill.transform }
-        }
-      };
-    });
-  };
-  const updateSelectedShapeGeometry = (change: Partial<EditorSession['shape']>) => {
-    vectorToolSessionController.editSelectedLiveShapes((shape) => {
-      if (shape.geometry.kind === 'rectangle') {
-        shape.geometry = {
-          ...shape.geometry,
-          width: change.width ?? shape.geometry.width,
-          height: change.height ?? shape.geometry.height,
-          cornerRadii: change.rectangleCornerRadii
-            ? [...change.rectangleCornerRadii] : shape.geometry.cornerRadii,
-          linkedCorners: change.linkedCorners ?? shape.geometry.linkedCorners
-        };
-      } else if (shape.geometry.kind === 'ellipse') {
-        shape.geometry = {
-          ...shape.geometry,
-          width: change.width ?? shape.geometry.width,
-          height: change.height ?? shape.geometry.height
-        };
-      } else if (shape.geometry.kind === 'line') {
-        const geometry = shape.geometry;
-        const dx = geometry.end.x - geometry.start.x;
-        const dy = geometry.end.y - geometry.start.y;
-        const currentLength = Math.max(Math.hypot(dx, dy), 1e-6);
-        const angle = change.lineRotationDegrees !== undefined
-          ? change.lineRotationDegrees * Math.PI / 180 : Math.atan2(dy, dx);
-        const nextDx = change.lineRotationDegrees !== undefined
-          ? Math.cos(angle) * currentLength
-          : change.width !== undefined ? Math.sign(dx || 1) * change.width : dx;
-        const nextDy = change.lineRotationDegrees !== undefined
-          ? Math.sin(angle) * currentLength
-          : change.height !== undefined ? Math.sign(dy || 1) * change.height : dy;
-        const arrow = {
-          width: change.lineArrowWidth
-            ?? geometry.startArrow?.width ?? geometry.endArrow?.width ?? editorSession.shape.lineArrowWidth,
-          length: change.lineArrowLength
-            ?? geometry.startArrow?.length ?? geometry.endArrow?.length ?? editorSession.shape.lineArrowLength,
-          concavity: 0
-        };
-        shape.geometry = {
-          ...geometry,
-          end: { x: geometry.start.x + nextDx, y: geometry.start.y + nextDy },
-          startArrow: (change.lineStartArrow ?? Boolean(geometry.startArrow)) ? arrow : null,
-          endArrow: (change.lineEndArrow ?? Boolean(geometry.endArrow)) ? arrow : null
-        };
-      }
-      return shape;
-    });
-  };
+  const selectedVectorStyle = useMemo(() => resolveSelectedVectorStyle(imageDocument,
+    editorSession.vectorSelection), [imageDocument, editorSession.vectorSelection]);
+  const selectedShapeGeometry = useMemo(() => resolveSelectedShapeGeometry(imageDocument,
+    editorSession.vectorSelection, editorSession.shape),
+    [imageDocument, editorSession.vectorSelection, editorSession.shape]);
+  const vectorProperties = useVectorPropertyIntents({
+    getDocument: () => imageDocumentRef.current,
+    getSession: readEditorSession,
+    setShapeDefaults: change => setEditorSession(current => ({
+      ...current, shape: { ...current.shape, ...change }
+    })),
+    setGradientDefaults: change => setEditorSession(current => ({
+      ...current, gradient: { ...current.gradient, ...change }
+    })),
+    edits: vectorToolSessionController
+  });
+  const updateSelectedVectorStyle = vectorProperties.updateStyle;
+  const updateSelectedShapeGeometry = vectorProperties.updateShape;
+  const updateGradientSettings = vectorProperties.updateGradient;
 
   const textEditingEntry = useTextEditingEntry(documentSession ?? workspaceDocumentId,
     editorSession.activeTool, rendererSnapshot.generation, textFontRegistry, {
@@ -6943,10 +6828,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               ...current,
               toneBrush: { ...current.toneBrush, ...change }
             })),
-            onGradientChange: (change) => setEditorSession((current) => ({
-              ...current,
-              gradient: { ...current.gradient, ...change }
-            })),
+            onGradientChange: updateGradientSettings,
             onShapeChange: (change) => setEditorSession((current) => ({
               ...current, shape: { ...current.shape, ...change }
             })),

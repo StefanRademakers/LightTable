@@ -209,6 +209,7 @@ export class VectorDocumentController {
         const element = layer.elements.find(({ id }) => id === change.elementId);
         if (!element) return openingDocument;
         const edited = change.edit(element);
+        if (edited === element) continue;
         if (edited && edited.type !== element.type) {
           throw new Error(`Vector element ${element.id} cannot change type implicitly.`);
         }

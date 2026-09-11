@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O05b.1 accepted: property defaults/authored intent is VectorPropertyIntents;
+selected properties/shape algorithms are vectorPropertyProjection. Existing
+vector session and document mutation owners retain atomic/history authority.
+Removed root property algorithms and context gradient divergence. Property-only
+no-op detection prevents false revisions; independent arrows and exact untouched
+endpoints preserved. Remaining commit observation/Pen terminal/lifetime glue next.
+
 O05a.2c2 accepted: TextPointerRouter owns pointer priority and deferred miss
 replay, participants retain all gestures. Root viewport wiring no longer decides
 which gesture receives samples/terminal or whether misses create path/paragraph.

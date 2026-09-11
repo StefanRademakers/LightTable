@@ -226,8 +226,11 @@ class names: reuse existing owners before creating a new one.
     - [x] O05a.2c2: text pointer precedence and deferred miss routing. Existing
       gesture owners retain their own state; delayed replay reaches the actual
       handle/draft owner. Critic PASS; packaged Type/Paragraph/Path Actions pass.
-  - [ ] O05b.1: vector/shape/gradient property projection and intents; unify
-    toolbar/context gradient route and separate creation options from geometry.
+  - [x] O05b.1: vector/shape/gradient property projection and intents; one
+    toolbar/context gradient route, creation options separate from geometry.
+    Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property
+    parity, shape geometry/history and vector authoring/roundtrip pass.
+  - [ ] O05b.2: vector commit observation, Pen terminals and mounted lifetimes.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

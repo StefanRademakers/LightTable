@@ -1,5 +1,35 @@
 # Task 416 progress
 
+## O05b.1 — Vector/shape/gradient property boundary (accepted)
+
+- VectorPropertyIntents owns synchronous property intent/default partition;
+  vectorPropertyProjection owns contextual projection and parametric edits.
+  Existing VectorToolSessionController/VectorDocumentController retain target
+  admission, lock validation and atomic document/history mutation. No new queue,
+  renderer access or canonical mirror. Overlay 7,435 -> 7,317 physical lines.
+- Both toolbar and context menu now author selected Gradient Fill through the
+  same route, preserving placement. Selected-shape creation options update only
+  defaults, not geometry/history. Genuine unchanged style/geometry returns the
+  original element; document owner skips it. Comparison is property-only,
+  order-insensitive; style no-ops no longer clone full path geometry.
+- Critic repairs: retain independent arrow dimensions/concavity; avoid unchanged
+  angle reconstruction and fractional endpoint drift. Nine real-transaction
+  property tests plus existing vector/style tests: 69/4 files pass. Invalid
+  fixtures (gradient field, lock field, missing required null arrows) corrected;
+  no production fallback/normalization added to accommodate those fixtures.
+- Typecheck, boundary/structure and fresh instrumented package pass. Real UI
+  toolbar/context equality, same-value no-op, exact gradient undo/redo, selected
+  shape creation preferences, width edit/undo and Pixels-mode shape creation
+  pass. Existing vector authoring/native/PSD roundtrip also passes. Reports:
+  tmp/vector-properties/report.json, tmp/shape-geometry-smoke/report.json,
+  tmp/vector-authoring-smoke/report.json. Screenshot inspected; no page errors.
+  Harness fixes: click outside floating Layers; explicitly select rectangle
+  before testing authored properties (creation alone keeps creation defaults).
+- Final independent source PASS. No per-pointer work added. Existing property
+  changes are still discrete transactions, not a newly certified continuous
+  style gesture. Property Actions observation and wider vector lifetime remain
+  open. Next O05b.2; no whole-app stability/performance/cleanup completion claim.
+
 ## O05a.2c2 — Text pointer precedence (accepted)
 
 - TextPointerRouter owns point/paragraph/path hit/handle/create precedence and

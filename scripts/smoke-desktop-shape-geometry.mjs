@@ -72,6 +72,37 @@ try {
     || rectangle.history.undoDepth !== baseline.history.undoDepth + 1) {
     throw new Error(`Fixed rectangle was not one editable command: ${JSON.stringify({ baseline, rectangle })}`);
   }
+  const rectangleVector = await driver.queryVector(documentId, rectangle.activeLayerId);
+  // Creation defaults and authored element selection are distinct; explicitly
+  // enter Path Selection so these controls address the selected rectangle.
+  await page.keyboard.press('a');
+  await page.getByRole('button', { name: 'Geometry', exact: true }).click();
+  await choose('Shape geometry mode', 'Unrestricted');
+  await page.getByRole('checkbox', { name: 'From center', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Snap pixels', exact: true }).check();
+  const creationOptions = await driver.queryDocument(documentId);
+  const afterOptionsVector = await driver.queryVector(documentId, rectangle.activeLayerId);
+  if (creationOptions.history.undoDepth !== rectangle.history.undoDepth
+    || JSON.stringify(afterOptionsVector) !== JSON.stringify(rectangleVector)) {
+    throw new Error('Selected shape creation preferences changed authored geometry/history.');
+  }
+  await number('W').fill('210');
+  await number('W').press('Enter');
+  const resized = await driver.queryDocument(documentId);
+  if (resized.history.undoDepth !== rectangle.history.undoDepth + 1) {
+    await page.screenshot({ path: path.join(output, 'property-failure.png') });
+    throw new Error('Selected rectangle width was not one authored edit: ' + JSON.stringify({
+      rectangle, resized, before: rectangleVector,
+      after: await driver.queryVector(documentId, rectangle.activeLayerId),
+      width: await number('W').inputValue(), errors
+    }));
+  }
+  await page.getByRole('button', { name: 'Close geometry' }).click();
+  await page.keyboard.press('Control+z');
+  const restoredRectangle = await driver.queryVector(documentId, rectangle.activeLayerId);
+  if (JSON.stringify(restoredRectangle) !== JSON.stringify(rectangleVector)) {
+    throw new Error('Selected rectangle width undo did not restore exact vector state.');
+  }
   await page.keyboard.press('Control+z');
 
   await page.keyboard.press('Shift+u');

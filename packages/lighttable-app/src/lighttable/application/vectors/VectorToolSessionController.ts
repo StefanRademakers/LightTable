@@ -1,5 +1,6 @@
 import {
   cloneVectorElement,
+  cloneVectorStyle,
   type AnchorMode,
   type VectorIdSource,
   type VectorElement,
@@ -8,6 +9,7 @@ import {
   type Vec2,
   type VectorStyle
 } from '@lighttable/vector-core';
+import { vectorPropertyValuesEqual } from './vectorPropertyValuesEqual';
 import {
   layerIsLocked,
   type ImageDocument,
@@ -522,8 +524,9 @@ export class VectorToolSessionController {
       layerId,
       elementId,
       edit: (element) => {
-        const next = cloneVectorElement(element);
-        next.style = edit(next.style);
+        const style = edit(cloneVectorStyle(element.style));
+        if (vectorPropertyValuesEqual(style, element.style)) return element;
+        const next = { ...element, style };
         next.styleRevision += 1;
         return next;
       }
@@ -546,6 +549,7 @@ export class VectorToolSessionController {
         edit: (current: VectorElement) => {
           if (current.type !== 'live-shape') return current;
           const next = edit(cloneVectorElement(current) as VectorLiveShape);
+          if (vectorPropertyValuesEqual(next.geometry, current.geometry)) return current;
           next.geometryRevision += 1;
           return next;
         }
