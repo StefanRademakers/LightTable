@@ -1,5 +1,29 @@
 # Task 416 progress
 
+## O04b.4 — Contextual Grade inspector (accepted)
+
+- resolveAdjustmentContext supplies reconciled identity, destination and lazy
+  settings from the same canonical owner. Removed raw-target/reconciled-value
+  disagreement when an attachment or active layer changes.
+- GradeInspectorController owns master/section routing and presentation policy;
+  exact attached enabled state no longer reads or changes base raster Grade.
+  Existing semantic layer commands remain the only layer/history mutation path.
+  Document visibility retains its existing processing projection semantics; this
+  slice does not certify document visibility as a new undoable operation.
+- Removed replaced Overlay policy and dead command-factory visibility API/ports.
+  Overlay 8,152 -> 8,055 physical lines; new production modules below 65 lines.
+  No readback, GPU allocation or settings cloning for lightweight identity reads.
+- 42 focused tests/4 files, typecheck, boundary, structure and fresh instrumented
+  package PASS. Independent critic final PASS, no repair requested.
+- Packaged processing-rebind PASS: global/local tab and history retention;
+  actual attached Grade master click leaves parent stack and sibling unchanged,
+  creates one undo entry and restores byte-exact fresh PNG pixels on undo/redo.
+  Report: tmp/processing-rebind/report.json. Initial harness Tab hid panels;
+  removed that mistaken test input, not a product fallback or forced click.
+- Open/next: O04b.5 mounted adjustment gesture binding. Existing memoized
+  coordinator captures the first renderer lifecycle; fix exact live scope and
+  remove remaining gesture adapters from root. Whole Overlay remains open.
+
 ## O04b.3 — Depth subscription and realization (accepted)
 
 - LensBlurDepthRequest captures one source/scope/renderer and the originating

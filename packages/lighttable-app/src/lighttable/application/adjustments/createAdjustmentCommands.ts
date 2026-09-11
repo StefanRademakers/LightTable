@@ -93,8 +93,6 @@ export interface AdjustmentCommandPorts {
     interactionHandle?: AdjustmentInteractionHandle | void
   ) => boolean;
   readonly getAdjustments: () => BasicAdjustments;
-  readonly getGroupVisibility: () => GroupVisibility;
-  readonly publishGroupVisibility: (visibility: GroupVisibility) => void;
   readonly setFocusPickerActive: (active: boolean) => void;
   readonly publishLensBlurViewportMode: (mode: LensBlurViewportMode) => void;
   readonly getSourceName: () => string;
@@ -193,7 +191,6 @@ export interface AdjustmentCommands {
   readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings, handle: AdjustmentInteractionHandle | void) => void;
   readonly resetPhotoshopAdjustment: () => void;
   readonly resetAll: () => void;
-  readonly toggleGroupVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: keyof GroupVisibility) => void;
   readonly resetGrade: () => void;
   readonly copyGrade: () => void;
@@ -701,11 +698,6 @@ export const createAdjustmentCommands = (
     ports.changeAdjustments(() => createDefaultAdjustments(), 'all');
   };
 
-  const toggleGroupVisibility = (group: keyof GroupVisibility) => {
-    const current = ports.getGroupVisibility();
-    ports.publishGroupVisibility({ ...current, [group]: !current[group] });
-  };
-
   const resetGroup = (group: keyof GroupVisibility) => {
     ports.endAdjustment();
     ports.changeAdjustments((current) => {
@@ -819,7 +811,6 @@ export const createAdjustmentCommands = (
     updatePhotoshopAdjustment,
     resetPhotoshopAdjustment,
     resetAll,
-    toggleGroupVisibility,
     resetGroup,
     resetGrade,
     copyGrade,

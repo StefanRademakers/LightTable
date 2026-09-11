@@ -4,6 +4,7 @@ import path from 'node:path';
 import { _electron as electron } from 'playwright-core';
 import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { verifyAttachedGradeInspector } from './processing-rebind-attached-grade.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -19,6 +20,7 @@ try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: environment, timeout: 30_000 });
   const page = await app.firstWindow();
+  await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.show(); window.focus(); });
   page.on('pageerror', error => report.pageErrors.push(error.message));
   await waitForDesktopLauncher({ app, page, outputDirectory: output, sourceFile: null,
     pageErrors: report.pageErrors, label: 'processing-rebind' });
@@ -101,6 +103,8 @@ try {
   await driver.execute(a, 'history.redo', {});
   await page.waitForFunction(() => Number(document.querySelector('input[aria-label="Exposure"]')?.value) === -0.5);
   report.checks.push('Current local Exposure control follows undo/redo after rebind.');
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
+  report.checks.push(await verifyAttachedGradeInspector({ page, driver, documentId: a, layerId: layer.id, pixels }));
   await page.screenshot({ path: path.join(output, 'final.png') });
   assert.deepEqual(report.pageErrors, []);
   report.status = 'passed';

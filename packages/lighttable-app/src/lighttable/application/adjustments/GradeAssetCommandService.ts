@@ -18,7 +18,7 @@ interface GradeAssetPorts {
   settleInteraction(): Promise<void>;
   getDocumentAdjustments(): BasicAdjustments;
   resolveTarget(document: ImageDocument): {
-    identity: string; layerId: LayerId | null; adjustments: BasicAdjustments | null;
+    identity: string | null; layerId: LayerId | null; adjustments: BasicAdjustments | null;
   };
   applyCanonicalProjection: ColorLookupAssetTransactionInput['applyCanonicalProjection'];
   pushHistoryEntry: ColorLookupAssetTransactionInput['pushHistoryEntry'];

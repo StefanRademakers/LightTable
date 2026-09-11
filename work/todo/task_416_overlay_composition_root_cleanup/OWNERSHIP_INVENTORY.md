@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O04b.4 accepted: resolveAdjustmentContext reconciles target once for consumers'
+identity/destination/settings; GradeInspectorController owns contextual master
+and section policy. Neither retains canonical state. Semantic layer commands
+remain mutation/history authority; document visibility remains processing binding.
+Removed root owner-selection/toggle branches and dead factory visibility API.
+
 O04b.2 accepted: CanvasPickerController owns request generations, exact opening
 scope/target and post-readback/admission publication. useCanvasPickers only binds
 retirement and UI subscription. Root retains intent/error presentation ports.

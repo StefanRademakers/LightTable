@@ -55,7 +55,8 @@ import { DocumentInteractionResetPolicy } from './application/documents/Document
 import { useEditorDocumentFonts } from './composition/documents/useEditorDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
-import { resolveAdjustmentPresentation } from './application/adjustments/resolveAdjustmentPresentation';
+import { resolveAdjustmentContext } from './application/adjustments/resolveAdjustmentContext';
+import { GradeInspectorController, projectGradeInspector } from './application/adjustments/GradeInspectorController';
 import { DocumentProcessingBinding } from './application/adjustments/DocumentProcessingBinding';
 import { AdjustmentPresentationRuntime } from './application/adjustments/AdjustmentPresentationRuntime';
 import { GradeAssetCommandService } from './application/adjustments/GradeAssetCommandService';
@@ -126,9 +127,6 @@ import { recordFilterSnapshotCheckpoint } from './application/filters/recordFilt
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   adjustmentStackHasLocalProcessing,
-  adjustmentStackLocalProcessingIsEnabled,
-  adjustmentStackGradeGroupIsEnabled,
-  type GradeModuleGroup,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import {
@@ -2606,34 +2604,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     thumbnailDocumentReadyId
   ]);
 
-  const resolveAdjustmentTargetLayerId = (
-    document: ImageDocument,
-    target: PropertiesInspectorTarget = propertiesTargetRef.current
-  ): LayerId | null => {
-    if (target.kind === 'document-processing') return null;
-    if (target.kind === 'attached-processing') {
-      return attachedAdjustmentOwnerId(
-        target.layerId,
-        target.adjustmentId
-      );
-    }
-    const active = findDocumentLayer(document, document.activeLayerId);
-    return active?.type === 'adjustment' || active?.type === 'raster'
-      ? active.id
-      : null;
-  };
-  const resolveAdjustmentTargetIdentity = (
-    document: ImageDocument,
-    target: PropertiesInspectorTarget = propertiesTargetRef.current
-  ) => JSON.stringify(reconcilePropertiesTarget(document, target));
-  const resolveCanonicalAdjustmentSnapshot = (
-    document: ImageDocument,
-    target: PropertiesInspectorTarget = propertiesTargetRef.current
-  ) => resolveAdjustmentPresentation(
-    document,
-    processingBinding.getDocumentAdjustments(),
-    target
-  )?.adjustments ?? null;
+  const readAdjustmentContext = (document: ImageDocument | null = imageDocumentRef.current,
+    target: PropertiesInspectorTarget = propertiesTargetRef.current) =>
+    resolveAdjustmentContext(document, processingBinding.getDocumentAdjustments(), target);
+  const resolveAdjustmentTargetLayerId = (document: ImageDocument) => readAdjustmentContext(document)?.ownerId ?? null;
+  const resolveAdjustmentTargetIdentity = (document: ImageDocument) => readAdjustmentContext(document)?.identity ?? null;
+  const resolveCanonicalAdjustmentSnapshot = (document: ImageDocument) => readAdjustmentContext(document)?.readAdjustments() ?? null;
   const adjustmentTransactionController = useAdjustmentTransactionController({
     getDocumentId: () => imageDocumentRef.current?.id ?? null,
     getDocument: () => imageDocumentRef.current,
@@ -2791,10 +2767,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endAdjustment: endAdjustmentTransaction,
     changeAdjustments,
     getAdjustments: () => processingBinding.getEditorAdjustments(),
-    getGroupVisibility: () => processingBinding.getGroupVisibility(),
-    publishGroupVisibility: (visibility) => {
-      documentProjectionController.applyGroupVisibilitySnapshot(visibility);
-    },
     setFocusPickerActive: canvasPickers.setFocusActive,
     publishLensBlurViewportMode: (mode) => {
       setLensBlurViewportModeState(mode);
@@ -2862,7 +2834,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     updatePhotoshopAdjustment,
     resetPhotoshopAdjustment,
     resetAll,
-    toggleGroupVisibility,
     resetGroup
   } = adjustmentCommands;
   const captureCurrentGrade = async (): Promise<LightTableGradeClipboardCapture> => {
@@ -5736,28 +5707,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   showAllLayersRef.current = () => commandLayerPanelController.setAllLayersVisibility(true);
   selectLayerRef.current = layerPanelController.select;
 
-  const reconciledPropertiesTarget = reconcilePropertiesTarget(imageDocument, propertiesTarget);
-  const gradeContextLayer = imageDocument && 'layerId' in reconciledPropertiesTarget
-    ? findDocumentLayer(imageDocument, reconciledPropertiesTarget.layerId)
-    : null;
-  const gradeOwnerStack = reconciledPropertiesTarget.kind === 'attached-processing'
-    && gradeContextLayer?.type === 'raster'
-    ? (gradeContextLayer.attachedAdjustments ?? []).find(
-        ({ id }) => id === reconciledPropertiesTarget.adjustmentId
-      )?.adjustmentStack ?? null
-    : gradeContextLayer?.type === 'adjustment' || gradeContextLayer?.type === 'raster'
-      ? gradeContextLayer.adjustmentStack
-      : null;
-  const gradeOwnerId = reconciledPropertiesTarget.kind === 'attached-processing'
-    ? attachedAdjustmentOwnerId(
-        reconciledPropertiesTarget.layerId,
-        reconciledPropertiesTarget.adjustmentId
-      )
-    : 'layerId' in reconciledPropertiesTarget
-      ? reconciledPropertiesTarget.layerId
-      : null;
-  const gradeUsesDocumentVisibility = reconciledPropertiesTarget.kind === 'document-processing'
-    && reconciledPropertiesTarget.owner === 'grade';
+  const gradeInspector = new GradeInspectorController({
+    getContext: () => readAdjustmentContext(),
+    getVisibility: processingBinding.getGroupVisibility,
+    publishVisibility: documentProjectionController.applyGroupVisibilitySnapshot,
+    layers: commandLayerPanelController
+  });
+  const { ownerId: gradeOwnerId, usesDocumentVisibility: gradeUsesDocumentVisibility,
+    sectionVisibility: gradeSectionVisibility, masterEnabled: gradeMasterEnabled } =
+    projectGradeInspector(readAdjustmentContext(imageDocument, propertiesTarget), groupVisibility);
   const updatePointColorRangeVisualization = useCallback((sample: PointColorSample | null) => {
     if (!sample) {
       setPointColorRangeVisualization(null);
@@ -5772,61 +5730,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       sample: { ...sample }
     });
   }, [gradeOwnerId, gradeUsesDocumentVisibility]);
-  const gradeSectionVisibility = gradeUsesDocumentVisibility
-    ? groupVisibility
-    : {
-        ...groupVisibility,
-        light: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'light'),
-        color: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'color'),
-        colorMixer: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorMixer'),
-        colorGrading: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorGrading'),
-        blackWhiteMix: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'blackWhiteMix'),
-        look: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'look'),
-        curves: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'curves'),
-        effects: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'effects'),
-        detail: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'detail')
-      };
-  const gradeMasterEnabled = reconciledPropertiesTarget.kind === 'document-processing'
-    && reconciledPropertiesTarget.owner === 'grade'
-    ? groupVisibility.globalGrade
-    : gradeContextLayer?.type === 'adjustment'
-      ? gradeContextLayer.visible
-      : gradeContextLayer?.type === 'raster'
-        && gradeContextLayer.adjustmentStack
-        && adjustmentStackHasLocalProcessing(gradeContextLayer.adjustmentStack, 'grade')
-        ? adjustmentStackLocalProcessingIsEnabled(gradeContextLayer.adjustmentStack, 'grade')
-        : true;
-  const toggleGradeMasterEnabled = () => {
-    if (reconciledPropertiesTarget.kind === 'document-processing'
-      && reconciledPropertiesTarget.owner === 'grade') {
-      documentProjectionController.applyGroupVisibilitySnapshot({
-        ...processingBinding.getGroupVisibility(),
-        globalGrade: !processingBinding.getGroupVisibility().globalGrade
-      });
-      return;
-    }
-    if (!gradeContextLayer) return;
-    if (gradeContextLayer.type === 'adjustment') {
-      commandLayerPanelController.setVisibility([gradeContextLayer.id], !gradeContextLayer.visible);
-      return;
-    }
-    if (gradeContextLayer.type === 'raster') {
-      commandLayerPanelController.setLocalGradeEnabled(gradeContextLayer.id, !gradeMasterEnabled);
-    }
-  };
-  const toggleGradeSectionVisibility = (group: keyof GroupVisibility) => {
-    if (group === 'globalGrade' || group === 'globalLensFx' || gradeUsesDocumentVisibility) {
-      toggleGroupVisibility(group);
-      return;
-    }
-    if (!gradeOwnerId) return;
-    const gradeGroup = group as GradeModuleGroup;
-    commandLayerPanelController.setGradeGroupEnabled(
-      gradeOwnerId,
-      gradeGroup,
-      !adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, gradeGroup)
-    );
-  };
 
   const effectiveDocumentGuides = guideDraft ?? imageDocument?.guides ?? [];
   useEffect(() => {
@@ -8006,8 +7909,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 },
                   commands: {
                   resetAll,
-                  toggleMasterEnabled: toggleGradeMasterEnabled,
-                  toggleVisibility: toggleGradeSectionVisibility,
+                  toggleMasterEnabled: gradeInspector.toggleMaster,
+                  toggleVisibility: gradeInspector.toggleSection,
                   resetGroup,
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,

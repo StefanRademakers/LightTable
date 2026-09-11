@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { appendPointColorSample } from '../../pointColor';
 import {
-  createDefaultGroupVisibility,
-  type GroupVisibility
-} from './groupVisibility';
-import {
   createAdjustmentCommands,
   type AdjustmentCommandPorts
 } from './createAdjustmentCommands';
@@ -20,13 +16,9 @@ const createHarness = () => {
     token: { sequence: 1 }
   };
   let adjustments = createDefaultAdjustments();
-  let visibility = createDefaultGroupVisibility();
   let viewportMode: 'result' | 'depth' = 'result';
   let focusPickerActive = true;
   const endAdjustment = vi.fn();
-  const publishGroupVisibility = vi.fn((next: GroupVisibility) => {
-    visibility = next;
-  });
   const publishLensBlurViewportMode = vi.fn((next: 'result' | 'depth') => {
     viewportMode = next;
   });
@@ -44,8 +36,6 @@ const createHarness = () => {
     endAdjustment,
     changeAdjustments,
     getAdjustments: () => adjustments,
-    getGroupVisibility: () => visibility,
-    publishGroupVisibility,
     setFocusPickerActive: (active) => {
       focusPickerActive = active;
     },
@@ -57,10 +47,8 @@ const createHarness = () => {
     commands: createAdjustmentCommands(ports),
     endAdjustment,
     changeAdjustments,
-    publishGroupVisibility,
     publishLensBlurViewportMode,
     adjustments: () => adjustments,
-    visibility: () => visibility,
     viewportMode: () => viewportMode,
     focusPickerActive: () => focusPickerActive,
     interactionHandle
@@ -164,16 +152,11 @@ describe('createAdjustmentCommands', () => {
     expect(harness.adjustments().effects.lensDistortion.amount).toBe(35);
   });
 
-  it('publishes visibility and lens viewport changes through host-neutral ports', () => {
+  it('publishes lens viewport changes through host-neutral ports', () => {
     const harness = createHarness();
 
-    harness.commands.toggleGroupVisibility('colorMixer');
     harness.commands.setLensBlurViewportMode('depth');
 
-    expect(harness.visibility().colorMixer).toBe(false);
-    expect(harness.publishGroupVisibility).toHaveBeenCalledWith(
-      expect.objectContaining({ colorMixer: false })
-    );
     expect(harness.viewportMode()).toBe('depth');
     expect(harness.publishLensBlurViewportMode).toHaveBeenCalledWith('depth');
     expect(harness.endAdjustment).toHaveBeenCalled();

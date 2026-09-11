@@ -190,8 +190,10 @@ class names: reuse existing owners before creating a new one.
     - [x] O04b.3: depth-analysis cancellation, initiating failure target and
       cached-depth renderer rebind. Critic PASS after stale-error/progress repair;
       packaged focus/history plus tab rebind restores exact pixels without edits.
-    - [ ] O04b.4: consistent contextual owner/presentation/visibility; then
-      remaining adjustment gesture binding and exact renderer-lifetime admission.
+    - [x] O04b.4: consistent contextual owner/presentation/visibility. Attached
+      Grade master owns its attachment, not base local Grade. Critic PASS and
+      packaged parent/sibling isolation, single history and exact PNG undo/redo.
+    - [ ] O04b.5: remaining adjustment gesture binding and exact renderer-lifetime admission.
   - [x] O04c: GradeAssetCommandService owns scoped LUT import/paste planning;
     existing asset transaction retains GPU/rollback/history. Plain/same-LUT
     paste completes synchronously through the existing adjustment controller
