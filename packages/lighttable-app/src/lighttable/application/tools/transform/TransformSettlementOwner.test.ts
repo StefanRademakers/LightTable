@@ -10,11 +10,14 @@ describe('TransformSettlementOwner', () => {
     const operation = new Promise<void>((_resolve, rejectOperation) => { reject = rejectOperation; });
     const reportFailure = vi.fn();
     const owner = new TransformSettlementOwner();
+    expect(owner.isPending()).toBe(false);
     const captured = owner.publish(operation, reportFailure);
+    expect(owner.isPending()).toBe(true);
 
     reject(new Error('GPU publication failed'));
     await expect(captured).rejects.toThrow('GPU publication failed');
     await expect(owner.read()).resolves.toBeUndefined();
+    expect(owner.isPending()).toBe(false);
     expect(reportFailure).toHaveBeenCalledOnce();
   });
 
@@ -30,9 +33,11 @@ describe('TransformSettlementOwner', () => {
     releaseFirst();
     await first;
     expect(owner.read()).toBe(second);
+    expect(owner.isPending()).toBe(true);
     releaseSecond();
     await second;
     await expect(owner.read()).resolves.toBeUndefined();
+    expect(owner.isPending()).toBe(false);
   });
 
   it('rejects the failed handoff, then requires exact recovery before later admission', async () => {

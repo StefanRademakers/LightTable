@@ -1,6 +1,6 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O02a accepted; broader O01/O02 and O03-O09 remain open.
+Status: in progress. O02a/O02b accepted; broader O01/O02 and O03-O09 remain open.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:
@@ -13,7 +13,8 @@ fast professional editing behavior and exact history/resource ownership.
 
 Inventory: OWNERSHIP_INVENTORY.md (source coverage, lifetimes, transition map,
 unproven risk register and baseline evidence; wider baseline gate remains open).
-Completed bounded extraction: O02a Escape precedence (PROGRESS.md).
-Next: O02b persistent tool activation and successor admission.
+Completed bounded extractions: O02a Escape precedence and O02b persistent tool
+activation/successor admission (PROGRESS.md).
+Next: O02c history prerequisites and remaining terminal policies.
 Use the plan's independent critic and maximum two repair rounds per slice.
 No push requested. Recovery files are preserved locally outside Git.

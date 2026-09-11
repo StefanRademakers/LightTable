@@ -25,3 +25,46 @@
   that all tool switching/retirement is extracted or all editor flows are stable.
 - Next: O02b persistent activation and preferred shortcut state, with pending
   transform settlement and document-bound successor admission.
+
+## O02b — Persistent tool activation
+
+- Done: PersistentToolActivationOwner owns request revision, shortcut preference,
+  domain terminal ordering and accepted successor publication. Ordinary tool
+  switches stay synchronous. A transform launch, queued nudge or terminal must
+  settle through existing interaction admission before successor preparation.
+  Repeat while pending does not duplicate launch. Stale/superseded requests
+  cannot activate their tool or run an activation-dependent text callback.
+- Deleted: old inline activation policy and preferred shortcut ref from Overlay;
+  brush-tip normalization moved with tool preference policy. No second command
+  queue, canonical tool store, renderer owner or fallback added.
+- Ownership: fresh tool reads come from the existing editor-session adapter,
+  including same-turn updates; no React-render-lag mirror used for activation.
+  Opening binding is workspace-session ID plus renderer object/generation;
+  retirement also invalidates request revision. Overlay 9,072 -> 9,051 physical
+  lines; hard ceiling ratcheted to audit count 9,052. New owner is 118 lines,
+  not a replacement integration root. Remaining tool algorithms stay put.
+- Critic: repair 1 included queued nudge readiness in the existing pending-work
+  probe. Final PASS; repair 2 not needed. Mocked readiness tests do not claim
+  to independently exercise the React hook's scheduler.
+- Checks: 4 focused files / 29 tests, app typecheck, boundary/structure audit,
+  fresh instrumented desktop package. Packaged full transform kernel scenario,
+  Type Tool -> transform -> Escape -> text reentry, and two 35-tool/3-round
+  traversals passed. The final traversal waits for each requested active tool;
+  zero settled DOM/listener growth, zero page or unexpected console errors.
+- Harness correction: first tool traversal failed before switching because it
+  queried removed lighttable-toolbox selectors. It now addresses the current
+  shared toolbar and tests active publication, not clicks alone. No app control
+  or behavior was changed to satisfy that test.
+- Evidence: tmp/task416-tool-switching-verified/report.json;
+  tmp/type-tool-smoke/type-tool.json; tmp/transform-kernel-smoke/report.json;
+  tmp/transform-kernel-smoke/task416-o02b-handoff.json.
+- Performance sample: same rectangle/translate/Exposure fixture and instrumented
+  mode: browser-local slider feedback 16.07 -> 17.04 ms; transform settlement
+  49.12 -> 48.12 ms. Exact undo/redo true, no page errors. This single before/after
+  sample is a regression signal, not a statistical performance qualification.
+  End-to-end harness time is not the input-to-preview metric.
+- Open: outer async text/layer work that runs before requesting activation is
+  still O03/O05 identity-binding work. Existing participant nudge failure policy
+  was not redesigned. Temporary tools, history/save/layer-change and host-blur
+  terminal policies still require O02c. Wider baseline matrix remains O01 work.
+- Next: O02c history prerequisites, preserving exact opening scope across await.

@@ -124,7 +124,7 @@ export interface TransformSessionDependencies {
 export interface TransformSessionController {
   state: TransformSessionState | null;
   frameOverride: TransformSessionFrame | null;
-  begin(): void;
+  begin(): Promise<void>;
   update(matrix: AffineMatrix): TransformSessionState | null;
   updateProjective(quad: TransformQuad): TransformSessionState | null;
   checkpoint(): void;
@@ -134,6 +134,7 @@ export interface TransformSessionController {
   cancel(): void;
   reset(): void;
   isActive(): boolean;
+  hasPendingWork(): boolean;
   ownsTemporaryMove(): boolean;
   repeat(duplicate?: boolean): void;
   nudge(x: number, y: number): void;
@@ -167,6 +168,7 @@ export const useTransformSessionController = (
   const settlementOwnerRef = useRef<TransformSettlementOwner | null>(null);
   settlementOwnerRef.current ??= new TransformSettlementOwner();
   const launchPromiseRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingLaunchRef = useRef<Promise<void> | null>(null);
   const [state, setState] = useState<TransformSessionState | null>(null);
   const [frameOverride, setFrameOverrideState] = useState<TransformSessionFrame | null>(null);
   const frameOverrideRef = useRef<TransformSessionFrame | null>(null);
@@ -182,6 +184,7 @@ export const useTransformSessionController = (
   const automaticLaunchKeyRef = useRef<string | null>(null);
   const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
   const nudgeTransactionRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingNudgeRef = useRef<Promise<void> | null>(null);
   const temporaryMoveRef = useRef(false);
   const temporaryMoveOwnerToolRef = useRef<string | null>(null);
   const auxiliaryOwnerRef = useRef<AuxiliaryTransformSessionOwner | null>(null);
@@ -610,6 +613,11 @@ export const useTransformSessionController = (
     const launch = launchPromiseRef.current.then(() => beginNow(
       reportEmptyLayer, allowInactiveTool
     ));
+    pendingLaunchRef.current = launch;
+    void launch.then(
+      () => { if (pendingLaunchRef.current === launch) pendingLaunchRef.current = null; },
+      () => { if (pendingLaunchRef.current === launch) pendingLaunchRef.current = null; }
+    );
     launchPromiseRef.current = launch.catch((reason) => {
       dependenciesRef.current.setError(
         reason instanceof Error ? reason.message : 'The transform could not be opened.'
@@ -784,6 +792,12 @@ export const useTransformSessionController = (
         reason instanceof Error ? reason.message : 'The content could not be moved.'
       );
     });
+    const pendingNudge = nudgeTransactionRef.current;
+    pendingNudgeRef.current = pendingNudge;
+    const retireNudge = () => {
+      if (pendingNudgeRef.current === pendingNudge) pendingNudgeRef.current = null;
+    };
+    void pendingNudge.then(retireNudge, retireNudge);
   }, [begin, finish, isActive, nudge]);
 
   const commitPending = useCallback(async () => {
@@ -945,7 +959,7 @@ export const useTransformSessionController = (
   return {
     state,
     frameOverride,
-    begin: () => { void begin(); },
+    begin: () => begin(),
     update,
     updateProjective,
     checkpoint,
@@ -955,6 +969,8 @@ export const useTransformSessionController = (
     cancel: () => { void finish(false); },
     reset,
     isActive,
+    hasPendingWork: () => pendingLaunchRef.current !== null
+      || pendingNudgeRef.current !== null || settlementOwnerRef.current!.isPending(),
     ownsTemporaryMove: () => temporaryMoveRef.current,
     repeat,
     nudge,

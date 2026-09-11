@@ -50,7 +50,7 @@ export const latestEditorSessionForUpdate = (
 export const useDocumentEditorSession = (
   documentSession?: DocumentSession,
   applicationSession?: EditorApplicationSession
-): [EditorSession, Dispatch<SetStateAction<EditorSession>>] => {
+): [EditorSession, Dispatch<SetStateAction<EditorSession>>, () => EditorSession] => {
   const [localSession, setLocalSession] = useState<EditorSession>(createEditorSession);
   const localDocumentState = useMemo(
     () => documentEditorStateFrom(localSession),
@@ -85,13 +85,15 @@ export const useDocumentEditorSession = (
   const editorSessionRef = useRef(editorSession);
   editorSessionRef.current = editorSession;
 
+  const readEditorSession = useCallback(() => latestEditorSessionForUpdate(
+    editorSessionRef.current,
+    documentSession?.getSnapshot().editor,
+    applicationSession?.getSnapshot(),
+  ), [applicationSession, documentSession]);
+
   const updateEditorSession = useCallback<Dispatch<SetStateAction<EditorSession>>>(
     (update) => {
-      const current = latestEditorSessionForUpdate(
-        editorSessionRef.current,
-        documentSession?.getSnapshot().editor,
-        applicationSession?.getSnapshot(),
-      );
+      const current = readEditorSession();
       const next = resolveUpdate(current, update);
       editorSessionRef.current = next;
       const documentInteractionChanged = next.activeChannel !== current.activeChannel
@@ -106,10 +108,10 @@ export const useDocumentEditorSession = (
       applicationSession?.publishCombinedSession(next);
       if (!documentSession || !applicationSession) setLocalSession(next);
     },
-    [applicationSession, documentSession]
+    [applicationSession, documentSession, readEditorSession]
   );
 
-  return [editorSession, updateEditorSession];
+  return [editorSession, updateEditorSession, readEditorSession];
 };
 
 export interface DocumentViewportState {

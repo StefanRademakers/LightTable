@@ -100,10 +100,8 @@ import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailCon
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { useEditorNotifications } from './editor/notifications/useEditorNotifications';
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
-import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
+import { PersistentToolActivationOwner, applyPersistentToolPreference } from './application/tools/PersistentToolActivationOwner';
 import { cancelActiveEditorOperation } from './application/interactions/cancelActiveEditorOperation';
-import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
-import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brushPresets';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import type { PaintBrushStrokePlan } from './editor/tools/paint/sampledBrushTypes';
@@ -902,7 +900,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelPenPathRef = useRef<() => boolean>(() => false);
   const undoPenAnchorRef = useRef<() => boolean>(() => false);
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
-  const preferredToolByShortcutRef = useRef<Partial<Record<string, ToolId>>>({});
+  const persistentToolActivationRef = useRef(new PersistentToolActivationOwner());
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const cutSelectedContentRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
@@ -1029,6 +1027,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
   useLayoutEffect(() => () => {
+    persistentToolActivationRef.current.retire();
     void interactionTransitions.request('cancel-on-document-retire');
   }, [interactionTransitions, workspaceDocumentId]);
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -1320,7 +1319,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [faceWarpProtectedFeature, setFaceWarpProtectedFeature] =
     useState<FaceWarpProtectedFeature>('eyes');
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
-  const [editorSession, setEditorSession] = useDocumentEditorSession(
+  const [editorSession, setEditorSession, readEditorSession] = useDocumentEditorSession(
     documentSession,
     applicationEditorSession
   );
@@ -4102,7 +4101,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       documentKind: workspaceDocumentKind,
       saving,
       activeTool: editorSession.activeTool,
-      preferredTools: preferredToolByShortcutRef.current,
+      preferredTools: persistentToolActivationRef.current.preferredTools,
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
       hasSelection: editorSession.selection.length > 0,
       hasSelectionClipboard: selectionClipboardAvailable,
@@ -4869,9 +4868,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     requestRecovery: editorDialogs.requestMissingFontRecovery,
     beginEditing: (layerId, offset, affinity) => {
       void layerPanelController.select(layerId).then(() => {
-        activatePersistentTool('text-point');
-        textEditingController.begin(layerId, offset, affinity ?? 'downstream');
-        showProperties({ kind: 'layer', layerId });
+        activatePersistentTool('text-point', () => {
+          textEditingController.begin(layerId, offset, affinity ?? 'downstream');
+          showProperties({ kind: 'layer', layerId });
+        });
       });
     },
     setStatus: setGradeStatus,
@@ -7053,57 +7053,35 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return commit ? transaction.transaction.commit() : transaction.transaction.cancel();
   };
 
-  const activatePersistentTool = (requestedTool: ToolId) => {
-    if (cropBounds) setCropBounds(null);
-    const shortcutGroup = toolShortcutGroupFor(requestedTool);
-    if (shortcutGroup) {
-      preferredToolByShortcutRef.current[shortcutGroup.key] = requestedTool;
-    }
-    if (requestedTool !== 'text-point' && requestedTool !== 'text-vertical') {
-      pointTextCapabilityGenerationRef.current += 1;
-      commitPointTextCreation();
-      textEditingController.finish();
-    }
-    if (
-      editorSession.activeTool === 'warp'
-      && requestedTool !== 'warp'
-      && warpSessionController.active
-    ) {
-      warpSessionController.reset();
-    }
-    if (editorSession.activeTool === 'face-warp' && requestedTool !== 'face-warp') {
-      faceWarpSessionController.reset();
-      faceWarpDetectionController.reset();
-    }
-    const plan = planPersistentToolActivation(
-      editorSession.activeTool,
-      requestedTool,
-      transformSession.isActive()
-    );
-    if (plan.finishTransform) transformSession.commit();
-    if (plan.restartTransform) transformSession.begin();
-    if (plan.nextTool) {
-      if (
-        (selectionSessionController.draft || editorSession.activeTool === 'select-magic-wand')
-        && editorSession.activeTool !== plan.nextTool
-      ) {
-        selectionSessionController.reset();
-      }
-      setEditorSession((current) => {
-        const nextTool = plan.nextTool as ToolId;
-        const sampledBrushRequiresPaintTip = (
-          nextTool === 'clone-stamp' || nextTool === 'healing-brush'
-        ) && resolveBrushPreset(current.brush.presetId).engine !== 'paint';
-        if (current.activeTool === nextTool && !sampledBrushRequiresPaintTip) return current;
-        return {
-          ...current,
-          activeTool: nextTool,
-          brush: sampledBrushRequiresPaintTip
-            ? { ...current.brush, ...brushPresetChange('round') }
-            : current.brush
-        };
-      });
-    }
+  const activatePersistentTool = (requestedTool: ToolId, afterActivation?: () => void) => {
+    const openingDocumentId = workspaceDocumentIdRef.current;
+    const openingRenderer = engineRef.current;
+    const openingGeneration = rendererLifecycle.getSnapshot().generation;
+    const operation = persistentToolActivationRef.current.activate(requestedTool, {
+      isCurrent: () => workspaceDocumentIdRef.current === openingDocumentId
+        && engineRef.current === openingRenderer
+        && rendererLifecycle.getSnapshot().generation === openingGeneration,
+      currentTool: () => readEditorSession().activeTool,
+      clearCrop: () => setCropBounds(null),
+      text: {
+        invalidatePointCreation: () => { pointTextCapabilityGenerationRef.current += 1; },
+        commitPointCreation: commitPointTextCreation,
+        finishEditing: () => textEditingController.finish()
+      },
+      warp: { isActive: () => warpSessionController.active, reset: () => warpSessionController.reset() },
+      faceWarp: { reset: () => faceWarpSessionController.reset(), resetDetection: () => faceWarpDetectionController.reset() },
+      transform: {
+        isActive: transformSession.isActive, hasPendingWork: transformSession.hasPendingWork,
+        begin: transformSession.begin
+      },
+      settleInteraction: settleMountedDocumentInteraction,
+      selection: { hasDraft: () => Boolean(selectionSessionController.draft), reset: selectionSessionController.reset },
+      publishTool: (tool) => setEditorSession((current) => applyPersistentToolPreference(current, tool))
+    }, afterActivation);
+    void operation.then(undefined, (reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'Tool activation failed.');
+    });
+    return operation;
   };
   activateToolRef.current = activatePersistentTool;
 
@@ -7729,8 +7707,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
         pointTextController.cancel();
-        activatePersistentTool('text-point');
-        requestExistingFlowTextEditing(layerId);
+        activatePersistentTool('text-point', () => requestExistingFlowTextEditing(layerId));
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
       onConvertTextToShape={requestTextToShape}
@@ -7980,8 +7957,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         type: 'text.set-layout', layerIds: [layerId] }
     );
     if (!changed) return;
-    activatePersistentTool('text-point');
-    if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
+    activatePersistentTool('text-point', () => {
+      if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
+    });
   };
   const beginTextPropertyGesture = () =>
     textPropertyGestureController.begin(activeFlowTextPropertyLayer?.id);
@@ -8499,9 +8477,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               void layerPanelController.select(layerId).then(() => {
                 editorDialogs.closePsdReport();
                 pointTextController.cancel();
-                activatePersistentTool('text-point');
-                requestExistingFlowTextEditing(layerId);
-                showProperties({ kind: 'layer', layerId });
+                activatePersistentTool('text-point', () => {
+                  requestExistingFlowTextEditing(layerId);
+                  showProperties({ kind: 'layer', layerId });
+                });
               });
             },
             onPreviewTextFont: missingFontReplacementActions.preview,

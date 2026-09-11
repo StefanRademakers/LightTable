@@ -1,10 +1,12 @@
 /** Retains one in-flight settlement without latching its failure forever. */
 export class TransformSettlementOwner {
-  private current: Promise<void> = Promise.resolve();
+  private current: Promise<void> | null = null;
 
   read(): Promise<void> {
-    return this.current;
+    return this.current ?? Promise.resolve();
   }
+
+  isPending(): boolean { return this.current !== null; }
 
   publish(operation: Promise<void>, reportFailure: (reason: unknown) => void): Promise<void> {
     this.current = operation;
@@ -19,7 +21,7 @@ export class TransformSettlementOwner {
   }
 
   private retire(operation: Promise<void>) {
-    if (this.current === operation) this.current = Promise.resolve();
+    if (this.current === operation) this.current = null;
   }
 }
 

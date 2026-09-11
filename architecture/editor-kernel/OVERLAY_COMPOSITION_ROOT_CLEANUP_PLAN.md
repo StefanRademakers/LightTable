@@ -1,6 +1,6 @@
 # Overlay composition-root cleanup
 
-Status: **executing; O02a Escape extraction accepted, wider O01/O02 open**.
+Status: **executing; O02a/O02b accepted, wider O01/O02 open**.
 Owner requested 2026-09-11.
 Checkpoint: `df000cc5` (`main`), before cleanup. No push requested.
 
@@ -122,8 +122,12 @@ class names: reuse existing owners before creating a new one.
   - [x] O02a: Escape precedence owner, lazy participant evaluation; packaged
     Type Tool -> transform -> Escape -> text reentry passed. Critic PASS after
     repair 1; repair 2 not needed. Wider asynchronous cancellation unchanged.
-  - [ ] O02b: persistent activation and preferred shortcut owner, including
-    pending transform settlement and exact successor admission.
+  - [x] O02b: persistent activation and preferred shortcut owner, including
+    pending transform settlement and workspace/renderer-bound successor admission.
+    Critic PASS after repair 1 (queued nudge readiness); repair 2 not needed.
+    Packaged 35-tool switching, text/transform/Escape/reentry and transform pixel
+    history/Exposure proof passed. Outer pre-activation async callbacks remain
+    in O03/O05, not certified by this extraction.
   - [ ] O02c: history/save/export/target-change prerequisites, temporary tools
     and host deactivation; reconcile all scattered terminal policies.
 - [ ] O03 — Extract document publication and lifecycle binding. Move semantic

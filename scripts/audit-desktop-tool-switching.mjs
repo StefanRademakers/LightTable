@@ -56,14 +56,14 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const activeToolStyle = async () => page
-    .locator('.lighttable-toolbox__button[aria-pressed="true"]')
+    .locator('nav[aria-label="Image tools"] .ui-toolbar__button[aria-pressed="true"]')
     .first()
     .evaluate((button) => ({
       background: getComputedStyle(button).backgroundColor,
       border: getComputedStyle(button).borderColor
     }));
   const activeStyleAtRest = await activeToolStyle();
-  await page.locator('.lighttable-toolbox__button[aria-pressed="true"]').first().hover();
+  await page.locator('nav[aria-label="Image tools"] .ui-toolbar__button[aria-pressed="true"]').first().hover();
   const activeStyleOnHover = await activeToolStyle();
   if (activeStyleOnHover.background !== activeStyleAtRest.background
     || activeStyleOnHover.border !== activeStyleAtRest.border) {
@@ -86,28 +86,33 @@ try {
   });
 
   const switchEveryTool = async () => {
+    const waitForActiveTool = (label) => page.waitForFunction((expected) =>
+      [...document.querySelectorAll('nav[aria-label="Image tools"] button[aria-pressed="true"]')]
+        .some((button) => button.getAttribute('aria-label') === expected), label,
+    { timeout: 10_000 });
     const directLabels = await page.locator(
-      '.lighttable-toolbox__content > .lighttable-toolbox__button'
+      'nav[aria-label="Image tools"] > .ui-toolbar__button:not([aria-expanded])'
     ).evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean));
-    const familyLabels = await page.locator(
-      '.lighttable-toolbox__group > .lighttable-toolbox__group-menu-button'
-    ).evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean));
+    const familyLabels = await page.locator('nav[aria-label="Image tools"] [data-tool-group]')
+      .evaluateAll((groups) => groups.map((group) => group.getAttribute('data-tool-group')));
     const visited = [];
     for (const label of directLabels) {
       await page.getByRole('button', { name: label, exact: true }).click();
+      await waitForActiveTool(label);
       visited.push(label);
     }
     for (const familyLabel of familyLabels) {
-      const familyButton = page.getByRole('button', { name: familyLabel, exact: true });
-      const family = familyButton.locator('..');
+      const family = page.locator(`nav[aria-label="Image tools"] [data-tool-group="${familyLabel}"]`);
+      const familyButton = family.locator(':scope > button');
       await familyButton.click();
-      const flyout = family.locator('.lighttable-toolbox__flyout:visible');
+      const flyout = family.getByRole('toolbar', { name: familyLabel, exact: true });
       const labels = await flyout.getByRole('button').evaluateAll((buttons) =>
         buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean));
       for (const label of labels) {
         await familyButton.click();
-        await family.locator('.lighttable-toolbox__flyout:visible')
+        await family.getByRole('toolbar', { name: familyLabel, exact: true })
           .getByRole('button', { name: label, exact: true }).click();
+        await waitForActiveTool(label);
         visited.push(label);
       }
     }
@@ -124,7 +129,7 @@ try {
       cdp.send('Memory.getDOMCounters'),
       page.evaluate(() => ({
         stopped: /document runtime stopped unexpectedly/i.test(document.body.innerText),
-        active: document.querySelector('.lighttable-toolbox__button[aria-pressed="true"]')
+        active: document.querySelector('nav[aria-label="Image tools"] .ui-toolbar__button[aria-pressed="true"]')
           ?.getAttribute('aria-label') ?? null,
         longTasks: globalThis.__lightTableToolSwitchLongTasks ?? []
       }))
