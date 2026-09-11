@@ -1,0 +1,2 @@
+Ik add een drop shadow fx aan een stukje wat ik ge copy paste heb op een nieuw laag.
+Maar de drop shadow -> komt echt een seconde later pas in beeld ofzo, vrij traag, lijkt een update ding te zijn.

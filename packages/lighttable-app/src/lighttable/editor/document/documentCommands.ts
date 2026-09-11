@@ -1589,13 +1589,16 @@ export const rasterizeLayer = (
 };
 
 /**
- * Returns a lossless merge plan for a Layers-panel selection.
+ * Returns a destructive merge plan for a Layers-panel selection.
  *
  * Selected layers must be contiguous siblings. Every semantic layer type is
  * composited through the same recursive renderer before replacement. The
  * destination is always a newly allocated full-canvas raster, so the
  * bottom-most selected layer does not itself need to be raster content.
- * Allowing gaps would
+ * Ordinary admitted merges preserve the surrounding composition. The explicit
+ * adjustment-layer exception instead preserves only the isolated selected
+ * subtree: the adjustment is baked into selected intrinsic content and may no
+ * longer affect unselected content below the replacement. Allowing gaps would
  * silently move unselected layers above or below the flattened result and
  * therefore change the document's appearance.
  */
@@ -1632,9 +1635,14 @@ export const getMergeLayersEligibility = (
     layers[0].id,
     indexes[0]
   );
+  // A selected adjustment above an intrinsic selected base is intentionally
+  // baked against that base in isolation (destructive Merge Down semantics).
+  // A range beginning with an adjustment has no selected input and therefore
+  // still depends on the unselected backdrop.
   const dependsOnExternalBackdrop = hasExternalBackdrop && layers.some((layer, index) => (
     layer.blendMode !== 'normal'
-    || layer.type === 'adjustment'
+    || (layer.type === 'adjustment'
+      && !layers.slice(0, index).some((candidate) => candidate.type !== 'adjustment'))
     || (layer.type === 'group' && layer.compositing === 'pass-through')
     || (layer.clipping && !layers.slice(0, index).some((candidate) => !candidate.clipping))
   ));

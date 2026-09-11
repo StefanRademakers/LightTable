@@ -1,0 +1,2 @@
+blur filter layer en layer eronder geselcteerd, wil merge down doen, krijg ik die error melding, dit werkte en willen we ook dat dat werkt.
+die filter layers lijken niet te mergen nu

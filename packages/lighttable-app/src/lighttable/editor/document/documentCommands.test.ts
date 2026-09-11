@@ -631,7 +631,7 @@ describe('LightTable document commands', () => {
         pair = append(pair, topKind, `Top ${topKind}`);
         const [bottomId, topId] = selectedRootIds(pair, 2);
         const plan = getMergeLayersPlan(pair, [topId, bottomId]);
-        const boundaryDependsOnBackground = bottomKind === 'adjustment' || topKind === 'adjustment';
+        const boundaryDependsOnBackground = bottomKind === 'adjustment';
         if (boundaryDependsOnBackground) {
           expect(plan, `${bottomKind} below ${topKind}`).toBeNull();
           expect(mergeLayers(pair, [topId, bottomId])).toBe(pair);
@@ -652,11 +652,6 @@ describe('LightTable document commands', () => {
           const triple = append(pair, thirdKind, `Topmost ${thirdKind}`);
           const ids = selectedRootIds(triple, 3);
           const triplePlan = getMergeLayersPlan(triple, [...ids].reverse());
-          if (thirdKind === 'adjustment') {
-            expect(triplePlan, `${bottomKind}/${topKind}/${thirdKind}`).toBeNull();
-            expect(mergeLayers(triple, [...ids].reverse())).toBe(triple);
-            continue;
-          }
           expect(triplePlan, `${bottomKind}/${topKind}/${thirdKind}`).toMatchObject({
             layerIds: ids, destinationId: ids[0], name: `Topmost ${thirdKind}`
           });
@@ -820,10 +815,13 @@ describe('LightTable document commands', () => {
       'Selected grade'
     );
     const selectedIds = selectedWithGrade.layers.slice(1).map(({ id }) => id);
-    expect(getMergeLayersEligibility(selectedWithGrade, selectedIds)).toMatchObject({
-      ok: false,
-      reason: 'external-backdrop',
-      message: expect.stringContaining('content below')
+    expect(getMergeLayersEligibility(selectedWithGrade, selectedIds)).toEqual({
+      ok: true,
+      plan: {
+        destinationId: selectedBase.activeLayerId,
+        layerIds: selectedIds,
+        name: 'Selected grade'
+      }
     });
 
     const withChild = createRasterLayer(base, 'Group child');

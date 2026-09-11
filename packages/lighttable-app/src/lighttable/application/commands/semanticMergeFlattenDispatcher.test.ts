@@ -15,12 +15,12 @@ import {
 describe('semantic merge and flatten eligibility', () => {
   it('explains when selected layers cannot be isolated from their lower backdrop', async () => {
     const base = createImageDocument('Backdrop merge', 32, 24, 'base');
-    const selectedBase = createRasterLayer(base, 'Selected base');
-    const document = createAdjustmentLayer(
-      selectedBase,
+    const withAdjustment = createAdjustmentLayer(
+      base,
       createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
       'Grade'
     );
+    const document = createRasterLayer(withAdjustment, 'Selected top');
     const layerIds = document.layers.slice(1).map(({ id }) => id);
     const execute = vi.fn();
 

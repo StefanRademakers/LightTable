@@ -1,0 +1,1 @@
+laag met fx -> mist ook een rasterize icon -> die laag wil je ook makkelijk plat kunnen slaan naar pixels 

@@ -239,6 +239,8 @@
     "smoke:desktop:mask-kernel": "node scripts/smoke-desktop-mask-kernel.mjs",
     "smoke:desktop:mask-kernel:build": "npm run package:desktop:verify && npm run smoke:desktop:mask-kernel --",
     "smoke:desktop:layer-merge-matrix:build": "npm run package:desktop:verify && npm run smoke:desktop:layer-merge-matrix --",
+    "smoke:desktop:layer-rasterize-affordance": "node scripts/smoke-desktop-layer-rasterize-affordance.mjs",
+    "smoke:desktop:layer-rasterize-affordance:build": "npm run package:desktop:verify && npm run smoke:desktop:layer-rasterize-affordance --",
     "smoke:desktop:system-fonts": "node scripts/smoke-desktop-system-fonts.mjs",
     "smoke:desktop:missing-font-recovery": "node scripts/smoke-desktop-missing-font-recovery.mjs",
     "smoke:desktop:system-fonts:build": "npm run package:desktop:verify && npm run smoke:desktop:system-fonts --",

@@ -43,12 +43,21 @@ submitted cleanup. No entry point has a direct finalization fallback.
 
 ## Explicit fail-closed cases
 
-An isolated subtree cannot reproduce a result that reads an unselected lower
-backdrop. Merge therefore rejects a selected adjustment, non-normal blend,
+An isolated subtree cannot reproduce every stack relationship that reads an
+unselected lower backdrop. Merge therefore rejects a non-normal blend,
 pass-through group or incomplete clipping chain when a lower backdrop is
 reachable, including through pass-through ancestors. Flatten Group applies the
 same ancestor rule. The shared eligibility result supplies the same explanatory
 message to local UI, Actions and MCP.
+
+Selected adjustment layers above a selected intrinsic-content base are the
+deliberate exception: Merge Down evaluates the selected contiguous range in
+isolation and bakes the adjustment into that base. A range beginning with an
+adjustment still fails closed because it has no selected input. This matches
+destructive editor semantics: after the merge the adjustment no longer
+processes unselected lower siblings, so the surrounding composition may
+intentionally change. It is one explicit command contract, not a renderer
+fallback.
 
 Correction adjustment layers use Merge Down; only pixel-generating adjustment
 layers rasterize independently. This is a deliberate correctness boundary, not

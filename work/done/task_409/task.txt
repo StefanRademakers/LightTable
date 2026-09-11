@@ -1,0 +1,2 @@
+local graded layer -> ook geen rasterize icon
+check dit voor alle modes/ fx en adjustment 

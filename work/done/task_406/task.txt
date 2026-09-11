@@ -1,0 +1,1 @@
+een gradient layer gemaakt -> zie geen rasterize icon, maar kan ook geen selection marque maken en een deel draggen -> rasterize icon is missing. kan ook geen deel copy pasten... (zou fijn zijn als dat sowieso mogelijk is, we hebben al een raster versie in de stack toch>?)
