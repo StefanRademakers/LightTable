@@ -19,7 +19,11 @@ import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import type { DesktopFilePayload, DesktopSavePayload } from './desktopBridge';
+import type {
+  DesktopFilePayload,
+  DesktopSavePayload,
+  DesktopWindowPresentationState
+} from './desktopBridge';
 import { SourceReplacementAuthority } from './sourceReplacementAuthority';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
 import {
@@ -146,12 +150,13 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 
 let mainWindow: BrowserWindow | null = null;
 
-const windowPresentationActive = (window: BrowserWindow): boolean => (
-  !window.isMinimized() && (
-    (window.isVisible() && window.isFocused())
-    || (process.env.LIGHTTABLE_AUTOMATION_HEADLESS === '1' && !window.isVisible())
-  )
-);
+const windowPresentationState = (window: BrowserWindow): DesktopWindowPresentationState => {
+  if (window.isMinimized()) return 'minimized';
+  if (!window.isVisible()) {
+    return process.env.LIGHTTABLE_AUTOMATION_HEADLESS === '1' ? 'active' : 'hidden';
+  }
+  return window.isFocused() ? 'active' : 'blurred';
+};
 let applicationCloseApproved = false;
 let applicationCloseRequestPending = false;
 let applicationCloseRequestKind: 'window' | 'application' | null = null;
@@ -762,20 +767,20 @@ async function createWindow(): Promise<void> {
   });
   mainWindow = window;
 
-  const publishPresentationActive = () => {
+  const publishPresentationState = () => {
     if (!window.webContents.isDestroyed()) {
       window.webContents.send(
-        'lighttable:window-presentation-active',
-        windowPresentationActive(window)
+        'lighttable:window-presentation-state',
+        windowPresentationState(window)
       );
     }
   };
-  window.on('show', publishPresentationActive);
-  window.on('hide', publishPresentationActive);
-  window.on('minimize', publishPresentationActive);
-  window.on('restore', publishPresentationActive);
-  window.on('focus', publishPresentationActive);
-  window.on('blur', publishPresentationActive);
+  window.on('show', publishPresentationState);
+  window.on('hide', publishPresentationState);
+  window.on('minimize', publishPresentationState);
+  window.on('restore', publishPresentationState);
+  window.on('focus', publishPresentationState);
+  window.on('blur', publishPresentationState);
 
   window.on('close', (event) => {
     // Playwright closes automation windows directly during teardown. Keep that
@@ -1999,10 +2004,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     mainWindow?.setFullScreen(enabled);
   });
 
-  ipcMain.handle('lighttable:window-presentation-active', (event) => {
+  ipcMain.handle('lighttable:window-presentation-state', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const window = BrowserWindow.fromWebContents(event.sender);
-    return window ? windowPresentationActive(window) : false;
+    return window ? windowPresentationState(window) : 'hidden';
   });
 
   ipcMain.handle('lighttable:toggle-developer-tools', (event) => {

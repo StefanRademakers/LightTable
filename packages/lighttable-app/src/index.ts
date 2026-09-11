@@ -142,6 +142,7 @@ export { useLightTableRecipe } from './lighttable/useLightTableRecipe';
 export type { BasicAdjustments } from './lighttable/types';
 export type {
   LightTableHost,
+  LightTableHostPresentationState,
   LightTableMediaBrowser,
   LightTableMediaItem,
   LightTableRecentFile,

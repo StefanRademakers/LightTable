@@ -23,10 +23,14 @@ owner and clears transients in `useLayoutEffect` before paint/input; callbacks
 and zoom/marquee terminal paths validate that identity again. An old
 gesture is never relabelled with the newly active document.
 
-The desktop host owns native foreground truth. Minimize and blur synchronously
-cancel admitted mutable gestures before renderer suspension. Resume registers a
-new monotonic presentation attempt, re-blits the retained final texture into the
-new swap-chain surface, and exposes canvas/tool projections only after that
+The desktop host owns native foreground truth and distinguishes active, blurred,
+minimized and hidden states. Every foreground loss synchronously cancels admitted
+mutable gestures before renderer suspension. Blur retires interactive readiness,
+but an owner-matched frame already proven for the same document and renderer
+generation remains resident and visible. Minimize or hide also retires visible
+residency because the swap-chain surface is not durable there. Resume registers
+a new monotonic presentation attempt, re-blits the retained final texture into
+the swap-chain surface, and exposes input/tool projections only after that
 attempt's GPU and compositor boundary completes. It does not recompute the
 canonical document graph or manufacture history.
 
@@ -66,16 +70,21 @@ canonical document graph or manufacture history.
   an old A waiter release the newer A gate or publish B as A's thumbnail.
 - Closing a document disposes its session; reopening the same source creates a
   new session that crosses the same pending-hidden -> presented-visible gate.
-- Native minimize and blur suspend the application renderer and its canonical
-  active-document projection. No background frame is submitted while inactive.
+- Native minimize, hide and blur suspend the application renderer and its
+  interactive active-document projection. During blur the last owner-matched
+  canvas frame stays visible while input and transient tool projections remain
+  blocked. Minimize/hide keep the surface hidden until a new presentation attempt
+  completes. No background frame is submitted while inactive.
 - Foreground loss cancels an active marquee before suspension; it creates no
   history entry and the next admitted gesture commits exactly once.
 - Suspend retires pending presentation and first-frame generations. A stale GPU
   completion or double-rAF cannot expose a restored surface, publish startup
   timing or consume deferred first-frame initialization.
-- Restore/refocus performs one bounded viewport re-blit from the retained final
-  texture. Committed pixels/resources remain resident; no document-composite
-  replay burst is required.
+- Refocus performs one bounded viewport re-blit from the retained final texture
+  while the proven resident frame remains visible without a loading placeholder.
+  Restore after minimize/hide performs the same re-blit while the canvas remains
+  pending-hidden/loading until certified. Neither path requires a document-
+  composite replay burst.
 - A document rebind first invalidates pending renderer work, then releases all
   active presentation scratch and document-specific interaction projections.
   This includes the GPU-only smart-selection candidate mask. Shared canonical
@@ -109,8 +118,11 @@ canonical document graph or manufacture history.
   interrupted-marquee rollback, post-cancel gesture recovery and immediate
   minimize/restore while a document-rebind presentation is pending. Telemetry
   records zero inactive submissions and at most three resume submissions;
-  restored pixels remain source-equivalent. The foreground critic found and
-  closed stale presentation-generation and first-frame-completion races.
+  restored pixels remain source-equivalent. It also proves an owner-matched
+  resident frame stays pixel-equivalent and visible without the loading
+  placeholder during blur, while minimize and a pending document rebind remain
+  hidden. The foreground critic found and closed stale presentation-generation
+  and first-frame-completion races.
 - `WebGpuEngine.presentation.test.ts` proves suspend re-arms first-frame
   ownership when an in-flight completion is retired.
 - The same focused suite proves document detach clears every pointer-hot overlay

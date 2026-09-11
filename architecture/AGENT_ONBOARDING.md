@@ -306,11 +306,14 @@ View/multi-document reset, updated 2026-09-09: read
 [View and multi-document vertical slice](editor-kernel/VIEW_AND_MULTI_DOCUMENT_VERTICAL_SLICE.md)
 before changing pan/zoom, workspace geometry, retained-canvas presentation,
 window foreground handling or renderer activity. Electron native window state
-is the desktop foreground authority. Blur/minimize synchronously cancel active
+is the desktop foreground authority and distinguishes active, blurred,
+minimized and hidden states. Foreground loss synchronously cancels active
 mutable gestures before renderer suspension; React only projects that state.
-Suspend retires the current presentation and first-frame generation. Restore
-must re-blit the retained final texture and cross a new GPU/compositor attempt
-before exposing canvas or overlays; never mark a surface ready from an older
+Blur retires interactive readiness while preserving an owner-matched proven
+canvas frame; minimize/hide also retire visible residency because the swap-chain
+surface is not durable there. Restore must re-blit the retained final texture and
+cross a new GPU/compositor attempt before exposing input or tool overlays; never
+mark a surface ready from an older
 double-rAF, force `active: true` in a document projection, or recompute the
 document graph merely to restore the swap chain. Document rebind must cross
 `WebGpuEngine.clearDocumentInteractionPresentation()` before the next document

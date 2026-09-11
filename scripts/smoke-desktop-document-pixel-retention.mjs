@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import {
   resolveDesktopTestLaunch,
@@ -62,6 +63,20 @@ const assertSourceEquivalent = (label, baseline, current) => {
       baseline, current, alphaDelta, opaqueDelta, rgbDelta
     })}`);
   }
+};
+
+const imageDifferenceRatio = async (first, second) => {
+  const [a, b] = await Promise.all([
+    sharp(first).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(second).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  ]);
+  if (a.info.width !== b.info.width || a.info.height !== b.info.height
+    || a.info.channels !== b.info.channels) return Number.POSITIVE_INFINITY;
+  let difference = 0;
+  for (let index = 0; index < a.data.length; index += 1) {
+    difference += Math.abs(a.data[index] - b.data[index]);
+  }
+  return difference / (a.data.length * 255);
 };
 
 const mimeTypeFor = (file) => ({
@@ -149,6 +164,7 @@ try {
       const next = {
         documentId: workspace.activeDocumentId,
         ready: viewport.dataset.presentationReady === 'true',
+        resident: viewport.dataset.presentationResident === 'true',
         busy: viewport.getAttribute('aria-busy'),
         canvasVisibility: getComputedStyle(
           viewport.querySelector('.lighttable-viewport__canvas')
@@ -156,13 +172,20 @@ try {
       };
       const previous = events.at(-1);
       if (!previous || previous.documentId !== next.documentId || previous.ready !== next.ready
+        || previous.resident !== next.resident
         || previous.canvasVisibility !== next.canvasVisibility) events.push(next);
     };
     const observer = new MutationObserver(record);
     observer.observe(document.body, {
       subtree: true,
       attributes: true,
-      attributeFilter: ['aria-selected', 'aria-busy', 'class', 'data-presentation-ready']
+      attributeFilter: [
+        'aria-selected',
+        'aria-busy',
+        'class',
+        'data-presentation-ready',
+        'data-presentation-resident'
+      ]
     });
     window.__lightTablePresentationProbe = {
       clear: () => { events.length = 0; },
@@ -172,15 +195,25 @@ try {
     record();
   });
 
-  const assertPresentationTransition = async (documentId, label) => {
+  const assertPresentationTransition = async (
+    documentId,
+    label,
+    pendingCanvasVisibility = 'hidden',
+    pendingResident = false
+  ) => {
     const events = await page.evaluate(() => window.__lightTablePresentationProbe?.read() ?? []);
     const owned = events.filter((event) => event.documentId === documentId);
-    const pending = owned.find((event) => !event.ready);
+    const pending = owned.filter((event) => !event.ready);
     const presented = owned.findLast((event) => event.ready);
-    if (!pending || pending.canvasVisibility !== 'hidden' || pending.busy !== 'true') {
+    if (pending.length === 0 || pending.some((event) => (
+      event.canvasVisibility !== pendingCanvasVisibility
+      || event.resident !== pendingResident
+      || event.busy !== 'true'
+    ))) {
       throw new Error(`${label} exposed a retained frame before presentation: ${JSON.stringify(events)}`);
     }
-    if (!presented || presented.canvasVisibility !== 'visible' || presented.busy !== 'false') {
+    if (!presented || !presented.resident
+      || presented.canvasVisibility !== 'visible' || presented.busy !== 'false') {
       throw new Error(`${label} did not publish its presented frame: ${JSON.stringify(events)}`);
     }
     return owned;
@@ -335,10 +368,13 @@ try {
     return {
       visibility: document.visibilityState,
       rendererActive: documentState?.renderer?.active,
-      presentationReady: viewport?.getAttribute('data-presentation-ready')
+      presentationReady: viewport?.getAttribute('data-presentation-ready'),
+      presentationResident: viewport?.getAttribute('data-presentation-resident')
     };
   }, reopenedSecondId);
-  if (minimizedState.rendererActive !== false || minimizedState.presentationReady !== 'false') {
+  if (minimizedState.rendererActive !== false
+    || minimizedState.presentationReady !== 'false'
+    || minimizedState.presentationResident !== 'false') {
     throw new Error(`Minimize did not suspend presentation: ${JSON.stringify(minimizedState)}`);
   }
   const hiddenTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
@@ -349,10 +385,19 @@ try {
     visibility: document.visibilityState,
     ready: document.querySelector('.lighttable-viewport')
       ?.getAttribute('data-presentation-ready'),
+    resident: document.querySelector('.lighttable-viewport')
+      ?.getAttribute('data-presentation-resident'),
     canvasVisibility: getComputedStyle(
       document.querySelector('.lighttable-viewport__canvas')
-    ).visibility
+    ).visibility,
+    loadingMessageVisible: Array.from(document.querySelectorAll('.lighttable-viewport__message'))
+      .some((element) => element.textContent?.includes('Loading image and WebGPU pipeline'))
   }));
+  if (minimizedPresentation.resident !== 'false'
+    || minimizedPresentation.canvasVisibility !== 'hidden'
+    || !minimizedPresentation.loadingMessageVisible) {
+    throw new Error(`Minimize exposed a non-durable canvas frame: ${JSON.stringify(minimizedPresentation)}`);
+  }
   await app.evaluate(async ({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) return;
@@ -381,6 +426,7 @@ try {
   }
   assertSourceEquivalent('Restored second document', secondBaseline,
     await previewMetrics(reopenedSecondId, 'png'));
+  const readyCanvasBeforeBlur = await page.locator('.lighttable-viewport__canvas').screenshot();
 
   // Focus loss is a separate Electron lifecycle signal from minimization.
   // Interrupt a real mutating pointer gesture so foreground loss also proves
@@ -401,11 +447,32 @@ try {
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.blur();
   });
-  await page.waitForFunction((id) => {
-    const viewport = document.querySelector('.lighttable-viewport');
-    return window.__lightTableAutomation?.queryDocument(id)?.renderer?.active === false
-      && viewport?.getAttribute('data-presentation-ready') === 'false';
-  }, reopenedSecondId);
+  await page.waitForFunction((id) => window.__lightTableAutomation
+    ?.queryDocument(id)?.renderer?.active === false, reopenedSecondId);
+  const blurredPresentation = await page.evaluate(() => ({
+    ready: document.querySelector('.lighttable-viewport')
+      ?.getAttribute('data-presentation-ready'),
+    resident: document.querySelector('.lighttable-viewport')
+      ?.getAttribute('data-presentation-resident'),
+    canvasVisibility: getComputedStyle(
+      document.querySelector('.lighttable-viewport__canvas')
+    ).visibility,
+    loadingMessageVisible: Array.from(document.querySelectorAll('.lighttable-viewport__message'))
+      .some((element) => element.textContent?.includes('Loading image and WebGPU pipeline'))
+  }));
+  if (blurredPresentation.ready !== 'false'
+    || blurredPresentation.resident !== 'true'
+    || blurredPresentation.canvasVisibility !== 'visible'
+    || blurredPresentation.loadingMessageVisible) {
+    throw new Error(`Blur hid a retained document frame: ${JSON.stringify(blurredPresentation)}`);
+  }
+  const blurredCanvas = await page.locator('.lighttable-viewport__canvas').screenshot();
+  const blurredCanvasDifference = await imageDifferenceRatio(readyCanvasBeforeBlur, blurredCanvas);
+  if (blurredCanvasDifference > 0.03) {
+    throw new Error(`Blur changed the visible retained pixels by ${(
+      blurredCanvasDifference * 100
+    ).toFixed(2)}%.`);
+  }
   await page.mouse.up();
   const interruptedGesture = await driver.queryDocument(reopenedSecondId);
   if (interruptedGesture.history.undoDepth !== beforeInterruptedGesture.history.undoDepth) {
@@ -430,7 +497,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.lighttable-viewport')
     ?.getAttribute('data-presentation-ready') === 'true');
   const refocusPresentation = await assertPresentationTransition(
-    reopenedSecondId, 'Blur and refocus'
+    reopenedSecondId, 'Blur and refocus', 'visible', true
   );
   const refocusedTelemetry = await driver.queryRenderTelemetry(reopenedSecondId);
   if ((refocusedTelemetry?.submittedFrames ?? 0) > 3) {
@@ -510,6 +577,7 @@ try {
     },
     blurRefocus: {
       interruptedGestureUndoDepth: interruptedGesture.history.undoDepth,
+      blurredCanvasDifference,
       blurredTelemetry,
       refocusPresentation,
       refocusedTelemetry

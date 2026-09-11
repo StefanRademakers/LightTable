@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LightTableHostPresentationService } from '../../../platform/LightTableHost';
+import type {
+  LightTableHostPresentationService,
+  LightTableHostPresentationState
+} from '../../../platform/LightTableHost';
 
 const pageIsVisible = () => document.visibilityState !== 'hidden';
+const initialPresentationState = (): LightTableHostPresentationState => (
+  pageIsVisible() ? 'active' : 'hidden'
+);
+
+export interface EditorHostPresentationActivity {
+  readonly active: boolean;
+  readonly retainResidentPresentation: boolean;
+}
 
 /**
  * Projects host foreground state into renderer activity.
@@ -14,17 +25,19 @@ export const useEditorHostPresentationActivity = (
   editorActive: boolean,
   source?: LightTableHostPresentationService,
   onDeactivate?: () => void
-): boolean => {
-  const [hostActive, setHostActive] = useState(pageIsVisible);
-  const hostActiveRef = useRef(hostActive);
+): EditorHostPresentationActivity => {
+  const [hostState, setHostState] = useState(initialPresentationState);
+  const hostStateRef = useRef(hostState);
   const onDeactivateRef = useRef(onDeactivate);
   onDeactivateRef.current = onDeactivate;
 
-  const publish = (active: boolean) => {
-    if (hostActiveRef.current === active) return;
-    if (!active) onDeactivateRef.current?.();
-    hostActiveRef.current = active;
-    setHostActive(active);
+  const publish = (state: LightTableHostPresentationState) => {
+    if (hostStateRef.current === state) return;
+    if (hostStateRef.current === 'active' && state !== 'active') {
+      onDeactivateRef.current?.();
+    }
+    hostStateRef.current = state;
+    setHostState(state);
   };
 
   useEffect(() => {
@@ -33,13 +46,13 @@ export const useEditorHostPresentationActivity = (
       let publicationRevision = 0;
       const refresh = () => {
         const requestedAtRevision = publicationRevision;
-        void source.current().then((active) => {
-          if (current && publicationRevision === requestedAtRevision) publish(active);
+        void source.current().then((state) => {
+          if (current && publicationRevision === requestedAtRevision) publish(state);
         }).catch(() => undefined);
       };
-      const unsubscribe = source.subscribe((active) => {
+      const unsubscribe = source.subscribe((state) => {
         publicationRevision += 1;
-        if (current) publish(active);
+        if (current) publish(state);
       });
       window.addEventListener('focus', refresh);
       document.addEventListener('visibilitychange', refresh);
@@ -51,9 +64,9 @@ export const useEditorHostPresentationActivity = (
         document.removeEventListener('visibilitychange', refresh);
       };
     }
-    const handleVisibility = () => publish(pageIsVisible());
-    const handleBlur = () => publish(false);
-    const handleFocus = () => publish(pageIsVisible());
+    const handleVisibility = () => publish(pageIsVisible() ? 'active' : 'hidden');
+    const handleBlur = () => publish('blurred');
+    const handleFocus = () => publish(pageIsVisible() ? 'active' : 'hidden');
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleFocus);
@@ -64,5 +77,8 @@ export const useEditorHostPresentationActivity = (
     };
   }, [source]);
 
-  return editorActive && hostActive;
+  return {
+    active: editorActive && hostState === 'active',
+    retainResidentPresentation: editorActive && hostState === 'blurred'
+  };
 };

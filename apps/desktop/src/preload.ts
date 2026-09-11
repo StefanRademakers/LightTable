@@ -11,11 +11,11 @@ const initialLaunchFiles = ipcRenderer.invoke('lighttable:take-launch-files');
 
 const bridge: LightTableDesktopBridge = {
   automationEnabled: process.argv.includes('--lighttable-automation'),
-  windowPresentationActive: () => ipcRenderer.invoke('lighttable:window-presentation-active'),
-  onWindowPresentationActive: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, active: boolean) => listener(active);
-    ipcRenderer.on('lighttable:window-presentation-active', handler);
-    return () => ipcRenderer.removeListener('lighttable:window-presentation-active', handler);
+  windowPresentationState: () => ipcRenderer.invoke('lighttable:window-presentation-state'),
+  onWindowPresentationState: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: Parameters<typeof listener>[0]) => listener(state);
+    ipcRenderer.on('lighttable:window-presentation-state', handler);
+    return () => ipcRenderer.removeListener('lighttable:window-presentation-state', handler);
   },
   toggleDeveloperTools: () => ipcRenderer.invoke('lighttable:toggle-developer-tools'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),

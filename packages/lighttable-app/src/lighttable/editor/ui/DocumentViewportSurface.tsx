@@ -49,6 +49,8 @@ export interface DocumentViewportSurfaceProps {
   transformState: TransformSessionState | null;
   /** True only after this document generation has presented into the canvas. */
   presentationReady?: boolean;
+  /** True while the canvas still contains a proven frame for this document generation. */
+  presentationResident?: boolean;
   loading: boolean;
   unavailable: boolean;
   onWheel: React.WheelEventHandler<HTMLDivElement>;
@@ -118,6 +120,7 @@ export const DocumentViewportSurface: React.FC<
   viewportSize,
   transformState,
   presentationReady = true,
+  presentationResident = presentationReady,
   loading,
   unavailable,
   onWheel,
@@ -180,9 +183,10 @@ export const DocumentViewportSurface: React.FC<
   return (
     <div
       ref={viewportRef}
-      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${presentationReady ? "" : " lighttable-viewport--presentation-pending"}${zoomOutActive ? " lighttable-viewport--zoom-out" : ""}${preciseBrushCursor ? " lighttable-viewport--precise-brush" : ""}${eyedropperActive ? " lighttable-viewport--eyedropper" : ""}${dragging ? " lighttable-viewport--dragging" : ""}${focusPickerActive ? " lighttable-viewport--focus-picker" : ""}`}
+      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${presentationReady ? "" : " lighttable-viewport--presentation-pending"}${presentationResident ? " lighttable-viewport--presentation-resident" : ""}${zoomOutActive ? " lighttable-viewport--zoom-out" : ""}${preciseBrushCursor ? " lighttable-viewport--precise-brush" : ""}${eyedropperActive ? " lighttable-viewport--eyedropper" : ""}${dragging ? " lighttable-viewport--dragging" : ""}${focusPickerActive ? " lighttable-viewport--focus-picker" : ""}`}
       aria-busy={!presentationReady || loading}
       data-presentation-ready={presentationReady ? "true" : "false"}
+      data-presentation-resident={presentationResident ? "true" : "false"}
       onWheel={presentationReady ? onWheel : undefined}
       onPointerDown={beginViewportPointer}
       onPointerMove={presentationReady ? onPointerMove : undefined}
@@ -275,7 +279,7 @@ export const DocumentViewportSurface: React.FC<
           onViewportPan={onTransformViewportPan}
         />
       ) : null}
-      {loading || !presentationReady ? (
+      {loading || !presentationResident ? (
         <div className="lighttable-viewport__message">
           Loading image and WebGPU pipeline...
         </div>

@@ -1172,6 +1172,13 @@
   visibility: hidden;
 }
 
+/* Foreground suspension blocks input and transient projections, but the
+ * retained frame remains a valid presentation of the same document owner. */
+.lighttable-viewport--presentation-pending.lighttable-viewport--presentation-resident
+  > .lighttable-viewport__canvas {
+  visibility: visible;
+}
+
 .lighttable-layout-guides {
   position: absolute;
   inset: 0;

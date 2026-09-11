@@ -12,6 +12,7 @@ import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpu
 interface WorkspaceDocumentPresentationOptions {
   readonly documentId: string;
   readonly active: boolean;
+  readonly retainResidentPresentation: boolean;
   readonly rendererGeneration: number;
   readonly rendererLifecycle: DocumentRendererLifecycle;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
@@ -20,6 +21,7 @@ interface WorkspaceDocumentPresentationOptions {
 
 export interface WorkspaceDocumentPresentation {
   readonly presentedDocumentId: string | null;
+  readonly residentDocumentId: string | null;
   publishCompositeRendered(): void;
   publishInitialThumbnail(renderer: DocumentRendererPort): Promise<void>;
 }
@@ -35,17 +37,20 @@ export interface WorkspaceDocumentPresentation {
 export const useWorkspaceDocumentPresentation = ({
   documentId,
   active,
+  retainResidentPresentation,
   rendererGeneration,
   rendererLifecycle,
   rendererRef,
   publishThumbnail
 }: WorkspaceDocumentPresentationOptions): WorkspaceDocumentPresentation => {
   const [presentedDocumentId, setPresentedDocumentId] = useState<string | null>(null);
+  const [residentDocumentId, setResidentDocumentId] = useState<string | null>(null);
   const currentDocumentIdRef = useRef(documentId);
   currentDocumentIdRef.current = documentId;
   const activeRef = useRef(active);
   activeRef.current = active;
   const presentedDocumentIdRef = useRef<string | null>(null);
+  const presentationOwnerRef = useRef({ documentId, rendererGeneration });
   const pendingPresentationRef = useRef<{
     readonly documentId: string;
     readonly epoch: number;
@@ -82,6 +87,7 @@ export const useWorkspaceDocumentPresentation = ({
           || rendererLifecycle.getSnapshot().generation !== ownerRendererGeneration) return;
         presentedDocumentIdRef.current = ownerDocumentId;
         setPresentedDocumentId(ownerDocumentId);
+        setResidentDocumentId(ownerDocumentId);
       }, () => undefined).finally(() => {
         if (pendingPresentationRef.current?.documentId === ownerDocumentId
           && pendingPresentationRef.current.epoch === ownerEpoch) {
@@ -115,6 +121,9 @@ export const useWorkspaceDocumentPresentation = ({
     waitForOwnedPresentation]);
 
   useLayoutEffect(() => {
+    const ownerChanged = presentationOwnerRef.current.documentId !== documentId
+      || presentationOwnerRef.current.rendererGeneration !== rendererGeneration;
+    presentationOwnerRef.current = { documentId, rendererGeneration };
     presentationEpochRef.current += 1;
     presentedDocumentIdRef.current = null;
     pendingPresentationRef.current = null;
@@ -124,17 +133,26 @@ export const useWorkspaceDocumentPresentation = ({
       thumbnailTimerRef.current = null;
     }
     setPresentedDocumentId(null);
+    if (ownerChanged || (!active && !retainResidentPresentation)) {
+      setResidentDocumentId(null);
+    }
     // Resume can present an already-composited retained texture without
     // producing another document-composite callback. Register the exact-frame
     // waiter before the engine is reactivated so that display-only resume has
     // the same ownership gate as initial open and document rebind.
     if (active) waitForOwnedPresentation();
-  }, [active, documentId, rendererGeneration, waitForOwnedPresentation]);
+  }, [active, documentId, rendererGeneration, retainResidentPresentation,
+    waitForOwnedPresentation]);
 
   useEffect(() => () => {
     thumbnailGenerationRef.current += 1;
     if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
   }, []);
 
-  return { presentedDocumentId, publishCompositeRendered, publishInitialThumbnail };
+  return {
+    presentedDocumentId,
+    residentDocumentId,
+    publishCompositeRendered,
+    publishInitialThumbnail
+  };
 };

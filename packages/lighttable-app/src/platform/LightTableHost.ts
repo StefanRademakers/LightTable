@@ -281,9 +281,15 @@ export interface LightTableLocalAiService {
   subscribe(listener: (status: LightTableLocalAiModelStatus) => void): () => void;
 }
 
+export type LightTableHostPresentationState =
+  | 'active'
+  | 'blurred'
+  | 'minimized'
+  | 'hidden';
+
 export interface LightTableHostPresentationService {
-  current(): Promise<boolean>;
-  subscribe(listener: (active: boolean) => void): () => void;
+  current(): Promise<LightTableHostPresentationState>;
+  subscribe(listener: (state: LightTableHostPresentationState) => void): () => void;
 }
 
 export interface LightTableHost {

@@ -7,8 +7,11 @@ import type {
   LightTableAgentAccessStatus,
   LightTableAgentClientScope,
   LightTableAgentTunnelStatus,
-  LightTableLocalMcpTestStatus
+  LightTableLocalMcpTestStatus,
+  LightTableHostPresentationState
 } from '@lighttable/app';
+
+export type DesktopWindowPresentationState = LightTableHostPresentationState;
 import type {
   LightTableLocalAiConnectionSettings,
   LightTableLocalAiConnectionTest
@@ -158,8 +161,8 @@ export interface DesktopClipboardImageDimensions {
 
 export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
-  windowPresentationActive(): Promise<boolean>;
-  onWindowPresentationActive(listener: (active: boolean) => void): () => void;
+  windowPresentationState(): Promise<DesktopWindowPresentationState>;
+  onWindowPresentationState(listener: (state: DesktopWindowPresentationState) => void): () => void;
   toggleDeveloperTools(): Promise<void>;
   openFile(): Promise<DesktopFilePayload | null>;
   openFiles(): Promise<readonly DesktopFilePayload[]>;

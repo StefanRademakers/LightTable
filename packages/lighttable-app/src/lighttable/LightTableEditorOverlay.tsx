@@ -765,11 +765,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [genAiService, selectedGenAiProviderId, updateGenAiProviderSnapshot]);
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const hostPresentationDeactivateRef = useRef<() => void>(() => undefined);
-  const hostPresentationActive = useEditorHostPresentationActivity(
+  const hostPresentationActivity = useEditorHostPresentationActivity(
     active,
     hostPresentationService,
     () => hostPresentationDeactivateRef.current()
   );
+  const hostPresentationActive = hostPresentationActivity.active;
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
   if (!documentSession && !standaloneFontRegistryRef.current) {
     standaloneFontRegistryRef.current = new DocumentFontRegistry({
@@ -832,11 +833,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const globalGradeStrengthGestureRef = useRef<number | null>(null);
   const {
     presentedDocumentId: presentedWorkspaceDocumentId,
+    residentDocumentId: residentWorkspaceDocumentId,
     publishCompositeRendered,
     publishInitialThumbnail: publishDocumentThumbnail
   } = useWorkspaceDocumentPresentation({
     documentId: workspaceDocumentId,
     active: hostPresentationActive,
+    retainResidentPresentation: hostPresentationActivity.retainResidentPresentation,
     rendererGeneration: rendererSnapshot.generation,
     rendererLifecycle,
     rendererRef: engineRef,
@@ -8136,6 +8139,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         transformState: temporarySelectionMoveActive ? null : transformState,
         presentationReady: presentedWorkspaceDocumentId === workspaceDocumentId
           && rendererSnapshot.status === 'ready',
+        presentationResident: residentWorkspaceDocumentId === workspaceDocumentId
+          && (rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended'),
         loading,
         unavailable: Boolean(error && !metadata),
         inputBridge: textEditing.status === 'editing' ? (
