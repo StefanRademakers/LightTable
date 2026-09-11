@@ -1,5 +1,30 @@
 # Task 416 progress
 
+## O04b.3 — Depth subscription and realization (accepted)
+
+- LensBlurDepthRequest captures one source/scope/renderer and the originating
+  Lens Blur target. Reset cancels synchronously, independent of React value changes.
+  The hook owns only layout lifetime, reset epoch and low-frequency presentation;
+  existing DepthAnalysisClient remains the shared model/in-flight/cache owner.
+  Root no longer imports inference or contains failure-disable recipes.
+- Failure settles through the existing transition route, revalidates origin and
+  uses the existing synchronous adjustment controller. Critic repairs prevent
+  retired settlement errors appearing on a new document, and ready/loading status
+  without a result. Genuine same-source inference failures remain visible.
+- DocumentEffectRuntime now invalidates depth realization identity when destroying
+  image resources. Reapplying the identical cached result reuploads texture data;
+  no copied arrays, cache invalidation workaround or second inference model.
+- 34 focused request/progress/effect/inference tests pass, typecheck and fresh
+  instrumented package pass. Packaged six-effect Lens FX run passes again, including
+  focus pick one-entry exact undo/redo and tab-away/back exact PNG equality with
+  unchanged document revision/history. Report: tmp/lens-fx-ui-smoke/report.json.
+  Request/helper tests are not a standalone React scheduler test; real rebind covers
+  the mounted hook. No input-latency/whole-app qualification inferred.
+- Critic source PASS after two reported edge repairs; no unresolved blocker in
+  this bounded slice. Overlay 8,154 -> 8,152 physical lines; important change here is
+  lifetime correctness, not substantial root reduction. Next O04b.4 owner context.
+
+
 ## O04b.2 — Canvas pickers (accepted)
 
 - Ownership/deletion: CanvasPickerController (102 lines) owns click request,

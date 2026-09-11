@@ -199,7 +199,6 @@ import {
   resolveLightTableSaveSourceKey,
   type LightTableRecipe
 } from './lightTableRecipe';
-import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { BackgroundRemovalDialog } from './editor/ui/BackgroundRemovalDialog';
 import type { ImageSizeRequest } from './application/imageSize/imageSizeModel';
@@ -2760,17 +2759,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     sourceBlob,
     sourceIdentity,
     getRenderer: () => engineRef.current,
-    estimateDepth: (blob, identity, onProgress) =>
-      lightTableDepthAnalysis.estimate(blob, identity, onProgress),
-    disableLensBlur: () => {
-      changeAdjustments((current) => ({
-        ...current,
-        effects: {
-          ...current.effects,
-          lensBlur: { ...current.effects.lensBlur, enabled: false }
-        }
-      }), 'lens-fx');
-    }
+    documentIdentity: documentSession ?? workspaceDocumentId,
+    rendererGeneration: rendererSnapshot.generation,
+    rendererReady: rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended',
+    captureScope: captureMountedInteractionScope,
+    getTargetIdentity: () => imageDocumentRef.current
+      ? resolveAdjustmentTargetIdentity(imageDocumentRef.current) : null,
+    finishAdjustment: endAdjustmentTransaction,
+    settleInteraction: finishOpenHistoryTransactions,
+    change: (recipe, domain) => adjustmentTransactionController.change(recipe, domain),
+    reportFailure: (reason) => setError(reason instanceof Error ? reason.message : String(reason))
   });
 
   const { controller: canvasPickers, pointColorActive: pointColorPickerActive, focusActive: focusPickerActive } = useCanvasPickers(documentSession ?? workspaceDocumentId, {

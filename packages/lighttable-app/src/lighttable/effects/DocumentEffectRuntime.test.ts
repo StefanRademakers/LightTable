@@ -86,6 +86,15 @@ const moduleOfType = (stack: AdjustmentStack, type: string) => {
 };
 
 describe('DocumentEffectRuntime', () => {
+  it('reuploads the same cached depth result after image resources were retired', () => {
+    const { runtime, effects } = createRuntime();
+    const depth = { width: 1, height: 1, data: new Float32Array([0.5]), nearIsOne: true as const };
+    expect(runtime.setDepthMap(depth)).toBe(true);
+    runtime.destroyImageResources();
+    expect(runtime.setDepthMap(depth)).toBe(true);
+    expect(runtime.setDepthMap(depth)).toBe(false);
+    effects.forEach(effect => expect(effect.setDepthMap).toHaveBeenCalledTimes(2));
+  });
   it('forwards transient effect state once and restores it on recreated nodes', () => {
     const { runtime, effects, stack } = createRuntime();
     const depth = {

@@ -284,6 +284,8 @@ export class DocumentEffectRuntime {
 
   destroyImageResources(): void {
     this.forEachEffect((effect) => effect.destroyImageResources());
+    // The same shared analysis result must upload again after texture retirement.
+    this.depthMap = null;
   }
 
   destroy(): void {

@@ -216,6 +216,28 @@ try {
   assert.equal(await difference(picked, await exportPng('lens-blur-pick-redo')), 0);
   interactionTelemetry['Focus picker'] = { beforeFocus, afterFocus, historyEntries: 1, exactUndoRedo: true };
   await driver.execute(documentId, 'history.undo', {});
+  const beforeRebind = await driver.queryDocument(documentId);
+  const other = await driver.executeWorkspace('document.create', {
+    name: 'Depth rebind other', width: 64, height: 64, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'solid', color: '#405060' }
+  });
+  assert.ok(other.value?.documentId);
+  await driver.waitForDocument(other.value.documentId);
+  await driver.waitForLayers(other.value.documentId);
+  const ws = await driver.queryWorkspace();
+  const tabIndex = ws.documents.findIndex(doc => doc.id === documentId);
+  await page.locator('.ui-document-tabs__tab').nth(tabIndex).locator('.ui-document-tabs__title').click();
+  await page.waitForFunction(id => {
+    const doc = window.__lightTableAutomation?.queryDocument(id);
+    return window.__lightTableAutomation?.queryWorkspace().activeDocumentId === id
+      && doc?.renderer.status === 'ready' && doc.tasks.activeCount === 0
+      && document.body.textContent?.includes('Depth ready');
+  }, documentId, { timeout: 120_000 });
+  const afterRebind = await driver.queryDocument(documentId);
+  assert.equal(afterRebind.canonicalRevision, beforeRebind.canonicalRevision);
+  assert.equal(afterRebind.history.undoDepth, beforeRebind.history.undoDepth);
+  assert.equal(await difference(lensBlur, await exportPng('lens-blur-rebound')), 0);
+  interactionTelemetry['Depth rebind'] = { exactPixels: true, unchangedRevisionAndHistory: true };
   await lensBlurSection.getByRole('radio', { name: 'Depth', exact: true }).click();
   const depthView = await exportPng('lens-blur-depth');
   metrics['Lens Blur Depth View'] = await difference(lensBlur, depthView);
@@ -224,7 +246,7 @@ try {
   bypassMetrics['Lens Blur'] = await difference(neutral, lensBlurBypassed);
 
   await page.screenshot({ path: path.join(output, 'lens-fx-panel.png') });
-  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ sourcePath, metrics, bypassMetrics, errors }, null, 2)}\n`);
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ sourcePath, metrics, bypassMetrics, interactionTelemetry, errors }, null, 2)}\n`);
   const actionableErrors = errors.filter((message) => !message.includes('[W:onnxruntime:'));
   if (actionableErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(actionableErrors)}`);
   for (const [effect, value] of Object.entries(metrics)) {
