@@ -216,6 +216,10 @@ class names: reuse existing owners before creating a new one.
     - [x] O05a.2a: exact hit-to-edit activation owner and scoped failure reporting.
       Critic repair suppresses obsolete selection failure UI; current failures stay
       visible. Packaged Type Tool and Path Text/Actions pass. Creation stays next.
+    - [x] O05a.2b: point/paragraph/path creation intent, readiness and cancellation.
+      Exact renderer/font/tool/target scope; stale draft and post-prepare race
+      repaired. Critic PASS after two rounds; packaged Type/Path/Paragraph pass.
+    - [ ] O05a.2c: scoped missing-font edit entry and remaining text pointer routing.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

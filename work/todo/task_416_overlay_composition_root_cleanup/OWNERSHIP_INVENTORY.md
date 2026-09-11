@@ -1,5 +1,20 @@
 # Overlay ownership inventory
 
+O05a.2b accepted: TextCreationInteraction owns the existing draft controllers,
+font/probe preparation intent, captured options/path/renderer, pending terminal
+and post-command editing entry. Root generation/path/pending caches and five
+forward commit/cancel refs removed. Hook owns retirement; all callers cancel
+through owner. Persistent activation now cancels pending creation explicitly,
+including point/vertical changes; removed dead invalidate-then-commit pair.
+Preparation/callback invalidation retires matching draft only. Exact authoring
+stays in existing semantic text.create, not this interaction owner. Shared
+executeRegisteredCommand still reports command failures after retirement (O06);
+the new owner suppresses obsolete editing activation, not that shared error UI.
+
+O05a.2a accepted: ExistingTextActivationController owns hit ordering, scoped
+select/rehit and selection-entry policy; existing hit/layout and editing owners
+remain. Current layout/selection errors visible, retired request UI suppressed.
+
 O05a.1 mapped before extraction: Overlay text-property block (formerly6832-7040)
 is projection plus defaults/discrete format/paint/font/layout intent policy.
 Live consumers: Properties, tool options and text context menu. Reuse existing

@@ -69,8 +69,12 @@ hand-off remain open.
   selection/rehit and editing-selection entry. useExistingTextActivation binds
   cancellation to document/tool/renderer generation and unmount. Genuine current
   layout/selection failures are reported; retired requests cannot publish UI.
-  Point/paragraph/path creation and missing-font entry remain the next Task416
-  extraction; do not add policy to the Overlay.
+  TextCreationInteraction owns point/paragraph/path draft/readiness lifetime and
+  captured authoring intent; useTextCreation retires on tool/document/renderer/
+  font registry replacement. Preparation never configures a successor renderer.
+  Both awaited preparation and its continuation reject and retire stale drafts.
+  Missing-font entry and pointer routing remain the next Task416 extraction;
+  do not add policy to the Overlay.
 
 ## Acceptance matrix
 

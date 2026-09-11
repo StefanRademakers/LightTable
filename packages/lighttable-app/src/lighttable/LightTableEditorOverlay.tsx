@@ -202,21 +202,13 @@ import { DocumentSurfaceCommandService } from './application/documentGeometry/Do
 import { beginDocumentCrop } from './application/documentGeometry/beginDocumentCrop';
 import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/DocumentSurfaceHistoryBinding';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import {
-  ParagraphTextCreationController,
-  PointTextCreationController,
-  resolvePathTextCreationTargetAtPoint,
-  type PathTextCreationTarget,
-  resolveTextToolFont,
-  textCreationKind
-} from './application/text/pointTextCreation';
+import { resolvePathTextCreationTargetAtPoint } from './application/text/pointTextCreation';
+import { useTextCreation } from './composition/text/useTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { TextPropertyGestureController } from './application/text/TextPropertyGestureController';
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { useExistingTextActivation } from './composition/text/useExistingTextActivation';
-import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateCommand,
-  pointTextCreateCommand,
-  textCreateCommandParameters } from './application/text/semanticTextCommandExecutor';
+import { executeSemanticTextCommand } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
@@ -1286,20 +1278,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
   const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
-  const pointTextControllerRef = useRef<PointTextCreationController | null>(null);
-  pointTextControllerRef.current ??= new PointTextCreationController();
-  const pointTextController = pointTextControllerRef.current;
-  const paragraphTextControllerRef = useRef<ParagraphTextCreationController | null>(null);
-  paragraphTextControllerRef.current ??= new ParagraphTextCreationController();
-  const paragraphTextController = paragraphTextControllerRef.current;
-  const pointTextCapabilityGenerationRef = useRef(0);
-  const pathTextCreationTargetRef = useRef<PathTextCreationTarget | null>(null);
-  const commitPointTextRef = useRef<(beginEditing?: boolean) => boolean>(() => false);
-  const cancelPointTextRef = useRef<() => boolean>(() => false);
-  const commitParagraphTextRef = useRef<() => boolean>(() => false);
-  const commitParagraphCanvasTextRef = useRef<() => boolean>(() => false);
-  const cancelParagraphTextRef = useRef<() => boolean>(() => false);
-  const paragraphCanvasCreationPendingRef = useRef(false);
+  const textCreationInteraction = useTextCreation(documentSession ?? workspaceDocumentId,
+    editorSession.activeTool, rendererSnapshot.generation, textFontRegistry, {
+    getDocument: () => imageDocumentRef.current,
+    getTool: () => editorSessionRef.current.activeTool,
+    getSettings: () => editorSessionRef.current.text,
+    getColor: () => editorSessionRef.current.brush.color,
+    getScale: () => activeScale,
+    getRenderer: () => engineRef.current,
+    rendererReady: () => currentRendererLifecycleRef.current.getSnapshot().status === 'ready',
+    getFontRuntime: () => textFontRuntimePort,
+    getFontRegistry: () => textFontRegistry,
+    getFonts: () => textFontRegistry.availableAssets,
+    prepareFont: settings => registerBundledTextFontForSettings(textFontRegistry, settings),
+    probe: () => lightTableTextEngine.probe(),
+    captureScope: captureMountedInteractionScope,
+    execute: parameters => executeRegisteredCommand('text.create', parameters),
+    beginEditing: layerId => { textEditingController.begin(layerId); textEditingController.selectAll(); },
+    setStatus: setGradeStatus,
+    reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
+  });
   const finishTextEditingRef = useRef<() => boolean>(() => false);
   const quickExportPngRef = useRef<() => Promise<void>>(async () => undefined);
   const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
@@ -1328,31 +1326,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const textPropertyGestureControllerRef = useRef<TextPropertyGestureController | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void | Promise<void>>(() => undefined);
   const paragraphTextCreation = useSyncExternalStore(
-    paragraphTextController.subscribe,
-    paragraphTextController.getSnapshot,
-    paragraphTextController.getSnapshot
+    textCreationInteraction.subscribe,
+    textCreationInteraction.getSnapshot,
+    textCreationInteraction.getSnapshot
   );
   const copiedGrade = useLightTableGradeClipboard();
   const brushPercentInputRef = useRef(new BrushPercentInput());
 
   useEffect(() => () => {
-    pathTextCreationTargetRef.current = null;
-    pointTextController.cancel();
-    paragraphTextController.cancel();
     textEditingControllerRef.current?.finish();
-  }, [paragraphTextController, pointTextController]);
+  }, []);
 
 
   useEffect(() => {
     temporaryTool.clear();
-    pointTextCapabilityGenerationRef.current += 1;
-    pathTextCreationTargetRef.current = null;
-    pointTextController.cancel();
-    paragraphTextController.cancel();
     textEditingControllerRef.current?.reset();
     setAltPressed(false);
     brushPercentInputRef.current.clear();
-  }, [paragraphTextController, pointTextController, workspaceDocumentId]);
+  }, [workspaceDocumentId]);
 
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
   // do not have one, but still need a stable provenance identifier so recipes
@@ -1685,8 +1676,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const finishOpenHistoryTransactions = () => settleHistoryInteractions({
     assertCurrent: captureMountedInteractionScope().assertCurrent,
     settlePixels: settleMountedDocumentInteraction,
-    commitPointCreation: commitPointTextRef.current,
-    commitParagraphCreation: commitParagraphTextRef.current,
+    commitPointCreation: textCreationInteraction.commitPoint,
+    commitParagraphCreation: textCreationInteraction.commitParagraph,
     finishTextEditing: finishTextEditingRef.current,
     resetAdjustment: resetAdjustmentTransactionRef.current,
     resetDocumentTransaction: resetDocumentTransactionRef.current
@@ -3380,8 +3371,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }),
     commands: {
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
-      saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
-      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void quickExportPngRef.current(); },
+      saveFile: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleSave(); },
+      quickExportPng: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void quickExportPngRef.current(); },
       openImageSize: editorDialogs.openImageSize,
       openCanvasSize: editorDialogs.openCanvasSize,
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
@@ -3556,8 +3547,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           isActive: () => textEditingController.getSnapshot().status === 'editing',
           cancel: () => textEditingController.finish()
         },
-        cancelParagraphCreation: () => cancelParagraphTextRef.current(),
-        cancelPointCreation: () => cancelPointTextRef.current(),
+        cancelParagraphCreation: () => textCreationInteraction.cancelParagraph(),
+        cancelPointCreation: () => textCreationInteraction.cancelPoint(),
         transform: { isActive: () => transformActiveRef.current(), cancel: () => cancelTransformRef.current() },
         autoAlign: { isActive: () => Boolean(autoAlignPreview), cancel: () => cancelAutoAlignRef.current() },
         warp: { isActive: () => warpSessionController.active, cancel: () => warpSessionController.reset() },
@@ -3946,10 +3937,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
 
-  const selectedPointTextFont = () => {
-    return resolveTextToolFont(textFontRegistry.availableAssets, editorSession.text);
-  };
-
   const requestExistingFlowTextEditing = (
     layerId: LayerId,
     offset?: number,
@@ -4017,7 +4004,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     hit: existingTextHitController,
     editing: textEditingController,
     selection: textSelectionGestureController,
-    cancelCreation: () => { pointTextController.cancel(); paragraphTextController.cancel(); },
+    cancelCreation: () => { textCreationInteraction.cancelPoint(); textCreationInteraction.cancelParagraph(); },
     requestEditing: requestExistingFlowTextEditing,
     selectLayer: layerId => Promise.resolve(selectLayerRef.current(layerId)),
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason)),
@@ -4039,204 +4026,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!intent) { void beginPointTextCreation(point); return; }
       if (!beginParagraphTextCreation(intent.pointerId, intent.start, clickCount, extend, true)) return;
       if (intent.current.x !== intent.start.x || intent.current.y !== intent.start.y) {
-        paragraphTextController.move(intent.pointerId, intent.current);
+        textCreationInteraction.move(intent.pointerId, intent.current);
       }
       if (intent.finished) finishParagraphTextCreation(intent.pointerId, intent.current);
     }
   });
   const beginExistingFlowTextEditing = existingTextActivation.begin;
 
-  const beginPointTextCreation = async (
-    origin: { x: number; y: number },
-    pathTarget: PathTextCreationTarget | null = null
-  ) => {
-    const document = imageDocumentRef.current;
-    if (!document) return;
-    if (!engineRef.current || rendererLifecycle.getSnapshot().status !== 'ready') {
-      setGradeStatus('Text creation is unavailable until the WebGPU renderer is ready.');
-      return;
-    }
-    const generation = pointTextCapabilityGenerationRef.current + 1;
-    pointTextCapabilityGenerationRef.current = generation;
-    const documentId = document.id;
-    setGradeStatus('Preparing the text engine...');
-    try {
-      await registerBundledTextFontForSettings(textFontRegistry, editorSession.text);
-      await lightTableTextEngine.probe();
-      // Font selection is the authoritative lazy-load boundary. Rebind here as
-      // well as at renderer publication so a standalone registry replacement
-      // cannot leave the first authored layer behind an empty open-time port.
-      engineRef.current?.configureTextFonts(textFontRuntimePort);
-      if (
-        generation !== pointTextCapabilityGenerationRef.current
-        || imageDocumentRef.current?.id !== documentId
-        || editorSession.activeTool !== (pathTarget
-          ? 'text-path'
-          : editorSession.activeTool === 'text-vertical' ? 'text-vertical' : 'text-point')
-        || !engineRef.current
-        || rendererLifecycle.getSnapshot().status !== 'ready'
-      ) return;
-      pathTextCreationTargetRef.current = pathTarget;
-      pointTextController.begin(documentId, origin);
-      commitPointTextRef.current(true);
-      setGradeStatus(null);
-    } catch (reason) {
-      if (generation !== pointTextCapabilityGenerationRef.current) return;
-      setError(reason instanceof Error
-        ? `Text creation is unavailable: ${reason.message}`
-        : 'Text creation is unavailable because the text engine failed to load.');
-    } finally {
-      if (generation === pointTextCapabilityGenerationRef.current) {
-        setGradeStatus(null);
-      }
-    }
-  };
-
-  const commitPointTextCreation = (beginEditing = false) => {
-    const before = imageDocumentRef.current;
-    const font = selectedPointTextFont();
-    if (pointTextController.getSnapshot().request && !font) {
-      setError('The selected text font and style are unavailable. Choose an available face.');
-      return false;
-    }
-    const request = pointTextController.commit();
-    const pathTarget = pathTextCreationTargetRef.current;
-    pathTextCreationTargetRef.current = null;
-    if (!request || !before || !font || request.documentId !== before.id) return false;
-    const command = pathTarget
-      ? pathTextCreateCommand(
-          request, pathTarget, editorSession.text, font, editorSession.brush.color
-        )
-      : pointTextCreateCommand(request, editorSession.text, font,
-          editorSession.brush.color, editorSession.activeTool === 'text-vertical');
-    const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(command));
-    void execution?.then((result) => {
-      if (beginEditing && result.status === 'completed') {
-        const layerId = (result.value as { layerId?: LayerId }).layerId;
-        if (layerId) {
-          textEditingController.begin(layerId); textEditingController.selectAll();
-        }
-      }
-    });
-    return Boolean(execution);
-  };
-
-  const cancelPointTextCreation = () => {
-    pathTextCreationTargetRef.current = null;
-    return pointTextController.cancel();
-  };
-  commitPointTextRef.current = commitPointTextCreation;
-  cancelPointTextRef.current = cancelPointTextCreation;
-
+  const beginPointTextCreation = textCreationInteraction.beginPoint;
   const beginParagraphTextCreation = (
-    pointerId: number,
-    origin: { x: number; y: number },
-    clickCount = 1,
-    extend = false,
-    skipExistingText = false
+    pointerId: number, origin: { x: number; y: number }, clickCount = 1,
+    extend = false, skipExistingText = false
   ) => {
-    const document = imageDocumentRef.current;
-    if (!document || !engineRef.current || rendererLifecycle.getSnapshot().status !== 'ready') {
-      setGradeStatus('Text creation is unavailable until the WebGPU renderer is ready.');
-      return false;
-    }
-    if (paragraphFrameResizeController.begin(
-      pointerId,
-      origin,
-      8 / Math.max(activeScale, 1e-6)
-    )) return true;
+    if (paragraphFrameResizeController.begin(pointerId, origin, 8 / Math.max(activeScale, 1e-6))) return true;
     if (!skipExistingText
       && beginExistingFlowTextEditing(origin, 'any', pointerId, clickCount, extend)) return true;
-    pointTextController.cancel();
     textEditingController.finish();
-    paragraphCanvasCreationPendingRef.current = false;
-    if (!paragraphTextController.begin(
-      document.id,
-      document.activeLayerId,
-      pointerId,
-      origin
-    )) return false;
-    const generation = ++pointTextCapabilityGenerationRef.current;
-    const documentId = document.id;
-    setGradeStatus('Preparing the text engine...');
-    void (async () => {
-      try {
-        await registerBundledTextFontForSettings(textFontRegistry, editorSession.text);
-        await lightTableTextEngine.probe();
-        engineRef.current?.configureTextFonts(textFontRuntimePort);
-        if (
-          generation !== pointTextCapabilityGenerationRef.current
-          || imageDocumentRef.current?.id !== documentId
-        ) return;
-        if (
-          paragraphCanvasCreationPendingRef.current
-          && paragraphTextController.getSnapshot().status === 'editing'
-        ) {
-          commitParagraphCanvasTextRef.current();
-        }
-      } catch (reason) {
-        if (generation !== pointTextCapabilityGenerationRef.current) return;
-        paragraphTextController.cancel();
-        setError(reason instanceof Error
-          ? `Text creation is unavailable: ${reason.message}`
-          : 'Text creation is unavailable because the text engine failed to load.');
-      } finally {
-        if (generation === pointTextCapabilityGenerationRef.current) setGradeStatus(null);
-      }
-    })();
-    return true;
+    return textCreationInteraction.beginParagraph(pointerId, origin);
   };
-
-  const commitParagraphTextCreation = (beginEditing = false) => {
-    const before = imageDocumentRef.current;
-    const font = selectedPointTextFont();
-    if (paragraphTextController.getSnapshot().request && !font) {
-      setError('The selected text font and style are still loading. Try again.');
-      return false;
-    }
-    const request = paragraphTextController.commit();
-    if (!request || !before || !font || request.documentId !== before.id) return false;
-    paragraphCanvasCreationPendingRef.current = false;
-    const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(
-      paragraphTextCreateCommand(request, editorSession.text, font, editorSession.brush.color,
-        editorSession.activeTool === 'text-vertical')));
-    void execution?.then((result) => {
-      if (beginEditing && result.status === 'completed') {
-        const layerId = (result.value as { layerId?: LayerId }).layerId;
-        if (layerId) {
-          textEditingController.begin(layerId); textEditingController.selectAll();
-        }
-      }
-    });
-    return Boolean(execution);
-  };
-
-  const finishParagraphTextCreation = (
-    pointerId: number,
-    point: { x: number; y: number }
-  ) => {
-    paragraphTextController.move(pointerId, point);
-    const request = paragraphTextController.getSnapshot().request;
-    if (request && textCreationKind(request.start, request.end, activeScale) === 'point') {
-      const origin = request.start;
-      paragraphCanvasCreationPendingRef.current = false;
-      paragraphTextController.cancel();
-      void beginPointTextCreation(origin);
-      return true;
-    }
-    if (!paragraphTextController.finish(pointerId)) return false;
-    paragraphCanvasCreationPendingRef.current = true;
-    if (selectedPointTextFont()) commitParagraphCanvasTextRef.current();
-    return true;
-  };
-
-  const cancelParagraphTextCreation = () => {
-    paragraphCanvasCreationPendingRef.current = false;
-    return paragraphTextController.cancel();
-  };
-  commitParagraphTextRef.current = commitParagraphTextCreation;
-  commitParagraphCanvasTextRef.current = () => commitParagraphTextCreation(true);
-  cancelParagraphTextRef.current = cancelParagraphTextCreation;
+  const finishParagraphTextCreation = textCreationInteraction.finish;
 
   const pickTransformAtPoint = (point: { x: number; y: number }, extend = false) => {
     if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
@@ -4349,7 +4157,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         || textSelectionGestureController.owns(pointerId)
         || pathTextHandleController.owns(pointerId)
         || paragraphFrameResizeController.owns(pointerId)
-        || paragraphTextController.owns(pointerId),
+        || textCreationInteraction.owns(pointerId),
       move: (pointerId, point) => existingTextHitController.owns(pointerId)
         ? existingTextHitController.move(pointerId, point)
         : textLayerMoveGestureController.owns(pointerId)
@@ -4360,7 +4168,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           ? pathTextHandleController.move(pointerId, point)
           : paragraphFrameResizeController.owns(pointerId)
             ? paragraphFrameResizeController.move(pointerId, point)
-            : paragraphTextController.move(pointerId, point),
+            : textCreationInteraction.move(pointerId, point),
       finish: (pointerId, point) => existingTextHitController.owns(pointerId)
         ? existingTextHitController.finish(pointerId, point)
         : textLayerMoveGestureController.owns(pointerId)
@@ -4377,7 +4185,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         || textSelectionGestureController.cancel(pointerId)
         || pathTextHandleController.cancel(pointerId)
         || paragraphFrameResizeController.cancel(pointerId)
-        || (paragraphTextController.owns(pointerId) ? paragraphTextController.cancel() : false)
+        || (textCreationInteraction.owns(pointerId) ? textCreationInteraction.cancelParagraph() : false)
     },
     selection: selectionSessionController,
     smartSelection: smartSelectionController,
@@ -5972,8 +5780,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       currentTool: () => readEditorSession().activeTool,
       clearCrop: () => setCropBounds(null),
       text: {
-        invalidatePointCreation: () => { pointTextCapabilityGenerationRef.current += 1; },
-        commitPointCreation: commitPointTextCreation,
+        cancelCreation: textCreationInteraction.cancel,
         finishEditing: () => textEditingController.finish()
       },
       warp: { isActive: () => warpSessionController.active, reset: () => warpSessionController.reset() },
@@ -6009,8 +5816,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     textEditingController.finish();
-    pointTextController.cancel();
-    paragraphTextController.cancel();
+    textCreationInteraction.cancelPoint();
+    textCreationInteraction.cancelParagraph();
     executeRegisteredCommand('layer.rasterize', { layerId });
   };
 
@@ -6216,19 +6023,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearRecentProjects: () => onClearRecentProjects?.(),
       closeProject: () => onCloseProject?.(),
       exitApplication: onExitApplication,
-      save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
-      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void exportPngThroughCommand(); },
-      exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
-      exportWebp: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportWebp(); },
-      exportTiff: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportTiff(); },
-      exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
-      exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsdMaximumAppearance(); },
-      exportSvg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportSvg(); },
+      save: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleSave(); },
+      exportPng: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void exportPngThroughCommand(); },
+      exportJpeg: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportJpeg(); },
+      exportWebp: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportWebp(); },
+      exportTiff: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportTiff(); },
+      exportPsd: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportPsd(); },
+      exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportPsdMaximumAppearance(); },
+      exportSvg: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportSvg(); },
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();
-        commitPointTextRef.current();
-        commitParagraphTextRef.current();
+        textCreationInteraction.commitPoint();
+        textCreationInteraction.commitParagraph();
         const document = imageDocumentRef.current;
         if (!document) return;
         const fonts = textFontRegistry.availableAssets;
@@ -6603,7 +6410,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       cancelLayerNameRenameGesture={cancelLayerNameRenameGesture}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
-        pointTextController.cancel();
+        textCreationInteraction.cancelPoint();
         activatePersistentTool('text-point', () => requestExistingFlowTextEditing(layerId));
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
@@ -6700,8 +6507,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : null;
     if (layer?.type !== 'text' || layer.locks.all || layer.locks.pixels) return;
     textEditingController.finish();
-    pointTextController.cancel();
-    paragraphTextController.cancel();
+    textCreationInteraction.cancelPoint();
+    textCreationInteraction.cancelParagraph();
     editorDialogs.requestTextToShape({ layerId });
   }
 
@@ -7177,7 +6984,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
               void layerPanelController.select(layerId).then(() => {
                 editorDialogs.closePsdReport();
-                pointTextController.cancel();
+                textCreationInteraction.cancelPoint();
                 activatePersistentTool('text-point', () => {
                   requestExistingFlowTextEditing(layerId);
                   showProperties({ kind: 'layer', layerId });

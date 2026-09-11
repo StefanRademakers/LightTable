@@ -11,8 +11,7 @@ export interface PersistentToolActivationBinding {
   currentTool(): ToolId;
   clearCrop(): void;
   readonly text: {
-    invalidatePointCreation(): void;
-    commitPointCreation(): void;
+    cancelCreation(): void;
     finishEditing(): void;
   };
   readonly warp: { isActive(): boolean; reset(): void };
@@ -64,9 +63,8 @@ export class PersistentToolActivationOwner {
     binding.clearCrop();
     const group = toolShortcutGroupFor(requestedTool);
     if (group) this.preferredTools[group.key] = requestedTool;
+    if (requestedTool !== currentTool) binding.text.cancelCreation();
     if (requestedTool !== 'text-point' && requestedTool !== 'text-vertical') {
-      binding.text.invalidatePointCreation();
-      binding.text.commitPointCreation();
       binding.text.finishEditing();
     }
     if (currentTool === 'warp' && requestedTool !== 'warp' && binding.warp.isActive()) binding.warp.reset();

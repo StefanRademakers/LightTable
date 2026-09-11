@@ -1,5 +1,35 @@
 # Task 416 progress
 
+## O05a.2b — Text creation lifetime (accepted)
+
+- TextCreationInteraction owns existing point/paragraph drafts, captured settings,
+  foreground/path/target and one font/probe readiness intent. Font configuration
+  uses captured renderer/runtime only after scope validation. Late semantic
+  completion cannot steal editing focus. Existing text.create retains mutation
+  admission/history/geometry; no new command execution route.
+- Root 7,751 -> 7,558 physical lines; new owner186/hook10. Removed creation
+  generation/path/pending caches and five forward commit/cancel refs. Every
+  cancellation uses the owner, including pending point creation before a draft
+  exists. Tool activation replaces dead invalidation/commit pair with explicit
+  cancellation; point/vertical changes cancel before publication too.
+- Critic repair1: invalidated cold preparation retires its matching paragraph
+  draft, without canceling a successor. Repair2: validate and retire again at
+  post-prepare continuation (microtask cancellation/target-change tests). Final
+  read-only source PASS. No third repair needed.
+- 60 focused tests/3 files (creation lifetime, existing builders, persistent tool
+  activation), app typecheck, boundary/structure and fresh instrumented package
+  pass. Explicit packaged Type Tool, Path Text Actions and Paragraph UI runs pass.
+  Paragraph proof includes actual typing, reentry, drag/word/keyboard selection;
+  screenshot inspected. No page errors. Evidence: tmp/type-tool-smoke/type-tool.json,
+  tmp/screenshots/desktop-paragraph-smoke.json. Type sample19.2ms submit/26.6ms GPU
+  P95; paragraph22.7/40.6ms. Samples, not matched whole-editor performance proof.
+- Finished cold paragraphs wait both font and engine preparation; prepared
+  pointer-up dispatches synchronously without a new wait. No new per-frame clone,
+  GPU readback or queue. Shared command failure UI still needs O06 scoping;
+  explicit failures remain visible even if follow-up activation is retired.
+- Next O05a.2c scoped missing-font edit entry and text pointer routing. Wider
+  cleanup, text-layout quality/latency qualification and owner acceptance remain open.
+
 ## O05a.2a — Existing-text activation (accepted)
 
 - ExistingTextActivationController owns candidate order, immediate selection

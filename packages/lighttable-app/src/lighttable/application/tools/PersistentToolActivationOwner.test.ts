@@ -18,8 +18,7 @@ const fixture = (initial: ToolId = 'view') => {
     isCurrent: () => current, currentTool: () => tool,
     clearCrop: record('crop'),
     text: {
-      invalidatePointCreation: record('invalidate-text'),
-      commitPointCreation: record('commit-text'), finishEditing: record('finish-text')
+      cancelCreation: record('cancel-creation'), finishEditing: record('finish-text')
     },
     warp: { isActive: () => true, reset: record('warp') },
     faceWarp: { reset: record('face-warp'), resetDetection: record('detection') },
@@ -54,6 +53,11 @@ describe('PersistentToolActivationOwner', () => {
     await f.owner.activate('transform', f.binding);
     expect(f.readTool()).toBe('transform');
     expect(f.binding.transform.begin).not.toHaveBeenCalled();
+  });
+  it('retires pending creation before changing between point and vertical type', async () => {
+    const f = fixture('text-point'); await f.owner.activate('text-vertical', f.binding);
+    expect(f.events.indexOf('cancel-creation')).toBeLessThan(f.events.indexOf('tool:text-vertical'));
+    expect(f.binding.text.finishEditing).not.toHaveBeenCalled();
   });
 
   it('waits for active transform before any successor terminals/publication', async () => {
