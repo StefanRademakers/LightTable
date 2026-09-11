@@ -1,0 +1,19 @@
+selection -> copy paste and still in transform mode (mouse up only) , drop shadow attached -> transform springt terug...
+
+hij is niet gecommit of de drop shadow ziet en forceerd de vorige state...
+waar we wel echt op moeten letten!! ->> niet destructive maken elke keer dat we transformen, als we nog aan het transformen zijjn en klein en dan weer groot maken enzo dat meot niet het image meteen brak maken, maar als we wat anders gaan doen zoals een drop shadow fx dan moet hij wel de laatste transform actie respecteren.
+
+onderzoek eerst goed voordat we een brakke fix maken,
+
+RESOLVED 2026-09-11
+
+Root cause: pointer-up checkpoints remained newer than canonical document state,
+while a following semantic command could enter its handler without retiring the
+transform owner. The command service now serializes revision admission,
+interaction settlement and dispatch per document. The mounted owner publishes
+the latest selection/transform state before the next semantic command.
+
+Packaged proof: copy/paste selection -> selected-pixel transform -> mouse-up
+without Enter -> Drop Shadow produces two ordered history entries, retains the
+transformed pixels, exposes rasterize, and restores exact pixels through two
+undo/two redo operations.

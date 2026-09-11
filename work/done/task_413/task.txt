@@ -1,0 +1,7 @@
+local grade ook geen rasterize, local filter ook geen rasterize
+
+RESOLVED 2026-09-11
+
+The canonical command handoff now makes processing ownership visible before
+capability projection. Packaged proof confirms rasterize for both Local Grade
+and an attached Gaussian Blur.

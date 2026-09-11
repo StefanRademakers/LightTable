@@ -224,6 +224,8 @@ export class LightTableCommandService {
   }>();
   private gestureSequence = 0;
   private readonly executingDocumentCommands = new Map<DocumentSessionId, number>();
+  private readonly settlingDocumentInteractions = new Map<DocumentSessionId, number>();
+  private readonly documentExecutionTails = new Map<DocumentSessionId, Promise<void>>();
   private executingCommands = 0;
   private readonly executionBarriers = new Map<symbol, string>();
   private readonly executionIdleWaiters = new Set<() => void>();
@@ -635,7 +637,8 @@ export class LightTableCommandService {
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
-    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0) {
+    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0
+      && (this.settlingDocumentInteractions.get(documentId) ?? 0) === 0) {
       return traceObservedCommand(command, false, 'command-execution-active');
     }
     if (!observedCommandParametersAreValid(command, parameters)) {
@@ -1059,7 +1062,19 @@ export class LightTableCommandService {
     const parsed = this.parseRequest(requestValue);
     const documentId = 'value' in parsed ? parsed.value.documentId : undefined;
     this.executingCommands += 1;
+    let releaseDocumentExecution: () => void = () => undefined;
+    let documentExecutionTail: Promise<void> | null = null;
     if (documentId) {
+      const previous = this.documentExecutionTails.get(documentId) ?? Promise.resolve();
+      const ownTurn = new Promise<void>((resolve) => {
+        releaseDocumentExecution = resolve;
+      });
+      documentExecutionTail = previous.then(() => ownTurn);
+      this.documentExecutionTails.set(documentId, documentExecutionTail);
+      // The entire document command admission is serialized. In particular,
+      // two callers cannot validate the same expected revision and then race
+      // through interaction settlement or handler dispatch.
+      await previous;
       this.executingDocumentCommands.set(documentId,
         (this.executingDocumentCommands.get(documentId) ?? 0) + 1);
     }
@@ -1072,6 +1087,10 @@ export class LightTableCommandService {
         const depth = (this.executingDocumentCommands.get(documentId) ?? 1) - 1;
         if (depth > 0) this.executingDocumentCommands.set(documentId, depth);
         else this.executingDocumentCommands.delete(documentId);
+        releaseDocumentExecution();
+        if (this.documentExecutionTails.get(documentId) === documentExecutionTail) {
+          this.documentExecutionTails.delete(documentId);
+        }
       }
       if (this.executingCommands === 0) {
         for (const resolve of this.executionIdleWaiters) resolve();
@@ -1176,7 +1195,7 @@ export class LightTableCommandService {
       return this.reject(value.requestId, 'document-required', 'This command requires a documentId.');
     }
     const documentRequest = value as DocumentParsedCommandRequest;
-    const snapshot = this.document(documentRequest.documentId);
+    let snapshot = this.document(documentRequest.documentId);
     if (!snapshot) {
       const typed = this.typedWorkspaceProjection?.documents[documentRequest.documentId];
       if (typed && typed.kind !== 'image') {
@@ -1188,18 +1207,6 @@ export class LightTableCommandService {
     if (snapshot.lifecycle !== 'ready' || !snapshot.document) {
       return this.reject(value.requestId, 'document-not-ready', 'The target document is not ready.');
     }
-    if (
-      value.expectedDocumentRevision !== undefined
-      && value.expectedDocumentRevision !== snapshot.documentRevision
-    ) {
-      return this.reject(
-        value.requestId,
-        'stale-document-revision',
-        `Expected document revision ${value.expectedDocumentRevision}, current revision is ${snapshot.documentRevision}.`,
-        snapshot
-      );
-    }
-
     if (value.command === 'task.cancel') {
       if (!isRecord(value.parameters) || typeof value.parameters.taskId !== 'string') {
         return this.reject(value.requestId, 'invalid-parameters', 'Cancel requires a taskId.', snapshot);
@@ -1213,11 +1220,55 @@ export class LightTableCommandService {
         revisions: this.revisions(snapshot) };
     }
 
+    // Optimistic concurrency is admission, not post-processing. A stale
+    // request must not commit the user's open interaction and then reject.
+    // A matching revision leases the pre-settlement canonical document; the
+    // owner may publish its admitted interaction before the command continues.
+    if (
+      value.expectedDocumentRevision !== undefined
+      && value.expectedDocumentRevision !== snapshot.documentRevision
+    ) {
+      return this.reject(
+        value.requestId,
+        'stale-document-revision',
+        `Expected document revision ${value.expectedDocumentRevision}, current revision is ${snapshot.documentRevision}.`,
+        snapshot
+      );
+    }
+
     if (!(this.ports.supportsCommand?.(documentRequest.documentId, value.command) ?? false)) {
       return this.reject(value.requestId, 'command-unavailable',
         'The command is unavailable through the current document owner.', snapshot);
     }
 
+    // A mounted tool may own a newer renderer preview than the canonical
+    // document (notably Free Transform between pointer-up and Enter). Retire
+    // that interaction before any UI, Actions or MCP command reads its target.
+    // Observed commits raised by this narrow phase are ordered prerequisites
+    // of the requested command and remain recordable by Actions. Observations
+    // raised by the requested command itself stay suppressed as duplicates.
+    const settlingDepth = this.settlingDocumentInteractions.get(
+      documentRequest.documentId
+    ) ?? 0;
+    this.settlingDocumentInteractions.set(documentRequest.documentId, settlingDepth + 1);
+    try {
+      await this.ports.settleInteractionBeforeCommand(
+        documentRequest.documentId,
+        value.command
+      );
+    } catch (reason) {
+      return this.reject(value.requestId, 'execution-failed',
+        reason instanceof Error ? reason.message : String(reason), snapshot);
+    } finally {
+      const depth = (this.settlingDocumentInteractions.get(documentRequest.documentId) ?? 1) - 1;
+      if (depth > 0) this.settlingDocumentInteractions.set(documentRequest.documentId, depth);
+      else this.settlingDocumentInteractions.delete(documentRequest.documentId);
+    }
+    snapshot = this.document(documentRequest.documentId);
+    if (!snapshot?.document || snapshot.lifecycle !== 'ready') {
+      return this.reject(value.requestId, 'document-not-ready',
+        'The target document changed while its active interaction was settling.');
+    }
     if (value.command === 'command.batch') {
       const batch = parseAtomicCommandBatch(value.parameters);
       if (!batch) return this.reject(value.requestId, 'invalid-parameters',

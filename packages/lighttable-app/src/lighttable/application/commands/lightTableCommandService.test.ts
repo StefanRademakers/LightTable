@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addLayerMask, createRasterLayer, createTextLayer, duplicateLayer, groupLayers, renameLayer,
-  setLayerBlendMode } from '../../editor/document/documentCommands';
+  setLayerBlendMode, setLayerTransform } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
@@ -34,6 +34,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
   session.setDocument(createRasterLayer(createImageDocument('Fixture', 80, 60, 'source-1')));
   session.setReady();
   const ports: LightTableCommandPorts = {
+    settleInteractionBeforeCommand: vi.fn(),
     supportsCommand: vi.fn(() => true),
     resizeImage: vi.fn(),
     applyDocumentGeometry: vi.fn(),
@@ -746,6 +747,7 @@ describe('LightTableCommandService action recording', () => {
   it('does not republish a UI observation raised by an executing semantic command', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId;
+    if (!layerId) throw new Error('Fixture has no active layer.');
     state.ports.renameLayer = vi.fn((_documentId, targetLayerId, name) => {
       state.session.setDocument(renameLayer(state.session.getSnapshot().document!, targetLayerId, name));
       expect(state.service.recordObservedCommand('layer.rename', state.session.id,
@@ -1548,6 +1550,7 @@ describe('LightTableCommandService registry', () => {
   it('routes mounted document controllers and rejects calls after unmount', async () => {
     const registry = new LightTableCommandPortRegistry();
     const ports = {
+      settleInteractionBeforeCommand: vi.fn(),
       setZoom: vi.fn(),
       createRasterLayer: vi.fn(),
       placeArtifact: vi.fn(),
@@ -1611,7 +1614,7 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
-  it('rejects stale revisions before invoking a mutation port', async () => {
+  it('rejects a stale request before settling or mutating the document', async () => {
     const state = setup();
     const result = await state.service.execute({
       ...request('layer.createRaster', state.session.id),
@@ -1621,7 +1624,124 @@ describe('LightTableCommandService registry', () => {
       status: 'rejected',
       code: 'stale-document-revision'
     }));
+    expect(state.ports.settleInteractionBeforeCommand).not.toHaveBeenCalled();
     expect(state.ports.createRasterLayer).not.toHaveBeenCalled();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('admits a Layer Style command only after the mounted interaction is settled', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeLayerStyleCommand).mockResolvedValue({
+      layerId: 'layer', effectId: 'effect'
+    });
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    const result = await state.service.execute(request('layer.effect.add', state.session.id, {
+      layerId,
+      effectKind: 'drop-shadow',
+      settings: { distance: 12, size: 8 }
+    }));
+    expect(result.status).toBe('completed');
+    expect(state.ports.settleInteractionBeforeCommand).toHaveBeenCalledWith(
+      state.session.id,
+      'layer.effect.add'
+    );
+    expect(vi.mocked(state.ports.settleInteractionBeforeCommand).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(state.ports.executeLayerStyleCommand).mock.invocationCallOrder[0]);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('records a settlement commit before the command that caused the handoff', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    if (!layerId) throw new Error('Fixture has no active layer.');
+    const transform = { a: 1, b: 0, c: 0, d: 1, tx: 24, ty: 16 };
+    vi.mocked(state.ports.settleInteractionBeforeCommand).mockImplementationOnce(() => {
+      state.session.setDocument(setLayerTransform(
+        state.session.getSnapshot().document!, layerId, transform
+      ));
+      expect(state.service.recordObservedCommand(
+        'layer.setTransform', state.session.id,
+        { layerId, transform }, { layerId, transform }
+      )).toBe(true);
+    });
+    vi.mocked(state.ports.executeLayerStyleCommand).mockResolvedValue({
+      layerId, effectId: 'effect'
+    });
+    state.service.startActionRecording('Transform then style');
+    const result = await state.service.execute(request('layer.effect.add', state.session.id, {
+      layerId,
+      effectKind: 'drop-shadow',
+      settings: { distance: 12, size: 8 }
+    }));
+    expect(result.status).toBe('completed');
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([
+      { command: 'layer.setTransform', outcome: 'completed', replayable: true },
+      { command: 'layer.effect.add', outcome: 'completed', replayable: true }
+    ]);
+    state.service.stopActionRecording();
+    vi.mocked(state.ports.executeLayerCommand).mockClear();
+    vi.mocked(state.ports.executeLayerCommand).mockResolvedValue({ layerId, transform });
+    vi.mocked(state.ports.executeLayerStyleCommand).mockClear();
+    await state.service.playActionRecording();
+    const playback = state.service.actionPlaybackSnapshot();
+    if (playback.status !== 'completed') throw new Error(JSON.stringify(playback));
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledWith(
+      state.session.id,
+      { kind: 'set-transform', layerId, transform }
+    );
+    expect(state.ports.executeLayerStyleCommand).toHaveBeenCalledOnce();
+    expect(vi.mocked(state.ports.executeLayerCommand).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(state.ports.executeLayerStyleCommand).mock.invocationCallOrder[0]);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('serializes revision admission and settlement for concurrent document commands', async () => {
+    const state = setup();
+    const opening = state.session.getSnapshot().document!;
+    const layerId = opening.activeLayerId;
+    if (!layerId) throw new Error('Fixture has no active layer.');
+    const expectedRevision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    let releaseSettlement: () => void = () => undefined;
+    const settlementGate = new Promise<void>((resolve) => {
+      releaseSettlement = resolve;
+    });
+    vi.mocked(state.ports.settleInteractionBeforeCommand).mockImplementationOnce(async () => {
+      await settlementGate;
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+    });
+    state.ports.renameLayer = vi.fn((_documentId, targetLayerId, name) => {
+      state.session.setDocument(renameLayer(
+        state.session.getSnapshot().document!, targetLayerId, name
+      ));
+      expect(state.service.recordObservedCommand(
+        'layer.rename', state.session.id,
+        { layerId: targetLayerId, name }, { layerId: targetLayerId, name }
+      )).toBe(false);
+    });
+    const first = state.service.execute({
+      ...request('layer.rename', state.session.id, { layerId, name: 'First' }),
+      expectedDocumentRevision: expectedRevision
+    });
+    await vi.waitFor(() => expect(
+      state.ports.settleInteractionBeforeCommand
+    ).toHaveBeenCalledTimes(1));
+    const second = state.service.execute({
+      ...request('layer.rename', state.session.id, { layerId, name: 'Second' }),
+      requestId: 'request-layer.rename-second',
+      expectedDocumentRevision: expectedRevision
+    });
+    releaseSettlement();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult.status).toBe('completed');
+    expect(secondResult).toMatchObject({
+      status: 'rejected', code: 'stale-document-revision'
+    });
+    expect(state.ports.settleInteractionBeforeCommand).toHaveBeenCalledTimes(1);
+    expect(state.ports.renameLayer).toHaveBeenCalledTimes(1);
     state.service.dispose();
     state.workspace.dispose();
   });

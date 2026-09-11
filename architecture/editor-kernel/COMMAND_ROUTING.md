@@ -28,3 +28,24 @@ marking the command migrated.
 The public command catalog remains the external schema authority. The kernel
 does not duplicate it; adapters translate catalog payloads into typed internal
 commands at one boundary.
+
+## Document command admission
+
+Commands for one document are serialized across revision validation,
+interaction settlement and handler dispatch. Commands for different documents
+may still run in parallel. The optimistic `expectedDocumentRevision` is checked
+before settlement: a stale request must not commit an open user interaction and
+then report rejection.
+
+The mounted document owner implements `settleInteractionBeforeCommand`. Before
+a semantic document command reads canonical state, that boundary publishes any
+newer selection/transform-owned state through its original owner. View zoom is
+presentation-only and does not terminate a transform. The inactive canonical
+owner has no presentation interaction and therefore settles as an explicit
+no-op.
+
+An owner commit produced during settlement is ordered before the command that
+caused the handoff. Actions records that prerequisite commit and then the
+requested command. Observations produced by the requested handler itself remain
+suppressed as duplicate recordings. UI, Actions and MCP therefore share the
+same admission and ordering rules.

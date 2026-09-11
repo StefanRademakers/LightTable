@@ -15,7 +15,9 @@ point editing remains S05 and text editing remains S06.
 - Every drag within the same Transform session derives from that immutable
   source. Pointer-up checkpoints the gizmo only; it does not recursively bake
   raster pixels or open a second history transaction.
-- Enter/tool exit commits once. Escape, document/renderer replacement and
+- Enter/tool exit or admission of a following semantic document command commits
+  once. The following command can only read the resulting canonical revision;
+  it cannot revive the transform's opening state. Escape, document/renderer replacement and
   unmount cancel once. Undo/redo restores document geometry, pixels and the
   exact selection together or restores none of them.
 - Raster whole-layer affine transforms remain document geometry. Selected-pixel
@@ -160,8 +162,10 @@ compensate or retry; it must not destroy the only recovery snapshot.
   chain, and solve the immutable grid analytically at any drag distance.
 - `smoke-desktop-transform-kernel.mjs` generates its own document and proves
   layer geometry with edge-pan, exact geometry undo/redo, selected-pixel commit
-  and exact pixel undo/redo, canonical revision advance, and one-delta
-  multi-layer transform. The final packaged run measured 465 ms including a
+  and exact pixel undo/redo, a copy/paste selected-pixel checkpoint handed to
+  Drop Shadow as two ordered history entries, its rasterize affordance, exact
+  two-step undo/redo, canonical revision advance, and one-delta multi-layer
+  transform. The earlier packaged baseline measured 465 ms including a
   deliberate 280 ms edge hold, 390 ms selected-pixel drag/commit, and 212 ms
   multi-layer drag/commit; these are end-to-end scripted gesture durations,
   not per-frame renderer timings.

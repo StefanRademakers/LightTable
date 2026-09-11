@@ -1,0 +1,8 @@
+geen rasterize icon -> nog steeds niet,
+
+RESOLVED 2026-09-11
+
+The missing affordance was downstream evidence of stale canonical state after
+an unretired transform. Rasterization eligibility remains a projection of the
+canonical layer; it was not patched in the panel. Packaged proof confirms a
+raster layer with Drop Shadow exposes the rasterize action.

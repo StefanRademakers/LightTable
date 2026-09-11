@@ -260,6 +260,20 @@ try {
   await driver.execute(documentId, 'history.undo', {});
   await driver.execute(documentId, 'history.undo', {});
 
+  const attachedBlur = await driver.execute(documentId, 'adjustment.create', {
+    kind: 'gaussian-blur',
+    placement: 'attached',
+    layerId: sourceLayer.id,
+    settings: { radius: 8 }
+  });
+  if (attachedBlur.status !== 'completed') {
+    throw new Error(`Attached Gaussian Blur was rejected: ${JSON.stringify(attachedBlur)}`);
+  }
+  await assertAffordance('raster-with-attached-gaussian-blur', sourceLayer.id);
+  await driver.execute(documentId, 'layer.rasterize', { layerId: sourceLayer.id });
+  await driver.execute(documentId, 'history.undo', {});
+  await driver.execute(documentId, 'history.undo', {});
+
   const duplicate = await driver.execute(documentId, 'layer.duplicate', {
     layerId: sourceLayer.id
   });

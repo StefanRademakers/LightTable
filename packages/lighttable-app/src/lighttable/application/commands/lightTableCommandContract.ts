@@ -296,6 +296,9 @@ export interface LightTableCommandPorts {
   supportsPort?(documentId: DocumentSessionId, port: string): boolean;
   /** Reports whether the concrete owner can execute a complete semantic command. */
   supportsCommand?(documentId: DocumentSessionId, command: LightTableCommandId): boolean;
+  /** Retires unpublished mounted interaction state before semantic command admission. */
+  settleInteractionBeforeCommand(documentId: DocumentSessionId,
+    command: LightTableCommandId): void | Promise<void>;
   resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): boolean | Promise<boolean>;
   applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(documentId: DocumentSessionId,
@@ -383,6 +386,8 @@ export interface DocumentLightTableCommandPorts {
   supportsPort?(port: string): boolean;
   /** Overrides command availability when one port handles mixed renderer requirements. */
   supportsCommand?(command: LightTableCommandId): boolean;
+  /** Retires presentation-owned work newer than the canonical document. */
+  settleInteractionBeforeCommand(command: LightTableCommandId): void | Promise<void>;
   resizeImage?(request: ImageSizeRequest): boolean | Promise<boolean>;
   applyDocumentGeometry?(request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(command: SemanticAssignProfileCommand):

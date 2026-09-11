@@ -70,6 +70,9 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const port = mountedDocumentCommandPort(command);
     return port !== null && typeof Reflect.get(owner, port, owner) === 'function';
   }
+  settleInteractionBeforeCommand(documentId: DocumentSessionId, command: LightTableCommandId) {
+    return this.resolve(documentId).settleInteractionBeforeCommand(command);
+  }
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
   }

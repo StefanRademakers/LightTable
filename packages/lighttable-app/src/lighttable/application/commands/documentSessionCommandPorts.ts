@@ -115,6 +115,8 @@ export const createDocumentSessionCommandPorts = (
   const change = mutation.change;
 
   return {
+    // An inactive document has no mounted renderer/tool preview to retire.
+    settleInteractionBeforeCommand: () => undefined,
     supportsPort: (port) => CANONICAL_PORTS.has(port)
       || (canReadInactiveFlatRaster(session)
         && ['copyPixels', 'exportPreviewArtifact', 'exportLayerPreviewArtifact'].includes(port)),

@@ -206,6 +206,66 @@ try {
   assert.deepEqual((await layerPreview(pixelLayerId)).data, afterPixelPreview.data,
     'Selected-pixel redo did not restore exact pixels.');
 
+  // Regression: a pointer-up is only a transform checkpoint. Starting a new
+  // semantic command must publish that checkpoint before the command reads
+  // canonical state; it must never revive the transform's opening pixels.
+  await driver.execute(documentId, 'selection.applyShape', {
+    mode: 'replace', shape: { kind: 'rectangle', points: [{ x: 180, y: 140 }, { x: 620, y: 500 }] },
+    featherRadius: 0, antiAlias: false
+  });
+  const copied = await driver.execute(documentId, 'selection.copyPixels', {
+    source: 'active-layer'
+  });
+  const clipboardArtifactId = copied.value?.artifact?.id;
+  assert.equal(typeof clipboardArtifactId, 'string', JSON.stringify(copied));
+  const pasted = await driver.execute(documentId, 'selection.pastePixels', {
+    artifactId: clipboardArtifactId,
+    bounds: copied.value.bounds,
+    name: 'Transform handoff selection'
+  });
+  const pastedLayerId = pasted.value?.layerId;
+  assert.equal(typeof pastedLayerId, 'string', JSON.stringify(pasted));
+  const beforeHandoff = await driver.queryDocument(documentId);
+  const beforeHandoffPixels = await layerPreview(pastedLayerId);
+  await page.keyboard.press('Control+t');
+  const { point: handoffStart } = await visibleBodyPoint();
+  const handoffBody = page.locator('.lighttable-transform__body');
+  await page.mouse.move(handoffStart.x, handoffStart.y);
+  await page.mouse.down();
+  await page.mouse.move(handoffStart.x + 72, handoffStart.y + 48, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(80);
+  assert.equal((await driver.queryDocument(documentId)).history.undoDepth,
+    beforeHandoff.history.undoDepth,
+    'Pointer-up incorrectly committed the open transform session.');
+  const effect = await driver.execute(documentId, 'layer.effect.add', {
+    layerId: pastedLayerId,
+    effectKind: 'drop-shadow'
+  });
+  assert.equal(effect.status, 'completed', JSON.stringify(effect));
+  await handoffBody.waitFor({ state: 'hidden', timeout: 20_000 });
+  const afterHandoff = await driver.queryDocument(documentId);
+  assert.equal(afterHandoff.history.undoDepth, beforeHandoff.history.undoDepth + 2,
+    `Transform and Drop Shadow must remain two ordered history entries: ${JSON.stringify({ beforeHandoff, afterHandoff })}`);
+  assert.equal(afterHandoff.history.undoLabel, 'Layer Style');
+  const afterHandoffPixels = await layerPreview(pastedLayerId);
+  assert.notDeepEqual(afterHandoffPixels.data, beforeHandoffPixels.data,
+    'The semantic command revived the selected-pixel transform opening state.');
+  const rasterizeButton = page.locator(
+    `[data-layer-id="${pastedLayerId}"] .lighttable-layer__rasterize`
+  );
+  await rasterizeButton.waitFor({ state: 'visible', timeout: 20_000 });
+  await driver.execute(documentId, 'history.undo', {});
+  assert.deepEqual((await layerPreview(pastedLayerId)).data, afterHandoffPixels.data,
+    'Undoing Drop Shadow also rolled back the preceding transform checkpoint.');
+  await driver.execute(documentId, 'history.undo', {});
+  assert.deepEqual((await layerPreview(pastedLayerId)).data, beforeHandoffPixels.data,
+    'Undoing the settled transform did not restore the exact pasted pixels.');
+  await driver.execute(documentId, 'history.redo', {});
+  await driver.execute(documentId, 'history.redo', {});
+  assert.deepEqual((await layerPreview(pastedLayerId)).data, afterHandoffPixels.data,
+    'Redo did not restore the exact transformed pixels after the effect handoff.');
+
   await page.keyboard.press('Control+d');
   await page.waitForTimeout(100);
   const groupCandidates = (await driver.queryLayers(documentId))

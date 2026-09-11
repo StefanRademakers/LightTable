@@ -6018,6 +6018,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     };
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
+      settleInteractionBeforeCommand: async (command) => {
+        // Zoom does not change canonical content and may remain available
+        // during a transform. All semantic document commands first publish
+        // presentation-owned selection/transform state through its owner.
+        if (command === 'view.setZoom') return;
+        await settlePixelInteractionRef.current();
+      },
       supportsCommand: isMountedDocumentCommand,
       resizeImage: (request) => commitImageSize(request, false),
       applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
