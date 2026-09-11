@@ -210,15 +210,10 @@ import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { BackgroundRemovalDialog } from './editor/ui/BackgroundRemovalDialog';
-import { createResizePlan, resizeImageDocumentSemantics, type ImageSizeRequest } from './application/imageSize/imageSizeModel';
-import {
-  createDocumentGeometryPlan,
-  projectDocumentGeometry,
-  projectSelectionGeometry,
-  projectSelectionTransform,
-  type DocumentGeometryRequest
-} from './application/documentGeometry/documentGeometryModel';
-import { commitDocumentSurfaceMutation } from './application/documentGeometry/commitDocumentSurfaceMutation';
+import type { ImageSizeRequest } from './application/imageSize/imageSizeModel';
+import type { DocumentGeometryRequest } from './application/documentGeometry/documentGeometryModel';
+import { DocumentSurfaceCommandService } from './application/documentGeometry/DocumentSurfaceCommandService';
+import { beginDocumentCrop } from './application/documentGeometry/beginDocumentCrop';
 import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/DocumentSurfaceHistoryBinding';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
@@ -2205,180 +2200,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     faceWarpSessionController.cancelGesture(pointerId)
   );
 
-  const commitImageSize = async (request: ImageSizeRequest, reportError = true) => {
-    await finishOpenHistoryTransactions();
-    if (!documentSession) {
-      const reason = new Error('Image Size requires an admitted document session.');
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
+  const documentSurfaceCommands = new DocumentSurfaceCommandService({
+    session: documentSession,
+    mutations: documentMutationController,
+    captureScope: captureMountedInteractionScope,
+    settleInteraction: finishOpenHistoryTransactions,
+    getRenderer: () => engineRef.current,
+    getDocument: () => imageDocumentRef.current,
+    getSelection: () => editorSessionRef.current,
+    publication: {
+      publishDocumentSelection,
+      pushHistoryEntry,
+      publishHistoryState: documentSurfaceHistory.publish
     }
-    const renderer = engineRef.current;
-    if (!renderer) {
-      const reason = new Error('The document renderer is unavailable.');
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
-    }
-    const history = { type: 'document.image-size', label: 'Image Size' } as const;
-    const transaction = documentMutationController.begin(
-      'document.image-size',
-      history,
-      undefined,
-      'cancel'
-    );
-    if (!transaction) {
-      const reason = new Error('Image Size could not acquire the active document.');
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
-    }
-    const before = transaction.before;
-    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
-    const selectionIdentity = editorSessionRef.current.selection;
-    const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
-    const beforeSelection = [...selectionIdentity];
-    try {
-      const plan = createResizePlan(before, request);
-      const after = resizeImageDocumentSemantics(before, request);
-      if (after === before) {
-        transaction.cancel();
-        editorDialogs.closeImageSize();
-        return false;
-      }
-      const afterSelection = plan.targetWidth === plan.sourceWidth
-        && plan.targetHeight === plan.sourceHeight
-        ? beforeSelection
-        : projectSelectionTransform(beforeSelection, {
-            a: plan.scaleX, b: 0, c: 0, d: plan.scaleY, tx: 0, ty: 0
-          });
-      const committed = await commitDocumentSurfaceMutation({
-        transaction,
-        afterDocument: after,
-        beforeSelection,
-        afterSelection,
-        beforeSelectionMask: selectionMaskIdentity,
-        history,
-        acquirePublicationAdmission: () => documentSession.acquirePublicationAdmission(
-          'Image Size is preparing a document-wide publication.'
-        ),
-        originIsCurrent: () => imageDocumentRef.current === before
-          && engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === rendererGeneration
-          && editorSessionRef.current.selection === selectionIdentity
-          && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
-        runtimeIsCurrent: () => engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === rendererGeneration,
-        captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
-        restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
-        publishHistoryState: documentSurfaceHistory.publish,
-        createRuntimeMutation: () => renderer.resizeImagePixels(
-          before,
-          plan,
-          request.preserveDetailsNoiseReduction
-        ),
-        resizeDocumentSurface: (document) => renderer.resizeDocumentSurface(document),
-        publishDocumentSelection,
-        pushHistoryEntry
-      });
-      if (!committed) throw new Error('Image Size did not complete.');
-      editorDialogs.closeImageSize();
+  });
+  const presentSurfaceEdit = (changed: boolean) => {
+    if (changed) {
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
-      return true;
-    } catch (reason) {
-      transaction.cancel();
-      if (!reportError) throw reason;
-      setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
-      return false;
     }
+    return changed;
   };
-  const commitDocumentGeometry = async (request: DocumentGeometryRequest, reportError = true) => {
-    await finishOpenHistoryTransactions();
-    if (!documentSession) {
-      const reason = new Error('Document geometry requires an admitted document session.');
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
-    }
-    const renderer = engineRef.current;
-    if (!renderer) {
-      const reason = new Error('The document renderer is unavailable.');
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
-    }
-    const history = {
-      type: `document.${request.operation}`,
-      label: request.operation === 'canvas-size' ? 'Canvas Size'
-        : request.operation === 'crop' ? 'Crop'
-          : request.operation === 'flip' ? 'Flip Canvas' : 'Image Rotation'
-    } as const;
-    const transaction = documentMutationController.begin(
-      `document.${request.operation}`,
-      history,
-      undefined,
-      'cancel'
-    );
-    if (!transaction) {
-      const reason = new Error(`${history.label} could not acquire the active document.`);
-      if (!reportError) throw reason;
-      setError(reason.message);
-      return false;
-    }
-    const before = transaction.before;
-    const rendererGeneration = rendererLifecycle.getSnapshot().generation;
-    const selectionIdentity = editorSessionRef.current.selection;
-    const selectionMaskIdentity = editorSessionRef.current.selectionMaskSnapshot;
-    const beforeSelection = [...selectionIdentity];
-    try {
-      const plan = createDocumentGeometryPlan(before, request);
-      const matrix = plan.oldDocumentToNewDocument;
-      if (plan.targetWidth === before.width && plan.targetHeight === before.height
-        && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1
-        && matrix.tx === 0 && matrix.ty === 0) {
-        transaction.cancel();
-        editorDialogs.closeCanvasSize();
-        return false;
-      }
-      const after = projectDocumentGeometry(before, plan);
-      const afterSelection = projectSelectionGeometry(beforeSelection, plan);
-      const committed = await commitDocumentSurfaceMutation({
-        transaction,
-        afterDocument: after,
-        beforeSelection,
-        afterSelection,
-        beforeSelectionMask: selectionMaskIdentity,
-        history,
-        acquirePublicationAdmission: () => documentSession.acquirePublicationAdmission(
-          `${history.label} is preparing a document-wide publication.`
-        ),
-        originIsCurrent: () => imageDocumentRef.current === before
-          && engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === rendererGeneration
-          && editorSessionRef.current.selection === selectionIdentity
-          && editorSessionRef.current.selectionMaskSnapshot === selectionMaskIdentity,
-        runtimeIsCurrent: () => engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === rendererGeneration,
-        captureSelectionSnapshot: () => renderer.captureSelectionSnapshot(),
-        restoreSelectionSnapshot: (snapshot) => renderer.restoreSelectionSnapshot(snapshot),
-        publishHistoryState: documentSurfaceHistory.publish,
-        createRuntimeMutation: () => renderer.applyDocumentGeometryPixels(before, plan),
-        resizeDocumentSurface: (document) => renderer.resizeDocumentSurface(document),
-        publishDocumentSelection,
-        pushHistoryEntry
-      });
-      if (!committed) throw new Error(`${history.label} did not complete.`);
-      editorDialogs.closeCanvasSize();
-      setZoomMode('fit');
-      setView({ scale: 1, panX: 0, panY: 0 });
-      return true;
-    } catch (reason) {
-      transaction.cancel();
-      if (!reportError) throw reason;
-      setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
-      return false;
-    }
+  const commitImageSize = async (request: ImageSizeRequest) => {
+    const changed = await documentSurfaceCommands.resizeImage(request);
+    editorDialogs.closeImageSize();
+    return presentSurfaceEdit(changed);
+  };
+  const commitDocumentGeometry = async (request: DocumentGeometryRequest) => {
+    const changed = await documentSurfaceCommands.applyGeometry(request);
+    editorDialogs.closeCanvasSize();
+    return presentSurfaceEdit(changed);
   };
   const runImageSizeCommand = (request: ImageSizeRequest) => {
     void executeRegisteredCommand('document.resizeImage', request);
@@ -2386,28 +2237,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const runDocumentGeometryCommand = (request: DocumentGeometryRequest) => {
     void executeRegisteredCommand('document.applyGeometry', request);
   };
-  const beginCrop = async () => {
-    await finishOpenHistoryTransactions();
-    const document = imageDocumentRef.current;
-    if (!document) return;
-    const selection = editorSessionRef.current.selection;
-    if (selection.length) {
-      const renderer = engineRef.current;
-      if (!renderer) return;
-      void renderer.measureSelectionBounds().then((coverage) => {
-        if (imageDocumentRef.current !== document
-          || editorSessionRef.current.selection !== selection) return;
-        if (!coverage) {
-          setError('The active selection has no crop area.');
-          return;
-        }
-        runDocumentGeometryCommand({ operation: 'crop', bounds: coverage.supportBounds });
-      }).catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : 'The selection bounds could not be measured.');
-      });
-      return;
-    }
-    setCropBounds({ x: 0, y: 0, width: document.width, height: document.height });
+  const beginCrop = () => {
+    void beginDocumentCrop({
+      session: documentSession,
+      captureScope: captureMountedInteractionScope,
+      settleInteraction: finishOpenHistoryTransactions,
+      applySelectionCrop: bounds => runDocumentGeometryCommand({ operation: 'crop', bounds }),
+      presentInteractiveCrop: setCropBounds
+    }).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'Crop could not be prepared.');
+    });
   };
   const cancelCrop = () => setCropBounds(null);
   const commitCrop = () => {
@@ -5781,8 +5620,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (admission.status === 'rejected') throw new Error(admission.reason);
       },
       supportsCommand: isMountedDocumentCommand,
-      resizeImage: (request) => commitImageSize(request, false),
-      applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
+      resizeImage: commitImageSize,
+      applyDocumentGeometry: commitDocumentGeometry,
       assignDocumentProfile: ({ profile }) => {
         const changed = documentMutationController.change((document) => (
           document.colorSettings.workingProfile === profile

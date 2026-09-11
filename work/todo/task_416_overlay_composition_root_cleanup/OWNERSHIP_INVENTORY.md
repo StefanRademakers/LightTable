@@ -130,6 +130,12 @@ to DocumentInteractionResetPolicy with narrow domain participants. O03c.3a moved
 resource close registration to the registry lifetime binding and deleted root
 renderer-slot retirement; DocumentOpenController owns exact pending/live detach.
 O03c processing presentation restore stays with the O04b processing-state owner.
+
+O04a relocation: resize/geometry admission, planning and compound-publication
+orchestration -> DocumentSurfaceCommandService (stateless, narrow renderer and
+publication ports). beginDocumentCrop resolves exact committed selection intent;
+dialog/viewport state remains UI. Existing pixel algorithms and surface-history
+owners unchanged. Root no longer imports planners or compound mutation executor.
 Additional O08 observations: command-driver text replace1217ms exceeded its
 1000ms ceiling; outline/atlas ordinary previews are not byte-identical across
 native reopen. Final-output font PNG roundtrip is exact; do not conflate it with

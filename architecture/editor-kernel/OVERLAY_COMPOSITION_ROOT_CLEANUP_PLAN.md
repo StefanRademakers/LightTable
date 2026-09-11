@@ -173,6 +173,13 @@ class names: reuse existing owners before creating a new one.
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms
   and atomic pixel/document/selection publication. UI passes intent only.
+  - [x] O04a: DocumentSurfaceCommandService owns admission, scoped settlement,
+    plan/no-op and the existing compound publication. Crop intent reads exact
+    canonical support without another GPU readback. Root only adapts commands
+    and dialog/viewport presentation. Critic PASS; packaged geometry, Image Size,
+    feathered/painted surface history and UI/Actions/MCP equivalence passed.
+  - [ ] O04b: processing presentation/state, individual gestures and pickers.
+  - [ ] O04c: LUT/Grade asset command lifetime and clipboard integration.
 - [ ] O05 — Complete domain tool boundaries, separately: (a) text hit-testing,
   activation/creation/formatting; (b) vector/path/shape interaction glue;
   (c) transform/snapping; (d) warp/face-warp; (e) remaining selection, paint,

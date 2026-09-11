@@ -770,6 +770,15 @@ function verifyStyleAndFilterCutover(relativePath, source) {
 
 function verifyDocumentLifecycleCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/documentGeometry/DocumentSurfaceCommandService.ts')) {
+    if (!source.includes('if (!session) throw new Error(')
+      || !source.includes('requires an admitted document session.')
+      || !source.includes('session.acquirePublicationAdmission(')
+      || !source.includes('scope.assertCurrent();')
+      || !source.includes('await commitDocumentSurfaceMutation(')) {
+      failures.push(`${relativePath}: surface commands require scope, session admission and the compound publisher`);
+    }
+  }
   if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
     const fallbackCommands = [
       'document.resizeImage', 'document.applyGeometry', 'view.setZoom'
@@ -779,9 +788,10 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
         failures.push(`${relativePath}: ${command} must fail closed through its required command route`);
       }
     }
-    if (!source.includes('Image Size requires an admitted document session.')
-      || !source.includes('Document geometry requires an admitted document session.')) {
-      failures.push(`${relativePath}: document-wide geometry must fail closed without a document-session admission owner`);
+    if (!source.includes('new DocumentSurfaceCommandService(')
+      || source.includes('commitDocumentSurfaceMutation(')
+      || source.includes('createResizePlan(') || source.includes('createDocumentGeometryPlan(')) {
+      failures.push(`${relativePath}: document-wide geometry policy belongs only to DocumentSurfaceCommandService`);
     }
     const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(\)/g)?.length ?? 0;
     if (directPixelSettlements !== 1

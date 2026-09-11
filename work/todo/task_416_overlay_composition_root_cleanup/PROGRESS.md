@@ -1,5 +1,34 @@
 # Task 416 progress
 
+## O04a — Document surface commands and crop intent (accepted)
+
+- Done/deleted: removed duplicate resize/geometry transaction implementations
+  and unused reportError mode. DocumentSurfaceCommandService owns scoped
+  prerequisite settlement, planning, no-op and compound-publisher invocation.
+  Root now wires ports and presents dialog closure/viewport fit. Crop intent uses
+  exact committed active coverage/support, not provenance.length or a second
+  asynchronous GPU measurement. Overlay 8,733 -> 8,572 physical lines.
+- Boundaries: scope captures workspace/lifecycle/renderer/generation before
+  settlement; document and selection baselines are read afterward because an
+  active transform may legitimately commit. Existing geometry algorithms,
+  commitDocumentSurfaceMutation and current-renderer surface history remain
+  sole owners. No new state cache, command queue, GPU wait or runtime fallback.
+- Critic: source PASS; crop/boundary re-review PASS. Corrected test fixture's
+  half-float coverage to 0x3c00; no production repair requested. Other repair
+  rounds not needed. Admission/history renderer are mocked in service tests;
+  actual compound transaction runs there, and packaged tests supply real GPU proof.
+- Proof: 41 focused tests; typecheck, boundary and fresh instrumented package.
+  Packaged Image Size 1584x935->792x468, Canvas Size, rotation, interactive and
+  selection Crop, geometry undo, feathered and painted selection resize/rotate/
+  tab/undo/redo, and document UI/Actions/MCP capability equivalence all passed.
+  Reports: tmp/image-size-smoke/1/image-size.json,
+  tmp/document-geometry-smoke/report.json, tmp/layer-history-gesture/report.json,
+  tmp/layer-history-gesture-painted/report.json, tmp/document-capability-equivalence.
+- Performance: commands retain existing discrete GPU preparation; crop removes
+  one readback. No new pointer/slider path. This is not a large-document latency
+  benchmark or whole-app acceptance. Prior known performance observations remain.
+- Next: O04b processing binding, including O03c read-only rebind restoration.
+
 ## O03c.2 / O03c.3a — Interaction resets and resource retirement (accepted)
 
 - Ownership: DocumentInteractionResetPolicy names the distinct source-open,
