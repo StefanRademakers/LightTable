@@ -263,7 +263,7 @@ canonical document/rendering feature, but there is no user-facing Text Warp
 authoring control. Do not mistake removed/dead overlay callbacks for an
 extension point or invent that feature during stabilization. Any future Text
 Warp authoring starts behind a bounded application controller. Owner feel
-acceptance is open, and no more text policy may enter the 9k-line overlay before
+acceptance is open, and no more text policy may enter the integration root before
 its post-hit adapter is extracted.
 
 Warp reset, updated 2026-09-10: read
@@ -372,19 +372,20 @@ Task 264 save/export, independent verification, error/reconnect and cleanup
 acceptance remains open. Do not turn a successful design pass into a claim that
 all artist capabilities or the complete A-Z benchmark are finished.
 
-### Current editor-stabilization reality -- read before the renderer capsule
+### Stabilization evidence and current continuation -- read before the renderer capsule
 
-Updated 2026-09-06. This section supersedes optimistic integration or release
-interpretations in the older renderer capsule and roadmap. The durable
-subsystems described there still exist, but their presence does not prove that
-the current editor integration is usable.
+Updated 2026-09-12. The failure history below explains the verification discipline;
+it is not a current bug census or permission to revive pre-kernel implementations.
+The supported mutation route is the editor kernel and its named application
+owners. Task416's composition-root ledger is the current cleanup authority.
+Passing bounded gates does not establish whole-app stability or release readiness.
 
-#### What changed architecturally
+#### Historical failure and lesson
 
 The stabilization program started from commit `0298946f` after repeated bugs
 showed that document state, transient previews, GPU resources, selection state
 and history could be changed or restored by different owners. Between that
-baseline and current committed `HEAD` (`cce15c7c`) 38 commits moved the editor
+baseline and the historical checkpoint `cce15c7c`, 38 commits moved the editor
 toward this transaction model:
 
 ```text
@@ -414,9 +415,12 @@ The main changes are:
 - renderer selection snapshot IO remains behind the rasterizer boundary rather
   than widening the renderer facade.
 
-The canonical program and its remaining matrix are in
+The historical investigation is retained in
 [EDITOR_TRANSACTION_AND_RENDERING_STABILIZATION_PLAN.md](EDITOR_TRANSACTION_AND_RENDERING_STABILIZATION_PLAN.md).
-Do not reconstruct the migration from commit subjects alone.
+It is not an active implementation checklist. Current scope, accepted source/
+packaged evidence and open gates are in
+[Overlay composition-root cleanup](editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md)
+and Task416. Do not reconstruct current status from old commit subjects.
 
 #### What this led to
 
@@ -425,10 +429,10 @@ an explicit document identity, immutable starting state, rollback boundary and
 resource lifetime. Several previously implicit cross-document and late-async
 failure modes are now represented in code and narrow tests.
 
-The negative result is more important for current work: the migration crossed
+The negative result remains the important lesson: that migration crossed
 too many user workflows before each complete workflow was accepted in the real
 application. Canonical state, renderer projections, capability/affordance
-checks and history restore are therefore not consistently in sync. Narrow
+checks and history restore were not consistently in sync. Narrow
 tests often proved the new local contract while missing the artist-visible
 state transition across tool, layer, renderer and undo owners. A passing test
 suite or successful command return must not be reported as proof that the
@@ -449,37 +453,19 @@ including:
 - Remove Background and other established end-user flows no longer working
   reliably.
 
-This is not a claim that every item has the same cause, nor that all older
-features are lost. It is evidence that the current integration is an
-**unstable internal development build under feature freeze**, not a
-tester-ready technical preview. A broad rewrite is not authorized by this
-finding; the architecture direction must be judged through repaired vertical
-workflows, not another repository-wide migration.
+These historical reports do not establish which bugs remain today. Reconcile
+each claim with current code and the relevant fresh packaged evidence. The
+product remains an internal stabilization build without whole-app/owner feel
+acceptance; another repository-wide rewrite is not authorized by this history.
 
-#### Current dirty worktree
+#### Recover live state instead of trusting a frozen worktree description
 
-At this update, committed `HEAD` and the working tree are materially different.
-`npm run context:agent` reports active changes in the stabilization plan and in
-selection translation, snapping geometry, document/history commands, layer
-resource ownership, merge/flatten operations and point-text creation. The
-worktree attempts, among other things, to:
-
-- keep an exact opening selection mask and apply the final cumulative
-  translation so temporary clipping at a document edge does not become the
-  durable selection;
-- exclude the selected snap geometry and dependent ancestors/descendants from
-  its own snap targets;
-- preserve group outer compositing semantics while flattening intrinsic group
-  contents and keep rollback/history resource IDs unique;
-- bind queued paste/clipboard work to the initiating document generation;
-- settle pixel interactions before undo/redo and allow point text to use the
-  one active native vector layer when no explicit vector selection reference
-  exists.
-
-These are **uncommitted repair attempts**, not verified fixes. Preserve them,
-inspect their diff and separate them explicitly from committed behavior. Do
-not mark the corresponding bugs done until the owner-visible GPU workflow has
-been exercised.
+Run `npm run context:agent` and `git status`, then read the current task ledger.
+Preserve unrelated recovery files and distinguish committed source, dirty source
+and the package actually exercised. No static list of old uncommitted files is
+authoritative. Earlier accepted kernel slices are regression boundaries, not
+unfinished legacy repair instructions; Task416 still requires endpoint review,
+mixed-flow/performance/resource proof and a separate WebGpuEngine decision.
 
 #### Required continuation discipline
 
@@ -498,7 +484,7 @@ Feature freeze remains in force. Work one user-visible vertical at a time:
 5. After every slice, report what is proven, what is only inferred, what
    remains broken and whether the dirty worktree is safer than its baseline.
 
-Restore these short acceptance chains before resuming breadth:
+Keep these short acceptance chains as regression gates at their relevant boundary:
 
 - marquee draw -> move/nudge at edges -> paint/copy/paste/invert -> undo/redo;
 - repeated transform and snapping in one tool session without pixel

@@ -1,7 +1,9 @@
 # Edit transaction
 
-Status: **target contract**; the package currently provides only the common
-identity, lifecycle and port types plus a tested pure lifecycle transition.
+Status: **normative transaction contract**. The kernel implements shared
+selection and applied-pixel coordinators as well as lifecycle/port types;
+application owners compose domain operations around them. This is not a claim
+that one generic coordinator implements every tool or that Task416 is complete.
 
 ## Lifecycle
 
@@ -19,7 +21,7 @@ replace only the disposable preview. A second gesture is a second transaction.
 
 ## Commit order
 
-The eventual coordinator must prepare all effects before publication:
+Each admitted operation must prepare its effects before publication:
 
 1. validate document/session/revision and capability;
 2. prepare canonical patch, inverse/history payload and resource transfers;

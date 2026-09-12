@@ -1,10 +1,16 @@
 # Editor Transaction and Rendering Stabilization Plan
 
-Status: active stabilization program
-Scope: feature-freeze work for the LightTable image editor  
+Status: historical stabilization investigation; superseded implementation plan
+Scope: evidence from the pre-kernel stabilization attempt, not current tasks
 Audience: maintainers working on tools, selection, layers, history, commands and WebGPU  
 
-## Purpose
+Current implementation authority: [Editor kernel](editor-kernel/README.md) and
+[Overlay composition-root cleanup](editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md).
+The findings and checked boxes below are dated evidence, not current capability,
+worktree state or extension guidance. Do not implement their old routes. Remaining
+app acceptance comes from the current ledger and fresh source/package evidence.
+
+## Historical purpose
 
 LightTable has strong individual subsystems, but ordinary editor workflows can still leave the application in contradictory states. These defects are not adequately described as isolated tool bugs. They occur where a single user action crosses several owners:
 
@@ -18,7 +24,7 @@ LightTable has strong individual subsystems, but ordinary editor workflows can s
 
 The stabilization objective is to make one visible user action one coherent, recoverable operation across all of those owners.
 
-This document is the working plan for escaping the current bug-fix loop. It does not authorize new editor features or visual redesign work.
+This document records the original plan for escaping that bug-fix loop. It does not authorize implementation, new features or visual redesign.
 
 ## 2026-09-08 architecture boundary decision
 
@@ -34,9 +40,9 @@ command, transaction, history and renderer ownership may not be mixed. Current
 acceptance evidence and remaining cleanup gates are recorded in the
 [kernel cut-over plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md).
 
-This decision changes the continuation method, not the evidence below. Entries
-in this stabilization document remain historical/current implementation facts
-and must not be re-labelled as kernel behavior.
+This dated decision changed the continuation method, not the evidence below.
+Entries here remain historical investigation facts and must not be re-labelled
+as current kernel behavior. The kernel is now the only supported mutation route.
 
 ## Executive conclusion
 

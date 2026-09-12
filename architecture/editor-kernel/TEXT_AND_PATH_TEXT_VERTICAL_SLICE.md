@@ -138,6 +138,7 @@ hand-off remain open.
   packaged missing-font recovery gate passed.
 - Full `npm run verify` passed: boundaries, every workspace typecheck/test,
   web build and instrumented desktop packaging.
-- `audit:source-structure` remains red on the registered legacy hotspots,
-  including the overlay and `WebGpuEngine`; no threshold was raised. The S06
-  overlay extraction above remains mandatory debt.
+- At the C07 checkpoint, `audit:source-structure` was red on registered legacy
+  hotspots. That historical result is not current audit status. Task416 now owns
+  the remaining Overlay extraction and downward size ratchets; its O08 endpoint
+  and separate WebGpuEngine follow-up remain open even when the audit is green.

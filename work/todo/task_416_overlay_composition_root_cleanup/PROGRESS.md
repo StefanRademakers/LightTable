@@ -1,5 +1,18 @@
 # Task 416 progress
 
+## O08 documentation checkpoint — stale onboarding authority removed
+
+- Removed the frozen historical HEAD/current-dirty-worktree directions from
+  onboarding; retained failure lessons and real-flow/feature-freeze guardrails.
+  The earlier stabilization investigation is explicitly historical, not a second
+  active implementation plan. Kernel + Task416 remain the only continuation route.
+- Corrected old kernel-only-types wording against actual selection/applied-pixel
+  coordinators and dated the old red source-audit result. No whole-app completion
+  claim. Independent documentation review and architecture-docs audit PASS.
+- This is partial MD reconciliation, not O08 acceptance or deletion of every
+  historical report. Any remaining valid findings must be reconciled before
+  removing their source. Runner prerequisite implementation remains unaccepted WIP.
+
 ## O07f — Independent GenAI provider binding (accepted)
 
 - Deleted Overlay Create-preference/status-cache/subscription reconciliation and
