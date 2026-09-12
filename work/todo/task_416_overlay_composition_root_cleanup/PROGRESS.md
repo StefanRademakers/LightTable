@@ -2,6 +2,12 @@
 
 ## O03c.3b — Scope canvas/context lifetime (accepted)
 
+- Follow-up proof correction: the initial unchanged-pixel check used a same-revision
+  preview, which may be cached. Replaced it with fresh final-output PNG exports;
+  packaged rerun passes exact exported bytes plus actual visible scope screenshots.
+  This proves final-output preservation, not latest-frame identity. No production
+  change or artificial cache invalidation was needed.
+
 - ScopeCanvasBinding owns four canvas/context pairs and theme attachment;
   WebGpuScopeEngine retains GPU analysis resources/options. DocumentScopeRuntime
   applies the latest complete attachment request, including requests arriving

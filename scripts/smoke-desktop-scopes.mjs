@@ -71,12 +71,15 @@ try {
   assert.ok(documentId, 'Scopes smoke has no active document.');
   await driver.waitForReadyDocument(documentId, 60_000);
   const beforeDocument = await driver.queryDocument(documentId);
-  const beforePreview = await driver.requestDocumentPreview(
-    documentId, beforeDocument.canonicalRevision, 768
-  );
-  const beforeArtifactId = beforePreview?.artifact?.id ?? beforePreview?.id;
-  const beforeBytes = (await driver.readArtifact(beforeArtifactId))?.bytes;
-  assert.ok(beforeBytes?.length, 'Scopes smoke could not read its baseline preview.');
+  const freshPixels = async () => {
+    const exported = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
+    const task = await driver.waitForTask(documentId, exported.taskId);
+    assert.ok(task.artifact?.id, 'Scopes smoke needs a fresh final-output artifact.');
+    const artifact = await driver.readArtifact(task.artifact.id);
+    assert.ok(artifact?.bytes?.length);
+    return artifact.bytes;
+  };
+  const beforeBytes = await freshPixels();
 
   await page.getByRole('radio', { name: 'Switch to Grading workspace' }).click();
   const scopes = page.locator('[data-ui-component="scopes"]:visible');
@@ -130,14 +133,9 @@ try {
     'Opening, hiding or restoring scopes changed canonical document revision.');
   assert.deepEqual(afterDocument.history, beforeDocument.history,
     'Opening, hiding or restoring scopes changed document history.');
-  const afterPreview = await driver.requestDocumentPreview(
-    documentId, afterDocument.canonicalRevision, 768
-  );
-  const afterArtifactId = afterPreview?.artifact?.id ?? afterPreview?.id;
-  const afterBytes = (await driver.readArtifact(afterArtifactId))?.bytes;
-  assert.ok(afterBytes?.length, 'Scopes smoke could not read its final preview.');
+  const afterBytes = await freshPixels();
   assert.equal(digest(afterBytes), digest(beforeBytes),
-    'Opening, hiding or restoring scopes changed presented document pixels.');
+    'Opening, hiding or restoring scopes changed final-output document pixels.');
   assert.deepEqual(pageErrors, [], `Scopes smoke emitted page errors: ${pageErrors.join(' | ')}`);
 
   await page.screenshot({ path: path.join(output, 'scopes.png') });
