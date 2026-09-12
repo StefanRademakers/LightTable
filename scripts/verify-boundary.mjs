@@ -894,6 +894,11 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('removeObjectPendingRef')) {
       failures.push(`${relativePath}: Remove Object capture and submission lifetime must remain in bounded editor/GenAI owners`);
     }
+    if (!/createMountedTextCommandBinding(?:<DocumentRendererPort>)?\(/.test(source) || source.includes('executeSemanticTextCommand(')
+      || source.includes('assertTextCreationCommandReady') || source.includes('assertFileCommandReady')
+      || source.includes('commandService.enqueueTextCreation(') || !source.includes('useTextCreation(')) {
+      failures.push(`${relativePath}: queued text creation must retain the runner-owned handle and exact mounted text publication binding`);
+    }
     if (!source.includes('useGenAiProviders(') || source.includes('genAiProviderSnapshots')
       || source.includes('fallbackGenAiProvider') || source.includes('updateGenAiProviderSnapshot')
       || /genAiService\.(getProviderSnapshots|subscribe|connectProvider|disconnectProvider)\(/.test(source)) {

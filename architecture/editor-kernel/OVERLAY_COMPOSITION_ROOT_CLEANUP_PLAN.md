@@ -9,7 +9,15 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O06i Delete target precedence, exact target and
+Latest bounded acceptance: O02c.3b captured text prerequisites in the same
+command runner; critic, actual paragraph/point export, exact UndoRedo/Actions,
+ordinary Save and Path Text Actions pass. Adjacent native edge-pan receiver
+failure was reproduced and repaired with its own critic and actual drag gate.
+O07f independent GenAI provider projection and
+connection request lifetime; critic and packaged local-fixture connect,
+disconnect, reject/retry and reference-handoff gates pass. O03c.7 unconditional
+hook order and closed text presentation lifetime pass baseline/current public
+host reproduction and adjacent packaged text gates. O06i Delete target precedence, exact target and
 post-settlement active-selection guard; critic and packaged vector/pixel/layer
 Delete, pending-transform handoff and selection-kernel gates pass.
 O05f shared tool-default intents and digit lifetime;
@@ -24,7 +32,7 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Root is 5,158 physical lines. Remaining hook-order/GenAI/command families, cross-flow
+Accepted root is 5,101 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -158,15 +166,18 @@ class names: reuse existing owners before creating a new one.
         Exact text terminal/source checks; existing host recovery remains owner.
         Packaged actual blur/refocus, tab and close Cancel/Discard pass.
       - [ ] Remaining target-change policy outside workspace tab/close.
-    - [ ] O02c.3: save/export prerequisite consolidation.
+    - [x] O02c.3: save/export prerequisite consolidation.
       - [x] O02c.3a: scoped UI file intents, actual text/layer/adjustment terminal
         outcomes and original-owner host delivery. Critic PASS after explicit
         outcome/lifetime repairs. Packaged uncommitted transform/clean Save,
         immediate Type/Save, bitmap formats and source/layered Save pass.
-      - [ ] O02c.3b: command-producing prerequisites inside Actions/MCP admission.
-        Pending text creation currently rejects explicitly; recursive text.create
-        during an already queued export would deadlock. Define a same-runner
-        prerequisite contract before claiming automatic completion equivalence.
+      - [x] O02c.3b: captured command-producing text prerequisite in the same
+        runner. Parent admission precedes mutation; exact queued child is consumed
+        once with normal validation/history/Actions and real publication guards.
+        Critic PASS;240 focused tests, actual held paragraph/point -> semantic
+        export -> exact UndoRedo/Actions, Save and Path Text Actions PASS.
+        No second queue or recursive public execute. Controlled races are
+        integration proof, not native host/MCP transport coverage.
   - [x] O02d: exact queued mounted admission across UI, Grade and semantic
     settlement; pinned registration identity and truthful text-property terminals.
     Critic PASS; 99 focused tests and packaged Properties/tab/no-op/Undo/Redo and

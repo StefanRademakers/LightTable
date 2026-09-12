@@ -298,7 +298,7 @@ export interface LightTableCommandPorts {
   supportsCommand?(documentId: DocumentSessionId, command: LightTableCommandId): boolean;
   /** Retires unpublished mounted interaction state before semantic command admission. */
   settleInteractionBeforeCommand(documentId: DocumentSessionId,
-    command: LightTableCommandId): void | Promise<void>;
+    command: LightTableCommandId, textPrerequisite?: FileTextCreationPrerequisite): void | Promise<void>;
   resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): boolean | Promise<boolean>;
   applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(documentId: DocumentSessionId,
@@ -321,7 +321,7 @@ export interface LightTableCommandPorts {
   setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
-  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
+  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand, assertCurrent: () => void): unknown | Promise<unknown>;
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeSvgImport?(documentId: DocumentSessionId, command: SemanticSvgImportCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
@@ -387,7 +387,7 @@ export interface DocumentLightTableCommandPorts {
   /** Overrides command availability when one port handles mixed renderer requirements. */
   supportsCommand?(command: LightTableCommandId): boolean;
   /** Retires presentation-owned work newer than the canonical document. */
-  settleInteractionBeforeCommand(command: LightTableCommandId): void | Promise<void>;
+  settleInteractionBeforeCommand(command: LightTableCommandId, textPrerequisite?: FileTextCreationPrerequisite): void | Promise<void>;
   resizeImage?(request: ImageSizeRequest): boolean | Promise<boolean>;
   applyDocumentGeometry?(request: DocumentGeometryRequest): boolean | Promise<boolean>;
   assignDocumentProfile?(command: SemanticAssignProfileCommand):
@@ -410,7 +410,7 @@ export interface DocumentLightTableCommandPorts {
   setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
-  executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
+  executeTextCommand(command: SemanticTextCommand, assertCurrent: () => void): unknown | Promise<unknown>;
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeSvgImport?(command: SemanticSvgImportCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
@@ -463,3 +463,4 @@ export interface DocumentLightTableCommandPorts {
   /** Internal packaged-test seam; never projected into command/MCP capabilities. */
   forceDeviceLossForAutomation?(): boolean;
 }
+import type { FileTextCreationPrerequisite } from './DocumentCommandExecutionQueue';

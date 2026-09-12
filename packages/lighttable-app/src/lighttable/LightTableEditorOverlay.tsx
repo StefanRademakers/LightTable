@@ -175,7 +175,6 @@ import { TextPropertyGestureController } from './application/text/TextPropertyGe
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { useExistingTextActivation } from './composition/text/useExistingTextActivation';
 import { useTextEditingEntry } from './composition/text/useTextEditingEntry';
-import { executeSemanticTextCommand } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { createMountedSvgImportBinding } from './application/vectors/createMountedSvgImportBinding';
@@ -216,6 +215,7 @@ import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePane
 import { useGenAiSetupController } from '../genai/application/useGenAiSetupController';
 import { useGenAiJobsController } from '../genai/application/useGenAiJobsController';
 import { useGenAiProviders } from '../genai/application/useGenAiProviders';
+import { createMountedTextCommandBinding } from './composition/text/createMountedTextCommandBinding';
 import { useGenAiRemoveObject } from './composition/genai/useGenAiRemoveObject';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 
@@ -975,10 +975,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     prepareFont: settings => registerBundledTextFontForSettings(textFontRegistry, settings),
     probe: () => lightTableTextEngine.probe(),
     captureScope: captureMountedInteractionScope,
-    execute: parameters => executeRegisteredCommand('text.create', parameters),
     beginEditing: layerId => { textEditingController.begin(layerId); textEditingController.selectAll(); },
     setStatus: setGradeStatus,
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
+  }, { commands: commandService, documentId: workspaceDocumentId,
+    nextRequestId: () => `ui-${workspaceDocumentId}-${++commandRequestSequenceRef.current}`
   });
   const finishTextEditingRef = useRef<() => boolean>(() => false);
   const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
@@ -3390,14 +3391,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       commands: layerDocumentCommands
     });
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
-      settleInteractionBeforeCommand: async (command) => {
+      settleInteractionBeforeCommand: async (command, textPrerequisite) => {
         // Zoom does not change canonical content and may remain available
         // during a transform. All semantic document commands first publish
         // presentation-owned selection/transform state through its owner.
         if (command === 'view.setZoom') return;
         if (command === 'file.exportNative' || command === 'file.exportPng' || command === 'file.exportBitmap'
           || command === 'file.exportPsd' || command === 'file.exportSvg') {
-          await documentFileIntents.prepareForCommand(documentSession);
+          if (!textPrerequisite) throw new Error('The file command runner did not supply its text prerequisite ownership.');
+          await documentFileIntents.prepareForCommand(documentSession, textPrerequisite);
           return;
         }
         await settleRegisteredInteraction();
@@ -3462,19 +3464,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         { kind: 'toggle', layerId, effectId, enabled }, {
           changeDocument: documentMutationController.change
         }),
-      executeTextCommand: async (command) => {
-        const result = await executeSemanticTextCommand(command, {
-          fontRegistry: textFontRegistry,
-          getDocument: () => imageDocumentRef.current,
-          getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
-          changeDocument: documentMutationController.change
-        });
-        if (!result) return null;
-        if (!await waitForExactCommandRender(engineRef.current)) {
-          console.warn('[LightTable render] Text edit committed while its exact render source is still pending.');
-        }
-        return result;
-      },
+      executeTextCommand: createMountedTextCommandBinding<DocumentRendererPort>(documentSession, registeredRenderer, {
+        getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+        captureScope: captureMountedInteractionScope, waitForExactRender: waitForExactCommandRender,
+        reportPendingRender: () => console.warn('[LightTable render] Text edit committed while its exact render source is still pending.'),
+        reportRenderFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
+      }, {
+        fontRegistry: textFontRegistry,
+        getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
+        changeDocument: documentMutationController.change
+      }),
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
         changeDocument: documentMutationController.change
       }),
@@ -3933,7 +3932,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitAdjustments: adjustmentInteractions.finishForFile,
     commitLayerDocument: layerDocumentInteractions.finishForFile,
     finishTextCreation: textCreationInteraction.finishForFile,
-    assertTextCreationCommandReady: textCreationInteraction.assertFileCommandReady,
+    captureTextCreation: textCreationInteraction.captureForFile,
     finishTextEditing: () => textEditingController.finishForFile(),
     commands: commandService,
     nextRequestId: id => `ui-${id}-${++commandRequestSequenceRef.current}`,

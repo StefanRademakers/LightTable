@@ -40,6 +40,7 @@ import {
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
+import { DocumentCommandExecutionQueue, type TrackedTextCreationCommand } from './DocumentCommandExecutionQueue';
 import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { observedCommandParametersAreValid } from './observedCommandValidation';
 import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
@@ -216,9 +217,8 @@ export class LightTableCommandService {
     lease: ReturnType<typeof setTimeout>;
   }>();
   private gestureSequence = 0;
-  private readonly executingDocumentCommands = new Map<DocumentSessionId, number>();
-  private readonly settlingDocumentInteractions = new Map<DocumentSessionId, number>();
-  private readonly documentExecutionTails = new Map<DocumentSessionId, Promise<void>>();
+  private readonly documentExecutionFrames = new Map<DocumentSessionId, Array<{ settling: boolean }>>();
+  private readonly documentExecutionQueue = new DocumentCommandExecutionQueue();
   private executingCommands = 0;
   private readonly executionBarriers = new Map<symbol, string>();
   private readonly executionIdleWaiters = new Set<() => void>();
@@ -630,8 +630,8 @@ export class LightTableCommandService {
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
-    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0
-      && (this.settlingDocumentInteractions.get(documentId) ?? 0) === 0) {
+    const frame = this.documentExecutionFrames.get(documentId)?.at(-1);
+    if (frame && !frame.settling) {
       return traceObservedCommand(command, false, 'command-execution-active');
     }
     if (!observedCommandParametersAreValid(command, parameters)) {
@@ -1036,9 +1036,20 @@ export class LightTableCommandService {
     };
   }
 
-  async execute(requestValue: unknown, context: LightTableCommandExecutionContext = {
+  execute(requestValue: unknown, context: LightTableCommandExecutionContext = {
     origin: 'ui', recording: 'record'
   }): Promise<LightTableCommandResult> {
+    return this.enqueueCommand(requestValue, context).result;
+  }
+
+  /** Internal UI creation identity; its guard is also checked when a queued command reaches its handler. */
+  enqueueTextCreation(request: LightTableCommandRequest & { command: 'text.create' }, assertCurrent: () => void,
+    context: LightTableCommandExecutionContext = { origin: 'ui', recording: 'record' }): TrackedTextCreationCommand {
+    return this.enqueueCommand(request, context, assertCurrent);
+  }
+
+  private enqueueCommand(requestValue: unknown, context: LightTableCommandExecutionContext,
+    assertCurrent?: () => void): TrackedTextCreationCommand {
     const startedAt = Date.now();
     const recording = this.actions.recordingSnapshot();
     const recordingId = context.recording === 'record' && recording.status === 'recording'
@@ -1047,48 +1058,32 @@ export class LightTableCommandService {
     const parsed = this.parseRequest(requestValue);
     const documentId = 'value' in parsed ? parsed.value.documentId : undefined;
     this.executingCommands += 1;
-    let releaseDocumentExecution: () => void = () => undefined;
-    let documentExecutionTail: Promise<void> | null = null;
-    if (documentId) {
-      const previous = this.documentExecutionTails.get(documentId) ?? Promise.resolve();
-      const ownTurn = new Promise<void>((resolve) => {
-        releaseDocumentExecution = resolve;
-      });
-      documentExecutionTail = previous.then(() => ownTurn);
-      this.documentExecutionTails.set(documentId, documentExecutionTail);
-      // The entire document command admission is serialized. In particular,
-      // two callers cannot validate the same expected revision and then race
-      // through interaction settlement or handler dispatch.
-      await previous;
-      this.executingDocumentCommands.set(documentId,
-        (this.executingDocumentCommands.get(documentId) ?? 0) + 1);
-    }
-    let result: LightTableCommandResult;
-    try {
-      result = await this.executeCommand(requestValue);
-    } finally {
-      this.executingCommands -= 1;
-      if (documentId) {
-        const depth = (this.executingDocumentCommands.get(documentId) ?? 1) - 1;
-        if (depth > 0) this.executingDocumentCommands.set(documentId, depth);
-        else this.executingDocumentCommands.delete(documentId);
-        releaseDocumentExecution();
-        if (this.documentExecutionTails.get(documentId) === documentExecutionTail) {
-          this.documentExecutionTails.delete(documentId);
+    return this.documentExecutionQueue.enqueue(documentId, 'value' in parsed ? parsed.value.command : undefined, async handle => {
+      const frame = { settling: false };
+      const frames = documentId ? this.documentExecutionFrames.get(documentId) ?? [] : [];
+      if (documentId) { frames.push(frame); this.documentExecutionFrames.set(documentId, frames); }
+      try {
+        const result = await this.executeCommand(requestValue, handle, frame, assertCurrent);
+        if (!('rejection' in parsed) && context.recording === 'record') {
+          this.actions.record(parsed.value, result, startedAt, recordingId, context.origin);
+        }
+        return result;
+      } finally {
+        this.executingCommands -= 1;
+        if (documentId) {
+          frames.pop();
+          if (!frames.length) this.documentExecutionFrames.delete(documentId);
+        }
+        if (this.executingCommands === 0) {
+          for (const resolve of this.executionIdleWaiters) resolve();
+          this.executionIdleWaiters.clear();
         }
       }
-      if (this.executingCommands === 0) {
-        for (const resolve of this.executionIdleWaiters) resolve();
-        this.executionIdleWaiters.clear();
-      }
-    }
-    if (!('rejection' in parsed) && context.recording === 'record') {
-      this.actions.record(parsed.value, result, startedAt, recordingId, context.origin);
-    }
-    return result;
+    });
   }
 
-  private async executeCommand(requestValue: unknown): Promise<LightTableCommandResult> {
+  private async executeCommand(requestValue: unknown, handle: TrackedTextCreationCommand,
+    frame: { settling: boolean }, assertCurrent?: () => void): Promise<LightTableCommandResult> {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;
@@ -1232,22 +1227,21 @@ export class LightTableCommandService {
     // Observed commits raised by this narrow phase are ordered prerequisites
     // of the requested command and remain recordable by Actions. Observations
     // raised by the requested command itself stay suppressed as duplicates.
-    const settlingDepth = this.settlingDocumentInteractions.get(
-      documentRequest.documentId
-    ) ?? 0;
-    this.settlingDocumentInteractions.set(documentRequest.documentId, settlingDepth + 1);
+    frame.settling = true;
     try {
-      await this.ports.settleInteractionBeforeCommand(
-        documentRequest.documentId,
-        value.command
-      );
+      assertCurrent?.();
+      const prerequisite = this.documentExecutionQueue.filePrerequisite(handle);
+      if (prerequisite) {
+        await this.ports.settleInteractionBeforeCommand(documentRequest.documentId, value.command, prerequisite);
+      } else {
+        await this.ports.settleInteractionBeforeCommand(documentRequest.documentId, value.command);
+      }
+      assertCurrent?.();
     } catch (reason) {
       return this.reject(value.requestId, 'execution-failed',
         reason instanceof Error ? reason.message : String(reason), snapshot);
     } finally {
-      const depth = (this.settlingDocumentInteractions.get(documentRequest.documentId) ?? 1) - 1;
-      if (depth > 0) this.settlingDocumentInteractions.set(documentRequest.documentId, depth);
-      else this.settlingDocumentInteractions.delete(documentRequest.documentId);
+      frame.settling = false;
     }
     snapshot = this.document(documentRequest.documentId);
     if (!snapshot?.document || snapshot.lifecycle !== 'ready') {
@@ -1437,7 +1431,12 @@ export class LightTableCommandService {
           return this.reject(value.requestId, 'invalid-parameters', 'The text range exceeds the current content.', snapshot);
       }
       try {
-        const result = await this.ports.executeTextCommand(documentRequest.documentId, command);
+        const session = this.workspace.getDocument(documentRequest.documentId);
+        const result = await this.ports.executeTextCommand(documentRequest.documentId, command, () => {
+          assertCurrent?.();
+          if (!session || this.workspace.getDocument(documentRequest.documentId) !== session
+            || session.getSnapshot().lifecycle !== 'ready') throw new Error('The text command document session was retired.');
+        });
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The text command did not change the document.', snapshot);
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };

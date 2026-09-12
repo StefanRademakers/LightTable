@@ -3,6 +3,8 @@ import { createImageDocument, type DocumentFontAsset, type LayerId } from '../..
 import { createEditorSession } from '../../editor/session/editorSession';
 import type { TextFontRuntimePort } from '../../editor/rendering/createLayerDocumentRendererRuntime';
 import { TextCreationInteraction, type TextCreationPorts } from './TextCreationInteraction';
+import { DocumentCommandExecutionQueue } from '../commands/DocumentCommandExecutionQueue';
+import type { LightTableCommandResult } from '../commands/lightTableCommandContract';
 
 const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (error: Error) => void;
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -19,7 +21,8 @@ const setup = () => {
   const runtime: TextFontRuntimePort = { revision: 1, assets: [font], loadedByteSize: 0,
     bytes: async () => null, subscribe: () => () => undefined };
   const ready = deferred<void>();
-  const ports: TextCreationPorts = {
+  const queue = new DocumentCommandExecutionQueue();
+  const ports: TextCreationPorts & { execute(parameters: unknown): Promise<{ status: string; value?: unknown; message?: string }> } = {
     getDocument: () => document, getTool: () => tool, getSettings: () => settings,
     getColor: () => '#123456', getScale: () => 1, getRenderer: () => renderer, rendererReady: () => true,
     getFontRuntime: () => runtime, getFontRegistry: () => registry, getFonts: () => [font],
@@ -27,6 +30,9 @@ const setup = () => {
     captureScope: () => ({ isCurrent: () => current, assertCurrent: vi.fn() }),
     execute: vi.fn(async () => { document = { ...document, activeLayerId: 'created' as LayerId };
       return { status: 'completed', value: { layerId: 'created' } }; }),
+    enqueue: (parameters, assertCurrent) => queue.enqueue(undefined, 'text.create', async () => {
+      assertCurrent(); return { ...await ports.execute(parameters), requestId: 'creation', revisions: { workspace: 0 } } as LightTableCommandResult;
+    }),
     beginEditing: vi.fn(), setStatus: vi.fn(), reportFailure: vi.fn()
   };
   const owner = new TextCreationInteraction(() => ports);
@@ -37,18 +43,18 @@ const setup = () => {
 };
 
 describe('Text creation intent lifetime', () => {
-  it('queued file readiness is read-only and rejects pending creation without dispatching it', async () => {
-    const h = setup(); expect(() => h.owner.assertFileCommandReady()).not.toThrow();
+  it('captures exact pending creation without dispatch until preparation is requested', async () => {
+    const h = setup(); expect(await h.owner.captureForFile().prepare()).toBeNull();
     void h.owner.beginPoint({ x: 5, y: 7 });
-    expect(() => h.owner.assertFileCommandReady()).toThrow(/pending text creation/);
+    const captured = h.owner.captureForFile();
     expect(h.ports.execute).not.toHaveBeenCalled();
     const file = h.owner.finishForFile(); h.ready.resolve(); await file;
-    expect(() => h.owner.assertFileCommandReady()).not.toThrow();
+    expect(() => captured.assertCurrent()).not.toThrow();
     expect(h.ports.execute).toHaveBeenCalledOnce();
   });
-  it('queued file readiness does not reject a retired creation belonging to an old scope', () => {
+  it('does not capture a retired creation as a current file prerequisite', () => {
     const h = setup(); void h.owner.beginPoint({ x: 5, y: 7 }); h.retire();
-    expect(() => h.owner.assertFileCommandReady()).not.toThrow();
+    expect(() => h.owner.captureForFile()).toThrow(/retired/);
     expect(h.ports.execute).not.toHaveBeenCalled(); h.owner.cancel(); h.ready.resolve();
   });
   it('creates once through the semantic route after preparation and activates the authored result', async () => {
@@ -197,7 +203,7 @@ describe('Text creation intent lifetime', () => {
   it.each(['rejected', 'accepted'] as const)('file preparation rejects semantic %s rather than claiming committed text', async status => {
     const h = setup(); h.ports.execute = vi.fn(async () => ({ status, message: 'Not committed' }));
     void h.owner.beginPoint({ x: 5, y: 7 });
-    const ready = expect(h.owner.finishForFile()).rejects.toThrow('Not committed');
+    const ready = expect(h.owner.finishForFile()).rejects.toThrow(status === 'rejected' ? 'Not committed' : 'Text creation did not complete');
     h.ready.resolve(); await ready;
     expect(h.ports.beginEditing).not.toHaveBeenCalled(); expect(h.ports.reportFailure).toHaveBeenCalledOnce();
   });

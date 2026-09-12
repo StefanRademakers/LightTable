@@ -70,6 +70,9 @@ export const executeAtomicCommandBatch = async (
   let current = before;
   const results = new Map<string, unknown>();
   const localText = {
+    assertCurrent: () => {
+      if (signal.aborted || !transaction.active) throw new DOMException('The batch was canceled.', 'AbortError');
+    },
     getDocument: () => current,
     changeDocument: (change: (document: ImageDocument) => ImageDocument) => {
       const next = change(current);

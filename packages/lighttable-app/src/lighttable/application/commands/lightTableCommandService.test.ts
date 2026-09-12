@@ -2922,7 +2922,7 @@ describe('LightTableCommandService registry', () => {
       { layerId, start: 0, end: 0, text: 'مرحبا 👋' }));
     expect(result).toMatchObject({ status: 'completed', value: { layerId } });
     expect(state.ports.executeTextCommand).toHaveBeenCalledWith(state.session.id,
-      { kind: 'replace', layerId, start: 0, end: 0, text: 'مرحبا 👋' });
+      { kind: 'replace', layerId, start: 0, end: 0, text: 'مرحبا 👋' }, expect.any(Function));
     const formatted = await state.service.execute(request('text.format', state.session.id,
       { layerId, style: { syntheticBold: true, syntheticItalic: true, underline: true } }));
     expect(formatted).toMatchObject({ status: 'completed' });
@@ -2931,7 +2931,7 @@ describe('LightTableCommandService registry', () => {
     ).valid).toBe(true);
     expect(state.ports.executeTextCommand).toHaveBeenLastCalledWith(state.session.id,
       { kind: 'format', layerId,
-        style: { syntheticBold: true, syntheticItalic: true, underline: true } });
+        style: { syntheticBold: true, syntheticItalic: true, underline: true } }, expect.any(Function));
     const emptyFormat = await state.service.execute(request('text.format', state.session.id,
       { layerId, style: {} }));
     expect(emptyFormat).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });

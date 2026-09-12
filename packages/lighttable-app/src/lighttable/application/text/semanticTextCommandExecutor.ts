@@ -16,6 +16,7 @@ import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry
 import { registerBundledTextFontByAssetId, registerBundledTextFontForSettings } from '../../text/fonts/bundledTextFont';
 
 export interface SemanticTextCommandDependencies {
+  assertCurrent(): void;
   readonly fontRegistry: DocumentFontRegistry;
   getDocument(): ImageDocument | null;
   getTextSettings(): TextToolSettings;
@@ -193,6 +194,7 @@ export const executeSemanticTextCommand = async (
   command: SemanticTextCommand,
   dependencies: SemanticTextCommandDependencies
 ): Promise<{ readonly layerId: LayerId; readonly fontStatus?: unknown } | null> => {
+  dependencies.assertCurrent();
   const openingDocument = dependencies.getDocument();
   if (!openingDocument) return null;
   let fontStatus: unknown;
@@ -284,9 +286,11 @@ export const executeSemanticTextCommand = async (
       return after;
     };
   }
-  const changed = dependencies.changeDocument((current) => (
-    current === openingDocument ? change(current) : current
-  ), true, {
+  dependencies.assertCurrent();
+  const changed = dependencies.changeDocument((current) => {
+    dependencies.assertCurrent();
+    return current === openingDocument ? change(current) : current;
+  }, true, {
     label: command.kind === 'create' ? 'New Type Layer' : 'Edit Type',
     type: `text.${command.kind}`,
     ...(resultLayerId ? { layerIds: [resultLayerId] } : {})

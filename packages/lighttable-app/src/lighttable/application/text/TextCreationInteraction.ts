@@ -2,6 +2,7 @@ import type { DocumentFontAsset, ImageDocument, LayerId } from '../../editor/doc
 import type { TextToolSettings } from '../../editor/session/editorSession';
 import type { TextFontRuntimePort } from '../../editor/rendering/createLayerDocumentRendererRuntime';
 import type { captureInteractionScope } from '../interactions/captureInteractionScope';
+import type { TrackedTextCreationCommand } from '../commands/DocumentCommandExecutionQueue';
 import { PointTextCreationController, ParagraphTextCreationController, resolveTextToolFont,
   textCreationKind, type PathTextCreationTarget } from './pointTextCreation';
 import { pointTextCreateCommand, paragraphTextCreateCommand, pathTextCreateCommand,
@@ -23,7 +24,7 @@ export interface TextCreationPorts {
   prepareFont(settings: TextToolSettings): Promise<unknown>;
   probe(): Promise<unknown>;
   captureScope(): ReturnType<typeof captureInteractionScope>;
-  execute(parameters: unknown): Promise<{ status: string; value?: unknown; message?: string }>;
+  enqueue(parameters: unknown, assertCurrent: () => void): TrackedTextCreationCommand;
   beginEditing(layerId: LayerId): void;
   setStatus(status: string | null): void;
   reportFailure(error: unknown): void;
@@ -46,10 +47,20 @@ interface CreationIntent {
   dispatched: boolean;
   font: DocumentFontAsset | null;
   fileFinishRequested: boolean;
+  command: TrackedTextCreationCommand | null;
+  prepared: Promise<void>;
+  preparedResolve(): void;
+  committed: boolean;
+  failure: Error | null;
   terminal: Promise<CreationTerminal>;
   complete(result: CreationTerminal): void;
 }
 type CreationTerminal = { status: 'completed' } | { status: 'canceled' | 'failed'; error: Error };
+export interface CapturedTextCreationPrerequisite {
+  /** Wait for fonts and draft finalization, never for queued command execution. */
+  prepare(): Promise<TrackedTextCreationCommand | null>;
+  assertCurrent(): void;
+}
 
 /** Creation intent/readiness lifetime. Draft geometry and semantic publication keep their existing owners. */
 export class TextCreationInteraction {
@@ -75,7 +86,8 @@ export class TextCreationInteraction {
   cancel = () => {
     const intent = this.intent; this.intent = null;
     const point = this.point.cancel(); const paragraph = this.paragraph.cancel();
-    intent?.complete({ status: 'canceled', error: new Error('Text creation was retired before file preparation completed.') });
+    intent?.preparedResolve();
+    if (intent && !intent.dispatched) intent.complete({ status: 'canceled', error: new Error('Text creation was retired before file preparation completed.') });
     if (intent && !intent.ready) intent.p.setStatus(null);
     return Boolean(intent || point || paragraph);
   };
@@ -97,11 +109,16 @@ export class TextCreationInteraction {
     if (tool !== 'text-point' && tool !== 'text-vertical' && tool !== 'text-path') return null;
     let complete!: (result: CreationTerminal) => void;
     const terminal = new Promise<CreationTerminal>(resolve => { complete = resolve; });
+    let preparedResolve!: () => void;
+    const prepared = new Promise<void>(resolve => { preparedResolve = resolve; });
     const intent: CreationIntent = { kind, p, documentId: document.id, aboveLayerId: document.activeLayerId,
       tool, settings: { ...p.getSettings() }, color: p.getColor(), registry: p.getFontRegistry(),
       renderer, runtime: p.getFontRuntime(), scope: p.captureScope(), path,
       ready: false, finishRequested: false, dispatched: false, font: null,
-      fileFinishRequested: false, terminal, complete };
+      fileFinishRequested: false, terminal, complete: result => {
+        if (result.status !== 'completed') intent.failure ??= result.error;
+        complete(result);
+      }, command: null, prepared, preparedResolve, committed: false, failure: null };
     this.intent = intent;
     p.setStatus('Preparing the text engine...');
     return intent;
@@ -148,27 +165,37 @@ export class TextCreationInteraction {
       this.cancel(); return false;
     }
     void this.prepare(intent).then(ready => {
-      if (ready && this.admitPrepared(intent) && intent.finishRequested) this.commitParagraph(!intent.fileFinishRequested);
+      if (ready && this.admitPrepared(intent) && intent.finishRequested) {
+        if (intent.kind === 'point') this.commitPoint(!intent.fileFinishRequested);
+        else this.commitParagraph(!intent.fileFinishRequested);
+      }
     });
     return true;
   };
   private dispatch(intent: CreationIntent, parameters: unknown, beginEditing: boolean) {
     intent.dispatched = true;
-    const execute = async () => intent.p.execute(parameters);
-    void execute().then(result => {
-      if (!this.current(intent)) {
-        intent.complete({ status: 'canceled', error: new Error('Text creation completed for a retired file target.') });
-        return;
-      }
-      if (result.status !== 'completed') throw new Error(result.message ?? 'Text creation did not complete.');
+    try {
+      intent.command = intent.p.enqueue(parameters, () => {
+        if (!this.current(intent, true)) throw new Error('The queued text creation was canceled or its target was retired.');
+      });
+    } catch (error) {
+      intent.dispatched = false; intent.complete({ status: 'failed', error: error instanceof Error ? error : new Error(String(error)) });
+      if (this.current(intent)) { this.cancel(); intent.p.reportFailure(error); }
+      return false;
+    } finally { intent.preparedResolve(); }
+    void intent.command.result.then(result => {
+      if (result.status !== 'completed') throw new Error(result.status === 'rejected' ? result.message : 'Text creation did not complete.');
+      // A committed child remains committed even if its parent/presentation retires before delivery.
+      intent.committed = true;
+      const current = this.current(intent);
       const layerId = (result.value as { layerId?: LayerId } | undefined)?.layerId;
       if (this.intent === intent) this.intent = null;
       intent.complete({ status: 'completed' });
-      if (beginEditing && !intent.fileFinishRequested && layerId
+      if (current && beginEditing && !intent.fileFinishRequested && layerId
         && this.getPorts().getDocument()?.activeLayerId === layerId) intent.p.beginEditing(layerId);
     }).catch(error => {
       intent.complete({ status: 'failed', error: error instanceof Error ? error : new Error(String(error)) });
-      if (this.current(intent) || (!this.intent && this.bindingCurrent(intent))) {
+      if (this.current(intent) || (intent.committed && !this.intent && this.bindingCurrent(intent))) {
         this.intent = null; intent.p.reportFailure(error);
       }
     });
@@ -194,28 +221,35 @@ export class TextCreationInteraction {
     return this.dispatch(intent, textCreateCommandParameters(paragraphTextCreateCommand(
       request, intent.settings, intent.font, intent.color, intent.tool === 'text-vertical')), beginEditing);
   };
-  /** A queued export cannot await text.create behind its own command turn. */
-  assertFileCommandReady = (): void => {
-    if (this.intent && this.current(this.intent)) {
-      throw new Error('Finish the pending text creation before exporting through a command.');
-    }
+  /** Capture before any other file terminal can yield or supersede the creation. */
+  captureForFile = (): CapturedTextCreationPrerequisite => {
+    const intent = this.intent;
+    const assertCurrent = () => {
+      if (intent ? !this.bindingCurrent(intent) || (this.intent !== intent && !intent.committed) || Boolean(this.intent && this.intent !== intent)
+        : Boolean(this.intent)) throw new Error('The captured text creation was retired or superseded.');
+    };
+    assertCurrent();
+    if (intent) intent.fileFinishRequested = true;
+    return { assertCurrent, prepare: async () => {
+      assertCurrent();
+      if (!intent) return null;
+      this.requestFileFinish(intent);
+      await intent.prepared;
+      if (intent.failure) throw intent.failure;
+      assertCurrent();
+      if (!intent.command) {
+        const result = await intent.terminal;
+        if (result.status !== 'completed') throw result.error;
+        throw new Error('Text creation did not produce a tracked command.');
+      }
+      return intent.command;
+    } };
   };
-  /** File intents await the existing creation, including cold fonts and command publication. */
-  finishForFile = async (): Promise<void> => {
-    let intent = this.intent;
-    if (!intent) return;
-    if (!this.current(intent)) {
-      if (this.intent === intent) this.cancel();
-      throw new Error('Text creation belongs to a retired file target.');
-    }
-    intent.fileFinishRequested = true;
+  private requestFileFinish(intent: CreationIntent) {
     const paragraph = this.paragraph.getSnapshot();
     if (intent.kind === 'paragraph' && paragraph.status === 'dragging' && paragraph.request?.pointerId != null) {
       // Use the normal pointer terminal, including its short-drag point conversion.
       this.finish(paragraph.request.pointerId, paragraph.request.end);
-      intent = this.intent;
-      if (!intent) throw new Error('The text creation was retired while preparing the file operation.');
-      intent.fileFinishRequested = true;
     }
     intent.finishRequested = true;
     // Point creation's begin continuation always dispatches itself. Do not
@@ -226,9 +260,15 @@ export class TextCreationInteraction {
         throw new Error('The pending text creation could not be committed for the file operation.');
       }
     }
-    const result = await intent.terminal;
-    if (result.status !== 'completed') throw result.error;
-    if (!this.bindingCurrent(intent)) throw new Error('Text creation completed for a retired file target.');
+  }
+  /** Outside the runner, await the same tracked creation's normal queue completion. */
+  finishForFile = async (): Promise<void> => {
+    const captured = this.captureForFile(), command = await captured.prepare();
+    if (command) {
+      const result = await command.result;
+      if (result.status !== 'completed') throw new Error(result.status === 'rejected' ? result.message : 'Text creation did not complete.');
+    }
+    captured.assertCurrent();
   };
   finish = (pointerId: number, point: Point) => {
     if (!this.owns(pointerId)) return false;
@@ -236,7 +276,11 @@ export class TextCreationInteraction {
     const request = this.paragraph.getSnapshot().request; const intent = this.intent;
     if (!request || !intent || !this.current(intent, true)) { this.cancel(); return false; }
     if (textCreationKind(request.start, request.end, this.getPorts().getScale()) === 'point') {
-      const origin = request.start; this.cancel(); void this.beginPoint(origin); return true;
+      // Point conversion is the same captured intent, not a successor that could escape file ownership.
+      this.paragraph.cancel(); intent.kind = 'point'; intent.finishRequested = true;
+      this.point.begin(intent.documentId, request.start);
+      if (intent.ready) this.commitPoint(!intent.fileFinishRequested);
+      return true;
     }
     if (!this.paragraph.finish(pointerId)) return false;
     intent.finishRequested = true;

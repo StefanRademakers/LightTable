@@ -151,7 +151,8 @@ export const createDocumentSessionCommandPorts = (
     setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
       { kind: 'toggle', layerId, effectId, enabled }, { changeDocument: mutation.change }
     ),
-    executeTextCommand: (command) => executeSemanticTextCommand(command, {
+    executeTextCommand: (command, assertCurrent) => executeSemanticTextCommand(command, {
+      assertCurrent,
       changeDocument: mutation.change,
       getDocument: semanticDependencies.getDocument,
       fontRegistry: session.fonts,

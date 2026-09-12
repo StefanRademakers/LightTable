@@ -1,5 +1,60 @@
 # Task 416 progress
 
+## O02c.3b — Captured text prerequisite in the single runner (accepted)
+
+- Replaced per-document Promise tails with one explicit execution queue. A file
+  parent may consume only its exact captured text.create once, including a child
+  queued behind unrelated same-document work. Parent validation remains before
+  mutation; child keeps normal admission/handler/history and original Actions
+  context. Per-document execution frames prevent duplicate handler observations.
+  Other documents remain independent; waitForIdle/barrier accounting stays exact.
+- File intents capture creation before settling other owners. Fonts/drafts yield
+  a tracked handle, not a recursive public execution wait. Canceled queued or
+  in-flight creation cannot ghost-commit; committed child/history remains truthful
+  when parent/presentation retires. Quiet cancellation does not publish old errors.
+- Critic repair: actual session/renderer scope, not replaceable registered-port
+  object identity, guards semantic text publication after font awaits and inside
+  the existing mutation recipe. Ordinary UI re-registration remains supported.
+  Existing useTextCreation owns captured command-envelope mapping; mounted text
+  binding owns exact-render feedback. Root5102->5101; ceiling5102, engine4003.
+  Initial +2 wiring growth failed the audit; moved real envelope responsibility
+  into its existing hook, without raising the ceiling or cosmetic line packing.
+- Final critic PASS;240 tests/9 files (19 integrated real-owner cases,6 queue
+  capability cases,3 hook mapping cases), app tsc/boundary/diff PASS. Controlled
+  fonts and artifact encoding are fixtures; semantic text/mutation/history are
+  real. Actual host scheduling/races are not claimed from those controlled tests.
+- Fresh final package24048: text-export-prerequisite-smoke/run-XleeUf paragraph
+  and run-GqOFKy short-drag point PASS, actual held Type pointer -> semantic PNG
+  export, exactly text.create then file.exportPng, one history, exact PNG UndoRedo.
+  file-intents/run-XEyJQl PASS pending transform/clean Save + immediate Type/Save;
+  path-text-actions-smoke PASS creation/binding/Actions replay. No page errors.
+  Earlier package4380 also passed all four gates; final package is authoritative.
+  Final archive SHA256:0aea6fc799025f97077469a13c30c23bc33630f2f5879537de0720a5e5415b81.
+  Export/UI screenshots inspected. No live MCP transport or broad latency claim.
+- A final-file gate exposed the adjacent edge-pan failure below, not hidden or
+  retried into a green report. Next: separate text geometry realization/lifetime,
+  then editing-publication scope; O08 endpoint/mixed performance and O09 stay open.
+
+## Adjacent packaged repair — native marquee frame receiver (accepted)
+
+- file-intents/run-P2nSie failed before Save/gizmo with a pageerror: native RAF
+  was stored bare and called as a MarqueeEdgePanController method. Dedicated
+  actual edge-drag baseline run-IFn94X reproduces the same Illegal invocation.
+  This predates the text runner (historical6b4afda4), not a new fallback route.
+- Two default adapters now call globalThis request/cancelAnimationFrame with the
+  correct browser receiver. No geometry/timing/selection algorithm change.
+  Receiver-sensitive regression failed before repair and covers initial request,
+  rescheduling and disposal afterward.10 tests/3files, tsc/boundary/diff and
+  independent critic PASS. Nearby input/composition scan found no matching case.
+- Final package24048 marquee-edge-pan-smoke/run-7DnIth PASS actual stationary
+  corner-side drag pans, preview creates no history, pointer-up commits once and
+  UndoRedo succeeds; no page errors. History test's first two post-fix harness
+  attempts used a zero-height horizontal rectangle, correctly committing no
+  selection; changed to a real two-dimensional rectangle and awaited terminal
+  publication. Those failed reports remain, not attributed to the app.
+  Final Save and text gates above pass on the same archive. Not full selection
+  fidelity/performance acceptance; this fixes the reproduced browser invocation.
+
 ## O08 documentation checkpoint — stale onboarding authority removed
 
 - Removed the frozen historical HEAD/current-dirty-worktree directions from

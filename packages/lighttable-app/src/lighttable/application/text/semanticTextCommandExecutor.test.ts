@@ -16,6 +16,7 @@ const setup = (value = 'A👋B') => {
   const layerId = document.activeLayerId!;
   const history = vi.fn();
   const dependencies: SemanticTextCommandDependencies = {
+    assertCurrent: () => {},
     fontRegistry: { availableAssets: [] } as never,
     getDocument: () => document,
     getTextSettings: () => ({ family: 'Inter', style: 'Regular', size: 50,
@@ -130,6 +131,7 @@ describe('semantic text command executor', () => {
     };
     const history = vi.fn();
     const dependencies: SemanticTextCommandDependencies = {
+      assertCurrent: () => {},
       fontRegistry: { availableAssets: [font] } as never,
       getDocument: () => document,
       getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,
@@ -183,6 +185,7 @@ describe('semantic text command executor', () => {
         startOffset: 0, side: 'left', upright: true, direction: 'forward'
       }
     }, {
+      assertCurrent: () => {},
       fontRegistry: { availableAssets: [font] } as never,
       getDocument: () => document,
       getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,

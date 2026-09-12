@@ -70,8 +70,9 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const port = mountedDocumentCommandPort(command);
     return port !== null && typeof Reflect.get(owner, port, owner) === 'function';
   }
-  settleInteractionBeforeCommand(documentId: DocumentSessionId, command: LightTableCommandId) {
-    return this.resolve(documentId).settleInteractionBeforeCommand(command);
+  settleInteractionBeforeCommand(documentId: DocumentSessionId, command: LightTableCommandId,
+    textPrerequisite?: Parameters<LightTableCommandPorts['settleInteractionBeforeCommand']>[2]) {
+    return this.resolve(documentId).settleInteractionBeforeCommand(command, textPrerequisite);
   }
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
@@ -125,8 +126,8 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
     return this.resolve(documentId).placeArtifact(file, placement);
   }
-  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand) {
-    return this.resolve(documentId).executeTextCommand(command);
+  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand, assertCurrent: () => void) {
+    return this.resolve(documentId).executeTextCommand(command, assertCurrent);
   }
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
     return this.resolve(documentId).executeVectorCommand(command);

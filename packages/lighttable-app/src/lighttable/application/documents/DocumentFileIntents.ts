@@ -3,6 +3,8 @@ import { commandDocumentTarget } from '../commands/commandRequestScope';
 import type { DocumentSession } from './documentSession';
 import { prepareDocumentFileIntent, type DocumentFilePreparationParticipants } from './prepareDocumentFileIntent';
 import { resolveAcceptedCommandArtifact } from '../commands/resolveAcceptedCommandArtifact';
+import type { CapturedTextCreationPrerequisite } from '../text/TextCreationInteraction';
+import type { FileTextCreationPrerequisite } from '../commands/DocumentCommandExecutionQueue';
 
 export interface DocumentFileIntentPorts extends Omit<DocumentFilePreparationParticipants, 'assertCurrent'> {
   getSession(): DocumentSession | null | undefined;
@@ -10,7 +12,7 @@ export interface DocumentFileIntentPorts extends Omit<DocumentFilePreparationPar
   captureScope(): { isCurrent(): boolean };
   commands: Pick<LightTableCommandService, 'execute' | 'queryTask' | 'resolveArtifact'>;
   nextRequestId(documentId: string): string;
-  assertTextCreationCommandReady(): void;
+  captureTextCreation(): CapturedTextCreationPrerequisite;
   save(): Promise<void>;
   exportJpeg(): Promise<void>;
   exportWebp(): Promise<void>;
@@ -58,15 +60,24 @@ export class DocumentFileIntents {
   /** Strict prerequisite for an outside-command export/preflight owner; errors belong to its UI boundary. */
   prepareForUi = (): Promise<PreparedDocumentFileScope> => this.prepare(this.capture());
 
-  /** In-queue exports fail visibly on command-producing creation; never recursively execute text.create. */
-  prepareForCommand = async (expectedSession: DocumentSession | null | undefined): Promise<void> => {
+  /** The active file runner may consume only the exact creation captured before other terminals. */
+  prepareForCommand = async (expectedSession: DocumentSession | null | undefined,
+    prerequisite: FileTextCreationPrerequisite): Promise<void> => {
     const { ports, session, assertCurrent } = this.capture();
     if (!session || session !== expectedSession) throw new Error('The file command document session was retired.');
     assertCurrent();
-    ports.assertTextCreationCommandReady();
+    const creation = ports.captureTextCreation();
     await prepareDocumentFileIntent({ ...ports, assertCurrent,
-      finishTextCreation: async () => ports.assertTextCreationCommandReady() });
-    ports.assertTextCreationCommandReady();
+      finishTextCreation: async () => {
+        creation.assertCurrent();
+        const command = await creation.prepare();
+        assertCurrent(); creation.assertCurrent();
+        if (command) {
+          const result = await prerequisite.consume(command);
+          if (result.status !== 'completed') throw new Error(result.status === 'rejected' ? result.message : 'Text creation did not complete.');
+        }
+        assertCurrent(); creation.assertCurrent();
+      } });
   };
 
   private async run(operation: (ports: DocumentFileIntentPorts, session: DocumentSession,

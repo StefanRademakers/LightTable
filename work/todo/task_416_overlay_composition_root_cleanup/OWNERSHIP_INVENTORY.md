@@ -1,12 +1,16 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,102 physical lines. O07f moves provider selection,
+Current accepted root: 5,101 physical lines. O02c.3b replaces command tails with
+one explicit runner capable of consuming its exact captured text prerequisite.
+Text submission mapping and exact mounted publication lifetime live in text
+composition; root no longer executes the text handler/render terminal itself.
+O07f moves provider selection,
 subscription and request/error lifetime to the independent GenAI context;
 actual provider errors now remain visible and retryable. No document/GPU owner.
 O03c.7 moves the closed return after
 all hooks, scopes pending text/recovery and error feedback to open epochs, and
 removes root async error catches. Public-host baseline hook crash is reproduced;
-current host and adjacent packaged text gates pass. Captured command prerequisites next.
+current host and adjacent packaged text gates pass. Text geometry composition is next.
 O06i moves Delete precedence and
 settlement-target validation into DeleteTargetIntent. Canonical invocation layer/
 channel are explicit Fill arguments; post-settlement selection must remain active.
@@ -42,14 +46,20 @@ Provider generation/result placement are outside this slice's fixture evidence.
 Post-O03c.7 independent rescan, provider work excluded, ordered by remaining
 authority rather than cosmetic line reduction:
 
-1. O02c.3b: command-producing text prerequisites inside the existing command
-   runner. Already-queued text.create and not-yet-dispatched creation both need
-   explicit ownership; no recursive execute or second queue. Current rejection
-   is truthful but not the finished supported flow.
+1. O02c.3b is now accepted; preserve same-runner ownership for queued and
+   not-yet-dispatched creation. Do not revive recursive execution or a second queue.
 2. Text runtime construction/retirement: FlowText, Properties, selection/move/
    frame/path-handle bindings retain root hit/range/observation/cleanup policy.
    Reuse those owners; separate editing publication from geometry realization.
    Verify old construction-captured rendererLifecycle vs live lifecycle refs.
+   The first bounded candidate is move/frame/path geometry composition and its
+   ordered retirement, reusing TextLayerMoveGestureController,
+   ParagraphFrameResizeController and PathTextHandleController. Frame/path
+   realization closures currently capture the first constructed lifecycle;
+   ExistingTextHit already reads the live lifecycle ref. Test true runtime
+   replacement separately from benign renders. FlowText/Properties and text
+   range publication remain a distinct subsequent slice, not part of a new
+   combined text runtime owner.
 3. Grade clipboard context/artifact/LUT-source and feedback binding: reuse
    GradeAssetCommandService and semantic clipboard, not another grade store.
 4. GenAI project panel intents: Add Reference/Recreate/reveal and project asset
@@ -68,7 +78,49 @@ Named owner construction/dependency injection, view nodes, scalar-to-payload
 adapters, DOM refs and purely visual state may remain. A giant props bag or
 one replacement text/GenAI/editor manager is not an acceptable reduction.
 
-O02c.3b implementation hypothesis (not accepted): one opaque tracked text.create
+### Composition endpoint candidates (independent rescan, not implementation)
+
+After the authority extractions above, reduce actual duplicate assembly rather
+than move the same scalar parameter list behind another wrapper:
+
+- Toolbar and tool-context menu already consume `ToolOptionsProps`, but the
+  root assembles largely identical values twice. Use one typed projection and
+  let Shell consume that cohesive prop/slot; keep context-only close/reset
+  decoration separate. This is the first bounded presentation cleanup.
+- Reuse `createEditorWorkspacePanels` for lazy mounting and routing. Small
+  feature-owned adapters may compose Grade/LensFX, text/FaceWarp and GenAI panel
+  props from their existing models and intents. GenAI composition stays inside
+  its bounded context, with narrow editor-reference/reveal ports.
+- Reuse `EditorDocumentSurface` for image-surface composition. Cursor, transform,
+  snap, ruler and input-bridge projections need named subcontracts; root DOM
+  refs and renderer/session lifetime remain explicit. Surface overrides are a
+  separate small view, not another renderer owner.
+- Layers/Channels, document tabs and diagnostics each have existing named view
+  consumers. Their presentation adapters must reuse current command/diagnostic
+  owners and live preview getters, not add a second panel registry or state store.
+
+These are candidates, not accepted line savings. A root substantially smaller
+than the current one may also need bounded text/processing/GenAI/viewport
+composition subroots constructing already accepted owners and exposing small
+facades. `useEditorEverything` or a giant `EditorViewProps` bag is not the target.
+O08 still requires source review and mixed-flow proof after these changes.
+
+Text follow-up evidence limits from that rescan: the existing paragraph smoke
+checks preserved text, not a proven canonical frame-size/history change; the
+Path Text Actions smoke does not prove handle dragging. Strengthen those exact
+assertions for geometry acceptance. Preserve geometry-cancel-before-edit-reset
+ordering and the live editing target. TextLayerMove also needs review of actual
+runtime admission, not merely moving frame/path guards out of the root.
+
+Separate editing-publication findings remain unimplemented: the text edit commit
+observer resolves dependencies after transaction publication and can address a
+successor through the live workspace-document ref; capture its admitted observer
+without suppressing an already committed result. Text selection's queued RAF
+currently identifies only the pointer, so a retained canceled callback can consume
+a successor sample reusing that pointer. These are source-evident risks requiring
+focused reproduction, not claims of packaged failures or accepted fixes.
+
+O02c.3b accepted contract: one opaque tracked text.create
 handle may be consumed as a captured file-command prerequisite by the same
 runner. Parent schema/capability/revision admission remains before mutation;
 capture exact creation/session/runtime before other terminals. Preparation may
@@ -79,8 +131,9 @@ create->export->other. Other documents remain independent. Child handler phase
 must suppress observed duplicate Actions despite the suspended parent settlement;
 record the original child result/context once. Canceled/superseded queued creation
 must not later ghost-commit. Committed child success/history survives a retired
-parent, which rejects separately. This requires integrated service+text-owner
-proof, not merely a file-preparation callback change. Baseline actual held Type
+parent, which rejects separately. Integrated service+text-owner+semantic mutation
+proof and fresh packaged paragraph/point export/Actions/exact UndoRedo pass;
+see PROGRESS for build identity and limits. Baseline actual held Type
 drag->semantic PNG export rejects in text-export-prerequisite-smoke/run-7u34lM.
 
 ### Adjustment creation family — resolved O06h

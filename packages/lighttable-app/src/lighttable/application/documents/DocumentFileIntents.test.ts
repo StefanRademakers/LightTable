@@ -32,7 +32,7 @@ const fixture = () => {
       execute: vi.fn<DocumentFileIntentPorts['commands']['execute']>(async () => {
         order.push('png'); return { status: 'accepted', requestId: 'request', taskId: 'task', revisions } as never;
       }), queryTask: vi.fn(() => task), resolveArtifact: vi.fn(() => file)
-    }, nextRequestId: id => `ui-${id}-1`, assertTextCreationCommandReady: vi.fn(),
+    }, nextRequestId: id => `ui-${id}-1`, captureTextCreation: vi.fn(() => ({ prepare: async () => null, assertCurrent: () => {} })),
     deliverExportFile: effect('deliver'), reportError: vi.fn()
   };
   let currentPorts = ports;
@@ -69,25 +69,28 @@ describe('UI document file intents', () => {
     expect(f.ports.commitAdjustments).not.toHaveBeenCalled();
   });
   it('queued exports finish direct owners without dispatching or awaiting text creation', async () => {
-    const f = fixture(); f.mount(); await f.owner.prepareForCommand(f.session());
+    const f = fixture(); f.mount(); await f.owner.prepareForCommand(f.session(), { consume: vi.fn() });
     expect(f.order).toEqual(['pixels', 'adjustments', 'editing', 'document']);
     expect(f.ports.finishTextCreation).not.toHaveBeenCalled(); expect(f.ports.commands.execute).not.toHaveBeenCalled();
   });
-  it('queued exports reject current pending creation before any settlement and expose the error', async () => {
-    const f = fixture(); f.mount(); f.ports.assertTextCreationCommandReady = () => { throw new Error('Pending creation'); };
-    await expect(f.owner.prepareForCommand(f.session())).rejects.toThrow('Pending creation');
+  it('queued exports reject retired creation capture before any settlement and expose the error', async () => {
+    const f = fixture(); f.mount(); f.ports.captureTextCreation = () => { throw new Error('Retired creation'); };
+    await expect(f.owner.prepareForCommand(f.session(), { consume: vi.fn() })).rejects.toThrow('Retired creation');
     expect(f.order).toEqual([]); expect(f.ports.reportError).not.toHaveBeenCalled();
   });
   it('queued exports reject a new pending creation admitted during pixel settlement', async () => {
     const f = fixture(); f.mount(); f.ports.settlePixels = async () => {
-      f.ports.assertTextCreationCommandReady = () => { throw new Error('New pending creation'); };
+      current = false;
     };
-    await expect(f.owner.prepareForCommand(f.session())).rejects.toThrow('New pending creation');
+    let current = true;
+    f.ports.captureTextCreation = () => ({ prepare: async () => null,
+      assertCurrent: () => { if (!current) throw new Error('New pending creation'); } });
+    await expect(f.owner.prepareForCommand(f.session(), { consume: vi.fn() })).rejects.toThrow('New pending creation');
     expect(f.ports.finishTextCreation).not.toHaveBeenCalled();
   });
   it('a retained old command binding cannot prepare a replacement session with the same ID', async () => {
     const f = fixture(); f.mount(); const oldSession = f.session(); f.retire('session');
-    await expect(f.owner.prepareForCommand(oldSession)).rejects.toThrow('session was retired');
+    await expect(f.owner.prepareForCommand(oldSession, { consume: vi.fn() })).rejects.toThrow('session was retired');
     expect(f.order).toEqual([]);
   });
   it.each([
