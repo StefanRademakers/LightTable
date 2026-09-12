@@ -555,6 +555,7 @@ export const LightTableDockWorkspace = forwardRef<
     readonly groupVisibility: ReadonlyMap<string, boolean>;
     readonly panelIds: ReadonlySet<string>;
     readonly videoControlsPresent: boolean;
+    readonly retainedPanelIds: ReadonlySet<string>;
   } | null>(null);
   const automaticVideoWorkspaceRef = useRef(false);
   const automaticWorkspaceDocumentRef = useRef<string | null>(null);
@@ -1045,12 +1046,23 @@ export const LightTableDockWorkspace = forwardRef<
       if (workspacePresetRef.current === 'video') {
         return;
       }
+      const retainedPanelIds = new Set<string>();
+      api.groups.forEach((group) => {
+        if (!group.api.isVisible) return;
+        group.panels.forEach((panel) => {
+          if (panel.id === DOCUMENT_HOST_PANEL_ID
+            || panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls) return;
+          panel.api.setRenderer('always');
+          retainedPanelIds.add(panel.id);
+        });
+      });
       preVideoWorkspaceRef.current = {
         preset: workspacePresetRef.current,
         basePreset: workspaceBasePresetRef.current,
         groupVisibility: new Map(api.groups.map((group) => [group.id, group.api.isVisible])),
         panelIds: new Set(api.panels.map((panel) => panel.id)),
-        videoControlsPresent: Boolean(api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls))
+        videoControlsPresent: Boolean(api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls)),
+        retainedPanelIds
       };
       automaticVideoWorkspaceRef.current = true;
       resettingLayoutRef.current = true;
@@ -1103,6 +1115,9 @@ export const LightTableDockWorkspace = forwardRef<
     api.groups.forEach((group) => {
       const previousVisibility = previous.groupVisibility.get(group.id);
       if (previousVisibility !== undefined) group.api.setVisible(previousVisibility);
+    });
+    previous.retainedPanelIds.forEach((panelId) => {
+      api.getPanel(panelId)?.api.setRenderer('onlyWhenVisible');
     });
     workspacePresetRef.current = previous.preset;
     workspaceBasePresetRef.current = previous.basePreset;

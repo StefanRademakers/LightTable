@@ -84,6 +84,7 @@ import { useLayerStyleEditorController } from './application/styles/useLayerStyl
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
 import { LayerStyleEntryIntent } from './application/styles/LayerStyleEntryIntent';
 import { usePropertiesInspectorPresentation } from './composition/properties/usePropertiesInspectorPresentation';
+import { activeLayerCanOwnGrade, projectRetainedImagePropertiesView } from './composition/properties/retainedImagePropertiesView';
 import { useAdjustmentCreationIntents } from './composition/properties/useAdjustmentCreationIntents';
 import { captureAdjustmentCreationFeedback, createMountedAdjustmentCreationBinding } from './application/adjustments/createMountedAdjustmentCreationBinding';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
@@ -329,12 +330,6 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
-const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
-  if (!document?.activeLayerId) return false;
-  const active = findDocumentLayer(document, document.activeLayerId);
-  return active?.type === 'raster' || active?.type === 'adjustment';
-};
-
 export interface WorkspaceViewControls {
   readonly zoomPercent: number;
   readonly onZoomPreset: (percent: number) => void;
@@ -856,7 +851,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return { isCurrent: () => scope.isCurrent() && workspaceRef.current === workspace,
         reveal: () => workspace?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties) };
     });
-  const propertiesView = propertiesInspectorView(imageDocument, propertiesTarget);
+  const projectedPropertiesView = propertiesInspectorView(imageDocument, propertiesTarget);
+  const retainedImagePropertiesViewRef = useRef(projectedPropertiesView);
+  const propertiesView = projectRetainedImagePropertiesView(
+    retainedImagePropertiesViewRef, workspaceDocumentKind, projectedPropertiesView);
   const adjustmentCreationIntents = useAdjustmentCreationIntents({
     getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
     getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,

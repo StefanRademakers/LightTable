@@ -464,6 +464,13 @@ class names: reuse existing owners before creating a new one.
     visibility/workspace-wake smoke pass. Per the owner's 2026-09-12 cost cap,
     this view-only extraction used focused self-review instead of another agent;
     mutation/resource slices still require independent review.
+  - [x] O07i: typed-document panel and Properties presentation lifetime. Image
+    panel trees remain mounted behind video/model placeholders during automatic
+    workspace handoff, and Dockview retains only the previously visible panel
+    renderers for that transition. Packaged 20-cycle image/video proof improves
+    from 15,020 retained nodes/2,034 tail listeners to zero/zero at 66 ms median
+    and 79 ms maximum; separate packaged Scopes wake proof remains green. No
+    threshold, retry, alternate route or fallback was added.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

@@ -1997,3 +1997,24 @@ Implementation and retained failed evidence:
   New owner is 91 lines. WebGpuEngine remains 4,003 and is not claimed fixed.
 - Next: bounded O08 endpoint authority scan; no WebGpuEngine decomposition under
   the current usage cap.
+
+## O07i / O08 gate — typed document lifecycle repair
+
+- PASS: fresh packaged transform -> immediate Exposure, exact history/pixels.
+- Initial FAIL: fresh packaged multi-document soak grew 15,020 DOM nodes and
+  2,034 tail listeners over 20 image/video cycles after forced GC.
+- Rejected experiment: retaining/hiding the lazily created Video Controls panel
+  did not alter the growth and was fully reverted. No fallback remains.
+- Root cause: Dockview unmounted the visible image accessory renderers while the
+  workspace projection simultaneously replaced Scopes and Properties children.
+  Detached-root evidence identified one Scopes and one Grade tree per cycle.
+- Repair: image children remain mounted behind typed placeholders; the automatic
+  video transition retains only previously visible Dockview renderers; Properties
+  pins its last image editor projection while hidden. No stale panel is exposed.
+- Final PASS: the unchanged 20-cycle gate reports zero node growth, zero listener
+  tail/overall growth, 66 ms median and 79 ms maximum roundtrip. Separate Scopes
+  signal/visibility/workspace-wake proof also passes. Final instrumented executable
+  SHA256 `2eef1682de7aa01bc4a6ca26006ab9c3b9e1e17ab67b378e11ad3cad817b2276`.
+  Task 417 is complete.
+- Consequence: this closes the typed-switch part of O08, not every remaining O08
+  endpoint gate or O09 WebGpuEngine decomposition.

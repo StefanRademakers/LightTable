@@ -1,0 +1,50 @@
+# Task 417 - Stop typed document switches retaining DOM and listeners
+
+Status: complete; reproduced and repaired on 2026-09-13.
+
+## User-visible risk
+
+Repeated image/video/model tab changes retain UI graphs. The active surfaces and
+canonical image remain correct, but a long editing session accumulates DOM nodes,
+event listeners and heap instead of returning to a bounded warm state.
+
+## Exact reproduction
+
+Run `node scripts/smoke-desktop-multi-document.mjs` against a fresh instrumented
+package. On 2026-09-13, 20 image/video cycles grew from 2,289 to 17,309 DOM nodes
+and from 3,587 to 6,547 listeners after three forced-GC samples. Heap tail growth
+was about 3.1 MiB. The test fails its existing 64-node/64-listener bound.
+
+## Ruled out
+
+Keeping the lazily created Video Controls Dockview panel registered and only
+hiding it did not improve the growth. That experiment was fully reverted; do not
+repeat it or preserve it as a fallback.
+
+## Required result
+
+- Identify the exact retained owner with lifecycle instrumentation; do not guess
+  from component size or silence the existing threshold.
+- Typed document changes must preserve the stable application workspace and
+  document host while disposing or reusing each presentation subscription once.
+- Canonical document, history, viewport and GPU resources must remain unchanged.
+- The existing packaged multi-document smoke must pass at its current bounds,
+  with no retries or threshold changes.
+
+## Result
+
+The typed-document panel boundary now retains the image child tree behind its
+video/model placeholder, and Dockview retains currently visible accessory
+renderers only for the duration of the automatic video workspace. Properties
+also keeps its last image editor projection while hidden, so Grade is not
+replaced with Empty and recreated on return.
+
+The first repair removed the five detached Scopes roots but exposed Grade as the
+remaining retained root. The second repair removed both. The original 20-cycle
+packaged gate now reports zero DOM-node growth, zero listener-tail growth,
+66 ms median and 79 ms maximum roundtrip. The separate packaged Scopes smoke
+still reports real signal after visibility and workspace wake. No threshold,
+retry, alternate route or fallback was added.
+
+Final instrumented executable SHA256:
+`2eef1682de7aa01bc4a6ca26006ab9c3b9e1e17ab67b378e11ad3cad817b2276`.

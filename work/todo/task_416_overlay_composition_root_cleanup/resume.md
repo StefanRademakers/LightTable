@@ -51,3 +51,12 @@ Overlay is 4,843 physical lines (ceiling 4,844); WebGpuEngine remains 4,003.
 
 Next, perform O08 as a bounded endpoint authority scan before any further
 extraction. Do not start WebGpuEngine decomposition under the current usage cap.
+
+The O08 typed-switch failure is repaired in Task 417. `smoke-desktop-multi-document`
+now retains zero DOM nodes and zero tail listeners over 20 typed switches after
+forced GC (66 ms median, 79 ms maximum); the separate Scopes wake smoke passes.
+The first Video Controls-only hypothesis was reverted. The accepted repair binds
+the whole image-panel/Properties presentation lifetime without a fallback.
+Overlay is 4,841 physical lines (audit ceiling 4,842); O08's other endpoint gates
+and O09 remain open. Final instrumented executable SHA256:
+`2eef1682de7aa01bc4a6ca26006ab9c3b9e1e17ab67b378e11ad3cad817b2276`.
