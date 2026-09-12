@@ -9,7 +9,9 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O02c.3b captured text prerequisites in the same
+Latest bounded acceptance: O05a.5 text geometry composition and exact gesture
+lifetime, critic and fresh packaged frame/Ctrl-move/path plus Properties proof.
+O02c.3b captured text prerequisites in the same
 command runner; critic, actual paragraph/point export, exact UndoRedo/Actions,
 ordinary Save and Path Text Actions pass. Adjacent native edge-pan receiver
 failure was reproduced and repaired with its own critic and actual drag gate.
@@ -32,7 +34,7 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Accepted root is 5,101 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
+Accepted root is 5,039 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
