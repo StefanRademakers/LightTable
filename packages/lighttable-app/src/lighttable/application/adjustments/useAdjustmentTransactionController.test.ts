@@ -72,6 +72,7 @@ const setup = (documentWide = false) => {
     getActiveTargetIdentity: () => targetIdentity,
     getRenderer: () => currentRenderer,
     getRendererGeneration: () => rendererGeneration,
+    isMutationBlocked: () => mutationBlocked,
     documentMutations,
     previewDocumentProcessing,
     commitDocumentProcessing,

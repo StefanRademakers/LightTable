@@ -1,5 +1,52 @@
 # Task 416 progress
 
+## O03c.6 — Text presentation and committed opening lifetime (accepted)
+
+- TextRenderPresentation owns shared initial/reset values, latest-only RAF,
+  pending delivery and trace signature. The thin two-stage hook subscribes before
+  font diagnostics and connects their stable sink afterward. Root owns only
+  wiring/consumption; duplicate defaults, three refs and RAF/cleanup are deleted.
+- Every pending snapshot retains the existing opening predicate through delivery.
+  Critic identified the layout-to-passive-cleanup gap: useDocumentOpenLifecycle
+  now creates/retires its exact guard in layout lifetime. Async startup and GPU
+  teardown stay in their existing passive controller route. StrictMode receives
+  a fresh guard; reset captures epochs on receipt, not before request creation.
+- Final independent critic PASS after that repair.36 focused tests/7 files and
+  app typecheck pass; root reran23 presentation/bridge/lifecycle tests. Simulated
+  hook scheduling is labelled as such, not confused with real browser timing.
+- Old package99484 baseline: text-property-transition-smoke/run-wL9HOi passes.
+  Fresh instrumented package42722: run-IP3NXX passes real text Size edits,
+  A/B tabs, unchanged successor, exact exported Undo/Redo, no-op focus, inactive
+  close and active Cancel/Discard. Root viewed final-ui; no page errors.
+- Shaping/cache policy, renderer revision values and GPU scheduling are unchanged.
+  No new readback or frame queue. Whole text interactive readiness remains O08.
+  Combined root after this and the admission wiring below:5,703 physical lines
+  (previous5,769); ceiling5,704. WebGpuEngine remains3,995. Boundary and source
+  audit pass (2,347 handwritten production files).
+
+## Global adjustment admission — Remove Object prerequisite (accepted repair)
+
+- Inventory found document-wide previews bypassed session admission. Existing
+  adjustment owner now requires the same predicate as DocumentMutationController
+  at begin, global sample and changed publication. Cancellation/no-op remain
+  supported; history replay still uses its existing publisher while history busy.
+- Queued current begin rejection now reaches the existing error reporter once,
+  as well as rejecting file preparation. Retired/admission-rejected requests do
+  not gain duplicate reporting. No new queue or mutation owner.
+- Critic PASS;97 focused tests in the initial controller/adjacent run; final
+  coordinator/reporting rerun62 tests/3 files passes. Nine new tests use actual
+  DocumentSession admission/history. One old test reporter intentionally threw
+  on any report and produced an unhandled rejection after visibility was fixed;
+  that test now asserts the expected single report, not a swallowed failure.
+- Package42722 processing-rebind passes global/local semantic Grade isolation,
+  exact PNG history across real tabs, local Exposure projection and attached
+  Grade inspector interaction. No page errors. The live UI currently has no
+  document-processing inspector entry; this is not global-slider UI proof.
+  Controlled barrier races are focused actual-session evidence only.
+- Remove Object itself is NOT accepted: immutable base/mask capture, shortest
+  readback admission, scoped imports/submission and delivery provenance remain.
+  Provider/jobs stay in GenAI. No paid calls and no new UI entry were introduced.
+
 ## O06f.2 / O07d — Layer finalization UI and Properties entry (accepted)
 
 - LayerFinalizationIntents replaces four Boolean(Promise) adapters with exact

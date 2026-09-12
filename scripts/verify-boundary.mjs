@@ -870,6 +870,14 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('transformSnapMatchesRef')) {
       failures.push(`${relativePath}: transform cage and shared smart-guide presentation belong to the renderer-scoped presentation binding`);
     }
+    if (!source.includes('useTextRenderPresentation(')
+      || !source.includes('useTextRenderPresentationDiagnostics(')
+      || source.includes('pendingTextRenderPresentationRef')
+      || source.includes('textRenderPresentationFrameRef')
+      || source.includes('textRenderTraceSignatureRef')
+      || source.includes('setTextRenderPresentation')) {
+      failures.push(`${relativePath}: deferred text presentation and trace lifetime belong to TextRenderPresentation, not the composition root`);
+    }
     if (!source.includes('useLayerFinalizationIntents(')
       || !source.includes('usePropertiesInspectorPresentation(')
       || !source.includes('new LayerStyleEntryIntent(')

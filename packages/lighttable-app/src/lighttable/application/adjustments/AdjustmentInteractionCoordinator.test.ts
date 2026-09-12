@@ -473,7 +473,9 @@ describe('AdjustmentInteractionCoordinator', () => {
       reset: vi.fn(),
       changeResult: vi.fn(() => 'applied' as const)
     };
-    const interactions = createAdjustmentInteractionCoordinator(controller);
+    const report = vi.fn();
+    const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
+      () => ({ isCurrent: () => true }), report);
 
     const rejected = interactions.begin('exposure');
     await Promise.resolve();
@@ -483,6 +485,10 @@ describe('AdjustmentInteractionCoordinator', () => {
 
     expect(controller.changeResult).not.toHaveBeenCalled();
     expect(controller.reset).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(report).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      message: 'The adjustment owner could not begin its pending edit.'
+    }));
   });
 
   it('ignores old end and cancel callbacks after the same control starts again', async () => {

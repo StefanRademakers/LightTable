@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O06f.2 finalization UI intents and O07d inspector/style
-entry, following O05c.2 guides. Real Ctrl+E/merge/flatten and effect/Curves entry
-checks pass. The test exposed missing style export readiness, now repaired;
-neutral-Curves precision debt is explicitly retained, not hidden as exact parity.
-See Task416 PROGRESS for retained failures and exact coverage. Root is
-5,769 physical lines. Remaining target/GenAI/command families, cross-flow
+Latest bounded acceptance: O03c.6 text presentation and committed opening-guard
+lifetime, plus the document-wide adjustment admission repair identified during
+Remove Object inventory. Packaged text/tab/close and processing rebind pass.
+Remove Object source capture/submission itself remains open. Earlier style-export
+repair and neutral-Curves precision debt remain recorded in Task416 PROGRESS.
+Root is 5,703 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -203,6 +203,10 @@ class names: reuse existing owners before creating a new one.
       classification, no consumed replacement flag. Critic PASS;32 tests and
       packaged actual vector loss/rebuild with fresh PNG equality plus raster
       checkpoint-required hold pass. No automatic raster rehydration is claimed.
+    - [x] O03c.6: deferred text presentation/trace owner and layout-retired opening
+      guard. Root duplicate defaults/RAF state removed; source guard survives
+      deferred delivery. Critic repair and packaged text/tab/close pass. Shaping,
+      source caches and renderer publication revisions are unchanged.
     - [x] O03c.4: canonical revision authority discovered through Face Warp preview
     rebind. Session publications/history own invalidation; deleted command,
     observation and task-wrapper bumps. Dirty/save identity remains separate.

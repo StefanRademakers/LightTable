@@ -16,6 +16,7 @@ import type {
 import type { DocumentTaskContext } from '../../application/tasks/documentTaskRegistry';
 import type { DocumentStartupTelemetry } from '../../application/telemetry/documentStartupTelemetry';
 import type { LightTableStartupTimings } from '../../application/telemetry/editorTelemetry';
+import type { TextRenderPresentationPublisher } from '../../application/telemetry/TextRenderPresentation';
 import type { RgbHistogram } from '../../types';
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import {
@@ -98,7 +99,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
   ) => Promise<void>;
   readonly publishHistogram: (histogram: RgbHistogram) => void;
   readonly publishGpuMemory: (bytes: number) => void;
-  readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
+  readonly publishTextRenderPresentation?: TextRenderPresentationPublisher;
   readonly publishCompositeRendered?: NonNullable<DocumentRendererCallbacks['onCompositeRendered']>;
   readonly publishError: (message: string) => void;
   readonly publishOpenFailure?: (message: string) => void;

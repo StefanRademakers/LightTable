@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { DocumentRendererLifecycle } from '../rendering/documentRendererLifecycle';
 import type { DisposableDocumentRenderer } from '../rendering/startDocumentRenderer';
 import type { DocumentTaskRegistry } from '../tasks/documentTaskRegistry';
@@ -81,10 +81,26 @@ export const useDocumentOpenLifecycle = <
     () => new DocumentOpenController<Renderer>(tasks, rendererLifecycle),
     [rendererLifecycle, tasks]
   );
+  const committedGeneration = useMemo(
+    () => ({ guard: null as DocumentOpenGenerationGuard | null }),
+    [controller, enabled, generation]
+  );
+
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const guard = createDocumentOpenGenerationGuard();
+    committedGeneration.guard = guard;
+    return () => {
+      // Retire delivery before paint, without moving async startup or resource teardown here.
+      guard.invalidate();
+      committedGeneration.guard = null;
+    };
+  }, [committedGeneration, enabled]);
 
   useEffect(() => {
     if (!enabled) return;
-    const guard = createDocumentOpenGenerationGuard();
+    const guard = committedGeneration.guard;
+    if (!guard) throw new Error('Document open requires its committed presentation generation.');
     let readinessFrame: number | null = null;
     const startWhenSurfaceIsReady = () => {
       if (!guard.context.isCurrent()) return;
@@ -110,7 +126,7 @@ export const useDocumentOpenLifecycle = <
       if (readinessFrame !== null) window.cancelAnimationFrame(readinessFrame);
       controller.cancelOpen();
     };
-  }, [controller, enabled, generation]);
+  }, [controller, enabled, committedGeneration]);
 
   useEffect(() => () => {
     controller.close();

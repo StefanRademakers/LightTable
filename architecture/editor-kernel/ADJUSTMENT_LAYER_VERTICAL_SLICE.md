@@ -46,6 +46,13 @@ Properties interaction
 - The renderer owns evaluated pipelines, textures and pointer-rate previews.
   It does not create authored module identities and cannot commit document
   state.
+- Document-wide processing gestures and discrete writes obey the same session/
+  history admission predicate as document mutations. Admission is checked before
+  preview and changed publication; rejected gestures cannot become later success.
+  Cancellation and genuine no-ops remain available. History replay is checked by
+  its existing owner, not blocked inside the processing publisher. A source reader
+  must reject already-active previews before taking admission; this predicate is
+  not an immutable composite snapshot API.
 - `DocumentCommandHistory` stores commands against canonical document or
   document-processing owners. It never restores a React panel snapshot.
 

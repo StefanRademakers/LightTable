@@ -92,7 +92,7 @@ export const createAdjustmentInteractionCoordinator = (
       state.token = controller.begin();
       if (!state.token) {
         cancelState(state); controller.reset();
-        return new Error('The adjustment owner could not begin its pending edit.');
+        throw new Error('The adjustment owner could not begin its pending edit.');
       }
       const latest = state.latest; state.latest = null;
       try {

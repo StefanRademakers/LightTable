@@ -23,7 +23,7 @@ import type {
   EditorDocumentScopeCanvasRefs
 } from './resolveEditorDocumentCanvases';
 import { useEditorDocumentOpenRequestFactory } from './useEditorDocumentOpenRequestFactory';
-import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
+import type { TextRenderPresentationPublisher } from '../../application/telemetry/TextRenderPresentation';
 import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { LightTableImageMetadata } from '../../types';
@@ -63,7 +63,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   };
   readonly publishHistogram: (histogram: RgbHistogram) => void;
   readonly publishGpuMemory: (bytes: number) => void;
-  readonly publishTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
+  readonly publishTextRenderPresentation?: TextRenderPresentationPublisher;
   readonly publishCompositeRendered?: () => void;
   readonly publishInitialThumbnail?: (renderer: DocumentRendererPort) => Promise<void>;
   /** Restores document-owned interaction state after this source owns the renderer. */

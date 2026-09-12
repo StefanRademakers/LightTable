@@ -1,9 +1,10 @@
 # Overlay ownership inventory
 
-O07c accepted: GenAI Setup owns scoped reference import/publication, and the
-editor reference handoff owns only document snapshot transfer. Root 5,874 audit
-lines. Two critic rounds, 84 focused tests and real packaged reference flows
-pass; deferred races and provider-fixture limitations are explicit in PROGRESS.
+Current accepted root: 5,703 physical lines. O03c.6 moves text presentation/trace
+coalescing and reset into its bounded owner; document-opening guards retire at
+layout commit, before deferred callbacks can reach a successor. Canonical text
+and rendering algorithms are unchanged. Exact evidence is in PROGRESS.
+O07c reference handoff is accepted; Remove Object remains a separate open slice.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
@@ -65,8 +66,8 @@ spacing separate from display coarsening, and avoid readback/per-move history.
 - Remaining layer/filter/adjustment command registration: extract coherent
   domain families, not one replacement 400-line command bag. Keep semantic service
   admission and existing mutation/history ownership.
-- Text-to-shape entry, text telemetry and tool-settings shortcuts remain
-  mixed policy/presentation families. Existing algorithm owners must be reused.
+- Text-to-shape entry and tool-settings shortcuts remain mixed policy/presentation
+  families. Text telemetry is now owned by TextRenderPresentation (O03c.6).
 - Valid composition stays: named owner construction, direct UI adapters, view-only
   visibility/layout state and provider job projection are not extraction targets.
 
@@ -545,5 +546,36 @@ Its submission also omits `editorDelivery`; automatic
 rejects jobs without that provenance. These are source-evident gaps, not packaged
 or paid-provider proof. Repair later through existing export/selection owners and
 a captured submission/delivery target; do not absorb provider discovery, jobs or
-paid submission into the reference handoff owner. No such repair is authorized
-or implemented by this inventory subsection.
+paid submission into the reference handoff owner. This subsection records an
+open repair, not evidence that the submission route has been fixed.
+
+#### Source-capture follow-up, 2026-09-12 (read-only finding)
+
+Document revision and an idle check after export do not prove source coherence:
+a transient preview can begin and cancel without advancing canonical revision.
+The inspected `useAdjustmentTransactionController` bypassed document-mutation
+admission for document-wide processing (`targetLayerId === null`). Its required
+shared admission predicate is now repaired and reviewed; this does not by itself
+implement coherent Remove Object capture. File-intent
+preparation settles existing gestures but does not retain exclusion afterward.
+
+The next repair must reuse the session mutation-admission owner, first closing
+that global-adjustment gap. After truthful file preparation, source capture must
+synchronously reject intervening active work and acquire admission before any
+await. Canonical document **and processing** projection and final-source readiness
+belong to existing renderer/application owners. Release admission after the GPU
+copy is submitted, not after encoding/import/network: the existing readback
+submits its copy before awaiting mapping, but the current export API does not
+expose that release boundary. Do not add another resource store or task queue.
+
+The immutable canonical `SelectionMaskSnapshot` can supply the mask through its
+existing half-float conversion and PNG encoder, avoiding a second live GPU mask
+read. Base pixels and mask must retain the same captured document/selection
+identity. Provider discovery remains GenAI-owned and precedes capture; imported
+assets remain durable in the original project. Revalidate before submission and
+persist explicit editor-delivery provenance. Never retry an uncertain paid call.
+
+Required proof includes preview begin/cancel during deferred readiness, a new
+gesture between settlement and capture, source retirement during imports, exact
+canonical feathered/painted mask encoding, and editing resuming after readback
+submission while encoding remains pending. No paid-provider test has been run.

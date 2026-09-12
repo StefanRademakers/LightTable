@@ -128,11 +128,12 @@ import type { LightTableStartupTimings } from './application/telemetry/editorTel
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import type { DocumentStartupTimeline } from './application/telemetry/documentStartupTimeline';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
-import type { ReferenceDifferenceMetrics, TextRenderPresentationSnapshot } from './application/rendering/rendererTypes';
+import type { ReferenceDifferenceMetrics } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import { createSupportDiagnosticArtifact } from './application/diagnostics/supportDiagnosticBundle';
 import { sharedWebGpuDiagnostics } from './gpu/sharedWebGpuDevice';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
+import { useTextRenderPresentation, useTextRenderPresentationDiagnostics } from './composition/telemetry/useTextRenderPresentation';
 import {
   documentTextFontDiagnostics,
   summarizeTextFontDiagnostics
@@ -1003,27 +1004,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }>({ matches: [], bounds: null });
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
-  const [textRenderPresentation, setTextRenderPresentation] = useState<TextRenderPresentationSnapshot>({
-    publicationRevision: 0,
-    readyLayerCount: 0,
-    textureBytes: 0,
-    mode: 'placeholder', rebuildingLayerCount: 0,
-    cacheBudgetBytes: 256 * 1024 * 1024, cacheEvictions: 0,
-    atlasLayerCount: 0, cachedLayerCount: 0, atlasEncodes: 0,
-    sourceCacheHits: 0, sourceCacheMisses: 0,
-    layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
-    layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
-    atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
-    sourceDecisionMeasurements: 0, lastSourceDecision: null,
-    coordinatorActive: true, configuredFontCount: 0, visibleTextLayerCount: 0,
-    preparationStage: 'waiting-document', preparationLayerId: null, lastPreparationError: null,
-    traceRevision: 0, traceMessage: null, traceDetails: null,
-    shapingOperations: 0, latestShapingRoundTripMs: 0,
-    rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
-    textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
-    inputToSubmitP95Ms: 0, inputToSubmitMaxMs: 0,
-    inputToGpuP95Ms: 0, inputToGpuMaxMs: 0
-  });
+  const { owner: textRenderPresentationOwner, snapshot: textRenderPresentation } = useTextRenderPresentation();
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
   const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
@@ -1224,37 +1205,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentError
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
-  const textRenderTraceSignatureRef = useRef('');
-  const pendingTextRenderPresentationRef = useRef<TextRenderPresentationSnapshot | null>(null);
-  const textRenderPresentationFrameRef = useRef<number | null>(null);
-  const publishTextRenderPresentation = useCallback((snapshot: TextRenderPresentationSnapshot) => {
-    pendingTextRenderPresentationRef.current = snapshot;
-    if (textRenderPresentationFrameRef.current !== null) return;
-    textRenderPresentationFrameRef.current = window.requestAnimationFrame(() => {
-      textRenderPresentationFrameRef.current = null;
-      const latest = pendingTextRenderPresentationRef.current;
-      pendingTextRenderPresentationRef.current = null;
-      if (!latest) return;
-      setTextRenderPresentation(latest);
-      if (!latest.traceMessage) return;
-      const signature = `${latest.traceRevision}:${latest.traceMessage}:${latest.traceDetails ?? ''}`;
-      if (textRenderTraceSignatureRef.current === signature) return;
-      textRenderTraceSignatureRef.current = signature;
-      appendDebugMessage(
-        latest.preparationStage === 'failed' ? 'error' : 'info',
-        'GPU text pipeline',
-        latest.traceMessage,
-        latest.traceDetails ?? undefined
-      );
-    });
-  }, [appendDebugMessage]);
-  useEffect(() => () => {
-    if (textRenderPresentationFrameRef.current !== null) {
-      window.cancelAnimationFrame(textRenderPresentationFrameRef.current);
-    }
-    textRenderPresentationFrameRef.current = null;
-    pendingTextRenderPresentationRef.current = null;
-  }, []);
+  useTextRenderPresentationDiagnostics(textRenderPresentationOwner, appendDebugMessage);
   useEffect(() => {
     let activeRegistration = true;
     const typeToolActive = editorSession.activeTool === 'text-point'
@@ -1445,14 +1396,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation,
   }), [documentSession]);
 
+  const isDocumentMutationBlocked = () => commandHistory.getSnapshot().busy
+    || (documentSession ? !documentSession.isAcceptingMutations() : false);
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
       applySnapshot: applyDocumentSnapshot,
       previewSnapshot: documentProjectionController.previewDocumentSnapshot,
       discardPreview: documentProjectionController.discardDocumentPreview,
       pushHistoryEntry,
-    isMutationBlocked: () => commandHistory.getSnapshot().busy
-      || (documentSession ? !documentSession.isAcceptingMutations() : false)
+    isMutationBlocked: isDocumentMutationBlocked
   });
   const captureFaceWarpScope = useFaceWarpScope(documentSession, captureMountedInteractionScope);
   const faceWarpDetectionControllerRef = useRef<FaceWarpDetectionReviewController | null>(null);
@@ -1894,6 +1846,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resolveAdjustmentTargetIdentity = (document: ImageDocument) => readAdjustmentContext(document)?.identity ?? null;
   const resolveCanonicalAdjustmentSnapshot = (document: ImageDocument) => readAdjustmentContext(document)?.readAdjustments() ?? null;
   const adjustmentTransactionController = useAdjustmentTransactionController({
+    isMutationBlocked: isDocumentMutationBlocked,
     getDocumentId: () => imageDocumentRef.current?.id ?? null,
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
@@ -2313,27 +2266,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setScopeError(null);
           setGradeStatus(null);
           setGpuMemoryBytes(0);
-          setTextRenderPresentation({
-            publicationRevision: 0,
-            readyLayerCount: 0,
-            textureBytes: 0,
-            mode: 'placeholder', rebuildingLayerCount: 0,
-            cacheBudgetBytes: 256 * 1024 * 1024, cacheEvictions: 0,
-            atlasLayerCount: 0, cachedLayerCount: 0, atlasEncodes: 0,
-            sourceCacheHits: 0, sourceCacheMisses: 0,
-            layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
-            layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
-            atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
-            sourceDecisionMeasurements: 0, lastSourceDecision: null,
-            coordinatorActive: true, configuredFontCount: 0, visibleTextLayerCount: 0,
-            preparationStage: 'waiting-document', preparationLayerId: null, lastPreparationError: null,
-            traceRevision: 0, traceMessage: null, traceDetails: null,
-            shapingOperations: 0, latestShapingRoundTripMs: 0,
-            rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
-            textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
-            inputToSubmitP95Ms: 0, inputToSubmitMaxMs: 0,
-            inputToGpuP95Ms: 0, inputToGpuMaxMs: 0
-          });
+          textRenderPresentationOwner.reset();
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);
           setPsdCompatibility([]);
@@ -2356,6 +2289,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetDocumentFontsForOpen,
     resetHistogram,
     resetLensBlurDepth,
+    textRenderPresentationOwner,
     setEditorSession,
     setImageDocument,
     setView,
@@ -2449,7 +2383,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getScopeOptions: getDocumentOpenScopeOptions,
     publishHistogram,
     publishGpuMemory: setGpuMemoryBytes,
-    publishTextRenderPresentation,
+    publishTextRenderPresentation: textRenderPresentationOwner.receive,
     publishCompositeRendered,
     publishInitialThumbnail: publishDocumentThumbnail,
     restoreSelectionState: restoreDocumentSelectionState,

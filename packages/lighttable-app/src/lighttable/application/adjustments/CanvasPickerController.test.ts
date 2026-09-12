@@ -31,6 +31,7 @@ const setup = () => {
     getDocumentAdjustments: () => adjustments, getCanonicalAdjustments: () => adjustments,
     getActiveTargetLayerId: () => null, getActiveTargetIdentity: () => target,
     getRenderer: () => runtime, getRendererGeneration: () => 1,
+    isMutationBlocked: () => false,
     documentMutations: mutations, previewDocumentProcessing: vi.fn(),
     commitDocumentProcessing: next => { adjustments = next; },
     stageEditorAdjustments: vi.fn(), restoreStagedSnapshot: vi.fn(), discardPreview: vi.fn(),

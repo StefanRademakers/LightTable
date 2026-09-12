@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DocumentRendererLifecycle } from '../../application/rendering/documentRendererLifecycle';
 import { DocumentStartupTelemetry } from '../../application/telemetry/documentStartupTelemetry';
 import { createDocumentRendererLifecycleBridge } from './createDocumentRendererLifecycleBridge';
+import { createInitialTextRenderPresentation, TextRenderPresentation } from '../../application/telemetry/TextRenderPresentation';
 
 const canvases = {
   hueDistribution: {} as HTMLCanvasElement,
@@ -20,6 +21,36 @@ const createRenderer = () => ({
 });
 
 describe('createDocumentRendererLifecycleBridge', () => {
+  it('passes the original open guard through deferred text presentation, including beforeOpen reset ordering', () => {
+    const frames: (() => void)[] = [], trace = vi.fn();
+    const presentation = new TextRenderPresentation({ request: callback => frames.push(callback), cancel: vi.fn() });
+    presentation.connect(trace);
+    let current = true;
+    const isCurrent = () => current;
+    const bridge = createDocumentRendererLifecycleBridge({
+      isCurrent, telemetry: new DocumentStartupTelemetry(() => 0), lifecycle: new DocumentRendererLifecycle(),
+      scopeCanvases: null,
+      getScopeOptions: () => ({ histogramVisible: false, options: {
+        hueDistributionVisible: false, paradeVisible: false, vectorscopeVisible: false,
+        quality: 'medium', traceBrightness: 0.8, vectorscopeRange: 'all', vectorscopeZoom2x: false
+      } }),
+      publishTextRenderPresentation: presentation.receive,
+      publishHistogram: vi.fn(), publishGpuMemory: vi.fn(), publishError: vi.fn(),
+      publishScopeError: vi.fn(), publishFeatureError: vi.fn(), publishTimings: vi.fn(), publishLoading: vi.fn()
+    });
+    presentation.reset(); // Actual lifecycle constructs the bridge before beforeOpen.
+    const snapshot = { ...createInitialTextRenderPresentation(), publicationRevision: 1, traceMessage: 'current' };
+    bridge.callbacks.onTextRenderPresentation?.(snapshot); frames[0]!();
+    expect(presentation.getSnapshot()).toBe(snapshot);
+    expect(trace).toHaveBeenCalledOnce();
+    bridge.callbacks.onTextRenderPresentation?.({ ...snapshot, publicationRevision: 2, traceMessage: 'retired' });
+    current = false; frames[1]!();
+    expect(presentation.getSnapshot()).toBe(snapshot);
+    expect(trace).toHaveBeenCalledOnce();
+    bridge.callbacks.onTextRenderPresentation?.(snapshot);
+    expect(frames).toHaveLength(2);
+  });
+
   it.each([true, false])('completes the first frame with scope surfaces present: %s', async (scopesPresent) => {
     let time = 10;
     const telemetry = new DocumentStartupTelemetry(() => time);

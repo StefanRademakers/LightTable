@@ -8,6 +8,7 @@ import type { DocumentStartupTelemetry } from '../../application/telemetry/docum
 import type { LightTableStartupTimings } from '../../application/telemetry/editorTelemetry';
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import type { DocumentStartupTimeline } from '../../application/telemetry/documentStartupTimeline';
+import type { TextRenderPresentationPublisher } from '../../application/telemetry/TextRenderPresentation';
 
 export interface EditorDocumentRenderer {
   setStartupTimeline(timeline: DocumentStartupTimeline | null): void;
@@ -34,7 +35,7 @@ export interface DocumentRendererLifecycleBridgeOptions<
   };
   readonly publishHistogram: NonNullable<DocumentRendererCallbacks['onHistogram']>;
   readonly publishGpuMemory: (bytes: number) => void;
-  readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
+  readonly publishTextRenderPresentation?: TextRenderPresentationPublisher;
   readonly publishCompositeRendered?: NonNullable<DocumentRendererCallbacks['onCompositeRendered']>;
   readonly publishError: (message: string) => void;
   readonly publishOpenFailure?: (message: string) => void;
@@ -80,7 +81,7 @@ export const createDocumentRendererLifecycleBridge = <
       options.publishGpuMemory(bytes);
       options.lifecycle.setMemoryEstimate(bytes);
     },
-    onTextRenderPresentation: options.publishTextRenderPresentation,
+    onTextRenderPresentation: snapshot => options.publishTextRenderPresentation?.(snapshot, options.isCurrent),
     onCompositeRendered: options.publishCompositeRendered,
     onRendererError: reportRendererFailure,
     onDeviceLost: reportRendererFailure,

@@ -28,6 +28,8 @@ export interface AdjustmentTransactionDependencies {
   getActiveTargetIdentity(): string | null;
   getRenderer(): AdjustmentInteractionRendererPort | null;
   getRendererGeneration(): number;
+  /** Same live admission policy as document mutations; replay publishers remain unguarded. */
+  isMutationBlocked(): boolean;
   readonly documentMutations: Pick<DocumentMutationController, 'begin' | 'change'>;
   /** Document-wide processing preview. Layer previews use the document mutation projection. */
   previewDocumentProcessing(
@@ -212,6 +214,10 @@ export const createAdjustmentTransactionController = (
       }
     } else {
       const dependencies = resolveDependencies();
+      if (dependencies.isMutationBlocked()) {
+        cancelActive();
+        return 'rejected';
+      }
       try {
         dependencies.commitDocumentProcessing(after, transaction.domain);
         pushDocumentProcessingHistory(transaction, after);
@@ -261,6 +267,10 @@ export const createAdjustmentTransactionController = (
         rejectGesture();
         return null;
       }
+    }
+    if (dependencies.isMutationBlocked()) {
+      rejectGesture();
+      return null;
     }
     let transaction: ActiveAdjustmentTransaction | null = null;
     let documentTransaction: DocumentMutationTransaction | null = null;
@@ -333,6 +343,12 @@ export const createAdjustmentTransactionController = (
       rejectGesture(rejectedActiveToken);
       return 'rejected';
     }
+    if (active && !active.documentTransaction && dependencies.isMutationBlocked()) {
+      const token = active.token;
+      cancelActive();
+      rejectGesture(token);
+      return 'rejected';
+    }
     const canonical = active?.latest ?? dependencies.getCanonicalAdjustments();
     if (!canonical) return 'rejected';
     const before = canonical;
@@ -365,8 +381,15 @@ export const createAdjustmentTransactionController = (
       if (!changed) return adjustmentsEqual(before, next) ? 'unchanged' : 'rejected';
       dependencies.stageEditorAdjustments(next);
     } else if (active) {
+      if (dependencies.isMutationBlocked()) {
+        const token = active.token;
+        cancelActive();
+        rejectGesture(token);
+        return 'rejected';
+      }
       dependencies.previewDocumentProcessing(next, domain);
     } else {
+      if (dependencies.isMutationBlocked()) return 'rejected';
       const previous = cloneAdjustments(before);
       dependencies.commitDocumentProcessing(next, domain);
       try {
