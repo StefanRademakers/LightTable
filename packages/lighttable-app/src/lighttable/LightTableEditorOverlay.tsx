@@ -136,7 +136,7 @@ import { useViewportWheelBridge } from './composition/viewport/useViewportWheelB
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
-import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
+import { useDeleteTargetIntent } from './composition/input/useDeleteTargetIntent';
 import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
 import { createEditorMenuController } from './composition/menus/createEditorMenuController';
 import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
@@ -3379,48 +3379,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     finishTextEditing: () => { textEditingController.finish(); }
   });
-  deleteActiveTargetRef.current = () => {
-    const document = imageDocumentRef.current;
-    if (!document) return;
-    const session = editorSessionRef.current;
-    const vectorSelection = session.vectorSelection;
-    let hasPixelSelection: boolean;
-    try {
-      hasPixelSelection = selectionHost.hasActiveSelection();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The current document selection is unavailable.');
-      return;
-    }
-    const target = resolveDeleteTarget({
-      activeTool: session.activeTool,
-      hasVectorSelection: vectorSelection.elements.length > 0
-        || vectorSelection.paths.length > 0
-        || vectorSelection.anchors.length > 0,
-      hasPixelSelection,
-      hasActiveLayer: Boolean(document?.activeLayerId)
-    });
-    if (!target) return;
-
-    if (target === 'vector-selection') {
-      vectorToolSessionController.deleteSelection();
-      return;
-    }
-    if (target === 'pixel-selection') {
-      mountedDocumentAdmission.runAfter(() => {
-        fillCommandController.clearSelection();
-      });
-      return;
-    }
-
-    if (transformActiveRef.current()) cancelTransformRef.current();
-
-    const layerIds = selectedLayerIdsRef.current.length > 0
-      ? selectedLayerIdsRef.current
-      : document?.activeLayerId
-        ? [document.activeLayerId]
-        : [];
-    if (layerIds.length > 0) void executeRegisteredCommand('layer.delete', { layerIds });
-  };
+  const deleteTargetIntent = useDeleteTargetIntent({
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,
+    getTool: () => readEditorSession().activeTool, getSelectedLayerIds: () => selectedLayerIdsRef.current,
+    vector: vectorToolSessionController, admission: mountedDocumentAdmission, fill: fillCommandController,
+    transform: { isActive: () => transformActiveRef.current(), cancel: () => cancelTransformRef.current() },
+    deleteLayers: (layerIds, reportFailure) => { void executeRegisteredCommand('layer.delete', { layerIds }, reportFailure); },
+    reportFailure: setError
+  });
+  deleteActiveTargetRef.current = deleteTargetIntent.run;
   const automationGestures = useMountedAutomationGestures({
     session: documentSession, renderer: engineRef.current, lifecycle: rendererLifecycle,
     generation: rendererSnapshot.generation,

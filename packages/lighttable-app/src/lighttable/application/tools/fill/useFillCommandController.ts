@@ -46,7 +46,7 @@ export interface FillCommandResult {
 
 export interface FillCommandController {
   fill(color: string, preserveTransparency?: boolean): boolean;
-  clearSelection(): boolean;
+  clearSelection(target: FillCommandResult): boolean;
   apply(command: SemanticFillCommand, history?: {
     readonly label: string;
     readonly type: string;
@@ -133,11 +133,10 @@ export const createFillCommandController = (
     dependencies.setStatus(status(prepared.plan.targetLabel));
     return { layerId: prepared.plan.layerId, channel: prepared.plan.channel };
   };
-  const executeUi = (color: string, preserveTransparency: boolean, opacity = 1) => {
+  const executeUi = (target: { layerId: LayerId | undefined; channel: PaintChannel },
+    color: string, preserveTransparency: boolean, opacity = 1) => {
     const dependencies = resolveDependencies();
-    const document = dependencies.getDocument();
-    const layerId = document?.activeLayerId ?? undefined;
-    const channel = dependencies.getChannel();
+    const { layerId, channel } = target;
     const result = execute(layerId, channel, color, { preserveTransparency, opacity },
       (targetLabel) => opacity === 0
         ? `${targetLabel} selection cleared`
@@ -148,8 +147,12 @@ export const createFillCommandController = (
     return Boolean(result);
   };
   return {
-    fill: (color, preserveTransparency = false) => executeUi(color, preserveTransparency),
-    clearSelection: () => executeUi('#000000', false, 0),
+    fill: (color, preserveTransparency = false) => {
+      const dependencies = resolveDependencies();
+      return executeUi({ layerId: dependencies.getDocument()?.activeLayerId ?? undefined,
+        channel: dependencies.getChannel() }, color, preserveTransparency);
+    },
+    clearSelection: target => executeUi(target, '#000000', false, 0),
     apply: (command, history) => execute(command.layerId, command.channel, command.color, {
       preserveTransparency: command.preserveTransparency,
       opacity: command.opacity

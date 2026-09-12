@@ -151,7 +151,9 @@ describe('createFillCommandController', () => {
       setError: vi.fn()
     });
 
-    expect(createFillCommandController(() => dependencies).clearSelection()).toBe(true);
+    expect(createFillCommandController(() => dependencies).clearSelection({
+      layerId: document.activeLayerId!, channel: 'pixels'
+    })).toBe(true);
     expect(renderer.fillLayerColor).toHaveBeenCalledWith(
       document.activeLayerId,
       'pixels',

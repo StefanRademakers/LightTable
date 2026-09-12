@@ -925,6 +925,11 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || !source.includes('onSwapColors={toolSettings.swapColors}')) {
       failures.push(`${relativePath}: tool-default patches and digit/brush keyboard policy belong to EditorToolSettings`);
     }
+    if (!source.includes('deleteActiveTargetRef.current = deleteTargetIntent.run')
+      || source.includes('resolveDeleteTarget(') || source.includes('fillCommandController.clearSelection(')
+      || source.includes('vectorToolSessionController.deleteSelection(')) {
+      failures.push(`${relativePath}: Delete precedence and post-settlement target validation belong to DeleteTargetIntent`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')

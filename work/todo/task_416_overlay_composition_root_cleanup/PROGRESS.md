@@ -1,5 +1,40 @@
 # Task 416 progress
 
+## O06i — Delete target intent and settlement continuity (accepted)
+
+- Removed root vector/pixel/layer priority and async-target policy. Existing
+  resolveDeleteTarget, vector owner, MountedDocumentAdmission, Fill transaction
+  and semantic layer.delete retain their responsibilities. New intent75/hook12
+  physical lines; root5190->5158, ceiling5159; engine4003 unchanged.
+- Delete captures canonical invocation layer/channel and runtime. After existing
+  settlement, same target/channel and ACTIVE canonical coverage are required.
+  A disappeared selection cannot become unrestricted clear. Changed active
+  coverage on that same target is intentionally accepted (including own transform
+  settlement); this does not distinguish unrelated same-target replacements.
+- Existing Fill.clearSelection now requires explicit target, avoiding stale
+  React-projected layer/channel defaults while preserving its single transaction,
+  history and observed raster.fill. Layer IDs copied before transform cancellation;
+  runtime/document presence checked afterward. No new queue/readback/algorithm.
+- Independent critic PASS plus final non-null-document guard review; actual
+  session/selection/mutation/history tests with fake GPU protect disappearance,
+  replacement, target/channel change, retirement and stale Fill defaults.91 tests/
+  8 files, tsc/boundary/diff PASS. These are not physical GPU race reproductions.
+- Baseline package55311: delete-target run-ORYxhk and selection-kernel run-nIzs8f.
+  Fresh instrumented package48087: delete-target run-VQWGLu and selection-kernel
+  run-3E5PCK. Actual shape+Path Selection beats active pixel selection; element
+  removed/layer retained/exact undo. Actual panel multiselect deletes exact IDs
+  in one history step with exact tree UndoRedo. Pending selected-pixel transform
+  -> Delete gives separate prerequisite/clear history and one observed raster.fill;
+  layer retained, only selected pixels cleared, whole-chain exact PNG UndoRedo.
+  Painted-only coverage Delete and adjacent copy/paint/Actions pass. No page errors;
+  final Delete UI inspected. Archive SHA256:
+  22752209072b92b93f18d92de88a1ac449e11fa373bb6e31b73a2ec93f3cd4e7.
+- Harness setup errors (invented selection.all command and unsupported createRaster
+  name field) corrected against schema before baseline; failed reports retained.
+  Whole-plan/O08 performance and O09 remain open. Next: closed-presentation hook
+  ordering; public open=false currently precedes hooks, hidden by literal-open
+  standalone caller. Then independent GenAI provider binding.
+
 ## O05f — Tool defaults and digit-input lifetime (accepted)
 
 - Removed duplicated toolbar/F5 settings recipes, keyboard size/hardness/percent
