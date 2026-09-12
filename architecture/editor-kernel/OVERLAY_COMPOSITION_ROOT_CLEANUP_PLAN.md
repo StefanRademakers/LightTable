@@ -315,6 +315,8 @@ class names: reuse existing owners before creating a new one.
     parent transform, zoom handoff, exact PNG undo/redo, no-op/cancel/lock and
     rectangle/brush routing pass. Other command families remain open.
   - [ ] O06f: remaining canonical-selection consumers and layer intent lifetime.
+    - [x] Canonical mask/menu eligibility and scoped canvas layer picking;
+      real painted-mask/Shift-pick flows and exact output/history verified.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
@@ -324,6 +326,11 @@ class names: reuse existing owners before creating a new one.
     owner; existing viewport remains pan/zoom authority. Critic PASS after hot-path
     repair;4 tests, app typecheck/boundary and packaged renderer/native-bridge
     events, outside targeting, workspace rebind and fresh PNG/history parity pass.
+  - [x] O07b: scoped frozen PDF preflight/export. Four packaged variants and
+    rejection of stale preflight verified; exact limits recorded in PROGRESS.
+  - [x] O07c: scoped GenAI reference handoff and Setup import lease. Two critic
+    rounds, deferred-state tests and packaged base/file/tab reference proof pass.
+    Providers/jobs remain independent; Remove Object authority remains open.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards
