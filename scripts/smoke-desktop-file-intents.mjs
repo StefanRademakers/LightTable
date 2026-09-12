@@ -19,10 +19,10 @@ const env = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: path.join(run, 'p
   LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile, LIGHTTABLE_AUTOMATION_SAVE_FILE: saveTarget };
 delete env.ELECTRON_RUN_AS_NODE;
 const report = { passed: false, run, pageErrors: [] };
-let app;
+let app, page;
 try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root, env });
-  const page = await app.firstWindow();
+  page = await app.firstWindow();
   page.on('pageerror', error => report.pageErrors.push(String(error.stack ?? error)));
   const open = await waitForDesktopLauncher({ app, page, outputDirectory: run, sourceFile,
     pageErrors: report.pageErrors, label: 'file-intents' });
@@ -96,6 +96,10 @@ try {
   console.log(`Packaged file intent smoke passed: ${run}`);
 } catch (error) {
   report.error = String(error.stack ?? error);
+  if (page) {
+    await page.screenshot({ path: path.join(run, 'failure.png') });
+    report.body = await page.locator('body').innerText();
+  }
   throw error;
 } finally {
   await writeFile(path.join(run, 'report.json'), JSON.stringify(report, null, 2));

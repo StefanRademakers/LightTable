@@ -60,8 +60,8 @@ export class MarqueeEdgePanController {
 
   constructor(initialImageRect: Rect, private readonly dependencies: MarqueeEdgePanDependencies) {
     this.imageRect = { ...initialImageRect };
-    this.requestFrame = dependencies.requestFrame ?? requestAnimationFrame;
-    this.cancelFrame = dependencies.cancelFrame ?? cancelAnimationFrame;
+    this.requestFrame = dependencies.requestFrame ?? (callback => globalThis.requestAnimationFrame(callback));
+    this.cancelFrame = dependencies.cancelFrame ?? (handle => globalThis.cancelAnimationFrame(handle));
     this.now = dependencies.now ?? performance.now.bind(performance);
   }
 
