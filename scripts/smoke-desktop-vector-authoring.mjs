@@ -138,7 +138,7 @@ try {
   const pointerUpAt = performance.now();
   await page.mouse.up();
   const authored = await driver.queryDocument(documentId);
-  const firstShapeFrame = await driver.waitForRenderedDocument(documentId, 60_000);
+  const firstShapeFrame = await driver.waitForReadyDocument(documentId, 60_000);
   const firstShapeVisibleMs = performance.now() - pointerUpAt;
   const authoringMs = performance.now() - startedAt;
   const authoredLayers = await driver.queryLayers(documentId) ?? [];
@@ -177,7 +177,7 @@ try {
   // terminal commit that publishes the document and its single history entry.
   await page.keyboard.press('Enter');
   const transformedDocument = await driver.queryDocument(documentId);
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const transformedLayers = await driver.queryLayers(documentId) ?? [];
   const transformedLayer = transformedLayers.find(({ id }) => id === authoredLayer.id);
   if (!transformedLayer
@@ -204,7 +204,7 @@ try {
   const openedNative = await driver.executeWorkspace('file.openArtifact', { artifactId: nativeArtifact.id });
   const nativeId = openedNative.value.documentId;
   await waitReady(driver, nativeId);
-  await driver.waitForRenderedDocument(nativeId, 60_000);
+  await driver.waitForReadyDocument(nativeId, 60_000);
   await exportPng(driver, nativeId, reopenedPath);
   const nativeLayers = await driver.queryLayers(nativeId) ?? [];
   const nativeLayer = nativeLayers.find(({ name }) => name === transformedLayer.name);

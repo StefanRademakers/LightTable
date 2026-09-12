@@ -64,7 +64,7 @@ try {
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
   assert.ok(documentId, 'Scopes smoke has no active document.');
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const beforeDocument = await driver.queryDocument(documentId);
   const beforePreview = await driver.requestDocumentPreview(
     documentId, beforeDocument.canonicalRevision, 768

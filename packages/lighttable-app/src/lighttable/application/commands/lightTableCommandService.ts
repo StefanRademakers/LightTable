@@ -143,13 +143,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 
 const AUTOMATION_GESTURE_LEASE_MS = 30_000;
 const ACTION_TASK_TIMEOUT_MS = 120_000;
-const OBSERVED_STATE_ONLY_COMMANDS = new Set<LightTableCommandId>([
-  'view.setZoom',
-  'selection.applyShape',
-  'selection.applyMagicWand',
-  'selection.selectSubject',
-  'selection.modify'
-]);
 const traceObservedCommand = (command: LightTableCommandId, accepted: boolean, reason: string) => {
   const trace = (globalThis as typeof globalThis & {
     __LIGHTTABLE_COMMAND_OBSERVATION_TRACE__?: Array<{
@@ -644,9 +637,6 @@ export class LightTableCommandService {
     if (!observedCommandParametersAreValid(command, parameters)) {
       return traceObservedCommand(command, false, 'invalid-observed-parameters');
     }
-    if (!OBSERVED_STATE_ONLY_COMMANDS.has(command)) {
-      this.workspace.getDocument(documentId)?.markChanged();
-    }
     const resultSchema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.result;
     if (resultSchema && !validateJsonSchemaValue(resultSchema, value).valid) {
       return traceObservedCommand(command, false, 'invalid-observed-result');
@@ -769,11 +759,6 @@ export class LightTableCommandService {
     const finished = await this.ports.finishGesture(
       gesture.documentId, gesture.kind, gesture.pointerId, commit
     );
-    if (finished && commit
-      && gesture.kind !== 'selection-rectangle'
-      && gesture.kind !== 'selection-paint') {
-      this.workspace.getDocument(gesture.documentId)?.markChanged();
-    }
     return finished
       ? { status: commit ? 'completed' : 'canceled', gestureId, sampleCount: gesture.sampleCount }
       : { status: 'rejected', message: 'The editor could not finish the gesture.' };
@@ -1296,7 +1281,6 @@ export class LightTableCommandService {
       }
       try {
         const changed = await this.ports.resizeImage(documentRequest.documentId, resize);
-        if (changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         const committed = this.document(documentRequest.documentId)?.document;
         return { requestId: value.requestId, status: 'completed', value: {
           changed,
@@ -1319,7 +1303,6 @@ export class LightTableCommandService {
       }
       try {
         const changed = await this.ports.applyDocumentGeometry(documentRequest.documentId, geometry);
-        if (changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         const committed = this.document(documentRequest.documentId)?.document;
         return { requestId: value.requestId, status: 'completed', value: {
           operation: geometry.operation,
@@ -1347,7 +1330,6 @@ export class LightTableCommandService {
           documentRequest.documentId,
           command
         );
-        if (result.changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1361,7 +1343,6 @@ export class LightTableCommandService {
       const dispatched = await this.pixelClipboardCommands.dispatch(value.command, value.parameters,
         documentRequest.documentId, this.ports);
       if (dispatched.ok) {
-        if (dispatched.mutated) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: dispatched.value,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       }
@@ -1372,7 +1353,6 @@ export class LightTableCommandService {
       const dispatched = await this.gradeClipboardCommands.dispatch(value.command, value.parameters,
         documentRequest.documentId, this.ports);
       if (dispatched.ok) {
-        if (dispatched.mutated) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: dispatched.value,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       }
@@ -1432,7 +1412,6 @@ export class LightTableCommandService {
           x: placement.x, y: placement.y
         }) : await this.ports.placeArtifact(documentRequest.documentId, file, placement);
         if (!placed) return this.reject(value.requestId, 'execution-failed', 'The artifact could not be placed.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: placed,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1460,7 +1439,6 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeTextCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The text command did not change the document.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1475,7 +1453,6 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeVectorCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The vector command did not change the document.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1491,7 +1468,6 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeSvgImport(documentRequest.documentId, parameters);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'SVG import did not change the document.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1505,7 +1481,6 @@ export class LightTableCommandService {
           ? (command) => this.ports.executeWarpStrokeCommand!(documentRequest.documentId, command)
           : undefined);
       if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
-      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
       return { requestId: value.requestId, status: 'completed', value: outcome.value,
         revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
     }
@@ -1516,7 +1491,6 @@ export class LightTableCommandService {
           ? (command) => this.ports.executeFillCommand!(documentRequest.documentId, command)
           : undefined);
       if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
-      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
       return { requestId: value.requestId, status: 'completed', value: outcome.value,
         revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
     }
@@ -1527,7 +1501,6 @@ export class LightTableCommandService {
           ? (command) => this.ports.executeRasterGradientCommand!(documentRequest.documentId, command)
           : undefined);
       if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
-      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
       return { requestId: value.requestId, status: 'completed', value: outcome.value,
         revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
     }
@@ -1542,7 +1515,6 @@ export class LightTableCommandService {
         const result = await this.ports.executeFaceWarpCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'command-unavailable',
           'The target Face Warp layer, face or editable operation is unavailable.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1559,7 +1531,6 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeLayerStyleCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The Layer Style command did not change the document.', snapshot);
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
@@ -1570,9 +1541,6 @@ export class LightTableCommandService {
     try {
       const result = await this.executeParsed(documentRequest, snapshot);
       if ('code' in result) return this.reject(value.requestId, result.code, result.message, snapshot);
-      if (value.command !== 'view.setZoom' && result.changed !== false) {
-        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
-      }
       return {
         requestId: value.requestId,
         status: 'completed',

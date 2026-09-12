@@ -257,7 +257,7 @@ const mutationEvidence = async (page, driver, documentId, originalPreviewBytes) 
       elementId: element.id,
       transform
     });
-    const rendered = await driver.waitForRenderedDocument(documentId, 120_000);
+    const rendered = await driver.waitForReadyDocument(documentId, 120_000);
     samples.push({
       index,
       durationMs: Math.round(performance.now() - startedAt),
@@ -345,7 +345,7 @@ for (const [index, entry] of entries.entries()) {
     const workspace = await driver.queryWorkspace();
     const documentId = workspace.activeDocumentId;
     const rendered = await measure('firstRenderedDocumentMs', () =>
-      driver.waitForRenderedDocument(documentId, 120_000));
+      driver.waitForReadyDocument(documentId, 120_000));
     const openCpuProfile = openProfile ? await stopCpuProfile(openProfile) : null;
     const previewResult = await measure('previewRequestMs', () => driver.requestDocumentPreview(
       documentId, rendered.document.canonicalRevision, 1024

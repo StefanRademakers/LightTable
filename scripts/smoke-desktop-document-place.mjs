@@ -37,7 +37,7 @@ try {
   const driver = await attachLightTableAutomation(page, 'document-place');
   const documentId = (await driver.queryWorkspace())?.activeDocumentId;
   if (!documentId) throw new Error('The source document did not publish an active ID.');
-  const before = await driver.waitForRenderedDocument(documentId);
+  const before = await driver.waitForReadyDocument(documentId);
   const beforeLayers = await driver.waitForLayers(documentId);
 
   await page.getByRole('menuitem', { name: 'File', exact: true }).click();

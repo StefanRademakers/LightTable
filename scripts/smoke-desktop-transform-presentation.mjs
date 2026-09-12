@@ -26,7 +26,7 @@ try {
     width: 1024, height: 768, resolutionPpi: 72, bitDepth: 8, profile: 'srgb',
     background: { kind: 'solid', color: '#e5e5e5' } });
   const id = created.value.documentId;
-  await driver.waitForRenderedDocument(id);
+  await driver.waitForReadyDocument(id);
   const stamp = async (x, y, color) => {
     const layer = await driver.execute(id, 'vector.create', {
       name: 'Snap square', primitive: { kind: 'rectangle', x: x - 48, y: y - 48,

@@ -1,5 +1,85 @@
 # Task 416 progress
 
+## O03c.4 — Canonical revision authority (accepted)
+
+- Discovered by the O05d real rebind test, not a speculative rewrite. Canonical
+  document/processing/selection publication and pixel-only history transitions
+  now stamp `DocumentSession.documentRevision` in the owning session. Only a
+  synchronous owned publication coalesces stamps. No pointer-preview stamps,
+  cross-await counter-based deduplication or preview-cache bypass.
+- Removed command/gesture-completion and Actions-observation bumps, three
+  automation task-wrapper bumps, and raster/auxiliary transform notification
+  callbacks including their dead ports and error branches. New boundary guard
+  prevents these authorities returning. Initial/rehydrated content stays clean;
+  history owns reversible dirty state, explicit nonhistory edits retain their
+  separate marker, stale save captures cannot mark newer content saved.
+- Independent source critic PASS. Integrated UI transaction -> cached preview
+  -> commit -> fresh preview -> undo regression passes. Compensation restores
+  content while its invalidation stamp remains monotonic. Full app regression:
+  647 suites / 4,220 tests pass. Old test assumptions of revision0 or revision
+  equals command-count were replaced by actual admitted revision/ownership
+  assertions; rollback and pixel-order checks were retained.
+- New package exposed the previously recorded O08 telemetry mismatch: root
+  fabricated `presentedDocumentRevision` from a current ImageDocument ref,
+  while the test compared it against the unrelated public canonical clock.
+  Removed that false telemetry field. Automation readiness helper was
+  renamed to `waitForReadyDocument`: initial readiness only, never a guarantee
+  of latest-edit presentation. Actual canvas/output assertions remain separate;
+  no forced export/readback is introduced in that helper. True frame-correlated
+  telemetry remains explicit O08 work.
+- Final source critic PASS; current instrumented package (usual profile restored)
+  passes full transform and selection gates. Face Warp debug proof below includes
+  the revision repair, before the final telemetry-field-only deletion. Driver
+  tests26 and syntax checks32 scripts pass. Transform harness correction was
+  evidence-driven: paste with Transform already selected opened a cage;
+  unconditional Ctrl+T correctly committed it. Fixture now starts on Brush and
+  asserts no cage before explicit Ctrl+T. No product toggle/lease checks weakened.
+
+## O05d.1 — Face Warp domain/lifetime extraction (accepted)
+
+- Fresh packaged rebind proof exposed a shared canonical revision defect:
+  Face Warp UI edits change document/history/canvas while public
+  `DocumentSession.documentRevision` stays at 1. `document.preview` therefore
+  legitimately reuses the old revision-keyed artifact. This is NOT an intentional
+  Face Warp exclusion: preview and presentation read the final renderer texture.
+  Evidence: tmp/face-warp-o05d-preview-diagnostic/failure.json; history11->12,
+  visible157290 changed pixels, same cached artifact/revision. Independent
+  critic confirmed missing revision accounting on direct UI mutation paths.
+  Repaired by O03c.4 above, not a preview-cache bypass.
+  Focused Face Warp owners/composition35 tests and packaged rejected-detection
+  no-mutation gate pass. Whole-app/owner feel acceptance remains open.
+
+- Gesture recipes, property intents, pure face view and exact mesh presentation
+  are separate bounded owners; existing interaction/detection controllers retain
+  transactions and inference. Lifecycle reset/disposal is a narrow composition
+  binding. Overlay 7,176 -> 6,863 audit-counted lines including removed revision/telemetry glue.
+- Independent review required exact property leases (layer/face/semantic side),
+  rejection of denied/retired slider samples, scoped detection errors/results and
+  retained scope for review acceptance. Repaired in the existing owners; removed
+  unscoped property terminal APIs. Current failures remain visible.
+- Source review passed, but the debug-package gate found a real initialization
+  bug: intent scope captured renderer=null, then never rebound when the renderer
+  became ready within the same generation. Explicit concrete renderer dependency
+  repairs it. Stateful memo/ref rerender test passes; earlier always-recreating
+  hook mocks could not detect it. Final source delta re-reviewed and packaged
+  rebind rerun passed. Do not infer app acceptance from source PASS alone.
+- Preserved failures: tmp/face-warp-o05d-debug and
+  tmp/face-warp-o05d-escape-diagnostic. Earlier normal/instrumented package runs
+  could not find the intentionally hidden experimental tool. Desktop config
+  exposes Face Warp only in the debug build profile; a VITE environment flag
+  alone is overridden. No product feature visibility changed.
+- Packaged harness now also tests real tab rebind, mesh restoration, a fresh
+  property gesture and document-composite undo parity. Debug native NVIDIA run
+  tmp/face-warp-o05d-ready-gate passes detect/review/cancel/accept, identity pixels,
+  sculpt/refinement, eight gestures, semantic edit and exact undo, idle, mesh
+  rebind and fresh property edit. Screenshots inspected; no black holes. Captured
+  rAF feedback samples5.4-6.9ms and pointer-up/refinement25.9ms are diagnostics,
+  not controlled end-to-end latency proof. GPU estimate firstedit22458776 ->
+  idle22461272 bytes; whole performance acceptance stays O08.
+  Clipboard and selection host
+  owners are prepared independently in new files only, not yet integrated or
+  accepted. Whole plan remains open.
+
 ## O05c.1 — Transform cage and shared smart-guide presentation (accepted)
 
 - TransformPresentationBinding owns only renderer-bound presentation, retained

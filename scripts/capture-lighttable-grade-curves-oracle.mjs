@@ -52,7 +52,7 @@ try {
   const opened = await driver.executeWorkspace('file.openArtifact', { artifactId: artifact.id });
   const documentId = opened.value?.documentId;
   if (!documentId) throw new Error('Curves source open did not return a document ID.');
-  let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+  let readiness = await driver.waitForReadyDocument(documentId, 120_000);
   const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
   await trigger.click();
   await page.getByRole('menu', { name: 'New fill or processing layer' }).getByRole('menuitem', { name: 'New Grade layer', exact: true }).click();
@@ -108,7 +108,7 @@ try {
     await resetAll();
     for (const [channel, points] of Object.entries(entry.curves)) await setCurve(channel, points);
     if (needsRenderedMutation) {
-      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+      readiness = await driver.waitForReadyDocument(documentId, 120_000);
     }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
     const task = await driver.waitForTask(documentId, exported.taskId, 120_000);
@@ -122,7 +122,6 @@ try {
       isBaseline: entry.id === 'neutral',
       output,
       lightTableLaunchMode: launch.mode,
-      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
       captureEvidence: {
         sha256: createHash('sha256').update(png.bytes).digest('hex'),
         byteLength: png.bytes.byteLength,

@@ -72,6 +72,10 @@ The continuation rules are strict:
 
 - React remains UI and low-frequency projection only; it is not canonical edit
   authority.
+- `DocumentSession` owns canonical invalidation revisions, including UI commits
+  and pixel-only history replay. Commands and observed Actions never add their
+  own revision bump. This monotonic stamp is not history/saved-content identity
+  or a rendered-frame stamp; see the kernel README's revision contract.
 - Every migrated semantic operation uses only its complete kernel route. During
   cut-over, never split preview, commit, history or cleanup across owners.
 - Existing algorithms stay in their domain packages. The kernel coordinates

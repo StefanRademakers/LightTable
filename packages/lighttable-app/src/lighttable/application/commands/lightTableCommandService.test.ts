@@ -13,6 +13,7 @@ import { createDefaultLayerStyleStack } from '../../editor/styles/layerStyleDefa
 import { layerStyleSnapshot } from '../styles/completeLayerStyleSnapshot';
 import { createDefaultAdjustments } from '../../types';
 import { WorkspaceSession } from '../workspace/workspaceSession';
+import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   LightTableCommandPortRegistry,
@@ -153,6 +154,45 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('invalidates cached previews for direct UI transactions and replay without a command-side revision bump', async () => {
+    const state = setup();
+    state.session.markSaved();
+    const initial = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    const requestPreview = (revision: number) => state.service.requestDocumentPreview({
+      documentId: state.session.id, expectedDocumentRevision: revision, maxEdge: 512
+    });
+    const openingPreview = await requestPreview(initial);
+    expect(openingPreview).toMatchObject({ status: 'completed', reused: false });
+    let sequence = 0;
+    const mutations = createDocumentMutationController(() => ({
+      getDocument: () => state.session.getSnapshot().document,
+      applySnapshot: document => state.session.setDocument(document),
+      previewSnapshot: () => undefined,
+      discardPreview: () => undefined,
+      pushHistoryEntry: entry => { state.session.history.record({ ...entry,
+        id: `direct-ui-${++sequence}`, type: entry.type ?? 'test', label: entry.label ?? 'UI edit',
+        documentId: state.session.id
+      }); }
+    }));
+    const transaction = mutations.begin('ui-face-like-edit')!;
+    transaction.change(document => renameLayer(document, document.activeLayerId!, 'Authored UI result'));
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBe(initial);
+    expect(await requestPreview(initial)).toMatchObject({ status: 'completed', reused: true });
+    expect(transaction.commit()).toBe(true);
+    const committed = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    expect(committed).toBeGreaterThan(initial);
+    expect(await requestPreview(initial)).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
+    expect(await requestPreview(committed)).toMatchObject({ status: 'completed', reused: false });
+    await state.session.history.undo();
+    const undone = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    expect(undone).toBeGreaterThan(committed);
+    expect(await requestPreview(undone)).toMatchObject({ status: 'completed', reused: false });
+    expect(state.session.getSnapshot().dirty).toBe(false);
+    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledTimes(3);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('uses history ownership, not coincident document revision values, for Undo publication', async () => {
     const state = setup();
     const before = state.session.getSnapshot().document!;
@@ -173,9 +213,9 @@ describe('LightTableCommandService action recording', () => {
     await expect(state.service.execute(request('history.undo', state.session.id)))
       .resolves.toMatchObject({
         status: 'completed',
-        value: { changed: true, documentChanged: true },
-        revisions: { document: revision + 1 }
+        value: { changed: true, documentChanged: true }
       });
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBeGreaterThan(revision);
     expect(state.session.getSnapshot().document?.name).toBe(before.name);
   });
 
@@ -650,7 +690,7 @@ describe('LightTableCommandService action recording', () => {
   it('records one already-committed UI owner result without executing it twice', () => {
     const state = setup();
     state.service.startActionRecording('Observed UI commit');
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
     expect(state.service.recordObservedCommand(
       'selection.applyShape',
       state.session.id,
@@ -672,7 +712,7 @@ describe('LightTableCommandService action recording', () => {
       command: 'selection.applyShape', outcome: 'completed', replayable: true,
       origin: 'ui'
     }]);
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision);
     expect(state.service.recordObservedCommand(
       'layer.setTransform', state.session.id, {
         layerId: state.session.getSnapshot().document!.activeLayerId,
@@ -680,7 +720,7 @@ describe('LightTableCommandService action recording', () => {
       }, { layerId: state.session.getSnapshot().document!.activeLayerId,
         transform: { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 8 } }
     )).toBe(true);
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision);
     state.service.dispose();
     state.workspace.dispose();
   });
@@ -718,20 +758,22 @@ describe('LightTableCommandService action recording', () => {
   it('refuses an invalid observed UI text commit before revision or recording publication', () => {
     const state = setup();
     state.service.startActionRecording('Invalid observed text');
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
     expect(state.service.recordObservedCommand(
       'text.replaceRange', state.session.id,
       { layerId: 'text-layer', start: 9, end: 2, text: 'invalid' },
       { layerId: 'text-layer' }
     )).toBe(false);
     expect(state.service.actionRecordingSnapshot().steps).toEqual([]);
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision);
     state.service.dispose();
     state.workspace.dispose();
   });
 
-  it('records only schema-compatible observed results after publishing the committed revision', () => {
+  it('rejects incompatible observed results without publishing any revision', () => {
     const state = setup();
     state.service.startActionRecording('Invalid observed result');
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
 
     expect(state.service.recordObservedCommand(
       'text.format', state.session.id,
@@ -739,7 +781,7 @@ describe('LightTableCommandService action recording', () => {
       { layerId: 'text-layer', changed: true }
     )).toBe(false);
     expect(state.service.actionRecordingSnapshot().steps).toEqual([]);
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision);
     state.service.dispose();
     state.workspace.dispose();
   });
@@ -754,8 +796,9 @@ describe('LightTableCommandService action recording', () => {
         { layerId: targetLayerId, name }, { layerId: targetLayerId, name })).toBe(false);
     });
     state.service.startActionRecording('One semantic rename');
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
     await state.service.execute(request('layer.rename', state.session.id, { layerId, name: 'Only once' }));
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision + 1);
     expect(state.service.actionRecordingSnapshot().steps).toHaveLength(1);
     state.service.dispose();
     state.workspace.dispose();
@@ -1748,9 +1791,16 @@ describe('LightTableCommandService registry', () => {
 
   it('advances the canonical revision after semantic mutations and committed gestures', async () => {
     const state = setup();
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    state.ports.finishGesture = vi.fn(async (_id, kind, _pointer, commit) => {
+      if (commit && kind === 'brush-stroke') state.session.history.record({
+        id: 'brush-commit', type: 'paint', label: 'Paint', documentId: state.session.id,
+        undo: () => undefined, redo: () => undefined
+      });
+      return true;
+    });
     await state.service.execute(request('layer.createRaster', state.session.id));
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision + 1);
     const started = await state.service.beginGesture({ documentId: state.session.id,
       kind: 'brush-stroke', coordinateSpace: 'document', parameters: {},
       sample: { x: 1, y: 1 } });
@@ -1758,14 +1808,14 @@ describe('LightTableCommandService registry', () => {
     if (started.status === 'started' && started.gestureId) {
       await state.service.finishGesture(started.gestureId, true);
     }
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision + 2);
     const selection = await state.service.beginGesture({ documentId: state.session.id,
       kind: 'selection-rectangle', coordinateSpace: 'document', parameters: { mode: 'replace' },
       sample: { x: 0, y: 0 } });
     if (selection.status === 'started' && selection.gestureId) {
       await state.service.finishGesture(selection.gestureId, true);
     }
-    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(revision + 2);
     state.service.dispose();
     state.workspace.dispose();
   });

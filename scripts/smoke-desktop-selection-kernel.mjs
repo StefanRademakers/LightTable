@@ -33,7 +33,7 @@ try {
   });
   const documentId = created.value?.documentId;
   assert.ok(documentId);
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   await driver.execute(documentId, 'selection.applyShape', {
     mode: 'replace', shape: { kind: 'rectangle', points: [
       { x: expectedBounds.x, y: expectedBounds.y },
@@ -171,7 +171,7 @@ try {
     bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
   });
   assert.ok(second.value?.documentId);
-  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await driver.waitForReadyDocument(second.value.documentId, 60_000);
   await page.locator('.ui-document-tabs__title', { hasText: 'Selection kernel primary' }).click();
   await page.waitForFunction((id) => {
     const state = window.__lightTableAutomation?.queryDocument(id);

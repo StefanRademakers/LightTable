@@ -85,7 +85,9 @@ export interface DocumentSessionSnapshot {
   readonly lifecycle: DocumentLifecycle;
   readonly lifecycleError: string | null;
   readonly dirty: boolean;
+  /** Monotonic canonical invalidation stamp, not history position or frame identity. */
   readonly documentRevision: number;
+  /** Last current save capture; dirty state does not compare these two clocks. */
   readonly savedRevision: number;
   readonly history: DocumentCommandHistorySnapshot;
   readonly tasks: DocumentTaskRegistrySnapshot;
@@ -168,6 +170,26 @@ const cloneEditorSession = (session: DocumentEditorState): DocumentEditorState =
   }
 });
 
+// Documents are immutable. Compare only their bounded root, never walk the
+// layer/resource graph on a publication or treat active-layer chrome as pixels.
+const canonicalDocumentChanged = (before: ImageDocument | null, after: ImageDocument | null): boolean => {
+  if (before === after) return false;
+  if (!before || !after) return true;
+  return (Object.keys(after) as (keyof ImageDocument)[]).some((key) =>
+    key !== 'activeLayerId' && key !== 'revision' && key !== 'modifiedAt' && before[key] !== after[key]);
+};
+
+const canonicalSelectionChanged = (before: DocumentEditorState, after: DocumentEditorState): boolean => {
+  const a = before.selectionSupportBounds;
+  const b = after.selectionSupportBounds;
+  return before.selectionRevision !== after.selectionRevision
+    || before.selectionMaskSnapshot !== after.selectionMaskSnapshot
+    || before.selection.length !== after.selection.length
+    || before.selection.some((operation, index) => operation !== after.selection[index])
+    || (a === null) !== (b === null)
+    || Boolean(a && b && (a.x !== b.x || a.y !== b.y || a.width !== b.width || a.height !== b.height));
+};
+
 /**
  * Application-owned state for one open document.
  *
@@ -190,6 +212,10 @@ export class DocumentSession {
   private readonly unsubscribeTasks: () => void;
   private publicationDepth = 0;
   private publicationPending = false;
+  private publicationStamped = false;
+  // A monotonic invalidation stamp is not saved-content identity: history owns
+  // reversible dirty state; only explicit non-history edits need this marker.
+  private nonHistoryDirty = false;
   private readonly mutationBarriers = new Map<symbol, string>();
   private publicationAdmission: { readonly token: symbol; readonly reason: string } | null = null;
   private activePublicationToken: symbol | null = null;
@@ -241,7 +267,8 @@ export class DocumentSession {
       if (this.snapshot.lifecycle === 'disposed') return;
       this.update({
         history,
-        dirty: history.dirty || this.snapshot.documentRevision !== this.snapshot.savedRevision
+        dirty: history.dirty || this.nonHistoryDirty,
+        ...(history.currentStateId !== this.snapshot.history.currentStateId ? this.canonicalStamp() : {})
       });
     });
     this.unsubscribeTasks = this.tasks.subscribe((tasks) => {
@@ -386,6 +413,7 @@ export class DocumentSession {
       throw new Error(this.publicationAdmission.reason);
     }
     const previousToken = this.activePublicationToken;
+    if (this.publicationDepth === 0) this.publicationStamped = false;
     this.activePublicationToken = token;
     this.publicationDepth += 1;
     try {
@@ -393,6 +421,7 @@ export class DocumentSession {
     } finally {
       this.publicationDepth -= 1;
       this.activePublicationToken = previousToken;
+      if (this.publicationDepth === 0) this.publicationStamped = false;
       if (this.publicationDepth === 0 && this.publicationPending) {
         this.publicationPending = false;
         this.emit();
@@ -425,7 +454,7 @@ export class DocumentSession {
   ): void {
     this.assertEditable();
     const next = cloneEditorSession(updater(cloneEditorSession(this.snapshot.editor)));
-    this.update({ editor: next });
+    this.update({ editor: next, ...(canonicalSelectionChanged(this.snapshot.editor, next) ? this.canonicalStamp() : {}) });
   }
 
   updateEditorIf(
@@ -436,7 +465,7 @@ export class DocumentSession {
     const current = cloneEditorSession(this.snapshot.editor);
     if (!predicate(current)) return false;
     const next = cloneEditorSession(updater(current));
-    this.update({ editor: next });
+    this.update({ editor: next, ...(canonicalSelectionChanged(this.snapshot.editor, next) ? this.canonicalStamp() : {}) });
     return true;
   }
 
@@ -454,9 +483,12 @@ export class DocumentSession {
     const currentEditor = cloneEditorSession(this.snapshot.editor);
     if (!predicate(this.snapshot.document, currentEditor)) return false;
     document.assets.fonts.forEach((asset) => this.fonts.registerReference(asset));
+    const editor = cloneEditorSession(updater(currentEditor));
     this.update({
       document,
-      editor: cloneEditorSession(updater(currentEditor))
+      editor,
+      ...(canonicalDocumentChanged(this.snapshot.document, document)
+        || canonicalSelectionChanged(this.snapshot.editor, editor) ? this.canonicalStamp() : {})
     });
     return true;
   }
@@ -474,6 +506,7 @@ export class DocumentSession {
         || storedCoverage.height !== document.height));
     this.update({
       document,
+      ...(canonicalDocumentChanged(this.snapshot.document, document) ? this.canonicalStamp() : {}),
       editor: needsInactiveCoverage
         ? {
             ...editor,
@@ -500,10 +533,18 @@ export class DocumentSession {
   publishProcessing(patch: Partial<DocumentProcessingState>): void {
     this.assertEditable();
     const current = this.snapshot.processing;
+    const adjustmentsChanged = patch.adjustments !== undefined && patch.adjustments !== current.adjustments;
+    const visibilityChanged = patch.groupVisibility !== undefined
+      && (Object.keys(current.groupVisibility) as (keyof GroupVisibility)[])
+        .some((key) => patch.groupVisibility![key] !== current.groupVisibility[key]);
+    const strengthChanged = patch.globalGradeStrength !== undefined
+      && patch.globalGradeStrength !== current.globalGradeStrength;
+    if (!adjustmentsChanged && !visibilityChanged && !strengthChanged) return;
     this.update({
+      ...this.canonicalStamp(),
       processing: {
-        adjustments: patch.adjustments === undefined ? current.adjustments : structuredClone(patch.adjustments),
-        groupVisibility: patch.groupVisibility === undefined ? current.groupVisibility : { ...patch.groupVisibility },
+        adjustments: adjustmentsChanged ? structuredClone(patch.adjustments!) : current.adjustments,
+        groupVisibility: visibilityChanged ? { ...patch.groupVisibility! } : current.groupVisibility,
         globalGradeStrength: patch.globalGradeStrength ?? current.globalGradeStrength
       }
     });
@@ -537,9 +578,10 @@ export class DocumentSession {
     if (revision < this.snapshot.documentRevision) {
       throw new Error('Document revisions must be monotonic.');
     }
+    this.nonHistoryDirty = true;
     this.update({
       documentRevision: revision,
-      dirty: revision !== this.snapshot.savedRevision
+      dirty: true
     });
   }
 
@@ -548,11 +590,17 @@ export class DocumentSession {
     if (revision > this.snapshot.documentRevision) {
       throw new Error('A saved revision cannot be newer than the document.');
     }
-    this.history.markSaved();
-    this.update({
-      savedRevision: revision,
-      history: this.history.getSnapshot(),
-      dirty: revision !== this.snapshot.documentRevision || this.history.getSnapshot().dirty
+    // A save captured before an intervening edit cannot mark the CURRENT
+    // history position saved, nor acknowledge later non-history changes.
+    if (revision !== this.snapshot.documentRevision) return;
+    this.runPublication(() => {
+      this.history.markSaved();
+      this.nonHistoryDirty = false;
+      this.update({
+        savedRevision: revision,
+        history: this.history.getSnapshot(),
+        dirty: this.history.getSnapshot().dirty
+      });
     });
   }
 
@@ -602,6 +650,14 @@ export class DocumentSession {
       ...patch
     };
     this.emit();
+  }
+
+  private canonicalStamp(): Pick<DocumentSessionSnapshot, 'documentRevision'> {
+    if (this.publicationDepth > 0 && this.publicationStamped) {
+      return { documentRevision: this.snapshot.documentRevision };
+    }
+    if (this.publicationDepth > 0) this.publicationStamped = true;
+    return { documentRevision: this.snapshot.documentRevision + 1 };
   }
 
   private emit(): void {

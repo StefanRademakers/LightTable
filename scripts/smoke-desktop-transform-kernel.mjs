@@ -61,7 +61,7 @@ try {
     ? (await driver.queryWorkspace()).activeDocumentId
     : created?.value?.documentId;
   assert.ok(documentId);
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const openingLayers = await driver.queryLayers(documentId);
   const sourceLayerName = process.env.LIGHTTABLE_TRANSFORM_SOURCE_LAYER;
   const layerId = (sourceLayerName
@@ -183,6 +183,10 @@ try {
   // paste the tight raster, transform it while the selection remains active,
   // and immediately drag Local Grade Exposure.
   await driver.execute(documentId, 'view.setZoom', { mode: 'fit' });
+  // Establish an inactive transform before the explicit Ctrl+T entry below.
+  // Paste while Transform is selected already opens its cage; Ctrl+T then
+  // correctly commits that active transform instead of opening another one.
+  await page.keyboard.press('b');
   await driver.execute(documentId, 'selection.applyShape', {
     mode: 'replace', shape: keyboardSelectionShape === 'free'
       ? { kind: 'free', points: [
@@ -214,6 +218,8 @@ try {
   const keyboardExposureSlider = page.getByRole('slider', { name: 'Exposure' }).first();
   await keyboardExposureSlider.waitFor({ state: 'visible', timeout: 20_000 });
   const beforeKeyboardHandoff = await driver.queryDocument(documentId);
+  assert.equal(await page.locator('.lighttable-transform__body').count(), 0,
+    'The keyboard-entry fixture must begin outside Transform.');
   await page.keyboard.press('Control+t');
   const keyboardTransformBody = page.locator('.lighttable-transform__body');
   const { point: keyboardTransformStart } = await visibleBodyPoint();

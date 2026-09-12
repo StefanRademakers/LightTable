@@ -98,7 +98,7 @@ try {
       workspace = await driver.queryWorkspace();
     }
     assert.ok(workspace?.activeDocumentId, 'No active document appeared after opening the source.');
-    let rendered = await driver.waitForRenderedDocument(workspace.activeDocumentId, 90_000);
+    let rendered = await driver.waitForReadyDocument(workspace.activeDocumentId, 90_000);
     const vectorDeadline = Date.now() + 10_000;
     while (rendered.telemetry.vectorBackend?.active === 'unexercised'
       && Date.now() < vectorDeadline) {

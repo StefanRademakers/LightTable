@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, type ImageDocument } from '../../../editor/document/documentTypes';
+import { createRasterLayer } from '../../../editor/document/documentCommands';
 import { findRasterLayer } from '../../../editor/document/layerTree';
 import { createDocumentMutationController } from '../../documents/useDocumentMutationController';
 import { MEDIAPIPE_FACE_VERTEX_COUNT } from '../../../effects/faceWarp/canonicalFaceTopology';
@@ -29,16 +30,18 @@ const result = {
 const harness = () => {
   let document: ImageDocument = createImageDocument('Face review', 100, 100, 'asset');
   let rendererGeneration = 1;
+  let rendererLifecycle = {};
   const history = vi.fn();
   const status = vi.fn();
   const error = vi.fn();
   const detect = vi.fn(async () => result);
   const dispose = vi.fn();
   let resolveThumbnail: ((value: LayerThumbnailBlob) => void) | null = null;
+  let rejectThumbnail: ((reason: unknown) => void) | null = null;
   let deferThumbnail = false;
   const renderer = {
     exportLayerThumbnail: vi.fn((): Promise<LayerThumbnailBlob> => deferThumbnail
-      ? new Promise<LayerThumbnailBlob>((resolve) => { resolveThumbnail = resolve; })
+      ? new Promise<LayerThumbnailBlob>((resolve, reject) => { resolveThumbnail = resolve; rejectThumbnail = reject; })
       : Promise.resolve({
         blob: new Blob(), width: 100, height: 100,
         sourceToOutput: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
@@ -55,7 +58,11 @@ const harness = () => {
   const controller = new FaceWarpDetectionReviewController(() => ({
     getDocument: () => document,
     getRenderer: () => renderer,
-    getRendererGeneration: () => rendererGeneration,
+    captureScope: () => {
+      const openingGeneration = rendererGeneration;
+      const openingLifecycle = rendererLifecycle;
+      return { isCurrent: () => rendererGeneration === openingGeneration && rendererLifecycle === openingLifecycle };
+    },
     changeDocument: mutation.change,
     createDetector: () => ({ detect, dispose } as unknown as FaceWarpDetector),
     createId: (kind) => `${kind}-${++id}`,
@@ -66,8 +73,11 @@ const harness = () => {
     controller, history, status, error, detect, dispose, renderer,
     get document() { return document; },
     replaceDocument() { document = { ...document }; },
+    switchLayer() { document = createRasterLayer(document, 'Other layer'); },
     replaceRenderer() { rendererGeneration += 1; },
+    replaceLifecycle() { rendererLifecycle = {}; },
     deferThumbnail() { deferThumbnail = true; },
+    rejectThumbnail() { rejectThumbnail?.(new Error('readback failed')); },
     resolveThumbnail() {
       resolveThumbnail?.({
         blob: new Blob(), width: 100, height: 100,
@@ -78,6 +88,46 @@ const harness = () => {
 };
 
 describe('FaceWarpDetectionReviewController', () => {
+  it('rejects review acceptance after active-layer change before synchronization', async () => {
+    const state = harness(); expect(await state.controller.detect()).toBe(true);
+    state.switchLayer();
+    expect(state.controller.accept()).toBe(false);
+    expect(state.history).not.toHaveBeenCalled();
+    expect(state.error).toHaveBeenLastCalledWith(expect.stringMatching(/layer changed/));
+  });
+  it('reports a current readback failure but not a retired request failure', async () => {
+    const current = harness(); current.deferThumbnail();
+    const first = current.controller.detect(); current.rejectThumbnail();
+    expect(await first).toBe(false);
+    expect(current.error).toHaveBeenLastCalledWith('readback failed');
+    expect(current.controller.getSnapshot().busy).toBe(false);
+    const retired = harness(); retired.deferThumbnail();
+    const second = retired.controller.detect(); retired.replaceLifecycle();
+    retired.controller.reset(); retired.error.mockClear();
+    const snapshot = retired.controller.getSnapshot(); retired.rejectThumbnail();
+    expect(await second).toBe(false);
+    expect(retired.error).not.toHaveBeenCalled();
+    expect(retired.controller.getSnapshot()).toBe(snapshot);
+  });
+
+  it('cannot accept an equal-source review after the exact opening scope retired', async () => {
+    const state = harness(); expect(await state.controller.detect()).toBe(true);
+    state.replaceLifecycle();
+    expect(state.controller.accept()).toBe(false);
+    expect(state.history).not.toHaveBeenCalled();
+    state.controller.synchronize(state.controller.getSnapshot().pending!.source);
+    expect(state.controller.getSnapshot().pending).toBeNull();
+  });
+  it('rejects a same-renderer same-generation result from a retired lifecycle', async () => {
+    const state = harness();
+    state.deferThumbnail();
+    const pending = state.controller.detect();
+    state.replaceLifecycle();
+    state.resolveThumbnail();
+    expect(await pending).toBe(false);
+    expect(state.detect).not.toHaveBeenCalled();
+    expect(state.controller.getSnapshot().pending).toBeNull();
+  });
   it('detects, reviews and accepts through one document mutation history entry', async () => {
     const state = harness();
     expect(await state.controller.detect()).toBe(true);

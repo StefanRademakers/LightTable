@@ -120,7 +120,7 @@ try {
     });
     const documentId = opened.value?.documentId;
     if (!documentId) throw new Error('Grade source open did not return a document ID.');
-    let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+    let readiness = await driver.waitForReadyDocument(documentId, 120_000);
     let gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
     if (!await gradePanel.isVisible().catch(() => false)) {
       const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
@@ -138,7 +138,7 @@ try {
       for (const [label, value] of settings) {
         await setSlider(page, label, value);
       }
-      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+      readiness = await driver.waitForReadyDocument(documentId, 120_000);
     }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
@@ -154,7 +154,6 @@ try {
       settings: entry.settings,
       output,
       lightTableLaunchMode: launch.mode,
-      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
       captureEvidence: await captureEvidence(png.bytes)
     };
     if (!accept) {

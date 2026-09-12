@@ -519,14 +519,14 @@ try {
     await video.waitFor({ state: 'visible', timeout: 5_000 });
     await activateImageDocumentTab();
     if (settleInterval > 0 && cycle % settleInterval === 0) {
-      await driver.waitForRenderedDocument(imageDocumentId);
+      await driver.waitForReadyDocument(imageDocumentId);
     }
     lifecycleSwitchTimesMs.push(performance.now() - startedAt);
     if (cycle % 5 === 0 || cycle === switchCycles) {
       lifecycleSamples.push(await collectLifecycleMetrics(`cycle-${cycle}`));
     }
   }
-  await driver.waitForRenderedDocument(imageDocumentId);
+  await driver.waitForReadyDocument(imageDocumentId);
   await assertImagePixelsVisible('Typed-switch soak final image');
   lifecycleSamples.push(await collectLifecycleMetrics('post-settle'));
   const imageCanonicalAfterSoak = await canonicalDocumentSnapshot(imageDocumentId);

@@ -38,7 +38,7 @@ export interface FaceWarpDetectionRenderer {
 export interface FaceWarpDetectionDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): FaceWarpDetectionRenderer | null;
-  getRendererGeneration(): number;
+  captureScope(): { isCurrent(): boolean };
   changeDocument: DocumentMutationController['change'];
   createDetector?(): FaceWarpDetector;
   createId(kind: 'stack' | 'module'): string;
@@ -62,6 +62,7 @@ export class FaceWarpDetectionReviewController {
   private snapshot: FaceWarpDetectionSnapshot = EMPTY;
   private generation = 0;
   private detector: FaceWarpDetector | null = null;
+  private pendingScope: { isCurrent(): boolean } | null = null;
   private readonly listeners = new Set<() => void>();
 
   constructor(private readonly dependencies: () => FaceWarpDetectionDependencies) {}
@@ -90,8 +91,9 @@ export class FaceWarpDetectionReviewController {
 
   synchronize(source: FaceWarpDetectionReviewSource | null) {
     if (this.snapshot.pending
-      && !faceWarpDetectionReviewMatches(this.snapshot.pending.source, source)) {
+      && (!this.pendingScope?.isCurrent() || !faceWarpDetectionReviewMatches(this.snapshot.pending.source, source))) {
       this.generation += 1;
+      this.pendingScope = null;
       this.publish({ pending: null, busy: false });
     }
   }
@@ -110,24 +112,26 @@ export class FaceWarpDetectionReviewController {
       return false;
     }
     const generation = ++this.generation;
-    const rendererGeneration = dependencies.getRendererGeneration();
+    const scope = dependencies.captureScope();
+    if (!scope.isCurrent()) return false;
     const source = {
       documentId: document.id,
       layerId: layer.id,
       pixelRevision: layer.pixelRevision,
       transform: { ...layer.transform }
     };
+    this.pendingScope = null;
     this.publish({ busy: true, pending: null });
     dependencies.setError(null);
     try {
       const preview = await renderer.exportLayerThumbnail(layer.id, false, 1024, 1024);
-      if (!this.isCurrent(generation, document, renderer, rendererGeneration)) return false;
+      if (!this.isCurrent(generation, document, renderer, scope)) return false;
       if (!preview) throw new Error('The active layer has no image pixels to analyze.');
       const detector = this.detector ??= dependencies.createDetector?.() ?? new FaceWarpDetector();
       const detection = await detector.detect({
         blob: preview.blob, sourceWidth: preview.width, sourceHeight: preview.height
       });
-      if (!this.isCurrent(generation, document, renderer, rendererGeneration)) return false;
+      if (!this.isCurrent(generation, document, renderer, scope)) return false;
       const currentDocument = dependencies.getDocument();
       const currentLayer = currentDocument ? findRasterLayer(currentDocument, layer.id) : null;
       const currentSource = currentDocument && currentLayer ? {
@@ -174,20 +178,25 @@ export class FaceWarpDetectionReviewController {
         },
         faces
       };
+      this.pendingScope = scope;
       this.publish({ pending: { source, settings }, selectedFaceId: faces[0]!.id, meshVisible: true });
       dependencies.setStatus(`${faces.length} face${faces.length === 1 ? '' : 's'} detected. Check the mesh before accepting.`);
       return true;
     } catch (reason) {
-      dependencies.setError(reason instanceof Error ? reason.message : String(reason));
+      if (this.isCurrent(generation, document, renderer, scope)) {
+        dependencies.setError(reason instanceof Error ? reason.message : String(reason));
+      }
       return false;
     } finally {
-      if (generation === this.generation) this.publish({ busy: false });
+      if (generation === this.generation && scope.isCurrent()) this.publish({ busy: false });
     }
   }
 
   accept() {
     const pending = this.snapshot.pending;
     if (!pending) return false;
+    const scope = this.pendingScope;
+    if (!scope?.isCurrent()) return false;
     const dependencies = this.dependencies();
     const current = dependencies.getDocument();
     const layer = current ? findRasterLayer(current, pending.source.layerId) : null;
@@ -195,14 +204,16 @@ export class FaceWarpDetectionReviewController {
       documentId: current.id, layerId: layer.id,
       pixelRevision: layer.pixelRevision, transform: layer.transform
     } : null;
-    if (!faceWarpDetectionReviewMatches(pending.source, source) || !layer || layerIsLocked(layer)) {
+    if (current?.activeLayerId !== pending.source.layerId
+      || !faceWarpDetectionReviewMatches(pending.source, source) || !layer || layerIsLocked(layer)) {
+      this.pendingScope = null;
       this.publish({ pending: null });
       dependencies.setError('The layer changed while the face mesh was being reviewed. Detect faces again.');
       return false;
     }
     const opening = current;
     const changed = dependencies.changeDocument((document) => {
-      if (document !== opening) return document;
+      if (!scope.isCurrent() || document !== opening || document.activeLayerId !== pending.source.layerId) return document;
       const target = findRasterLayer(document, pending.source.layerId);
       if (!target || layerIsLocked(target)) return document;
       let stack = target.adjustmentStack
@@ -217,6 +228,7 @@ export class FaceWarpDetectionReviewController {
       return setRasterLayerAdjustmentStack(document, target.id, stack);
     }, true, { label: 'Face Warp', type: 'layer.face-warp', layerIds: [layer.id] });
     if (!changed) return false;
+    this.pendingScope = null;
     this.publish({ pending: null });
     dependencies.setStatus(`${pending.settings.faces.length} face${pending.settings.faces.length === 1 ? '' : 's'} accepted.`);
     return true;
@@ -224,6 +236,7 @@ export class FaceWarpDetectionReviewController {
 
   cancel(activeFaces: readonly FaceWarpFace[]) {
     this.generation += 1;
+    this.pendingScope = null;
     this.publish({
       busy: false, pending: null,
       selectedFaceId: activeFaces[0]?.id ?? null,
@@ -234,6 +247,7 @@ export class FaceWarpDetectionReviewController {
 
   reset() {
     this.generation += 1;
+    this.pendingScope = null;
     this.publish({ busy: false, pending: null });
   }
 
@@ -248,12 +262,12 @@ export class FaceWarpDetectionReviewController {
     generation: number,
     document: ImageDocument,
     renderer: FaceWarpDetectionRenderer,
-    rendererGeneration: number
+    scope: { isCurrent(): boolean }
   ) {
     const dependencies = this.dependencies();
     return generation === this.generation
       && dependencies.getDocument() === document
       && dependencies.getRenderer() === renderer
-      && dependencies.getRendererGeneration() === rendererGeneration;
+      && scope.isCurrent();
   }
 }

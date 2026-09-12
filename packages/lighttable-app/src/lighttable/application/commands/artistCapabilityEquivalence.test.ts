@@ -350,7 +350,7 @@ describe('artist capability equivalence harness', () => {
 
     expect(actions.selectionSnapshot()).toEqual(ui.selectionSnapshot());
     expect(mcp.selectionSnapshot()).toEqual(ui.selectionSnapshot());
-    expect(ui.selectionSnapshot()).toMatchObject({ canonicalRevision: 0,
+    expect(ui.selectionSnapshot()).toMatchObject({
       history: { undoDepth: 1, redoDepth: 0, dirty: false } });
 
     for (const harness of [ui, actions, mcp]) {
@@ -389,7 +389,7 @@ describe('artist capability equivalence harness', () => {
           documentId: mcp.session.id,
           command: 'selection.modify',
           commandRequestId: `mcp-command-selection-${operation}`,
-          expectedDocumentRevision: 0,
+          expectedDocumentRevision: mcp.service.queryDocument(mcp.session.id)!.canonicalRevision,
           commandParameters: { kind: 'modify', operation }
         }
       })).toMatchObject({ status: 'completed' });
@@ -398,7 +398,6 @@ describe('artist capability equivalence harness', () => {
     expect(actions.selectionSnapshot()).toEqual(ui.selectionSnapshot());
     expect(mcp.selectionSnapshot()).toEqual(ui.selectionSnapshot());
     expect(ui.selectionSnapshot()).toMatchObject({
-      canonicalRevision: 0,
       history: { undoDepth: 3, redoDepth: 0, dirty: false }
     });
 

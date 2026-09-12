@@ -80,7 +80,7 @@ try {
   const driver = await attachLightTableAutomation(page, 'warp-kernel-smoke');
   const documentId = (await driver.queryWorkspace())?.activeDocumentId;
   assert.ok(documentId, 'No active Warp document.');
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const initial = await driver.queryDocument(documentId);
   const canonicalBaseline = await rawPreview(driver, documentId);
   const waitForRenderIdle = async (minimumFrames) => {

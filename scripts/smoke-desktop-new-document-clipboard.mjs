@@ -30,7 +30,7 @@ try {
     bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
   });
   assert.ok(seed.value?.documentId, 'Seed document was not created.');
-  await driver.waitForRenderedDocument(seed.value.documentId, 30_000);
+  await driver.waitForReadyDocument(seed.value.documentId, 30_000);
 
   const expected = await app.evaluate(({ clipboard, nativeImage }, imagePath) => {
     const image = nativeImage.createFromPath(imagePath);
@@ -67,7 +67,7 @@ try {
   }, seed.value.documentId, { timeout: 30_000 });
   const workspace = await driver.queryWorkspace();
   assert.ok(workspace?.activeDocumentId, 'New document did not become active.');
-  await driver.waitForRenderedDocument(workspace.activeDocumentId, 30_000);
+  await driver.waitForReadyDocument(workspace.activeDocumentId, 30_000);
   const document = await driver.queryDocument(workspace.activeDocumentId);
   assert.equal(document?.canvas?.width, expected.width);
   assert.equal(document?.canvas?.height, expected.height);

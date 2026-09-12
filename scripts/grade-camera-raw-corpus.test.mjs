@@ -57,7 +57,7 @@ test('Grade corpus capture sides can resume independently without ambiguous flag
   );
 });
 
-test('Grade corpus routes require source identity, packaged rendering and frame evidence', async () => {
+test('Grade corpus routes require source identity, packaged readiness and separate capture evidence', async () => {
   const [sectionRunner, lightRunner, curvesRunner, cameraCapture, cameraCurvesCapture, sectionCapture, curvesCapture, comparison, aggregate] = await Promise.all([
     readFile(path.join(import.meta.dirname, 'run-grade-section-corpus.mjs'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'run-grade-light-corpus.mjs'), 'utf8'),
@@ -77,8 +77,10 @@ test('Grade corpus routes require source identity, packaged rendering and frame 
   assert.match(sectionRunner, /while \(!await reportIsCurrent\(lightTableReport, source, true\)\)/u);
   for (const capture of [sectionCapture, curvesCapture]) {
     assert.match(capture, /requirePackaged: process\.argv\.includes\('--packaged'\)/u);
-    assert.match(capture, /waitForRenderedDocument/u);
-    assert.match(capture, /renderedDocumentRevision/u);
+    assert.match(capture, /waitForReadyDocument/u);
+    // Readiness is not latest-frame proof. O08 must add a renderer-owned
+    // submission identity before reports can honestly certify that revision.
+    assert.doesNotMatch(capture, /renderedDocumentRevision|presentedDocumentRevision/u);
     assert.match(capture, /captureEvidence/u);
   }
   assert.match(sectionCapture, /defaultGroupLabel/u);

@@ -11,6 +11,16 @@ document-scoped transaction from validated command through preview, commit or
 cancel, history, resources and renderer invalidation. React is a UI adapter and
 WebGPU is a projection/execution adapter. Neither is canonical edit authority.
 
+Canonical revision contract (2026-09-12): `DocumentSession.documentRevision`
+is a monotonic invalidation stamp, not a count of commands or history entries.
+Canonical document/processing/selection publications stamp in the same snapshot;
+pixel-only history transitions also invalidate it. Only one synchronous owned
+publication may coalesce stamps. Command completion and Actions observation do
+not advance revisions. Renderer-only previews and ordinary viewport/target chrome
+do not stamp. Dirty state is history identity plus explicit non-history edits,
+not inequality with the saved invalidation stamp. Never compare this clock to
+`ImageDocument.revision` or claim a current-state read proves a presented frame.
+
 ## Why this exists
 
 The current editor accumulated valid subsystems but no single enforceable owner

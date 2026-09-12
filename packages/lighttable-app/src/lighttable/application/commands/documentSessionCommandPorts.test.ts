@@ -83,6 +83,8 @@ describe('document-lifetime command ownership', () => {
     const activeBefore = workspace.getSnapshot().activeDocumentId;
     const secondBefore = second.value.getSnapshot().document;
     const firstLayerId = first.value.getSnapshot().document!.activeLayerId!;
+    const revisionBefore = first.value.getSnapshot().documentRevision;
+    const semanticMarkChanged = vi.spyOn(first.value, 'markChanged');
 
     expect(registry.has(first.value.id)).toBe(true);
     expect(service.queryCapabilities(first.value.id)).toEqual(expect.arrayContaining([
@@ -106,13 +108,18 @@ describe('document-lifetime command ownership', () => {
     expect(second.value.getSnapshot().document).toBe(secondBefore);
     expect(first.value.getSnapshot().document?.layers.find(({ id }) => id === firstLayerId)?.name)
       .toBe('Renamed while inactive');
-    expect(first.value.getSnapshot().documentRevision).toBe(1);
+    const committedRevision = first.value.getSnapshot().documentRevision;
+    expect(committedRevision).toBeGreaterThan(revisionBefore);
+    expect(semanticMarkChanged).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ revisions: { document: committedRevision } });
     expect(first.value.getSnapshot().history.undoDepth).toBe(1);
 
     await first.value.history.undo();
     expect(first.value.getSnapshot().document?.layers.find(({ id }) => id === firstLayerId)?.name)
       .not.toBe('Renamed while inactive');
     expect(workspace.getSnapshot().activeDocumentId).toBe(activeBefore);
+    expect(first.value.getSnapshot().documentRevision).toBeGreaterThan(committedRevision);
+    expect(semanticMarkChanged).not.toHaveBeenCalled();
 
     service.dispose();
     workspace.dispose();

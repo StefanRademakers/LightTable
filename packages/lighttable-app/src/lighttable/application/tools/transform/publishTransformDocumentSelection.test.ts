@@ -18,7 +18,7 @@ const fixture = () => {
   session.setDocument(before);
   session.setReady();
   const store = new DocumentSelectionStateStore(session);
-  const expectedLease = store.acquire(0);
+  const expectedLease = store.acquire(session.getSnapshot().documentRevision);
   const afterMask = SelectionMaskSnapshot.inactive(12, 10);
   let projectedDocument = before;
   const applyDocumentSnapshot = vi.fn((document: typeof before) => {
@@ -62,6 +62,7 @@ describe('publishTransformDocumentSelection', () => {
     })).toThrow('projection failed');
     expect(order).toEqual(['pixels-after', 'project-after', 'pixels-before', 'project-before']);
     expect(state.session.getSnapshot().document).toBe(state.before);
+    expect(state.session.getSnapshot().documentRevision).toBeGreaterThan(Number(state.expectedLease.document.revision));
   });
 
   it('publishes successfully when the production opening predicate becomes stale after CAS', () => {
@@ -114,7 +115,7 @@ describe('publishTransformDocumentSelection', () => {
     })).toThrow('lease is no longer current');
 
     expect(state.session.getSnapshot().document).toBe(state.before);
-    expect(state.store.acquire(0).selection.coverage).toBe(
+    expect(state.store.acquire(state.session.getSnapshot().documentRevision).selection.coverage).toBe(
       state.expectedLease.selection.coverage
     );
     expect(state.applyDocumentSnapshot).not.toHaveBeenCalled();
@@ -138,10 +139,11 @@ describe('publishTransformDocumentSelection', () => {
       publishEditorProjection: state.publishEditorProjection
     })).toThrow('renderer changed during projection');
 
-    const restored = state.store.acquire(0);
+    const restored = state.store.acquire(state.session.getSnapshot().documentRevision);
     expect(state.session.getSnapshot().document).toBe(state.before);
     expect(restored.selection.coverage).toBe(state.expectedLease.selection.coverage);
     expect(restored.selection.revision).not.toBe(state.expectedLease.selection.revision);
+    expect(Number(restored.document.revision)).toBeGreaterThan(Number(state.expectedLease.document.revision));
     expect(state.projectedDocument()).toBe(state.before);
     expect(state.publishEditorProjection).not.toHaveBeenCalled();
   });

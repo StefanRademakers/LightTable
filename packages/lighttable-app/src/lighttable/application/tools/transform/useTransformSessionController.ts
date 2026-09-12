@@ -117,8 +117,6 @@ export interface TransformSessionDependencies {
   transformFrameMode?: TransformFrameMode;
   onLayerTransformCommitted?(layerId: LayerId, transform: AffineMatrix): void;
   /** Publishes a destructive raster transform to document-level revision observers. */
-  onRasterTransformCommitted?(layerId: LayerId, kind: 'layer' | 'selection'): void;
-  onAuxiliaryTransformCommitted?(kind: 'group' | 'mask', layerIds: readonly LayerId[]): void;
 }
 
 export interface TransformSessionController {
@@ -280,14 +278,6 @@ export const useTransformSessionController = (
       }
       if (!transaction?.stage(() => result.after) || !transaction.commit()) {
         current.setError(`The layer ${result.target} transform could not be committed.`);
-      } else {
-        try {
-          current.onAuxiliaryTransformCommitted?.(result.target, result.layerIds);
-        } catch {
-          current.setError(
-            `The layer ${result.target} transform was committed, but its notification failed.`
-          );
-        }
       }
       return settlementOwnerRef.current!.read();
     }

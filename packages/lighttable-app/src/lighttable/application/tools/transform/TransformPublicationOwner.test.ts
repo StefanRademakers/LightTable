@@ -125,8 +125,7 @@ const fixture = () => {
         cancel: () => { active = false; }
       };
     },
-    setError: vi.fn(),
-    onRasterTransformCommitted: vi.fn()
+    setError: vi.fn()
   };
   return {
     before, after, beforeSelection, afterSelection, beforeMask, afterMask,
@@ -275,9 +274,6 @@ describe('TransformPublicationOwner', () => {
     expect(state.currentMask()).toBe(state.afterMask);
     expect(state.history).toHaveLength(1);
     expect(state.selectionRevision()).toBe(1);
-    expect(state.dependencies.onRasterTransformCommitted).toHaveBeenCalledWith(
-      state.before.activeLayerId, 'selection'
-    );
 
     await state.history[0].undo();
     expect({ document: state.document(), selection: state.currentSelection(), pixels: state.pixelsApplied() })

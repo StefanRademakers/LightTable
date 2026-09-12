@@ -216,17 +216,17 @@ export class LightTableAutomationClient {
   }
 
   /**
-   * Wait for an active document to own a usable GPU composite.
+   * Wait for initial active-document and renderer readiness.
    *
-   * `lifecycle: ready` only means that the canonical document has been
-   * published. The renderer may still be waiting for its first animation
-   * frame, in which case an immediate export can read the newly allocated,
-   * transparent final texture. A submitted frame is the semantic boundary
-   * exact pixel consumers need; queue ordering then makes the export readback
-   * wait behind that composite without an arbitrary delay. Release builds
-   * omit counter collection, but still publish the presented revision.
+   * When instrumentation is available, also require that this renderer has
+   * submitted work and encoded a document composite. These cumulative counts
+   * do not prove that the latest edit reached the viewport. Clean release
+   * builds omit them, so only lifecycle/availability can be checked there.
+   * Session canonical revisions and ImageDocument tree revisions are distinct
+   * domains and must not be compared. Latest UI pixels need separate assertions;
+   * this observer never forces an export, preview, or render to manufacture proof.
    */
-  async waitForRenderedDocument(documentId, timeout = 30_000) {
+  async waitForReadyDocument(documentId, timeout = 30_000) {
     const deadline = Date.now() + timeout;
     let workspace = null;
     let document = null;
@@ -244,11 +244,6 @@ export class LightTableAutomationClient {
         && document.renderer.active
         && Boolean(document.canvas)
         && document.tasks?.activeCount === 0
-        // The mounted editor can legitimately be ahead of the persisted
-        // session revision while a local layer/adjustment edit is live. A
-        // presented revision behind canonical is stale; one at or ahead of it
-        // is a valid rendered editor state.
-        && (telemetry?.presentedDocumentRevision ?? -1) >= document.canonicalRevision
         && (telemetry?.collectionEnabled === false || (
           (telemetry?.submittedFrames ?? 0) > 0
           && (telemetry?.stages?.['document-composite']?.executions ?? 0) > 0
@@ -257,7 +252,7 @@ export class LightTableAutomationClient {
       }
       await this.page.waitForTimeout(16);
     }
-    throw new Error(`Document ${documentId} did not publish a rendered frame: ${JSON.stringify({
+    throw new Error(`Document ${documentId} did not become active and ready: ${JSON.stringify({
       activeDocumentId: workspace?.activeDocumentId ?? null,
       document,
       telemetry

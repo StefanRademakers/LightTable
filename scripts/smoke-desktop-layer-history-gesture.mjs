@@ -33,7 +33,7 @@ try {
   });
   const documentId = created?.value?.documentId;
   assert.ok(documentId);
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const pixels = async () => {
     const state = await driver.queryDocument(documentId);
     const request = await driver.requestDocumentPreview(documentId, state.canonicalRevision, 512);
@@ -132,7 +132,7 @@ try {
     name: 'Temporary override rebind', width: 320, height: 240, resolutionPpi: 72,
     bitDepth: 8, profile: 'srgb', background: { kind: 'solid', color: '#305090' }
   });
-  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await driver.waitForReadyDocument(second.value.documentId, 60_000);
   // New-document initialization currently resets the persistent tool to Hand.
   // Establish Brush before testing whether a temporary override survives rebind.
   await page.keyboard.press('b');
@@ -140,7 +140,7 @@ try {
   await page.keyboard.down('Space');
   await waitTool('view');
   await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   await page.keyboard.up('Space');
   await waitTool('brush');
   assert.deepEqual(await pixels(), finalPixels, 'Tab rebind must preserve exact pixels.');
@@ -188,9 +188,9 @@ try {
   const resizedPixels = await pixels();
   const resizedSelectionPixels = await selectionPixels();
   await page.locator('.ui-document-tabs__title', { hasText: 'Temporary override rebind' }).click();
-  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await driver.waitForReadyDocument(second.value.documentId, 60_000);
   await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   await page.waitForFunction(() => document.querySelector('.lighttable-viewport')?.getAttribute('aria-busy') === 'false');
   await page.keyboard.press('Control+z');
   await waitWidth(480);
@@ -205,9 +205,9 @@ try {
   const rotatedPixels = await pixels();
   const rotatedSelectionPixels = await selectionPixels();
   await page.locator('.ui-document-tabs__title', { hasText: 'Temporary override rebind' }).click();
-  await driver.waitForRenderedDocument(second.value.documentId, 60_000);
+  await driver.waitForReadyDocument(second.value.documentId, 60_000);
   await page.locator('.ui-document-tabs__title', { hasText: 'Layer gesture ownership' }).click();
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   await page.keyboard.press('Control+z');
   await waitWidth(240);
   assert.deepEqual(await pixels(), resizedPixels, 'Geometry undo after rebind must restore exact pixels.');

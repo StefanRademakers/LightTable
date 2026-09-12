@@ -205,7 +205,7 @@ try {
   });
   const documentId = opened.value?.documentId;
   if (!documentId) throw new Error('Grade Light source open did not return a document ID.');
-  let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+  let readiness = await driver.waitForReadyDocument(documentId, 120_000);
   let gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
   if (!await gradePanel.isVisible().catch(() => false)) {
     const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
@@ -237,7 +237,6 @@ try {
         ...entry,
         output,
         lightTableLaunchMode: validatedPartial.lightTableLaunchMode,
-        renderedDocumentRevision: validatedPartial.renderedDocumentRevision,
         captureEvidence: validatedPartial.captureEvidence
       });
       process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
@@ -249,7 +248,7 @@ try {
     }
     for (const setting of entry.settings) await setGradeControl(page, setting);
     if (needsRenderedMutation) {
-      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+      readiness = await driver.waitForReadyDocument(documentId, 120_000);
     }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
@@ -265,7 +264,6 @@ try {
       ...entry,
       output,
       lightTableLaunchMode: launch.mode,
-      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
       captureEvidence: {
         sha256: createHash('sha256').update(png.bytes).digest('hex'),
         byteLength: png.bytes.byteLength,
@@ -282,7 +280,6 @@ try {
       caseManifestSha256,
       lightTableCasePlanSha256,
       lightTableLaunchMode: launch.mode,
-      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
       captureEvidence: results.at(-1).captureEvidence
     }, null, 2)}\n`, 'utf8');
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);

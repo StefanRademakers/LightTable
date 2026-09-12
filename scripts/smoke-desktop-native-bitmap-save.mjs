@@ -156,7 +156,7 @@ for (const testCase of cases) {
       return Boolean(workspace?.activeDocumentId && workspace.activeDocumentId !== previousId);
     }, savedDocumentId, { timeout: 30_000 });
     documentId = (await driver.queryWorkspace()).activeDocumentId;
-    const reopened = await driver.waitForRenderedDocument(documentId, 60_000);
+    const reopened = await driver.waitForReadyDocument(documentId, 60_000);
     if (reopened.document.tasks.activeCount !== 0) {
       throw new Error(`Reopened ${testCase.id} retained an active document task.`);
     }

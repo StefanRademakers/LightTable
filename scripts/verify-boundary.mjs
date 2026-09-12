@@ -618,18 +618,32 @@ function verifyWarpCutover(relativePath, source) {
         failures.push(`${relativePath}: Face Warp detection/review owner ${symbol} must stay outside React`);
       }
     }
+    for (const symbol of ['applyFaceWarpBrush(', 'relaxFaceWarpBrush(',
+      'restoreFaceWarpBrush(', 'refineFaceWarpBrush(', 'findDeformedFaceHit(',
+      'buildFaceWarpMeshOverlay(', 'applySemanticFaceWarpCommandToDocument(']) {
+      if (source.includes(symbol)) {
+        failures.push(`${relativePath}: Face Warp domain intent/projection ${symbol} belongs to its bounded application owner`);
+      }
+    }
+    if (!source.includes('useFaceWarpIntents(') || !source.includes('useFaceWarpMeshPresentation(')
+      || !source.includes('useFaceWarpLifecycle(')) {
+      failures.push(`${relativePath}: Face Warp must wire its scoped intent and mesh presentation owners`);
+    }
   }
   if (normalizedPath.endsWith('/application/tools/faceWarp/FaceWarpDetectionReviewController.ts')) {
     if (!source.includes('changeDocument: DocumentMutationController')
       || !source.includes('dependencies.getDocument() === document')
       || !source.includes('dependencies.getRenderer() === renderer')
-      || !source.includes('dependencies.getRendererGeneration() === rendererGeneration')) {
+      || !source.includes('scope.isCurrent()')
+      || !source.includes('pendingScope')
+      || source.includes('getRendererGeneration()')) {
       failures.push(`${relativePath}: Face Warp review must bind mutation and async publication to its opening owners`);
     }
   }
   if (normalizedPath.endsWith('/application/tools/faceWarp/FaceWarpInteractionSessionController.ts')
-    && (source.includes('refinementScheduler') || source.includes('PendingRefinement'))) {
-    failures.push(`${relativePath}: Face Warp pointer-up refinement must publish synchronously before lifecycle reset`);
+    && (source.includes('refinementScheduler') || source.includes('PendingRefinement')
+      || source.includes('commitEdit()') || source.includes('cancelEdit()'))) {
+    failures.push(`${relativePath}: Face Warp requires synchronous pointer-up refinement and exact property-edit terminal leases`);
   }
 }
 
@@ -862,6 +876,12 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
 
 function verifyCommandRoutingCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.endsWith('.test.ts')
+    && (normalizedPath.includes('/application/commands/')
+      || normalizedPath.endsWith('/LightTableEditorOverlay.tsx'))
+    && /\.markChanged\s*\(/.test(source)) {
+    failures.push(`${relativePath}: command completion and UI observation cannot author canonical revision; DocumentSession publication owns it`);
+  }
   if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
     const forbiddenFallbackOwners = [
       'commandService?.',

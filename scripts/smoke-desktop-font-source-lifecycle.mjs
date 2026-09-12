@@ -45,10 +45,10 @@ try {
       profile: 'srgb', background: { kind: 'solid', color: '#ffffff' }
     });
     const id = result.value?.documentId; assert.ok(id, JSON.stringify(result));
-    await driver.waitForRenderedDocument(id); return id;
+    await driver.waitForReadyDocument(id); return id;
   };
   const pixels = async id => {
-    await driver.waitForRenderedDocument(id);
+    await driver.waitForReadyDocument(id);
     // Final-output export fixes the text rendering purpose to outlines. Ordinary
     // previews may legitimately use atlas coverage and are not byte-equivalent.
     const exported = await driver.execute(id, 'file.exportPng', {}, { requireCompleted: false });
@@ -99,7 +99,7 @@ try {
   const startOpen = performance.now();
   const opened = await driver.executeWorkspace('file.openArtifact', { artifactId: task.artifact.id });
   const reopened = opened.value?.documentId; assert.ok(reopened, JSON.stringify(opened));
-  await driver.waitForRenderedDocument(reopened);
+  await driver.waitForReadyDocument(reopened);
   await waitText();
   const layers = await driver.queryLayers(reopened);
   const text = layers.find(layer => layer.name === 'Retained font text'); assert.ok(text);
@@ -127,7 +127,7 @@ try {
     // DocumentTabs renders workspace order; native copies may have identical titles.
     const before = performance.now();
     await page.locator('.ui-document-tabs__tab').nth(index).locator('.ui-document-tabs__title').click();
-    await driver.waitForRenderedDocument(id);
+    await driver.waitForReadyDocument(id);
     switches.push({ id, ms: performance.now() - before });
     if (id !== b) {
       await waitText();

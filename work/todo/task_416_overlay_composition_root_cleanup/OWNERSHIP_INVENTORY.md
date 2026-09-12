@@ -1,5 +1,14 @@
 # Overlay ownership inventory
 
+Current accepted O05d.1/O03c.4: Face Warp intents/view/mesh/lifecycle are bounded
+owners; existing controllers retain transactions and inference. Property leases
+lock exact layer/face/semantic target/runtime; detection acceptance retains its
+opening scope. DocumentSession now owns canonical revision invalidation for all
+canonical setters and pixel-history transitions. Removed command/observation/task
+revision authors, transform notification-only ports and fabricated frame telemetry.
+Overlay6,863 audit-counted lines. Next clipboard host I/O/Cut command wiring, then selection
+host bindings; neither is accepted merely because prepared files exist.
+
 O05b.2a accepted: existing vector host reads current document/settings/selection
 through their owning getters; no operational React snapshot/selection mirror.
 VectorCommitPublisher observes exact committed payloads only. Gradient captures

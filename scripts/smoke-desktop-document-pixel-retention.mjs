@@ -259,7 +259,7 @@ try {
     await firstTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, firstId);
-    await driver.waitForRenderedDocument(firstId, 30_000);
+    await driver.waitForReadyDocument(firstId, 30_000);
     // Retention is a document-state assertion, so compare the same lossless
     // encoding on both sides. WebP validity belongs to the export codec smoke;
     // a lossy encode is not evidence that inactive document pixels changed.
@@ -279,7 +279,7 @@ try {
     await secondTab.click();
     await page.waitForFunction((id) => window.__lightTableAutomation
       ?.queryWorkspace()?.activeDocumentId === id, secondId);
-    await driver.waitForRenderedDocument(secondId, 30_000);
+    await driver.waitForReadyDocument(secondId, 30_000);
     const secondCurrent = await previewMetrics(secondId, 'png');
     const secondPresentation = await assertPresentationTransition(
       secondId, `Second document after cycle ${cycle + 1}`
@@ -310,7 +310,7 @@ try {
   await firstTab.click();
   await page.waitForFunction((id) => window.__lightTableAutomation
     ?.queryWorkspace()?.activeDocumentId === id, firstId);
-  await driver.waitForRenderedDocument(firstId, 30_000);
+  await driver.waitForReadyDocument(firstId, 30_000);
   const rapidPresentation = await assertPresentationTransition(
     firstId, 'Rapid A to B to A switch'
   );
@@ -322,7 +322,7 @@ try {
   await secondTab.click();
   await page.waitForFunction((id) => window.__lightTableAutomation
     ?.queryWorkspace()?.activeDocumentId === id, secondId);
-  await driver.waitForRenderedDocument(secondId, 30_000);
+  await driver.waitForReadyDocument(secondId, 30_000);
   await page.keyboard.press('Control+W');
   await page.waitForFunction((id) => {
     const workspace = window.__lightTableAutomation?.queryWorkspace();
@@ -336,7 +336,7 @@ try {
     throw new Error(`The closed artifact did not reopen as a new session: ${reopenedSecondId}`);
   }
   await driver.waitForDocument(reopenedSecondId, 60_000);
-  await driver.waitForRenderedDocument(reopenedSecondId, 30_000);
+  await driver.waitForReadyDocument(reopenedSecondId, 30_000);
   const reopenPresentation = await assertPresentationTransition(
     reopenedSecondId, 'Closed document reopen'
   );

@@ -35,13 +35,11 @@ export interface FaceWarpInteractionDependencies {
 export interface FaceWarpInteractionSessionController {
   readonly active: boolean;
   readonly gesture: FaceWarpGestureContext | null;
-  beginEdit(): boolean;
+  beginEdit(target: FaceWarpPropertyTarget): FaceWarpPropertyEdit | null;
   changeDocument(
     mutate: (document: ImageDocument) => ImageDocument,
     recordHistory?: boolean
   ): boolean;
-  commitEdit(): boolean;
-  cancelEdit(): boolean;
   beginGesture(documentId: ImageDocument['id'], layerId: LayerId, context: FaceWarpGestureContext): boolean;
   owns(pointerId: number): boolean;
   changeGesture(
@@ -55,6 +53,19 @@ export interface FaceWarpInteractionSessionController {
   ): boolean;
   cancelGesture(pointerId: number): boolean;
   reset(): void;
+}
+
+export interface FaceWarpPropertyTarget {
+  readonly documentId: ImageDocument['id'];
+  readonly layerId: LayerId;
+  readonly faceId: string;
+}
+export interface FaceWarpPropertyEdit {
+  readonly target: FaceWarpPropertyTarget;
+  readonly active: boolean;
+  change(mutate: (document: ImageDocument) => ImageDocument): boolean;
+  commit(): boolean;
+  cancel(): boolean;
 }
 
 interface ActiveEdit {
@@ -116,12 +127,14 @@ export const createFaceWarpInteractionSessionController = (
     return commit ? edit.transaction.commit() : edit.transaction.cancel();
   };
 
-  const beginEdit = (): boolean => {
-    if (active?.transaction.active) return false;
+  const beginEdit = (target: FaceWarpPropertyTarget): FaceWarpPropertyEdit | null => {
+    if (active?.transaction.active) return null;
     active = null;
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
-    if (!document) return false;
+    if (!document || document.id !== target.documentId || document.activeLayerId !== target.layerId) return null;
+    const binding = dependencies.acquireRendererBinding();
+    if (!binding?.isCurrent()) return null;
     let edit: ActiveEdit | null = null;
     const transaction = dependencies.documentMutations.begin(
       'face-warp',
@@ -129,18 +142,31 @@ export const createFaceWarpInteractionSessionController = (
       () => { if (edit) closeState(edit); },
       'cancel'
     );
-    if (!transaction) return false;
+    if (!transaction) return null;
     edit = {
       dependencies,
       transaction,
       documentId: document.id,
-      layerId: null,
-      binding: null,
+      layerId: target.layerId,
+      binding,
       bindingActive: false,
       gesture: null
     };
     active = edit;
-    return true;
+    const owned = edit;
+    const admitted = () => {
+      if (active !== owned || !owned.transaction.active) return false;
+      if (currentDocument(owned)) return true;
+      owned.transaction.cancel();
+      return false;
+    };
+    return {
+      target: Object.freeze({ ...target }),
+      get active() { return active === owned && owned.transaction.active; },
+      change: mutate => admitted() && owned.transaction.change(mutate),
+      commit: () => admitted() && owned.transaction.commit(),
+      cancel: () => active === owned && owned.transaction.active && owned.transaction.cancel()
+    };
   };
 
   return {
@@ -162,8 +188,6 @@ export const createFaceWarpInteractionSessionController = (
       }
       return resolveDependencies().documentMutations.change(mutate, recordHistory);
     },
-    commitEdit: () => close(true),
-    cancelEdit: () => close(false),
     beginGesture: (documentId, layerId, context) => {
       if (active?.transaction.active) return false;
       active = null;

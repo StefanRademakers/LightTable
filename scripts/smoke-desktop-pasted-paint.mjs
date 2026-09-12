@@ -33,7 +33,7 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor();
   const id = (await driver.queryWorkspace()).activeDocumentId;
   report.documentId = id;
-  await driver.waitForRenderedDocument(id, 60_000);
+  await driver.waitForReadyDocument(id, 60_000);
   await page.waitForTimeout(300);
   await page.evaluate(() => {
     const metrics = window.__paintMetrics = { snapshotBytes: 0, peakSnapshotBytes: 0, captureMs: [], frameMs: [] };

@@ -189,7 +189,7 @@ try {
   }
   await page.keyboard.press('Control+Enter');
   await textInput.waitFor({ state: 'detached', timeout: 30_000 });
-  await driver.waitForRenderedDocument(documentId, 30_000);
+  await driver.waitForReadyDocument(documentId, 30_000);
   // Move focus out of the detached contenteditable before exercising the
   // window-owned shortcut. Chromium can otherwise leave the removed editor
   // as its keyboard target for the next synthetic chord.

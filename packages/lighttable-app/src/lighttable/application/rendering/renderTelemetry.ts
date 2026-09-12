@@ -84,8 +84,6 @@ export interface RenderTelemetrySnapshot {
   readonly gpuTextureBytes?: number;
   readonly vectorBackend?: VectorBackendTelemetrySnapshot | null;
   readonly deformation?: MeshDeformationTelemetry | null;
-  /** Canonical document revision currently owned by the mounted renderer view. */
-  readonly presentedDocumentRevision?: number | null;
 }
 
 const STAGES: readonly RenderTelemetryStage[] = [

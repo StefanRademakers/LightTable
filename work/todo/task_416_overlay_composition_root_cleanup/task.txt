@@ -34,9 +34,13 @@ O05b.2 current vector reads, observations, exact lifetime and Pen presentation a
 packaged close/reopen exposed selection reset writing after disposal: explicit
 retirement now invalidates queued work/releases leases without canonical writes.
 O05c.1 transform frame/snap presentation and exact renderer binding accepted;
-Next O05d.1 Face Warp domain intents and mesh presentation;
+O05d.1 Face Warp domain intents and mesh presentation accepted;
+O03c.4 canonical revision authority repaired after real preview-cache failure.
+Full app4220 tests, critic and packaged Face Warp/transform/selection pass.
+Next O06 clipboard host intents and Cut sequencing, then O05e selection bindings;
 O02c host/target/file terminal policies stay open. The renderer telemetry revision
-is not a render-submission stamp; O08 must resolve this diagnostics limitation.
+was not a render-submission stamp and was removed; O08 must add truthful frame
+correlation. waitForReadyDocument means initial readiness, not latest-pixel proof.
 Neither whole-app cleanup nor release is done.
 Use the plan's independent critic and evidence-driven repair/re-review loop.
 Latest owner direction authorizes two/three rounds and further bounded repairs

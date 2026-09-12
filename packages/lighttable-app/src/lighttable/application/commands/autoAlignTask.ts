@@ -35,8 +35,6 @@ const startAutoAlignTask = (
   events.append(taskId, 'queued', { progress: 0, message: name });
   void running.then((result) => {
     if (result.status === 'completed') {
-      if (!(typeof result.value === 'object' && result.value !== null
-        && 'changed' in result.value && result.value.changed === false)) session.markChanged();
       onComplete(taskId, result.value);
       events.append(taskId, 'completed', { progress: 1, message: name });
     } else if (result.status === 'failed') events.append(taskId, 'failed', { message: result.error.message });

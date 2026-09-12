@@ -42,7 +42,7 @@ try {
   });
   const documentId = created.value?.documentId;
   assert.ok(documentId, 'Viewport layout smoke did not create a document.');
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const viewport = page.locator('.lighttable-viewport');
   await viewport.waitFor({ state: 'visible' });
   await page.keyboard.press('Control+1');

@@ -41,7 +41,7 @@ try {
   const driver = await attachLightTableAutomation(page, 'layer-rasterize-affordance');
   const documentId = (await driver.queryWorkspace())?.activeDocumentId;
   if (!documentId) throw new Error('No active document.');
-  const initial = await driver.waitForRenderedDocument(documentId);
+  const initial = await driver.waitForReadyDocument(documentId);
   const initialLayers = await driver.queryLayers(documentId) ?? [];
   const sourceLayer = initialLayers.find(({ type }) => type === 'raster');
   if (!sourceLayer) throw new Error('The fixture has no raster layer.');

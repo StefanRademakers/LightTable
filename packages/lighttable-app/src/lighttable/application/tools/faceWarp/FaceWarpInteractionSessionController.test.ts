@@ -64,12 +64,40 @@ const harness = () => {
 describe('FaceWarpInteractionSessionController', () => {
   it('groups control previews into one document history entry', () => {
     const state = harness();
-    expect(state.controller.beginEdit()).toBe(true);
-    expect(state.controller.changeDocument((current) => ({ ...current, name: 'preview-1' }))).toBe(true);
-    expect(state.controller.changeDocument((current) => ({ ...current, name: 'preview-2' }))).toBe(true);
-    expect(state.controller.commitEdit()).toBe(true);
+    const edit = state.controller.beginEdit({ documentId: state.documentId, layerId: state.activeLayerId, faceId: 'face-a' });
+    expect(edit).not.toBeNull();
+    expect(edit!.change((current) => ({ ...current, name: 'preview-1' }))).toBe(true);
+    expect(edit!.change((current) => ({ ...current, name: 'preview-2' }))).toBe(true);
+    expect(edit!.commit()).toBe(true);
     expect(state.current.name).toBe('preview-2');
     expect(state.history).toHaveLength(1);
+  });
+
+  it('binds property admission to its exact layer and rejects a stale terminal against a successor', () => {
+    const state = harness();
+    const target = { documentId: state.documentId, layerId: state.activeLayerId, faceId: 'face-a' };
+    const opening = state.controller.beginEdit(target)!;
+    expect(opening.target).toEqual(target);
+    state.current = { ...state.current, activeLayerId: state.otherLayerId };
+    expect(opening.change(current => ({ ...current, name: 'wrong layer' }))).toBe(false);
+    expect(state.controller.active).toBe(false);
+    const successor = state.controller.beginEdit({ ...target, layerId: state.activeLayerId })!;
+    expect(opening.commit()).toBe(false);
+    expect(opening.cancel()).toBe(false);
+    expect(successor.active).toBe(true);
+    successor.cancel();
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('cancels property history on renderer retirement without changing interaction mode', () => {
+    const state = harness();
+    const edit = state.controller.beginEdit({ documentId: state.documentId, layerId: state.activeLayerId, faceId: 'face-a' })!;
+    edit.change(current => ({ ...current, name: 'preview' }));
+    state.bindingCurrent = false;
+    expect(edit.commit()).toBe(false);
+    expect(state.controller.active).toBe(false);
+    expect(state.history).toHaveLength(0);
+    expect(state.modes).toEqual([]);
   });
 
   it('binds one gesture to its admitted layer and renderer generation', () => {

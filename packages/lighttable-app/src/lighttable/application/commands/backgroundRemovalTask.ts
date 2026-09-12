@@ -56,7 +56,6 @@ export const startBackgroundRemovalTask = (
   events.append(taskId, 'queued', { progress: 0, message: name });
   void running.then((result) => {
     if (result.status === 'completed') {
-      session.markChanged();
       onComplete(taskId, result.value);
       events.append(taskId, 'completed', { progress: 1, message: name });
     } else if (result.status === 'failed') {

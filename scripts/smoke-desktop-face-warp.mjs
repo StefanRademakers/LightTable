@@ -18,7 +18,7 @@ if (!['native', 'low-power', 'swiftshader'].includes(gpuMode)) {
 if (!Number.isFinite(brushSize) || brushSize < 8 || brushSize > 1200) {
   throw new Error(`Invalid Face Warp smoke brush size: ${process.argv[3]}`);
 }
-const output = path.join(
+const output = process.env.LIGHTTABLE_FACE_WARP_OUTPUT ? path.resolve(process.env.LIGHTTABLE_FACE_WARP_OUTPUT) : path.join(
   root, 'tmp', 'face-warp-smoke',
   `${path.parse(sourceFile).name}-brush-${brushSize}${gpuMode === 'native' ? '' : `-${gpuMode}`}`
 );
@@ -188,19 +188,14 @@ try {
   if (!bounds) throw new Error('Face Warp viewport bounds are unavailable.');
 
   await page.getByRole('button', { name: /^Face Warp/ }).click();
-  // Move the deliberately floating Layers panel away from the detected face.
-  // Otherwise a pointer test can accidentally exercise only the narrow strip
-  // left visible beside the panel and the visual artifacts stay occluded.
-  const layersTab = page.getByText('Layers', { exact: true }).last();
-  const layersTabBounds = await layersTab.boundingBox();
-  if (layersTabBounds) {
-    await page.mouse.move(
-      layersTabBounds.x + layersTabBounds.width * 0.5,
-      layersTabBounds.y + layersTabBounds.height * 0.5
-    );
-    await page.mouse.down();
-    await page.mouse.move(bounds.x + bounds.width - 120, bounds.y + 60, { steps: 8 });
-    await page.mouse.up();
+  // Use the actual View menu to close floating panels for the canvas oracle.
+  // Their DOM chrome otherwise occludes the screenshot: accepting Face Warp
+  // legitimately adds the Layers rasterize icon, which is not a texture change.
+  for (const title of ['Layers', 'Channels', 'Scopes']) {
+    await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+    const item = page.getByRole('menuitem', { name: new RegExp(`^${title} panel`) });
+    if ((await item.innerText()).includes('✓')) await item.click();
+    else await page.keyboard.press('Escape');
   }
   // Establish the identity oracle after the tool has changed the property-bar
   // layout, but before face detection installs a deformation surface. This
@@ -419,6 +414,57 @@ try {
   }
   const memoryAfterIdle = await measurePageMemory(page);
   const telemetryAfterIdle = await driver.queryRenderTelemetry(documentId);
+  // Rebind the real mounted editor, then exercise a fresh property gesture.
+  // Compare document composites including Face Warp, without floating UI geometry.
+  const sourceLayerId = (await driver.queryLayers(documentId)).find(layer => layer.type === 'raster')?.id;
+  if (!sourceLayerId) throw new Error('Face Warp source layer disappeared.');
+  const previewDiagnostics = [];
+  const compositeDigest = async () => {
+    const state = await driver.queryDocument(documentId);
+    const preview = await driver.requestDocumentPreview(documentId, state.canonicalRevision, 512);
+    previewDiagnostics.push({ revision: state.canonicalRevision, preview });
+    if (preview?.status !== 'completed') throw new Error(`Face Warp preview failed: ${JSON.stringify(preview)}`);
+    const artifact = await driver.readArtifact(preview.artifact?.id ?? preview.id);
+    if (!artifact?.bytes?.length) throw new Error('Face Warp preview artifact is empty.');
+    return digest(await sharp(artifact.bytes).ensureAlpha().raw().toBuffer());
+  };
+  const beforeRebindHash = await compositeDigest();
+  const beforeRebind = await driver.queryDocument(documentId);
+  const secondary = await driver.executeWorkspace('document.create', {
+    name: 'Face Warp lifecycle secondary', width: 64, height: 64, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
+  });
+  await driver.waitForReadyDocument(secondary.value.documentId);
+  await page.locator('.ui-document-tabs__title').filter({ hasText: path.basename(sourceFile) }).click();
+  await driver.waitForReadyDocument(documentId);
+  await page.getByRole('button', { name: /^Face Warp/ }).click();
+  await page.getByRole('button', { name: 'Redetect faces' }).waitFor();
+  if (await compositeDigest() !== beforeRebindHash) throw new Error('Face Warp composite changed on tab rebind.');
+  await page.getByLabel('Show mesh').check();
+  await cyanMeshBounds(await canvas.screenshot({ path: path.join(output, '07-rebound-mesh.png') }));
+  await page.getByLabel('Show mesh').uncheck();
+  await page.getByRole('radio', { name: 'Adjust', exact: true }).click();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const reboundBeforePixels = await canvas.screenshot({ path: path.join(output, '08-rebound-before.png') });
+  const reboundAmount = await amountControl.boundingBox();
+  if (!reboundAmount) throw new Error('Rebound Face Warp Amount is unavailable.');
+  await page.mouse.move(reboundAmount.x + reboundAmount.width * 0.5, reboundAmount.y + reboundAmount.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(reboundAmount.x + reboundAmount.width * 0.7, reboundAmount.y + reboundAmount.height * 0.5, { steps: 6 });
+  await page.mouse.up();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const reboundAfterPixels = await canvas.screenshot({ path: path.join(output, '09-rebound-after.png') });
+  const reboundVisibleChange = await changedPixelBounds(reboundBeforePixels, reboundAfterPixels);
+  const reboundEdit = await driver.queryDocument(documentId);
+  const reboundHash = await compositeDigest();
+  if (reboundEdit.history.undoDepth !== beforeRebind.history.undoDepth + 1
+    || reboundHash === beforeRebindHash) throw new Error(`Rebound Face Warp property gesture failed: ${JSON.stringify({
+      beforeHistory: beforeRebind.history, afterHistory: reboundEdit.history, beforeRebindHash, reboundHash, reboundVisibleChange, previewDiagnostics
+    })}`);
+  await driver.execute(documentId, 'history.undo');
+  if (await compositeDigest() !== beforeRebindHash) throw new Error('Rebound Face Warp undo changed composite pixels.');
+  const rebind = { sourceLayerId, beforeRebindHash, afterUndoHash: await compositeDigest(),
+    historyBefore: beforeRebind.history, historyAfterEdit: reboundEdit.history };
   const firstGpuBytes = telemetryAfterFirstEdit?.gpuTextureBytes ?? null;
   const idleGpuBytes = telemetryAfterIdle?.gpuTextureBytes ?? null;
   if (firstGpuBytes !== null && idleGpuBytes !== null && idleGpuBytes > firstGpuBytes + 1024 * 1024) {
@@ -438,6 +484,8 @@ try {
   const previewFrameP95Ms = sortedFrameSamples[Math.floor((sortedFrameSamples.length - 1) * 0.95)];
   const report = {
     sourceFile,
+    executablePath: launch.executablePath,
+    rebind,
     gpuMode,
     expectedGpuVendor: expectedGpuVendor || null,
     gpuAdapter,

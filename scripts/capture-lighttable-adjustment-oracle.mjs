@@ -86,7 +86,7 @@ try {
       const opened = await driver.executeWorkspace('file.openArtifact', { artifactId: artifact.id });
       const documentId = opened.value?.documentId;
       if (!documentId) throw new Error('PSD open did not return a document ID.');
-      await driver.waitForRenderedDocument(documentId, readyTimeout);
+      await driver.waitForReadyDocument(documentId, readyTimeout);
       const layers = await driver.waitForLayers(documentId, 120_000);
       if (!layers.some(({ type }) => type === 'adjustment')) {
         throw new Error(`Imported PSD does not expose an adjustment layer: ${JSON.stringify(layers)}.`);

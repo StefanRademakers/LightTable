@@ -58,7 +58,6 @@ export interface TransformPublicationDependencies {
   reserveHistoryEntry(entry: TransformPublicationHistoryEntry): DocumentHistoryReservation;
   setError(message: string | null): void;
   onLayerTransformCommitted?(layerId: LayerId, transform: AffineMatrix): void;
-  onRasterTransformCommitted?(layerId: LayerId, kind: 'layer' | 'selection'): void;
 }
 
 export interface TransformPublicationRequest {
@@ -202,15 +201,6 @@ export class TransformPublicationOwner {
         return true;
       });
       if (!committed) cancelPreview();
-      else {
-        try {
-          this.dependencies().onRasterTransformCommitted?.(result.layerId, 'layer');
-        } catch {
-          this.dependencies().setError(
-            'The transform was committed, but its document change notification failed.'
-          );
-        }
-      }
     } catch (reason) {
       cancelPreview();
       throw reason;
@@ -476,14 +466,6 @@ export class TransformPublicationOwner {
         cancelHistoryReservation();
         if (pixelEdit) rollbackUnpublishedPixels();
         else discardPreview();
-      } else {
-        try {
-          this.dependencies().onRasterTransformCommitted?.(result.layerId, 'selection');
-        } catch {
-          this.dependencies().setError(
-            'The transform was committed, but its document change notification failed.'
-          );
-        }
       }
     } catch (reason) {
       cancelHistoryReservation();

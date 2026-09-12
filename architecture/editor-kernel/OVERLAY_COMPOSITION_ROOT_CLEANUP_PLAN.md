@@ -169,6 +169,11 @@ class names: reuse existing owners before creating a new one.
         after hydration unwinds. Document resource close registration is session-
         lifetime and idempotent across remounts. Critic PASS after pending-start
         repair; integrated replacement safety and packaged lifecycle proof passed.
+  - [x] O03c.4: canonical revision authority discovered through Face Warp preview
+    rebind. Session publications/history own invalidation; deleted command,
+    observation and task-wrapper bumps. Dirty/save identity remains separate.
+    Critic PASS, app4220 tests and packaged Face Warp/transform/selection pass.
+    Removed fabricated frame-revision telemetry; true frame identity stays O08.
 - [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms
@@ -240,7 +245,10 @@ class names: reuse existing owners before creating a new one.
   - [x] O05c.1: transform frame/snap presentation and exact renderer binding.
     Critic PASS; packaged visible snapping/exact undo-redo, full transform,
     selection and active-transform close/reopen pass. Wider performance O08 open.
-  - [ ] O05d.1: Face Warp domain intents, mesh presentation and exact binding.
+  - [x] O05d.1: Face Warp domain intents, mesh presentation and exact binding.
+    Critic repairs include exact property/review leases and null-to-ready renderer
+    rebinding. Packaged gestures, identity, rebind/property/exact undo pass.
+    Shared revision defect repaired in O03c.4; whole owner/performance gate open.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

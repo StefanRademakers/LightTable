@@ -29,7 +29,6 @@ export const startAtomicCommandBatchTask = (
   events.append(taskId, 'queued', { progress: 0, message: batch.name });
   void running.then((result) => {
     if (result.status === 'completed') {
-      session.markChanged();
       events.append(taskId, 'completed', { progress: 1, message: batch.name });
     } else if (result.status === 'failed') {
       events.append(taskId, 'failed', { message: result.error.message });

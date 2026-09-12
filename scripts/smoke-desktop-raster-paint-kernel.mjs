@@ -68,7 +68,7 @@ try {
   });
   const documentId = created.value?.documentId;
   assert.ok(documentId);
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const layerId = (await driver.queryLayers(documentId))[0]?.id;
   assert.ok(layerId);
 

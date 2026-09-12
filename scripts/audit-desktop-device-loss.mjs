@@ -53,7 +53,7 @@ try {
     window.__lightTableAutomation?.queryWorkspace()?.activeDocumentId
   ), undefined, { timeout: 60_000 });
   const documentId = (await driver.queryWorkspace()).activeDocumentId;
-  const before = await driver.waitForRenderedDocument(documentId, 120_000);
+  const before = await driver.waitForReadyDocument(documentId, 120_000);
   const beforeLayers = await driver.waitForLayers(documentId);
   const beforePreview = await preview(
     driver, documentId, before.document.canonicalRevision
@@ -94,7 +94,7 @@ try {
       const status = window.__lightTableAutomation?.queryDocument(id)?.renderer?.status;
       return status === 'starting' || status === 'ready';
     }, documentId, { timeout: 10_000 });
-    const recovered = await driver.waitForRenderedDocument(documentId, 120_000);
+    const recovered = await driver.waitForReadyDocument(documentId, 120_000);
     const afterLayers = await driver.waitForLayers(documentId);
     const afterPreview = await preview(
       driver, documentId, recovered.document.canonicalRevision

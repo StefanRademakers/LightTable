@@ -33,7 +33,7 @@ try {
   });
   const documentId = created.value?.documentId;
   assert.ok(documentId, 'Pixel clipboard setup returned no document ID.');
-  await driver.waitForRenderedDocument(documentId, 60_000);
+  await driver.waitForReadyDocument(documentId, 60_000);
   const mcp = await mcpSession.pairAndAuthorize(page);
 
   const evidence = await runPixelClipboardRouteEquivalence({ page, driver, mcp, output });

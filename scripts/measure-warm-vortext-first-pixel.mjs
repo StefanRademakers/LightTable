@@ -113,7 +113,7 @@ try {
   let workspace = await driver.queryWorkspace();
   const warmDocumentId = workspace.activeDocumentId;
   assert.ok(warmDocumentId, 'Warmup document did not open.');
-  await driver.waitForRenderedDocument(warmDocumentId, 60_000);
+  await driver.waitForReadyDocument(warmDocumentId, 60_000);
   await waitForTimeline(driver, warmDocumentId, 60_000);
   report.heapBeforeBytes = await heapUsed();
 
@@ -129,7 +129,7 @@ try {
     }
     assert.ok(documentId, `VORTEXT sample ${index + 1} did not create a document.`);
     let timeline = await waitForTimeline(driver, documentId);
-    await driver.waitForRenderedDocument(documentId, 120_000);
+    await driver.waitForReadyDocument(documentId, 120_000);
     const islandDeadline = Date.now() + 30_000;
     while (Date.now() < islandDeadline
       && !timeline.events.some(({ stage }) => stage === 'first-island-submission')) {
