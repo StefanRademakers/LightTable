@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O06b accepted: executeSvgImport owns scoped preparation and invokes the existing
+DocumentMutationController for one publication/history transaction; old split
+apply/history ports deleted. createMountedSvgImportBinding owns exact registered
+session/runtime admission; inactive session binding stays renderer-independent.
+Root6,683 audit lines (one binding import exception), packaged both routes pass.
+
 O05e.1 accepted: SelectionGestureHostBinding only owns pointer/draft/snap
 adaptation; SelectionCommandObservation captures admission-time recording.
 Removed publishSelection and revision branch throughout gesture callers.

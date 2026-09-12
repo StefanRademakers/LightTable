@@ -160,7 +160,17 @@ export const createDocumentSessionCommandPorts = (
     executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
       changeDocument: mutation.change
     }),
-    executeSvgImport: (command) => executeSvgImport(command, semanticDependencies),
+    executeSvgImport: (command) => executeSvgImport(command, {
+      changeDocument: mutation.change,
+      captureScope: () => {
+        const documentId = session.getSnapshot().document?.id;
+        return { isCurrent: () => {
+          const current = session.getSnapshot();
+          return Boolean(documentId) && current.lifecycle === 'ready'
+            && current.document?.id === documentId;
+        } };
+      }
+    }),
     executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
       getDocument: semanticDependencies.getDocument,
       changeDocument: mutation.change,

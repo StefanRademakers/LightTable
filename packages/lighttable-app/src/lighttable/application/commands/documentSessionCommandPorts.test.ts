@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as svgNormalizer from '../vectors/normalizeEditableSvgSource';
 import {
   createAdjustmentLayer,
   createRasterLayer,
@@ -24,6 +25,61 @@ import {
 } from './lightTableCommandOwnership';
 
 describe('document-lifetime command ownership', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('imports SVG into the captured inactive session with one undoable boundary', async () => {
+    const workspace = new WorkspaceSession();
+    const opened = workspace.open({ source: { id: 'svg-source', name: 'SVG', mediaType: 'image/svg+xml' } });
+    if (!opened.ok) throw new Error('SVG fixture failed to open');
+    const session = opened.value;
+    session.setDocument(createImageDocument('SVG', 100, 100, 'svg-source'));
+    session.setReady();
+    const ports = createDocumentSessionCommandPorts(session, new EditorApplicationSession());
+    let release!: (source: string) => void;
+    vi.spyOn(svgNormalizer, 'normalizeEditableSvgSource').mockImplementation(() => (
+      new Promise<string>((resolve) => { release = resolve; })
+    ));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>';
+    const pending = ports.executeSvgImport!({ svg, placement: 'document' });
+    const edited = createRasterLayer(session.getSnapshot().document!, 'Intervening edit');
+    session.setDocument(edited);
+    const activeBefore = workspace.getSnapshot().activeDocumentId;
+    release(svg);
+    const result = await pending;
+    const imported = session.getSnapshot().document!;
+    expect(result).toMatchObject({ layerId: imported.layers.at(-1)?.id });
+    expect(imported.layers.slice(0, edited.layers.length)).toEqual(edited.layers);
+    expect(session.getSnapshot().history.undoDepth).toBe(1);
+    expect(workspace.getSnapshot().activeDocumentId).toBe(activeBefore);
+    await session.history.undo();
+    expect(session.getSnapshot().document).toBe(edited);
+    await session.history.redo();
+    expect(session.getSnapshot().document).toBe(imported);
+    workspace.dispose();
+  });
+
+  it('rejects deferred SVG normalization after the owning session retires', async () => {
+    const workspace = new WorkspaceSession();
+    const opened = workspace.open({ source: { id: 'svg-source', name: 'SVG', mediaType: 'image/svg+xml' } });
+    if (!opened.ok) throw new Error('SVG fixture failed to open');
+    const session = opened.value;
+    session.setDocument(createImageDocument('SVG', 100, 100, 'svg-source'));
+    session.setReady();
+    const ports = createDocumentSessionCommandPorts(session, new EditorApplicationSession());
+    let release!: (source: string) => void;
+    vi.spyOn(svgNormalizer, 'normalizeEditableSvgSource').mockImplementation(() => (
+      new Promise<string>((resolve) => { release = resolve; })
+    ));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>';
+    const pending = ports.executeSvgImport!({ svg, placement: 'document' });
+    session.dispose();
+    const retired = session.getSnapshot();
+    release(svg);
+    await expect(pending).rejects.toThrow('scope is no longer current');
+    expect(session.getSnapshot()).toBe(retired);
+    workspace.dispose();
+  });
+
   it('assigns every public command to exactly one explicit execution owner', () => {
     const assigned = new Set([...SERVICE_OWNED_COMMANDS, ...MOUNTED_DOCUMENT_COMMANDS]);
     const overlap = [...SERVICE_OWNED_COMMANDS].filter((command) => (

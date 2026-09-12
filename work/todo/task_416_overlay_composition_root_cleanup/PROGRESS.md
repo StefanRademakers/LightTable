@@ -1,5 +1,28 @@
 # Task 416 progress
 
+## O06b — Scoped transactional SVG import (accepted)
+
+- Confirmed old path awaited normalization, read whichever document the live
+  getter returned, then published document before separately recording history.
+  Both mounted and inactive imports now use the existing mutation.change owner;
+  materialization sees current same-session edits inside that transaction. Scope
+  is captured before normalization and checked again before publication.
+- Removed applyDocument/recordHistory ports. No parser, normalizer, materializer,
+  renderer algorithm or additional transaction owner changed. Small mounted
+  binding pins the registered session plus exact renderer lifetime; inactive
+  canonical import remains independent of renderer visibility. Rejected history
+  compensates content through the existing mutation owner.
+- Independent critic PASS,28 focused tests, typecheck and boundary pass. Fresh
+  packaged active import yields one history entry and exact pixel Undo/Redo;
+  inactive import does not activate its tab, rebind shows both imports and exact
+  Undo/Redo preserves the earlier content. Report and inspected final image:
+  tmp/svg-import-transaction/report.json and inactive-rebound.png.
+- Root audit6,682 ->6,683: explicit one-line ceiling exception for the new binding
+  import, not authority growth. Critic approved retaining the exact scope checks
+  instead of compressing code. Next genuine file-owner extraction must lower it.
+- Open: file-intent root integration and remaining command-family recipes;
+  canonical command safety is not equivalent to whole editor acceptance.
+
 ## O05e.1 — Selection host and observation (accepted)
 
 - Removed publishSelection port, its unused revision-authoring branch and all

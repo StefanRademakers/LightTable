@@ -205,7 +205,8 @@ import { useExistingTextActivation } from './composition/text/useExistingTextAct
 import { useTextEditingEntry } from './composition/text/useTextEditingEntry';
 import { executeSemanticTextCommand } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
-import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
+import { exportSvgDocument } from './application/vectors/svgDocumentCodec';
+import { createMountedSvgImportBinding } from './application/vectors/createMountedSvgImportBinding';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
 import { VectorCommitPublisher } from './application/vectors/VectorCommitPublisher';
 import { usePenPresentation } from './composition/vectors/usePenPresentation';
@@ -4178,10 +4179,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
         changeDocument: documentMutationController.change
       }),
-      executeSvgImport: (command) => executeSvgImport(command, {
-        getDocument: () => imageDocumentRef.current,
-        applyDocument: applyDocumentSnapshot,
-        recordHistory: pushDocumentHistory
+      executeSvgImport: createMountedSvgImportBinding(documentSession, {
+        getCurrentSession: () => mountedDocumentSessionRef.current,
+        captureRendererScope: captureMountedInteractionScope,
+        changeDocument: documentMutationController.change
       }),
       executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
         getDocument: () => imageDocumentRef.current,

@@ -10,6 +10,7 @@ import { materializeSvgImportPlan } from './materializeSvgImportPlan';
 import { SVG_IMPORT_CODEC_LIMITS } from './svgImportLimits';
 import { createSvgImportIdFactory } from './svgImportIds';
 import { normalizeEditableSvgSource } from './normalizeEditableSvgSource';
+import type { DocumentMutationController } from '../documents/useDocumentMutationController';
 
 export interface SemanticSvgImportCommand {
   readonly svg: string;
@@ -29,9 +30,8 @@ export interface SvgImportCommandResult {
 }
 
 export interface SvgImportDependencies {
-  getDocument(): ImageDocument | null;
-  applyDocument(document: ImageDocument): void;
-  recordHistory(before: ImageDocument, after: ImageDocument): void;
+  captureScope(): { isCurrent(): boolean };
+  changeDocument: DocumentMutationController['change'];
   /** Unit/host seam; production uses the locked-down reusable normalizer. */
   normalizeSvgSource?(source: string): Promise<string>;
 }
@@ -40,7 +40,13 @@ export const executeSvgImport = async (
   command: SemanticSvgImportCommand,
   dependencies: SvgImportDependencies
 ): Promise<SvgImportCommandResult | null> => {
+  const scope = dependencies.captureScope();
+  const assertCurrent = () => {
+    if (!scope.isCurrent()) throw new Error('The SVG import document scope is no longer current.');
+  };
+  assertCurrent();
   const normalizedSvg = await (dependencies.normalizeSvgSource ?? normalizeEditableSvgSource)(command.svg);
+  assertCurrent();
   let sourcePlan: ReturnType<typeof importSvg> | null = null;
   try {
     sourcePlan = importSvg(command.svg, {
@@ -61,25 +67,20 @@ export const executeSvgImport = async (
     createId: createSvgImportIdFactory(),
     limits: SVG_IMPORT_CODEC_LIMITS
   });
-  // Read authority after the asynchronous preparation. Import must never
-  // overwrite edits made while normalization was running.
-  const before = dependencies.getDocument();
-  if (!before) return null;
-  const materialized = materializeSvgImportPlan(
-    before,
-    plan,
-    command.layerName?.trim() || 'Imported SVG',
-    { x: command.x, y: command.y }
-  );
-  dependencies.applyDocument(materialized.document);
-  dependencies.recordHistory(before, materialized.document);
-  return {
-    layerId: materialized.layerId,
-    elementIds: materialized.elementIds,
-    width: plan.width,
-    height: plan.height,
-    report: plan.report
-  };
+  let result: SvgImportCommandResult | null = null;
+  const accepted = dependencies.changeDocument((current) => {
+    assertCurrent();
+    const materialized = materializeSvgImportPlan(
+      current, plan, command.layerName?.trim() || 'Imported SVG',
+      { x: command.x, y: command.y }
+    );
+    result = {
+      layerId: materialized.layerId, elementIds: materialized.elementIds,
+      width: plan.width, height: plan.height, report: plan.report
+    };
+    return materialized.document;
+  }, true, { label: 'Import SVG', type: 'vector.importSvg' });
+  return accepted ? result : null;
 };
 
 const exactSvgScene = (document: ImageDocument) => {

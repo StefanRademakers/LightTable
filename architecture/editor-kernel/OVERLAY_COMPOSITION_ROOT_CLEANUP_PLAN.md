@@ -262,6 +262,9 @@ class names: reuse existing owners before creating a new one.
     Deleted root decode/placement/artifact/Cut policy. Canonical coverage and
     existing pixel/history owners retained. Critic PASS;34 focused tests,
     packaged menu/Actions/MCP exact pixels and menu Cut/exact Undo pass.
+  - [x] O06b: SVG import uses one scoped canonical mutation/history transaction
+    in mounted and inactive bindings. Removed split apply/history publication.
+    Critic PASS;28 tests and packaged import/rebind/exact Undo/Redo pass.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
