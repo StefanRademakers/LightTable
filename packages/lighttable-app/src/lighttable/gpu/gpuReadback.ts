@@ -79,7 +79,8 @@ export const readRgba8Texture = async (
   texture: GPUTexture,
   width: number,
   height: number,
-  label = 'LightTable RGBA8 texture readback'
+  label = 'LightTable RGBA8 texture readback',
+  onReadbackSubmitted?: () => void
 ) => {
   const bytesPerPixel = 4;
   const unpaddedBytesPerRow = width * bytesPerPixel;
@@ -98,6 +99,8 @@ export const readRgba8Texture = async (
       [width, height]
     );
     device.queue.submit([encoder.finish()]);
+    // The queued copy is fixed; this is not a claim that GPU execution or mapping succeeded.
+    onReadbackSubmitted?.();
     const mapped = new Uint8Array(await mapGpuBufferCopy(readBuffer));
     return stripTextureRowPadding(mapped, width, height, bytesPerPixel, bytesPerRow);
   } finally {

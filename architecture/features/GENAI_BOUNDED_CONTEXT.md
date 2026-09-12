@@ -119,8 +119,19 @@ Promise completion is not acknowledgement that deferred UI state has applied.
 
 Generate reads delivery provenance from the ready canonical document session
 at submission, separately from low-frequency panel presentation. This does
-not by itself establish paid-job lifetime safety for other entry points such
-as Remove Object; those require their own submission/delivery audit.
+not by itself establish paid-job lifetime safety for other entry points.
+
+Remove Object has a separate mounted intent and source-capture adapter. It pins
+the exact project/service/session/renderer and canonical revision/coverage after
+existing file preparation. Existing document mutation admission spans final
+projection/readiness until GPU copy submission only; mapping, mask conversion
+and encoding do not keep editing locked. Changes during preparation retire the
+request before submission, rather than silently recapturing a different source.
+The GenAI command still owns discovery, imports and submission, checks authority
+at asynchronous boundaries, and sends explicit place-edit provenance. Already
+imported original-project assets survive retirement. Once submission begins,
+retirement does not cancel or retry a potentially paid operation. Packaged local
+fixtures verify this input/submission boundary, not provider result placement.
 
 Prompt mentions and provider references are two linked but different values.
 The renderer retains a friendly token such as `@hero`; the provider adapter

@@ -32,20 +32,22 @@ describe('executeRemoveObject', () => {
         jobId: 'job', providerJobId: 'provider-job', status: 'submitted'
       }))
     } as unknown as LightTableGenAiService;
-    const renderer = {
-      exportPng: vi.fn(async () => new Blob(['base'], { type: 'image/png' })),
-      exportSelectionMask: vi.fn(async () => new Blob(['mask'], { type: 'image/png' }))
-    };
+    const editorDelivery = { projectId: 'project', documentId: 'document', sourceRevision: 42, behavior: 'place-edit' as const };
+    const prepareSource = vi.fn(async () => ({
+      baseBlob: new Blob(['base'], { type: 'image/png' }), selectionBlob: new Blob(['mask'], { type: 'image/png' }),
+      documentName: 'Test image', width: 1920, height: 1080, editorDelivery, assertCurrent: () => {}
+    }));
 
     await executeRemoveObject({
-      service, projectId: 'project', renderer, documentName: 'Test image',
-      documentWidth: 1920, documentHeight: 1080, preferredProviderIds: [providerId]
+      service, projectId: 'project', prepareSource, assertCurrent: () => {}, preferredProviderIds: [providerId]
     });
 
     expect(service.importProjectAsset).toHaveBeenCalledTimes(2);
     expect(service.loadWorkflow).toHaveBeenCalledWith(providerId, modelId, 'image.inpaint');
     expect(service.submitGeneration).toHaveBeenCalledWith('project', expect.objectContaining({
       operation: 'image.inpaint', intent: 'remove-object', baseImageAssetId: 'asset-1',
+      editorDelivery, output: { aspectRatio: '1920:1080', size: '2K', count: 1 },
+      fields: expect.objectContaining({ steps: 4, aspectRatio: '1920:1080', imageCount: 1 }),
       selection: { assetId: 'asset-2', format: 'grayscale', interpretation: 'white-is-selected' },
       references: [expect.objectContaining({ id: 'asset-1' }), expect.objectContaining({ id: 'asset-2' })]
     }));
@@ -59,13 +61,11 @@ describe('executeRemoveObject', () => {
         id: payload.name as GenAiAssetId, projectId: 'project', label: payload.name, mediaType: 'image/png'
       }))
     } as unknown as LightTableGenAiService;
-    const renderer = {
-      exportPng: vi.fn(async () => new Blob(['base'])),
-      exportSelectionMask: vi.fn(async () => new Blob(['mask']))
-    };
+    const prepareSource = vi.fn(async () => { throw new Error('Unexpected source capture'); });
     await expect(executeRemoveObject({
-      service, projectId: 'project', renderer, documentName: 'Test',
-      documentWidth: 512, documentHeight: 512
+      service, projectId: 'project', prepareSource, assertCurrent: () => {}
     })).rejects.toThrow('explicitly supports Remove Object');
+    expect(prepareSource).not.toHaveBeenCalled();
+    expect(service.importProjectAsset).not.toHaveBeenCalled();
   });
 });

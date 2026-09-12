@@ -1,5 +1,40 @@
 # Task 416 progress
 
+## O07e — Scoped Remove Object source and submission (accepted)
+
+- GenAiRemoveObjectIntent owns mounted request/notice lifetime; its thin hook
+  binds exact project/service/session/renderer. Existing GenAI command retains
+  provider discovery, durable imports and submission. Root pending flag and
+  async command policy are deleted; no provider/job code moved into the editor.
+- RemoveObjectSourceCapture settles through existing file intents and pins
+  canonical document/revision and exact coverage, including paint-only masks.
+  Existing mutation admission covers canonical projection/final export readiness
+  through queue.submit only. Mapping, immutable CPU mask conversion and PNG
+  encoding occur after release; no extra GPU mask read or new queue/cache.
+- Shared readback exposes synchronous onReadbackSubmitted (not GPU completion).
+  Export captures dimensions before awaiting, preventing successor metadata from
+  describing old pixels. Failure cleanup remains visible and releases admission.
+- Critic repairs: project/service A-B-A retires requests monotonically at layout;
+  imports validate original project; CPU conversion moved outside admission;
+  readback metadata pinned before callback. Final independent critic PASS.
+- 52 source/intent/hook/command tests across 5 files and 32 GPU/readiness tests
+  across 4 files pass; final app typecheck passes. Deferred races are labelled
+  focused evidence, not claims about every real host timing.
+- Fresh instrumented package19600 passes adjacent text-property-transition
+  run-bS8CHb. Remove Object run-4vu8kY passes in 7.9 seconds: real Select menu,
+  production asset storage/export, exact base PNG, full 320x240 grayscale mask
+  with 5,196 feather pixels, exact delivery provenance, unchanged histories and
+  fresh pixels in both documents. Deferred discovery + real tab switch performs
+  zero imports/submissions; explicit current retry succeeds. Root viewed final UI.
+- Provider catalog/workflow/cost/submit are local IPC fixtures: no paid request,
+  provider quality, job persistence/polling or generated-result placement claim.
+  Harness failures run-3hDSUL (normal automatic reference assets) and run-D3Ea7W
+  (Electron.evaluate signature) remain preserved; production was not changed to
+  pass them. Already durable assets are retained, never automatically deleted.
+- Overlay 5,703 -> 5,685 physical lines, ceiling5,686. WebGpuEngine3,995 ->4,003
+  for the shared readback safety contract; O09 is not complete. Next bounded
+  slice: text-to-shape dialog/intent exact-target lifetime. Overall plan remains open.
+
 ## O03c.6 — Text presentation and committed opening lifetime (accepted)
 
 - TextRenderPresentation owns shared initial/reset values, latest-only RAF,
@@ -43,8 +78,8 @@
   Grade inspector interaction. No page errors. The live UI currently has no
   document-processing inspector entry; this is not global-slider UI proof.
   Controlled barrier races are focused actual-session evidence only.
-- Remove Object itself is NOT accepted: immutable base/mask capture, shortest
-  readback admission, scoped imports/submission and delivery provenance remain.
+- At this prerequisite checkpoint Remove Object was not accepted; its later
+  source/submission acceptance and precise limitations are recorded in O07e above.
   Provider/jobs stay in GenAI. No paid calls and no new UI entry were introduced.
 
 ## O06f.2 / O07d — Layer finalization UI and Properties entry (accepted)

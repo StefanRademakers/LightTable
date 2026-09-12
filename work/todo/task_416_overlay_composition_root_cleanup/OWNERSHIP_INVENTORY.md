@@ -1,14 +1,18 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,703 physical lines. O03c.6 moves text presentation/trace
+Current accepted root: 5,685 physical lines. O03c.6 moves text presentation/trace
 coalescing and reset into its bounded owner; document-opening guards retire at
 layout commit, before deferred callbacks can reach a successor. Canonical text
 and rendering algorithms are unchanged. Exact evidence is in PROGRESS.
-O07c reference handoff is accepted; Remove Object remains a separate open slice.
+O07c reference handoff and O07e Remove Object source/submission are accepted.
+Remove Object intent owns request retirement; source capture owns the short
+editor read barrier; existing GenAI command retains discovery/import/submission.
+Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
-Remove Object next boundary: existing genai/application/removeObjectCommand owns
+Retained pre-O07e inventory (resolved as recorded in PROGRESS):
+existing genai/application/removeObjectCommand owns
 provider/model/workflow resolution, imports and submission; preserve that bounded
 context. Root's global pending flag and late notices are unscoped. The command
 has no request retirement checks and omits editorDelivery; current generated-result

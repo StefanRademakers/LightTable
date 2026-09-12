@@ -878,6 +878,11 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('setTextRenderPresentation')) {
       failures.push(`${relativePath}: deferred text presentation and trace lifetime belong to TextRenderPresentation, not the composition root`);
     }
+    if (!source.includes('useGenAiRemoveObject(')
+      || source.includes('executeRemoveObject(')
+      || source.includes('removeObjectPendingRef')) {
+      failures.push(`${relativePath}: Remove Object capture and submission lifetime must remain in bounded editor/GenAI owners`);
+    }
     if (!source.includes('useLayerFinalizationIntents(')
       || !source.includes('usePropertiesInspectorPresentation(')
       || !source.includes('new LayerStyleEntryIntent(')

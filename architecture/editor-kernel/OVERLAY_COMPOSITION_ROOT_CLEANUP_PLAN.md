@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O03c.6 text presentation and committed opening-guard
-lifetime, plus the document-wide adjustment admission repair identified during
-Remove Object inventory. Packaged text/tab/close and processing rebind pass.
-Remove Object source capture/submission itself remains open. Earlier style-export
+Latest bounded acceptance: O07e scoped Remove Object capture and submission.
+Packaged production export/import and real menu/tab retirement pass; provider
+submission is locally simulated, not paid generation/result placement proof.
+Earlier O03c.6 and document-wide adjustment admission remain accepted. Style-export
 repair and neutral-Curves precision debt remain recorded in Task416 PROGRESS.
-Root is 5,703 physical lines. Remaining target/GenAI/command families, cross-flow
+Root is 5,685 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -348,11 +348,16 @@ class names: reuse existing owners before creating a new one.
     rejection of stale preflight verified; exact limits recorded in PROGRESS.
   - [x] O07c: scoped GenAI reference handoff and Setup import lease. Two critic
     rounds, deferred-state tests and packaged base/file/tab reference proof pass.
-    Providers/jobs remain independent; Remove Object authority remains open.
+    Providers/jobs remain independent; Remove Object is accepted separately below.
   - [x] O07d: UI-only Properties target/intent/reveal owner and scoped style entry.
     Critic repairs and actual Effects/locked inspector/standalone Curves pass.
     Cold style export omission repaired through shared final-source readiness;
     bounded neutral-Curves rounding remains separate precision debt.
+  - [x] O07e: scoped Remove Object intent, immutable canonical base/mask capture,
+    short existing mutation admission released at GPU copy submission, guarded
+    imports and explicit delivery provenance. Critic PASS after lifetime/metadata
+    repairs; packaged real Select menu/export/import/tab retirement proof passes.
+    Provider submit is a local fixture; generated-result placement remains untested.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

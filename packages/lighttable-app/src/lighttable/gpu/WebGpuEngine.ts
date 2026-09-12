@@ -3479,10 +3479,13 @@ export class WebGpuEngine {
   }
 
   /** Raw display-encoded composite for dedicated image codecs; no canvas encoding. */
-  async exportRgba8() {
+  async exportRgba8({ onReadbackSubmitted }: {
+    /** Synchronous copy-submission handoff, before mapping; not GPU completion. */
+    readonly onReadbackSubmitted?: () => void;
+  } = {}) {
     const assertCurrent = await this.prepareDocumentExport();
     assertCurrent();
-    return this.exportRgba8Prepared();
+    return this.exportRgba8Prepared(onReadbackSubmitted);
   }
 
   /** Reads the final display-encoded composite before its 8-bit viewport resolve. */
@@ -3492,6 +3495,8 @@ export class WebGpuEngine {
     if (!this.metadata || !this.displayPostTexture) {
       throw new Error('No high-precision processed image is available for export.');
     }
+    const { width, height } = this.metadata;
+    const source = this.displayPostTexture;
     if (!this.precisionExportPipeline) {
       const vertex = this.device.createShaderModule({
         label: 'LightTable precision export vertex shader', code: FULLSCREEN_VERTEX_WGSL
@@ -3509,24 +3514,24 @@ export class WebGpuEngine {
     }
     const texture = this.device.createTexture({
       label: 'LightTable precision bitmap export result',
-      size: [this.metadata.width, this.metadata.height],
+      size: [width, height],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
     });
     try {
       const bindGroup = this.device.createBindGroup({
         layout: this.precisionExportPipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: this.displayPostTexture.createView() }]
+        entries: [{ binding: 0, resource: source.createView() }]
       });
       const encoder = this.device.createCommandEncoder({ label: 'LightTable precision bitmap export' });
       this.drawFullscreenPass(encoder, this.precisionExportPipeline, bindGroup, texture.createView());
       this.device.queue.submit([encoder.finish()]);
       const pixels = await readRgba16FloatTexture(
-        this.device, texture, this.metadata.width, this.metadata.height,
+        this.device, texture, width, height,
         'LightTable precision bitmap export readback'
       );
       return {
-        pixels, width: this.metadata.width, height: this.metadata.height,
+        pixels, width, height,
         storage: 'f16-display' as const
       };
     } finally {
@@ -3555,18 +3560,21 @@ export class WebGpuEngine {
     return assertCurrent;
   }
 
-  private async exportRgba8Prepared() {
+  private async exportRgba8Prepared(onReadbackSubmitted?: () => void) {
     if (!this.metadata || !this.imageResources.finalTexture) {
       throw new Error('No processed image is available for export.');
     }
+    const { width, height } = this.metadata;
+    const texture = this.imageResources.finalTexture;
     const pixels = await readRgba8Texture(
       this.device,
-      this.imageResources.finalTexture,
-      this.metadata.width,
-      this.metadata.height,
-      'LightTable PNG export readback'
+      texture,
+      width,
+      height,
+      'LightTable PNG export readback',
+      onReadbackSubmitted
     );
-    return { pixels, width: this.metadata.width, height: this.metadata.height, storage: 'u8' as const };
+    return { pixels, width, height, storage: 'u8' as const };
   }
 
   /**
