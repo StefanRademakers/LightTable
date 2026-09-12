@@ -87,7 +87,6 @@ export interface EditorDialogsProps {
   readonly foregroundColor: string;
   readonly backgroundColor: string;
   readonly onFill: (color: string, preserveTransparency: boolean) => void;
-  readonly onConvertTextToShape: (layerId: LayerId) => void;
   readonly onError: (message: string) => void;
   readonly release?: LightTableReleaseService;
   readonly dirtyDocuments: boolean;
@@ -120,7 +119,6 @@ export const EditorDialogs = ({
   foregroundColor,
   backgroundColor,
   onFill,
-  onConvertTextToShape,
   onError,
   release,
   dirtyDocuments,
@@ -233,13 +231,8 @@ export const EditorDialogs = ({
       description="Each glyph will become an editable vector path. Text content, font and paragraph editing will no longer be available. This can be undone while the document remains open."
       confirmLabel="Convert"
       danger
-      onCancel={controller.closeTextToShape}
-      onConfirm={() => {
-        const request = controller.textToShapeRequest;
-        if (!request) return;
-        controller.closeTextToShape();
-        onConvertTextToShape(request.layerId);
-      }}
+      onCancel={controller.textToShapeRequest.cancel}
+      onConfirm={() => { void controller.textToShapeRequest?.confirm(); }}
     /> : null}
     {controller.psdReportOpen ? <PsdImportReportDialog
       open

@@ -23,6 +23,7 @@ const harness = () => {
     'Editable'
   );
   const opening = document;
+  let runtime = {};
   const history: DocumentMutationHistoryEntry[] = [];
   const documentMutations = createDocumentMutationController(() => ({
     getDocument: () => document,
@@ -38,16 +39,27 @@ const harness = () => {
   const controller = new TextToShapeCommandController(() => ({
     getDocument: () => document,
     documentMutations,
-    resolveVectorPaths
+    captureSource: () => { const openingRuntime = runtime;
+      return { isCurrent: () => runtime === openingRuntime, resolveVectorPaths }; }
   }));
   return {
     controller, opening, history, resolveVectorPaths,
     document: () => document,
+    retireRuntime: () => { runtime = {}; },
     replaceDocument: (next: typeof document) => { document = next; }
   };
 };
 
 describe('TextToShapeCommandController', () => {
+  it('rejects concrete runtime retirement even when canonical document identity is unchanged', async () => {
+    const f = harness(); let resolve!: (paths: readonly VectorPath[]) => void;
+    f.resolveVectorPaths.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const pending = f.controller.convert(f.opening.activeLayerId!);
+    f.retireRuntime(); resolve([path()]);
+    await expect(pending).resolves.toBe(false);
+    expect(f.document()).toBe(f.opening); expect(f.history).toHaveLength(0); expect(f.controller.busy).toBe(false);
+    await expect(f.controller.convert(f.opening.activeLayerId!)).resolves.toBe(true);
+  });
   it('publishes one atomic history snapshot and retains the exact editable TextLayer for undo', async () => {
     const state = harness();
     const layerId = state.opening.activeLayerId!;

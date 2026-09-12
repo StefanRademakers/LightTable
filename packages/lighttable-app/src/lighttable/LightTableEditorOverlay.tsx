@@ -118,7 +118,7 @@ import {
   parseAttachedAdjustmentOwnerId
 } from './processing/attachedAdjustment';
 import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
-import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
+import { useTextToShape } from './composition/text/useTextToShape';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
 import { readGenAiDocumentContext } from './composition/genai/readGenAiDocumentContext';
@@ -1542,15 +1542,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setCropBounds(null);
     runDocumentGeometryCommand({ operation: 'crop', bounds });
   };
-  const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
-  textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    documentMutations: documentMutationController,
-    resolveVectorPaths: (layerId, signal) => (
-      engineRef.current?.vectorPathsForTextLayer(layerId, signal) ?? Promise.resolve(null)
-    )
-  }));
-  const textToShapeController = textToShapeControllerRef.current;
   const positionedTextRecoveryControllerRef = useRef<PositionedTextRecoveryCommandController | null>(null);
   positionedTextRecoveryControllerRef.current ??= new PositionedTextRecoveryCommandController(() => ({
     getDocument: () => imageDocumentRef.current,
@@ -1602,6 +1593,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textPropertyGestureController = textPropertyGestureControllerRef.current;
+  const textToShape = useTextToShape({
+    lifecycle: rendererLifecycle, generation: rendererSnapshot.generation,
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,
+    documentMutations: documentMutationController, text: textPropertyGestureController,
+    creation: textCreationInteraction, dialogs: editorDialogs,
+    execute: (documentId, layerId, expectedDocumentRevision) => commandService.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId: `ui-${documentId}-${++commandRequestSequenceRef.current}`,
+      documentId, expectedDocumentRevision, command: 'text.convertToShape', parameters: { layerId }
+    }), status: setGradeStatus, error: setError
+  });
   const workspaceDocumentIntents = useWorkspaceDocumentIntents({
     getActiveDocumentId: () => workspaceDocumentIdRef.current,
     getSession: () => mountedDocumentSessionRef.current, captureScope: captureMountedInteractionScope,
@@ -1703,10 +1706,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingController.getShellSnapshot
   );
   finishTextEditingRef.current = () => textEditingController.finish();
-
-  useEffect(() => () => {
-    textToShapeController.cancel();
-  }, [textToShapeController]);
 
   useEffect(() => () => {
     textSelectionGestureController.dispose();
@@ -3870,7 +3869,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       ...layerFinalizationCommands,
       executeTextToShape: async (command) => (
-        await textToShapeController.convert(command.layerId)
+        await textToShape.command.convert(command.layerId)
           ? { layerId: command.layerId, outputType: 'vector' as const }
           : null
       ),
@@ -4474,7 +4473,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       rasterizeText: rasterizeActiveTextLayerCommand,
       convertTextToShape: () => {
         const layerId = imageDocumentRef.current?.activeLayerId;
-        if (layerId) requestTextToShape(layerId);
+        if (layerId) textToShape.intent.request(layerId);
       },
       layerViaCopy,
       rename: focusActiveLayerName,
@@ -4572,7 +4571,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         void textEditingEntry.selectAndEnter(layerId);
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
-      onConvertTextToShape={requestTextToShape}
+      onConvertTextToShape={textToShape.intent.request}
       onRemoveBackground={backgroundRemovalController.request}
       onSelectionChange={handleLayerSelectionChange}
       inspectorTarget={propertiesTarget}
@@ -4659,31 +4658,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }));
   };
 
-  function requestTextToShape(layerId: LayerId) {
-    const layer = imageDocumentRef.current
-      ? findDocumentLayer(imageDocumentRef.current, layerId)
-      : null;
-    if (layer?.type !== 'text' || layer.locks.all || layer.locks.pixels) return;
-    textEditingController.finish();
-    textCreationInteraction.cancelPoint();
-    textCreationInteraction.cancelParagraph();
-    editorDialogs.requestTextToShape({ layerId });
-  }
-
-  function commitTextToShape(layerId: LayerId) {
-    setGradeStatus('Converting text to editable shapes...');
-    void executeRegisteredCommand('text.convertToShape', { layerId }).then((result) => {
-      setGradeStatus(result.status === 'completed' ? 'Text converted to editable shapes.' : null);
-      if (result.status === 'rejected') setError(result.message);
-    }).catch((reason) => {
-      if (reason instanceof DOMException && reason.name === 'AbortError') {
-        setGradeStatus(null);
-        return;
-      }
-      setGradeStatus(null);
-      setError(reason instanceof Error ? reason.message : 'Text could not be converted to shapes.');
-    });
-  }
   const updateWarp = (change: Partial<EditorSession['warp']>) => {
     setEditorSession((current) => ({
       ...current,
@@ -5146,7 +5120,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             foregroundColor: editorSession.brush.color,
             backgroundColor: editorSession.brush.backgroundColor,
             onFill: fillActiveTarget,
-            onConvertTextToShape: commitTextToShape,
             onError: setError,
             release: releaseService,
             dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),

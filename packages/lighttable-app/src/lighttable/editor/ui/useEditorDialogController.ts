@@ -1,11 +1,7 @@
 import { useCallback, useState } from 'react';
-import type { LayerId } from '../document/documentTypes';
 import type { PdfExportPreflightRequest } from '../pdf/PdfExportPreflightDialog';
 import type { MissingFontRecoveryRequest } from '../../application/text/textRecoveryRequest';
-
-export interface TextToShapeRequest {
-  readonly layerId: LayerId;
-}
+import type { TextToShapeConfirmation } from '../../application/text/TextToShapeIntent';
 
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
@@ -29,7 +25,7 @@ export const useEditorDialogController = () => {
   const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [commandHelpOpen, setCommandHelpOpen] = useState(false);
-  const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeRequest | null>(null);
+  const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeConfirmation | null>(null);
   const [missingFontRecoveryRequest, setMissingFontRecoveryRequest] =
     useState<MissingFontRecoveryRequest | null>(null);
   const [pdfExportPreflightRequest, setPdfExportPreflightRequest] = useState<PdfExportPreflightRequest | null>(null);
@@ -97,10 +93,11 @@ export const useEditorDialogController = () => {
     openNewGuide: useCallback(() => setNewGuideOpen(true), []),
     closeNewGuide: useCallback(() => setNewGuideOpen(false), []),
     requestTextToShape: useCallback(
-      (request: TextToShapeRequest) => setTextToShapeRequest(request),
+      (request: TextToShapeConfirmation) => setTextToShapeRequest(current => request.isCurrent() ? request : current),
       []
     ),
-    closeTextToShape: useCallback(() => setTextToShapeRequest(null), []),
+    closeTextToShape: useCallback((request: TextToShapeConfirmation) =>
+      setTextToShapeRequest(current => current === request ? null : current), []),
     requestMissingFontRecovery: useCallback(
       (request: MissingFontRecoveryRequest) => setMissingFontRecoveryRequest(request),
       []

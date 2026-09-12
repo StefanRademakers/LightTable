@@ -413,10 +413,15 @@ export class FlowTextEditingSessionController {
   }
 
   endFormatting() {
-    if (this.openGroup !== 'format') return false;
+    return this.endFormattingResult() === 'committed';
+  }
+
+  endFormattingResult(): 'committed' | 'unchanged' | 'rejected' {
+    if (this.openGroup !== 'format') return 'rejected';
+    const unchanged = this.transaction.unchanged;
     const changed = this.commitOpenGroup();
     this.formattingInsertionBefore = null;
-    return changed;
+    return changed ? 'committed' : unchanged ? 'unchanged' : 'rejected';
   }
 
   cancelFormatting() {

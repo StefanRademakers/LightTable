@@ -1,6 +1,8 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,685 physical lines. O03c.6 moves text presentation/trace
+Current accepted root: 5,658 physical lines. O05a.3 moves text-to-shape confirmation
+and mounted source lifetime into its bounded owners; existing semantic conversion
+transaction and vector algorithms are unchanged. O03c.6 moves text presentation/trace
 coalescing and reset into its bounded owner; document-opening guards retire at
 layout commit, before deferred callbacks can reach a successor. Canonical text
 and rendering algorithms are unchanged. Exact evidence is in PROGRESS.
@@ -10,6 +12,33 @@ editor read barrier; existing GenAI command retains discovery/import/submission.
 Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
+
+### Next mounted adjustment command binding
+
+Text-to-shape is accepted. Next extract the Basic/Detail/Snapshot/Structure adapters
+and two adjustment queries into one bounded binding, not another transaction
+controller. Root currently repeats target/Properties presentation policy and
+terminal orchestration. Retain existing semantic executors and projectors.
+
+- Outer protection is real: command service serializes validation, settlement
+  and dispatch; mounted admission pins registered session/renderer/scope. Missing
+  local checks alone do not establish an admission bypass.
+- Source-confirmed query clock mismatch: root queries stamp ImageDocument.revision
+  while expectedDocumentRevision uses DocumentSession.documentRevision. Processing-
+  only changes can advance just the latter. Read document, processing and query
+  stamp from one current snapshot of the registered session; retain distinct
+  authored layer/attachment revision semantics.
+- Basic/Detail/Snapshot history publishers currently retain the initial
+  `presented` choice. Replay must resolve current Properties ownership through
+  the existing synchronizer, not overwrite a later contextual panel because
+  it was visible at command time. History must remain valid after renderer rebind.
+- Still requires proof, not a claimed reproduced bug: global processing publishes
+  before history.record, outside document-mutation change. Exercise actual busy
+  history/reservation before choosing a repair. Never block legitimate undo/redo
+  by adding admission to the general processing publisher.
+
+Scope excludes other command families and inactive capability expansion. No
+new queue, GPU work or pointer-frequency subscription is needed for this binding.
 
 Retained pre-O07e inventory (resolved as recorded in PROGRESS):
 existing genai/application/removeObjectCommand owns

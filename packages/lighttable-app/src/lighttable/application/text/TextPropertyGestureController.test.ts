@@ -5,7 +5,7 @@ import { createImageDocument, type ImageDocument, type LayerId } from '../../edi
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
 import type { DocumentSessionId } from '../documents/documentSession';
-import type { FlowTextEditingSessionController } from './flowTextEditingSession';
+import { FlowTextEditingSessionController } from './flowTextEditingSession';
 import { TextPropertyGestureController } from './TextPropertyGestureController';
 
 const idleEditing = () => ({
@@ -15,6 +15,47 @@ const idleEditing = () => ({
 }) as unknown as FlowTextEditingSessionController;
 
 describe('TextPropertyGestureController', () => {
+  it.each(['noop', 'changed', 'blocked', 'stale', 'canceled', 'failed'] as const)(
+    'uses the actual flow formatting terminal before transition: %s', mode => {
+      let document = createTextLayer(createImageDocument('Text', 320, 200, 'background'),
+        createDefaultTextLayerData(), 'Headline');
+      let blocked = false;
+      const failure = new Error('History admission failed');
+      const history = vi.fn(() => { if (mode === 'failed') throw failure; });
+      const mutations = createDocumentMutationController(() => ({
+        getDocument: () => document, applySnapshot: next => { document = next; },
+        previewSnapshot: vi.fn(), discardPreview: vi.fn(), pushHistoryEntry: history,
+        isMutationBlocked: () => blocked
+      }));
+      const editing = new FlowTextEditingSessionController(() => ({
+        getDocument: () => document, documentMutations: mutations,
+        onCommitted: vi.fn(), reportError: vi.fn(), requestPreviewFrame: () => 1, cancelPreviewFrame: vi.fn()
+      }));
+      const record = vi.fn();
+      const controller = new TextPropertyGestureController(() => ({
+        getDocument: () => document, getCommandDocumentId: () => 'source' as DocumentSessionId,
+        documentMutations: mutations, textEditing: editing, recordObservedCommand: record,
+        reportError: vi.fn(), requestFrame: () => 1, cancelFrame: vi.fn()
+      }));
+      expect(editing.begin(document.activeLayerId!)).toBe(true);
+      expect(controller.begin(document.activeLayerId)).toBe(true);
+      if (mode !== 'noop') controller.apply({ fontSize: 48 });
+      if (mode === 'blocked') blocked = true;
+      if (mode === 'stale') document = { ...document, revision: document.revision + 1 };
+      if (mode === 'canceled') mutations.cancelActive();
+      const next = vi.fn();
+      if (mode === 'failed') {
+        expect(() => controller.finishBeforeTransition(next)).toThrow(failure);
+        expect(next).not.toHaveBeenCalled(); return;
+      }
+      const accepted = mode === 'noop' || mode === 'changed';
+      expect(controller.finishBeforeTransition(next)).toBe(accepted);
+      expect(next).toHaveBeenCalledTimes(accepted ? 1 : 0);
+      expect(history).toHaveBeenCalledTimes(mode === 'changed' ? 1 : 0);
+      expect(record).toHaveBeenCalledTimes(mode === 'changed' ? 1 : 0);
+      if (accepted) expect(editing.getSnapshot().status).toBe('idle');
+    });
+
   it.each(['noop', 'changed', 'blocked', 'stale', 'canceled', 'failed'] as const)(
     'admits a workspace transition only after an accepted document terminal: %s', (mode) => {
       let document = createTextLayer(createImageDocument('Text', 320, 200, 'background'),
@@ -110,7 +151,7 @@ describe('TextPropertyGestureController', () => {
         selection: { anchor: 7, focus: 2 }
       }),
       beginFormatting: vi.fn(() => true), format,
-      endFormatting: vi.fn(() => true), cancelFormatting, finish: vi.fn()
+      endFormattingResult: vi.fn(() => 'committed'), cancelFormatting, finish: vi.fn()
     } as unknown as FlowTextEditingSessionController;
     const document = { id: 'doc-1', activeLayerId: 'text-1' } as ImageDocument;
     const controller = new TextPropertyGestureController(() => ({
@@ -141,7 +182,7 @@ describe('TextPropertyGestureController', () => {
       }),
       beginFormatting: vi.fn(() => true),
       format: vi.fn(),
-      endFormatting: vi.fn(() => { order.push('commit-a'); return true; }),
+      endFormattingResult: vi.fn(() => { order.push('commit-a'); return 'committed'; }),
       cancelFormatting: vi.fn(),
       finish: vi.fn(() => { order.push('finish-editor-a'); return true; })
     } as unknown as FlowTextEditingSessionController;

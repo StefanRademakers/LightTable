@@ -10,7 +10,10 @@ import type {
 export interface TextToShapeCommandDependencies {
   getDocument(): ImageDocument | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
-  resolveVectorPaths(layerId: LayerId, signal: AbortSignal): Promise<readonly VectorPath[] | null>;
+  captureSource(): {
+    isCurrent(): boolean;
+    resolveVectorPaths(layerId: LayerId, signal: AbortSignal): Promise<readonly VectorPath[] | null>;
+  };
 }
 
 /** Owns the one-shot, one-history-entry boundary for Convert to Shape. */
@@ -32,6 +35,8 @@ export class TextToShapeCommandController {
     const before = dependencies.getDocument();
     const layer = before && findDocumentLayer(before, layerId);
     if (!before || layer?.type !== 'text' || layer.locks.all || layer.locks.pixels) return false;
+    const source = dependencies.captureSource();
+    if (!source.isCurrent()) return false;
     const controller = new AbortController();
     const transaction = dependencies.documentMutations.begin(
       'text.convert-to-shape',
@@ -45,8 +50,9 @@ export class TextToShapeCommandController {
     const operation = { controller, transaction };
     this.operation = operation;
     try {
-      const paths = await dependencies.resolveVectorPaths(layerId, controller.signal);
-      if (controller.signal.aborted || this.operation !== operation || !paths?.length) {
+      if (!source.isCurrent()) return false;
+      const paths = await source.resolveVectorPaths(layerId, controller.signal);
+      if (!source.isCurrent() || controller.signal.aborted || this.operation !== operation || !paths?.length) {
         transaction.cancel();
         return false;
       }
@@ -56,7 +62,7 @@ export class TextToShapeCommandController {
         transaction.cancel();
         return false;
       }
-      return transaction.commit();
+      return source.isCurrent() && transaction.commit();
     } finally {
       transaction.cancel();
       if (this.operation === operation) this.operation = null;

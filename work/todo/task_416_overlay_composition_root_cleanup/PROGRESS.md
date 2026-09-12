@@ -1,5 +1,43 @@
 # Task 416 progress
 
+## O05a.3 — Text-to-shape intent and concrete source lifetime (accepted)
+
+- TextToShapeIntent owns confirmation token, exact post-text-terminal target and
+  current-only status/error delivery. useTextToShape owns concrete session/renderer
+  lifetime and composes the existing single-transaction conversion controller.
+  Root loses its controller ref/cleanup, live glyph resolver and request/Promise
+  recipes. Dialog stays presentation-only; deferred publish/close use request
+  identity. UI labels, geometry algorithms and command queue are unchanged.
+- Confirm passes the canonical revision into existing queued admission. A target
+  changed while the dialog is open is visibly rejected; retired contexts remain
+  quiet. History still restores the exact editable text through the existing owner.
+- Critic found an existing terminal ambiguity: untouched active flow formatting
+  returned changed=false and strict transition incorrectly rejected it. Existing
+  FlowTextEditingSession now exposes committed/unchanged/rejected using the exact
+  transaction's unchanged predicate before closure. Boolean endFormatting keeps
+  its existing changed-only meaning. Failed/stale/canceled edits do not gain an
+  admission bypass. Exact layout epochs protect successor cleanup; ordinary
+  rerenders do not retire pending glyph work.
+- Final critic PASS after repair.72 focused tests/7 files, surrounding text and
+  transition331/35 and command-service113 pass; app typecheck/boundary pass.
+  Hook scheduling tests are simulated scheduling, not native browser timing.
+- Old package19600 baseline run-X8VikS passed ordinary Type Cancel/Convert,
+  property settlement and exact representation history. Fresh package55631:
+  run-JoGqvd passes all of those plus active flow -> untouched Properties focus,
+  14 native vector paths, real A/B tabs and semantic text.format while the actual
+  confirmation is open. Obsolete Convert reports one visible error, preserves
+  changed text/pixels and adds no history. Final UI and PNG inspected by root.
+- Same package text-property-transition run-5Q2wfN passes real Size/tab/close,
+  no-op focus and exact PNG UndoRedo. Harness-only run-KJ9cyJ failed on thumbnail
+  title lookup before flow entry; corrected to the existing thumbnail selector,
+  failure retained. No production repair was made for the selector.
+- Overlay5,685 ->5,658 physical lines (ceiling5,659); new intent96 and hook72.
+  WebGpuEngine stays4,003. No new GPU work, readback or frame subscription.
+  This does not resolve O08's broader interactive text-preview readiness debt,
+  native OS focus matrix or all text entry points. Remaining text rasterize and
+  positioned-recovery UI intents still need ownership review. Next extraction:
+  mounted adjustment commands/queries, inventoried in OWNERSHIP_INVENTORY.
+
 ## O07e — Scoped Remove Object source and submission (accepted)
 
 - GenAiRemoveObjectIntent owns mounted request/notice lifetime; its thin hook

@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O07e scoped Remove Object capture and submission.
-Packaged production export/import and real menu/tab retirement pass; provider
-submission is locally simulated, not paid generation/result placement proof.
-Earlier O03c.6 and document-wide adjustment admission remain accepted. Style-export
+Latest bounded acceptance: O05a.3 scoped text-to-shape confirmation and exact
+renderer lifetime, including truthful untouched flow-formatting terminal. Real
+Type menu/conversion/history and obsolete confirmation rejection pass. O07e
+Remove Object remains accepted with local-provider-fixture limits. Style-export
 repair and neutral-Curves precision debt remain recorded in Task416 PROGRESS.
-Root is 5,685 physical lines. Remaining target/GenAI/command families, cross-flow
+Root is 5,658 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -269,6 +269,11 @@ class names: reuse existing owners before creating a new one.
     - [x] O05a.2c2: text pointer precedence and deferred miss routing. Existing
       gesture owners retain their own state; delayed replay reaches the actual
       handle/draft owner. Critic PASS; packaged Type/Paragraph/Path Actions pass.
+  - [x] O05a.3: scoped text-to-shape intent/confirmation and concrete glyph-source
+    lifetime. Existing conversion transaction retained; raw latest-target dialog
+    handoff removed. Critic repaired active formatting no-op terminal. Packaged
+    Type Cancel/Convert, property settlement, exact UndoRedo through tabs and
+    semantic target change during confirmation pass. Other text intents remain.
   - [x] O05b.1: vector/shape/gradient property projection and intents; one
     toolbar/context gradient route, creation options separate from geometry.
     Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property

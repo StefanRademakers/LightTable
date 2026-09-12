@@ -21,6 +21,7 @@ type Gesture =
       readonly commandDocumentId: DocumentSessionId;
       readonly layerId: LayerId;
       readonly range: { readonly start: number; readonly end: number } | null;
+      terminal: 'committed' | 'unchanged' | 'rejected';
       style: TextStylePatch;
       paragraph: ParagraphStylePatch;
       recordable: boolean;
@@ -80,7 +81,7 @@ export class TextPropertyGestureController {
           start: Math.min(editing.selection.anchor, editing.selection.focus),
           end: Math.max(editing.selection.anchor, editing.selection.focus)
         },
-        style: {}, paragraph: {}, recordable: true
+        terminal: 'rejected', style: {}, paragraph: {}, recordable: true
       };
       return true;
     }
@@ -149,7 +150,7 @@ export class TextPropertyGestureController {
     if (!gesture) return false;
     const dependencies = this.dependencies();
     const changed = gesture.kind === 'text'
-      ? dependencies.textEditing.endFormatting()
+      ? (gesture.terminal = dependencies.textEditing.endFormattingResult()) === 'committed'
       : gesture.projection.commit();
     this.gesture = null;
     if (!changed || !gesture.recordable) return changed;
@@ -192,10 +193,10 @@ export class TextPropertyGestureController {
   finishBeforeTransition(transition: () => void) {
     const gesture = this.gesture;
     if (gesture) {
-      const changed = this.commit();
+      this.commit();
       // A no-op commit is a valid terminal; false alone also represents stale,
       // canceled or rejected document work and must not admit the next tab.
-      if (gesture.kind === 'document' ? gesture.terminal.reason !== 'commit' : !changed) return false;
+      if (gesture.kind === 'document' ? gesture.terminal.reason !== 'commit' : gesture.terminal === 'rejected') return false;
     }
     const editing = this.dependencies().textEditing;
     const snapshot = editing.getSnapshot();

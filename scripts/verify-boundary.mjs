@@ -979,6 +979,9 @@ function verifyCommandRoutingCutover(relativePath, source) {
       'layerPanelController.moveActive(direction)',
       '...layerPanelController',
       'selectionSessionController.clear();',
+      'function requestTextToShape(',
+      'function commitTextToShape(',
+      'new TextToShapeCommandController(',
       'execution ?? textToShapeController.convert'
     ];
     for (const owner of forbiddenFallbackOwners) {
