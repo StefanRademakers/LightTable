@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { DocumentSession } from '../../application/documents/documentSession';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
@@ -7,6 +7,9 @@ import type { SmartSelectionBackend, SmartSelectionPreparationState } from '../.
 import type { SmartSelectionPreviewRenderer } from '../../application/tools/smartSelection/SmartSelectionPreviewLease';
 import { configuredSmartSelectionBackendProfile, createSmartSelectionBackend } from '../../application/tools/smartSelection/smartSelectionBackendFactory';
 import type { LightTableCommandService } from '../../application/commands/lightTableCommandService';
+import { smartSelectionProcessingEqual } from '../../application/tools/smartSelection/SmartSelectionSourceSession';
+
+const subscribeToNothing = () => () => undefined;
 
 interface SmartSelectionRuntime {
   readonly session: DocumentSession | undefined;
@@ -40,6 +43,8 @@ export const useSmartSelectionBinding = (
   const [backend] = useState(createBackend);
   const [backendIdentity, setBackendIdentity] = useState(backend.identity);
   const [preparation, setPreparation] = useState<SmartSelectionPreparationState>({ phase: 'idle' });
+  const processing = useSyncExternalStore(runtime.session?.subscribe ?? subscribeToNothing,
+    () => runtime.session?.getSnapshot().processing ?? null);
   const [controller] = useState(() => {
     const captureScope = () => {
       const opening = latest.current.runtime;
@@ -58,6 +63,7 @@ export const useSmartSelectionBinding = (
     return new SmartSelectionToolController({
       captureScope,
       getDocument: () => latest.current.runtime.session?.getSnapshot().document ?? null,
+      getProcessing: () => latest.current.runtime.session?.getSnapshot().processing ?? null,
       getRenderer: () => latest.current.runtime.renderer,
       isRendererReady: () => latest.current.runtime.ready,
       getOptions: () => latest.current.host.getOptions(),
@@ -88,6 +94,19 @@ export const useSmartSelectionBinding = (
     };
   }, [controller]);
   useLayoutEffect(() => {
+    const session = runtime.session;
+    if (!session) return;
+    let observed = session.getSnapshot().processing;
+    return session.subscribe(() => {
+      const next = session.getSnapshot().processing;
+      if (smartSelectionProcessingEqual(observed, next)) return;
+      observed = next;
+      if (latest.current.runtime.session === session) controller.invalidate();
+      // No export here: renderer processing publication may still follow in
+      // this synchronous commit. Preparation belongs to the layout binding below.
+    });
+  }, [controller, runtime.session]);
+  useLayoutEffect(() => {
     controller.invalidate();
     if (!runtime.enabled) return;
     setPreparation({ phase: 'preparing', message: 'Loading Object Selection model…' });
@@ -95,6 +114,7 @@ export const useSmartSelectionBinding = (
     return () => controller.clearPreview();
   }, [controller, runtime.session, runtime.renderer, runtime.lifecycle, runtime.generation,
     runtime.ready, runtime.sourceReady, runtime.enabled, runtime.sampleAllLayers,
-    runtime.document?.id, runtime.document?.revision, runtime.document?.activeLayerId]);
+    runtime.document?.id, runtime.document?.revision, runtime.document?.activeLayerId,
+    processing?.adjustments, processing?.groupVisibility, processing?.globalGradeStrength]);
   return { controller, backendIdentity, preparation };
 };

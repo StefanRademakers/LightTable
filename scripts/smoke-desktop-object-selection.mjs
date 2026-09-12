@@ -12,6 +12,7 @@ const interactionMode = process.argv.includes('--subject') ? 'subject'
   : process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
 const refineNegative = process.argv.includes('--negative');
 const lifetimeMode = process.argv.includes('--lifetime');
+const processingMode = process.argv.includes('--processing');
 const optionValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
@@ -286,6 +287,45 @@ try {
         throw new Error(`Select Subject Action playback did not complete: ${await recorder.textContent()}`);
       });
   }
+  let processingEvidence;
+  if (processingMode) {
+    const driver = await attachLightTableAutomation(page, 'object-selection-processing');
+    const documentId = (await driver.queryWorkspace()).activeDocumentId;
+    const readPixels = async () => {
+      const state = await driver.queryDocument(documentId);
+      const result = await driver.requestDocumentPreview(documentId, state.canonicalRevision, 512);
+      const artifact = await driver.readArtifact(result?.artifact?.id ?? result?.id);
+      if (!artifact?.bytes?.length) throw new Error('Processing proof could not read document pixels.');
+      return artifact.bytes;
+    };
+    const beforePixels = await readPixels();
+    const openingTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ ?? []);
+    const preparedCount = openingTrace.filter(entry => entry.event === 'prepared').length;
+    const committedCount = openingTrace.filter(entry => entry.event === 'committed').length;
+    const changed = await driver.execute(documentId, 'grade.setBasic', {
+      target: { kind: 'document' }, values: { exposureEV: 0.75 }
+    });
+    if (changed?.status !== 'completed') throw new Error(`Global Grade failed: ${JSON.stringify(changed)}`);
+    await page.waitForFunction(count => (globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ ?? [])
+      .filter(entry => entry.event === 'prepared').length > count,
+    preparedCount, { timeout: inferenceTimeoutMs });
+    const afterPixels = await readPixels();
+    if (Buffer.from(beforePixels).equals(Buffer.from(afterPixels))) {
+      throw new Error('Global processing changed no rendered pixels.');
+    }
+    await objectSelectionSettings.getByRole('button', { name: 'Select Subject' }).click();
+    await page.waitForFunction(count => (globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ ?? [])
+      .filter(entry => entry.event === 'committed').length > count,
+    committedCount, { timeout: inferenceTimeoutMs });
+    const afterTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ ?? []);
+    const prepared = afterTrace.filter(entry => entry.event === 'prepared');
+    const beforeKey = openingTrace.filter(entry => entry.event === 'prepared').at(-1)?.detail?.source;
+    const afterKey = prepared.at(-1)?.detail?.source;
+    if (!afterKey || afterKey === beforeKey) throw new Error('Smart Selection reused the old processing source.');
+    processingEvidence = { changedPixels: true, beforeKey, afterKey,
+      beforePreparedCount: preparedCount, afterPreparedCount: prepared.length,
+      freshSubjectCommitted: true };
+  }
   const unexpectedConsoleErrors = consoleErrors.filter((message) => !(
     message.includes('onnxruntime')
     && (message.includes("can't constant fold")
@@ -331,7 +371,7 @@ try {
     lifetimeEvidence.afterNormalInferenceAndReplay = { secondary: after };
   }
   const report = {
-    passed: true, lifetimeEvidence,
+    passed: true, lifetimeEvidence, processingEvidence,
     caseName, sourceFile, backendProfile, observedModelIds,
     interactionMode, refineNegative, clickXRatio, clickYRatio,
     visibleCommitMs, finalCoverage, selectionTrace, smartSelectionTrace, pageErrors,
@@ -351,6 +391,7 @@ try {
     interactionMode,
     refineNegative,
     lifetimeMode,
+    processingMode,
     clickXRatio,
     clickYRatio,
     passed: false,

@@ -29,6 +29,7 @@ export const smartSelectionExcludedLayerIds = (
 };
 
 export const createSmartSelectionSource = async (
+  key: string,
   document: ImageDocument,
   renderer: SmartSelectionSourceRenderer,
   sampleAllLayers: boolean,
@@ -37,11 +38,7 @@ export const createSmartSelectionSource = async (
   const excludedLayerIds = smartSelectionExcludedLayerIds(document, sampleAllLayers, sourceLayerId);
   const image = await renderer.exportPng({ excludedLayerIds });
   return {
-    key: [
-      document.id,
-      document.revision,
-      sampleAllLayers ? 'composite' : sourceLayerId
-    ].join(':'),
+    key,
     documentRevision: document.revision,
     width: document.width,
     height: document.height,

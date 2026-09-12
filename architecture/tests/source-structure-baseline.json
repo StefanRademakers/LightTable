@@ -15,12 +15,12 @@
     },
     "packages/lighttable-app/src/lighttable/application/tools/smartSelection/SmartSelectionToolController.ts": {
       "baselineLines": 549,
-      "maxLines": 605,
+      "maxLines": 446,
       "classification": "cohesive-heavy",
-      "responsibilities": ["Smart Selection interaction", "source/inference request lifetime", "scoped candidate preview and selection commit"],
-      "lifecycleOwners": ["mounted tool runtime", "exact inference request", "source preparation and candidate preview lease"],
+      "responsibilities": ["Smart Selection interaction", "scoped candidate preview and selection commit"],
+      "lifecycleOwners": ["mounted tool runtime", "candidate preview lease"],
       "productRisk": "high",
-      "decision": "Task416 O05e.2 critic-reviewed soft-limit exception: added exact lifetime guards do not add UI/document/history authority. No further growth. Next coherent decomposition moves the complete source/inference lifetime with global-processing freshness; do not mechanically split prepareSource away from shared invalidation/disposal."
+      "decision": "Task416 O05e.3 removes complete source/inference lifetime into SmartSelectionSourceSession, including canonical processing freshness. The former605-line exception is retired; retain this lower ceiling and keep source preparation, cache and backend disposal out of the interaction owner."
     },
     "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": {
       "baselineLines": 3921,

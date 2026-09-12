@@ -4,6 +4,8 @@ import { createDefaultSmartSelectionOptions } from '../../../editor/selection/se
 import type { SelectionSessionController } from '../selection/useSelectionSessionController';
 import type { SmartSelectionBackend, SmartSelectionCandidate } from './SmartSelectionBackend';
 import { SmartSelectionToolController } from './SmartSelectionToolController';
+import { createDefaultAdjustments } from '../../../types';
+import { createDefaultGroupVisibility } from '../../adjustments/groupVisibility';
 
 const mask = { width: 8, height: 6, data: new Uint8Array(48).fill(255) };
 
@@ -35,6 +37,8 @@ const harness = () => {
     dispose: vi.fn()
   };
   const options = createDefaultSmartSelectionOptions();
+  let processing = { adjustments: createDefaultAdjustments(),
+    groupVisibility: createDefaultGroupVisibility(), globalGradeStrength: 100 };
   const setDraft = vi.fn();
   const setStatus = vi.fn();
   const onPreparationChange = vi.fn();
@@ -46,6 +50,7 @@ const harness = () => {
       return { isCurrent: () => runtime === opening };
     },
     getDocument: () => document,
+    getProcessing: () => processing,
     getRenderer: () => renderer,
     isRendererReady: () => true,
     getOptions: () => options,
@@ -57,10 +62,64 @@ const harness = () => {
   }, backend);
   return { backend, controller, document, options, rasterMask, renderer, setDraft,
     onSelectionCommitted, setStatus, onPreparationChange,
-    replaceRuntime: () => { runtime = {}; } };
+    replaceRuntime: () => { runtime = {}; },
+    changeProcessing: (change: Partial<typeof processing>) => { processing = { ...processing, ...change }; } };
 };
 
 describe('SmartSelectionToolController', () => {
+  it.each([
+    { adjustments: { ...createDefaultAdjustments(), exposureEV: 2 } },
+    { groupVisibility: { ...createDefaultGroupVisibility(), globalGrade: false } },
+    { globalGradeStrength: 40 }
+  ])('prepares a fresh keyed source after canonical processing changes: %o', async change => {
+    const host = harness();
+    await expect(host.controller.prepare()).resolves.toBe(true);
+    const before = vi.mocked(host.backend.prepare).mock.calls[0]![0];
+    host.changeProcessing(change);
+    await expect(host.controller.prepare()).resolves.toBe(true);
+    const after = vi.mocked(host.backend.prepare).mock.calls[1]![0];
+    expect(after.key).not.toBe(before.key);
+    expect(after.documentRevision).toBe(before.documentRevision);
+    await expect(host.controller.prepare()).resolves.toBe(true);
+    expect(host.renderer.exportPng).toHaveBeenCalledTimes(2);
+    expect(host.backend.prepare).toHaveBeenCalledTimes(2);
+    host.controller.dispose();
+  });
+
+  it('rejects processing-stale PNG readback before backend admission', async () => {
+    const host = harness();
+    let release!: (image: Blob) => void;
+    host.renderer.exportPng.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const old = host.controller.prepare();
+    host.changeProcessing({ globalGradeStrength: 25 });
+    release(new Blob(['old']));
+    await expect(old).resolves.toBe(false);
+    expect(host.backend.prepare).not.toHaveBeenCalled();
+    await expect(host.controller.prepare()).resolves.toBe(true);
+    expect(host.backend.prepare).toHaveBeenCalledOnce();
+    host.controller.dispose();
+  });
+
+  it.each(['resolve', 'reject'] as const)('rejects pending semantic inference after processing changes (%s)', async terminal => {
+    const host = harness();
+    let resolve!: (candidates: SmartSelectionCandidate[]) => void;
+    let reject!: (reason: unknown) => void;
+    vi.mocked(host.backend.selectSubject!).mockImplementationOnce(() => new Promise((yes, no) => {
+      resolve = yes; reject = no;
+    }));
+    const pending = host.controller.selectSubject();
+    await vi.waitFor(() => expect(host.backend.selectSubject).toHaveBeenCalledOnce());
+    host.changeProcessing({ globalGradeStrength: 25 });
+    host.setStatus.mockClear();
+    if (terminal === 'resolve') resolve([{ id: 'old', score: 1, mask }]);
+    else reject(new Error('Retired source failed'));
+    await expect(pending).resolves.toBe(false);
+    expect(host.rasterMask).not.toHaveBeenCalled();
+    expect(host.onSelectionCommitted).not.toHaveBeenCalled();
+    expect(host.setStatus).not.toHaveBeenCalled();
+    host.controller.dispose();
+  });
+
   it.each(['subject', 'hover', 'point'] as const)('suppresses obsolete %s worker failures after a document revision changes', async kind => {
     const host = harness();
     let reject!: (reason: unknown) => void;

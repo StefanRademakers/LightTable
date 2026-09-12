@@ -9,6 +9,9 @@ import { useSmartSelectionBinding } from './useSmartSelectionBinding';
 interface Effect { dependencies: readonly unknown[]; setup(): void | (() => void); cleanup?: () => void; changed: boolean }
 const hooks = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: [] as Effect[] }));
 vi.mock('react', () => ({
+  useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => {
+    hooks.cursor += 1; return getSnapshot();
+  },
   useRef: (value: unknown) => hooks.slots[hooks.cursor++] ??= { current: value },
   useState: (initial: unknown) => {
     const index = hooks.cursor++;
@@ -129,4 +132,44 @@ it('rejects disposed sessions before React cleanup and starts on null-to-ready r
   host.opening.dispose(); host.status.mockClear();
   await expect(binding.controller.selectSubject()).resolves.toBe(false);
   expect(host.status).not.toHaveBeenCalled();
+});
+
+it('retires displayed hover on processing publication without readback before renderer publication finishes', async () => {
+  const host = fixture();
+  host.setRuntime({ enabled: true });
+  const binding = host.render(); flush();
+  vi.mocked(host.backend.selectPrompt).mockResolvedValue([{ id: 'hover', score: 1,
+    mask: { width: 8, height: 6, data: new Uint8Array(48).fill(255) } }]);
+  await binding.controller.prepare();
+  binding.controller.hover({ x: 2, y: 2 });
+  await vi.waitFor(() => expect(host.renderer.setSmartSelectionPreview).toHaveBeenCalledWith(
+    expect.objectContaining({ width: 8, height: 6 })));
+  host.renderer.setSmartSelectionPreview.mockClear();
+  const exports = host.renderer.exportPng.mock.calls.length;
+  const document = host.opening.getSnapshot().document;
+  host.opening.publishProcessing({ globalGradeStrength: 25 });
+  expect(host.opening.getSnapshot().document).toBe(document);
+  expect(host.renderer.setSmartSelectionPreview).toHaveBeenCalledWith(null);
+  expect(host.renderer.exportPng).toHaveBeenCalledTimes(exports);
+  host.render(); flush();
+  await binding.controller.prepare();
+  expect(host.renderer.exportPng).toHaveBeenCalledTimes(exports + 1);
+  expect(host.backend.prepare).toHaveBeenCalledTimes(2);
+  host.opening.dispose();
+});
+
+it('retains its embedding across canonical selection and editor-only publications', async () => {
+  const host = fixture(); host.setRuntime({ enabled: true });
+  const binding = host.render(); flush();
+  await binding.controller.prepare();
+  const before = host.opening.getSnapshot().documentRevision;
+  host.opening.updateEditor(current => ({ ...current,
+    selectionRevision: current.selectionRevision + 1, pointerId: 41 }));
+  expect(host.opening.getSnapshot().documentRevision).toBeGreaterThan(before);
+  host.render(); flush();
+  await binding.controller.prepare();
+  expect(host.renderer.exportPng).toHaveBeenCalledOnce();
+  expect(host.backend.prepare).toHaveBeenCalledOnce();
+  expect(host.backend.disposePreparedSource).not.toHaveBeenCalled();
+  host.opening.dispose();
 });

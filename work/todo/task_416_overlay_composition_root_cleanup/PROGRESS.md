@@ -1,5 +1,33 @@
 # Task 416 progress
 
+## O05e.3 — Smart source/inference owner and freshness (accepted)
+
+- SmartSelectionSourceSession owns readback/preparation joining, source validity,
+  backend inference gate, status subscription and disposal. ToolController keeps
+  pointer/region/hover, candidate presentation and semantic selection commit.
+  Controller604 ->445 physical lines; audit605 ->446. New owner188 physical
+  lines; no replacement monster or second state/transaction authority.
+- Source key includes canonical processing adjustments/groupVisibility identity
+  and global strength, independent from ImageDocument content revision. A
+  canonical processing subscriber immediately retires stale candidates; layout
+  preparation occurs afterward, never inside synchronous canonical publication.
+  Selection/editor-only publications preserve warm embeddings. Ordinary Grade
+  previews do not canonically publish processing and add no per-sample readback.
+- Independent source critic PASS;62 focused tests and app typecheck/boundary
+  passed at frozen integration. Controlled tests cover stale readback/inference,
+  processing fields and actual-session candidate retirement/cache reuse.
+- Packaged source-processing-command proves global Exposure changes pixels and
+  source key from content revision0/processing-1 to revision0/processing-2,
+  followed by fresh successful subject commit. Subject Actions/Undo/replay also
+  passes; source-owner-lifetime preserves both documents across tool/tab departure;
+  source-owner-rectangle passes. Screenshot inspected. Reports under
+  tmp/object-selection-smoke/. Earlier source-processing-owner failure is a
+  harness method-name mistake, retained and corrected (execute, not executeDocument).
+- Visible subject13.56s cold and2.31s rebound, Rectangle6.95s include model costs,
+  not editor input latency. No whole-app performance/acceptance claim. Existing
+  ImageDocument-based invalidation remains conservative for metadata-only edits;
+  this slice does not introduce graph scans or promise minimal cache invalidation.
+
 ## O08 — Bounded guidance correction (whole gate remains open)
 
 - Removed obsolete active-contract permission for legacy/kernel feature switches

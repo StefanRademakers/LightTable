@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O05e.3 accepted: SmartSelectionSourceSession now owns all source/readback/inference
+and backend preparation lifetime. ToolController retains only tool interaction,
+preview and semantic selection commit (446 audit lines). Canonical processing
+invalidates candidates immediately; layout rebuilds sources after publication;
+selection/editor-only updates keep the cache. Critic,62 tests and real global
+processing/source-key/inference plus lifetime/Rectangle gates pass.
+
 O06c accepted: MountedLayerCommandAdapter and its exact registered-session binding
 replace root dispatch and asynchronous mask/copy handoffs. Existing panel/pixel/
 mutation owners retain algorithms and history. applyLayerCreation returns admitted
