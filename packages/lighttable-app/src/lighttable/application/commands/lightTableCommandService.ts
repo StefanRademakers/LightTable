@@ -35,6 +35,7 @@ import {
   type LightTableCommandExecutionContext, type LightTableCommandRequest, type LightTableCommandResult,
   type LightTableCreateDocumentOptions,
   type LightTableGradeClipboardCapture,
+  type GradeClipboardArtifactAssociation,
   type LightTablePixelClipboardCapture,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
@@ -307,6 +308,10 @@ export class LightTableCommandService {
   }
   registerGradeClipboardArtifact(capture: LightTableGradeClipboardCapture): LightTableArtifactMetadata {
     return this.gradeClipboardCommands.register(capture);
+  }
+  resolveGradeClipboardArtifact(capture: LightTableGradeClipboardCapture,
+    association?: GradeClipboardArtifactAssociation) {
+    return this.gradeClipboardCommands.resolveArtifact(capture, association);
   }
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null {
     return this.artifacts.query(artifactId);

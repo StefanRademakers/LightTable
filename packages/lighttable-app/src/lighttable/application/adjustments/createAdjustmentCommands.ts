@@ -49,7 +49,7 @@ import {
   createDefaultVignetteSettings,
   DEFAULT_VIGNETTE_SETTINGS
 } from '../../effects/vignette/settings';
-import { copyLightTableGrade, pasteGradeSettings } from '../../lightTableGradeClipboard';
+import { pasteGradeSettings } from '../../lightTableGradeClipboard';
 import {
   createDefaultAdjustments,
   DEFAULT_BASIC_ADJUSTMENTS,
@@ -95,7 +95,6 @@ export interface AdjustmentCommandPorts {
   readonly getAdjustments: () => BasicAdjustments;
   readonly setFocusPickerActive: (active: boolean) => void;
   readonly publishLensBlurViewportMode: (mode: LensBlurViewportMode) => void;
-  readonly getSourceName: () => string;
   readonly publishGradeStatus: (status: string) => void;
 }
 
@@ -193,7 +192,6 @@ export interface AdjustmentCommands {
   readonly resetAll: () => void;
   readonly resetGroup: (group: keyof GroupVisibility) => void;
   readonly resetGrade: () => void;
-  readonly copyGrade: () => void;
 }
 
 export const createAdjustmentCommands = (
@@ -739,11 +737,6 @@ export const createAdjustmentCommands = (
     });
   };
 
-  const copyGrade = () => {
-    copyLightTableGrade(ports.getAdjustments(), ports.getSourceName());
-    ports.publishGradeStatus('Grade copied');
-  };
-
   const resetGrade = () => {
     ports.endAdjustment();
     ports.changeAdjustments(
@@ -813,6 +806,5 @@ export const createAdjustmentCommands = (
     resetAll,
     resetGroup,
     resetGrade,
-    copyGrade,
   };
 };

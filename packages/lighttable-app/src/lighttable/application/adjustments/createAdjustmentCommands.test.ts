@@ -40,7 +40,6 @@ const createHarness = () => {
       focusPickerActive = active;
     },
     publishLensBlurViewportMode,
-    getSourceName: () => 'Test image',
     publishGradeStatus: vi.fn()
   };
   return {

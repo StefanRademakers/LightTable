@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { parseLightTableSettings } from './lightTableRecipe';
 import { cloneAdjustments, createDefaultAdjustments, type BasicAdjustments } from './types';
+import type { GradeClipboardArtifactAssociation } from './application/commands/lightTableCommandContract';
 
 const STORAGE_KEY = 'storybuilder:lighttable:grade-clipboard';
 const CHANGE_EVENT = 'storybuilder:lighttable-grade-clipboard-change';
@@ -10,6 +11,9 @@ export interface LightTableGradeClipboard {
   name: string;
   copiedAt: string;
   settings: BasicAdjustments;
+  /** Exact stored payload, including its unique copy token; never a timestamp match. */
+  readonly captureIdentity?: string;
+  readonly artifactAssociation?: GradeClipboardArtifactAssociation;
   /** Session-only source bytes used to carry an embedded Look across documents. */
   gradeLookAsset?: {
     readonly assetId: string;
@@ -19,7 +23,8 @@ export interface LightTableGradeClipboard {
 }
 
 let sessionGradeLookAsset: LightTableGradeClipboard['gradeLookAsset'];
-let sessionGradeCopiedAt = '';
+let sessionGradeIdentity = '';
+let sessionArtifactAssociation: GradeClipboardArtifactAssociation | undefined;
 
 const cloneSettings = (settings: BasicAdjustments): BasicAdjustments => cloneAdjustments(settings);
 
@@ -53,7 +58,10 @@ export const readLightTableGrade = (): LightTableGradeClipboard | null => {
       name: typeof candidate.name === 'string' && candidate.name.trim() ? candidate.name.trim() : 'Copied grade',
       copiedAt,
       settings,
-      ...(sessionGradeLookAsset && sessionGradeCopiedAt === copiedAt
+      captureIdentity: raw,
+      ...(sessionGradeIdentity === raw && sessionArtifactAssociation
+        ? { artifactAssociation: sessionArtifactAssociation } : {}),
+      ...(sessionGradeLookAsset && sessionGradeIdentity === raw
         ? { gradeLookAsset: sessionGradeLookAsset }
         : {})
     };
@@ -65,7 +73,8 @@ export const readLightTableGrade = (): LightTableGradeClipboard | null => {
 export const copyLightTableGrade = (
   settings: BasicAdjustments,
   name = 'Copied grade',
-  gradeLookAsset?: LightTableGradeClipboard['gradeLookAsset']
+  gradeLookAsset?: LightTableGradeClipboard['gradeLookAsset'],
+  artifactAssociation?: GradeClipboardArtifactAssociation
 ): LightTableGradeClipboard => {
   const grade: LightTableGradeClipboard = {
     type: 'lighttable-grade',
@@ -74,14 +83,28 @@ export const copyLightTableGrade = (
     settings: gradeClipboardSettings(settings),
     ...(gradeLookAsset ? { gradeLookAsset } : {})
   };
-  sessionGradeLookAsset = gradeLookAsset;
-  sessionGradeCopiedAt = grade.copiedAt;
   // Binary LUT data intentionally remains session-only. Persisting a multi-MiB
   // .cube in localStorage would make an otherwise tiny Grade clipboard brittle.
   const { gradeLookAsset: _sessionOnlyAsset, ...serializable } = grade;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializable));
+  const identity = JSON.stringify({ ...serializable, copyToken: crypto.randomUUID() });
+  window.localStorage.setItem(STORAGE_KEY, identity);
+  sessionGradeLookAsset = gradeLookAsset;
+  sessionGradeIdentity = identity;
+  sessionArtifactAssociation = artifactAssociation;
   window.dispatchEvent(new Event(CHANGE_EVENT));
-  return grade;
+  return { ...grade, captureIdentity: identity, ...(artifactAssociation ? { artifactAssociation } : {}) };
+};
+
+/** Paste may register an evicted/persisted capture, but must not perform another Copy. */
+export const associateLightTableGradeArtifact = (
+  grade: LightTableGradeClipboard,
+  association: GradeClipboardArtifactAssociation
+): boolean => {
+  if (!grade.captureIdentity || window.localStorage.getItem(STORAGE_KEY) !== grade.captureIdentity) return false;
+  sessionGradeIdentity = grade.captureIdentity;
+  sessionGradeLookAsset = grade.gradeLookAsset;
+  sessionArtifactAssociation = association;
+  return true;
 };
 
 export const useLightTableGradeClipboard = () => {

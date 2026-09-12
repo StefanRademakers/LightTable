@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultAdjustments } from './types';
 import {
   copyLightTableGrade,
+  associateLightTableGradeArtifact,
   pasteGradeSettings,
   readLightTableGrade
 } from './lightTableGradeClipboard';
@@ -61,5 +62,34 @@ describe('LightTable grade clipboard', () => {
     expect(copied?.gradeLookAsset?.source).toBe(lut);
     expect(copied?.settings.gradeLook).toEqual({ assetId: 'lut-cinema', strength: 62 });
     expect([...storage.values()][0]).not.toContain('LUT_3D_SIZE');
+  });
+
+  it('distinguishes identical copies in the same millisecond and never associates an older capture', () => {
+    vi.useFakeTimers();
+    try {
+      const association = { owner: {}, artifactId: 'artifact-1' };
+      const first = copyLightTableGrade(createDefaultAdjustments(), 'Grade', undefined, association);
+      const second = copyLightTableGrade(createDefaultAdjustments(), 'Grade');
+      expect(second.copiedAt).toBe(first.copiedAt);
+      expect(second.captureIdentity).not.toBe(first.captureIdentity);
+      expect(readLightTableGrade()?.artifactAssociation).toBeUndefined();
+      expect(associateLightTableGradeArtifact(first, association)).toBe(false);
+      expect(associateLightTableGradeArtifact(second, association)).toBe(true);
+      expect(readLightTableGrade()?.artifactAssociation).toBe(association);
+      expect(readLightTableGrade()?.captureIdentity).toBe(second.captureIdentity);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('leaves the previous session bytes and association intact when storage rejects Copy', () => {
+    const association = { owner: {}, artifactId: 'previous' };
+    const source = new Blob(['previous LUT']);
+    const previous = copyLightTableGrade(createDefaultAdjustments(), 'Previous', {
+      assetId: 'previous-lut', name: 'Previous', source
+    }, association);
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage full'); });
+    expect(() => copyLightTableGrade(createDefaultAdjustments(), 'Failed')).toThrow('Storage full');
+    expect(readLightTableGrade()).toMatchObject({ captureIdentity: previous.captureIdentity,
+      gradeLookAsset: { source }, artifactAssociation: association });
+    expect(window.dispatchEvent).toHaveBeenCalledTimes(1);
   });
 });

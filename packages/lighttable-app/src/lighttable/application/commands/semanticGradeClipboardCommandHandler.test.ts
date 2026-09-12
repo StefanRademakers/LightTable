@@ -23,11 +23,44 @@ const capture = () => {
 };
 
 describe('SemanticGradeClipboardCommandHandler', () => {
+  it.each(['stale-before-register', 'stale-before-publish', 'publication-failed'])(
+    'does not retain an unpublished artifact on %s', async failure => {
+      const registry = new LightTableArtifactRegistry();
+      const handler = new SemanticGradeClipboardCommandHandler(registry);
+      const assertCurrent = vi.fn(() => {
+        if (failure === 'stale-before-register' || (failure === 'stale-before-publish' && assertCurrent.mock.calls.length === 2)) {
+          throw new Error('Source retired');
+        }
+      });
+      const publish = vi.fn(() => { if (failure === 'publication-failed') throw new Error('Storage full'); });
+      const result = await handler.dispatch('grade.copy', {}, documentId, {
+        copyGrade: () => ({ capture: capture(), assertCurrent, publish })
+      } as unknown as LightTableCommandPorts);
+      expect(result).toMatchObject({ ok: false, code: 'execution-failed' });
+      expect(registry.list()).toHaveLength(0);
+      expect(publish).toHaveBeenCalledTimes(failure === 'publication-failed' ? 1 : 0);
+    });
+
+  it('reuses only its own live artifact and registers persisted, evicted or foreign captures without Copy', () => {
+    const registry = new LightTableArtifactRegistry();
+    const handler = new SemanticGradeClipboardCommandHandler(registry);
+    const source = capture();
+    const first = handler.resolveArtifact(source);
+    expect(handler.resolveArtifact(source, first.association).artifact).toBe(first.artifact);
+    expect(registry.list()).toHaveLength(1);
+    registry.release(first.artifact.id);
+    const recreated = handler.resolveArtifact(source, first.association);
+    expect(recreated.artifact.id).not.toBe(first.artifact.id);
+    const other = new SemanticGradeClipboardCommandHandler(new LightTableArtifactRegistry());
+    const transferred = other.resolveArtifact(source, recreated.association);
+    expect(transferred.association.owner).not.toBe(recreated.association.owner);
+    expect(transferred.artifact.kind).toBe('grade-clipboard');
+  });
   it('keeps recipe and raw Look bytes in one bounded opaque artifact', async () => {
     const registry = new LightTableArtifactRegistry();
     const handler = new SemanticGradeClipboardCommandHandler(registry);
     const source = capture();
-    const copyGrade = vi.fn(async () => source);
+    const copyGrade = vi.fn(async () => ({ capture: source, assertCurrent: vi.fn(), publish: vi.fn() }));
     const pasteGrade = vi.fn(async (captureValue) => ({
       name: captureValue.name,
       changed: true,
@@ -93,7 +126,8 @@ describe('SemanticGradeClipboardCommandHandler', () => {
     const handler = new SemanticGradeClipboardCommandHandler(registry);
     const source = capture();
     const incomplete = { name: source.name, settings: source.settings };
-    const copyGrade = vi.fn(async () => incomplete);
+    const publish = vi.fn();
+    const copyGrade = vi.fn(async () => ({ capture: incomplete, assertCurrent: vi.fn(), publish }));
 
     expect(await handler.dispatch('grade.copy', {}, documentId, {
       copyGrade
@@ -103,6 +137,8 @@ describe('SemanticGradeClipboardCommandHandler', () => {
       message: expect.stringMatching(/could not be captured/u)
     });
 
+    expect(publish).not.toHaveBeenCalled();
+    expect(registry.list()).toHaveLength(0);
     // The legacy persisted text clipboard remains intentionally usable: its
     // paste owner removes a foreign missing LUT and applies the remaining Grade.
     expect(handler.register(incomplete).kind).toBe('grade-clipboard');

@@ -17,9 +17,11 @@ Properties transitions. Commit ec386b4d; evidence in PROGRESS.md.
 O05a.6 editing publication/selection lifetime accepted: captured original command
 address, exact gesture scheduler/runtime, reentrant successor protection and
 admission repair; critic,407 text tests and fresh packaged text/Actions/tab proof.
-Canonical checklist below is authoritative. Overlay4,996 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Next: remaining Grade clipboard
-binding/freshness, then remaining host/view/panel composition and O08 endpoint.
+O06j Grade clipboard ownership is accepted: validated single publication, live
+shared Paste association, critic and fresh packaged UI/Actions/MCP/LUT proof.
+Canonical checklist below is authoritative. Overlay4,941 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. Next: remaining host/view/panel
+composition, beginning with the typed ToolOptions projection, then O08 endpoint.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

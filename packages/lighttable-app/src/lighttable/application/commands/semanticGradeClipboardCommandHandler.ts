@@ -4,7 +4,8 @@ import type { DocumentSessionId } from '../documents/documentSession';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
 import type {
   LightTableCommandPorts,
-  LightTableGradeClipboardCapture
+  LightTableGradeClipboardCapture,
+  GradeClipboardArtifactAssociation
 } from './lightTableCommandContract';
 import {
   parseSemanticCopyGradeCommand,
@@ -28,6 +29,7 @@ export interface GradeClipboardArtifactStore {
   register(file: File, kind: 'grade-clipboard'): LightTableArtifactMetadata;
   query(id: string): LightTableArtifactMetadata | null;
   resolve(id: string): File | null;
+  release(id: string): boolean;
 }
 
 const safeName = (name: string) => {
@@ -46,6 +48,17 @@ export class SemanticGradeClipboardCommandHandler {
   private readonly captures = new WeakMap<File, LightTableGradeClipboardCapture>();
 
   constructor(private readonly artifacts: GradeClipboardArtifactStore) {}
+
+  resolveArtifact(capture: LightTableGradeClipboardCapture,
+    association?: GradeClipboardArtifactAssociation) {
+    const file = association?.owner === this
+      ? this.artifacts.resolve(association.artifactId) : null;
+    const existing = file && this.captures.has(file)
+      ? this.artifacts.query(association!.artifactId) : null;
+    const created = existing?.kind !== 'grade-clipboard';
+    const artifact = created ? this.register(capture) : existing!;
+    return { artifact, created, association: { owner: this, artifactId: artifact.id } };
+  }
 
   register(capture: LightTableGradeClipboardCapture,
     options: { readonly requireCompleteLook?: boolean } = {}): LightTableArtifactMetadata {
@@ -113,10 +126,19 @@ export class SemanticGradeClipboardCommandHandler {
     if (!ports.copyGrade) return { ok: false, code: 'command-unavailable',
       message: 'Copy Grade is unavailable in the target document.' };
     try {
-      const capture = await ports.copyGrade(documentId);
-      if (!capture) return { ok: false, code: 'command-unavailable',
+      const prepared = await ports.copyGrade(documentId);
+      if (!prepared) return { ok: false, code: 'command-unavailable',
         message: 'The current Global Grade could not be copied.' };
+      prepared.assertCurrent();
+      const { capture } = prepared;
       const artifact = this.register(capture, { requireCompleteLook: true });
+      try {
+        prepared.assertCurrent();
+        prepared.publish({ owner: this, artifactId: artifact.id });
+      } catch (reason) {
+        this.artifacts.release(artifact.id);
+        throw reason;
+      }
       return { ok: true, value: {
         name: safeName(capture.name),
         hasLookAsset: Boolean(capture.gradeLookAsset),

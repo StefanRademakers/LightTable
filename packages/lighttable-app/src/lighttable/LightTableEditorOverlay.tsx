@@ -10,7 +10,6 @@ import { useMountedAutomationGestures } from './composition/commands/useMountedA
 import { useGenAiReferenceHandoff } from './composition/genai/useGenAiReferenceHandoff';
 import type {
   LightTableBitmapExportFormat,
-  LightTableGradeClipboardCapture,
   LightTablePreviewEncoding
 } from './application/commands/lightTableCommandContract';
 import { isMountedDocumentCommand } from './application/commands/lightTableCommandOwnership';
@@ -53,6 +52,7 @@ import { GradeInspectorController, projectGradeInspector } from './application/a
 import { DocumentProcessingBinding } from './application/adjustments/DocumentProcessingBinding';
 import { AdjustmentPresentationRuntime } from './application/adjustments/AdjustmentPresentationRuntime';
 import { GradeAssetCommandService } from './application/adjustments/GradeAssetCommandService';
+import { createGradeClipboardBinding } from './application/adjustments/GradeClipboardBinding';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import type { AdjustmentInteractionHandle } from './application/adjustments/AdjustmentInteractionCoordinator';
 import { useAdjustmentGestures } from './composition/adjustments/useAdjustmentGestures';
@@ -151,7 +151,6 @@ import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSur
 import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
 import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
 import {
-  copyLightTableGrade,
   useLightTableGradeClipboard
 } from './lightTableGradeClipboard';
 import {
@@ -646,7 +645,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const copyMergedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
-  const latestGradeClipboardArtifactRef = useRef<string | null>(null);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const rasterizeShapeRef = useRef<(
@@ -1791,7 +1789,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishLensBlurViewportMode: (mode) => {
       setLensBlurViewportModeState(mode);
     },
-    getSourceName: () => sourceName,
     publishGradeStatus: setGradeStatus
   }), [
     beginAdjustmentTransaction,
@@ -1856,67 +1853,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetAll,
     resetGroup
   } = adjustmentCommands;
-  const captureCurrentGrade = async (): Promise<LightTableGradeClipboardCapture> => {
-    const document = imageDocumentRef.current;
-    const renderer = engineRef.current;
-    const canonical = document ? resolveCanonicalAdjustmentSnapshot(document) : null;
-    const settings = cloneAdjustments(canonical ?? processingBinding.getDocumentAdjustments());
-    const assetId = settings.gradeLook.assetId;
-    let gradeLookAsset: LightTableGradeClipboardCapture['gradeLookAsset'];
-    if (assetId && document && renderer) {
-      const source = renderer.getColorLookupAssetSource(
-        document.id,
-        assetId as DocumentAssetId
-      );
-      const metadata = document.assets.colorLookups.find((asset) => asset.id === assetId);
-      if (source && metadata) {
-        gradeLookAsset = { assetId, name: metadata.name, source };
-      }
-    }
-    const capture = {
-      name: document?.name ?? 'Copied grade',
-      settings,
-      ...(gradeLookAsset ? { gradeLookAsset } : {})
-    };
-    copyLightTableGrade(settings, capture.name, gradeLookAsset);
-    setGradeStatus('Grade copied');
-    return capture;
-  };
-  const applyGradeCapture = async (capture: LightTableGradeClipboardCapture) => {
-    const result = await gradeAssetCommands.paste(capture);
-    setGradeStatus(`Loaded ${capture.name}`);
-    return result;
-  };
-  const copyCurrentGrade = async () => {
-    try {
-      const execution = executeRegisteredCommand('grade.copy', {});
-      const result = await execution;
-      const value = result.status === 'completed' && typeof result.value === 'object'
-        && result.value !== null ? result.value as Record<string, unknown> : null;
-      const artifact = value && typeof value.artifact === 'object' && value.artifact !== null
-        ? value.artifact as Record<string, unknown> : null;
-      if (typeof artifact?.id === 'string') latestGradeClipboardArtifactRef.current = artifact.id;
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not copy the Grade.');
-    }
-  };
-  const pasteCurrentGrade = async () => {
-    try {
-      let artifactId = latestGradeClipboardArtifactRef.current;
-      if (artifactId && !commandService.queryArtifact(artifactId)) {
-        latestGradeClipboardArtifactRef.current = null;
-        artifactId = null;
-      }
-      if (!artifactId && copiedGrade) {
-        artifactId = commandService.registerGradeClipboardArtifact(copiedGrade).id;
-        latestGradeClipboardArtifactRef.current = artifactId;
-      }
-      if (!artifactId) return;
-      await executeRegisteredCommand('grade.paste', { artifactId });
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not paste the Grade.');
-    }
-  };
+  const gradeClipboard = createGradeClipboardBinding({
+    session: documentSession, renderer: engineRef.current,
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,
+    getContextualSettings: resolveCanonicalAdjustmentSnapshot, getTargetIdentity: resolveAdjustmentTargetIdentity,
+    assets: gradeAssetCommands, commands: commandService, execute: executeRegisteredCommand,
+    setStatus: setGradeStatus, reportError: setError
+  });
+  const { copyCurrentGrade, pasteCurrentGrade } = gradeClipboard;
 
   const applyUndoEditor = useCallback(async () => {
     endAdjustmentTransaction();
@@ -3340,8 +3285,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
         );
       },
-      copyGrade: captureCurrentGrade,
-      pasteGrade: applyGradeCapture,
+      copyGrade: gradeClipboard.prepareCopy,
+      pasteGrade: gradeClipboard.paste,
       placeArtifact: layerDocumentCommands.placeImageArtifact,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,

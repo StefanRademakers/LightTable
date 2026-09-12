@@ -60,8 +60,10 @@ authority rather than cosmetic line reduction:
    replacement separately from benign renders. FlowText/Properties and text
    range publication remain a distinct subsequent slice, not part of a new
    combined text runtime owner.
-3. Grade clipboard context/artifact/LUT-source and feedback binding: reuse
-   GradeAssetCommandService and semantic clipboard, not another grade store.
+3. Grade clipboard context/artifact/LUT-source and feedback binding: accepted as
+   O06j. `GradeClipboardBinding` is the UI/context boundary, the semantic handler
+   validates/registers before publication, and `GradeAssetCommandService` remains
+   mutation owner. Root cache and direct adjustment Copy route are deleted.
 4. GenAI project panel intents: Add Reference/Recreate/reveal and project asset
    actions. Pure lazy panel props remain valid composition, not migration debt.
 5. Viewport Exact/Fit/Actual/anchor and immediate presentation binding: reuse

@@ -1,5 +1,38 @@
 # Task 416 progress
 
+## O06j — Grade clipboard binding and single publication (accepted)
+
+- Reproduced the real stale-owner defect first: UI Copy A followed by semantic
+  Copy B still made UI Paste consume A, create history and record A's artifact.
+  The repair removes the root artifact cache and the unused direct adjustment
+  Copy route instead of adding reconciliation or a fallback.
+- `GradeClipboardBinding` now captures exact ready document/renderer/target state.
+  Copy is side-effect-free until the semantic handler has validated a complete
+  Look and registered its artifact; only then is the browser clipboard published.
+  Paste reads the current shared capture at invocation and reuses only a live
+  artifact owned by the same handler. Replaced-clipboard races release only the
+  newly-created unpublished artifact and perform no document mutation.
+- Final independent critic: PASS, no P0-P2 findings. Focused regression run:
+  1,003 tests/58 files PASS; app typecheck, boundary and diff checks PASS.
+  `GradeClipboardBinding.ts` is 103 lines; Overlay4996->4941, ceiling4942.
+- Fresh instrumented package SHA256
+  `962af9c887214209d34c1aa38215dfb702d6997f084c83e081406c65c832d6ef`.
+  `tmp/grade-clipboard-freshness-smoke/run-fqtM2s` PASS: UI Copy A -> semantic
+  Copy B -> UI Paste keeps B, adds no revision/history, records B's artifact and
+  emits no page errors. Existing Grade Look smoke also PASS for UI, Actions, MCP,
+  LUT strength, cross-document paste and artifact rebind. These gates establish
+  this clipboard slice, not whole-editor or general performance acceptance.
+
+## Next — O07 UI/host composition (open)
+
+- First bounded candidate: create one typed ToolOptions feature projection used
+  by both toolbar and context menu, then let the Shell forward that projection.
+  Preserve toolbar-only gradient requests, context-menu close/Warp reset behavior,
+  vertical-toolbar visibility and brush/color inputs. Do not create a generic
+  editor props bag or move tool/domain policy into UI composition.
+- Remaining O07/O08 host, view, panel, mixed-flow, resource and performance gates
+  remain open. WebGpuEngine remains 4,003 lines and is a separate cleanup scope.
+
 ## O05a.6 — Editing publication and selection lifetime (accepted)
 
 - Baseline regressions reproduced before repair: committed text observation uses
@@ -27,7 +60,7 @@
   not relaxed to hide a product failure. Hook lifetime fixtures simulate React;
   actual packaged tests separately cover the user flows. Broad performance open.
 
-## Next — Grade clipboard binding (open)
+## Grade clipboard baseline (resolved by O06j above)
 
 - Existing Grade Look packaged UI/Actions/MCP/LUT rebind/exact history baseline
   PASS on package52fb1584. Freshness defect separately reproduced on that build:

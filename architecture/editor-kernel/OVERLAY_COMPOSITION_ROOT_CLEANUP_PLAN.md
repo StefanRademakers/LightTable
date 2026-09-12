@@ -411,11 +411,16 @@ class names: reuse existing owners before creating a new one.
   - [x] O06i: Delete intent precedence, canonical target and active-coverage
     revalidation; explicit Fill target and scoped layer deletion. Critic and
     packaged vector/pixel/multilayer/pending-transform/history/Actions proof pass.
-  - [ ] O06j: Grade clipboard binding and single shared clipboard publication.
-    Remove root artifact cache; publish only validated complete semantic captures,
-    retain Copy-result artifact association and scope late UI feedback. Existing
-    GradeAssetCommandService owns paste/import mutations. Real UI Copy A ->
-    semantic Copy B -> UI Paste stale-A defect reproduced; repair/proof pending.
+  - [x] O06j: Grade clipboard binding and single shared clipboard publication.
+    Root artifact cache and the orphan direct adjustment Copy route are deleted.
+    Copy now prepares an exact document/renderer lease; the semantic handler
+    validates a complete Look and registers its artifact before shared clipboard
+    publication. Paste reads the live shared capture and reuses only a live
+    artifact owned by the same handler; stale unpublished artifacts are released.
+    GradeAssetCommandService remains the paste/import mutation owner. Critic PASS;
+    focused tests, typecheck and boundary PASS. Fresh packaged Copy A -> semantic
+    Copy B -> UI Paste is a no-op on B with exact Action association, and the
+    existing UI/Actions/MCP/LUT/cross-document Grade gate also passes.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing

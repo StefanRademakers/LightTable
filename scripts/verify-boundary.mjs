@@ -1037,6 +1037,10 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
 
 function verifyCommandRoutingCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/application/adjustments/createAdjustmentCommands.ts')
+    && /\b(?:copyLightTableGrade|copyGrade)\b/.test(source)) {
+    failures.push(`${relativePath}: Grade Copy belongs only to the validated shared clipboard command binding`);
+  }
   if (!normalizedPath.endsWith('.test.ts')
     && (normalizedPath.includes('/application/commands/')
       || normalizedPath.endsWith('/LightTableEditorOverlay.tsx'))
@@ -1058,6 +1062,10 @@ function verifyCommandRoutingCutover(relativePath, source) {
       'function requestTextToShape(',
       'function commitTextToShape(',
       'new TextToShapeCommandController(',
+      'latestGradeClipboardArtifactRef',
+      'copyLightTableGrade(',
+      'registerGradeClipboardArtifact(',
+      'const captureCurrentGrade =',
       'executeSemanticGradePatch(',
       'executeSemanticAdjustmentSnapshot(',
       'executeSemanticProcessingStructure(',

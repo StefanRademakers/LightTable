@@ -56,10 +56,10 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
       const settings = createDefaultAdjustments();
       settings.exposureEV = 1.25;
       settings.gradeLook = { assetId: 'lut-cinema', strength: 62 };
-      return { name: 'Portrait', settings, gradeLookAsset: {
+      return { assertCurrent: vi.fn(), publish: vi.fn(), capture: { name: 'Portrait', settings, gradeLookAsset: {
         assetId: 'lut-cinema', name: 'Cinema',
         source: new Blob(['TITLE "Cinema"\nLUT_3D_SIZE 2\n'])
-      } };
+      } } };
     }),
     pasteGrade: vi.fn(async (_documentId, capture) => ({
       name: capture.name, changed: true,

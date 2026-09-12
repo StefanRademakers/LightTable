@@ -266,6 +266,19 @@ export interface LightTableGradeClipboardCapture {
   };
 }
 
+/** Session-only association; an artifact ID is meaningful only in its owning registry. */
+export interface GradeClipboardArtifactAssociation {
+  readonly owner: object;
+  readonly artifactId: string;
+}
+
+/** Capture is side-effect free; the handler publishes only after complete validation. */
+export interface PreparedGradeClipboardCopy {
+  readonly capture: LightTableGradeClipboardCapture;
+  assertCurrent(): void;
+  publish(association: GradeClipboardArtifactAssociation): void;
+}
+
 export interface LightTableGradePasteResult {
   readonly name: string;
   readonly changed: boolean;
@@ -312,7 +325,7 @@ export interface LightTableCommandPorts {
   pastePixels?(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;
   copyGrade?(documentId: DocumentSessionId):
-    LightTableGradeClipboardCapture | null | Promise<LightTableGradeClipboardCapture | null>;
+    PreparedGradeClipboardCopy | null | Promise<PreparedGradeClipboardCopy | null>;
   pasteGrade?(documentId: DocumentSessionId, capture: LightTableGradeClipboardCapture):
     LightTableGradePasteResult | null | Promise<LightTableGradePasteResult | null>;
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
@@ -400,8 +413,8 @@ export interface DocumentLightTableCommandPorts {
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
   pastePixels?(file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;
-  copyGrade?(): LightTableGradeClipboardCapture | null
-    | Promise<LightTableGradeClipboardCapture | null>;
+  copyGrade?(): PreparedGradeClipboardCopy | null
+    | Promise<PreparedGradeClipboardCopy | null>;
   pasteGrade?(capture: LightTableGradeClipboardCapture): LightTableGradePasteResult | null
     | Promise<LightTableGradePasteResult | null>;
   placeArtifact(file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
