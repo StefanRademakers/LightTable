@@ -1,5 +1,32 @@
 # Task 416 progress
 
+## O06d — Finalization binding and committed output identity (accepted)
+
+- LayerFinalizationCommandBinding owns host preparation/result adaptation;
+  LayerFinalizationReadiness owns source preparation with exact session/renderer/
+  generation checks after every await and before resumed mutation. Existing layer
+  transaction/history/GPU finalization remains the sole mutation owner. Results
+  now return captured destination IDs, never later active-layer selection.
+- Deleted unused merge-down wrapper/private helper that rediscovered its active
+  target after waiting. Boundary protections follow the extracted source owner.
+  Layer command owner1,458 ->1,366 physical lines. Root6,426 ->6,390 physical,
+  audit6,427 ->6,391; no new GPU queue, allocation or per-frame work.
+- Final independent critic PASS;126 focused tests plus app typecheck/boundary pass.
+  Fresh packaged five-finalizer gate verifies exact public result fields, one
+  history entry, appearance RMSE0 and exact final PNG undo/redo. Evidence:
+  tmp/layer-finalization-commands-1789207866285/. Adjacent rasterize-affordance
+  (Gradient, compact paste/Grade, styles/filter, adjustment merge) and mask gates pass.
+- Initial preview-only gate FAILED at text rasterize undo (RMSE4.2221), retained
+  in tmp/layer-finalization-commands-smoke/; diagnostic-1789207690330 retains PNGs.
+  Text creation/rasterize use final outline sources; undo initially uses glyph
+  coverage or a pending-text placeholder. Same final-output PNG representation
+  restores exact original pixels; no production workaround or relaxed tolerance.
+  Interactive text preview readiness/outline parity is NOT fixed and remains O08.
+  Latest report retains every interactive preview and its final-output difference.
+- Warm small256x192 commands took roughly19-36ms, excluding test artifact exports;
+  not a large-document/cold-font or user-input latency guarantee. O06e automation
+  translation and other mounted command families remain open.
+
 ## O07a — Viewport wheel host binding (accepted)
 
 - ViewportWheelBridge owns native bridge/renderer capture listeners and the

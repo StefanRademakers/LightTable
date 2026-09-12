@@ -76,6 +76,7 @@ const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
   let documentId = 'test-document';
   let rendererGeneration = 1;
+  let sessionIdentity = {};
   let previewDocument: ImageDocument | null = null;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
@@ -100,6 +101,15 @@ const setup = (initialDocument: ImageDocument) => {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
     getRendererGeneration: () => rendererGeneration,
+    captureFinalizationScope: () => {
+      const admittedSession = sessionIdentity;
+      const admittedGeneration = rendererGeneration;
+      return { assertCurrent: () => {
+        if (sessionIdentity !== admittedSession || rendererGeneration !== admittedGeneration) {
+          throw new Error('Finalization scope is retired.');
+        }
+      } };
+    },
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => documentId,
     getSelectionLease: () => ({
@@ -182,6 +192,7 @@ const setup = (initialDocument: ImageDocument) => {
     setRendererGeneration: (next: number) => {
       rendererGeneration = next;
     },
+    retireSession: () => { sessionIdentity = {}; },
     previewDocument: () => previewDocument,
     documentAdjustments: () => documentAdjustments,
     panelAdjustments: () => panelAdjustments,
@@ -189,7 +200,79 @@ const setup = (initialDocument: ImageDocument) => {
   };
 };
 
+const finalizationFixture = (kind: 'raster' | 'text' | 'merge' | 'group' | 'image') => {
+  const document = createTextLayer(createImageDocument('Finalization', 32, 24, 'asset'), createDefaultTextLayerData());
+  const text = document.layers.at(-1)!;
+  const group = { ...createGroupLayerNode('Group'), compositing: 'isolated' as const, children: [text] };
+  document.layers = [document.layers[0], group]; document.activeLayerId = group.id;
+  const state = setup(document);
+  const execute = () => {
+    switch (kind) {
+      case 'raster': return state.commands.rasterizeLayerWhenReady(group.id);
+      case 'text': return state.commands.rasterizeTextLayerWhenReady(text.id);
+      case 'merge': return state.commands.mergeLayersWhenReady(document.layers.map(layer => layer.id));
+      case 'group': return state.commands.flattenWhenReady({ kind: 'group', groupId: group.id });
+      case 'image': return state.commands.flattenWhenReady({ kind: 'image' });
+    }
+  };
+  return { state, execute, before: document };
+};
+
 describe('useLayerDocumentCommands', () => {
+  it.each(['raster', 'text', 'merge', 'group', 'image'] as const)(
+    '%s finalization returns its committed destination even after channel presentation changes selection', async kind => {
+      const { state, execute, before } = finalizationFixture(kind);
+      vi.mocked(state.dependencies.setActiveChannel).mockImplementation(() => {
+        state.dependencies.applyDocumentSnapshot({ ...state.document(), activeLayerId: null });
+      });
+      const id = await execute();
+      expect(state.document().activeLayerId).toBeNull();
+      expect(findDocumentLayer(state.document(), id)?.type).toBe('raster');
+      expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(expect.objectContaining({ id }));
+      expect(state.historyEntries).toHaveLength(1);
+      await state.historyEntries[0].undo(); expect(state.document()).toBe(before);
+      await state.historyEntries[0].redo(); expect(findDocumentLayer(state.document(), id)?.type).toBe('raster');
+    }
+  );
+
+  it.each(['raster', 'text', 'merge', 'group', 'image'] as const)(
+    '%s rejects same-ID session replacement during exact source preparation before any destination/history reservation', async kind => {
+      const { state, execute, before } = finalizationFixture(kind);
+      vi.mocked(state.renderer.waitForLayerFinalizationSources).mockImplementation(async () => {
+        state.retireSession(); return true;
+      });
+      await expect(execute()).rejects.toThrow('retired');
+      expect(state.document()).toBe(before);
+      expect(state.renderer.prepareRasterDestination).not.toHaveBeenCalled();
+      expect(state.dependencies.reserveHistoryEntry).not.toHaveBeenCalled();
+    }
+  );
+
+  it('rejects same-renderer generation retirement while awaiting a text source', async () => {
+    const { state, execute } = finalizationFixture('text');
+    vi.mocked(state.renderer.waitForTextSource).mockImplementation(async () => {
+      state.setRendererGeneration(2); return true;
+    });
+    await expect(execute()).rejects.toThrow('retired');
+    expect(state.renderer.waitForLayerFinalizationSources).not.toHaveBeenCalled();
+    expect(state.renderer.prepareRasterDestination).not.toHaveBeenCalled();
+  });
+
+  it('revalidates after the readiness promise resolves, before admitting its resumed mutation', async () => {
+    const { state, execute } = finalizationFixture('text');
+    const capture = state.dependencies.captureFinalizationScope;
+    state.dependencies.captureFinalizationScope = () => {
+      const scope = capture(); let checks = 0;
+      return { assertCurrent: () => {
+        scope.assertCurrent();
+        if (++checks === 3) queueMicrotask(state.retireSession);
+      } };
+    };
+    await expect(execute()).rejects.toThrow('retired');
+    expect(state.renderer.prepareRasterDestination).not.toHaveBeenCalled();
+    expect(state.dependencies.reserveHistoryEntry).not.toHaveBeenCalled();
+  });
+
   it('places a decoded image atomically as one tight editable layer', async () => {
     const close = vi.fn();
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 12, height: 8, close })));
@@ -882,7 +965,7 @@ describe('useLayerDocumentCommands', () => {
     ));
     const layerId = state.document().activeLayerId!;
 
-    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers.at(-1)!;
     expect(destination).toMatchObject({ type: 'raster' });
@@ -910,7 +993,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = vector.id;
     const state = setup(document);
 
-    await expect(state.commands.rasterizeLayerWhenReady(vector.id)).resolves.toBe(true);
+    await expect(state.commands.rasterizeLayerWhenReady(vector.id)).resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers[0]!;
     expect(destination).toMatchObject({ type: 'raster', name: 'Shape', width: 32, height: 24 });
@@ -941,7 +1024,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = group.id;
     const state = setup(document);
 
-    await expect(state.commands.rasterizeLayerWhenReady(group.id)).resolves.toBe(true);
+    await expect(state.commands.rasterizeLayerWhenReady(group.id)).resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers[0]!;
     expect(state.historyEntries[0]?.layerIds).toEqual([group.id, child.id, destination.id]);
@@ -980,7 +1063,7 @@ describe('useLayerDocumentCommands', () => {
     const waitForTextSource = vi.fn(async () => true);
     state.renderer.waitForTextSource = waitForTextSource;
 
-    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toEqual(expect.any(String));
 
     expect(waitForTextSource).toHaveBeenCalledWith(layerId);
     expect(state.renderer.waitForLayerFinalizationSources).toHaveBeenCalledWith('layer');
@@ -1047,7 +1130,7 @@ describe('useLayerDocumentCommands', () => {
     const waitForTextSource = vi.fn(async () => true);
     state.renderer.waitForTextSource = waitForTextSource;
 
-    await expect(state.commands.rasterizeLayerWhenReady(layer.id)).resolves.toBe(true);
+    await expect(state.commands.rasterizeLayerWhenReady(layer.id)).resolves.toEqual(expect.any(String));
 
     expect(waitForTextSource).toHaveBeenCalledWith(layer.id);
     expect(state.renderer.rasterizeLayer).toHaveBeenCalledOnce();
@@ -1067,7 +1150,7 @@ describe('useLayerDocumentCommands', () => {
     state.renderer.waitForTextSource = waitForTextSource;
 
     await expect(state.commands.flattenWhenReady({ kind: 'group', groupId: group.id }))
-      .resolves.toBe(true);
+      .resolves.toEqual(expect.any(String));
 
     expect(waitForTextSource).toHaveBeenCalledWith(text.id);
     expect(state.renderer.flattenGroup).toHaveBeenCalledOnce();
@@ -1087,7 +1170,7 @@ describe('useLayerDocumentCommands', () => {
     });
 
     await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).rejects.toThrow(
-      'The document changed while its text source was being prepared.'
+      'The document changed while its rendering sources were being prepared.'
     );
 
     expect(state.renderer.rasterizeLayer).not.toHaveBeenCalled();
@@ -1474,7 +1557,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createRasterLayer(first, 'Top'));
     const layerIds = state.document().layers.map((layer) => layer.id);
 
-    await expect(state.commands.mergeLayersWhenReady(layerIds)).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady(layerIds)).resolves.toEqual(expect.any(String));
 
     expect(state.document().layers).toHaveLength(1);
     const mergedId = state.document().layers[0]!.id;
@@ -1501,7 +1584,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = top.id;
     const state = setup(document);
 
-    await expect(state.commands.mergeLayersWhenReady([top.id, group.id])).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady([top.id, group.id])).resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers[0]!;
     expect(state.historyEntries[0]?.layerIds).toEqual([
@@ -1529,11 +1612,12 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
-  it('merges the active raster layer down and reports the completed command', async () => {
+  it('merges the explicit raster pair and reports the completed destination', async () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
 
-    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady(state.document().layers.map(layer => layer.id)))
+      .resolves.toEqual(expect.any(String));
 
     expect(state.document().layers).toHaveLength(1);
     expect(state.dependencies.setStatus).toHaveBeenCalledWith('Layers merged');
@@ -1550,7 +1634,7 @@ describe('useLayerDocumentCommands', () => {
     state.panelAdjustments().exposureEV = 1.25;
     state.dependencies.publishGlobalGradeStrength!(42);
 
-    await expect(state.commands.flattenWhenReady({ kind: 'image' })).resolves.toBe(true);
+    await expect(state.commands.flattenWhenReady({ kind: 'image' })).resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers[0];
     expect(destination).toMatchObject({ type: 'raster', width: 32, height: 24 });
@@ -1588,7 +1672,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(document);
 
     await expect(state.commands.flattenWhenReady({ kind: 'group', groupId: group.id }))
-      .resolves.toBe(true);
+      .resolves.toEqual(expect.any(String));
 
     const destination = state.document().layers[0]!;
     expect(destination).toMatchObject({
@@ -1659,7 +1743,8 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(document);
     const sourceDestinationId = document.layers[0]!.id;
 
-    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady([sourceDestinationId, vector.id]))
+      .resolves.toEqual(expect.any(String));
 
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
       expect.anything(), [sourceDestinationId, vector.id], state.document().layers[0]!.id
@@ -1764,7 +1849,7 @@ describe('useLayerDocumentCommands', () => {
     const pixels = withRaster.layers[2]!;
     const state = setup(withRaster);
 
-    await expect(state.commands.mergeLayersWhenReady([pixels.id, shape.id])).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady([pixels.id, shape.id])).resolves.toEqual(expect.any(String));
 
     const merged = state.document().layers[1]!;
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
@@ -1804,7 +1889,7 @@ describe('useLayerDocumentCommands', () => {
         await expect(
           state.commands.mergeLayersWhenReady([top.id, bottom.id]),
           `${bottomKind} below ${topKind}`
-        ).resolves.toBe(true);
+        ).resolves.toEqual(expect.any(String));
         expect(state.document().layers).toHaveLength(1);
         expect(state.document().layers[0]).toMatchObject({
           type: 'raster', name: `Top ${topKind}`
@@ -1821,7 +1906,7 @@ describe('useLayerDocumentCommands', () => {
     const sourceIds = state.document().layers.map((layer) => layer.id);
     const sourceDestinationId = sourceIds[0];
 
-    await expect(state.commands.mergeActiveLayerDownWhenReady()).resolves.toBe(true);
+    await expect(state.commands.mergeLayersWhenReady(sourceIds)).resolves.toEqual(expect.any(String));
 
     expect(state.renderer.mergeLayers).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -1834,15 +1919,15 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(2);
   });
 
-  it('explains why Merge Down cannot run instead of failing silently', async () => {
+  it('reports invalid explicit merge eligibility instead of failing silently', async () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
-    await expect(state.commands.mergeActiveLayerDownWhenReady()).rejects.toThrow(
-      'The active layer has no layer below it to merge with.'
+    await expect(state.commands.mergeLayersWhenReady([state.document().activeLayerId!])).rejects.toThrow(
+      'The prepared layers could not be merged.'
     );
 
     expect(state.dependencies.setError).toHaveBeenCalledWith(
-      'The active layer has no layer below it to merge with.'
+      'Merge requires at least two contiguous sibling layers.'
     );
   });
 

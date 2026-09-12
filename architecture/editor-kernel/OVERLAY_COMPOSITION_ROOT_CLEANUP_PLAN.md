@@ -291,8 +291,12 @@ class names: reuse existing owners before creating a new one.
     Existing model/pixel/mask owners retained; exact registered session/renderer
     guards cover awaited handoffs. Critic PASS;175 focused tests, packaged
     creation/group/duplicate IDs, UI/Actions replay, layer history and masks pass.
-  - [ ] O06d: finalization command binding and exact committed destination IDs;
-    then separately automation translation lifetime and remaining command families.
+  - [x] O06d: finalization command binding and exact committed destination IDs.
+    Scoped readiness guards and unused active-target route deletion; critic PASS.
+    Packaged five-command IDs, one-entry history and exact final PNG undo/redo,
+    rasterize affordance and masks pass. Interactive text preview readiness remains
+    explicitly open under O08; final-output proof does not certify that preview.
+  - [ ] O06e: automation translation lifetime and remaining command families.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing

@@ -98,6 +98,8 @@ import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnaps
 import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
+import { createLayerFinalizationCommandBinding } from './application/layers/LayerFinalizationCommandBinding';
+import { captureLayerFinalizationScope } from './application/layers/captureLayerFinalizationScope';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController, type LayerPanelController } from './application/layers/useLayerPanelController';
@@ -152,10 +154,10 @@ import {
 } from './text/fonts/textLayerFontStatus';
 import type { DocumentOpenMode } from './application/documents/documentSourceProbe';
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
-import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
-import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useDocumentScopeCanvases } from './composition/documents/useDocumentScopeCanvases';
 import { useViewportWheelBridge } from './composition/viewport/useViewportWheelBridge';
+import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
+import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
 import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
@@ -3463,6 +3465,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
+    captureFinalizationScope: () => captureLayerFinalizationScope(documentSession, engineRef.current, {
+      getCurrentSession: () => mountedDocumentSessionRef.current,
+      getCurrentRenderer: () => engineRef.current,
+      captureRendererScope: captureMountedInteractionScope
+    }),
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => workspaceDocumentId,
     getSelectionLease: () => {
@@ -3889,21 +3896,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // pixels from the tab we just left.
     if (documentSession
       && imageDocument?.id !== documentSession.getSnapshot().document?.id) return;
-    const waitForStableLayerCommandFrame = async () => {
-      const admittedDocument = imageDocumentRef.current;
-      const admittedRenderer = engineRef.current;
-      if (!admittedDocument || !admittedRenderer) {
-        throw new Error('The active document renderer is unavailable.');
-      }
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      const currentDocument = imageDocumentRef.current;
-      if (!currentDocument
-        || currentDocument.id !== admittedDocument.id
-        || currentDocument.revision !== admittedDocument.revision
-        || engineRef.current !== admittedRenderer) {
-        throw new Error('The document changed before layer finalization could begin.');
-      }
-    };
+    const registeredRenderer = engineRef.current;
+    const { waitForPresentation, ...layerFinalizationCommands } = createLayerFinalizationCommandBinding({
+      captureScope: () => captureLayerFinalizationScope(documentSession, registeredRenderer, {
+        getCurrentSession: () => mountedDocumentSessionRef.current,
+        getCurrentRenderer: () => engineRef.current,
+        captureRendererScope: captureMountedInteractionScope
+      }),
+      getDocument: () => imageDocumentRef.current,
+      waitForFrame: () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve())),
+      settlePixels: settleMountedDocumentInteraction,
+      commands: layerDocumentCommands
+    });
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       settleInteractionBeforeCommand: async (command) => {
         // Zoom does not change canonical content and may remain available
@@ -4033,7 +4037,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         panel: layerPanelController, pixels: layerDocumentCommands,
         mutations: documentMutationController,
         settlePixels: settleMountedDocumentInteraction,
-        waitForPresentation: waitForStableLayerCommandFrame,
+        waitForPresentation: async () => { await waitForPresentation(); },
         loadMaskAsSelection: selectionSessionController.selectLayerMask
       }),
       executeSelectionCommand: async (command) => {
@@ -4191,52 +4195,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           command.layerId, command.channel
         ) ? command : null;
       },
-      executeLayerRasterize: async (command) => {
-        await waitForStableLayerCommandFrame();
-        if (!await layerDocumentCommands.rasterizeLayerWhenReady(command.layerId)) return null;
-        const outputLayerId = imageDocumentRef.current?.activeLayerId;
-        return outputLayerId
-          ? { sourceLayerId: command.layerId, outputLayerId, outputType: 'raster' as const }
-          : null;
-      },
+      ...layerFinalizationCommands,
       executeTextToShape: async (command) => (
         await textToShapeController.convert(command.layerId)
           ? { layerId: command.layerId, outputType: 'vector' as const }
           : null
       ),
-      executeTextRasterize: async (command) => {
-        // Document publication updates the command snapshot synchronously, but
-        // the text coordinator observes a newly created layer on the next
-        // editor frame. Rasterization must wait for that host boundary before
-        // asking the coordinator for its final outline source.
-        await waitForStableLayerCommandFrame();
-        return await layerDocumentCommands.rasterizeTextLayerWhenReady(command.layerId)
-          ? { layerId: imageDocumentRef.current?.activeLayerId, outputType: 'raster' as const }
-          : null;
-      },
-      executeLayerMerge: async (command) => {
-        await settleMountedDocumentInteraction();
-        await waitForStableLayerCommandFrame();
-        if (!await layerDocumentCommands.mergeLayersWhenReady([...command.layerIds])) return null;
-        const outputLayerId = imageDocumentRef.current?.activeLayerId;
-        return outputLayerId ? { layerIds: command.layerIds, outputLayerId } : null;
-      },
-      executeFlattenGroup: async (command) => {
-        await settleMountedDocumentInteraction();
-        await waitForStableLayerCommandFrame();
-        if (!await layerDocumentCommands.flattenWhenReady({
-          kind: 'group', groupId: command.groupId
-        })) return null;
-        const outputLayerId = imageDocumentRef.current?.activeLayerId;
-        return outputLayerId ? { groupId: command.groupId, outputLayerId } : null;
-      },
-      executeFlattenImage: async () => {
-        await settleMountedDocumentInteraction();
-        await waitForStableLayerCommandFrame();
-        if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
-        const outputLayerId = imageDocumentRef.current?.activeLayerId;
-        return outputLayerId ? { outputLayerId } : null;
-      },
       executeBackgroundRemoval: async (command, signal, report) => {
         return await backgroundRemovalController.removeBackgroundFromLayer(
           command.layerId,

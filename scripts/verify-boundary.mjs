@@ -278,24 +278,37 @@ function verifySelectionKernelCutover(relativePath, source) {
 function verifyLayerFinalizationCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
   if (normalizedPath.endsWith('/application/layers/useLayerDocumentCommands.ts')) {
-    const optionalFinalizationPorts = /\b(?:waitForLayerFinalizationSources|waitForTextSource|getDocumentAdjustments|getPanelAdjustments|publishDocumentAdjustments|publishPanelAdjustments|getGlobalGradeStrength|publishGlobalGradeStrength)\?\s*\(/;
+    const optionalFinalizationPorts = /\b(?:captureFinalizationScope|waitForLayerFinalizationSources|waitForTextSource|getDocumentAdjustments|getPanelAdjustments|publishDocumentAdjustments|publishPanelAdjustments|getGlobalGradeStrength|publishGlobalGradeStrength)\?\s*\(/;
     if (optionalFinalizationPorts.test(source)) {
       failures.push(`${relativePath}: layer finalization readiness and processing ports must be required`);
     }
     if (!source.includes('commitRasterFinalization(')) {
       failures.push(`${relativePath}: raster finalization must enter through its transaction owner`);
     }
-    if (!source.includes('renderer.waitForLayerFinalizationSources(finalizationScope)')) {
-      failures.push(`${relativePath}: destructive layer commands must await exact renderer sources`);
+    if (!source.includes('createLayerFinalizationReadiness(() => dependenciesRef.current)')
+      || (source.match(/readiness\.assertCurrent\(\)/g) ?? []).length < 4) {
+      failures.push(`${relativePath}: destructive layer commands must use exact readiness and revalidate before mutation`);
     }
     const publicStart = source.indexOf('export interface LayerDocumentCommands');
     const publicEnd = source.indexOf('const fullDocumentBounds');
     const publicContract = source.slice(publicStart, publicEnd);
-    if (/\b(?:mergeSelectedLayers|mergeActiveLayerDown|flatten|rasterizeLayer|rasterizeActiveLayer)\s*\(/.test(publicContract)) {
+    if (/\b(?:mergeSelectedLayers|mergeActiveLayerDown|mergeActiveLayerDownWhenReady|flatten|rasterizeLayer|rasterizeActiveLayer)\s*\(/.test(publicContract)) {
       failures.push(`${relativePath}: raw pre-readiness layer finalizers must remain private`);
     }
     if (!source.includes("await waitForTextTargets([], false, 'layer')")) {
       failures.push(`${relativePath}: Pixels-mode vector finalization must await exact renderer sources`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/layers/LayerFinalizationReadiness.ts')) {
+    if (!source.includes('await renderer.waitForLayerFinalizationSources(finalizationScope)')
+      || !source.includes('await renderer.waitForTextSource(id)')) {
+      failures.push(`${relativePath}: destructive layer readiness must await exact text and renderer sources`);
+    }
+    if (!source.includes('dependencies.captureFinalizationScope()')
+      || !source.includes('scope.assertCurrent()')
+      || !source.includes('return { assertCurrent }')
+      || /captureFinalizationScope\?\s*\(/.test(source)) {
+      failures.push(`${relativePath}: finalization readiness must pin and return a required exact host scope`);
     }
   }
   if (normalizedPath.endsWith('/application/layers/rasterFinalizationTransaction.ts')) {

@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O06d accepted: scoped finalization readiness and semantic result binding replace
+root recipes and post-commit active-layer inference. Existing transactions retain
+GPU/history ownership. Unused active-target merge route deleted. Root6,391 audit
+lines, layer command owner1,366 physical. Critic and exact final-output/history/ID
+gates pass. Interactive text undo preview varies between glyph coverage/pending
+placeholder and outline output (preserved evidence in PROGRESS); O08 remains open.
+
 O07a accepted: ViewportWheelBridge owns only host listeners and bounded diagnostics;
 existing viewport owner retains pan/zoom/presentation. Root6,427 audit lines. Critic,
 focused tests and packaged event/rebind/fresh-output/history proof pass. Broader

@@ -6,7 +6,7 @@
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
       "baselineLines": 9023,
-      "maxLines": 6427,
+      "maxLines": 6391,
       "classification": "mixed-authority",
       "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
       "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],
@@ -128,6 +128,7 @@
     },
     "packages/lighttable-app/src/lighttable/application/layers/useLayerDocumentCommands.ts": {
       "baselineLines": 1458,
+      "maxLines": 1367,
       "classification": "mixed-authority",
       "responsibilities": ["layer action bindings", "document command adaptation", "selection-sensitive operations"],
       "lifecycleOwners": ["mounted document", "active layer selection"],

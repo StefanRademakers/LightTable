@@ -74,6 +74,7 @@ import type {
   PixelClipboardPlacement
 } from '../clipboard/pixelClipboardTypes';
 import { createLayerProcessingCreationCommands } from './layerProcessingCreationCommands';
+import { createLayerFinalizationReadiness, type LayerFinalizationScope } from './LayerFinalizationReadiness';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -135,6 +136,7 @@ export interface LayerDocumentCommandDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): LayerCommandRendererPort | null;
   getRendererGeneration(): number;
+  captureFinalizationScope(): LayerFinalizationScope;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
   getSelectionLease(): LightTableSelectionReadLease | null;
@@ -179,11 +181,10 @@ export interface LayerDocumentCommands {
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
   ): Promise<boolean>;
-  mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
-  mergeActiveLayerDownWhenReady(): Promise<boolean>;
-  flattenWhenReady(request: FlattenRequest): Promise<boolean>;
-  rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
-  rasterizeLayerWhenReady(layerId: LayerId): Promise<boolean>;
+  mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<LayerId>;
+  flattenWhenReady(request: FlattenRequest): Promise<LayerId>;
+  rasterizeTextLayerWhenReady(layerId: LayerId): Promise<LayerId>;
+  rasterizeLayerWhenReady(layerId: LayerId): Promise<LayerId>;
   invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
@@ -207,15 +208,6 @@ const fullDocumentBounds = (document: ImageDocument) => ({
   y: 0,
   width: document.width,
   height: document.height
-});
-
-const contributingTextLayerIds = (
-  nodes: readonly LayerNode[],
-  inheritedVisible = true
-): LayerId[] => nodes.flatMap((node) => {
-  const visible = inheritedVisible && node.visible && node.opacity > 0;
-  if (node.type === 'group') return contributingTextLayerIds(node.children, visible);
-  return node.type === 'text' && visible ? [node.id] : [];
 });
 
 const retainedLayerRuntimeIds = (nodes: readonly LayerNode[]): LayerId[] =>
@@ -269,51 +261,7 @@ export const createLayerDocumentCommands = (
   };
   const pixelClipboard = createPixelClipboardController(() => dependenciesRef.current);
 
-  const waitForTextTargets = async (
-    layerIds: readonly LayerId[],
-    forceRootContribution = false,
-    finalizationScope: 'layer' | 'document' = 'layer'
-  ) => {
-    const dependencies = dependenciesRef.current;
-    const document = dependencies.getDocument();
-    const renderer = dependencies.getRenderer();
-    if (!document || !renderer) {
-      throw new Error('The document renderer is unavailable for text source preparation.');
-    }
-    const admittedDocumentId = document.id;
-    const admittedRevision = document.revision;
-    const targets = layerIds.map((layerId) => findDocumentLayer(document, layerId))
-      .filter((layer): layer is LayerNode => Boolean(layer));
-    const readinessTargets = forceRootContribution
-      ? targets.map((layer) => ({ ...layer, visible: true, opacity: 1 }))
-      : targets;
-    const textLayerIds = [...new Set(contributingTextLayerIds(readinessTargets))];
-    for (const textLayerId of textLayerIds) {
-      if (!await renderer.waitForTextSource(textLayerId)) {
-        throw new Error('A contributing text source could not be prepared for compositing.');
-      }
-      const currentDependencies = dependenciesRef.current;
-      const currentDocument = currentDependencies.getDocument();
-      if (!currentDocument
-        || currentDocument.id !== admittedDocumentId
-        || currentDocument.revision !== admittedRevision
-        || currentDependencies.getRenderer() !== renderer) {
-        throw new Error('The document changed while its text source was being prepared.');
-      }
-    }
-    if (!await renderer.waitForLayerFinalizationSources(finalizationScope)) {
-      throw new Error('The exact layer rendering sources could not be prepared for finalization.');
-    }
-    const currentDependencies = dependenciesRef.current;
-    const currentDocument = currentDependencies.getDocument();
-    if (!currentDocument
-      || currentDocument.id !== admittedDocumentId
-      || currentDocument.revision !== admittedRevision
-      || currentDependencies.getRenderer() !== renderer) {
-      throw new Error('The document changed while its rendering sources were being prepared.');
-    }
-    return true;
-  };
+  const waitForTextTargets = createLayerFinalizationReadiness(() => dependenciesRef.current);
 
   const applyDocumentTransition = (
     operation: string,
@@ -675,7 +623,7 @@ export const createLayerDocumentCommands = (
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setError(null);
     dependenciesRef.current.setStatus('Layers merged');
-    return true;
+    return destination.id;
   };
 
   const mergeSelectedLayers = (selectedLayerIds: LayerId[]) => {
@@ -705,7 +653,8 @@ export const createLayerDocumentCommands = (
       return rejectCreation('The shape preview is no longer the active document state.');
     }
     try {
-      await waitForTextTargets([], false, 'layer');
+      const readiness = await waitForTextTargets([], false, 'layer');
+      readiness.assertCurrent();
     } catch (reason) {
       return rejectCreation(
         reason instanceof Error ? reason.message : 'The shape render source could not be prepared.'
@@ -766,55 +715,11 @@ export const createLayerDocumentCommands = (
   };
 
   const mergeLayersWhenReady = async (selectedLayerIds: LayerId[]) => {
-    await waitForTextTargets(selectedLayerIds);
-    if (mergeSelectedLayers(selectedLayerIds)) return true;
+    const readiness = await waitForTextTargets(selectedLayerIds);
+    readiness.assertCurrent();
+    const destinationId = mergeSelectedLayers(selectedLayerIds);
+    if (destinationId) return destinationId;
     throw new Error('The prepared layers could not be merged.');
-  };
-
-  const mergeActiveLayerDownWhenReady = async () => {
-    const current = dependenciesRef.current.getDocument();
-    const activeLayerId = current?.activeLayerId;
-    const siblings = current && activeLayerId ? siblingLayers(current, activeLayerId) : [];
-    const index = activeLayerId
-      ? siblings.findIndex(({ id }) => id === activeLayerId)
-      : -1;
-    const top = index > 0 ? siblings[index] : null;
-    const bottom = index > 0 ? siblings[index - 1] : null;
-    if (!top || !bottom) {
-      const message = 'The active layer has no layer below it to merge with.';
-      dependenciesRef.current.setError(message);
-      throw new Error(message);
-    }
-    await waitForTextTargets([bottom.id, top.id]);
-    if (mergeActiveLayerDown()) return true;
-    throw new Error('The prepared layers could not be merged.');
-  };
-
-  const mergeActiveLayerDown = () => {
-    const description = { label: 'Merge Layers', type: 'layer.merge' } as const;
-    const transaction = beginDocumentTransaction('layer.merge-down', description);
-    if (!transaction) return false;
-    const current = transaction.before;
-    if (!current?.activeLayerId) {
-      transaction.cancel();
-      dependenciesRef.current.setError('Select a layer with a raster layer directly below it.');
-      return false;
-    }
-    const siblings = siblingLayers(current, current.activeLayerId);
-    const index = siblings.findIndex((layer) => layer.id === current.activeLayerId);
-    if (index <= 0) {
-      transaction.cancel();
-      dependenciesRef.current.setError('The active layer has no layer below it to merge with.');
-      return false;
-    }
-    const top = siblings[index];
-    const bottom = siblings[index - 1];
-    if (!top || !bottom) {
-      transaction.cancel();
-      dependenciesRef.current.setError('The active layer has no layer below it to merge with.');
-      return false;
-    }
-    return mergeSelectedLayersInTransaction(transaction, [bottom.id, top.id]);
   };
 
   const flatten = (request: FlattenRequest) => {
@@ -938,7 +843,7 @@ export const createLayerDocumentCommands = (
     dependencies.setStatus(
       request.kind === 'group' ? 'Group flattened' : 'Image flattened'
     );
-    return true;
+    return destination.id;
   };
 
   const flattenWhenReady = async (request: FlattenRequest) => {
@@ -947,14 +852,16 @@ export const createLayerDocumentCommands = (
       ? getFlattenGroupPlan(current, request.groupId)
       : getFlattenImagePlan(current));
     if (!plan) throw new Error('The flatten target is unavailable.');
-    await waitForTextTargets(
+    const readiness = await waitForTextTargets(
       request.kind === 'group'
         ? [request.groupId]
         : current.layers.map(({ id }) => id),
       request.kind === 'group',
       request.kind === 'image' ? 'document' : 'layer'
     );
-    if (flatten(request)) return true;
+    readiness.assertCurrent();
+    const destinationId = flatten(request);
+    if (destinationId) return destinationId;
     throw new Error('The prepared layer stack could not be flattened.');
   };
 
@@ -1003,12 +910,14 @@ export const createLayerDocumentCommands = (
     dependencies.setActiveChannel('pixels');
     dependencies.setError(null);
     dependencies.setStatus(`${source.name} rasterized`);
-    return true;
+    return destination.id;
   };
 
   const rasterizeLayerWhenReady = async (layerId: LayerId) => {
-    await waitForTextTargets([layerId], true);
-    if (rasterizeLayerById(layerId)) return true;
+    const readiness = await waitForTextTargets([layerId], true);
+    readiness.assertCurrent();
+    const destinationId = rasterizeLayerById(layerId);
+    if (destinationId) return destinationId;
     throw new Error('The prepared layer could not be rasterized.');
   };
 
@@ -1433,7 +1342,6 @@ export const createLayerDocumentCommands = (
     createAttachedAdjustment,
     rasterizeVectorCreation,
     mergeLayersWhenReady,
-    mergeActiveLayerDownWhenReady,
     flattenWhenReady,
     rasterizeTextLayerWhenReady,
     rasterizeLayerWhenReady,
