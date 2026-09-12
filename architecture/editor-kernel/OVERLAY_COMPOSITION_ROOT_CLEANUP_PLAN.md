@@ -217,6 +217,11 @@ class names: reuse existing owners before creating a new one.
       guard. Root duplicate defaults/RAF state removed; source guard survives
       deferred delivery. Critic repair and packaged text/tab/close pass. Shaping,
       source caches and renderer publication revisions are unchanged.
+    - [x] O03c.7: unconditional Overlay hook setup and closed text-presentation
+      lifetime. Old public open=false->true hook crash reproduced; current three
+      cycles pass. Scoped async errors remain visible only to the current owner.
+      Critic repairs/PASS and fresh packaged text recovery/rasterize/conversion
+      pass; non-image host proof is not GPU or whole-editor close acceptance.
     - [x] O03c.4: canonical revision authority discovered through Face Warp preview
     rebind. Session publications/history own invalidation; deleted command,
     observation and task-wrapper bumps. Dirty/save identity remains separate.

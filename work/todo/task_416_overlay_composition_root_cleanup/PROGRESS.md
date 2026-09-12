@@ -1,5 +1,34 @@
 # Task 416 progress
 
+## O03c.7 — Public open lifecycle and scoped text feedback (accepted)
+
+- Root closed return now follows all hooks; text Properties reveal requires open.
+  Existing text command/recovery bindings own open epochs and retire pending
+  font/recovery work, deferred defaults and editing reentry. No new document
+  owner, GPU work, queue or fallback. Root5158->5153, ceiling5154; engine4003.
+- Critic repair closes final error-delivery microtask gap: font/writing-mode UI
+  intents report inside their captured owner, not a later unscoped root catch.
+  Implicit command reporter disabled only for this owner. Current failures show
+  once, own source publication cannot hide a genuine failure, old completions
+  cannot revive after reopen. Existing synchronous gesture terminals unchanged.
+  Final independent PASS;81 tests/7 files, app typecheck/boundary/diff PASS.
+- Public React production host, actual open prop and supported non-image surface:
+  baseline a112f79d four-module override run-bLFAuj reproduces React #310 on first
+  open; fresh run-GbfkWV passes three cycles with no page/console errors. Remaining
+  dependencies unchanged. This is not an old full package or image/GPU test.
+  Host screenshot inspected; fixture has minimal styling, not product visual QA.
+- Fresh instrumented package40691: text-finalization-intents/run-Lu8MiQ and
+  text-to-shape-intent-smoke/run-x6GT9X PASS, actual recovery/rasterize/conversion
+  and exact supported undo/redo. Positioned-render rejection and recovered font
+  control presentation debt remain as previously recorded, not newly fixed.
+  Archive SHA256:3dfec1725b06af09325d9b66557ad412d2ed85c0571dfdfc19f2b631ff0b8c81.
+- Harness failures retained: development host canceled before assertions;
+  Electron local fixture failed host IPC trust (no bypass); Chrome favicon404
+  removed by explicit empty favicon before clean baseline/current runs. No
+  retries or error filtering. Test scripts use existing Playwright, no unavailable
+  browser skill claim. Next: independent GenAI provider selection/subscription
+  and request lifetime. O08 endpoint/mixed performance proof and O09 remain open.
+
 ## O06i — Delete target intent and settlement continuity (accepted)
 
 - Removed root vector/pixel/layer priority and async-target policy. Existing

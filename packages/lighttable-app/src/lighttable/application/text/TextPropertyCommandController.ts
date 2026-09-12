@@ -28,7 +28,7 @@ export interface TextPropertyCommandPorts {
   gestures: Pick<TextPropertyGestureController, 'begin' | 'apply' | 'queuePaint' | 'commit' | 'cancel'>;
   editing: Pick<FlowTextEditingSessionController, 'getSnapshot' | 'finish' | 'begin'>;
   mutations: Pick<DocumentMutationController, 'change'>;
-  execute(command: 'text.format' | 'text.setLayout', parameters: unknown): Promise<{ status: string }>;
+  execute(command: 'text.format' | 'text.setLayout', parameters: unknown): Promise<{ status: string; message?: string }>;
   activateTool(tool: 'text-point' | 'text-vertical', after?: () => void): void;
   reportFailure(error: unknown): void;
 }
@@ -50,7 +50,7 @@ export class TextPropertyCommandController {
     const source = layer?.type === 'text' ? layer.text.source : null;
     const editing = p.editing.getSnapshot(); const tool = p.getTool();
     const registry = p.getFontRegistry();
-    return { p, isCurrent: () => {
+    return { p, ownsContext: scope.isCurrent, isCurrent: () => {
       const current = this.getPorts(); const doc = current.getDocument();
       const node = doc ? findDocumentLayer(doc, doc.activeLayerId) : null;
       const nextEditing = current.editing.getSnapshot();
@@ -64,7 +64,9 @@ export class TextPropertyCommandController {
   }
   updateDefaults = (change: Partial<TextToolSettings>) => {
     const p = this.getPorts();
-    p.updateDefaults(current => ({ ...current, ...change,
+    const scope = p.captureScope(), generation = this.generation;
+    if (!scope.isCurrent()) return;
+    p.updateDefaults(current => !scope.isCurrent() || generation !== this.generation ? current : ({ ...current, ...change,
       ...(change.family && change.family !== current.family && change.style === undefined
         ? { style: defaultTextStyleForFamily(p.getFonts(), change.family) ?? current.style } : {}) }));
   };
@@ -74,6 +76,9 @@ export class TextPropertyCommandController {
   cancel = () => this.getPorts().gestures.cancel();
   private discrete(stylePatch: TextStylePatch, paragraphPatch: ParagraphStylePatch) {
     const p = this.getPorts(); const layer = this.flowLayer();
+    const scope = p.captureScope(), generation = this.generation;
+    const isCurrent = () => generation === this.generation && scope.isCurrent();
+    if (!isCurrent()) return false;
     const style = semanticStylePatchFromCanonical(stylePatch);
     const paragraph = semanticParagraphPatchFromCanonical(paragraphPatch);
     if (!layer || !style || !paragraph) return false;
@@ -84,7 +89,9 @@ export class TextPropertyCommandController {
     } else {
       void p.execute('text.format', { layerId: layer.id,
         ...(Object.keys(style).length ? { style } : {}),
-        ...(Object.keys(paragraph).length ? { paragraph } : {}) }).catch(p.reportFailure);
+        ...(Object.keys(paragraph).length ? { paragraph } : {}) }).then(result => {
+          if (result.status === 'rejected' && isCurrent()) p.reportFailure(new Error(result.message ?? 'Text formatting did not complete.'));
+        }).catch(reason => { if (isCurrent()) p.reportFailure(reason); });
     }
     return true;
   }
@@ -92,11 +99,19 @@ export class TextPropertyCommandController {
   applyParagraph = (patch: ParagraphStylePatch) => this.discrete({}, patch);
   applyFont = async (assetId: string): Promise<void> => {
     const sequence = ++this.generation; const intent = this.captureIntent();
-    const asset = await intent.p.loadFont(assetId);
+    if (!intent.isCurrent()) return;
+    let asset: DocumentFontAsset | null;
+    try { asset = await intent.p.loadFont(assetId); }
+    catch (reason) { if (sequence === this.generation && intent.isCurrent()) intent.p.reportFailure(reason); return; }
     if (sequence !== this.generation || !intent.isCurrent()) return;
-    if (!asset) throw new Error('The selected text font is unavailable.');
-    if (!intent.p.getPresentation()) this.updateDefaults({ family: asset.familyNames[0]!, style: asset.styleName });
-    else this.applyStyle(textFontPatch(asset));
+    try {
+      if (!asset) throw new Error('The selected text font is unavailable.');
+      if (!intent.p.getPresentation()) this.updateDefaults({ family: asset.familyNames[0]!, style: asset.styleName });
+      else this.applyStyle(textFontPatch(asset));
+    } catch (reason) {
+      // An admitted formatting commit can replace its own source before raising a genuine failure.
+      if (sequence === this.generation && intent.ownsContext()) intent.p.reportFailure(reason);
+    }
   };
   applyFill = (fill: string) => {
     const p = this.getPorts();
@@ -125,29 +140,38 @@ export class TextPropertyCommandController {
     const p = this.getPorts(); const layer = this.flowLayer();
     if (!layer || layer.text.source.kind !== 'flow' || layer.text.source.layout.mode === 'path') return;
     const sequence = ++this.generation;
-    p.editing.finish();
     const scope = p.captureScope(); const tool = p.getTool();
-    const result = await p.execute('text.setLayout', { layerId: layer.id, writingMode });
-    // The command may change the source; continuation requires original scope/target/tool, not source equality.
-    if (sequence === this.generation && result.status === 'completed' && scope.isCurrent()
-      && this.getPorts().getDocument()?.activeLayerId === layer.id && this.getPorts().getTool() === tool) {
-      p.activateTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
-    }
+    const isCurrent = () => sequence === this.generation && scope.isCurrent()
+      && this.getPorts().getDocument()?.activeLayerId === layer.id && this.getPorts().getTool() === tool;
+    if (!isCurrent()) return;
+    try {
+      p.editing.finish();
+      if (!isCurrent()) return;
+      const result = await p.execute('text.setLayout', { layerId: layer.id, writingMode });
+      if (!isCurrent()) return;
+      if (result.status === 'rejected') throw new Error(result.message ?? 'The text layout did not complete.');
+      // The command may change the source; continuation requires original scope/target/tool, not source equality.
+      if (result.status === 'completed') p.activateTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
+    } catch (reason) { if (isCurrent()) p.reportFailure(reason); }
   };
   changeLayoutMode = (mode: 'point' | 'paragraph') => {
     const p = this.getPorts(); const layer = this.flowLayer();
     if (!layer || layer.text.source.kind !== 'flow' || layer.text.source.layout.mode === mode) return;
     const editing = p.editing.getSnapshot(); const scope = p.captureScope();
+    const generation = this.generation;
+    const isCurrent = () => generation === this.generation && scope.isCurrent();
+    if (!isCurrent()) return;
     const restore = editing.status === 'editing' && editing.layerId === layer.id;
     const firstBaselineOffset = p.getFirstBaselineOffset(layer.id);
     if (restore) p.editing.finish();
+    if (!isCurrent()) return;
     const changed = p.mutations.change(document => mode === 'paragraph'
       ? convertPointTextToParagraph(document, layer.id, { width: 240, height: 120, firstBaselineOffset })
       : convertParagraphTextToPoint(document, layer.id, { firstBaselineOffset }), true,
     { label: mode === 'paragraph' ? 'Convert to Paragraph Text' : 'Convert to Point Text',
       type: 'text.set-layout', layerIds: [layer.id] });
-    if (changed) p.activateTool('text-point', () => {
-      if (restore && scope.isCurrent() && this.getPorts().getDocument()?.activeLayerId === layer.id) {
+    if (changed && isCurrent()) p.activateTool('text-point', () => {
+      if (restore && isCurrent() && this.getPorts().getDocument()?.activeLayerId === layer.id) {
         p.editing.begin(layer.id, editing.selection.focus);
       }
     });

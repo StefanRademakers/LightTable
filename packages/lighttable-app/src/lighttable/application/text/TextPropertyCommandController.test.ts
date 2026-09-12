@@ -92,7 +92,8 @@ describe('Text property command ownership', () => {
   });
   it('preserves visible font load failures instead of reporting success', async () => {
     const h = setup(); h.ports.loadFont = async () => { throw new Error('font load failed'); };
-    await expect(h.controller.applyFont('bad')).rejects.toThrow('font load failed');
+    await h.controller.applyFont('bad');
+    expect(h.ports.reportFailure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: 'font load failed' }));
     expect(h.ports.execute).not.toHaveBeenCalled();
   });
   it('keeps an explicitly selected font face when changing family defaults', async () => {

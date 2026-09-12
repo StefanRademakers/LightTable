@@ -34,7 +34,7 @@ const fixture = () => {
     applySnapshot: document => { session.setDocument(document); projected = document; },
     previewSnapshot: vi.fn(), discardPreview: vi.fn(), pushHistoryEntry: history }));
   const binding: Parameters<typeof usePositionedTextRecovery>[0] = {
-    lifecycle, generation: 1, getSession: () => session, getRenderer: () => renderer, getProjectedDocument: () => projected,
+    open: true, lifecycle, generation: 1, getSession: () => session, getRenderer: () => renderer, getProjectedDocument: () => projected,
     captureScope: () => { const opening = lifecycle; return { isCurrent: () => lifecycle === opening }; },
     documentMutations: mutations, text: { finishBeforeTransition: vi.fn(() => true) }, status: vi.fn(), error: vi.fn()
   };
@@ -71,4 +71,17 @@ it('StrictMode reconnect can recover without a stale cleanup closing a replaceme
   f.retire('renderer'); const second = f.render(); hooks.setup!(); cleanup();
   expect(second.offer(f.session().getSnapshot().document!.activeLayerId)!.onRecover()).toBe(true);
   expect(f.history).toHaveBeenCalledOnce();
+});
+it('committed close/reopen retires the offered source even with the same session and renderer', () => {
+  const f = fixture(), first = f.render(), cleanup = hooks.setup!();
+  const offer = first.offer(f.session().getSnapshot().document!.activeLayerId)!;
+  Object.assign(f.binding, { open: false }); const closed = f.render();
+  expect(offer.onRecover()).toBe(false); // Closed render cannot start mutation before layout cleanup either.
+  cleanup(); const closeCleanup = hooks.setup!();
+  expect(closed.offer(f.session().getSnapshot().document!.activeLayerId)!.onRecover()).toBe(false);
+  Object.assign(f.binding, { open: true }); const reopened = f.render(); closeCleanup(); hooks.setup!();
+  expect(offer.onRecover()).toBe(false); expect(f.history).not.toHaveBeenCalled();
+  expect(f.binding.text.finishBeforeTransition).not.toHaveBeenCalled();
+  expect(reopened.offer(f.session().getSnapshot().document!.activeLayerId)!.onRecover()).toBe(true);
+  expect(f.history).toHaveBeenCalledOnce(); expect(f.binding.error).not.toHaveBeenCalled();
 });

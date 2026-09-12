@@ -1,15 +1,19 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,158 physical lines. O06i moves Delete precedence and
+Current accepted root: 5,153 physical lines. O03c.7 moves the closed return after
+all hooks, scopes pending text/recovery and error feedback to open epochs, and
+removes root async error catches. Public-host baseline hook crash is reproduced;
+current host and adjacent packaged text gates pass. GenAI provider binding next.
+O06i moves Delete precedence and
 settlement-target validation into DeleteTargetIntent. Canonical invocation layer/
 channel are explicit Fill arguments; post-settlement selection must remain active.
 Same-target active replacement remains intentional; no provenance equality claim.
 O05f removes duplicated tool-default
 recipes, brush keyboard routing and digit-buffer lifetime. EditorToolSettings
 owns only preference intents; existing ApplicationSession retains state through
-useDocumentEditorSession. No renderer/history dependency. Next source defect:
-open=false returns before three hooks; sole in-repo caller passes literal open,
-so ordinary close unmount does not exercise that public prop transition.
+useDocumentEditorSession. No renderer/history dependency. Sole in-repo caller
+passes literal open, so ordinary close unmount does not exercise the separately
+tested public open-prop transition.
 O06h removes root adjustment placement,
 result inference and creation presentation. O05a.4 removes root text-rasterize
 and positioned-recovery policy; existing finalization/mutation owners retain edits.

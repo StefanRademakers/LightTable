@@ -930,6 +930,14 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('vectorToolSessionController.deleteSelection(')) {
       failures.push(`${relativePath}: Delete precedence and post-settlement target validation belong to DeleteTargetIntent`);
     }
+    // Overlay-only guard: after its closed-presentation return, the remaining body is JSX wiring, not hook setup.
+    const closedPresentationReturn = source.indexOf('if (!open) return null;');
+    if (closedPresentationReturn < 0 || /\buse[A-Z]\w*\s*\(/.test(source.slice(closedPresentationReturn))
+      || !source.includes("if (open && activeTextPropertyLayer?.type === 'text')")
+      || !source.includes('const applyTextFontAsset = textPropertyCommands.applyFont;')
+      || !source.includes('const applyTextWritingMode = textPropertyCommands.applyWritingMode;')) {
+      failures.push(`${relativePath}: the open return must follow every Overlay hook and closed text cannot reveal Properties`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')

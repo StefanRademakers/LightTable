@@ -6,6 +6,7 @@ import { PositionedTextRecoveryIntent, type PositionedTextRecoveryIntentPorts } 
 import type { ImageDocument } from '../../editor/document/documentTypes';
 
 interface Binding {
+  readonly open: boolean;
   readonly lifecycle: object;
   readonly generation: number;
   getSession(): DocumentSession | undefined;
@@ -24,7 +25,7 @@ export const usePositionedTextRecovery = (binding: Binding) => {
   const lifetime = useMemo(() => {
     let mounted = false;
     const opening = binding, generation = binding.generation, lifecycle = binding.lifecycle;
-    const isCurrent = () => mounted && Boolean(session && renderer)
+    const isCurrent = () => mounted && opening.open && latest.current.open && Boolean(session && renderer)
       && latest.current.getSession() === session && latest.current.getRenderer() === renderer
       && latest.current.lifecycle === lifecycle && latest.current.generation === generation
       && session?.getSnapshot().lifecycle === 'ready'
@@ -37,7 +38,7 @@ export const usePositionedTextRecovery = (binding: Binding) => {
       intent: new PositionedTextRecoveryIntent({ isCurrent, getDocument, command,
         captureScope: opening.captureScope, text: opening.text, status: opening.status, error: opening.error })
     };
-  }, [session, renderer, binding.lifecycle, binding.generation]);
-  useLayoutEffect(() => { lifetime.setMounted(true); return () => lifetime.setMounted(false); }, [lifetime]);
+  }, [session, renderer, binding.lifecycle, binding.generation, binding.open]);
+  useLayoutEffect(() => { lifetime.setMounted(binding.open); return () => lifetime.setMounted(false); }, [lifetime, binding.open]);
   return lifetime.intent;
 };

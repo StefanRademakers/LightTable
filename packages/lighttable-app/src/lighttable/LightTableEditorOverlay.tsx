@@ -4294,13 +4294,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reportAvailable: Boolean(imageDocument?.photoshopImportReport)
   });
 
-  if (!open) return null;
-
   const visibleTool = temporaryTool.snapshot.tool ?? editorSession.activeTool;
   const { layer: activeTextPropertyLayer, model: textPropertyPresentation,
     layoutMode: textLayoutMode } = resolveTextProperties(imageDocument, textEditingController, availableFontAssets);
   const positionedTextRecoveryIntents = usePositionedTextRecovery({
-    lifecycle: rendererLifecycle, generation: rendererSnapshot.generation,
+    open, lifecycle: rendererLifecycle, generation: rendererSnapshot.generation,
     getSession: () => mountedDocumentSessionRef.current,
     getRenderer: () => engineRef.current, getProjectedDocument: () => imageDocumentRef.current,
     captureScope: captureMountedInteractionScope,
@@ -4324,10 +4322,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     gestures: textPropertyGestureController,
     editing: textEditingController,
     mutations: documentMutationController,
-    execute: executeRegisteredCommand,
+    execute: (command, parameters) => executeRegisteredCommand(command, parameters, null),
     activateTool: activatePersistentTool,
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
-  });
+  }, open);
   const {
     updateDefaults: updateText, begin: beginTextPropertyGesture, apply: applyTextPropertyPatch,
     commit: commitTextPropertyGesture, cancel: cancelTextPropertyGesture,
@@ -4335,12 +4333,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyFill: applyTextFill, applyFillPaint: applyTextFillPaint, applyFillEnabled: applyTextFillEnabled,
     applyStrokeColor: applyTextStrokeColor, applyStrokeWidth: applyTextStrokeWidth, changeLayoutMode: changeTextLayoutMode
   } = textPropertyCommands;
-  const applyTextFontAsset = (assetId: string) => {
-    void textPropertyCommands.applyFont(assetId).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
-  };
-  const applyTextWritingMode = (mode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => {
-    void textPropertyCommands.applyWritingMode(mode).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
-  };
+  const applyTextFontAsset = textPropertyCommands.applyFont;
+  const applyTextWritingMode = textPropertyCommands.applyWritingMode;
   const textPropertiesPanel = textPropertyPresentation ? {
     model: textPropertyPresentation,
     fonts: availableFontAssets,
@@ -4390,10 +4384,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onReset: resetSelectedFaceWarp
   };
   useEffect(() => {
-    if (activeTextPropertyLayer?.type === 'text') {
+    if (open && activeTextPropertyLayer?.type === 'text') {
       showProperties({ kind: 'layer', layerId: activeTextPropertyLayer.id });
     }
-  }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
+  }, [open, activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
+  if (!open) return null;
   const currentDocumentPresentation = documentPresentationAvailability({
     documentId: workspaceDocumentId,
     presentedDocumentId: presentedWorkspaceDocumentId,
