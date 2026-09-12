@@ -6,23 +6,25 @@ import { _electron as electron } from 'playwright-core';
 import sharp from 'sharp';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { verifyTransparencyAction } from './selection-kernel-transparency-action.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const output = path.join(root, 'tmp', 'selection-kernel-smoke');
-await mkdir(output, { recursive: true });
+const directory = path.join(root, 'tmp', 'selection-kernel-smoke');
+await mkdir(directory, { recursive: true });
+const output = await mkdtemp(path.join(directory, 'run-'));
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
-let app;
+let app, page;
 
 const expectedBounds = { x: 20, y: 30, width: 80, height: 60 };
 
 try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData }, timeout: 30_000 });
-  const page = await app.firstWindow({ timeout: 30_000 });
+  page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   await waitForDesktopLauncher({ app, page, outputDirectory: output, sourceFile: null,
     pageErrors, label: 'selection-kernel' });
@@ -231,13 +233,20 @@ try {
   assert.deepEqual(replayedCopy.image.data, recordedCopy.image.data,
     'Actions replay must reproduce the real marquee selection pixels.');
 
-  const report = { documentId, expectedBounds, paintedBounds, changedPaintPixels: changed,
+  const transparencyAction = await verifyTransparencyAction({ page, driver, documentId, recorder, copyPixels });
+  const report = { executablePath: launch.executablePath, documentId, expectedBounds, paintedBounds, changedPaintPixels: changed,
+    transparencyAction,
     paintedSelectionDelete: { clearedPixels, layerRetained: true, exactUndo: true },
     marqueeActions: { recordedOnce: true, exactReplay: true },
     history: (await driver.queryDocument(documentId)).history, pageErrors };
   assert.equal(pageErrors.length, 0, JSON.stringify(pageErrors));
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+  await page.screenshot({ path: path.join(output, 'final-ui.png') });
   process.stdout.write(`Packaged selection kernel smoke passed: ${output}\n`);
+} catch (error) {
+  await writeFile(path.join(output, 'report.json'), JSON.stringify({ status: 'failed', error: String(error), pageErrors }, null, 2));
+  if (page) await page.screenshot({ path: path.join(output, 'failure.png') });
+  throw error;
 } finally {
   await app?.close().catch(() => {});
 }

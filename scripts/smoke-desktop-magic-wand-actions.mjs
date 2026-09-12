@@ -1,21 +1,25 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, mkdtemp } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const outputDirectory = path.join(root, 'tmp', 'magic-wand-actions-smoke');
-await Promise.all([access(fixture), mkdir(outputDirectory, { recursive: true })]);
+const directory = path.join(root, 'tmp', 'magic-wand-actions-smoke');
+await Promise.all([access(fixture), mkdir(directory, { recursive: true })]);
+const outputDirectory = await mkdtemp(path.join(directory, 'run-'));
 const userData = await mkdtemp(path.join(outputDirectory, 'profile-'));
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
 let app;
 const pageErrors = [];
+const report = { status: 'running', fixture, pageErrors };
+let window;
 try {
   const launch = await resolveDesktopTestLaunch(root);
+  report.executablePath = launch.executablePath;
   app = await electron.launch({
     executablePath: launch.executablePath,
     args: launch.args,
@@ -24,7 +28,7 @@ try {
       LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture },
     timeout: 30_000
   });
-  const window = await app.firstWindow({ timeout: 30_000 });
+  window = await app.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => pageErrors.push(error.message));
   const open = await waitForDesktopLauncher({
     app, page: window, outputDirectory, sourceFile: fixture,
@@ -107,7 +111,15 @@ try {
       throw new Error(`Magic Wand playback did not complete: ${await recorder.textContent()}`);
     });
   if (pageErrors.length) throw new Error(`Magic Wand page errors: ${pageErrors.join(' | ')}`);
-  console.log('Desktop Magic Wand Actions smoke passed.');
+  report.status = 'passed';
+  report.sourceLayerId = rasterTargetId;
+  await window.screenshot({ path: path.join(outputDirectory, 'final-ui.png') });
+  console.log(`Desktop Magic Wand Actions smoke passed: ${outputDirectory}`);
+} catch (error) {
+  report.status = 'failed'; report.error = String(error);
+  if (window) await window.screenshot({ path: path.join(outputDirectory, 'failure.png') });
+  throw error;
 } finally {
+  await writeFile(path.join(outputDirectory, 'report.json'), JSON.stringify(report, null, 2));
   await app?.close();
 }

@@ -319,8 +319,9 @@ export const createSelectionSessionController = (
     return queueCommit(async (isAdmitted) => {
       if (!isAdmitted() || !isCurrent(document, renderer)) return false;
       const applied = await resolveDependencies().commitOperation({ operation });
-      if (!isAdmitted()) return false;
-      resolveDependencies().setError(applied ? null : failureMessage);
+      if (isAdmitted() && isCurrent(document, renderer)) {
+        dependencies.setError(applied ? null : failureMessage);
+      }
       return applied;
     });
   };
@@ -541,15 +542,16 @@ export const createSelectionSessionController = (
           options: { ...options },
           provenance: operation,
         }, cancellation.signal);
-        if (!applied || !isAdmitted() || generation !== magicWandGeneration) return false;
-        latest.setError(null);
-        if (recordObserved) {
-          notifyObservedCommit(latest, () => onMagicWandCommitted?.({
-            kind: 'magic-wand', layerId,
-            point: { x: point.x, y: point.y }, mode, options: { ...options },
-          }));
+        if (applied && isAdmitted() && generation === magicWandGeneration && isCurrent(document, renderer)) {
+          latest.setError(null);
+          if (recordObserved) {
+            notifyObservedCommit(latest, () => onMagicWandCommitted?.({
+              kind: 'magic-wand', layerId,
+              point: { x: point.x, y: point.y }, mode, options: { ...options },
+            }));
+          }
         }
-        return true;
+        return applied;
       });
     } finally {
       magicWandAborts.delete(cancellation);
@@ -562,8 +564,8 @@ export const createSelectionSessionController = (
   ): Promise<boolean> => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
-    const before = cloneSelectionOperations(dependencies.getSelection());
-    if (!document || !hasCommittedSelection(dependencies) || !findDocumentLayer(document, layerId)) {
+    const renderer = dependencies.getRenderer();
+    if (!document || !renderer || !hasCommittedSelection(dependencies) || !findDocumentLayer(document, layerId)) {
       return false;
     }
     const operation = createSimilarSelectionOperation(
@@ -574,10 +576,11 @@ export const createSelectionSessionController = (
       options
     );
     return queueCommit(async (isAdmitted) => {
-      if (!isAdmitted() || resolveDependencies().getDocument() !== document) return false;
+      if (!isAdmitted() || !isCurrent(document, renderer)) return false;
       const applied = await resolveDependencies().commitOperation({ operation });
-      if (!isAdmitted()) return false;
-      resolveDependencies().setError(applied ? null : 'Similar colors could not be selected.');
+      if (isAdmitted() && isCurrent(document, renderer)) {
+        dependencies.setError(applied ? null : 'Similar colors could not be selected.');
+      }
       return applied;
     });
   };

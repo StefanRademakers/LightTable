@@ -91,6 +91,7 @@ import { usePropertiesInspectorPresentation } from './composition/properties/use
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerFinalizationIntents } from './composition/workspace/useLayerFinalizationIntents';
 import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
+import { createMountedSelectionCommandBinding } from './application/tools/selection/createMountedSelectionCommandBinding';
 import { createLayerFinalizationCommandBinding } from './application/layers/LayerFinalizationCommandBinding';
 import { captureLayerFinalizationScope } from './application/layers/captureLayerFinalizationScope';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
@@ -3402,8 +3403,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
     },
     loadLayerTransparencySelection: async (layerId) => {
-      await settleMountedDocumentInteraction();
-      await selectionSessionController.selectLayerTransparency(layerId);
+      await executeRegisteredCommand('selection.modify', {
+        kind: 'modify', operation: 'load-transparency', layerId
+      });
     },
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedLayers: layerFinalizationIntents.mergeSelected,
@@ -3721,82 +3723,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         waitForPresentation: async () => { await waitForPresentation(); },
         loadMaskAsSelection: selectionSessionController.selectLayerMask
       }),
-      executeSelectionCommand: async (command) => {
-        await settleMountedDocumentInteraction();
-        if (command.kind === 'modify') {
-          if (command.operation === 'load-transparency') {
-            const applied = await selectionSessionController.selectLayerTransparency(command.layerId);
-            return applied ? { operation: command.operation, layerId: command.layerId } : null;
-          }
-          if (command.operation === 'similar') {
-            const applied = await selectionSessionController.selectSimilar(command.layerId, {
-              tolerance: command.tolerance,
-              antiAlias: command.antiAlias,
-              sampleAllLayers: command.sampleAllLayers
-            });
-            return applied ? {
-              operation: command.operation,
-              layerId: command.layerId,
-              tolerance: command.tolerance,
-              antiAlias: command.antiAlias,
-              sampleAllLayers: command.sampleAllLayers
-            } : null;
-          }
-          const applied = command.operation === 'feather'
-            ? await selectionSessionController.feather(
-                command.radius!,
-                command.applyAtCanvasBounds === true
-              )
-            : command.operation === 'border'
-              ? await selectionSessionController.border(command.width!)
-              : command.operation === 'smooth'
-                ? await selectionSessionController.smooth(
-                    command.radius!,
-                    command.applyAtCanvasBounds === true
-                  )
-            : command.operation === 'expand' || command.operation === 'contract'
-              ? await selectionSessionController.morphology(
-                  command.operation,
-                  command.radius!,
-                  command.applyAtCanvasBounds === true
-                )
-              : await selectionSessionController.applyState(command.operation);
-          return applied ? { operation: command.operation,
-            ...(command.operation === 'feather' || command.operation === 'smooth'
-              || command.operation === 'expand' || command.operation === 'contract'
-              ? { radius: command.radius } : {}),
-            ...(command.operation === 'border' ? { width: command.width } : {}),
-            ...(command.operation === 'feather' || command.operation === 'smooth'
-              || command.operation === 'expand' || command.operation === 'contract'
-              ? { applyAtCanvasBounds: command.applyAtCanvasBounds === true } : {}) } : null;
-        }
-        if (command.kind === 'magic-wand') {
-          const applied = await selectionSessionController.applyMagicWand(
-            command.layerId,
-            command.point,
-            command.mode,
-            command.options
-          );
-          return applied ? {
-            layerId: command.layerId,
-            point: command.point,
-            mode: command.mode,
-            options: command.options
-          } : null;
-        }
-        const applied = await selectionSessionController.applyShape(
-          command.shape,
-          command.mode,
-          command.featherRadius,
-          command.antiAlias
-        );
-        return applied ? {
-          mode: command.mode,
-          shape: command.shape,
-          featherRadius: command.featherRadius,
-          antiAlias: command.antiAlias
-        } : null;
-      },
+      executeSelectionCommand: createMountedSelectionCommandBinding({
+        session: documentSession, renderer: registeredRenderer, registration: captureMountedInteractionScope(),
+        getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+        getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,
+        settle: settleRegisteredInteraction, selection: selectionSessionController
+      }),
       executeSubjectSelection: (command, signal, report) => (
         smartSelectionController.executeSubjectSelection(command, signal, report)
       ),

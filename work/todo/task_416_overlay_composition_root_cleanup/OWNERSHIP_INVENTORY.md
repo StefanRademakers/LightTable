@@ -1,6 +1,8 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,555 physical lines. O06g moves mounted adjustment commands
+Current accepted root: 5,487 physical lines. O06f.3 moves selection command mapping
+to a scoped binding and preserves authoritative committed results after retirement.
+O06g moves mounted adjustment commands
 and queries out of root, deletes parent-value publication and scopes attached
 inspection to admitted selection. Workspace repeated reveal preserves input focus.
 Exact source and packaged acceptance/failure evidence are in PROGRESS.
@@ -17,16 +19,16 @@ Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
-### Queued selection and text intent slices
+### Selection resolved O06f.3; queued text intent slices
 
-- Selection: extract the existing semantic mapping only; existing controller and
-  kernel keep coverage, algorithms and history. commitSnapshot, Similar and Wand
-  currently reinterpret a completed commit as false after retirement. Preserve
-  the authoritative terminal while suppressing stale presentation feedback;
-  reject requests retired before dispatch. Prove with real DocumentSession and
-  SelectionShapeCommandService plus deferred result delivery, not only mock true.
-- Route panel Load Transparency through existing selection.modify/load-transparency
-  so it uses normal semantic command observation/Actions; no new public schema.
+- Selection mapping is extracted; existing controller and kernel keep coverage,
+  algorithms and history. Committed terminals remain truthful after retirement;
+  stale feedback is suppressed and retired-before-dispatch requests reject.
+  Actual DocumentSession/service and packaged proof are recorded in PROGRESS.
+- Panel Load Transparency now uses existing selection.modify/load-transparency
+  to remove its duplicate UI settlement recipe; no new public schema. Existing
+  direct entry already records one semantic Action in package31617: do not claim
+  missing recording. Preserve that exact recipe and coverage replay on cut-over.
 - Type rasterize belongs in existing LayerFinalizationIntents. Positioned-text
   recovery needs exact offered source/session lifetime around its existing
   controller. Both root callbacks currently discard the text finish result;

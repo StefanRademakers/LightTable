@@ -1,5 +1,39 @@
 # Task 416 progress
 
+## O06f.3 — Selection mapping and committed terminal delivery (accepted)
+
+- createMountedSelectionCommandBinding owns the former root protocol branches
+  through narrow captured controller ports. Exact registered session/renderer/
+  scope is checked before settlement and immediately before lower dispatch.
+  Existing selection controller, kernel algorithms and history remain owners.
+- Actual DocumentSession + SelectionShapeCommandService fixture first reproduced
+  three failures: All/Similar/Wand had already published canonical coverage and
+  one history entry but reported false after renderer retirement during delayed
+  result delivery. Lower controller now preserves its authoritative applied
+  result; only stale feedback/observation is suppressed. Unstarted queued work
+  remains rejected. Positive live feedback and real UI Wand observation1 versus
+  retired0 are tested; no-op clear preserves exact snapshot without kernel work.
+- Panel transparency now invokes existing selection.modify instead of a separate
+  UI settlement recipe. Correction to initial inventory: the old route already
+  recorded one Action; this is routing cleanup, not a new recording capability.
+- Critic PASS;214 tests/10 surrounding files and final34/2 focused owner/service
+  tests pass (overlapping sets), app typecheck and boundary pass. GPU prepared
+  projection is simulated in the actual-session terminal fixture; it is not a
+  claim of reproducing that exact delayed-result race through native tab timing.
+- Baseline package31617 selection-kernel run-RjYq4X and Wand Actions run-NXNN67
+  pass. One earlier transparency-harness assertion omitted required kind:modify;
+  corrected to the existing protocol, not a product change. Fresh package44063:
+  selection-kernel run-vEdRrB passes exact translated/painted coverage, copy,
+  painting all80 selected columns,6228 deleted pixels with layer retained and
+  exact Undo, rebind, real marquee Action replay, and Ctrl-thumbnail one-step
+  transparency recording plus exact UndoRedo/Actions replay. Wand Actions
+  run-rQBc6Y passes real click, explicit sampled recipe and playback on shapes.psd.
+  Both final UI screenshots inspected by root; no page errors. Reports now use
+  unique run directories, preserving failed and prior baseline evidence.
+- Overlay5,555 ->5,487 physical lines (ceiling5,488); binding68 lines.
+  WebGpuEngine stays4,003. No new GPU work, queue or per-frame subscriber.
+  Remaining text rasterize/recovery intents and whole endpoint cleanup stay open.
+
 ## O06g — Mounted adjustment command binding and inspector ownership (accepted)
 
 Final acceptance: source critic PASS after the two exposed interaction repairs.

@@ -206,7 +206,7 @@ describe('selection session controller kernel boundary', () => {
     const queued = state.controller.applyState('invert');
     state.controller.retire();
     finish(true);
-    expect(await first).toBe(false);
+    expect(await first).toBe(true);
     expect(await queued).toBe(false);
     expect(commitOperation).toHaveBeenCalledTimes(1);
     expect(state.setError).not.toHaveBeenCalled();

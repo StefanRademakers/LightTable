@@ -9,12 +9,13 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O06g mounted adjustment commands and admitted attached
-inspector; repeated packaged immediate input, cross-parent, history and focus
-proof passes after workspace reveal idempotency repair. O05a.3 text conversion
-and O07e Remove Object remain accepted with their recorded evidence limits.
+Latest bounded acceptance: O06f.3 mounted selection mapping and truthful committed
+result delivery; packaged selection coverage, paint/copy/delete, history and
+marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
+workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
+conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Root is 5,555 physical lines. Remaining target/GenAI/command families, cross-flow
+Root is 5,487 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -340,6 +341,11 @@ class names: reuse existing owners before creating a new one.
     - [x] O06f.2: four finalization UI intents own text/admission/command outcomes;
       exact mounted source, supplied targets and existing contextual-row behavior.
       Critic PASS; real merge/flatten entries and exact PNG/history UndoRedo pass.
+    - [x] O06f.3: bounded mounted selection command mapping and truthful completed
+      terminals after renderer retirement. Actual session/service commit tests,
+      critic and packaged coverage/paint/copy/history pass. Ctrl-thumbnail uses
+      existing semantic route with exactly one Action and exact coverage replay;
+      existing Wand UI/Actions remains valid. No selection algorithm rewrite.
   - [x] O06g: mounted adjustment command/query binding with canonical session
     clocks, pre-publication busy admission and retained contextual history.
     Removed parent-value writer and eager attached-inspector recipe. Scoped

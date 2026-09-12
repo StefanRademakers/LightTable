@@ -903,6 +903,11 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('const flattenImageCommand =')) {
       failures.push(`${relativePath}: layer finalization intents and inspector entry/presentation must remain in their bounded owners`);
     }
+    if (!source.includes('executeSelectionCommand: createMountedSelectionCommandBinding(')
+      || source.includes('executeSelectionCommand: async')
+      || source.includes('selectionSessionController.selectLayerTransparency(')) {
+      failures.push(`${relativePath}: selection command mapping belongs to the scoped binding and panel transparency uses the existing semantic command`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')
