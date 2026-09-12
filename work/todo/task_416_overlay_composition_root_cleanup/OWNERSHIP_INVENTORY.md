@@ -19,7 +19,11 @@ owner or a generic command bag. `executeRegisteredCommand` retains default
 global error publication; bounded asynchronous consumers should own their
 scope-aware result/error handling, as the accepted mask bridge already does.
 
-Guide/grid next boundary (independent source inventory, not implemented):
+Guide/grid O05c.2 accepted: DocumentGuideInteraction owns scoped guide intents;
+GuideGridPresentationBinding owns retained frames, child UI owns DOM capture
+and pointer-coordinate conversion. Root owns wiring only. Final-pointer bug is
+proven repaired in package10418, exact history/tab/PNG and visual frames pass.
+The following is the retained pre-extraction inventory, not current authority:
 canonical ImageDocument.guides and guideCommands retain algorithms/history;
 LayoutGuideInteractionLayer currently owns pointer capture, original guide
 array, Alt orientation, Shift quantization and drag-out deletion. Root owns
@@ -44,7 +48,7 @@ spacing separate from display coarsening, and avoid readback/per-move history.
 - Layer menu/effect intents and remaining command registration: extract coherent
   domain families, not one replacement 400-line command bag. Keep semantic service
   admission and existing mutation/history ownership.
-- Guides, text-to-shape entry, text telemetry and tool-settings shortcuts remain
+- Text-to-shape entry, text telemetry and tool-settings shortcuts remain
   mixed policy/presentation families. Existing algorithm owners must be reused.
 - Valid composition stays: named owner construction, direct UI adapters, view-only
   visibility/layout state and provider job projection are not extraction targets.

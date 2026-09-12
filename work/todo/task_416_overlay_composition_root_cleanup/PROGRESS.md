@@ -1,5 +1,33 @@
 # Task 416 progress
 
+## O05c.2 — Scoped guide interaction and guide/grid presentation (accepted)
+
+- DocumentGuideInteraction owns the exact session/renderer guide gesture, final
+  pointer-up sample, Alt/Shift interpretation and terminal intent. Existing
+  guideCommands and DocumentMutationController remain canonical/history owners.
+  No replacement queue, per-move document mutation or Actions/MCP parity claim.
+- Child-only draft subscription removes pointer-rate Overlay renders. Independent
+  GuideGridPresentationBinding updates guide frames without rebuilding the grid;
+  duplicate samples and unchanged projection inputs do not republish. Ruler tick
+  arrays are memoized. Existing geometry/coarsening algorithms are reused.
+- Critic repairs: live renderer check across render/layout, error lifetime separate
+  from pre-edit guide freshness, and synchronous successor-draft preservation.
+  Actual mutation-controller tests cover history rejection/rollback and undo/redo.
+  Final critic source PASS; 35 focused owner/binding/hook/child tests pass, app
+  typecheck and boundary/source audit pass. Root 5,830 physical lines, ceiling5,831.
+- Prior package22846 genuinely failed final-pointer sampling: guides-smoke/run-z7AGFU
+  persisted150 instead of180. The corrected harness retains that assertion;
+  its terminal-sample supplement is explicitly synthetic, normal drags are real.
+  Earlier run-YgcDRc was a harness hit-strip half-pixel offset, not product proof.
+- New instrumented package10418 passes build/distribution/telemetry boundaries.
+  Final guides-smoke/run-1aZU2b passes exact geometry/history, real ruler/move/
+  drag-out deletion, no-op and undo/redo, tab isolation and unchanged PNG pixels.
+  Root inspected visible GPU grid and cyan guide in final-ui.png; intermediate
+  guide screenshot also inspected by harness agent. Zero page errors. Prior
+  run-xFRDxY is preserved: menu ancestor/leaf selector ambiguity, corrected with
+  the production show-guides identifier, no product assertion relaxed.
+  Grid snapping/locking and whole-editor latency are not certified by this gate.
+
 ## O02e — Workspace tab/close and host blur owners (accepted)
 
 - WorkspaceDocumentIntents owns synchronous text terminal admission and exact

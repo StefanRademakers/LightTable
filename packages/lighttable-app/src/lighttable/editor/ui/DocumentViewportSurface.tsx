@@ -23,6 +23,7 @@ import type {
   SnapMatch,
 } from "../../application/tools/snapping/snapEngine";
 import { LayoutGuideInteractionLayer } from "./LayoutGuideInteractionLayer";
+import type { DocumentGuideInteraction } from '../../application/tools/snapping/DocumentGuideInteraction';
 import { CropInteractionOverlay } from "../tools/crop/CropInteractionOverlay";
 import {
   FilterCenterOverlay,
@@ -78,8 +79,7 @@ export interface DocumentViewportSurfaceProps {
   rulersVisible?: boolean;
   guidesVisible?: boolean;
   guidesLocked?: boolean;
-  onGuideDraft?: (guides: readonly DocumentGuide[] | null) => void;
-  onGuideCommit?: (guides: readonly DocumentGuide[]) => void;
+  guideInteraction?: DocumentGuideInteraction;
   inputBridge?: React.ReactNode;
   cropBounds?: Rect | null;
   documentWidth?: number;
@@ -149,8 +149,7 @@ export const DocumentViewportSurface: React.FC<
   rulersVisible = false,
   guidesVisible = false,
   guidesLocked = false,
-  onGuideDraft,
-  onGuideCommit,
+  guideInteraction,
   inputBridge,
   cropBounds = null,
   documentWidth = 0,
@@ -212,8 +211,7 @@ export const DocumentViewportSurface: React.FC<
         />
       ) : null}
       {(rulersVisible || (guidesVisible && documentGuides.length > 0)) &&
-      onGuideDraft &&
-      onGuideCommit ? (
+      guideInteraction ? (
         <LayoutGuideInteractionLayer
           imageRect={imageRect}
           scale={scale}
@@ -222,8 +220,8 @@ export const DocumentViewportSurface: React.FC<
           guidesVisible={guidesVisible}
           guidesLocked={guidesLocked}
           interactive={activeTool === "transform"}
-          onDraft={onGuideDraft}
-          onCommit={onGuideCommit}
+          ready={presentationReady}
+          interaction={guideInteraction}
         />
       ) : null}
       {inputBridge}

@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O02e workspace tab/close and host blur owners,
-following O02d scoped admission and O07c GenAI references. Real packaged checks
-cover Properties/tab/no-op/close Cancel/Discard and native blur preserving an
-active transform, followed by Exposure. Exact limits are recorded in PROGRESS.
+Latest bounded acceptance: O05c.2 scoped guide interaction and independent
+guide/grid presentation, following O02e workspace/blur, O02d admission and O07c
+GenAI references. Packaged guide checks prove final pointer position, real ruler
+dragging, no-op/history, undo/redo, tab isolation and visible GPU frames.
 See Task416 PROGRESS for retained failures and exact coverage. Root is
-5,864 physical lines. Remaining target/GenAI/command/guides families, cross-flow
+5,830 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -279,6 +279,10 @@ class names: reuse existing owners before creating a new one.
   - [x] O05c.1: transform frame/snap presentation and exact renderer binding.
     Critic PASS; packaged visible snapping/exact undo-redo, full transform,
     selection and active-transform close/reopen pass. Wider performance O08 open.
+  - [x] O05c.2: scoped guide intent and independent guide/grid frame binding.
+    Critic repairs accepted; final-pointer bug reproduced in old package and
+    corrected in new. Real drag/history/tab/PNG and visual GPU-frame gates pass.
+    No per-pointer root renders, grid rebuilds or new history/command route.
   - [x] O05d.1: Face Warp domain intents, mesh presentation and exact binding.
     Critic repairs include exact property/review leases and null-to-ready renderer
     rebinding. Packaged gestures, identity, rebind/property/exact undo pass.

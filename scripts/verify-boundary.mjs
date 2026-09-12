@@ -870,6 +870,17 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('transformSnapMatchesRef')) {
       failures.push(`${relativePath}: transform cage and shared smart-guide presentation belong to the renderer-scoped presentation binding`);
     }
+    if (!source.includes('useDocumentGuideInteraction(')
+      || !source.includes('useGuideGridPresentation(')
+      || source.includes('setGuideDraft')
+      || source.includes('buildDocumentGuideFrame(')
+      || source.includes('buildDocumentGridFrame(')
+      || source.includes('.setDocumentGuideEditingFrame(')
+      || source.includes('.setDocumentGridEditingFrame(')
+      || source.includes('replaceDocumentGuides(')
+      || source.includes('addDocumentGuide(')) {
+      failures.push(`${relativePath}: guide intent and guide/grid projection belong to their scoped owners, not the composition root`);
+    }
     if (directPixelSettlements !== 1
       || !source.includes('new MountedDocumentAdmission(')
       || !source.includes('mountedDocumentAdmission.runAfter')

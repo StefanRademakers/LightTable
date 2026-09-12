@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { DocumentGuide, Rect } from '../document/documentTypes';
-import { quantizeGuideToRulerTick, rulerTicks } from '../../application/tools/snapping/rulerTicks';
+import { rulerTicks } from '../../application/tools/snapping/rulerTicks';
+import type { DocumentGuideInteraction, DocumentGuideLease } from '../../application/tools/snapping/DocumentGuideInteraction';
 
 interface Props {
   imageRect: Rect;
@@ -10,25 +11,36 @@ interface Props {
   guidesVisible: boolean;
   guidesLocked: boolean;
   interactive: boolean;
-  onDraft: (guides: readonly DocumentGuide[] | null) => void;
-  onCommit: (guides: readonly DocumentGuide[]) => void;
+  ready: boolean;
+  interaction: DocumentGuideInteraction;
 }
 
 interface Drag {
   pointerId: number;
-  guide: DocumentGuide;
-  baseOrientation: DocumentGuide['orientation'];
-  original: readonly DocumentGuide[];
+  lease: DocumentGuideLease;
 }
 
 export const LayoutGuideInteractionLayer = ({
-  imageRect, scale, guides, rulersVisible, guidesVisible,
-  guidesLocked, interactive, onDraft, onCommit
+  imageRect, scale, guides: canonicalGuides, rulersVisible, guidesVisible,
+  guidesLocked, interactive, ready, interaction
 }: Props) => {
   const root = useRef<HTMLDivElement | null>(null);
   const drag = useRef<Drag | null>(null);
-  const xTicks = rulersVisible ? rulerTicks(imageRect.width / scale, scale) : [];
-  const yTicks = rulersVisible ? rulerTicks(imageRect.height / scale, scale) : [];
+  const draft = useSyncExternalStore(interaction.subscribe, interaction.getSnapshot, interaction.getSnapshot);
+  const guides = draft ?? canonicalGuides;
+  const release = () => {
+    const active = drag.current; drag.current = null;
+    if (active && root.current?.hasPointerCapture(active.pointerId)) root.current.releasePointerCapture(active.pointerId);
+  };
+  useLayoutEffect(() => {
+    const unsubscribe = interaction.subscribe(() => { if (drag.current && !drag.current.lease.isCurrent()) release(); });
+    return () => { drag.current?.lease.cancel(); release(); unsubscribe(); };
+  }, [interaction]);
+  useLayoutEffect(() => {
+    if (!ready || guidesLocked) { drag.current?.lease.cancel(); release(); }
+  }, [ready, guidesLocked]);
+  const xTicks = useMemo(() => rulersVisible ? rulerTicks(imageRect.width / scale, scale) : [], [rulersVisible, imageRect.width, scale]);
+  const yTicks = useMemo(() => rulersVisible ? rulerTicks(imageRect.height / scale, scale) : [], [rulersVisible, imageRect.height, scale]);
   const point = (event: React.PointerEvent<HTMLDivElement>) => {
     const bounds = root.current?.getBoundingClientRect();
     if (!bounds) return { screenX: 0, screenY: 0, x: 0, y: 0 };
@@ -39,14 +51,9 @@ export const LayoutGuideInteractionLayer = ({
       y: (event.clientY - bounds.top - imageRect.y) / Math.max(1e-6, scale)
     };
   };
-  const begin = (event: React.PointerEvent<HTMLDivElement>, guide: DocumentGuide) => {
-    if (event.button !== 0 || guidesLocked) return;
-    drag.current = {
-      pointerId: event.pointerId,
-      guide,
-      baseOrientation: guide.orientation,
-      original: guides.map((item) => ({ ...item }))
-    };
+  const begin = (event: React.PointerEvent<HTMLDivElement>, lease: DocumentGuideLease | null) => {
+    if (!lease) return;
+    drag.current = { pointerId: event.pointerId, lease };
     root.current?.setPointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
@@ -55,26 +62,14 @@ export const LayoutGuideInteractionLayer = ({
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
     const cursor = point(event);
-    const orientation = event.altKey
-      ? active.baseOrientation === 'horizontal' ? 'vertical' : 'horizontal'
-      : active.baseOrientation;
-    const raw = orientation === 'vertical' ? cursor.x : cursor.y;
-    const length = orientation === 'vertical' ? imageRect.width / scale : imageRect.height / scale;
-    const position = event.shiftKey ? quantizeGuideToRulerTick(raw, length, scale) : raw;
-    active.guide = { ...active.guide, orientation, position };
-    const next = active.original.filter(({ id }) => id !== active.guide.id).concat(active.guide);
-    onDraft(next);
+    active.lease.move({ ...cursor, scale, altKey: event.altKey, shiftKey: event.shiftKey });
     event.preventDefault();
     event.stopPropagation();
   };
   const cancel = (event: React.PointerEvent<HTMLDivElement>) => {
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
-    drag.current = null;
-    onDraft(null);
-    if (root.current?.hasPointerCapture(event.pointerId)) {
-      root.current.releasePointerCapture(event.pointerId);
-    }
+    active.lease.cancel(); release();
     event.preventDefault();
     event.stopPropagation();
   };
@@ -84,29 +79,17 @@ export const LayoutGuideInteractionLayer = ({
     const cursor = point(event);
     const inside = cursor.x >= 0 && cursor.y >= 0
       && cursor.x <= imageRect.width / scale && cursor.y <= imageRect.height / scale;
-    const next = inside
-      ? active.original.filter(({ id }) => id !== active.guide.id).concat(active.guide)
-      : active.original.filter(({ id }) => id !== active.guide.id);
-    drag.current = null;
-    onDraft(null);
-    onCommit(next);
-    if (root.current?.hasPointerCapture(event.pointerId)) {
-      root.current.releasePointerCapture(event.pointerId);
-    }
+    active.lease.finish({ ...cursor, scale, altKey: event.altKey, shiftKey: event.shiftKey }, inside);
+    release();
     event.preventDefault();
     event.stopPropagation();
   };
   const createFromRuler = (orientation: DocumentGuide['orientation']) => (event: React.PointerEvent<HTMLDivElement>) => {
-    const cursor = point(event);
-    begin(event, {
-      id: `guide-${crypto.randomUUID()}`,
-      orientation,
-      position: orientation === 'vertical' ? cursor.x : cursor.y
-    });
+    if (event.button === 0 && !guidesLocked && ready) begin(event, interaction.beginNew(orientation));
   };
 
   return <div ref={root} className="lighttable-layout-guides"
-    onPointerMove={move} onPointerUp={end} onPointerCancel={cancel}>
+    onPointerMove={move} onPointerUp={end} onPointerCancel={cancel} onLostPointerCapture={cancel}>
     {rulersVisible ? <>
       <div className="lighttable-ruler lighttable-ruler--horizontal" onPointerDown={createFromRuler('horizontal')}>
         {xTicks.map((tick) => <i key={tick.position} className={tick.major ? 'major' : ''}
@@ -124,7 +107,9 @@ export const LayoutGuideInteractionLayer = ({
       style={guide.orientation === 'vertical'
         ? { left: imageRect.x + guide.position * scale, top: imageRect.y, height: imageRect.height }
         : { top: imageRect.y + guide.position * scale, left: imageRect.x, width: imageRect.width }}
-      onPointerDown={(event) => begin(event, { ...guide })}
+      onPointerDown={(event) => {
+        if (event.button === 0 && !guidesLocked && ready) begin(event, interaction.beginExisting(guide.id));
+      }}
     />) : null}
   </div>;
 };

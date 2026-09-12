@@ -264,11 +264,11 @@ import { DocumentSelectionStateStore } from './application/tools/selection/Docum
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
 import { useTransformCanvasPickIntent } from './composition/transforms/useTransformCanvasPickIntent';
 import { useTransformPresentation } from './composition/transforms/useTransformPresentation';
-import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
+import { useGuideGridPresentation } from './composition/transforms/useGuideGridPresentation';
+import { useDocumentGuideInteraction } from './composition/workspace/useDocumentGuideInteraction';
 import { useSelectionHostBinding } from './composition/selection/useSelectionHostBinding';
 import { DocumentSelectionPublicationBinding } from './application/documents/DocumentSelectionPublicationBinding';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
-import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
@@ -290,7 +290,6 @@ import {
 } from './editor/config/adjustmentControls';
 import {
   layerIsLocked,
-  type DocumentGuide,
   type DocumentCreationSettings,
   type DocumentAssetId,
   type ImageDocument,
@@ -1009,7 +1008,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     matches: readonly SnapMatch[];
     bounds: Rect | null;
   }>({ matches: [], bounds: null });
-  const [guideDraft, setGuideDraft] = useState<readonly DocumentGuide[] | null>(null);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [textRenderPresentation, setTextRenderPresentation] = useState<TextRenderPresentationSnapshot>({
@@ -4164,24 +4162,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }, [gradeOwnerId, gradeUsesDocumentVisibility]);
 
-  const effectiveDocumentGuides = guideDraft ?? imageDocument?.guides ?? [];
-  useEffect(() => {
-    setGuideDraft(null);
-  }, [imageDocument?.id]);
-  const commitDocumentGuides = useCallback((guides: readonly DocumentGuide[]) => {
-    documentMutationController.change(
-      (document) => replaceDocumentGuides(document, guides),
-      true,
-      { label: 'Edit Guides', type: 'document.guides' }
-    );
-  }, [documentMutationController]);
-  const clearGuides = useCallback(() => {
-    documentMutationController.change(
-      clearDocumentGuides,
-      true,
-      { label: 'Clear Guides', type: 'document.guides' }
-    );
-  }, [documentMutationController]);
+  const guideInteraction = useDocumentGuideInteraction(documentSession, engineRef.current,
+    rendererLifecycle, rendererSnapshot.generation, rendererSnapshot.status === 'ready', imageDocument?.id,
+    captureMountedInteractionScope, { changeDocument: documentMutationController.change, reportFailure: setError,
+      getRenderer: () => engineRef.current });
 
   const transformSession = useTransformSessionController({
     activeTool: editorSession.activeTool,
@@ -4237,26 +4221,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       snap: readEditorSession().snap, selectionFeedback: selectionSnapFeedback,
       document: imageDocumentRef.current, selectedLayerIds: selectedLayerIdsRef.current }),
     transformSession);
-  useEffect(() => {
-    const engine = engineRef.current;
-    engine?.setDocumentGuideEditingFrame(
-      imageDocument && editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible
-        ? buildDocumentGuideFrame(effectiveDocumentGuides, imageDocument.width, imageDocument.height)
-        : null
-    );
-    engine?.setDocumentGridEditingFrame(
-      imageDocument && editorSession.snap.extrasVisible !== false && editorSession.snap.gridVisible
-        ? buildDocumentGridFrame(
-            imageDocument.width,
-            imageDocument.height,
-            editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
-            editorSession.snap.gridOriginX,
-            editorSession.snap.gridOriginY,
-            activeScale
-          )
-        : null
-    );
-  }, [activeScale, editorSession.snap, effectiveDocumentGuides, imageDocument]);
+  useGuideGridPresentation(engineRef.current, documentSession, rendererSnapshot.generation,
+    rendererLifecycle, captureMountedInteractionScope, guideInteraction, () => {
+      const state = mountedDocumentSessionRef.current?.getSnapshot(), snap = readEditorSession().snap;
+      return { document: state?.lifecycle === 'ready' && state.document?.id === imageDocumentRef.current?.id ? state.document : null,
+        guidesVisible: snap.extrasVisible !== false && snap.guidesVisible,
+        gridVisible: snap.extrasVisible !== false && snap.gridVisible,
+        gridSpacing: snap.gridSpacing / Math.max(1, snap.gridSubdivisions),
+        gridOriginX: snap.gridOriginX, gridOriginY: snap.gridOriginY, zoom: activeScale };
+    }, () => engineRef.current);
   const panTransformViewport = useCallback((deltaX: number, deltaY: number) => {
     setZoomMode('custom');
     setView((current) => ({
@@ -4689,7 +4662,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ...current,
         snap: typeof action === 'function' ? action(current.snap) : action
       })),
-      clearGuides,
+      clearGuides: guideInteraction.clear,
       newGuide: editorDialogs.openNewGuide
     },
     workspace: {
@@ -5063,12 +5036,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         transformFrameOverride: transformSession.frameOverride,
         onTransformSnapMatches: transformPresentation.setSnapMatches,
         onTransformViewportPan: panTransformViewport,
-        documentGuides: effectiveDocumentGuides,
+        documentGuides: imageDocument?.guides ?? [],
         rulersVisible: editorSession.snap.rulersVisible,
         guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,
         guidesLocked: editorSession.snap.guidesLocked,
-        onGuideDraft: setGuideDraft,
-        onGuideCommit: commitDocumentGuides
+        guideInteraction
       }}
     />
   );
@@ -5330,13 +5302,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             duplicateImageError,
             duplicateImageSourceName: documentSession?.getSnapshot().title ?? initialSourceName,
             onDuplicateImage: (name) => { void duplicateImage(name); },
-            onCreateGuide: (guide) => {
-              documentMutationController.change(
-                (document) => addDocumentGuide(document, guide),
-                true,
-                { label: 'New Guide', type: 'document.guides' }
-              );
-            }
+            onCreateGuide: guideInteraction.add
           }}
           toolOptions={toolOptionsMenu ? {
             x: toolOptionsMenu.x,
