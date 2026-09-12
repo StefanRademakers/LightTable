@@ -7,7 +7,24 @@ pass; deferred races and provider-fixture limitations are explicit in PROGRESS.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
-Next layer-intent inspection anchors (after O02d; source evidence, not packaged
+Remove Object next boundary: existing genai/application/removeObjectCommand owns
+provider/model/workflow resolution, imports and submission; preserve that bounded
+context. Root's global pending flag and late notices are unscoped. The command
+has no request retirement checks and omits editorDelivery; current generated-result
+delivery therefore refuses automatic placement. This is source evidence, not a
+paid-job reproduction. Reuse file intent preparation before source capture; pin
+canonical revision and exact selection coverage plus session/renderer/service/
+project. Export must use canonical synchronization and proven final readiness.
+Guard discovery, exports, byte conversion/imports and pre-submit, retain already
+durable original-project assets, never retry or cancel a paid submission blindly.
+Preview coherence remains a required design check before implementing this slice.
+
+Layer intents O06f.2/O07d accepted: LayerFinalizationIntents owns four UI entries;
+LayerStyleEntryIntent owns add/open handoff; PropertiesInspectorPresentation owns
+UI target/ref/deferred exact-workspace reveal. Shared algorithms/transactions stay
+with existing owners. The following is retained pre-extraction evidence:
+
+Former layer-intent inspection anchors (after O02d; source evidence, not packaged
 defect reproduction): `mergeSelectionOrActiveDown` reads selection/document
 after strict settlement and decides sibling targets in root; move that planning
 into a captured finalization intent, retaining the clicked row semantics and
@@ -45,7 +62,7 @@ spacing separate from display coarsening, and avoid readback/per-move history.
 - PDF preflight/export and GenAI reference handoff are accepted bounded owners;
   root keeps presentation and wiring. GenAI Remove Object submission authority
   remains separate open work; provider setup/jobs retain their existing owners.
-- Layer menu/effect intents and remaining command registration: extract coherent
+- Remaining layer/filter/adjustment command registration: extract coherent
   domain families, not one replacement 400-line command bag. Keep semantic service
   admission and existing mutation/history ownership.
 - Text-to-shape entry, text telemetry and tool-settings shortcuts remain

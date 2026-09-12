@@ -85,6 +85,15 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
+  it('delegates finalization terminal ownership without an earlier unscoped text finish', () => {
+    const state = setup(createImageDocument('test', 100, 100, 'asset')), id = state.document().activeLayerId!;
+    state.controller.mergeDown(); state.controller.mergeSelected([id]); state.controller.flattenGroup(id); state.controller.flattenImage();
+    expect(state.dependencies.finishTextEditing).not.toHaveBeenCalled();
+    expect(state.dependencies.mergeActiveLayerDown).toHaveBeenCalledOnce();
+    expect(state.dependencies.mergeSelectedLayers).toHaveBeenCalledWith([id]);
+    expect(state.dependencies.flattenGroup).toHaveBeenCalledWith(id); expect(state.dependencies.flattenImage).toHaveBeenCalledOnce();
+    state.controller.rasterizeActive(); expect(state.dependencies.finishTextEditing).toHaveBeenCalledOnce();
+  });
   it('returns creation IDs captured before a later panel selection change', () => {
     const state = setup(createImageDocument('test', 100, 100, 'asset'));
     const openingId = state.document().activeLayerId;
@@ -167,7 +176,7 @@ describe('createLayerPanelController', () => {
     expect(state.dependencies.finishTextEditing).toHaveBeenCalledOnce();
   });
 
-  it('finishes text editing before destructive layer-tree commands', () => {
+  it('keeps the existing text prerequisite for delete while finalization delegates its own scoped preparation', () => {
     let document = createImageDocument('test', 100, 100, 'asset');
     document = createRasterLayer(document, 'Disposable');
     const state = setup(document);
@@ -179,7 +188,7 @@ describe('createLayerPanelController', () => {
     state.controller.flattenGroup(active);
     state.controller.flattenImage();
 
-    expect(state.dependencies.finishTextEditing).toHaveBeenCalledTimes(5);
+    expect(state.dependencies.finishTextEditing).toHaveBeenCalledOnce();
   });
 
   it('selects an adjustment layer and projects its grade without document effects', async () => {

@@ -13,6 +13,7 @@ const output = path.join(root, 'tmp', `layer-finalization-commands-${Date.now()}
 await mkdir(output, { recursive: true });
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const environment = { ...process.env }; delete environment.ELECTRON_RUN_AS_NODE;
+const uiEntry = process.env.LIGHTTABLE_FINALIZATION_ENTRY === 'ui';
 const pageErrors = []; const observations = []; const previewDiagnostics = [];
 let app; let page;
 try {
@@ -61,9 +62,38 @@ try {
     for (let i = 0; i < left.length; i++) squared += (left[i] - right[i]) ** 2;
     return Math.sqrt(squared / left.length);
   };
-  const finalize = async (name, parameters, outputField = 'outputLayerId') => {
-    const before = await tree(); const beforeDepth = await depth(); const beforePixels = await pixels(`${name}-before`);
-    const started = performance.now(); const result = await command(name, parameters);
+  let operationIndex = 0;
+  const finalize = async (name, parameters, outputField = 'outputLayerId', uiAction) => {
+    const evidence = `${operationIndex++}-${name}`;
+    const before = await tree(); const beforeDepth = await depth(); const beforePixels = await pixels(`${evidence}-before`);
+    const started = performance.now();
+    let result;
+    if (uiEntry) {
+      if (name === 'document.flattenImage') {
+        await page.getByRole('menuitem', { name: 'Layer', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Flatten Image...', exact: true }).click();
+      } else {
+        const ids = parameters.layerIds ?? [parameters.layerId ?? parameters.groupId];
+        for (let index = uiAction === 'merge-down' ? ids.length - 1 : 0; index < ids.length; index++) {
+          await page.locator(`[data-layer-id="${ids[index]}"] .lighttable-layer__name`)
+            .click({ modifiers: index && uiAction !== 'merge-down' ? ['Control'] : [] });
+        }
+        if (uiAction === 'merge-down') await page.keyboard.press('Control+e');
+        else {
+        await page.locator(`[data-layer-id="${ids.at(-1)}"] .lighttable-layer__name`).click({ button: 'right' });
+        const label = name === 'layer.merge' ? /^Merge Selected/
+          : name === 'layer.flattenGroup' ? 'Flatten Group...' : 'Rasterize Layer';
+        await page.getByRole('menuitem', { name: label, exact: typeof label === 'string' }).click();
+        }
+      }
+      await page.waitForFunction(({ id, depth }) => window.__lightTableAutomation.queryDocument(id).history.undoDepth === depth,
+        { id: documentId, depth: beforeDepth + 1 });
+      const destinations = (await tree()).filter(layer => !before.some(source => source.id === layer.id));
+      assert.equal(destinations.length, 1, 'UI finalization must publish one fresh destination');
+      // UI has no public return payload. Observe the actual tree delta, never use
+      // a later activeLayer as an alleged semantic command result.
+      result = { value: { [outputField]: destinations[0].id } };
+    } else result = await command(name, parameters);
     const durationMs = performance.now() - started;
     const id = result.value?.[outputField];
     assert.equal(typeof id, 'string', `${name} must return ${outputField}, without active-layer inference`);
@@ -71,16 +101,17 @@ try {
     assert.equal(after.find(layer => layer.id === id)?.type, 'raster');
     assert.ok(!before.some(layer => layer.id === id), `${name} must allocate a fresh destination`);
     assert.equal(await depth(), beforeDepth + 1, `${name} must publish exactly one history entry`);
-    const afterPixels = await pixels(`${name}-after`); const error = rmse(beforePixels, afterPixels);
+    const afterPixels = await pixels(`${evidence}-after`); const error = rmse(beforePixels, afterPixels);
     assert.ok(error <= 1, `${name} changed appearance: RMSE ${error}`);
     await command('history.undo');
     assert.deepEqual(await tree(), before); assert.equal(await depth(), beforeDepth);
-    const undoPixels = await pixels(`${name}-undo`);
+    const undoPixels = await pixels(`${evidence}-undo`);
     assert.equal(rmse(beforePixels, undoPixels), 0, `${name} undo changed original pixels`);
     await command('history.redo');
     assert.deepEqual(await tree(), after); assert.equal(await depth(), beforeDepth + 1);
-    assert.equal(rmse(afterPixels, await pixels(`${name}-redo`)), 0, `${name} redo changed committed pixels`);
-    observations.push({ command: name, parameters, result: result.value, durationMs,
+    assert.equal(rmse(afterPixels, await pixels(`${evidence}-redo`)), 0, `${name} redo changed committed pixels`);
+    observations.push({ command: name, entry: uiEntry ? uiAction === 'merge-down' ? 'real Ctrl+E' : 'real UI menu' : 'semantic command', parameters,
+      ...(uiEntry ? { observedFreshDestination: id } : { result: result.value }), durationMs,
       appearanceRmse: error, historyDelta: 1, undoRedo: 'exact tree/IDs and pixels' });
     return id;
   };
@@ -97,7 +128,11 @@ try {
   });
   assert.equal(typeof text.value?.layerId, 'string');
   const rasterText = await finalize('text.rasterize', { layerId: text.value.layerId }, 'layerId');
-  await finalize('layer.merge', { layerIds: [rasterGradient, rasterText] });
+  const merged = await finalize('layer.merge', { layerIds: [rasterGradient, rasterText] }, 'outputLayerId', 'merge-down');
+  if (uiEntry) {
+    const extra = await command('layer.createGradientFill');
+    await finalize('layer.merge', { layerIds: [merged, extra.value.layerId] });
+  }
   // Group every root sibling: there is no external backdrop for this pass-through group.
   const rootLayers = (await tree()).filter(layer => !layer.parentId).map(layer => layer.id);
   const group = await command('layer.group', { layerIds: rootLayers });
@@ -108,8 +143,12 @@ try {
   assert.deepEqual(pageErrors, []);
   await page.screenshot({ path: path.join(output, 'final.png') });
   await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, observations, previewDiagnostics, pageErrors,
-    evidenceScope: 'Explicit command IDs, history and same-representation final PNG parity; interactive preview diagnostics separate, not viewport-frame or cold-font latency proof.' }, null, 2));
-  console.log('Layer finalization exact output IDs, one-entry history and pixel undo/redo passed.');
+    evidenceScope: uiEntry
+      ? 'Real UI finalization entry, fresh destination tree delta, history and same-representation final PNG parity; no UI command-return-ID claim.'
+      : 'Explicit command IDs, history and same-representation final PNG parity; interactive preview diagnostics separate, not viewport-frame or cold-font latency proof.' }, null, 2));
+  console.log(uiEntry
+    ? `Layer finalization UI entry, fresh destinations, one-entry history and pixel undo/redo passed: ${output}`
+    : `Layer finalization exact output IDs, one-entry history and pixel undo/redo passed: ${output}`);
 } catch (error) {
   await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: false, observations, previewDiagnostics, pageErrors,
     error: error.stack ?? String(error) }, null, 2));

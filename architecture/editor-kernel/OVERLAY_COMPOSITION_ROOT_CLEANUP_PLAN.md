@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O05c.2 scoped guide interaction and independent
-guide/grid presentation, following O02e workspace/blur, O02d admission and O07c
-GenAI references. Packaged guide checks prove final pointer position, real ruler
-dragging, no-op/history, undo/redo, tab isolation and visible GPU frames.
+Latest bounded acceptance: O06f.2 finalization UI intents and O07d inspector/style
+entry, following O05c.2 guides. Real Ctrl+E/merge/flatten and effect/Curves entry
+checks pass. The test exposed missing style export readiness, now repaired;
+neutral-Curves precision debt is explicitly retained, not hidden as exact parity.
 See Task416 PROGRESS for retained failures and exact coverage. Root is
-5,830 physical lines. Remaining target/GenAI/command families, cross-flow
+5,769 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -328,6 +328,9 @@ class names: reuse existing owners before creating a new one.
   - [ ] O06f: remaining canonical-selection consumers and layer intent lifetime.
     - [x] Canonical mask/menu eligibility and scoped canvas layer picking;
       real painted-mask/Shift-pick flows and exact output/history verified.
+    - [x] O06f.2: four finalization UI intents own text/admission/command outcomes;
+      exact mounted source, supplied targets and existing contextual-row behavior.
+      Critic PASS; real merge/flatten entries and exact PNG/history UndoRedo pass.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
@@ -342,6 +345,10 @@ class names: reuse existing owners before creating a new one.
   - [x] O07c: scoped GenAI reference handoff and Setup import lease. Two critic
     rounds, deferred-state tests and packaged base/file/tab reference proof pass.
     Providers/jobs remain independent; Remove Object authority remains open.
+  - [x] O07d: UI-only Properties target/intent/reveal owner and scoped style entry.
+    Critic repairs and actual Effects/locked inspector/standalone Curves pass.
+    Cold style export omission repaired through shared final-source readiness;
+    bounded neutral-Curves rounding remains separate precision debt.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

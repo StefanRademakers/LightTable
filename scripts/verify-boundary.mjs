@@ -870,6 +870,15 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('transformSnapMatchesRef')) {
       failures.push(`${relativePath}: transform cage and shared smart-guide presentation belong to the renderer-scoped presentation binding`);
     }
+    if (!source.includes('useLayerFinalizationIntents(')
+      || !source.includes('usePropertiesInspectorPresentation(')
+      || !source.includes('new LayerStyleEntryIntent(')
+      || source.includes('setPropertiesTarget')
+      || source.includes('const mergeLayersCommand =')
+      || source.includes('const flattenGroupCommand =')
+      || source.includes('const flattenImageCommand =')) {
+      failures.push(`${relativePath}: layer finalization intents and inspector entry/presentation must remain in their bounded owners`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')

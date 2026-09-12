@@ -1,5 +1,52 @@
 # Task 416 progress
 
+## O06f.2 / O07d — Layer finalization UI and Properties entry (accepted)
+
+- LayerFinalizationIntents replaces four Boolean(Promise) adapters with exact
+  session/renderer admission, truthful text terminal and awaited command result.
+  Canonical GPU finalization/history services are unchanged. Only these four
+  panel actions lose duplicate text finish calls. Current admission errors are
+  already reported by the existing coordinator, not duplicated by the intent.
+- Contextual Ctrl+E retains existing post-settlement clicked-row interpretation;
+  explicit Merge Selected and Flatten Group retain supplied IDs. Selection has
+  no separate click-vs-transform-remap provenance; this is compatibility, not a
+  new promise of invocation-time contextual row locking.
+- PropertiesInspectorPresentation owns UI target/live ref, intent generation
+  and cancellable exact-workspace panel reveal. LayerStyleEntryIntent owns only
+  effect-add response -> existing editor -> inspector, not style transactions.
+  Locked supported layers retain their informational inspector. Curves no longer
+  has a duplicate post-command reveal; successful creation remains the terminal.
+- Critic repairs require a live presentation ticket before effect dispatch and
+  scope its errors to that ticket. Unmounted/superseded callbacks do not mutate
+  or steal Properties. Meaningful reconciliation retires old tickets, unrelated
+  document revisions do not. No new queue, GPU work or canonical state owner.
+- Source critic PASS;71 focused finalization tests and15 style/inspector tests,
+  app typecheck and boundary/source audit pass. Root5,769 physical lines.
+- Package23243 finalization UI/default command gates pass exact PNG/history:
+  tmp/layer-finalization-commands-1789219211875 and -1789219228346. Style menu
+  correctly opens the effect, but run-6aFjz9 fails: PNG omits visible styles.
+  This is retained product failure, not a relaxed test or selector issue.
+- Bounded diagnosis confirms preexisting export omissions: native bitmap export
+  did not synchronize its captured canonical document; GPU export waited text
+  and assets but not lazy style pipelines. Unready style encoding intentionally
+  returns no style for preview. Export now reuses finalization-source readiness,
+  rejects retirement at each handoff, and shares the required canonical sync.
+  Initialization invalidation is renderer-owned, not callback-object-owned.
+  No added pointer work, GPU copies, queue or retry. Critic PASS and26 focused
+  export/projection tests pass. Repair committed separately as7b2c28be.
+- Final package99484 finalization UI run-1789219996604 passes exact tree/history/
+  PNG UndoRedo. Style run-kMoQgN passes immediate effect PNG, exact effect
+  UndoRedo, locked informational inspector and actual Ctrl+M standalone Curves
+  target/history. Root visually inspected Curves panel and retained styles.
+  No page errors. Unit races use controlled scheduling; packaged tests do not
+  claim forced stale-result races or general frame-latency certification.
+- Separate precision debt retained: run-cmRq6I exact neutral-Curves assertion
+  failed by max1 RGB code,3644 bytes,RGBA RMSE0.108913,alpha unchanged. Existing
+  enabled Grade still executes half-float processing/mix despite identity curve
+  math. This fixture now verifies canonical neutral curves, max1 RGB/exactalpha
+  and exact Undo/Redo to each state's pixels. This explicit assertion revision
+  does not certify general neutral-bit-exactness or fix shader precision.
+
 ## O05c.2 — Scoped guide interaction and guide/grid presentation (accepted)
 
 - DocumentGuideInteraction owns the exact session/renderer guide gesture, final

@@ -92,8 +92,10 @@ import { SampledBrushSourceController } from './application/tools/paint/sampledB
 import { useSmartSelectionBinding } from './composition/selection/useSmartSelectionBinding';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
-import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
+import { LayerStyleEntryIntent } from './application/styles/LayerStyleEntryIntent';
+import { usePropertiesInspectorPresentation } from './composition/properties/usePropertiesInspectorPresentation';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
+import { useLayerFinalizationIntents } from './composition/workspace/useLayerFinalizationIntents';
 import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
 import { createLayerFinalizationCommandBinding } from './application/layers/LayerFinalizationCommandBinding';
 import { captureLayerFinalizationScope } from './application/layers/captureLayerFinalizationScope';
@@ -152,7 +154,6 @@ import { createEditorWorkspacePanels } from './composition/workspace/createEdito
 import {
   gradePropertiesTitle,
   propertiesInspectorView,
-  reconcilePropertiesTarget,
   type PropertiesInspectorTarget
 } from './application/properties/propertiesInspectorTarget';
 import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSurface';
@@ -300,7 +301,6 @@ import {
 import {
   findDocumentLayer,
   findRasterLayer,
-  siblingLayers,
   walkLayerTree
 } from './editor/document/layerTree';
 import {
@@ -928,20 +928,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSourceIdentity('');
   }, [setImageDocument, workspaceDocumentKind]);
   const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
-  const [propertiesTarget, setPropertiesTarget] = useState<PropertiesInspectorTarget>({
-    kind: 'none'
-  });
-  const propertiesTargetRef = useRef(propertiesTarget);
-  propertiesTargetRef.current = propertiesTarget;
-  const showProperties = useCallback((target: PropertiesInspectorTarget) => {
-    setPropertiesTarget(target);
-    requestAnimationFrame(() => {
-      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
+  const { owner: propertiesPresentation, target: propertiesTarget,
+    targetRef: propertiesTargetRef, show: showProperties } = usePropertiesInspectorPresentation(
+    documentSession, engineRef.current, rendererSnapshot.generation, imageDocument, () => {
+      const scope = captureMountedInteractionScope(), workspace = workspaceRef.current;
+      return { isCurrent: () => scope.isCurrent() && workspaceRef.current === workspace,
+        reveal: () => workspace?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties) };
     });
-  }, []);
-  useEffect(() => {
-    setPropertiesTarget((current) => reconcilePropertiesTarget(imageDocument, current));
-  }, [imageDocument?.activeLayerId, imageDocument?.id, imageDocument?.revision]);
   const propertiesView = propertiesInspectorView(imageDocument, propertiesTarget);
   // Provider/model choices belong to the project, while Image Edit dimensions
   // follow the active document identity and canvas size.
@@ -3336,42 +3329,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return layerDocumentCommands.rasterizeVectorCreation(transaction, rendererGeneration);
   };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
-  const mergeLayersCommand = useCallback((layerIds: LayerId[]) => {
-    return Boolean(executeRegisteredCommand('layer.merge', { layerIds }));
-  }, [executeRegisteredCommand]);
-  const mergeSelectionOrActiveDown = useCallback(async () => {
-    await settleMountedDocumentInteraction();
-    const selectedLayerIds = selectedLayerIdsRef.current;
-    if (selectedLayerIds.length > 1) {
-      if (import.meta.env.DEV) {
-        setGradeStatus(`Merge requested for ${selectedLayerIds.length} selected layers`);
-      }
-      return mergeLayersCommand(selectedLayerIds);
-    }
-    const document = imageDocumentRef.current;
-    // The Layers panel publishes its interaction selection synchronously,
-    // while canonical active-layer preparation may cross an async renderer
-    // boundary. Ctrl/Cmd+E must target the row the user just clicked, not the
-    // previously active document layer during that short hand-off.
-    const activeLayerId = selectedLayerIds[0] ?? document?.activeLayerId;
-    if (!document || !activeLayerId) {
-      setError('Select a layer with a lower sibling to merge.');
-      return false;
-    }
-    const siblings = siblingLayers(document, activeLayerId);
-    const index = siblings.findIndex(({ id }) => id === activeLayerId);
-    if (index <= 0) {
-      setError('The active layer has no layer below it to merge with.');
-      return false;
-    }
-    return mergeLayersCommand([siblings[index - 1]!.id, activeLayerId]);
-  }, [mergeLayersCommand]);
-  const flattenGroupCommand = useCallback((groupId: LayerId) => {
-    return Boolean(executeRegisteredCommand('layer.flattenGroup', { groupId }));
-  }, [executeRegisteredCommand]);
-  const flattenImageCommand = useCallback(() => {
-    return Boolean(executeRegisteredCommand('document.flattenImage', {}));
-  }, [executeRegisteredCommand]);
+  const layerFinalizationIntents = useLayerFinalizationIntents({
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => engineRef.current, getProjectedDocument: () => imageDocumentRef.current,
+    captureScope: captureMountedInteractionScope, getSelectedLayerIds: () => selectedLayerIdsRef.current,
+    text: textPropertyGestureController,
+    requestAdmission: mountedDocumentAdmission.request,
+    execute: (documentId, command, parameters) => commandService.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId: `ui-${documentId}-${++commandRequestSequenceRef.current}`, documentId, command, parameters
+    }), reportFailure: setError
+  });
+  const mergeSelectionOrActiveDown = layerFinalizationIntents.mergeDown;
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     // A layer-panel selection made after an asynchronous canvas hit supersedes
     // that hit and must never be overwritten when its GPU readback resolves.
@@ -3441,39 +3410,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     }
   });
-  const openLayerStyleEditor = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
-    layerStyleEditor.open(layerId, effectId);
-    setPropertiesTarget(effectId
-      ? { kind: 'style', layerId, effectId }
-      : { kind: 'style-stack', layerId });
-    // Activating after React publishes the contextual request prevents the
-    // persistent Dockview renderer from restoring the previously active tab
-    // during the same event batch.
-    requestAnimationFrame(() => {
-      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
-    });
-  }, [layerStyleEditor.open]);
-  const addLayerEffectFromMenu = useCallback((effectKind: LayerStyleKind) => {
-    const document = imageDocumentRef.current;
-    const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-    if (!document || !layer || layer.type === 'adjustment' || layer.locks.all) return;
-
-    const execution = executeRegisteredCommand('layer.effect.add', {
-      layerId: layer.id,
-      effectKind
-    });
-    if (!execution) {
-      setError('Layer effect commands are unavailable in this document.');
-      return;
-    }
-    void execution.then((response) => {
-      if (response.status !== 'completed') return;
-      const result = response.value as { layerId?: string; effectId?: string };
-      if (result.layerId && result.effectId) {
-        openLayerStyleEditor(result.layerId as LayerId, result.effectId as LayerStyleId);
-      }
-    });
-  }, [documentMutationController, executeRegisteredCommand, openLayerStyleEditor]);
+  const styleEntry = useMemo(() => new LayerStyleEntryIntent(() => {
+    const session = documentSession, renderer = engineRef.current, scope = captureMountedInteractionScope();
+    return { isCurrent: () => Boolean(renderer) && mountedDocumentSessionRef.current === session && engineRef.current === renderer
+        && scope.isCurrent() && session?.getSnapshot().lifecycle === 'ready'
+        && imageDocumentRef.current?.id === session.getSnapshot().document?.id,
+      getDocument: () => session?.getSnapshot().document ?? null,
+      beginPresentation: propertiesPresentation.beginIntent, openEditor: layerStyleEditor.open,
+      execute: (layerId, effectKind) => executeRegisteredCommand('layer.effect.add', { layerId, effectKind }, null),
+      reportFailure: setError };
+  }), [documentSession, captureMountedInteractionScope, propertiesPresentation, layerStyleEditor.open, executeRegisteredCommand]);
+  const openLayerStyleEditor = styleEntry.open, addLayerEffectFromMenu = styleEntry.add;
   const layerMaskCommandBridge = useMemo(() => createLayerMaskCommandBridge(() => {
     const scope = captureMountedInteractionScope();
     const session = documentSession;
@@ -3555,9 +3502,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       await selectionSessionController.selectLayerTransparency(layerId);
     },
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
-    mergeSelectedLayers: mergeLayersCommand,
-    flattenGroup: flattenGroupCommand,
-    flattenImage: flattenImageCommand,
+    mergeSelectedLayers: layerFinalizationIntents.mergeSelected,
+    flattenGroup: layerFinalizationIntents.flattenGroup,
+    flattenImage: layerFinalizationIntents.flattenImage,
     editStyles: openLayerStyleEditor,
     setStyleStackEnabled: (layerId, enabled) => {
       void executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled });
@@ -3609,15 +3556,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return;
       }
     }
-    void executeRegisteredCommand('adjustment.create', command).then((result) => {
-      if (result.status !== 'completed') return;
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      if (command.placement === 'local') {
-        showProperties({ kind: 'processing', layerId: command.layerId, owner: 'curves' });
-      } else if (layerId) {
-        showProperties({ kind: 'layer', layerId });
-      }
-    });
+    void executeRegisteredCommand('adjustment.create', command);
   };
   executeAdjustmentCreationRef.current = (command) => {
     const before = imageDocumentRef.current;
@@ -3645,7 +3584,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     const layerId = imageDocumentRef.current?.activeLayerId;
     if (!layerId) return null;
-    requestAnimationFrame(() => showProperties({ kind: 'layer', layerId }));
+    showProperties({ kind: 'layer', layerId });
     return { kind: command.kind, placement: command.placement, layerId };
   };
   applyAdjustmentRef.current = (kind) => {

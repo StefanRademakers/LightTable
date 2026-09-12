@@ -398,22 +398,18 @@ export const createLayerPanelController = (
     },
     mergeDown: () => {
       const dependencies = resolveDependencies();
-      dependencies.finishTextEditing?.();
       dependencies.mergeActiveLayerDown();
     },
     mergeSelected: (layerIds) => {
       const dependencies = resolveDependencies();
-      dependencies.finishTextEditing?.();
       dependencies.mergeSelectedLayers(layerIds);
     },
     flattenGroup: (groupId) => {
       const dependencies = resolveDependencies();
-      dependencies.finishTextEditing?.();
       dependencies.flattenGroup(groupId);
     },
     flattenImage: () => {
       const dependencies = resolveDependencies();
-      dependencies.finishTextEditing?.();
       dependencies.flattenImage();
     },
     editStyles: (layerId, effectId) =>

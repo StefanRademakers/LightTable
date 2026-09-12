@@ -1,6 +1,8 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O02a/b/c.1/c.2a, O03a/b/c.1/c.2/c.3a accepted; broader O01/O02 and O03-O09 remain open.
+Status: in progress. Latest O06f.2/O07d finalization UI and inspector entry accepted;
+O05c.2 guides accepted. Canonical checklist below is authoritative for all slices.
+Overlay5,769 physical lines; WebGpuEngine3,995. Neither endpoint is complete.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:
