@@ -114,22 +114,7 @@ import {
 import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
-import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
-import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
-import { buildPdfNativeVectorLayerPage, buildPdfNativeVectorExportPage } from './application/pdf/buildPdfNativeVectorPage';
-import {
-  pdfDocumentProcessingActive,
-  planHybridPdfPageExport,
-  type HybridPdfPageExportReason
-} from './application/pdf/planHybridPdfPageExport';
-import {
-  planHybridPdfVectorPageExport,
-  type HybridPdfVectorPageExportReason
-} from './application/pdf/planHybridPdfVectorPageExport';
-import {
-  planHybridPdfNativePageExport,
-  type HybridPdfNativePageExportReason
-} from './application/pdf/planHybridPdfNativePageExport';
+import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import { textSelectionForGranularity } from './application/text/flowTextEditing';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
@@ -359,30 +344,6 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
-const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
-  'text-plan-blocked': 'the text preflight is blocked',
-  'no-native-text': 'no text layer can be emitted natively',
-  'stale-native-layer': 'the document changed after preflight',
-  'native-text-not-topmost': 'non-text content is above native text',
-  'document-processing-active': 'document-wide Grade or Lens Fx is active'
-};
-const hybridPdfVectorReasonLabel: Record<HybridPdfVectorPageExportReason, string> = {
-  'no-native-vectors': 'no visible vector layer can be emitted natively',
-  'native-vectors-not-topmost': 'non-vector content is above native vectors',
-  'vector-effects-unsupported': 'a vector or ancestor uses unsupported masks, clipping, blend or effects',
-  'vector-blend-mode-unsupported': 'the vector layer blend mode has no exact PDF equivalent',
-  'vector-stroke-alignment-unsupported': 'inside or outside vector strokes require outlining first',
-  'vector-gradient-unsupported': 'vector gradients require native PDF shading export',
-  'vector-clipping-unsupported': 'vector clipping requires one opaque fill-only vector base',
-  'document-processing-active': 'document-wide Grade or Lens Fx is active'
-};
-const hybridPdfNativeReasonLabel: Record<HybridPdfNativePageExportReason, string> = {
-  'no-native-content': 'no text or vector layer can be emitted natively',
-  'native-content-not-topmost': 'non-native content interrupts the native top layer stack',
-  'stale-native-text-layer': 'the document changed after text preflight',
-  'vector-content-unsupported': 'a top vector uses unsupported compositing or stroke alignment',
-  'document-processing-active': 'document-wide Grade or Lens Fx is active'
-};
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   if (!document?.activeLayerId) return false;
   const active = findDocumentLayer(document, document.activeLayerId);
@@ -4591,6 +4552,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reportError: setError
   });
 
+  const openPdfExportPreflight = usePdfExportPreflight({
+    fileIntents: documentFileIntents,
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => imageDocumentRef.current?.id === mountedDocumentSessionRef.current?.getSnapshot().document?.id
+      ? engineRef.current : null,
+    getFonts: () => textFontRegistry,
+    getFileName: () => fileNameBase,
+    captureScope: captureMountedInteractionScope,
+    deliver: deliverExportFile,
+    openDialog: editorDialogs.openPdfExportPreflight,
+    reportError: setError
+  });
+
   const duplicateImage = useCallback(async (name: string) => {
     if (!commandService || duplicateImageBusy) return;
     setDuplicateImageBusy(true);
@@ -4668,228 +4642,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       exportPsdMaximumAppearance: () => { void documentFileIntents.exportPsdMaximumAppearance(); },
       exportSvg: () => { void documentFileIntents.exportSvg(); },
       openFormatSupport: editorDialogs.openFormatSupport,
-      pdfExportPreflight: () => {
-        finishTextEditingRef.current();
-        textCreationInteraction.commitPoint();
-        textCreationInteraction.commitParagraph();
-        const document = imageDocumentRef.current;
-        if (!document) return;
-        const fonts = textFontRegistry.availableAssets;
-        const plan = buildPdfTextExportPreflight({
-          document,
-          availableFonts: fonts,
-          fontBytesAvailable: new Set(fonts.map((font) => font.assetId)),
-          realizedLayout: (layerId) => engineRef.current?.textEditingLayout(layerId)?.layout ?? null
-        });
-        const hybridPlan = planHybridPdfPageExport({
-          document,
-          textPlan: plan,
-          documentProcessingActive: pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
-        });
-        const vectorPlan = planHybridPdfVectorPageExport(
-          document,
-          pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
-        );
-        const nativePlan = planHybridPdfNativePageExport({
-          document,
-          textPlan: plan,
-          documentProcessingActive: pdfDocumentProcessingActive(processingBinding.getDocumentAdjustments())
-        });
-        editorDialogs.openPdfExportPreflight({
-          plan,
-          fontLabels: Object.fromEntries(fonts.map((font) => [
-            font.assetId,
-            `${font.familyNames[0] ?? font.postScriptName ?? font.assetId} ${font.styleName}`.trim()
-          ])),
-          validateFonts: plan.fonts.length > 0 ? async () => {
-            const { materializePdfFontsWithHarfBuzz } = await import(
-              './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
-            );
-            const resources = await materializePdfFontsWithHarfBuzz(plan, {
-              fonts,
-              loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
-            });
-            return {
-              embeddedFontCount: resources.embedded.length,
-              totalEmbeddedBytes: resources.totalEmbeddedBytes
-            };
-          } : undefined,
-          exportNativeTextPage: hybridPlan.kind === 'ready' ? async () => {
-            const currentDocument = imageDocumentRef.current;
-            const renderer = engineRef.current;
-            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
-            if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
-              throw new Error('The document changed after PDF preflight. Open preflight again.');
-            }
-            const { materializePdfFontsWithHarfBuzz } = await import(
-              './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
-            );
-            const resources = await materializePdfFontsWithHarfBuzz(plan, {
-              fonts,
-              loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
-            });
-            const nativePage = buildPdfNativeTextPage({
-              document: currentDocument,
-              plan,
-              realizedLayout: (layerId) => renderer.textEditingLayout(layerId)?.layout ?? null,
-              nativeTextLayerIds: hybridPlan.nativeTextLayerIds,
-              pixelsPerInch: 300
-            });
-            const rasterUnderlayPng = await renderer.exportPng({
-              excludedLayerIds: [...hybridPlan.nativeTextLayerIds]
-            });
-            const { writeNativeTextPdfPage } = await import(
-              './infrastructure/pdf/writeNativeTextPdfPage'
-            );
-            const result = await writeNativeTextPdfPage({
-              page: nativePage,
-              fonts: resources.embedded,
-              title: currentDocument.name,
-              rasterUnderlayPng
-            });
-            await deliverExportFile(new File(
-              [result.blob],
-              `${fileNameBase.replace(/\.pdf$/i, '')}-native.pdf`,
-              { type: 'application/pdf' }
-            ));
-            return {
-              byteLength: result.blob.size,
-              searchableLayerCount: plan.layers.filter(layer => layer.disposition === 'text').length
-            };
-          } : undefined,
-          nativeTextUnavailableReason: plan.layers.length > 0 && hybridPlan.kind === 'flattened-only'
-            ? hybridPlan.reasons.map(reason => hybridPdfReasonLabel[reason]).join('; ')
-            : undefined,
-          nativeVectorLayerCount: vectorPlan.kind === 'ready'
-            ? vectorPlan.nativeVectorLayerIds.size
-            : 0,
-          exportNativeVectorPage: vectorPlan.kind === 'ready' ? async () => {
-            const currentDocument = imageDocumentRef.current;
-            const renderer = engineRef.current;
-            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
-            if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
-              throw new Error('The document changed after PDF preflight. Open preflight again.');
-            }
-            const nativeExport = buildPdfNativeVectorExportPage({
-              document: currentDocument,
-              nativeVectorLayerIds: vectorPlan.nativeVectorLayerIds,
-              transparencyGroups: vectorPlan.transparencyGroups,
-              clippingPairs: vectorPlan.clippingPairs,
-              pixelsPerInch: 300
-            });
-            const rasterUnderlayPng = await renderer.exportPng({
-              excludedLayerIds: [...vectorPlan.nativeVectorLayerIds]
-            });
-            const { writePdfDisplayListPage } = await import(
-              './infrastructure/pdf/writePdfDisplayListPage'
-            );
-            const result = await writePdfDisplayListPage({
-              page: nativeExport.page,
-              title: currentDocument.name,
-              rasterUnderlayPng,
-              transparencyGroups: nativeExport.transparencyGroups
-            });
-            await deliverExportFile(new File(
-              [result.blob],
-              `${fileNameBase.replace(/\.pdf$/i, '')}-vectors.pdf`,
-              { type: 'application/pdf' }
-            ));
-            return {
-              byteLength: result.blob.size,
-              vectorLayerCount: vectorPlan.nativeVectorLayerIds.size
-            };
-          } : undefined,
-          nativeVectorUnavailableReason: vectorPlan.kind === 'flattened-only'
-            && !vectorPlan.reasons.includes('no-native-vectors')
-            ? vectorPlan.reasons.map(reason => hybridPdfVectorReasonLabel[reason]).join('; ')
-            : undefined,
-          nativeMixedLayerCount: nativePlan.kind === 'ready'
-            ? nativePlan.nativeLayerOrder.length
-            : 0,
-          exportNativeMixedPage: nativePlan.kind === 'ready'
-            && nativePlan.nativeTextLayerIds.size > 0
-            && nativePlan.nativeVectorLayerIds.size > 0 ? async () => {
-              const currentDocument = imageDocumentRef.current;
-              const renderer = engineRef.current;
-              if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
-              if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
-                throw new Error('The document changed after PDF preflight. Open preflight again.');
-              }
-              const { materializePdfFontsWithHarfBuzz } = await import(
-                './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
-              );
-              const resources = await materializePdfFontsWithHarfBuzz(plan, {
-                fonts,
-                loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
-              });
-              const nativeTextPage = buildPdfNativeTextPage({
-                document: currentDocument,
-                plan,
-                realizedLayout: (layerId) => renderer.textEditingLayout(layerId)?.layout ?? null,
-                nativeTextLayerIds: nativePlan.nativeTextLayerIds,
-                pixelsPerInch: 300
-              });
-              const nativeVectorPage = buildPdfNativeVectorLayerPage({
-                document: currentDocument,
-                nativeVectorLayerIds: nativePlan.nativeVectorLayerIds,
-                pixelsPerInch: 300
-              });
-              const excludedLayerIds = [
-                ...nativePlan.nativeTextLayerIds,
-                ...nativePlan.nativeVectorLayerIds
-              ];
-              const rasterUnderlayPng = await renderer.exportPng({ excludedLayerIds });
-              const { writeNativeTextPdfPage } = await import(
-                './infrastructure/pdf/writeNativeTextPdfPage'
-              );
-              const result = await writeNativeTextPdfPage({
-                page: nativeTextPage,
-                fonts: resources.embedded,
-                title: currentDocument.name,
-                rasterUnderlayPng,
-                vectorLayers: nativeVectorPage.layers,
-                nativeLayerOrder: nativePlan.nativeLayerOrder
-              });
-              await deliverExportFile(new File(
-                [result.blob],
-                `${fileNameBase.replace(/\.pdf$/i, '')}-native-mixed.pdf`,
-                { type: 'application/pdf' }
-              ));
-              return {
-                byteLength: result.blob.size,
-                searchableLayerCount: nativePlan.nativeTextLayerIds.size,
-                vectorLayerCount: nativePlan.nativeVectorLayerIds.size
-              };
-            } : undefined,
-          nativeMixedUnavailableReason: nativePlan.kind === 'flattened-only'
-            && plan.layers.length > 0
-            && vectorPlan.kind === 'ready'
-            ? nativePlan.reasons.map(reason => hybridPdfNativeReasonLabel[reason]).join('; ')
-            : undefined,
-          exportFlattenedPage: async () => {
-            const currentDocument = imageDocumentRef.current;
-            const renderer = engineRef.current;
-            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
-            const png = await renderer.exportPng();
-            const { writeRasterPdfPage } = await import(
-              './infrastructure/pdf/writeRasterPdfPage'
-            );
-            const result = await writeRasterPdfPage({
-              png,
-              widthPixels: currentDocument.width,
-              heightPixels: currentDocument.height,
-              pixelsPerInch: 300,
-              title: currentDocument.name
-            });
-            await deliverExportFile(new File(
-              [result.blob],
-              `${fileNameBase.replace(/\.pdf$/i, '')}.pdf`,
-              { type: 'application/pdf' }
-            ));
-            return { byteLength: result.blob.size };
-          }
-        });
-      }
+      pdfExportPreflight: () => { void openPdfExportPreflight(); }
     },
     edit: {
       cutSelectedContent,

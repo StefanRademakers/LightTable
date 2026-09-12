@@ -49,6 +49,25 @@ const fixture = () => {
 };
 
 describe('UI document file intents', () => {
+  it('strict UI preparation returns the exact post-terminal scope without exporting or reporting failures', async () => {
+    const f = fixture(); f.mount();
+    const result = await f.owner.prepareForUi();
+    expect(result.session).toBe(f.session()); expect(result.renderer).toBe(f.ports.getRenderer());
+    expect(f.order).toEqual(['pixels', 'adjustments', 'editing', 'document', 'creation']);
+    expect(result.isCurrent()).toBe(true);
+    f.retire('renderer'); expect(result.isCurrent()).toBe(false);
+    expect(() => result.assertCurrent()).toThrow('retired');
+    f.ports.commitAdjustments = async () => { throw new Error('Grade rejected'); };
+    await expect(f.owner.prepareForUi()).rejects.toThrow('Grade rejected');
+    expect(f.ports.reportError).not.toHaveBeenCalled();
+  });
+  it('strict UI preparation rejects same-ID retirement during a pending terminal', async () => {
+    const f = fixture(); f.mount(); const pending = deferred();
+    f.ports.settlePixels = () => pending.promise;
+    const prepared = expect(f.owner.prepareForUi()).rejects.toThrow('retired');
+    f.retire('session'); pending.resolve(); await prepared;
+    expect(f.ports.commitAdjustments).not.toHaveBeenCalled();
+  });
   it('queued exports finish direct owners without dispatching or awaiting text creation', async () => {
     const f = fixture(); f.mount(); await f.owner.prepareForCommand(f.session());
     expect(f.order).toEqual(['pixels', 'adjustments', 'editing', 'document']);

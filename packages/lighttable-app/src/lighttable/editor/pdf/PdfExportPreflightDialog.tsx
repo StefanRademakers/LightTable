@@ -131,6 +131,10 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     } catch (error) {
       if (generation !== generationRef.current) return;
+      if (isExportCanceled(error)) {
+        setValidation({ kind: 'idle' });
+        return;
+      }
       setValidation({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Font validation failed.'

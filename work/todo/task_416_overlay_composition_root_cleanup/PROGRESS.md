@@ -1,5 +1,37 @@
 # Task 416 progress
 
+## O07b — Scoped PDF preflight/export (accepted)
+
+- PdfExportPreflightSession owns one frozen preflight source and the four existing
+  recipes: flattened, native text, native vector and native mixed. Existing
+  planners, font materialization and lazy writers are reused unchanged.
+  DocumentFileIntents exposes strict prepareForUi through its existing shared
+  prerequisite implementation; no second terminal list or command queue.
+- Mounted binding captures exact session/renderer/font registry and file name,
+  synchronizes the post-terminal canonical document, and waits for actual text
+  sources before planning. Dialog exports reuse file prerequisites and reject
+  changed canonical content/fonts across awaits. Retired work cannot deliver;
+  genuine current codec/preparation errors remain visible.
+- Critic required non-null renderer admission before any prerequisites. The
+  root's image/session handoff guard now truly blocks the mixed tuple; focused
+  tests cover ready-without-renderer and previous-image/new-session cases.
+- Baseline run-akeCQI under tmp/pdf-preflight-smoke passed all four formats but
+  FAILED freshness: an old preflight wrote stale-plan-MUST-NOT-EXIST.pdf after
+  document Grade changed. Earlier SeRd8E/V5tjXn runs were harness URL/schema
+  errors (Windows PDF.js asset slash and exposureEV key), preserved separately.
+- New packaged run-9OVUnn passes the unchanged gate. PDF.js independently extracts
+  searchable text and native vector paths; pdf-lib verifies one correctly sized
+  page; raster underlays retained; exports do not change canonical/history state.
+  Old preflight now visibly rejects with no file, fresh preflight succeeds.
+  Screenshots inspected. This is not pixel-perfect PDF appearance certification
+  or a forced timing proof for every asynchronous retirement.
+- Final integrated critic PASS; 59 focused tests/4 suites, app typecheck, boundary,
+  source audit and packaged build pass. Root 6,179 -> 5,932 physical lines (audit
+  ceiling 5,933); all four recipes and reason-label maps removed from root.
+- Next: scoped GenAI reference handoff/Setup import lease. Separate paid Remove
+  Object authority and O02 host transitions remain explicitly open in inventory;
+  no live provider jobs are authorized/needed for these automated checks.
+
 ## O06f / O05f — Canonical selection consumers and scoped canvas picking (accepted)
 
 - Selection menu/shortcut eligibility now reads canonical coverage activity;

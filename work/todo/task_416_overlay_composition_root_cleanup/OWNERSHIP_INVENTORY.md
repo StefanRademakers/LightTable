@@ -1,5 +1,10 @@
 # Overlay ownership inventory
 
+O07b accepted: PDF preflight owns frozen document/font/layout source and existing
+four-format recipes, with shared file prerequisites. Root 5,933 audit lines.
+Critic/59 focused tests and actual four-format PDF content plus stale-preflight
+rejection pass. Baseline stale export and test scope are retained in PROGRESS.
+
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
 - Native host/tab transitions: `activateWorkspaceDocument`, `closeWorkspaceDocument`,

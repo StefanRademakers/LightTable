@@ -22,6 +22,13 @@ export interface DocumentFileIntentPorts extends Omit<DocumentFilePreparationPar
   reportError(message: string): void;
 }
 
+export interface PreparedDocumentFileScope {
+  readonly session: DocumentSession;
+  readonly renderer: object;
+  isCurrent(): boolean;
+  assertCurrent(): void;
+}
+
 /** UI file requests finish named owners before entering any semantic command queue. */
 export class DocumentFileIntents {
   constructor(private readonly resolve: () => DocumentFileIntentPorts) {}
@@ -37,8 +44,19 @@ export class DocumentFileIntents {
     const assertCurrent = () => {
       if (!isCurrent()) throw new DOMException('The file target document renderer was retired.', 'AbortError');
     };
-    return { ports, session, isCurrent, assertCurrent };
+    return { ports, session, renderer, isCurrent, assertCurrent };
   }
+
+  private async prepare(captured: ReturnType<DocumentFileIntents['capture']>): Promise<PreparedDocumentFileScope> {
+    const { ports, session, renderer, isCurrent, assertCurrent } = captured;
+    assertCurrent();
+    await prepareDocumentFileIntent({ ...ports, assertCurrent });
+    assertCurrent();
+    return { session: session!, renderer: renderer!, isCurrent, assertCurrent };
+  }
+
+  /** Strict prerequisite for an outside-command export/preflight owner; errors belong to its UI boundary. */
+  prepareForUi = (): Promise<PreparedDocumentFileScope> => this.prepare(this.capture());
 
   /** In-queue exports fail visibly on command-producing creation; never recursively execute text.create. */
   prepareForCommand = async (expectedSession: DocumentSession | null | undefined): Promise<void> => {
@@ -53,11 +71,10 @@ export class DocumentFileIntents {
 
   private async run(operation: (ports: DocumentFileIntentPorts, session: DocumentSession,
     assertCurrent: () => void) => Promise<void>): Promise<void> {
-    const { ports, session, isCurrent, assertCurrent } = this.capture();
+    const captured = this.capture();
+    const { ports, session, isCurrent, assertCurrent } = captured;
     try {
-      assertCurrent();
-      await prepareDocumentFileIntent({ ...ports, assertCurrent });
-      assertCurrent();
+      await this.prepare(captured);
       await operation(ports, session!, assertCurrent);
     } catch (error) {
       if (isCurrent() && !(error instanceof DOMException && error.name === 'AbortError')) {
