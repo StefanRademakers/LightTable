@@ -179,7 +179,61 @@ try {
   }, documentId, { timeout: 60_000 });
   assert.deepEqual(await copyBounds(), paintedBounds);
 
+  // Pure painted coverage has no geometric provenance. Delete must clear pixels,
+  // never interpret that empty provenance as permission to delete the layer.
+  await gesture('selection-paint', { mode: 'replace', size: 24, hardness: 1, opacity: 1, smooth: 0 },
+    { x: 160, y: 90, pressure: 1 }, [{ x: 178, y: 90, pressure: 1 }]);
+  const beforeDelete = await previewRaw();
+  const deleteState = await driver.queryDocument(documentId);
+  const deleteLayers = await driver.queryLayers(documentId);
+  await page.keyboard.press('m');
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(({ id, depth }) =>
+    window.__lightTableAutomation?.queryDocument(id)?.history.undoDepth === depth,
+  { id: documentId, depth: deleteState.history.undoDepth + 1 }, { timeout: 30_000 });
+  assert.deepEqual((await driver.queryLayers(documentId)).map(layer => layer.id),
+    deleteLayers.map(layer => layer.id), 'Delete removed a layer instead of painted selection pixels.');
+  const afterDelete = await previewRaw();
+  let clearedPixels = 0;
+  for (let index = 3; index < beforeDelete.data.length; index += 4) {
+    if (afterDelete.data[index] < beforeDelete.data[index]) clearedPixels++;
+  }
+  assert.ok(clearedPixels > 0, 'Delete did not clear painted selection pixels.');
+  await driver.execute(documentId, 'history.undo');
+  assert.deepEqual((await previewRaw()).data, beforeDelete.data,
+    'Painted selection Delete undo must restore exact RGBA pixels.');
+
+  await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
+  const recorder = page.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Record', exact: true }).click();
+  const canvasBox = await page.locator('.lighttable-viewport__canvas').boundingBox();
+  assert.ok(canvasBox);
+  const center = { x: canvasBox.x + canvasBox.width / 2, y: canvasBox.y + canvasBox.height / 2 };
+  await page.mouse.move(center.x - 35, center.y - 25);
+  await page.mouse.down();
+  await page.mouse.move(center.x + 25, center.y + 20, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+    .some(step => step.command === 'selection.applyShape'), undefined, { timeout: 30_000 });
+  await recorder.getByRole('button', { name: 'Stop', exact: true }).click();
+  const recorded = await driver.queryActionRecording();
+  assert.deepEqual(recorded.steps.map(step => step.command), ['selection.applyShape'],
+    'A real marquee gesture must record exactly one admitted shape command.');
+  const recordedCopy = await copyPixels();
+  await driver.execute(documentId, 'history.undo');
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForFunction(() => window.__lightTableAutomation?.actionPlaybackSnapshot?.().status === 'completed',
+    undefined, { timeout: 30_000 });
+  const replayedCopy = await copyPixels();
+  assert.deepEqual(replayedCopy.bounds, recordedCopy.bounds);
+  assert.deepEqual(replayedCopy.image.data, recordedCopy.image.data,
+    'Actions replay must reproduce the real marquee selection pixels.');
+
   const report = { documentId, expectedBounds, paintedBounds, changedPaintPixels: changed,
+    paintedSelectionDelete: { clearedPixels, layerRetained: true, exactUndo: true },
+    marqueeActions: { recordedOnce: true, exactReplay: true },
     history: (await driver.queryDocument(documentId)).history, pageErrors };
   assert.equal(pageErrors.length, 0, JSON.stringify(pageErrors));
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);

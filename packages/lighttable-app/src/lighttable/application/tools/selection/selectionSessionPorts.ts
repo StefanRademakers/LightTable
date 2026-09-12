@@ -38,13 +38,8 @@ export interface SelectionSessionDependencies {
   getSelection(): SelectionOperation[];
   getSelectionMaskSnapshot(): SelectionMaskSnapshot | null;
   getSelectionSupportBounds?(): Rect | null;
-  publishSelection(
-    operations: SelectionOperation[],
-    pointerId: number | null,
-    snapshot?: SelectionMaskSnapshot,
-    commit?: { readonly supportBounds: Rect | null }
-  ): void;
-  publishPointer?(pointerId: number | null): void;
+  /** Gesture chrome only; committed selection can be published only by commit*. */
+  publishPointer(pointerId: number | null): void;
   publishDraft(shape: SelectionShape | null): void;
   setError(message: string | null): void;
   getSnapContext?(movingBounds: Rect): {

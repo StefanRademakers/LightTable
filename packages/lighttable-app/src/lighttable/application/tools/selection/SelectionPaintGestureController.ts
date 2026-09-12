@@ -17,7 +17,7 @@ interface PaintGesture {
   readonly document: ImageDocument;
   readonly renderer: SelectionRendererPort;
   readonly preview: SelectionPaintPreviewPort;
-  readonly before: SelectionOperation[];
+  readonly onPaintCommitted: SelectionSessionDependencies['onPaintCommitted'];
   readonly beforeMask: Promise<SelectionMaskSnapshot>;
   readonly mode: 'add' | 'subtract';
   readonly size: number;
@@ -95,7 +95,8 @@ export class SelectionPaintGestureController {
     }
     this.gesture = {
       retired: false, released: false,
-      pointerId, document, renderer, preview, before,
+      pointerId, document, renderer, preview,
+      onPaintCommitted: dependencies.onPaintCommitted,
       beforeMask: Promise.resolve(exactBefore),
       mode, size, hardness, opacity, smooth, builder, smoother,
       dabs: first.map((dab) => ({ ...dab })),
@@ -103,7 +104,7 @@ export class SelectionPaintGestureController {
       renderQueue: firstRender
     };
     this.pending.add(this.gesture);
-    dependencies.publishSelection(before, pointerId);
+    dependencies.publishPointer(pointerId);
     return true;
   }
 
@@ -198,7 +199,7 @@ export class SelectionPaintGestureController {
         if (this.options.isCurrent(current.document, current.renderer)) {
           await current.preview.restoreSelectionSnapshot(beforeMask);
           if (current.retired) return;
-          this.options.resolveDependencies().publishSelection(current.before, null, beforeMask);
+          this.options.resolveDependencies().publishPointer(null);
           this.options.resolveDependencies().setError('The selection brush stroke could not be applied.');
         }
         return;
@@ -221,7 +222,8 @@ export class SelectionPaintGestureController {
       if (!committed) throw new Error('The selection brush stroke could not be committed.');
       const latest = this.options.resolveDependencies();
       latest.setError(null);
-      this.options.notifyObservedCommit(latest, () => latest.onPaintCommitted?.({
+      latest.publishPointer(null);
+      this.options.notifyObservedCommit(latest, () => current.onPaintCommitted?.({
         kind: 'selection-paint',
         mode: current.mode,
         dabs: current.dabs.map((dab) => ({ ...dab })),
@@ -242,7 +244,7 @@ export class SelectionPaintGestureController {
       } else if (beforeMask && this.options.isCurrent(current.document, current.renderer)) {
         await current.preview.restoreSelectionSnapshot(beforeMask).catch(() => false);
         if (current.retired) return;
-        this.options.resolveDependencies().publishSelection(current.before, null, beforeMask);
+        this.options.resolveDependencies().publishPointer(null);
         this.options.resolveDependencies().setError(
           reason instanceof Error ? reason.message : 'The selection brush stroke could not be applied.'
         );
@@ -263,7 +265,7 @@ export class SelectionPaintGestureController {
         throw new Error('The selection could not be restored.');
       }
       if (!current.retired && this.options.isCurrent(current.document, current.renderer)) {
-        this.options.resolveDependencies().publishSelection(current.before, null, beforeMask);
+        this.options.resolveDependencies().publishPointer(null);
       }
     }).catch((reason) => {
       if (!current.retired && this.options.isCurrent(current.document, current.renderer)) {

@@ -72,11 +72,6 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
     getSelectionMaskSnapshot: () => selectionMaskSnapshot,
     getSelectionSupportBounds: () => selectionMaskSnapshot.active
       ? { x: 0, y: 0, width: document.width, height: document.height } : null,
-    publishSelection: (next, nextPointerId, nextMask) => {
-      selection = next;
-      pointerId = nextPointerId;
-      if (nextMask !== undefined) selectionMaskSnapshot = nextMask;
-    },
     publishPointer: (nextPointerId) => { pointerId = nextPointerId; },
     publishDraft: (next) => { draft = next; },
     setError,
@@ -90,7 +85,7 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   };
   const controller = createSelectionSessionController(() => dependencies);
   return {
-    controller, renderer, preview,
+    controller, renderer, preview, dependencies,
     commitShape, commitTranslation, commitPaint, commitMagicWand, commitOperation,
     commitRasterMask, setError,
     get selection() { return selection; },
@@ -101,36 +96,104 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
 };
 
 describe('selection session controller kernel boundary', () => {
+  it('retains the opening shape observer across host renders and asynchronous commit', async () => {
+    let finish!: (value: boolean) => void;
+    const openingObserver = vi.fn();
+    const successorObserver = vi.fn();
+    const state = setup({ onShapeCommitted: openingObserver,
+      commitShape: vi.fn(() => new Promise<boolean>(resolve => { finish = resolve; })) });
+    state.controller.begin(80, 'select-rectangle', { x: 5, y: 5 }, 'replace');
+    state.controller.move(80, { x: 25, y: 25 });
+    state.dependencies.onShapeCommitted = successorObserver;
+    state.controller.finish(80);
+    finish(true);
+    await state.controller.settle();
+    expect(openingObserver).toHaveBeenCalledOnce();
+    expect(successorObserver).not.toHaveBeenCalled();
+  });
+
+  it('captures the wand observer before queued admission instead of resolving a later host callback', async () => {
+    let release!: (value: boolean) => void;
+    const openingObserver = vi.fn();
+    const successorObserver = vi.fn();
+    const state = setup({ onMagicWandCommitted: openingObserver,
+      commitOperation: vi.fn(() => new Promise<boolean>(resolve => { release = resolve; })) });
+    const pending = state.controller.applyState('all');
+    state.controller.magicWand({ x: 10, y: 10 }, 'replace', {
+      sampleSize: 1, tolerance: 10, contiguous: true, antiAlias: true, sampleAllLayers: false
+    });
+    state.dependencies.onMagicWandCommitted = successorObserver;
+    release(true);
+    await pending;
+    await state.controller.settle();
+    expect(openingObserver).toHaveBeenCalledOnce();
+    expect(successorObserver).not.toHaveBeenCalled();
+  });
+
+  it('retains the opening paint observer while terminal work awaits the kernel', async () => {
+    let release!: (value: boolean) => void;
+    const openingObserver = vi.fn();
+    const successorObserver = vi.fn();
+    const state = setup({ onPaintCommitted: openingObserver,
+      commitPaint: vi.fn(() => new Promise<boolean>(resolve => { release = resolve; })) });
+    state.controller.beginPaint(81, { x: 10, y: 10, pressure: 1 }, 'add',
+      { size: 10, hardness: 1, opacity: 1, smooth: 0 });
+    state.dependencies.onPaintCommitted = successorObserver;
+    state.controller.finishPaint(81);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    release(true);
+    await state.controller.settle();
+    expect(openingObserver).toHaveBeenCalledOnce();
+    expect(successorObserver).not.toHaveBeenCalled();
+    expect(state.pointerId).toBeNull();
+  });
+
+  it('gesture cancellation preserves the canonical selection object and coverage', async () => {
+    const state = setup();
+    await state.controller.applyState('all');
+    const before = state.selection;
+    const coverage = state.dependencies.getSelectionMaskSnapshot();
+    state.controller.begin(82, 'select-rectangle', { x: 10, y: 10 }, 'replace');
+    state.controller.move(82, { x: 20, y: 20 });
+    state.controller.cancel(82);
+    expect(state.selection).toBe(before);
+    expect(state.dependencies.getSelectionMaskSnapshot()).toBe(coverage);
+    state.controller.beginPaint(83, { x: 10, y: 10, pressure: 1 }, 'subtract',
+      { size: 10, hardness: 1, opacity: 1, smooth: 0 });
+    state.controller.cancelPaint(83);
+    await state.controller.settle();
+    expect(state.selection).toBe(before);
+    expect(state.dependencies.getSelectionMaskSnapshot()).toBe(coverage);
+  });
+
   it('retires idle and draft state without publishing to a disposed session', () => {
-    const publishSelection = vi.fn();
+    const publishPointer = vi.fn();
     const publishDraft = vi.fn();
     const publishSnapFeedback = vi.fn();
-    const state = setup({ publishSelection, publishDraft, publishSnapFeedback });
+    const state = setup({ publishPointer, publishDraft, publishSnapFeedback });
     state.controller.begin(71, 'select-rectangle', { x: 5, y: 5 }, 'replace');
     state.controller.move(71, { x: 25, y: 25 });
-    publishSelection.mockClear(); publishDraft.mockClear(); publishSnapFeedback.mockClear();
+    publishPointer.mockClear(); publishDraft.mockClear(); publishSnapFeedback.mockClear();
     state.controller.retire();
     state.controller.retire();
     expect(state.controller.active).toBe(false);
     expect(state.controller.draft).toBeNull();
-    expect(publishSelection).not.toHaveBeenCalled();
+    expect(publishPointer).not.toHaveBeenCalled();
     expect(publishDraft).not.toHaveBeenCalled();
     expect(publishSnapFeedback).not.toHaveBeenCalled();
     expect(state.renderer.setCommittedSelectionProjection).not.toHaveBeenCalled();
   });
 
   it('retires translation without restoring pixels or publishing pointer state', async () => {
-    const publishSelection = vi.fn();
     const publishPointer = vi.fn();
-    const state = setup({ publishSelection, publishPointer });
+    const state = setup({ publishPointer });
     await state.controller.applyState('all');
     expect(state.controller.begin(72, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
     state.controller.move(72, { x: 20, y: 20 });
-    publishSelection.mockClear(); publishPointer.mockClear();
+    publishPointer.mockClear();
     state.controller.retire();
     expect(state.controller.finish(72)).toBe(false);
     expect(state.renderer.setCommittedSelectionProjection).not.toHaveBeenCalled();
-    expect(publishSelection).not.toHaveBeenCalled();
     expect(publishPointer).not.toHaveBeenCalled();
   });
 
@@ -153,14 +216,14 @@ describe('selection session controller kernel boundary', () => {
 
   it.each(['active', 'finished', 'cancelled'] as const)('retires %s selection paint with one exact lease release', async (phase) => {
     let finish!: (value: boolean) => void;
-    const publishSelection = vi.fn();
-    const state = setup({ publishSelection });
+    const publishPointer = vi.fn();
+    const state = setup({ publishPointer });
     state.preview.paintSelectionDabs.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }));
     expect(state.controller.beginPaint(73, { x: 10, y: 10, pressure: 1 }, 'add',
       { size: 10, hardness: 1, opacity: 1, smooth: 0 })).toBe(true);
     if (phase === 'finished') state.controller.finishPaint(73);
     if (phase === 'cancelled') state.controller.cancelPaint(73);
-    publishSelection.mockClear();
+    publishPointer.mockClear();
     state.controller.retire();
     expect(state.preview.release).toHaveBeenCalledTimes(1);
     finish(true);
@@ -169,22 +232,22 @@ describe('selection session controller kernel boundary', () => {
     expect(state.preview.release).toHaveBeenCalledTimes(1);
     expect(state.preview.restoreSelectionSnapshot).not.toHaveBeenCalled();
     expect(state.commitPaint).not.toHaveBeenCalled();
-    expect(publishSelection).not.toHaveBeenCalled();
+    expect(publishPointer).not.toHaveBeenCalled();
     expect(state.setError).not.toHaveBeenCalled();
   });
 
   it('preserves live reset paint restoration and pointer publication', async () => {
-    const publishSelection = vi.fn();
-    const state = setup({ publishSelection });
+    const publishPointer = vi.fn();
+    const state = setup({ publishPointer });
     state.controller.beginPaint(74, { x: 10, y: 10, pressure: 1 }, 'add',
       { size: 10, hardness: 1, opacity: 1, smooth: 0 });
-    publishSelection.mockClear();
+    publishPointer.mockClear();
     state.controller.reset();
     await state.controller.settle();
     await Promise.resolve();
     expect(state.preview.restoreSelectionSnapshot).toHaveBeenCalledOnce();
     expect(state.preview.release).toHaveBeenCalledOnce();
-    expect(publishSelection).toHaveBeenCalled();
+    expect(publishPointer).toHaveBeenCalledWith(null);
   });
 
   it('aborts a pending wand and prevents late observation after retirement', async () => {

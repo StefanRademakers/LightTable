@@ -286,7 +286,7 @@ import { pickCurrentTransformLayer } from './application/tools/transform/transfo
 import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
 import { useTransformPresentation } from './composition/transforms/useTransformPresentation';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
-import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
+import { useSelectionHostBinding } from './composition/selection/useSelectionHostBinding';
 import { DocumentSelectionPublicationBinding } from './application/documents/DocumentSelectionPublicationBinding';
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
@@ -2081,44 +2081,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         && documentSession.getSnapshot().document === imageDocumentRef.current,
     )
     : null, [documentSession]);
+  const selectionHost = useSelectionHostBinding(documentSession, engineRef.current,
+    rendererSnapshot.generation, rendererLifecycle, captureMountedInteractionScope, commandService,
+    () => ({ document: imageDocumentRef.current, editor: readEditorSession(),
+      selectedLayerIds: selectedLayerIdsRef.current, scale: activeScale }), {
+      updateEditor: (update) => setEditorSession(current => {
+        const next = update(current);
+        editorSessionRef.current = next;
+        return next;
+      }),
+      draft: setSelectionDraft,
+      snapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds })
+    });
   const selectionSessionController = useSelectionSessionController({
-    getDocument: () => imageDocumentRef.current,
+    getDocument: selectionHost.gesture.getDocument,
     getRenderer: () => engineRef.current,
-    getSelection: () => editorSessionRef.current.selection,
-    getSelectionMaskSnapshot: () => editorSessionRef.current.selectionMaskSnapshot,
-    getSelectionSupportBounds: () => editorSessionRef.current.selectionSupportBounds,
-    publishSelection: (selection, pointerId, selectionMaskSnapshot, commit) => {
-      const nextMask = selectionMaskSnapshot === undefined
-        ? editorSessionRef.current.selectionMaskSnapshot
-        : selectionMaskSnapshot;
-      editorSessionRef.current = {
-        ...editorSessionRef.current,
-        pointerId,
-        selection,
-        selectionMaskSnapshot: nextMask,
-        ...(commit ? {
-          selectionRevision: editorSessionRef.current.selectionRevision + 1,
-          selectionSupportBounds: commit.supportBounds,
-        } : {}),
-      };
-      setEditorSession((current) => ({
-        ...current,
-        pointerId,
-        selection,
-        selectionMaskSnapshot: selectionMaskSnapshot === undefined
-          ? current.selectionMaskSnapshot
-          : selectionMaskSnapshot,
-        ...(commit ? {
-          selectionRevision: current.selectionRevision + 1,
-          selectionSupportBounds: commit.supportBounds,
-        } : {}),
-      }));
-    },
-    publishPointer: (pointerId) => {
-      editorSessionRef.current = { ...editorSessionRef.current, pointerId };
-      setEditorSession((current) => ({ ...current, pointerId }));
-    },
-    publishDraft: setSelectionDraft,
+    getSelection: selectionHost.gesture.getSelection,
+    getSelectionMaskSnapshot: selectionHost.gesture.getSelectionMaskSnapshot,
+    getSelectionSupportBounds: selectionHost.gesture.getSelectionSupportBounds,
+    publishPointer: selectionHost.gesture.publishPointer,
+    publishDraft: selectionHost.gesture.publishDraft,
     setError,
     commitShape: (command) => selectionShapeCommandService
       ? selectionShapeCommandService.execute(command) : Promise.resolve(false),
@@ -2132,64 +2114,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? selectionShapeCommandService.executeOperation(command) : Promise.resolve(false),
     commitRasterMask: (command, signal) => selectionShapeCommandService
       ? selectionShapeCommandService.executeRasterMask(command, signal) : Promise.resolve(false),
-    getSnapContext: (movingBounds) => {
-      const document = imageDocumentRef.current;
-      const snap = editorSessionRef.current.snap;
-      const excludedLayerIds = new Set<LayerId>(selectedLayerIdsRef.current);
-      if (document?.activeLayerId) excludedLayerIds.add(document.activeLayerId);
-      return {
-        targets: document ? buildLayerSnapTargets(document, {
-          excludedLayerIds,
-          includeCanvas: snap.targets.documentBounds,
-          includeLayers: snap.targets.layers,
-          includeGuides: snap.targets.guides,
-          includeGrid: snap.targets.grid && snap.gridVisible,
-          gridSpacing: snap.gridSpacing / Math.max(1, snap.gridSubdivisions),
-          gridOriginX: snap.gridOriginX,
-          gridOriginY: snap.gridOriginY,
-          movingBounds
-        }) : [],
-        zoom: activeScale,
-        enabled: snap.enabled
-      };
-    },
-    publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds }),
-    onShapeCommitted: (parameters) => {
-      commandService.recordObservedCommand(
-        'selection.applyShape',
-        workspaceDocumentId as DocumentSessionId,
-        parameters,
-        { mode: parameters.mode, shape: parameters.shape,
-          featherRadius: parameters.featherRadius, antiAlias: parameters.antiAlias }
-      );
-    },
-    onMagicWandCommitted: (parameters) => {
-      commandService.recordObservedCommand(
-        'selection.applyMagicWand',
-        workspaceDocumentId as DocumentSessionId,
-        parameters,
-        { layerId: parameters.layerId, mode: parameters.mode, point: parameters.point,
-          options: parameters.options }
-      );
-    },
-    onPaintCommitted: (parameters) => {
-      commandService.recordObservedCommand(
-        'tool.commitGesture',
-        workspaceDocumentId as DocumentSessionId,
-        {
-          kind: 'selection-paint',
-          parameters: {
-            mode: parameters.mode,
-            size: parameters.size,
-            hardness: parameters.hardness,
-            opacity: parameters.opacity,
-            smooth: parameters.smooth
-          },
-          samples: parameters.samples.map(({ x, y, pressure }) => ({ x, y, pressure }))
-        },
-        { kind: 'selection-paint', sampleCount: parameters.samples.length }
-      );
-    }
+    getSnapContext: selectionHost.gesture.getSnapContext,
+    publishSnapFeedback: selectionHost.gesture.publishSnapFeedback,
+    onShapeCommitted: selectionHost.observation.shape,
+    onMagicWandCommitted: selectionHost.observation.magicWand,
+    onPaintCommitted: selectionHost.observation.paint
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
   const smartSelectionBackendRef = useRef<ReturnType<typeof createSmartSelectionBackend> | null>(null);
@@ -4099,14 +4028,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   deleteActiveTargetRef.current = () => {
     const document = imageDocumentRef.current;
+    if (!document) return;
     const session = editorSessionRef.current;
     const vectorSelection = session.vectorSelection;
+    let hasPixelSelection: boolean;
+    try {
+      hasPixelSelection = selectionHost.hasActiveSelection();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The current document selection is unavailable.');
+      return;
+    }
     const target = resolveDeleteTarget({
       activeTool: session.activeTool,
       hasVectorSelection: vectorSelection.elements.length > 0
         || vectorSelection.paths.length > 0
         || vectorSelection.anchors.length > 0,
-      hasPixelSelection: session.selection.length > 0,
+      hasPixelSelection,
       hasActiveLayer: Boolean(document?.activeLayerId)
     });
     if (!target) return;

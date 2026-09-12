@@ -1,5 +1,34 @@
 # Task 416 progress
 
+## O05e.1 — Selection host and observation (accepted)
+
+- Removed publishSelection port, its unused revision-authoring branch and all
+  gesture republishing of canonical coverage/provenance. Required publishPointer
+  only updates pointer chrome; kernel commit services remain sole selection
+  authors. SelectionGestureHostBinding owns snap/presentation adaptation;
+  SelectionCommandObservation records the exact admission-time gesture owner.
+- Thin React binding captures session/renderer/generation and retires on layout
+  cleanup. Critic required an additional disposed-session check before cleanup;
+  repaired without denying valid owned in-flight transactions. No new readback,
+  queue, mask algorithm or hot-path GPU work. Root6,745 ->6,682 audit lines.
+- Adjacent confirmed defect repaired: Delete formerly used provenance.length,
+  which could delete a layer for paint-only selection. Canonical active coverage
+  now decides eligibility, including fully clipped active masks. Missing scope
+  reports visibly and never falls through to layer deletion; no-document is inert.
+- Independent source critic PASS;57 focused tests, app typecheck and boundary
+  pass. Fresh instrumented desktop selection gate passes edge excursions,
+  exact coverage/copy, paint bounds, tab rebind and history. Added actual keyboard
+  Delete for pure painted coverage: layer retained, pixels cleared, exact Undo.
+  Actual mouse marquee records one Actions shape command; replay reproduces exact
+  copied bounds/RGBA. Report: tmp/selection-kernel-smoke/report.json.
+- Clipboard package also passed three pasted-paint/recovery/Undo/Redo cycles on
+  woman_love_walk_still_shot01.png. An earlier 546px face fixture was invalid for
+  that harness's fixed800..1500 selection; failure was fixture mismatch, not hidden.
+- Open: remaining smart-selection lifecycle, mounted command recipes, file
+  prerequisites and UI composition. Next file terminal owner is prepared, not
+  accepted; SVG normalization also exposed a separate split publication/history
+  route to repair in both mounted and inactive command bindings.
+
 ## O06a — Clipboard host and Cut intent (accepted)
 
 - Removed host clipboard read/decode, target placement, artifact lifetime and

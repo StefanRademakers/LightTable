@@ -1,5 +1,13 @@
 # Overlay ownership inventory
 
+O05e.1 accepted: SelectionGestureHostBinding only owns pointer/draft/snap
+adaptation; SelectionCommandObservation captures admission-time recording.
+Removed publishSelection and revision branch throughout gesture callers.
+Delete eligibility reads exact canonical active coverage. Scoped React binding
+guards renderer rebind and disposal before cleanup. Root6,682 audit lines;
+packaged selection/Delete/actual-marquee Actions replay passed. File prerequisite
+and SVG transaction work remain unaccepted separate slices.
+
 O06a accepted: ClipboardHostIntents owns host I/O/placement/artifact lifetime;
 CutPixelsCommand only sequences existing copy/fill owners. Request-time binding
 pins session, renderer and generation, reading exact canonical selection support.

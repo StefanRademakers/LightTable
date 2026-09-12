@@ -197,6 +197,7 @@ export const createSelectionSessionController = (
   let gestureOwner: {
     document: ImageDocument;
     renderer: SelectionRendererPort;
+    onShapeCommitted: SelectionSessionDependencies['onShapeCommitted'];
   } | null = null;
   let translation: {
     pointerId: number;
@@ -313,7 +314,7 @@ export const createSelectionSessionController = (
     if (!document || !renderer) return Promise.resolve(false);
     gesture.reset();
     dependencies.publishDraft(null);
-    dependencies.publishSelection(dependencies.getSelection(), null);
+    dependencies.publishPointer(null);
     const operation = after.at(-1) ?? null;
     return queueCommit(async (isAdmitted) => {
       if (!isAdmitted() || !isCurrent(document, renderer)) return false;
@@ -330,6 +331,7 @@ export const createSelectionSessionController = (
     if (!result) return false;
     const dependencies = resolveDependencies();
     const owner = gestureOwner;
+    const onShapeCommitted = owner?.onShapeCommitted;
     gestureOwner = null;
     const document = owner?.document ?? dependencies.getDocument();
     const renderer = owner?.renderer ?? dependencies.getRenderer();
@@ -337,7 +339,7 @@ export const createSelectionSessionController = (
     dependencies.publishSnapFeedback?.([], null);
     marqueeTool = null;
     marqueeSnapMatches = [];
-    dependencies.publishSelection(dependencies.getSelection(), null);
+    dependencies.publishPointer(null);
     if (!document || !renderer || !isCurrent(document, renderer) || result.kind === 'none') return true;
     if (result.kind === 'clear') {
       void commitSnapshot([], 'The selection could not be cleared.');
@@ -362,7 +364,7 @@ export const createSelectionSessionController = (
       const latest = resolveDependencies();
       if (applied) {
         latest.setError(null);
-        notifyObservedCommit(latest, () => latest.onShapeCommitted?.({
+        notifyObservedCommit(latest, () => onShapeCommitted?.({
           mode: result.mode,
           shape: { ...result.shape, points: result.shape.points.map((point) => ({ ...point })) },
           featherRadius: result.featherRadius,
@@ -525,6 +527,7 @@ export const createSelectionSessionController = (
       mode
     );
     const generation = magicWandGeneration;
+    const onMagicWandCommitted = dependencies.onMagicWandCommitted;
     const cancellation = new AbortController();
     magicWandAborts.add(cancellation);
     try {
@@ -541,7 +544,7 @@ export const createSelectionSessionController = (
         if (!applied || !isAdmitted() || generation !== magicWandGeneration) return false;
         latest.setError(null);
         if (recordObserved) {
-          notifyObservedCommit(latest, () => latest.onMagicWandCommitted?.({
+          notifyObservedCommit(latest, () => onMagicWandCommitted?.({
             kind: 'magic-wand', layerId,
             point: { x: point.x, y: point.y }, mode, options: { ...options },
           }));
@@ -627,8 +630,7 @@ export const createSelectionSessionController = (
           stopped: false
         };
         marqueeSnapMatches = [];
-        if (dependencies.publishPointer) dependencies.publishPointer(pointerId);
-        else dependencies.publishSelection(before, pointerId);
+        dependencies.publishPointer(pointerId);
         dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
       }
@@ -651,7 +653,7 @@ export const createSelectionSessionController = (
           })
         : { offsetX: 0, offsetY: 0, matches: [] as readonly SnapMatch[] };
       const snappedPoint = { x: point.x + snap.offsetX, y: point.y + snap.offsetY };
-      gestureOwner = { document, renderer };
+      gestureOwner = { document, renderer, onShapeCommitted: dependencies.onShapeCommitted };
       marqueeTool = tool;
       marqueeSnapMatches = snap.matches;
       const draft = gesture.begin(pointerId, tool, snappedPoint, mode, {
@@ -663,7 +665,7 @@ export const createSelectionSessionController = (
       dependencies.publishSnapFeedback?.(snap.matches, snap.matches.length ? {
         x: snappedPoint.x, y: snappedPoint.y, width: 0, height: 0
       } : null);
-      dependencies.publishSelection(dependencies.getSelection(), pointerId);
+      dependencies.publishPointer(pointerId);
       return true;
     },
     move: (
@@ -695,8 +697,7 @@ export const createSelectionSessionController = (
           : current.before;
         resolveDependencies().publishSnapFeedback?.([], null);
         const latest = resolveDependencies();
-        if (latest.publishPointer) latest.publishPointer(null);
-        else latest.publishSelection(current.before, null);
+        latest.publishPointer(null);
         if (after === current.before) {
           current.renderer.setCommittedSelectionProjection(current.before);
           return true;
@@ -729,8 +730,7 @@ export const createSelectionSessionController = (
         resolveDependencies().publishSnapFeedback?.([], null);
         current.renderer.setCommittedSelectionProjection(current.before);
         const latest = resolveDependencies();
-        if (latest.publishPointer) latest.publishPointer(null);
-        else latest.publishSelection(current.before, null);
+        latest.publishPointer(null);
         return true;
       }
       if (!gesture.cancel(pointerId)) return false;
@@ -740,7 +740,7 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSnapFeedback?.([], null);
-      dependencies.publishSelection(dependencies.getSelection(), null);
+      dependencies.publishPointer(null);
       return true;
     },
     polygonClick: (
@@ -755,7 +755,7 @@ export const createSelectionSessionController = (
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
       if (!document || !renderer) return false;
-      if (!polygonGesture.active) gestureOwner = { document, renderer };
+      if (!polygonGesture.active) gestureOwner = { document, renderer, onShapeCommitted: dependencies.onShapeCommitted };
       const result = polygonGesture.click(
         point,
         mode,
@@ -766,7 +766,7 @@ export const createSelectionSessionController = (
       );
       if (result.kind === 'finish') return applyGestureResult(result.result);
       dependencies.publishDraft(result.shape);
-      dependencies.publishSelection(dependencies.getSelection(), null);
+      dependencies.publishPointer(null);
       return true;
     },
     polygonMove: (point) => {
@@ -821,7 +821,7 @@ export const createSelectionSessionController = (
       gestureOwner = null;
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
-      dependencies.publishSelection(dependencies.getSelection(), null);
+      dependencies.publishPointer(null);
       return true;
     },
     retire: () => {
@@ -855,7 +855,7 @@ export const createSelectionSessionController = (
       gesture.reset();
       polygonGesture.reset();
       dependencies.publishDraft(null);
-      dependencies.publishSelection(dependencies.getSelection(), null);
+      dependencies.publishPointer(null);
       if (interruptedTranslation) {
         interruptedTranslation.renderer.setCommittedSelectionProjection(interruptedTranslation.before);
       }

@@ -249,6 +249,10 @@ class names: reuse existing owners before creating a new one.
     Critic repairs include exact property/review leases and null-to-ready renderer
     rebinding. Packaged gestures, identity, rebind/property/exact undo pass.
     Shared revision defect repaired in O03c.4; whole owner/performance gate open.
+  - [x] O05e.1: selection host pointer/snap presentation and admitted Actions
+    observation. Deleted duplicate canonical publication port. Exact canonical
+    activity fixes painted-selection Delete routing. Critic PASS after disposal
+    guard;57 tests and packaged selection/Delete/real-marquee Actions replay pass.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not
