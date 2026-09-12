@@ -155,6 +155,7 @@ import type { DocumentOpenMode } from './application/documents/documentSourcePro
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
+import { useDocumentScopeCanvases } from './composition/documents/useDocumentScopeCanvases';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
 import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
@@ -957,23 +958,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(loadedSourceBinding.connect, [loadedSourceBinding]);
   const activePresentationRef = useRef(active);
   activePresentationRef.current = active;
-  useEffect(() => {
-    if (rendererSnapshot.status !== 'ready') return;
-    const renderer = engineRef.current;
-    const hueDistribution = hueDistributionCanvasRef.current;
-    const parade = paradeCanvasRef.current;
-    const vectorscope = vectorscopeCanvasRef.current;
-    if (!renderer || !hueDistribution || !parade || !vectorscope) return;
-    // Scopes may mount after the first image (for example when leaving Gen AI).
-    let current = true;
-    void renderer.initializeScopes({
-      hueDistribution, parade, vectorscope,
-      ...(colorMixerHueCanvasRef.current ? { colorMixerHueDistribution: colorMixerHueCanvasRef.current } : {})
-    }).catch((reason: unknown) => {
-      if (current) setScopeError(reason instanceof Error ? reason.message : String(reason));
-    });
-    return () => { current = false; };
-  }, [documentSurfaceRevision, rendererSnapshot.status, rendererSnapshot.generation]);
+  const attachColorMixerHueCanvas = useDocumentScopeCanvases({
+    renderer: engineRef,
+    canvases: { viewport: canvasRef, hueDistribution: hueDistributionCanvasRef,
+      colorMixerHueDistribution: colorMixerHueCanvasRef, parade: paradeCanvasRef, vectorscope: vectorscopeCanvasRef },
+    ready: rendererSnapshot.status === 'ready', generation: rendererSnapshot.generation,
+    lifecycle: rendererLifecycle, surfaceRevision: documentSurfaceRevision,
+    captureScope: captureMountedInteractionScope, reportError: setScopeError
+  });
   useEffect(() => {
     if (workspaceDocumentKind === 'image') return;
     // The application shell is retained across document kinds, but image
@@ -1034,21 +1026,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererSnapshot.status
   ]);
   const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
-  const attachColorMixerHueCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
-    colorMixerHueCanvasRef.current = canvas;
-    if (!canvas) return;
-    const renderer = engineRef.current;
-    const hueDistribution = hueDistributionCanvasRef.current;
-    const parade = paradeCanvasRef.current;
-    const vectorscope = vectorscopeCanvasRef.current;
-    if (!renderer || !hueDistribution || !parade || !vectorscope) return;
-    void renderer.initializeScopes({
-      hueDistribution,
-      colorMixerHueDistribution: canvas,
-      parade,
-      vectorscope
-    });
-  }, []);
   const [propertiesTarget, setPropertiesTarget] = useState<PropertiesInspectorTarget>({
     kind: 'none'
   });

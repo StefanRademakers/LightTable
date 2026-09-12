@@ -44,7 +44,8 @@ O05e.2 Smart Selection lifetime and the exposed GPU revision-domain guard repair
 are accepted with subject/Rectangle/Actions/rebind and selection-kernel proof.
 O06c layer command adapter accepted with exact IDs, UI/Actions, history and mask proof.
 O05e.3 Smart source/inference owner and global-processing freshness accepted.
-Next: O06d finalization binding and O03 scopes attachment remain in progress.
+O03c.3b scope canvas/context lifetime accepted with visible packaged remount proof.
+Next: O06d finalization binding remains in progress.
 O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
 The renderer telemetry revision
 was not a render-submission stamp and was removed; O08 must add truthful frame

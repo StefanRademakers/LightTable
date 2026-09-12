@@ -177,6 +177,12 @@ class names: reuse existing owners before creating a new one.
         after hydration unwinds. Document resource close registration is session-
         lifetime and idempotent across remounts. Critic PASS after pending-start
         repair; integrated replacement safety and packaged lifecycle proof passed.
+      - [x] O03c.3b: complete scopes canvas/context attachment lifetime. Latest
+        pending request replaces detached canvases; exact context leases, failure
+        compensation and theme reattachment preserve the current renderer owner.
+        Critic PASS after three repairs;26 focused tests and packaged visible
+        scopes/hide/remount with unchanged document pixels/history pass. Physical
+        ColorMixer/theme interaction remains outside this packaged gate.
   - [x] O03c.4: canonical revision authority discovered through Face Warp preview
     rebind. Session publications/history own invalidation; deleted command,
     observation and task-wrapper bumps. Dirty/save identity remains separate.

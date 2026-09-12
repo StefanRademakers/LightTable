@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
@@ -37,7 +37,9 @@ await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toFile(fixtur
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
+const consoleErrors = [];
 let app;
+let page;
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -54,8 +56,11 @@ try {
     },
     timeout: 30_000
   });
-  const page = await app.firstWindow({ timeout: 30_000 });
+  page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') consoleErrors.push(message.text());
+  });
   const open = await waitForDesktopLauncher({
     app, page, outputDirectory: output, sourceFile: fixture, pageErrors, label: 'scopes'
   });
@@ -74,7 +79,7 @@ try {
   assert.ok(beforeBytes?.length, 'Scopes smoke could not read its baseline preview.');
 
   await page.getByRole('radio', { name: 'Switch to Grading workspace' }).click();
-  const scopes = page.locator('.lighttable-scopes:visible');
+  const scopes = page.locator('[data-ui-component="scopes"]:visible');
   await scopes.waitFor({ state: 'visible', timeout: 30_000 });
 
   const assertScopeDrawn = async (label) => {
@@ -139,6 +144,16 @@ try {
   process.stdout.write(`Packaged scopes smoke passed: ${JSON.stringify({
     first, afterVisibilityWake, afterWorkspaceWake
   })}\n`);
+  await writeFile(path.join(userData, 'report.json'), JSON.stringify({
+    passed: true, first, afterVisibilityWake, afterWorkspaceWake, pageErrors, consoleErrors
+  }, null, 2));
+} catch (error) {
+  await page?.screenshot({ path: path.join(userData, 'failure.png') });
+  await writeFile(path.join(userData, 'report.json'), JSON.stringify({
+    passed: false, error: String(error), pageErrors, consoleErrors
+  }, null, 2));
+  process.stderr.write(`Scopes failure evidence: ${userData}\n`);
+  throw error;
 } finally {
   await app?.close().catch(() => undefined);
 }

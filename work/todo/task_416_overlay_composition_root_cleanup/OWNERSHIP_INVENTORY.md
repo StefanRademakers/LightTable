@@ -1,5 +1,12 @@
 # Overlay ownership inventory
 
+O03c.3b accepted: ScopeCanvasBinding owns canvas/context/theme attachment while
+WebGpuScopeEngine retains GPU analysis. DocumentScopeRuntime applies latest pending
+requests; composition hook scopes callbacks to exact renderer/session lifetime.
+Detached-canvas baseline failure repaired, including critic lifetime/compensation
+findings.26 tests and real packaged visible scopes/hide/remount pass with unchanged
+pixels/history. Overlay6,506 audit lines; broader presentation/recovery remains open.
+
 O05e.3 accepted: SmartSelectionSourceSession now owns all source/readback/inference
 and backend preparation lifetime. ToolController retains only tool interaction,
 preview and semantic selection commit (446 audit lines). Canonical processing

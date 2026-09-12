@@ -24,6 +24,7 @@ interface ScopeTextures {
 export class DocumentScopeRuntime {
   private engine: WebGpuScopeEngine | null = null;
   private initialization: Promise<void> | null = null;
+  private request: { canvases: DocumentRendererScopeCanvases; onError?: (message: string) => void; isCurrent(): boolean } | null = null;
   private options: WebGpuScopeOptions | null = null;
   private textures: ScopeTextures | null = null;
   private before = false;
@@ -36,14 +37,11 @@ export class DocumentScopeRuntime {
     private readonly onReady: () => void
   ) {}
 
-  async initialize(canvases: DocumentRendererScopeCanvases): Promise<void> {
-    if (this.destroyed) return;
+  async initialize(canvases: DocumentRendererScopeCanvases, onError = this.onError, isCurrent = () => true): Promise<void> {
+    if (this.destroyed || !isCurrent()) return;
+    this.request = { canvases: { ...canvases }, onError, isCurrent };
     if (this.engine) {
-      if (canvases.colorMixerHueDistribution) {
-        if (this.engine.attachColorMixerHueDistribution(canvases.colorMixerHueDistribution)) {
-          this.onReady();
-        }
-      }
+      if (this.engine.rebindCanvases(canvases)) this.onReady();
       return;
     }
     if (this.initialization) return this.initialization;
@@ -110,15 +108,25 @@ export class DocumentScopeRuntime {
     this.engine?.destroy();
     this.engine = null;
     this.textures = null;
+    this.request = null;
   }
 
   private async create(canvases: DocumentRendererScopeCanvases): Promise<void> {
     try {
-      const engine = await WebGpuScopeEngine.create(this.device, canvases, this.onError, this.onReady);
-      if (this.destroyed) {
+      const engine = await WebGpuScopeEngine.create(this.device, canvases,
+        () => {
+          const request = this.request;
+          return { isCurrent: () => !this.destroyed && request === this.request && Boolean(request?.isCurrent()), report: request?.onError };
+        },
+        () => { if (!this.destroyed && this.engine) this.onReady(); });
+      if (this.destroyed || !this.request?.isCurrent()) {
         engine.destroy();
         return;
       }
+      // Compilation may outlive a docking remount. Publish only the latest full
+      // canvas request, including optional surface removal, before readiness.
+      try { engine.rebindCanvases(this.request!.canvases); }
+      catch (error) { engine.destroy(); throw error; }
       this.engine = engine;
       if (this.options) engine.setOptions(this.options);
       engine.setInteractionActive(this.interactionActive);
@@ -133,7 +141,7 @@ export class DocumentScopeRuntime {
       engine.resize();
       this.onReady();
     } catch (reason) {
-      this.onError?.(
+      if (!this.destroyed && this.request?.isCurrent()) this.request.onError?.(
         reason instanceof Error ? reason.message : 'LightTable scopes could not be initialized.'
       );
     }

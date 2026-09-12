@@ -1,4 +1,6 @@
-import { observeScopeTheme, HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@lighttable/ui/scopeRendering';
+import { HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@lighttable/ui/scopeRendering';
+import { ScopeCanvasBinding } from './ScopeCanvasBinding';
+import type { DocumentRendererScopeCanvases as ScopeCanvases } from '../application/rendering/rendererTypes';
 import type { LightTableImageMetadata } from '../types';
 import {
   DEFAULT_SCOPE_SETTINGS,
@@ -44,13 +46,6 @@ export const webGpuScopeOptionsEqual = (
   left.vectorscopeRange === right.vectorscopeRange &&
   left.vectorscopeZoom2x === right.vectorscopeZoom2x;
 
-interface ScopeCanvases {
-  hueDistribution: HTMLCanvasElement;
-  colorMixerHueDistribution?: HTMLCanvasElement;
-  parade: HTMLCanvasElement;
-  vectorscope: HTMLCanvasElement;
-}
-
 export interface ScopeCanvasVisibility {
   readonly hueDistribution: boolean;
   readonly colorMixerHueDistribution: boolean;
@@ -61,6 +56,11 @@ export interface ScopeCanvasVisibility {
 export interface ScopeEncodeResult {
   readonly analysisPasses: number;
   readonly displayPasses: number;
+}
+
+export interface ScopeErrorLease {
+  isCurrent(): boolean;
+  report?: (message: string) => void;
 }
 
 export const EMPTY_SCOPE_ENCODE_RESULT: ScopeEncodeResult = {
@@ -114,13 +114,14 @@ const rangeIndex = (range: VectorscopeRange) => {
 
 export class WebGpuScopeEngine {
   private readonly device: GPUDevice;
-  private readonly canvases: ScopeCanvases;
-  private readonly hueDistributionContext: GPUCanvasContext;
-  private colorMixerHueDistributionContext: GPUCanvasContext | null;
-  private readonly paradeContext: GPUCanvasContext;
-  private readonly vectorscopeContext: GPUCanvasContext;
+  private readonly surfaces: ScopeCanvasBinding;
+  private get canvases() { return this.surfaces.canvases; }
+  private get hueDistributionContext() { return this.surfaces.context('hueDistribution')!; }
+  private get colorMixerHueDistributionContext() { return this.surfaces.context('colorMixerHueDistribution'); }
+  private get paradeContext() { return this.surfaces.context('parade')!; }
+  private get vectorscopeContext() { return this.surfaces.context('vectorscope')!; }
   private readonly canvasFormat: GPUTextureFormat;
-  private readonly onError?: (message: string) => void;
+  private readonly captureErrorLease: () => ScopeErrorLease;
 
   private hueBins: GPUBuffer | null = null;
   private paradeBins: GPUBuffer | null = null;
@@ -163,61 +164,32 @@ export class WebGpuScopeEngine {
   private displayDirty = true;
   private failed = false;
   private destroyed = false;
-  private stopTheme?: () => void;
   private lightTheme = false;
   private background = [0, 0, 0];
 
   private constructor(
     device: GPUDevice,
-    canvases: ScopeCanvases,
     canvasFormat: GPUTextureFormat,
-    hueDistributionContext: GPUCanvasContext,
-    colorMixerHueDistributionContext: GPUCanvasContext | null,
-    paradeContext: GPUCanvasContext,
-    vectorscopeContext: GPUCanvasContext,
-    onError?: (message: string) => void
+    captureErrorLease: () => ScopeErrorLease,
+    onPresentationChange?: () => void
   ) {
     this.device = device;
-    this.canvases = canvases;
     this.canvasFormat = canvasFormat;
-    this.hueDistributionContext = hueDistributionContext;
-    this.colorMixerHueDistributionContext = colorMixerHueDistributionContext;
-    this.paradeContext = paradeContext;
-    this.vectorscopeContext = vectorscopeContext;
-    this.onError = onError;
+    this.captureErrorLease = captureErrorLease;
+    this.surfaces = new ScopeCanvasBinding(device, canvasFormat, theme => {
+      this.lightTheme = theme.light;
+      this.background = theme.background;
+      this.writeDisplayUniforms();
+      this.markPresentationDirty();
+      onPresentationChange?.();
+    });
   }
 
-  static async create(device: GPUDevice, canvases: ScopeCanvases, onError?: (message: string) => void, onPresentationChange?: () => void) {
-    const hueDistributionContext = canvases.hueDistribution.getContext('webgpu');
-    const colorMixerHueDistributionContext =
-      canvases.colorMixerHueDistribution?.getContext('webgpu') ?? null;
-    const paradeContext = canvases.parade.getContext('webgpu');
-    const vectorscopeContext = canvases.vectorscope.getContext('webgpu');
-    if (!hueDistributionContext || !paradeContext || !vectorscopeContext) {
-      throw new Error('The browser could not create the LightTable scope canvases.');
-    }
+  static async create(device: GPUDevice, canvases: ScopeCanvases, captureErrorLease: () => ScopeErrorLease, onPresentationChange?: () => void) {
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-    const configure = (context: GPUCanvasContext) => context.configure({
-      device,
-      format: canvasFormat,
-      alphaMode: 'opaque',
-      colorSpace: 'srgb'
-    });
-    configure(hueDistributionContext);
-    if (colorMixerHueDistributionContext) configure(colorMixerHueDistributionContext);
-    configure(paradeContext);
-    configure(vectorscopeContext);
-    const engine = new WebGpuScopeEngine(
-      device,
-      canvases,
-      canvasFormat,
-      hueDistributionContext,
-      colorMixerHueDistributionContext,
-      paradeContext,
-      vectorscopeContext,
-      onError
-    );
+    const engine = new WebGpuScopeEngine(device, canvasFormat, captureErrorLease, onPresentationChange);
     try {
+      engine.surfaces.rebind(canvases);
       const initialization = await runGpuDeviceErrorScopeTransaction(
         device,
         ['validation', 'out-of-memory'],
@@ -229,13 +201,6 @@ export class WebGpuScopeEngine {
       const validationError = initialization.errors.get('validation') ?? null;
       const error = memoryError ?? validationError;
       if (error) throw new Error(`LightTable scopes are unavailable: ${error.message}`);
-      engine.stopTheme = observeScopeTheme(canvases.hueDistribution, theme => {
-        engine.lightTheme = theme.light;
-        engine.background = theme.background;
-        engine.writeDisplayUniforms();
-        engine.markPresentationDirty();
-        onPresentationChange?.();
-      });
       return engine;
     } catch (reason) {
       engine.destroy();
@@ -243,22 +208,9 @@ export class WebGpuScopeEngine {
     }
   }
 
-  /** Attaches the contextual Color Mixer surface without rebuilding scope analysis resources. */
-  attachColorMixerHueDistribution(canvas: HTMLCanvasElement): boolean {
-    if (this.destroyed || this.canvases.colorMixerHueDistribution === canvas) return false;
-    const context = canvas.getContext('webgpu');
-    if (!context) {
-      this.onError?.('The browser could not create the Color Mixer scope canvas.');
-      return false;
-    }
-    context.configure({
-      device: this.device,
-      format: this.canvasFormat,
-      alphaMode: 'opaque',
-      colorSpace: 'srgb'
-    });
-    this.canvases.colorMixerHueDistribution = canvas;
-    this.colorMixerHueDistributionContext = context;
+  /** Replaces presentation surfaces without recompiling or reallocating analysis resources. */
+  rebindCanvases(canvases: ScopeCanvases): boolean {
+    if (this.destroyed || !this.surfaces.rebind(canvases)) return false;
     this.analysisDirty = true;
     this.displayDirty = true;
     this.resize();
@@ -466,7 +418,7 @@ export class WebGpuScopeEngine {
   }
 
   resize(): boolean {
-    if (this.destroyed || this.failed) return false;
+    if (this.destroyed || this.failed || !this.surfaces.isCurrent()) return false;
     const nextVisibility = this.resolveCanvasVisibility();
     const visibilityChanged = !scopeCanvasVisibilityEqual(
       this.canvasVisibility,
@@ -509,7 +461,7 @@ export class WebGpuScopeEngine {
   }
 
   hasVisibleScopes() {
-    return scopeCanvasVisibilityHasAny(this.canvasVisibility);
+    return this.surfaces.isCurrent() && scopeCanvasVisibilityHasAny(this.canvasVisibility);
   }
 
   hasPendingWork() {
@@ -522,15 +474,21 @@ export class WebGpuScopeEngine {
       return EMPTY_SCOPE_ENCODE_RESULT;
     }
     this.device.pushErrorScope('validation');
+    const lease = this.captureErrorLease(), canvases = this.canvases;
+    const fail = (message: string) => {
+      if (!this.destroyed && this.surfaces.isCurrent() && this.canvases === canvases && lease.isCurrent()) {
+        this.disable(message, lease.report);
+      }
+    };
     let result = EMPTY_SCOPE_ENCODE_RESULT;
     try {
       result = this.encodeInternal(encoder);
     } catch (reason) {
-      this.disable(reason instanceof Error ? reason.message : 'Unknown scope rendering error');
+      fail(reason instanceof Error ? reason.message : 'Unknown scope rendering error');
     } finally {
       void this.device.popErrorScope().then((error) => {
-        if (error) this.disable(error.message);
-      }, () => undefined);
+        if (error) fail(error.message);
+      }, (error: unknown) => fail(error instanceof Error ? error.message : String(error)));
     }
     return result;
   }
@@ -724,16 +682,15 @@ export class WebGpuScopeEngine {
     pass.end();
   }
 
-  private disable(message: string) {
+  private disable(message: string, report: ScopeErrorLease['report']) {
     if (this.failed) return;
     this.failed = true;
-    this.onError?.(`LightTable scopes disabled: ${message}`);
+    report?.(`LightTable scopes disabled: ${message}`);
   }
 
   destroy() {
     this.destroyed = true;
-    this.stopTheme?.();
-    this.stopTheme = undefined;
+    this.surfaces.dispose();
     this.clearTextures();
     this.hueBins?.destroy();
     this.paradeBins?.destroy();

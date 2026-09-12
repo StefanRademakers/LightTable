@@ -393,7 +393,10 @@ export class WebGpuEngine {
    * to put the image on screen.
    */
   async initializeScopes(scopeCanvases: DocumentRendererScopeCanvases) {
-    await this.scopeRuntime.initialize(scopeCanvases);
+    // Capture this presentation's already lifecycle-guarded sink, not a later document's callbacks.
+    const generation = this.presentationGeneration;
+    await this.scopeRuntime.initialize(scopeCanvases, this.callbacks.onScopeError,
+      () => !this.destroyed && this.presentationGeneration === generation);
   }
 
   get imageMetadata() {

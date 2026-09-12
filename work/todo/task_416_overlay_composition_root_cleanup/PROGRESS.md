@@ -1,5 +1,26 @@
 # Task 416 progress
 
+## O03c.3b — Scope canvas/context lifetime (accepted)
+
+- ScopeCanvasBinding owns four canvas/context pairs and theme attachment;
+  WebGpuScopeEngine retains GPU analysis resources/options. DocumentScopeRuntime
+  applies the latest complete attachment request, including requests arriving
+  during creation. Thin composition hook pins exact session/renderer lifetime.
+- Actual packaged baseline showed blank GPU scopes: the runtime kept canvases
+  created while detached, ignoring later mounted replacements. Failed reports
+  remain in tmp/desktop-scopes-smoke/profile-cDW9SX and profile-M3W2Uk.
+- Critic repairs cover delayed GPU validation reaching a successor, partial
+  configure failure restoring predecessor ownership, and same-DOM theme reclaim.
+  Pending creation also checks retirement before acquiring canvas ownership.
+  No document writes, extra analysis resource allocation or edit-path readback.
+- Final source critic PASS;26 focused tests, app typecheck and boundary pass.
+  Fresh packaged scopes gate passes Hue/Parade/Vectorscope visibility, hide/restore
+  and workspace remount with exact document pixels, revision and history unchanged.
+  Final scopes.png visually inspected. Diagnostics removed; per-run failed reports
+  are retained. Physical ColorMixer/theme interaction is not claimed by this gate.
+- Overlay6,528 ->6,505 physical lines, audit6,529 ->6,506. O03 remains open for
+  device-loss policy and remaining presentation. No whole-app acceptance claim.
+
 ## O05e.3 — Smart source/inference owner and freshness (accepted)
 
 - SmartSelectionSourceSession owns readback/preparation joining, source validity,
