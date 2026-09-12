@@ -1,5 +1,10 @@
 # Overlay ownership inventory
 
+O06e accepted: stable mounted automation gesture binding captures exact pointer,
+session/renderer and original domain controllers; translation uses canonical
+mutations and existing parent-space projection. Root6,182 audit lines.51 focused
+tests, critic and packaged zoom/transform/history/selection/brush gate pass.
+
 O03c.5 accepted: bounded GPU recovery admission owns retry timers/budget and lost
 renderer identity; opener retains resource lifecycle and tests its actual candidate.
 Canonical source classification lives outside root. Critic/32 tests and packaged

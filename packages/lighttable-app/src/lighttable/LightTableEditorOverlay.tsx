@@ -5,7 +5,8 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { useDocumentPalette, useLayerPalette } from './application/color/useDocumentPalette';
 import { DocumentPaletteProvider } from '../ui/DocumentPaletteContext';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
-import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
+import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService } from './application/commands/lightTableCommandService';
+import { useMountedAutomationGestures } from './composition/commands/useMountedAutomationGestures';
 import type {
   LightTableBitmapExportFormat,
   LightTableGradeClipboardCapture,
@@ -14,11 +15,7 @@ import type {
 import { isMountedDocumentCommand } from './application/commands/lightTableCommandOwnership';
 import { commandDocumentTarget } from './application/commands/commandRequestScope';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
-import {
-  automationPaintOperatorFromPlan,
-  parseAutomationBrushSettings,
-  parseAutomationPaintOperator
-} from './application/commands/lightTableCommandValidation';
+import { automationPaintOperatorFromPlan } from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import type { EditorApplicationSession } from './application/workspace/editorApplicationSession';
@@ -33,10 +30,7 @@ import { resolveViewportImageRect } from './application/rendering/viewportRender
 import { useClipboardCommands } from './composition/clipboard/useClipboardCommands';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
-import {
-  useDocumentMutationController,
-  type DocumentMutationTransaction
-} from './application/documents/useDocumentMutationController';
+import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useWorkspaceDocumentPresentation } from './composition/documents/useWorkspaceDocumentPresentation';
 import { documentPresentationAvailability } from './composition/documents/documentPresentationAvailability';
@@ -91,7 +85,6 @@ import { settleHistoryInteractions } from './application/interactions/settleHist
 import { useLayerDocumentInteractionOwner } from './application/layers/useLayerDocumentInteractionOwner';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
-import type { PaintBrushStrokePlan } from './editor/tools/paint/sampledBrushTypes';
 import { useSmartSelectionBinding } from './composition/selection/useSmartSelectionBinding';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
@@ -331,7 +324,6 @@ import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapte
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import {
-  setLayerTransform,
   replaceVectorElement,
 } from './editor/document/documentCommands';
 import {
@@ -1157,27 +1149,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const finishTextEditingRef = useRef<() => boolean>(() => false);
   const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
     exportPreviewArtifactRef, exportPsdArtifactRef } = useEditorArtifactExportRefs();
-  const beginAutomationGestureRef = useRef<(
-    kind: LightTableGestureKind,
-    pointerId: number,
-    parameters: Record<string, unknown>,
-    sample: LightTableGestureSample
-  ) => boolean>(() => false);
-  const updateAutomationGestureRef = useRef<(
-    kind: LightTableGestureKind,
-    pointerId: number,
-    sample: LightTableGestureSample
-  ) => boolean>(() => false);
-  const finishAutomationGestureRef = useRef<(
-    kind: LightTableGestureKind,
-    pointerId: number,
-    commit: boolean
-  ) => boolean>(() => false);
-  const automationTranslateRef = useRef<{
-    readonly transaction: DocumentMutationTransaction;
-    readonly layerId: LayerId;
-    readonly start: LightTableGestureSample;
-  } | null>(null);
   const textPropertyGestureControllerRef = useRef<TextPropertyGestureController | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void | Promise<void>>(() => undefined);
   const paragraphTextCreation = useSyncExternalStore(
@@ -3835,6 +3806,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : [];
     if (layerIds.length > 0) void executeRegisteredCommand('layer.delete', { layerIds });
   };
+  const automationGestures = useMountedAutomationGestures({
+    session: documentSession, renderer: engineRef.current, lifecycle: rendererLifecycle,
+    generation: rendererSnapshot.generation,
+    ready: rendererSnapshot.status === 'ready' && workspaceDocumentKind === 'image'
+      && imageDocument?.id === documentSession?.getSnapshot().document?.id
+  }, {
+    getDocument: () => imageDocumentRef.current, getBrush: () => editorSessionRef.current.brush,
+    documentMutations: documentMutationController,
+    selection: selectionSessionController, paint: paintSessionController
+  }, captureMountedInteractionScope);
   useLayoutEffect(() => {
     if (!commandPorts || workspaceDocumentKind !== 'image'
       || rendererSnapshot.status !== 'ready') return;
@@ -4220,9 +4201,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (!document) throw new Error('The SVG export document is unavailable.');
         return exportSvgDocument(document, fileNameBase);
       },
-      beginGesture: (kind, pointerId, parameters, sample) => beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
-      updateGesture: (kind, pointerId, sample) => updateAutomationGestureRef.current(kind, pointerId, sample),
-      finishGesture: (kind, pointerId, commit) => finishAutomationGestureRef.current(kind, pointerId, commit),
+      ...automationGestures,
       undo: applyUndoEditor,
       redo: applyRedoEditor,
       queryRenderTelemetry: () => engineRef.current?.renderTelemetrySnapshot() ?? null,
@@ -4230,7 +4209,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       forceDeviceLossForAutomation: () => engineRef.current?.forceDeviceLossForAutomation() ?? false
     });
   }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
-    commandPorts, documentSession, imageDocument?.id, layerDocumentCommands,
+    automationGestures, commandPorts, documentSession, imageDocument?.id, layerDocumentCommands,
     layerPanelController, rendererSnapshot.status, workspaceDocumentId,
     workspaceDocumentKind]);
 
@@ -4427,143 +4406,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     } finally {
       fixedTransformCommandRunningRef.current = false;
     }
-  };
-  beginAutomationGestureRef.current = (kind, pointerId, parameters, sample) => {
-    if (kind === 'selection-rectangle') {
-      return selectionSessionController.begin(
-        pointerId,
-        'select-rectangle',
-        sample,
-        parameters.mode === 'add' || parameters.mode === 'subtract'
-          || parameters.mode === 'intersect'
-          ? parameters.mode
-          : 'replace'
-      );
-    }
-    if (kind === 'selection-paint') {
-      return selectionSessionController.beginPaint(
-        pointerId,
-        { ...sample, pressure: sample.pressure ?? 1 },
-        parameters.mode === 'subtract' ? 'subtract' : 'add',
-        {
-          size: Number(parameters.size),
-          hardness: Number(parameters.hardness),
-          opacity: Number(parameters.opacity),
-          smooth: Number(parameters.smooth)
-        }
-      );
-    }
-    if (kind === 'brush-stroke') {
-      const document = imageDocumentRef.current;
-      const layerId = typeof parameters.layerId === 'string'
-        ? parameters.layerId as LayerId
-        : document?.activeLayerId ?? null;
-      if (!document) return false;
-      const layer = document && layerId ? findRasterLayer(document, layerId) : null;
-      if (!layer) return false;
-      const channel = parameters.channel === 'mask' ? 'mask' : 'pixels';
-      const brush = parseAutomationBrushSettings(parameters.brush)
-        ?? editorSessionRef.current.brush;
-      const operator = parameters.operator === undefined
-        ? undefined
-        : parseAutomationPaintOperator(parameters.operator) ?? undefined;
-      if (parameters.operator !== undefined && !operator) return false;
-      let paintOperator: PaintBrushStrokePlan | undefined;
-      if (operator?.operator === 'clone' || operator?.operator === 'healing') {
-        paintOperator = {
-          ...operator,
-          source: { ...operator.source, documentId: document.id }
-        };
-      } else if (operator?.operator === 'tone') {
-        paintOperator = operator;
-      }
-      if (paintOperator && paintOperator.operator !== 'tone'
-        && paintOperator.sampleMode !== 'all'
-        && !findDocumentLayer(document, paintOperator.source.anchorLayerId)) return false;
-      return paintSessionController.begin({
-        pointerId,
-        layer,
-        target: {
-          layerId: layer.id,
-          channel,
-          erase: parameters.erase === true,
-          sourceToDocument: paintTargetSourceToDocument(document, layer, channel)
-        },
-        brush,
-        operator: paintOperator,
-        point: {
-          ...sample,
-          pressure: sample.pressure ?? 1
-        }
-      });
-    }
-    const document = imageDocumentRef.current;
-    const layerId = typeof parameters.layerId === 'string'
-      ? parameters.layerId as LayerId
-      : document?.activeLayerId ?? null;
-    if (!document || !layerId || !findDocumentLayer(document, layerId)) return false;
-    const transaction = documentMutationController.begin(
-      'automation.translate',
-      { label: 'Move Layer', type: 'layer.transform', layerIds: [layerId] },
-      undefined,
-      'cancel'
-    );
-    if (!transaction) return false;
-    automationTranslateRef.current = { transaction, layerId, start: sample };
-    return true;
-  };
-  updateAutomationGestureRef.current = (kind, pointerId, sample) => {
-    if (kind === 'selection-rectangle') {
-      return selectionSessionController.move(pointerId, sample);
-    }
-    if (kind === 'selection-paint') {
-      return selectionSessionController.movePaint(pointerId, [{
-        ...sample,
-        pressure: sample.pressure ?? 1
-      }]);
-    }
-    if (kind === 'brush-stroke') {
-      return paintSessionController.move(pointerId, {
-        ...sample,
-        pressure: sample.pressure ?? 1
-      });
-    }
-    const transaction = automationTranslateRef.current;
-    const layer = transaction
-      ? findDocumentLayer(transaction.transaction.before, transaction.layerId)
-      : null;
-    if (!transaction || !transaction.transaction.active || !layer) return false;
-    transaction.transaction.change(() => setLayerTransform(
-      transaction.transaction.before,
-      transaction.layerId,
-      {
-        ...layer.transform,
-        tx: layer.transform.tx + sample.x - transaction.start.x,
-        ty: layer.transform.ty + sample.y - transaction.start.y
-      }
-    ));
-    return transaction.transaction.active;
-  };
-  finishAutomationGestureRef.current = (kind, pointerId, commit) => {
-    if (kind === 'selection-rectangle') {
-      return commit
-        ? selectionSessionController.finish(pointerId)
-        : selectionSessionController.cancel(pointerId);
-    }
-    if (kind === 'selection-paint') {
-      return commit
-        ? selectionSessionController.finishPaint(pointerId)
-        : selectionSessionController.cancelPaint(pointerId);
-    }
-    if (kind === 'brush-stroke') {
-      return commit
-        ? paintSessionController.finish(pointerId)
-        : paintSessionController.cancel(pointerId);
-    }
-    const transaction = automationTranslateRef.current;
-    automationTranslateRef.current = null;
-    if (!transaction) return false;
-    return commit ? transaction.transaction.commit() : transaction.transaction.cancel();
   };
 
   const activatePersistentTool = (requestedTool: ToolId, afterActivation?: () => void) => {

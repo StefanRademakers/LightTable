@@ -1,5 +1,30 @@
 # Task 416 progress
 
+## O06e — Scoped automation gestures and parent-space translation (accepted)
+
+- AutomationLayerTranslationGesture owns exact pointer/baseline/scope and uses
+  existing DocumentMutationController plus group transform capture/projection.
+  No new mutation/history queue. Position-locked and singular-parent targets
+  reject; valid zero-delta terminal succeeds without a history entry.
+- MountedAutomationGestureBinding routes four kinds to captured existing domain
+  controllers. Thin hook is keyed concrete runtime, not command-port callbacks;
+  ordinary zoom/rerenders retain the gesture and exact retirement closes it.
+  Critic specifically required this stable lifetime; StrictMode rearms a fresh
+  binding rather than retaining a permanently retired instance.
+- Actual baseline failed document-space translation under a90-degree2x parent:
+  local(20,20) became(44,36), expected(28,8). The correction reuses existing matrix
+  projection, capturing scene terms only at begin. Failed run preserved under
+  tmp/automation-gestures-smoke/; no new per-sample scene build.
+- Final integrated critic PASS;51 tests/5 suites, app typecheck/boundary pass.
+  Fresh packaged run-xOYJ4p passes exact parent transform across mid-gesture zoom,
+  one history entry, fresh PNG undo/redo, no-op/cancel/position-lock, rectangle
+  coverage and brush delivery/history. Screenshot inspected. Existing asynchronous
+  selection/paint finish semantics and every operator variant are not certified
+  globally by this adapter extraction.
+- Root6,339 ->6,181 physical lines, audit6,340 ->6,182. Old gesture policy,
+  baseline refs and forwarding refs deleted. Next canonical-selection mask/menu
+  consumers and remaining layer/file/host intents; overall cleanup remains open.
+
 ## O03c.5 — Exact GPU recovery admission (accepted)
 
 - DocumentGpuRecoveryController owns only host-wide retry budget/timers and

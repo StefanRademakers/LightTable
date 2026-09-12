@@ -301,7 +301,12 @@ class names: reuse existing owners before creating a new one.
     Packaged five-command IDs, one-entry history and exact final PNG undo/redo,
     rasterize affordance and masks pass. Interactive text preview readiness remains
     explicitly open under O08; final-output proof does not certify that preview.
-  - [ ] O06e: automation translation lifetime and remaining command families.
+  - [x] O06e: scoped automation gesture binding and parent-space translation.
+    Stable runtime binding survives command-port/zoom rerenders; captured domain
+    controllers retain gestures/history. Critic PASS;51 focused tests and packaged
+    parent transform, zoom handoff, exact PNG undo/redo, no-op/cancel/lock and
+    rectangle/brush routing pass. Other command families remain open.
+  - [ ] O06f: remaining canonical-selection consumers and layer intent lifetime.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
