@@ -918,6 +918,13 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('executeAdjustmentCreationRef') || source.includes('resolveContextualAdjustmentCreation(')) {
       failures.push(`${relativePath}: adjustment creation placement/reveal and registered mapping belong to their scoped owners`);
     }
+    if (!source.includes('useEditorToolSettings(workspaceDocumentId, setEditorSession)')
+      || source.includes('BrushPercentInput') || source.includes('brushPercentInputRef')
+      || source.includes('steppedBrushSize(') || source.includes('steppedBrushHardness(')
+      || source.includes('const updateBrush =') || source.includes('const updateWarp =')
+      || !source.includes('onSwapColors={toolSettings.swapColors}')) {
+      failures.push(`${relativePath}: tool-default patches and digit/brush keyboard policy belong to EditorToolSettings`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')

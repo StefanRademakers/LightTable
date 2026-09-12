@@ -1,6 +1,10 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,405 physical lines. O06h removes root adjustment placement,
+Current accepted root: 5,190 physical lines. O05f removes duplicated tool-default
+recipes, brush keyboard routing and digit-buffer lifetime. EditorToolSettings
+owns only preference intents; existing ApplicationSession retains state through
+useDocumentEditorSession. No renderer/history dependency. Delete-target priority
+and settlement continuity remain the next root-owned intent. O06h removes root adjustment placement,
 result inference and creation presentation. O05a.4 removes root text-rasterize
 and positioned-recovery policy; existing finalization/mutation owners retain edits.
 O06f.3 moves selection command mapping

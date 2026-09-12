@@ -8,8 +8,9 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? path.join(root, 'architecture', 'ui', '1.png'));
-const output = path.join(root, 'tmp', 'warp-kernel-smoke');
-await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
+const baseOutput = path.join(root, 'tmp', 'warp-kernel-smoke');
+await Promise.all([access(sourceFile), mkdir(baseOutput, { recursive: true })]);
+const output = await mkdtemp(path.join(baseOutput, 'run-'));
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env };

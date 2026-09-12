@@ -1,10 +1,11 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O06h adjustment creation accepted with critic and packaged
+Status: in progress. O05f tool defaults accepted with critic and packaged brush,
+selection-dimensions and Warp proof. O06h adjustment creation accepted with critic and packaged
 contextual/explicit/Actions/transform handoff and adjacent inspector proof. Positioned
 rendering remains explicitly unsupported O08 debt, not visual preservation.
-Canonical checklist below is authoritative. Overlay5,405 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Tool-settings ownership next.
+Canonical checklist below is authoritative. Overlay5,190 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. Delete-target intent ownership next.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

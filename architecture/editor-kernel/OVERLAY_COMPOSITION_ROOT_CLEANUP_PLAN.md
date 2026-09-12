@@ -9,7 +9,8 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O06h adjustment creation intents/binding and truthful
+Latest bounded acceptance: O05f shared tool-default intents and digit lifetime;
+critic and packaged brush/selection-dimensions/Warp gates pass. O06h adjustment creation intents/binding and truthful
 created IDs. Packaged contextual repeat, explicit attached/standalone Actions,
 pending transform -> Curves and adjacent inspector/style gates pass. O05a.4 text rasterize/recovery intents; real native
 recovery, pending Size -> rasterize and exact recovered-flow/raster UndoRedo pass.
@@ -20,7 +21,7 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Root is 5,405 physical lines. Remaining tool-settings/target/GenAI/command families, cross-flow
+Root is 5,190 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -319,6 +320,9 @@ class names: reuse existing owners before creating a new one.
     cache freshness. Tool controller605 ->446 audit lines; retired size exception.
     Critic PASS;62 tests and packaged global Exposure -> fresh source/inference,
     subject/Actions, tool/tab retirement and Rectangle pass. No per-sample readback.
+  - [x] O05f: one tool-default intents owner and digit-buffer lifetime; toolbar,
+    F5 and keyboard use current application settings. Critic and fresh packaged
+    brush/selection-dimensions/Warp gates pass; no document/history state added.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

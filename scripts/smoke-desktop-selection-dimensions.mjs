@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
@@ -11,7 +11,9 @@ const sourceFile = path.resolve(
   process.argv[2]
   ?? path.join(workspaceRoot, '..', 'LightTableTestFiles', 'RandomFiles', 'shapes.psd')
 );
-const outputDirectory = path.join(workspaceRoot, 'tmp', 'selection-dimensions-smoke');
+const baseDirectory = path.join(workspaceRoot, 'tmp', 'selection-dimensions-smoke');
+await mkdir(baseDirectory, { recursive: true });
+const outputDirectory = await mkdtemp(path.join(baseDirectory, 'run-'));
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'ellipse-dimensions.png');
 const lassoScreenshotPath = path.join(outputDirectory, 'lasso-settings.png');
@@ -34,9 +36,10 @@ const app = await electron.launch({
   timeout: 30_000
 });
 
+let page;
+const pageErrors = [];
 try {
-  const page = await app.firstWindow({ timeout: 30_000 });
-  const pageErrors = [];
+  page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   const open = await waitForDesktopLauncher({ app, page, outputDirectory, sourceFile,
     pageErrors, label: 'selection-dimensions' });
@@ -136,7 +139,7 @@ try {
     assert.equal(redone.status, 'completed', `${toolName} redone mask could not be copied.`);
     assert.deepEqual(redone.value?.bounds, committedBounds,
       `${toolName} redo did not restore exact committed bounds.`);
-    const error = await page.locator('.lighttable-toolbar__status--error').textContent().catch(() => null);
+    const error = (await page.locator('.lighttable-toolbar__status--error').allTextContents()).join('\n');
     if (error) throw new Error(`${toolName} failed: ${error}`);
   };
 
@@ -184,15 +187,22 @@ try {
   for (const point of polygon) await page.mouse.click(point.x, point.y);
   await page.mouse.click(polygon[0].x, polygon[0].y);
   await page.waitForTimeout(250);
-  const polygonError = await page.locator('.lighttable-toolbar__status--error')
-    .textContent().catch(() => null);
+  const polygonError = (await page.locator('.lighttable-toolbar__status--error')
+    .allTextContents()).join('\n');
   if (polygonError) throw new Error(`Polygon selection failed: ${polygonError}`);
 
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
+  await writeFile(path.join(outputDirectory, 'report.json'), JSON.stringify({ passed: true,
+    executablePath: launch.executablePath, sourceFile, pageErrors }, null, 2));
   process.stdout.write(
     `Selection dimensions smoke passed. Screenshots: ${screenshotPath}, ${horizontalScreenshotPath}, `
       + `${verticalScreenshotPath}, ${lassoScreenshotPath}\n`
   );
+} catch (error) {
+  if (page) await page.screenshot({ path: path.join(outputDirectory, 'failure.png') });
+  await writeFile(path.join(outputDirectory, 'report.json'), JSON.stringify({ passed: false,
+    executablePath: launch.executablePath, sourceFile, error: error.stack ?? String(error), pageErrors }, null, 2));
+  throw error;
 } finally {
   await app.close().catch(() => {});
 }

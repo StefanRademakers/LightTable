@@ -1,5 +1,38 @@
 # Task 416 progress
 
+## O05f — Tool defaults and digit-input lifetime (accepted)
+
+- Removed duplicated toolbar/F5 settings recipes, keyboard size/hardness/percent
+  routing, color swap/reset and digit-buffer lifetime from Overlay. One narrow
+  EditorToolSettings60-line owner and 16-line hook reuse existing stepping and
+  BrushPercentInput. Settings stay in ApplicationSession through the existing
+  combined-session adapter; no document, history, GPU, queue or new store.
+- Toolbar color swap now reads both current colors in one functional update,
+  matching keyboard semantics. Tab/blur reset digits, not shared defaults;
+  ordinary tool changes retain the existing digit pairing behavior. Text and
+  vector-content/gradient edits retain their separate domain owners.
+- Independent critic PASS; repair rounds not needed. Focused139 tests/9 files,
+  app tsc and boundary PASS. Hook tests use real application/document sessions
+  but simulated React scheduling; packaged proof supplies the UI gate.
+- Baseline package94225: brush run-P9Mm9f, selection-dimensions run-cBnh8w,
+  Warp run-9sWq1I. Fresh instrumented package55311: brush run-10oYbq,
+  selection-dimensions run-b4juMn, Warp run-j49yIq under their tmp smoke folders.
+  Actual keyboard percentages, F5/toolbar shared values, presets/brackets,
+  actual strokes and exact final PNG UndoRedo pass; settings alone leave
+  canonical revision/history unchanged. Selection strip copy bounds/history and
+  Warp live preview/two-stroke exact redo pass. No page errors; brush final UI
+  inspected. Archive SHA256:
+  43ed2d1f3b2d96f9f5bb0cc723ce92ee360dda5467d8b2697149e93153b27f37.
+- Existing brush harness had obsolete label/native-select assumptions, corrected
+  against actual controls before baseline acceptance. Bracket assertion now waits
+  for actual value publication. Failed runs retained, no product fallback/retry.
+  Adjacent harnesses now keep unique output; missing-error checks no longer each
+  wait30 seconds. These are harness changes, not editor speed improvements.
+- Overlay5405->5190 physical, ceiling5191; engine4003 unchanged. No added hot-path
+  copies/readbacks/scheduling. One Warp timing run is not a performance verdict.
+  Whole plan/O08 mixed-flow/performance and O09 remain open. Next: Delete-target
+  priority/settlement intent, including selection/target continuity after await.
+
 ## O06h — Adjustment creation intents and exact committed results (accepted)
 
 - Removed root applyCurves/applyAdjustment duplicate contextual/existing-local

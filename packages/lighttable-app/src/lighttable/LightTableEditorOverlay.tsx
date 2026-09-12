@@ -308,11 +308,9 @@ import {
 } from './editor/document/documentCommands';
 import {
   isPaintTool,
-  isWarpTool,
-  steppedBrushHardness,
-  steppedBrushSize
+  isWarpTool
 } from './editor/tools/toolCapabilities';
-import { BrushPercentInput } from './application/input/brushPercentInput';
+import { useEditorToolSettings } from './composition/input/useEditorToolSettings';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   type CompositeColorChannel,
@@ -978,6 +976,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     applicationEditorSession
   );
+  const toolSettings = useEditorToolSettings(workspaceDocumentId, setEditorSession);
   const editorSessionRef = useRef(editorSession);
   editorSessionRef.current = editorSession;
   const gradientToolSettings = editorSession.gradient;
@@ -1035,7 +1034,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textCreationInteraction.getSnapshot
   );
   const copiedGrade = useLightTableGradeClipboard();
-  const brushPercentInputRef = useRef(new BrushPercentInput());
 
   useEffect(() => () => {
     textEditingControllerRef.current?.finish();
@@ -1046,7 +1044,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryTool.clear();
     textEditingControllerRef.current?.reset();
     setAltPressed(false);
-    brushPercentInputRef.current.clear();
   }, [workspaceDocumentId]);
 
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
@@ -1930,7 +1927,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     finishAdjustment: endAdjustmentTransaction,
     settleInteraction: finishOpenHistoryTransactions,
     change: (recipe, domain) => adjustmentTransactionController.change(recipe, domain),
-    publishBrushColor: (color) => updateBrush({ color })
+    publishBrushColor: (color) => toolSettings.brush({ color })
   });
 
   const adjustmentCommands = useMemo(() => createAdjustmentCommands({
@@ -2621,18 +2618,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       mergeDown: () => mergeActiveLayerDownRef.current(),
       invertActiveTarget: () => invertActiveLayerColorsRef.current(),
       openSelectionFeather: editorDialogs.openFeather,
-      swapColors: () => setEditorSession((current) => ({
-        ...current,
-        brush: {
-          ...current.brush,
-          color: current.brush.backgroundColor,
-          backgroundColor: current.brush.color
-        }
-      })),
-      resetColors: () => setEditorSession((current) => ({
-        ...current,
-        brush: { ...current.brush, color: '#000000', backgroundColor: '#ffffff' }
-      })),
+      swapColors: toolSettings.swapColors,
+      resetColors: toolSettings.resetColors,
       toggleExtras: () => setEditorSession((current) => ({
         ...current,
         snap: { ...current.snap, extrasVisible: current.snap.extrasVisible === false }
@@ -2646,68 +2633,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         snap: { ...current.snap, enabled: !current.snap.enabled }
       })),
       toggleScreenMode,
-      changeBrushSize: (direction) => setEditorSession((current) => current.activeTool === 'warp'
-        ? {
-            ...current,
-            warp: {
-              ...current.warp,
-              diameterPx: steppedBrushSize(current.warp.diameterPx, direction)
-            }
-          }
-        : current.activeTool === 'select-paint-brush' ? {
-            ...current,
-            selectionPaintBrush: {
-              ...current.selectionPaintBrush,
-              size: steppedBrushSize(current.selectionPaintBrush.size, direction)
-            }
-          }
-        : {
-            ...current,
-            brush: {
-              ...current.brush,
-              size: steppedBrushSize(current.brush.size, direction)
-            }
-          }),
-      changeBrushHardness: (direction) => setEditorSession((current) => current.activeTool === 'warp'
-        ? {
-            ...current,
-            warp: {
-              ...current.warp,
-              hardness: steppedBrushHardness(current.warp.hardness * 100, direction) / 100
-            }
-          }
-        : current.activeTool === 'select-paint-brush' ? {
-            ...current,
-            selectionPaintBrush: {
-              ...current.selectionPaintBrush,
-              hardness: steppedBrushHardness(
-                current.selectionPaintBrush.hardness * 100,
-                direction
-              ) / 100
-            }
-          }
-        : {
-            ...current,
-            brush: {
-              ...current.brush,
-              hardness: steppedBrushHardness(current.brush.hardness * 100, direction) / 100
-            }
-          }),
-      inputBrushPercent: (target, digit) => {
-        const percent = brushPercentInputRef.current.input(target, digit);
-        setEditorSession((current) => current.activeTool === 'select-paint-brush'
-          ? {
-              ...current,
-              selectionPaintBrush: {
-                ...current.selectionPaintBrush,
-                opacity: percent / 100
-              }
-            }
-          : {
-              ...current,
-              brush: { ...current.brush, [target]: percent / 100 }
-            });
-      },
+      changeBrushSize: toolSettings.changeBrushSize,
+      changeBrushHardness: toolSettings.changeBrushHardness,
+      inputBrushPercent: toolSettings.inputBrushPercent,
       setActiveLayerOpacity: (percent) => {
         const layerId = imageDocumentRef.current?.activeLayerId;
         if (layerId) void executeRegisteredCommand('layer.setOpacity', {
@@ -2779,7 +2707,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     releaseTemporaryErase: temporaryTool.releaseErase,
     clearTemporaryTool: () => {
       temporaryTool.clear();
-      brushPercentInputRef.current.clear();
+      toolSettings.clearPercentInput();
     },
     onShiftChange: setShiftPressed,
     onAltChange: setAltPressed,
@@ -2992,9 +2920,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const vectorProperties = useVectorPropertyIntents({
     getDocument: () => imageDocumentRef.current,
     getSession: readEditorSession,
-    setShapeDefaults: change => setEditorSession(current => ({
-      ...current, shape: { ...current.shape, ...change }
-    })),
+    setShapeDefaults: toolSettings.shape,
     setGradientDefaults: change => setEditorSession(current => ({
       ...current, gradient: { ...current.gradient, ...change }
     })),
@@ -4403,19 +4329,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   if (!open) return null;
 
   const visibleTool = temporaryTool.snapshot.tool ?? editorSession.activeTool;
-  const updateBrush = (change: Partial<EditorSession['brush']>) => {
-    setEditorSession((current) => ({
-      ...current,
-      brush: { ...current.brush, ...change }
-    }));
-  };
-
-  const updateWarp = (change: Partial<EditorSession['warp']>) => {
-    setEditorSession((current) => ({
-      ...current,
-      warp: { ...current.warp, ...change }
-    }));
-  };
   const { layer: activeTextPropertyLayer, model: textPropertyPresentation,
     layoutMode: textLayoutMode } = resolveTextProperties(imageDocument, textEditingController, availableFontAssets);
   const positionedTextRecoveryIntents = usePositionedTextRecovery({
@@ -4437,7 +4350,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ?? textFontRegistry.availableAssets.find(font => font.assetId === assetId) ?? null,
     getPresentation: () => textPropertyPresentation,
     getBrushColor: () => editorSessionRef.current.brush.color,
-    updateBrushColor: color => updateBrush({ color }),
+    updateBrushColor: color => toolSettings.brush({ color }),
     updateDefaults: recipe => setEditorSession(current => ({ ...current, text: recipe(current.text) })),
     getFirstBaselineOffset: layerId => engineRef.current?.textEditingLayout(layerId)?.layout.firstBaselineOffset ?? 0,
     gestures: textPropertyGestureController,
@@ -4496,14 +4409,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onSelectFace: faceWarpDetectionController.setSelectedFaceId,
     onMeshVisibleChange: changeFaceWarpMeshVisible,
     onBrushChange: ({ size, strength }: { size?: number; strength?: number }) => {
-      setEditorSession((current) => ({
-        ...current,
-        brush: {
-          ...current.brush,
-          ...(size === undefined ? {} : { size }),
-          ...(strength === undefined ? {} : { opacity: strength })
-        }
-      }));
+      toolSettings.brush({ ...(size === undefined ? {} : { size }),
+        ...(strength === undefined ? {} : { opacity: strength }) });
     },
     onSemanticTargetChange: setFaceWarpSemanticTarget,
     onProtectedFeatureChange: setFaceWarpProtectedFeature,
@@ -4699,29 +4606,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       smartSelectionPreparation={smartSelectionPreparation}
       zoomPercent={workspaceViewControls?.zoomPercent ?? activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
-      onBrushChange={updateBrush}
-      onSampledBrushChange={(change) => setEditorSession((current) => ({
-        ...current,
-        sampledBrush: { ...current.sampledBrush, ...change }
-      }))}
-      onToneBrushChange={(change) => setEditorSession((current) => ({
-        ...current,
-        toneBrush: { ...current.toneBrush, ...change }
-      }))}
+      onBrushChange={toolSettings.brush}
+      onSampledBrushChange={toolSettings.sampledBrush}
+      onToneBrushChange={toolSettings.toneBrush}
       onGradientChange={updateGradientSettings}
-      onShapeChange={(change) => setEditorSession((current) => ({
-        ...current, shape: { ...current.shape, ...change }
-      }))}
-      onPenChange={(change) => setEditorSession((current) => ({
-        ...current, pen: { ...current.pen, ...change }
-      }))}
-      onWarpChange={updateWarp}
-      onVectorStyleChange={(change) => {
-        setEditorSession((current) => ({
-          ...current,
-          vectorStyle: { ...current.vectorStyle, ...change }
-        }));
-      }}
+      onShapeChange={toolSettings.shape}
+      onPenChange={toolSettings.pen}
+      onWarpChange={toolSettings.warp}
+      onVectorStyleChange={toolSettings.vectorStyle}
       onTextChange={updateText}
       onTextFontAssetChange={applyTextFontAsset}
       onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
@@ -4742,64 +4634,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         warpSessionController.clearActiveLayer();
       }}
       faceWarp={faceWarpToolOptions}
-      onSelectionPixelSnapChange={(selectionPixelSnap) => {
-        setEditorSession((current) => ({ ...current, selectionPixelSnap }));
-      }}
-      onTransformAutoSelectLayerChange={(transformAutoSelectLayer) => {
-        setEditorSession((current) => ({ ...current, transformAutoSelectLayer }));
-      }}
-      onSelectionCombineModeChange={(selectionCombineMode) => {
-        setEditorSession((current) => ({ ...current, selectionCombineMode }));
-      }}
-      onSelectionFeatherChange={(selectionFeather) => {
-        setEditorSession((current) => ({ ...current, selectionFeather }));
-      }}
-      onSelectionAntiAliasChange={(selectionAntiAlias) => {
-        setEditorSession((current) => ({ ...current, selectionAntiAlias }));
-      }}
-      onSelectionMarqueeStyleChange={(selectionMarqueeStyle) => {
-        setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));
-      }}
-      onSelectionMarqueeWidthChange={(selectionMarqueeWidth) => {
-        setEditorSession((current) => ({ ...current, selectionMarqueeWidth }));
-      }}
-      onSelectionMarqueeHeightChange={(selectionMarqueeHeight) => {
-        setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
-      }}
-      onSelectionMarqueeRatioChange={(selectionMarqueeWidth, selectionMarqueeHeight) => {
-        setEditorSession((current) => ({
-          ...current,
-          selectionMarqueeWidth,
-          selectionMarqueeHeight
-        }));
-      }}
-      onSelectionRowHeightChange={(selectionRowHeight) => {
-        setEditorSession((current) => ({ ...current, selectionRowHeight }));
-      }}
-      onSelectionColumnWidthChange={(selectionColumnWidth) => {
-        setEditorSession((current) => ({ ...current, selectionColumnWidth }));
-      }}
-      onSelectionSmoothChange={(selectionSmooth) => {
-        setEditorSession((current) => ({ ...current, selectionSmooth }));
-      }}
-      onMagicWandChange={(change) => {
-        setEditorSession((current) => ({
-          ...current,
-          magicWand: { ...current.magicWand, ...change }
-        }));
-      }}
-      onSmartSelectionChange={(change) => {
-        setEditorSession((current) => ({
-          ...current,
-          smartSelection: { ...current.smartSelection, ...change }
-        }));
-      }}
-      onSelectionPaintBrushChange={(change) => {
-        setEditorSession((current) => ({
-          ...current,
-          selectionPaintBrush: { ...current.selectionPaintBrush, ...change }
-        }));
-      }}
+      onSelectionPixelSnapChange={(selectionPixelSnap) => toolSettings.selection({ selectionPixelSnap })}
+      onTransformAutoSelectLayerChange={(transformAutoSelectLayer) => toolSettings.selection({ transformAutoSelectLayer })}
+      onSelectionCombineModeChange={(selectionCombineMode) => toolSettings.selection({ selectionCombineMode })}
+      onSelectionFeatherChange={(selectionFeather) => toolSettings.selection({ selectionFeather })}
+      onSelectionAntiAliasChange={(selectionAntiAlias) => toolSettings.selection({ selectionAntiAlias })}
+      onSelectionMarqueeStyleChange={(selectionMarqueeStyle) => toolSettings.selection({ selectionMarqueeStyle })}
+      onSelectionMarqueeWidthChange={(selectionMarqueeWidth) => toolSettings.selection({ selectionMarqueeWidth })}
+      onSelectionMarqueeHeightChange={(selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeHeight })}
+      onSelectionMarqueeRatioChange={(selectionMarqueeWidth, selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeWidth, selectionMarqueeHeight })}
+      onSelectionRowHeightChange={(selectionRowHeight) => toolSettings.selection({ selectionRowHeight })}
+      onSelectionColumnWidthChange={(selectionColumnWidth) => toolSettings.selection({ selectionColumnWidth })}
+      onSelectionSmoothChange={(selectionSmooth) => toolSettings.selection({ selectionSmooth })}
+      onMagicWandChange={toolSettings.magicWand}
+      onSmartSelectionChange={toolSettings.smartSelection}
+      onSelectionPaintBrushChange={toolSettings.selectionPaintBrush}
       onSmartSelectionSelectSubject={() => {
         void smartSelectionController.selectSubject(editorSessionRef.current.selectionCombineMode);
       }}
@@ -4807,16 +4656,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onZoomFit={workspaceViewControls?.onZoomFit ?? fitZoom}
       onZoomActual={workspaceViewControls?.onZoomActual ?? actualZoom}
       onToolChange={activatePersistentTool}
-      onForegroundColorChange={(color) => updateBrush({ color })}
-      onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
-      onSwapColors={() => updateBrush({
-        color: editorSession.brush.backgroundColor,
-        backgroundColor: editorSession.brush.color
-      })}
-      onResetColors={() => updateBrush({
-        color: '#000000',
-        backgroundColor: '#ffffff'
-      })}
+      onForegroundColorChange={(color) => toolSettings.brush({ color })}
+      onBackgroundColorChange={(backgroundColor) => toolSettings.brush({ backgroundColor })}
+      onSwapColors={toolSettings.swapColors}
+      onResetColors={toolSettings.resetColors}
       fileInputRef={fileInputRef}
       advancedFileInputRef={advancedFileInputRef}
       fastFileAccept={`${imagePickerAccept('fast')},video/mp4,video/webm,.mp4,.webm`}
@@ -4917,29 +4760,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               : null,
             smartSelectionPreparation,
             zoomPercent: workspaceViewControls?.zoomPercent ?? activeScale * 100,
-            onBrushChange: updateBrush,
-            onSampledBrushChange: (change) => setEditorSession((current) => ({
-              ...current,
-              sampledBrush: { ...current.sampledBrush, ...change }
-            })),
-            onToneBrushChange: (change) => setEditorSession((current) => ({
-              ...current,
-              toneBrush: { ...current.toneBrush, ...change }
-            })),
+            onBrushChange: toolSettings.brush,
+            onSampledBrushChange: toolSettings.sampledBrush,
+            onToneBrushChange: toolSettings.toneBrush,
             onGradientChange: updateGradientSettings,
-            onShapeChange: (change) => setEditorSession((current) => ({
-              ...current, shape: { ...current.shape, ...change }
-            })),
-            onPenChange: (change) => setEditorSession((current) => ({
-              ...current, pen: { ...current.pen, ...change }
-            })),
-            onWarpChange: updateWarp,
-            onVectorStyleChange: (change) => {
-              setEditorSession((current) => ({
-                ...current,
-                vectorStyle: { ...current.vectorStyle, ...change }
-              }));
-            },
+            onShapeChange: toolSettings.shape,
+            onPenChange: toolSettings.pen,
+            onWarpChange: toolSettings.warp,
+            onVectorStyleChange: toolSettings.vectorStyle,
             onTextChange: updateText,
             onTextFontAssetChange: applyTextFontAsset,
             onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
@@ -4961,65 +4789,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               setToolOptionsMenu(null);
             },
             faceWarp: faceWarpToolOptions,
-            onSelectionPixelSnapChange: (selectionPixelSnap) => {
-              setEditorSession((current) => ({ ...current, selectionPixelSnap }));
-            },
-            onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => {
-              setEditorSession((current) => ({ ...current, transformAutoSelectLayer }));
-            },
+            onSelectionPixelSnapChange: (selectionPixelSnap) => toolSettings.selection({ selectionPixelSnap }),
+            onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => toolSettings.selection({ transformAutoSelectLayer }),
             onAlignTransformAxesToDocument: transformSession.alignFrameToDocument,
-            onSelectionCombineModeChange: (selectionCombineMode) => {
-              setEditorSession((current) => ({ ...current, selectionCombineMode }));
-            },
-            onSelectionFeatherChange: (selectionFeather) => {
-              setEditorSession((current) => ({ ...current, selectionFeather }));
-            },
-            onSelectionAntiAliasChange: (selectionAntiAlias) => {
-              setEditorSession((current) => ({ ...current, selectionAntiAlias }));
-            },
-            onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => {
-              setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));
-            },
-            onSelectionMarqueeWidthChange: (selectionMarqueeWidth) => {
-              setEditorSession((current) => ({ ...current, selectionMarqueeWidth }));
-            },
-            onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => {
-              setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
-            },
-            onSelectionMarqueeRatioChange: (selectionMarqueeWidth, selectionMarqueeHeight) => {
-              setEditorSession((current) => ({
-                ...current,
-                selectionMarqueeWidth,
-                selectionMarqueeHeight
-              }));
-            },
-            onSelectionRowHeightChange: (selectionRowHeight) => {
-              setEditorSession((current) => ({ ...current, selectionRowHeight }));
-            },
-            onSelectionColumnWidthChange: (selectionColumnWidth) => {
-              setEditorSession((current) => ({ ...current, selectionColumnWidth }));
-            },
-            onSelectionSmoothChange: (selectionSmooth) => {
-              setEditorSession((current) => ({ ...current, selectionSmooth }));
-            },
-            onMagicWandChange: (change) => {
-              setEditorSession((current) => ({
-                ...current,
-                magicWand: { ...current.magicWand, ...change }
-              }));
-            },
-            onSmartSelectionChange: (change) => {
-              setEditorSession((current) => ({
-                ...current,
-                smartSelection: { ...current.smartSelection, ...change }
-              }));
-            },
-            onSelectionPaintBrushChange: (change) => {
-              setEditorSession((current) => ({
-                ...current,
-                selectionPaintBrush: { ...current.selectionPaintBrush, ...change }
-              }));
-            },
+            onSelectionCombineModeChange: (selectionCombineMode) => toolSettings.selection({ selectionCombineMode }),
+            onSelectionFeatherChange: (selectionFeather) => toolSettings.selection({ selectionFeather }),
+            onSelectionAntiAliasChange: (selectionAntiAlias) => toolSettings.selection({ selectionAntiAlias }),
+            onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => toolSettings.selection({ selectionMarqueeStyle }),
+            onSelectionMarqueeWidthChange: (selectionMarqueeWidth) => toolSettings.selection({ selectionMarqueeWidth }),
+            onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeHeight }),
+            onSelectionMarqueeRatioChange: (selectionMarqueeWidth, selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeWidth, selectionMarqueeHeight }),
+            onSelectionRowHeightChange: (selectionRowHeight) => toolSettings.selection({ selectionRowHeight }),
+            onSelectionColumnWidthChange: (selectionColumnWidth) => toolSettings.selection({ selectionColumnWidth }),
+            onSelectionSmoothChange: (selectionSmooth) => toolSettings.selection({ selectionSmooth }),
+            onMagicWandChange: toolSettings.magicWand,
+            onSmartSelectionChange: toolSettings.smartSelection,
+            onSelectionPaintBrushChange: toolSettings.selectionPaintBrush,
             onSmartSelectionSelectSubject: () => {
               void smartSelectionController.selectSubject(
                 editorSessionRef.current.selectionCombineMode
@@ -5115,7 +4900,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               channels: channelsPanel,
               color: {
                 value: editorSession.brush.color,
-                onChange: (color) => updateBrush({ color })
+                onChange: (color) => toolSettings.brush({ color })
               },
               debug: {
                 messages: debugMessages,
