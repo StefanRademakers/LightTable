@@ -98,7 +98,7 @@ import { useLayerStyleEditorController } from './application/styles/useLayerStyl
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
 import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
-import { executeSemanticMaskCommand } from './application/layers/executeSemanticMaskCommand';
+import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController, type LayerPanelController } from './application/layers/useLayerPanelController';
@@ -3558,7 +3558,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     recordHistory = true
   ) => {
     textEditingController.finish();
-    changeLayerDocument(change, recordHistory);
+    return changeLayerDocument(change, recordHistory);
   };
 
   const layerDocumentCommands = useLayerDocumentCommands({
@@ -4127,91 +4127,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         getDocument: () => imageDocumentRef.current,
         changeDocument: documentMutationController.change
       }),
-      executeLayerCommand: async (command) => {
-        if (command.kind === 'duplicate') {
-          const layerId = layerDocumentCommands.duplicateLayer(command.layerId);
-          return layerId ? { sourceLayerId: command.layerId, layerId } : null;
-        }
-        if (command.kind === 'copy-to-new-layer') {
-          await settleMountedDocumentInteraction();
-          const result = layerDocumentCommands.layerViaCopy(command.layerId);
-          return result ? { sourceLayerId: command.layerId, ...result } : null;
-        }
-        if (command.kind === 'delete') {
-          layerPanelController.deleteSelection([...command.layerIds]);
-          return { layerIds: command.layerIds };
-        }
-        if (command.kind === 'move') {
-          layerPanelController.move(command.layerId, command.direction);
-          return { layerId: command.layerId, direction: command.direction };
-        }
-        if (command.kind === 'set-opacity') {
-          layerPanelController.setOpacity(command.layerId, command.opacity);
-          return { layerId: command.layerId, opacity: command.opacity };
-        }
-        if (command.kind === 'set-vector-anti-alias') {
-          layerPanelController.setVectorAntiAlias(command.layerId, command.antiAlias);
-          return { layerId: command.layerId, antiAlias: command.antiAlias };
-        }
-        if (command.kind === 'set-blend-mode') {
-          layerPanelController.setBlendMode(command.layerId, command.blendMode);
-          return { layerId: command.layerId, blendMode: command.blendMode };
-        }
-        if (command.kind === 'set-clipping') {
-          layerPanelController.setClipping(command.layerId, command.clipping);
-          return { layerId: command.layerId, clipping: command.clipping };
-        }
-        if (command.kind === 'set-transform') {
-          const changed = documentMutationController.change(
-            (document) => setLayerTransform(document, command.layerId, command.transform),
-            true,
-            { label: 'Free Transform', type: 'layer.transform', layerIds: [command.layerId] }
-          );
-          if (!changed) return null;
-          return { layerId: command.layerId, transform: command.transform };
-        }
-        if (command.kind === 'set-mask') {
-          return executeSemanticMaskCommand(command, {
-            commands: layerDocumentCommands,
-            settlePixelInteraction: settleMountedDocumentInteraction,
-            waitForPresentation: waitForStableLayerCommandFrame,
-            loadMaskAsSelection: selectionSessionController.selectLayerMask,
-            changeDocument: documentMutationController.change
-          });
-        }
-        if (command.kind === 'reorder') {
-          layerPanelController.reorder(
-            [...command.layerIds], command.targetLayerId, command.placement
-          );
-          return command;
-        }
-        if (command.kind === 'create-gradient-fill') {
-          const previousLayerId = imageDocumentRef.current?.activeLayerId;
-          layerPanelController.createGradientFillLayer();
-          const layerId = imageDocumentRef.current?.activeLayerId;
-          return layerId && layerId !== previousLayerId ? { layerId } : null;
-        }
-        if (command.kind === 'create-group') {
-          const previousLayerId = imageDocumentRef.current?.activeLayerId;
-          layerPanelController.createGroup();
-          const layerId = imageDocumentRef.current?.activeLayerId;
-          return layerId && layerId !== previousLayerId ? { layerId } : null;
-        }
-        if (command.kind === 'group') {
-          const beforeLayerId = imageDocumentRef.current?.activeLayerId;
-          layerPanelController.groupSelection([...command.layerIds]);
-          const groupId = imageDocumentRef.current?.activeLayerId;
-          return groupId && groupId !== beforeLayerId
-            ? { layerIds: command.layerIds, groupId }
-            : null;
-        }
-        if (command.kind === 'ungroup') {
-          layerPanelController.ungroupSelection([...command.layerIds]);
-          return { layerIds: command.layerIds };
-        }
-        layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
-        return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
-      },
+      executeLayerCommand: createMountedLayerCommandBinding(documentSession, engineRef.current, {
+        getCurrentSession: () => mountedDocumentSessionRef.current,
+        getCurrentRenderer: () => engineRef.current,
+        captureRendererScope: captureMountedInteractionScope
+      }, {
+        panel: layerPanelController, pixels: layerDocumentCommands,
+        mutations: documentMutationController,
+        settlePixels: settleMountedDocumentInteraction,
+        waitForPresentation: waitForStableLayerCommandFrame,
+        loadMaskAsSelection: selectionSessionController.selectLayerMask
+      }),
       executeSelectionCommand: async (command) => {
         await settleMountedDocumentInteraction();
         if (command.kind === 'modify') {

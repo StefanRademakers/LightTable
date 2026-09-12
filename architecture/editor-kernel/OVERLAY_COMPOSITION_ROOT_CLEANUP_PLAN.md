@@ -280,6 +280,12 @@ class names: reuse existing owners before creating a new one.
   - [x] O06b: SVG import uses one scoped canonical mutation/history transaction
     in mounted and inactive bindings. Removed split apply/history publication.
     Critic PASS;28 tests and packaged import/rebind/exact Undo/Redo pass.
+  - [x] O06c: mounted layer command dispatch and admitted creation result IDs.
+    Existing model/pixel/mask owners retained; exact registered session/renderer
+    guards cover awaited handoffs. Critic PASS;175 focused tests, packaged
+    creation/group/duplicate IDs, UI/Actions replay, layer history and masks pass.
+  - [ ] O06d: finalization command binding and exact committed destination IDs;
+    then separately automation translation lifetime and remaining command families.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing

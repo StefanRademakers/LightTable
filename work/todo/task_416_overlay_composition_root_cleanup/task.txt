@@ -42,8 +42,9 @@ SVG import are accepted with independent review and packaged pixel/history proof
 O02c.3a file prerequisites and truthful terminal/delivery outcomes are accepted.
 O05e.2 Smart Selection lifetime and the exposed GPU revision-domain guard repair
 are accepted with subject/Rectangle/Actions/rebind and selection-kernel proof.
-Next: prepared O06c layer command adapter; O05e.3 complete source/inference owner
-and global-processing source freshness remain open.
+O06c layer command adapter accepted with exact IDs, UI/Actions, history and mask proof.
+Next: O06d finalization binding; O05e.3 source/inference owner and O03 scopes
+attachment are in progress, not yet accepted.
 O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
 The renderer telemetry revision
 was not a render-submission stamp and was removed; O08 must add truthful frame

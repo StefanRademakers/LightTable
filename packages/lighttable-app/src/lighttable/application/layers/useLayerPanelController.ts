@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import { applyLayerCreation } from './applyLayerCreation';
 import type { BasicAdjustments } from '../../types';
 import { isFilterKind } from '@lighttable/filter-core';
 import { cloneAdjustments, createDefaultAdjustments } from '../../types';
@@ -62,7 +63,7 @@ export interface LayerPanelControllerDependencies {
   mutateDocument(
     mutate: (current: ImageDocument) => ImageDocument,
     recordHistory?: boolean
-  ): void;
+  ): boolean;
   publishPanelAdjustments(adjustments: BasicAdjustments): void;
   setPaintTarget(channel: PaintChannel, brushColor?: string): void;
   beginDocumentTransaction(): boolean;
@@ -175,9 +176,15 @@ export interface LayerPanelController {
  * coupled operations here also prevents a future docked/floating Layers panel
  * from acquiring a second, subtly different command implementation.
  */
+export interface LayerPanelMutationController extends LayerPanelController {
+  createGradientFillLayer(): LayerId | null;
+  createGroup(): LayerId | null;
+  groupSelection(layerIds: LayerId[]): LayerId | null;
+}
+
 export const createLayerPanelController = (
   resolveDependencies: () => LayerPanelControllerDependencies
-): LayerPanelController => {
+): LayerPanelMutationController => {
   let soloVisibility: LayerVisibilitySnapshot | null = null;
   let visibilityInteractionActive = false;
   let opacityInteractionActive = false;
@@ -230,6 +237,15 @@ export const createLayerPanelController = (
   ) => {
     mutate(change);
     resolveDependencies().setPaintTarget('pixels');
+  };
+
+  const createPixelLayer = (create: (current: ImageDocument) => ImageDocument) => {
+    const dependencies = resolveDependencies();
+    const layerId = applyLayerCreation(
+      (change) => dependencies.mutateDocument(change), create
+    );
+    if (layerId) dependencies.setPaintTarget('pixels');
+    return layerId;
   };
 
   const move = (layerId: LayerId, direction: 'up' | 'down') => {
@@ -344,16 +360,16 @@ export const createLayerPanelController = (
     createLocalProcessing: (layerId, kind) =>
       mutate((current) => ensureRasterLayerLocalProcessing(current, layerId, kind)),
     createGradientFillLayer: () =>
-      usePixelChannel((current) => createGradientFillLayer(current)),
+      createPixelLayer((current) => createGradientFillLayer(current)),
     createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
     createAdjustmentLayerOfKind: (kind, aboveLayerId, settings) =>
       resolveDependencies().createAdjustmentLayerOfKind(kind, aboveLayerId, settings),
     createAttachedAdjustment: (layerId, kind, settings) =>
       resolveDependencies().createAttachedAdjustment(layerId, kind, settings),
     createGroup: () =>
-      usePixelChannel((current) => createGroupLayer(current)),
+      createPixelLayer((current) => createGroupLayer(current)),
     groupSelection: (layerIds) =>
-      usePixelChannel((current) => groupLayers(current, layerIds)),
+      createPixelLayer((current) => groupLayers(current, layerIds)),
     ungroupSelection: (layerIds) =>
       usePixelChannel((current) => ungroupLayers(current, layerIds)),
     deleteSelection: (layerIds) => {
@@ -448,7 +464,7 @@ export const createLayerPanelController = (
 
 export const useLayerPanelController = (
   dependencies: LayerPanelControllerDependencies
-): LayerPanelController => {
+): LayerPanelMutationController => {
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
   return useMemo(

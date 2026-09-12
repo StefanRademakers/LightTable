@@ -1,4 +1,5 @@
 import type { EditorApplicationSession } from '../workspace/editorApplicationSession';
+import { applyLayerCreation } from '../layers/applyLayerCreation';
 import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import type { DocumentSession } from '../documents/documentSession';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
@@ -258,22 +259,16 @@ export const createDocumentSessionCommandPorts = (
         return command;
       }
       if (command.kind === 'create-gradient-fill') {
-        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
-        change((document) => createGradientFillLayer(document));
-        const layerId = session.getSnapshot().document?.activeLayerId;
-        return layerId && layerId !== beforeLayerId ? { layerId } : null;
+        const layerId = applyLayerCreation(change, (document) => createGradientFillLayer(document));
+        return layerId ? { layerId } : null;
       }
       if (command.kind === 'create-group') {
-        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
-        change((document) => createGroupLayer(document));
-        const layerId = session.getSnapshot().document?.activeLayerId;
-        return layerId && layerId !== beforeLayerId ? { layerId } : null;
+        const layerId = applyLayerCreation(change, (document) => createGroupLayer(document));
+        return layerId ? { layerId } : null;
       }
       if (command.kind === 'group') {
-        const beforeLayerId = session.getSnapshot().document?.activeLayerId;
-        change((document) => groupLayers(document, [...command.layerIds]));
-        const groupId = session.getSnapshot().document?.activeLayerId;
-        return groupId && groupId !== beforeLayerId
+        const groupId = applyLayerCreation(change, (document) => groupLayers(document, [...command.layerIds]));
+        return groupId
           ? { layerIds: command.layerIds, groupId }
           : null;
       }

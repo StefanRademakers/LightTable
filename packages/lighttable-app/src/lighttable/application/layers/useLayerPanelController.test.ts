@@ -37,7 +37,9 @@ const setup = (initialDocument: ImageDocument) => {
     getDocument: () => document,
     getDocumentAdjustments: () => documentAdjustments,
     mutateDocument: vi.fn((mutate) => {
+      const before = document;
       document = mutate(document);
+      return document !== before;
     }),
     publishPanelAdjustments: vi.fn((next: BasicAdjustments) => {
       panelAdjustments = cloneAdjustments(next);
@@ -83,6 +85,45 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
+  it('returns creation IDs captured before a later panel selection change', () => {
+    const state = setup(createImageDocument('test', 100, 100, 'asset'));
+    const openingId = state.document().activeLayerId;
+    const mutate = state.dependencies.mutateDocument;
+    state.dependencies.mutateDocument = (change, history) => {
+      const applied = mutate(change, history);
+      mutate(document => ({ ...document, activeLayerId: openingId }), false);
+      return applied;
+    };
+    const gradientId = state.controller.createGradientFillLayer();
+    expect(gradientId).not.toBeNull();
+    expect(gradientId).not.toBe(state.document().activeLayerId);
+    expect(findDocumentLayer(state.document(), gradientId!)?.type).toBe('vector');
+    const groupId = state.controller.createGroup();
+    expect(findDocumentLayer(state.document(), groupId!)?.type).toBe('group');
+    expect(state.dependencies.setPaintTarget).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not report a created layer or change channels after rejected admission', () => {
+    const state = setup(createImageDocument('test', 100, 100, 'asset'));
+    state.dependencies.mutateDocument = change => { change(state.document()); return false; };
+    expect(state.controller.createGradientFillLayer()).toBeNull();
+    expect(state.controller.createGroup()).toBeNull();
+    expect(state.controller.groupSelection([state.document().activeLayerId!])).toBeNull();
+    expect(state.dependencies.setPaintTarget).not.toHaveBeenCalled();
+  });
+
+  it('reports group IDs from the admitted group result and preserves empty grouping as no-op', () => {
+    const state = setup(createRasterLayer(createImageDocument('test', 100, 100, 'asset')));
+    const selected = state.document().layers.map(layer => layer.id);
+    const groupId = state.controller.groupSelection(selected);
+    const group = findDocumentLayer(state.document(), groupId!);
+    expect(group?.type).toBe('group');
+    if (group?.type === 'group') expect(group.children.map(layer => layer.id)).toEqual(selected);
+    vi.mocked(state.dependencies.setPaintTarget).mockClear();
+    expect(state.controller.groupSelection([])).toBeNull();
+    expect(state.dependencies.setPaintTarget).not.toHaveBeenCalled();
+  });
+
   it('delegates attached filter visibility to the semantic filter owner', () => {
     let document = createRasterLayer(createImageDocument('test', 100, 100, 'asset'));
     const layerId = document.activeLayerId!;

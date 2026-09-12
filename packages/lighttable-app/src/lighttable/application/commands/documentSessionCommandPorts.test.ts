@@ -27,6 +27,29 @@ import {
 describe('document-lifetime command ownership', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('returns the admitted inactive creation ID even if selection changes during publication', async () => {
+    const workspace = new WorkspaceSession();
+    const opened = workspace.open({ source: { id: 'source', name: 'Image', mediaType: 'image/png' } });
+    if (!opened.ok) throw new Error('Fixture failed to open');
+    const session = opened.value;
+    const initial = createImageDocument('Image', 30, 20, 'source');
+    session.setDocument(initial); session.setReady();
+    const ports = createDocumentSessionCommandPorts(session, new EditorApplicationSession());
+    let observedCreation = false;
+    const unsubscribe = session.subscribe(() => {
+      const document = session.getSnapshot().document!;
+      if (observedCreation || document.layers.length === initial.layers.length) return;
+      observedCreation = true;
+      session.setDocument(setActiveLayer(document, initial.activeLayerId!));
+    });
+    const result = await ports.executeLayerCommand!({ kind: 'create-group' });
+    const current = session.getSnapshot().document!;
+    expect(result).toEqual({ layerId: current.layers.at(-1)!.id });
+    expect(current.activeLayerId).toBe(initial.activeLayerId);
+    expect(session.history.getSnapshot().undoDepth).toBe(1);
+    unsubscribe(); workspace.dispose();
+  });
+
   it('imports SVG into the captured inactive session with one undoable boundary', async () => {
     const workspace = new WorkspaceSession();
     const opened = workspace.open({ source: { id: 'svg-source', name: 'SVG', mediaType: 'image/svg+xml' } });

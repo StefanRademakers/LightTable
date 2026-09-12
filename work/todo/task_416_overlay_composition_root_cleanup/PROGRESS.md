@@ -1,5 +1,30 @@
 # Task 416 progress
 
+## O06c — Mounted layer command adapter (accepted)
+
+- Removed17-kind dispatch/settlement recipes from Overlay; named adapter invokes
+  existing panel, pixel, mask and mutation owners. Registered concrete session
+  and renderer are pinned; each request captures its interaction generation and
+  rechecks after awaited settlement/presentation before resumed work.
+- Gradient/group/group-selection now return the actual admitted immutable result
+  ID, including inactive canonical commands. Removed later-active-layer inference.
+  Rejected creation returns null and does not change paint target. Public queued
+  UI methods remain void; they do not invent synchronous IDs for async commands.
+- Independent source critic PASS, no additional repair needed.175 tests/8 suites,
+  app typecheck and diff checks pass. Root6,603 ->6,529 audit lines, ceiling lowered.
+- Fresh instrumented package: mounted-layer-commands-smoke proves creation/group/
+  duplicate exact IDs and one-step tree Undo/Redo; real New group menu records a
+  result-bound rename and Actions replay targets the newly created replay ID.
+  Layer-history-gesture and mask-kernel-smoke also pass. Reports under tmp/ with
+  those names. No new wait/queue/readback or pointer-rate work. No latency claim.
+- Package also contains in-progress Smart source extraction and temporary scopes
+  diagnostics; those are separately reviewed/tested and are not accepted here.
+  Scopes baseline found detached canvas references (failure evidence retained in
+  tmp/desktop-scopes-smoke/profile-M3W2Uk); it does not invalidate these layer gates.
+- Open: existing void panel result ambiguity is unchanged, not certified truthful
+  for all rejected/no-op commands. Next O06d addresses finalization destination
+  identity/readiness; automation translation remains a separate owner.
+
 ## O05e.2 — Smart Selection lifetime (bounded slice accepted)
 
 - Prepared binding removes root backend/controller refs, deferred destruction

@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O06c accepted: MountedLayerCommandAdapter and its exact registered-session binding
+replace root dispatch and asynchronous mask/copy handoffs. Existing panel/pixel/
+mutation owners retain algorithms and history. applyLayerCreation returns admitted
+destination IDs, not later active selection. Root6,529 audit lines. Critic and
+packaged IDs/UI/Actions/history/masks pass. Finalization and automation remain open.
+
 O05e.2 accepted: Smart tool source/inference requests and preview leases pin exact
 session/renderer/lifecycle before async work. Thin hook owns mounted subscription/
 StrictMode disposal; old root refs/timer/invalidation deleted. Real subject commit
