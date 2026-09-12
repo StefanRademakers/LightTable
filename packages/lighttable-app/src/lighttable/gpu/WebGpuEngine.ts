@@ -913,7 +913,7 @@ export class WebGpuEngine {
     this.layerStyleInitialization = initialization;
     void initialization.then(
       () => {
-        if (this.destroyed || this.callbacks !== rendererCallbacks) return;
+        if (this.destroyed || this.documentRenderer !== renderer) return;
         this.markDocumentDirty();
         this.requestRender();
       },
@@ -2029,12 +2029,16 @@ export class WebGpuEngine {
     const document = this.imageDocument;
     const renderer = this.documentRenderer;
     if (!document || !renderer) return false;
+    const isCurrent = () => !this.destroyed && this.imageDocument === document && this.documentRenderer === renderer;
     this.initializeLayerStylesIfNeeded(document);
     await this.layerStyleInitialization;
+    if (!isCurrent()) return false;
     const coreAssetsReady = scope === 'document' && this.coreResources
       ? await this.coreResources.waitForAdjustmentAssets(this.adjustmentState.current)
       : false;
+    if (!isCurrent()) return false;
     const layerAssetsReady = await this.adjustmentLayerResources.waitForAdjustmentAssets();
+    if (!isCurrent()) return false;
     if (coreAssetsReady || layerAssetsReady) {
       this.syncAdjustmentPayload();
       this.markDocumentDirty();
@@ -3464,7 +3468,8 @@ export class WebGpuEngine {
   }
 
   async exportPng(options: WebGpuPngExportOptions = {}) {
-    await this.prepareDocumentExport();
+    const assertCurrent = await this.prepareDocumentExport();
+    assertCurrent();
     const excludedLayerIds = new Set(options.excludedLayerIds ?? []);
     if (excludedLayerIds.size > 0) {
       return this.exportPngWithLayerExclusions(excludedLayerIds);
@@ -3475,13 +3480,15 @@ export class WebGpuEngine {
 
   /** Raw display-encoded composite for dedicated image codecs; no canvas encoding. */
   async exportRgba8() {
-    await this.prepareDocumentExport();
+    const assertCurrent = await this.prepareDocumentExport();
+    assertCurrent();
     return this.exportRgba8Prepared();
   }
 
   /** Reads the final display-encoded composite before its 8-bit viewport resolve. */
   async exportRgba16() {
-    await this.prepareDocumentExport();
+    const assertCurrent = await this.prepareDocumentExport();
+    assertCurrent();
     if (!this.metadata || !this.displayPostTexture) {
       throw new Error('No high-precision processed image is available for export.');
     }
@@ -3529,18 +3536,23 @@ export class WebGpuEngine {
 
   private async prepareDocumentExport() {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
+    const document = this.imageDocument, renderer = this.documentRenderer;
+    const assertCurrent = () => {
+      if (this.destroyed || this.imageDocument !== document || this.documentRenderer !== renderer) {
+        throw new Error('Document sources changed during export rendering.');
+      }
+    };
     if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) throw new Error('Text sources changed or could not be prepared for export.');
-    const coreAssetsReady = this.coreResources
-      ? await this.coreResources.waitForAdjustmentAssets(this.adjustmentState.current)
-      : false;
-    const layerAssetsReady = await this.adjustmentLayerResources.waitForAdjustmentAssets();
-    if (coreAssetsReady || layerAssetsReady) {
-      this.syncAdjustmentPayload();
-      this.markDocumentDirty();
+    assertCurrent();
+    const ready = await this.waitForLayerFinalizationSources('document');
+    assertCurrent();
+    if (!ready) {
+      throw new Error('Document sources changed or could not be prepared for export.');
     }
-    this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
+    assertCurrent();
+    return assertCurrent;
   }
 
   private async exportRgba8Prepared() {

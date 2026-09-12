@@ -351,6 +351,8 @@ export const useDocumentFileCommands = (
     if (!renderer.exportRgba8 || (bitDepth === 16 && !renderer.exportRgba16)) {
       throw new Error('Native bitmap readback is unavailable in this renderer.');
     }
+    renderer.synchronizeDocumentForExport(document);
+    binding.assertCurrent('Bitmap export');
     const pixels = bitDepth === 16 ? await renderer.exportRgba16!() : await renderer.exportRgba8();
     binding.assertCurrent('Bitmap export');
     nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();

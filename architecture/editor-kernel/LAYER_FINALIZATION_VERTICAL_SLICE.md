@@ -24,6 +24,15 @@ submitted cleanup. No entry point has a direct finalization fallback.
 
 ## Behavioral contract
 
+Bitmap export shares `waitForLayerFinalizationSources('document')` readiness:
+lazy style pipelines and adjustment assets must be ready before final-quality
+composition/readback. Preview may temporarily omit a compiling style; exported
+pixels may not. Native bitmap export first synchronizes its captured canonical
+document. Exact document/renderer guards span text/style/asset preparation, GPU
+completion and the final readback handoff. Resource-ready invalidation belongs
+to the concrete renderer, not a replaceable UI callback object. This adds no
+pointer-path preparation or extra readback queue.
+
 - Rasterize uses a fresh raster ID for text, vector/live shape, gradient,
   processed/styled/masked/transformed raster, pixel-generating adjustment and
   supported group content. A plain raster is already final and produces no
