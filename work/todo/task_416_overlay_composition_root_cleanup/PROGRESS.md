@@ -1,5 +1,39 @@
 # Task 416 progress
 
+## O06f / O05f — Canonical selection consumers and scoped canvas picking (accepted)
+
+- Selection menu/shortcut eligibility now reads canonical coverage activity;
+  Similar and Add Mask use the strict selection owner. Escape has an explicit
+  availability-only predicate. Active fully-clipped coverage is not inactive.
+- Ordinary painted-selection Add Mask already passed on the prior package:
+  the brush synthesizes provenance. Initial source review overstated that as a
+  reproduced user defect. This is contract cleanup, not a demonstrated repair
+  of that ordinary paint route. Baseline run-Sz7Nov and new run-8H8S7t under
+  tmp/painted-selection-mask pass fresh PNG mask coverage and exact undo/redo.
+  Initial run-llKsO0 timed out because the harness had not awaited selection
+  history publication after gesture finish; corrected explicitly, failure retained.
+- Mask requests capture one exact session/renderer scope and callbacks for
+  planning, execution and completion. Stale failures cannot publish to a successor;
+  current rejected results remain visible. No reveal-all substitute on unavailable
+  canonical coverage and no duplicate global asynchronous error reporting.
+- TransformCanvasPickIntent owns hit/terminal/selection/activation sequencing;
+  mounted binding rejects mixed document-renderer handoffs and preserves ordinary
+  rerenders. Existing picker, transform terminal and layer selection remain owners.
+  Old root request counter and async recipe deleted, both invalidators rewired.
+- First integrated packaged test FAILED Shift selection (run-0GLrb4): moving rows
+  after awaited selection allowed LayerPanel reconciliation to cancel the request.
+  Critic recommendation was incomplete until this actual test. Repaired by the
+  existing lower selection owner's guarded synchronous accepted callback; rejected
+  admission still publishes no rows. Same assertions now PASS run-ouyXCH under
+  tmp/transform-canvas-pick-smoke: plain/Shift-add/remove, topmost alpha selection,
+  zoom adjacency, no history/geometry change and exact fresh PNG parity.
+- Final integrated critic PASS; 76 tests/5 suites, app typecheck, boundary and
+  packaged build pass. Screenshots inspected. This proves these user routes, not
+  universal external-store atomicity or all delayed browser timing.
+- Overlay 6,181 -> 6,179 physical lines (audit ceiling 6,180). Scope checks add
+  necessary wiring while complete canvas-pick policy leaves root. PDF prepared
+  owner is next; O02/O07/O08 and separate O09 engine work remain open.
+
 ## O06e — Scoped automation gestures and parent-space translation (accepted)
 
 - AutomationLayerTranslationGesture owns exact pointer/baseline/scope and uses

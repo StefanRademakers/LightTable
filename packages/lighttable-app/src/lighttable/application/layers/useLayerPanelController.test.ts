@@ -264,7 +264,7 @@ describe('createLayerPanelController', () => {
 
     await harness.controller.select(secondLayerId);
 
-    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(secondLayerId);
+    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(secondLayerId, expect.any(Function));
     expect(harness.document().activeLayerId).toBe(secondLayerId);
   });
 
@@ -285,6 +285,88 @@ describe('createLayerPanelController', () => {
     release();
     await selecting;
     expect(harness.document().activeLayerId).toBe(secondLayerId);
+  });
+
+  it.each(['request', 'document'] as const)('rejects a retired %s after selection preparation', async kind => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const next = createRasterLayer(base, 'Second');
+    const harness = setup({ ...next, activeLayerId: base.activeLayerId });
+    let current = true;
+    let release!: () => void;
+    const guard = () => current;
+    harness.dependencies.prepareActiveLayerChange = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+    const onSelected = vi.fn();
+    const pending = harness.controller.selectIfCurrent(next.activeLayerId!, guard, onSelected);
+    if (kind === 'request') current = false;
+    else harness.dependencies.mutateDocument(doc => ({ ...doc, id: 'replacement' as never }), false);
+    vi.mocked(harness.dependencies.mutateDocument).mockClear();
+    release();
+    expect(await pending).toBe(false);
+    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(next.activeLayerId, guard);
+    expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
+    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(harness.document().activeLayerId).toBe(base.activeLayerId);
+    expect(onSelected).not.toHaveBeenCalled();
+  });
+
+  it('guards at mutation admission, not only when preparation returns', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const next = createRasterLayer(base, 'Second');
+    const harness = setup({ ...next, activeLayerId: base.activeLayerId });
+    let current = true;
+    const mutate = harness.dependencies.mutateDocument;
+    harness.dependencies.mutateDocument = (change, history) => { current = false; return mutate(change, history); };
+    const onSelected = vi.fn();
+    expect(await harness.controller.selectIfCurrent(next.activeLayerId!, () => current, onSelected)).toBe(false);
+    expect(harness.document().activeLayerId).toBe(base.activeLayerId);
+    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(onSelected).not.toHaveBeenCalled();
+  });
+
+  it('does not project rejected selection but admits an already-active no-op', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const next = createRasterLayer(base, 'Second');
+    const harness = setup({ ...next, activeLayerId: base.activeLayerId });
+    harness.dependencies.mutateDocument = () => false;
+    const onSelected = vi.fn();
+    expect(await harness.controller.selectIfCurrent(next.activeLayerId!, () => true, onSelected)).toBe(false);
+    expect(onSelected).not.toHaveBeenCalled();
+    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(await harness.controller.selectIfCurrent(base.activeLayerId!, () => true, onSelected)).toBe(true);
+    expect(onSelected).toHaveBeenCalledOnce();
+    expect(harness.dependencies.publishPanelAdjustments).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the document revision committed by selection preparation', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const next = createRasterLayer(base, 'Second');
+    const harness = setup({ ...next, activeLayerId: base.activeLayerId });
+    harness.dependencies.prepareActiveLayerChange = async () => {
+      harness.dependencies.mutateDocument(doc => ({ ...doc, name: 'Committed preview' }), false);
+    };
+    expect(await harness.controller.selectIfCurrent(next.activeLayerId!, () => true, () => undefined)).toBe(true);
+    expect(harness.document().name).toBe('Committed preview');
+    expect(harness.document().activeLayerId).toBe(next.activeLayerId);
+  });
+
+  it('publishes admitted row selection before a queued active-layer projection can reconcile it', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const next = createRasterLayer(base, 'Second');
+    const harness = setup({ ...next, activeLayerId: base.activeLayerId });
+    let selected = [base.activeLayerId!];
+    const projectedSelections: string[][] = [];
+    const mutate = harness.dependencies.mutateDocument;
+    harness.dependencies.mutateDocument = (change, history) => {
+      const accepted = mutate(change, history);
+      queueMicrotask(() => { projectedSelections.push([...selected]); });
+      return accepted;
+    };
+    const target = next.activeLayerId!;
+    await harness.controller.selectIfCurrent(target, () => true, () => {
+      expect(harness.document().activeLayerId).toBe(target);
+      selected = [base.activeLayerId!, target];
+    });
+    expect(projectedSelections).toEqual([[base.activeLayerId, target]]);
   });
 
   it('selects a raster layer and projects its attached local grade', async () => {

@@ -9,6 +9,13 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
+Latest bounded acceptance: O06f/O05f canonical selection consumers and scoped
+canvas picking. The initial Shift-selection regression was caught by the real
+packaged gate and repaired through the existing layer-selection admission;
+unchanged gate now passes. See Task416 PROGRESS for retained failures and exact
+coverage. Root is 6,179 physical lines. PDF integration, remaining host/GenAI/
+command/guides families, cross-flow evidence and O09 remain open.
+
 ## Result, scope and non-goals
 
 `LightTableEditorOverlay.tsx` becomes UI composition and explicit system wiring:

@@ -96,7 +96,7 @@ export interface LayerPanelControllerDependencies {
   finishStyleEditing(): void;
   finishProcessingEditing?(): void;
   setAttachedFilterEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): boolean;
-  prepareActiveLayerChange?(layerId: LayerId): void | Promise<void>;
+  prepareActiveLayerChange?(layerId: LayerId, isCurrent: () => boolean): void | Promise<void>;
   finishTextEditing?(): void;
 }
 
@@ -177,6 +177,8 @@ export interface LayerPanelController {
  * from acquiring a second, subtly different command implementation.
  */
 export interface LayerPanelMutationController extends LayerPanelController {
+  /** Guarded canvas selection uses the same terminal as an ordinary panel selection. */
+  selectIfCurrent(layerId: LayerId, isCurrent: () => boolean, onSelected: () => void): Promise<boolean>;
   createGradientFillLayer(): LayerId | null;
   createGroup(): LayerId | null;
   groupSelection(layerIds: LayerId[]): LayerId | null;
@@ -201,13 +203,15 @@ export const createLayerPanelController = (
     ));
   };
 
-  const select = async (layerId: LayerId) => {
+  const selectIfCurrent = async (layerId: LayerId, isCurrent: () => boolean, onSelected: () => void): Promise<boolean> => {
+    if (!isCurrent()) return false;
     const dependencies = resolveDependencies();
     const current = dependencies.getDocument();
     const layer = current ? findDocumentLayer(current, layerId) : null;
-    if (!current || !layer) return;
+    if (!current || !layer) return false;
 
-    await dependencies.prepareActiveLayerChange?.(layerId);
+    await dependencies.prepareActiveLayerChange?.(layerId, isCurrent);
+    if (!isCurrent()) return false;
 
     // The preparation step may asynchronously commit a renderer-owned
     // transform and publish a newer document revision. Resolve the target
@@ -216,12 +220,19 @@ export const createLayerPanelController = (
     const preparedLayer = preparedDocument
       ? findDocumentLayer(preparedDocument, layerId)
       : null;
-    if (!preparedDocument || !preparedLayer) return;
+    if (!preparedDocument || preparedDocument.id !== current.id || !preparedLayer) return false;
 
+    if (!isCurrent()) return false;
     dependencies.mutateDocument(
-      (document) => setActiveLayer(document, layerId),
+      (document) => isCurrent() && document.id === current.id ? setActiveLayer(document, layerId) : document,
       false
     );
+    const selectedDocument = resolveDependencies().getDocument();
+    if (!isCurrent() || selectedDocument?.id !== current.id || selectedDocument.activeLayerId !== layerId) return false;
+    // Publish admitted row selection before yielding back to React's active-layer reconciliation.
+    // This callback never runs for rejected admission and owns no document/history mutation.
+    onSelected();
+    if (!isCurrent()) return false;
     const panelAdjustments = (
       preparedLayer.type === 'adjustment'
       || (preparedLayer.type === 'raster' && preparedLayer.adjustmentStack)
@@ -230,7 +241,9 @@ export const createLayerPanelController = (
       ? materializeBasicAdjustments(preparedLayer.adjustmentStack!, undefined, undefined, true)
       : createDefaultAdjustments();
     dependencies.publishPanelAdjustments(cloneAdjustments(panelAdjustments));
+    return true;
   };
+  const select = async (layerId: LayerId) => { await selectIfCurrent(layerId, () => true, () => undefined); };
 
   const usePixelChannel = (
     change: (current: ImageDocument) => ImageDocument
@@ -261,6 +274,7 @@ export const createLayerPanelController = (
 
   return {
     select,
+    selectIfCurrent,
     changeChannel: (channel) => resolveDependencies().setPaintTarget(channel),
     setVisibility: (layerIds, visible) => {
       soloVisibility = null;

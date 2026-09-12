@@ -1,5 +1,43 @@
 # Overlay ownership inventory
 
+## Remaining owner map (read-only inventory, not accepted implementation)
+
+- Native host/tab transitions: `activateWorkspaceDocument`, `closeWorkspaceDocument`,
+  `hostPresentationDeactivate`, `runAfterMountedDocumentAdmission`. Policy belongs
+  to scoped host/document intents over the existing transition coordinator, not a
+  new terminal queue. Blur preservation and tab close are different intents.
+- PDF preflight/export: four recipes and font/layout preparation belong to one
+  frozen-source preflight session; root keeps dialog visibility and delivery wiring.
+- GenAI reference handoff: export/import/preview needs exact request lifetime;
+  provider setup/jobs remain their existing owners. Pending-reference behavior
+  across document replacement still needs a demonstrated test before fixing.
+- Layer menu/effect intents and remaining command registration: extract coherent
+  domain families, not one replacement 400-line command bag. Keep semantic service
+  admission and existing mutation/history ownership.
+- Guides, text-to-shape entry, text telemetry and tool-settings shortcuts remain
+  mixed policy/presentation families. Existing algorithm owners must be reused.
+- Valid composition stays: named owner construction, direct UI adapters, view-only
+  visibility/layout state and provider job projection are not extraction targets.
+
+### O09 — WebGpuEngine follow-up map (not started)
+
+At this inventory the engine has 3,983 physical lines. It is not resolved by the
+Overlay work. Source anchors are approximate; locate the named operations before editing.
+
+| Family | Ownership boundary | Main risk / required evidence |
+| --- | --- | --- |
+| Export/readback (3466–3840), asset adapters (1805–1917) | Temporary targets, lazy readback pipelines and scoped sequencing; borrow existing compositors | Mutable fields across awaits, borrowed scratch ownership; fresh final-output pixels, not cached previews |
+| Viewport diagnostics (2356–2475,2706–2742,3147–3290) | Before/difference, mask/channel/Point Color/depth display encoding | Preserve diagnostic precedence and borrowed texture lifetime; exact viewport comparisons |
+| Selection submissions (1379–1725) | Existing single submission queue, source guards, projection disposal and paint leases | Do not add another queue; selection/transform/surface ordering and cancellation remain one boundary |
+| Resource attachment (587–871,2081–2282,3936–3982) | Derived target allocation separately from document attachment/teardown | Resize is not close; authored repositories are not disposable projection caches |
+| Frame processing (2852–3397), helpers (2743–2849,3424–3464) | Stage encoding separately from frame completion | Preserve dirty domains, text readiness, scopes and presentation truth; GPU submission is not final presentation |
+
+Proposed order after the O08 preview/readiness contract is explicit: readback,
+diagnostics, selection submission, derived allocation/attachment, frame processing
+last. Do not start engine extraction simultaneously with Overlay ownership changes.
+Existing packaged scope, selection, finalization-PNG, pixel-retention and device-loss
+gates are reusable evidence, not blanket approval for these future changes.
+
 O06e accepted: stable mounted automation gesture binding captures exact pointer,
 session/renderer and original domain controllers; translation uses canonical
 mutations and existing parent-space projection. Root6,182 audit lines.51 focused
@@ -353,3 +391,106 @@ broader packaged baseline matrix and per-ref/effect relocation tracking as each
 domain is opened. Do not label the entire inventory accepted from one scenario.
 O02a's exact scope is already mapped and can be verified independently; no
 unchecked wider responsibility is being cut over by that extraction.
+
+## O07 follow-up: GenAI document-reference handoff (read-only, 2026-09-12)
+
+This subsection records source-backed remaining ownership, not a completed slice.
+No provider generation or paid job was triggered; the races below have not yet
+been reproduced in a packaged application. Symbol anchors are preferred over
+line numbers because the Overlay is being reduced in adjacent accepted slices.
+
+### Existing owners and live entry points
+
+- `LightTableEditorOverlay.tsx`: `genAiDocumentContext`,
+  `importGenAiReferenceFile`, `importGenAiDocumentReference`,
+  `pendingTabReference`, `genAiBaseImageScopeRef` and
+  `genAiBaseImageImportPendingRef` own cross-system document/reference handoff.
+  Live consumers are the workspace-tab **Add as reference** action, GenAI
+  `onImportDocumentReference` drag/drop, local reference import and automatic
+  image-edit base-image preparation.
+- `application/commands/lightTableCommandPortRegistry.ts::exportPngArtifact`
+  resolves the existing document export port. Its mounted native bitmap route
+  is `editor/hooks/useDocumentFileCommands.ts::exportBitmapArtifact`, which
+  retains a renderer binding and preserves the supported document bit depth.
+  Keep this export implementation; do not introduce a separate GenAI readback.
+- `src/genai/application/useGenAiSetupController.ts::importAssetReference`
+  owns asset import plus publication into assets/workflow references;
+  `addAssetReference`, `removeAssetReference` and `requestAssetPreview` retain
+  prompt/reference and preview policy. `contextOwner` currently tracks service
+  and project, not the selected workflow or editor document.
+- `src/genai/application/useGenAiJobsController.ts` remains the projection of
+  the durable project job journal. Providers, submission, polling and durable
+  asset storage remain host-owned, outside the editor and frame loop.
+
+### Code-evident lifetime routes; packaged reproduction pending
+
+1. **Old callback can cross project authority.**
+   `importGenAiDocumentReference` awaits export, then calls its captured
+   `importGenAiReferenceFile` callback. That callback retains the old Setup
+   `importAssetReference` closure (project/workflow A). Inside that old closure,
+   `contextOwner.current.generation` is read only at invocation. If project B
+   became current during export, the old callback can capture B's generation,
+   import into its closed-over project A, then pass the generation check and
+   publish the asset/reference into B's current Setup state. A check only after
+   `importAssetReference` resolves cannot repair this: Setup publishes internally.
+2. **Workflow replacement is not guarded by project generation.** A pending
+   import can run `assignWorkflowReferences(oldWorkflow, currentValues, ...)`
+   after a same-project workflow change. Project/service generation remains
+   unchanged. Publication ownership must be checked inside deferred functional
+   React updaters as well as before scheduling them.
+3. **Auto-import can miss its successor wake-up.** The one pending boolean
+   spans document changes. B's effect can return while A remains pending;
+   A's `finally` clears only a ref, which does not itself re-run B's effect.
+   The automatic export chain also lacks a catch for export rejection.
+4. **Delivery provenance can retain an old revision.** `genAiDocumentContext`
+   reads `DocumentSession.documentRevision` inside a memo whose dependencies
+   do not include that stamp. Document-wide processing and pixel-only history
+   publications can therefore leave the context revision stale.
+   `useGenAiSetupController::generate` forwards that context through
+   `genAiDocumentDefaults.ts::genAiEditorDeliveryTarget`. This establishes a
+   provenance discrepancy, not a demonstrated visible placement failure:
+   `deliverGeneratedResult` currently gates project/document, not source revision.
+
+### Smallest complete next boundary (proposal, not implementation)
+
+A bounded document-reference handoff owner should own the exact pending request,
+base-image association and readiness/retirement of document export -> reference
+attachment. Suggested intents: `requestDocumentReference(documentId)`,
+`requestTabReference(targetSession)`, `setBaseImageSelected(selected)`,
+`synchronize(context)` and `retire()`, with a small UI snapshot/subscription.
+It must capture both the exact document export source and a Setup-owned import
+target before awaiting, explicitly wake a valid successor request, and report
+only failures belonging to the current request. Estimated Overlay reduction:
+85-130 lines, excluding a small necessary repair inside the existing Setup owner.
+
+The Setup owner needs an explicit captured reference-import lease, for example
+`captureReferenceImportTarget()` returning `isCurrent()` and
+`importFile(file, sourceIsCurrent)`. The lease owns exact service/project/workflow
+identity; the caller supplies the additional document-request currentness.
+Local-file and document-file reference imports must share its publication route.
+Do not merely add an after-import guard in Overlay. Durable imported assets may
+remain in their original project library after attachment is retired; no automatic
+asset deletion or second asset repository is implied. A request-time canonical
+document getter can supply truthful delivery provenance without tying workflow
+defaults or panel rendering to every canonical revision.
+
+Required focused proofs: deferred export across projects; same-project workflow
+replacement during import; base-image disable/document retirement before
+attachment; pending A -> valid B wake-up; current versus retired errors; truthful
+processing/pixel-only revision at Generate; unchanged native export bit depth and
+local-file/tab/drop entry behavior. No paid call is required for these tests.
+
+### Remove Object is a separate submission-authority slice
+
+`LightTableEditorOverlay::removeSelectedObject` and
+`src/genai/application/removeObjectCommand.ts::executeRemoveObject` retain a
+renderer object, then await provider discovery before reading base pixels and
+selection mask. The runtime can rebind in that interval, and the command carries
+no exact session/document/selection guard before export, import or submission.
+Its submission also omits `editorDelivery`; automatic
+`src/genai/application/deliverGeneratedResult.ts::deliverGeneratedResult` explicitly
+rejects jobs without that provenance. These are source-evident gaps, not packaged
+or paid-provider proof. Repair later through existing export/selection owners and
+a captured submission/delivery target; do not absorb provider discovery, jobs or
+paid submission into the reference handoff owner. No such repair is authorized
+or implemented by this inventory subsection.

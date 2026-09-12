@@ -272,8 +272,7 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { SelectionShapeCommandService } from './application/tools/selection/SelectionShapeCommandService';
 import { DocumentSelectionStateStore } from './application/tools/selection/DocumentSelectionStateStore';
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
-import { pickCurrentTransformLayer } from './application/tools/transform/transformLayerPicker';
-import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
+import { useTransformCanvasPickIntent } from './composition/transforms/useTransformCanvasPickIntent';
 import { useTransformPresentation } from './composition/transforms/useTransformPresentation';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { useSelectionHostBinding } from './composition/selection/useSelectionHostBinding';
@@ -721,7 +720,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
   const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
-  const transformPickRevisionRef = useRef(0);
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
   const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
@@ -883,7 +881,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
-    parameters: unknown
+    parameters: unknown,
+    reportError: ((message: string) => void) | null = setError
   ) => {
     const requestId = `ui-${workspaceDocumentId}-${++commandRequestSequenceRef.current}`;
     const execution = commandService.execute({
@@ -894,9 +893,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       parameters
     });
     void execution.then((result) => {
-      if (result.status === 'rejected') setError(result.message);
+      if (result.status === 'rejected') reportError?.(result.message);
     }).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'The command could not be completed.');
+      reportError?.(reason instanceof Error ? reason.message : 'The command could not be completed.');
     });
     return execution;
   }, [commandService, workspaceDocumentId]);
@@ -2689,7 +2688,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectSimilarColors = () => {
     runAfterMountedDocumentAdmission(() => {
       const document = imageDocumentRef.current;
-      if (!document?.activeLayerId || !editorSessionRef.current.selection.length) return;
+      if (!document?.activeLayerId) return;
+      try {
+        if (!selectionHost.hasActiveSelection()) return;
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'The current selection is unavailable.');
+        return;
+      }
       const magicWand = editorSessionRef.current.magicWand;
       const parameters = {
         kind: 'modify' as const,
@@ -2785,7 +2790,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeTool: editorSession.activeTool,
       preferredTools: persistentToolActivationRef.current.preferredTools,
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
-      hasSelection: editorSession.selection.length > 0,
+      hasSelection: editorSession.selectionMaskSnapshot?.active === true,
       hasSelectionClipboard: selectionClipboardAvailable,
       transforming: transformActiveRef.current() || transformSession.ownsTemporaryMove(),
       editingBlocked: historySnapshot.busy
@@ -2977,7 +2982,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           isActive: () => Boolean(selectionSessionController.draft), cancel: () => selectionSessionController.reset()
         },
         cancelPenPath: () => cancelPenPathRef.current(),
-        selection: { isActive: () => editorSession.selection.length > 0, cancel: clearCurrentSelection }
+        selection: { isActive: selectionHost.hasAvailableActiveSelection, cancel: clearCurrentSelection }
       })
     },
     temporaryPanActive: () => temporaryTool.controller.activeTool === 'view',
@@ -3124,11 +3129,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   });
 
+  const transformCanvasPick = useTransformCanvasPickIntent({
+    session: documentSession, renderer: engineRef.current, lifecycle: rendererLifecycle,
+    generation: rendererSnapshot.generation,
+    ready: rendererSnapshot.status === 'ready' && workspaceDocumentKind === 'image'
+      && imageDocument?.id === documentSession?.getSnapshot().document?.id
+  }, {
+    read: () => ({ document: imageDocumentRef.current, selectedLayerIds: selectedLayerIdsRef.current,
+      autoSelect: readEditorSession().transformAutoSelectLayer, historyBusy: commandHistory.getSnapshot().busy,
+      tool: readEditorSession().activeTool }),
+    commitTransform: () => commitTransformPendingRef.current(),
+    publishSelection: layerIds => {
+      selectedLayerIdsRef.current = [...layerIds]; setSelectedLayerIds([...layerIds]);
+    },
+    selectLayer: (layerId, isCurrent, onSelected) => layerPanelController.selectIfCurrent(layerId, isCurrent, onSelected),
+    activateTransform: () => setTransformActivationRevision(current => current + 1),
+    reportError: setError
+  }, captureMountedInteractionScope);
   const replaceLayerSelection = useCallback((layerId: LayerId) => {
-    transformPickRevisionRef.current += 1;
+    transformCanvasPick.cancel();
     selectedLayerIdsRef.current = [layerId];
     setSelectedLayerIds([layerId]);
-  }, []);
+  }, [transformCanvasPick]);
 
   const vectorCommitPublisher = useMemo(() => new VectorCommitPublisher({
     documentId: workspaceDocumentId as DocumentSessionId,
@@ -3261,39 +3283,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reportFailure: setError
   });
 
-  const pickTransformAtPoint = (point: { x: number; y: number }, extend = false) => {
-    if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
-    const renderer = engineRef.current;
-    if (!renderer) return;
-    const revision = ++transformPickRevisionRef.current;
-    void pickCurrentTransformLayer({
-      initialDocument: imageDocument,
-      point,
-      picker: renderer,
-      isCurrent: () => revision === transformPickRevisionRef.current,
-      getCurrentDocument: () => imageDocumentRef.current
-    }).then(async (pick) => {
-      if (!pick) return;
-      // The hit was resolved against the current transform preview. Retire
-      // that preview before deriving the next layer selection so both the
-      // document and the picker agree about which revision is active.
-      await commitTransformPendingRef.current();
-      const currentDocument = imageDocumentRef.current;
-      if (!currentDocument) return;
-      const next = resolveTransformCanvasLayerSelection(
-        selectedLayerIdsRef.current,
-        currentDocument.activeLayerId,
-        pick.layerId,
-        extend
-      );
-      selectedLayerIdsRef.current = [...next.selectedLayerIds];
-      setSelectedLayerIds([...next.selectedLayerIds]);
-      await selectLayerRef.current(next.activeLayerId);
-      setTransformActivationRevision((current) => current + 1);
-    }).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');
-    });
-  };
+  const pickTransformAtPoint = transformCanvasPick.request;
 
   const viewportInteraction = useViewportInteractionController({
     metadata,
@@ -3485,10 +3475,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     // A layer-panel selection made after an asynchronous canvas hit supersedes
     // that hit and must never be overwritten when its GPU readback resolves.
-    transformPickRevisionRef.current += 1;
+    transformCanvasPick.cancel();
     selectedLayerIdsRef.current = layerIds;
     setSelectedLayerIds(layerIds);
-  }, []);
+  }, [transformCanvasPick]);
 
   const clipboardCommands = useClipboardCommands({
     getSession: () => mountedDocumentSessionRef.current,
@@ -3584,17 +3574,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     });
   }, [documentMutationController, executeRegisteredCommand, openLayerStyleEditor]);
-  const layerMaskCommandBridge = useMemo(() => createLayerMaskCommandBridge(() => ({
-    getDocument: () => imageDocumentRef.current,
-    hasSelection: () => editorSessionRef.current.selection.length > 0,
-    execute: (parameters) => executeRegisteredCommand('layer.setMask', parameters),
-    setPaintTarget: (activeChannel, brushColor) => setEditorSession((current) => ({
-      ...current,
-      activeChannel,
-      brush: brushColor ? { ...current.brush, color: brushColor } : current.brush
-    })),
-    setError
-  })), [executeRegisteredCommand]);
+  const layerMaskCommandBridge = useMemo(() => createLayerMaskCommandBridge(() => {
+    const scope = captureMountedInteractionScope();
+    const session = documentSession;
+    return {
+      isCurrent: () => Boolean(session && mountedDocumentSessionRef.current === session
+        && session.getSnapshot().lifecycle === 'ready' && scope.isCurrent()
+        && imageDocumentRef.current?.id === session.getSnapshot().document?.id),
+      getDocument: () => imageDocumentRef.current,
+      hasSelection: selectionHost.hasActiveSelection,
+      execute: (parameters) => executeRegisteredCommand('layer.setMask', parameters, null),
+      setPaintTarget: (activeChannel, brushColor) => setEditorSession((current) => ({
+        ...current,
+        activeChannel,
+        brush: brushColor ? { ...current.brush, color: brushColor } : current.brush
+      })),
+      setError
+    };
+  }), [executeRegisteredCommand, selectionHost, documentSession, captureMountedInteractionScope]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
@@ -3687,11 +3684,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       endAdjustmentTransaction();
       commitLayerDocumentTransaction();
     },
-    prepareActiveLayerChange: async (layerId) => {
+    prepareActiveLayerChange: async (layerId, isCurrent) => {
       // Finish the active document transaction before changing its target.
       // The transform tool owns only a disposable preview; committing after
       // setActiveLayer() would make that preview race a newer document revision.
       if (transformActiveRef.current()) await commitTransformPendingRef.current();
+      if (!isCurrent()) return;
       if (textEditingController.getSnapshot().layerId !== layerId) {
         textEditingController.finish();
       }
@@ -4627,7 +4625,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         imageDocument?.photoshopImportReport || fontDiagnostics.length > 0
       ),
       copiedGradeName: copiedGrade?.name ?? null,
-      hasSelection: editorSession.selection.length > 0,
+      hasSelection: editorSession.selectionMaskSnapshot?.active === true,
       selectionClipboardAvailable,
       activeChannel: editorSession.activeChannel,
       autoAlignPreview: Boolean(autoAlignPreview),

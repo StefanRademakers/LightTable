@@ -39,10 +39,12 @@ it.each(['paint-only', 'fully-clipped', 'inactive'] as const)(
       { updateEditor: vi.fn(), draft: vi.fn(), snapFeedback: vi.fn() });
     const cleanup = hooks.setup!();
     expect(session.getSnapshot().editor.selection).toEqual([]);
+    expect(binding.hasAvailableActiveSelection()).toBe(kind !== 'inactive');
     expect(resolveDeleteTarget({ activeTool: 'brush', hasVectorSelection: false,
       hasPixelSelection: binding.hasActiveSelection(), hasActiveLayer: true }))
       .toBe(kind === 'inactive' ? 'layers' : 'pixel-selection');
     cleanup();
+    expect(binding.hasAvailableActiveSelection()).toBe(false);
     expect(() => binding.hasActiveSelection()).toThrow('selection is unavailable');
     session.dispose();
   });

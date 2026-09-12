@@ -9,6 +9,8 @@ type MaskCommandParameters =
   | { readonly layerId: LayerId; readonly operation: 'set-linked'; readonly linked: boolean };
 
 interface LayerMaskCommandBridgeDependencies {
+  /** Captured for this intent; exact session/renderer lifetime, not document ID. */
+  isCurrent(): boolean;
   getDocument(): ImageDocument | null;
   hasSelection(): boolean;
   execute(parameters: MaskCommandParameters): Promise<LightTableCommandResult> | null;
@@ -27,73 +29,87 @@ export const createLayerMaskCommandBridge = (
   resolveDependencies: () => LayerMaskCommandBridgeDependencies
 ) => {
   const execute = (
-    parameters: MaskCommandParameters,
-    onCompleted?: (document: ImageDocument) => void
+    plan: (dependencies: LayerMaskCommandBridgeDependencies, document: ImageDocument) => {
+      parameters: MaskCommandParameters;
+      onCompleted?: (document: ImageDocument) => void;
+    } | null
   ) => {
     const dependencies = resolveDependencies();
+    if (!dependencies.isCurrent()) return;
     const admittedDocument = dependencies.getDocument();
     if (!admittedDocument) {
       dependencies.setError(unavailable);
       return;
     }
-    const execution = dependencies.execute(parameters);
+    let planned: ReturnType<typeof plan>;
+    let execution: Promise<LightTableCommandResult> | null;
+    try {
+      planned = plan(dependencies, admittedDocument);
+      if (!planned || !dependencies.isCurrent()) return;
+      execution = dependencies.execute(planned.parameters);
+    } catch (reason) {
+      if (dependencies.isCurrent()) dependencies.setError(
+        reason instanceof Error ? reason.message : 'The layer mask command failed.');
+      return;
+    }
     if (!execution) {
-      dependencies.setError(unavailable);
+      if (dependencies.isCurrent()) dependencies.setError(unavailable);
       return;
     }
     void execution.then((result) => {
+      if (!dependencies.isCurrent()) return;
+      if (result.status === 'rejected') {
+        dependencies.setError(result.message);
+        return;
+      }
       if (result.status !== 'completed') return;
-      const current = resolveDependencies().getDocument();
+      const current = dependencies.getDocument();
       if (!current || current.id !== admittedDocument.id) return;
-      onCompleted?.(current);
+      planned.onCompleted?.(current);
     }).catch((reason) => {
-      const current = resolveDependencies().getDocument();
-      if (current?.id !== admittedDocument.id) return;
-      resolveDependencies().setError(
+      if (!dependencies.isCurrent()) return;
+      dependencies.setError(
         reason instanceof Error ? reason.message : 'The layer mask command failed.'
       );
     });
   };
 
   return {
-    add: () => {
-      const dependencies = resolveDependencies();
-      const layerId = dependencies.getDocument()?.activeLayerId;
-      if (!layerId) return dependencies.setError(unavailable);
-      execute({
+    add: () => execute((dependencies, document) => {
+      const layerId = document.activeLayerId;
+      if (!layerId) { dependencies.setError(unavailable); return null; }
+      return { parameters: {
         layerId,
         operation: 'add',
         source: dependencies.hasSelection() ? 'selection' : 'reveal-all'
-      }, (document) => {
+      }, onCompleted: (document) => {
         if (document.activeLayerId === layerId && findDocumentLayer(document, layerId)?.mask) {
-          resolveDependencies().setPaintTarget('mask', '#000000');
+          dependencies.setPaintTarget('mask', '#000000');
         }
-      });
-    },
-    toggle: () => {
-      const document = resolveDependencies().getDocument();
-      const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-      if (!layer?.mask) return;
-      execute({
+      } };
+    }),
+    toggle: () => execute((_dependencies, document) => {
+      const layer = findDocumentLayer(document, document.activeLayerId);
+      if (!layer?.mask) return null;
+      return { parameters: {
         layerId: layer.id,
         operation: 'set-enabled',
         enabled: !layer.mask.enabled
-      });
-    },
+      } };
+    }),
     setLinked: (layerId: LayerId, linked: boolean) => {
-      execute({ layerId, operation: 'set-linked', linked });
+      execute(() => ({ parameters: { layerId, operation: 'set-linked', linked } }));
     },
-    remove: (requestedLayerId?: LayerId) => {
-      const document = resolveDependencies().getDocument();
-      const layerId = requestedLayerId ?? document?.activeLayerId;
-      if (!document || !layerId) return resolveDependencies().setError(unavailable);
+    remove: (requestedLayerId?: LayerId) => execute((dependencies, document) => {
+      const layerId = requestedLayerId ?? document.activeLayerId;
+      if (!layerId) { dependencies.setError(unavailable); return null; }
       const wasActive = document.activeLayerId === layerId;
-      execute({ layerId, operation: 'remove' }, (current) => {
+      return { parameters: { layerId, operation: 'remove' }, onCompleted: (current) => {
         if (wasActive && current.activeLayerId === layerId
           && !findDocumentLayer(current, layerId)?.mask) {
-          resolveDependencies().setPaintTarget('pixels');
+          dependencies.setPaintTarget('pixels');
         }
-      });
-    }
+      } };
+    })
   } as const;
 };

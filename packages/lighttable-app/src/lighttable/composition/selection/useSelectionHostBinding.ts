@@ -21,6 +21,11 @@ export const useSelectionHostBinding = (
     const isCurrent = () => lease.mounted && latest.current.session === session
       && session?.getSnapshot().lifecycle !== 'disposed' && scope.isCurrent();
     return { lease,
+      // Eligibility may be queried while opening/retiring. Mutating intents use
+      // the strict accessor below, never this availability predicate.
+      hasAvailableActiveSelection: () => isCurrent()
+        && Boolean(session?.getSnapshot().document)
+        && session?.getSnapshot().editor.selectionMaskSnapshot?.active === true,
       hasActiveSelection: () => {
         if (!isCurrent() || !session?.getSnapshot().document) {
           throw new Error('The current document selection is unavailable.');
