@@ -2,6 +2,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInteractionTransitionCoordinator } from './InteractionTransitionCoordinator';
 
 describe('InteractionTransitionCoordinator', () => {
+  it('passes one scoped guard through sequential participants, rejecting retirement before the second', async () => {
+    let current = true, release!: () => void;
+    const selection = new Promise<void>(resolve => { release = resolve; });
+    const transform = vi.fn(), reportFailure = vi.fn();
+    const coordinator = createInteractionTransitionCoordinator({
+      settleMountedInteraction: async isCurrent => {
+        await selection;
+        if (!isCurrent()) return;
+        transform();
+      }, reportFailure
+    });
+    const pending = coordinator.request('commit-before-mutation', { isCurrent: () => current });
+    await Promise.resolve(); current = false; release();
+    expect((await pending).status).toBe('rejected');
+    expect(transform).not.toHaveBeenCalled(); expect(reportFailure).not.toHaveBeenCalled();
+  });
   it('preserves mounted interactions across host presentation loss', async () => {
     const settle = vi.fn(async () => undefined);
     const coordinator = createInteractionTransitionCoordinator({

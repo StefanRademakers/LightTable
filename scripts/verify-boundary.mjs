@@ -715,10 +715,22 @@ function verifyAdjustmentCutover(relativePath, source) {
       || !source.includes("'commit-before-mutation'")
       || !source.includes('retireParticipants();')
       || !source.includes('generation += 1;')
-      || !source.includes('await dependencies.settleMountedInteraction()')
-      || !source.includes('requestedGeneration !== generation')
+      || !source.includes('await dependencies.settleMountedInteraction(isCurrent)')
+      || !source.includes('requestedGeneration === generation')
+      || !source.includes('scope.isCurrent()')
+      || (source.match(/!isCurrent\(\)/g)?.length ?? 0) < 3
       || !source.includes('dependencies.reportFailure(reason)')) {
       failures.push(`${relativePath}: mounted-document transitions must preserve host blur, settle before mutation, invalidate retired work and expose failures`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/interactions/MountedDocumentAdmission.ts')) {
+    if (!source.includes("this.ports.transitions.request('commit-before-mutation', scope)")
+      || !source.includes('this.ports.getSession() === session')
+      || !source.includes('this.ports.getRenderer() === renderer')
+      || !source.includes('getImageDocument')
+      || !source.includes('scope.isCurrent()')
+      || source.includes('let queue') || source.includes('documentRevision ===')) {
+      failures.push(`${relativePath}: mounted admission must bind the exact ready source through the existing transition queue without a second queue or revision freeze`);
     }
   }
   if (normalizedPath.endsWith('/application/adjustments/commitColorLookupAssetTransaction.ts')) {
@@ -827,7 +839,7 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('createResizePlan(') || source.includes('createDocumentGeometryPlan(')) {
       failures.push(`${relativePath}: document-wide geometry policy belongs only to DocumentSurfaceCommandService`);
     }
-    const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(\)/g)?.length ?? 0;
+    const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(/g)?.length ?? 0;
     if (!source.includes('useTransformPresentation(')
       || source.includes('buildTransformEditingFrame(')
       || source.includes('buildSmartGuideEditingFrame(')
@@ -837,7 +849,10 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       failures.push(`${relativePath}: transform cage and shared smart-guide presentation belong to the renderer-scoped presentation binding`);
     }
     if (directPixelSettlements !== 1
-      || !source.includes("interactionTransitions.request('commit-before-mutation')")
+      || !source.includes('new MountedDocumentAdmission(')
+      || !source.includes('mountedDocumentAdmission.runAfter')
+      || !source.includes('settlePixelInteractionRef.current(isCurrent)')
+      || source.includes("interactionTransitions.request('commit-before-mutation'")
       || !source.includes('interactionTransitions.retire(')
       || !source.includes('selectionSessionController.retire();')
       || source.includes('cancelPixelInteractionRef')

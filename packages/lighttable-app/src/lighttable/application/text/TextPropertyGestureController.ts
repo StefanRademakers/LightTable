@@ -1,7 +1,7 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
-import type { DocumentMutationController } from '../documents/useDocumentMutationController';
+import type { DocumentMutationController, DocumentMutationCloseReason } from '../documents/useDocumentMutationController';
 import type { DocumentSessionId } from '../documents/documentSession';
 import { DocumentTextPropertyGestureController } from './DocumentTextPropertyGestureController';
 import type { FlowTextEditingSessionController } from './flowTextEditingSession';
@@ -31,6 +31,7 @@ type Gesture =
       readonly documentId: ImageDocument['id'];
       readonly layerId: LayerId;
       readonly projection: DocumentTextPropertyGestureController;
+      readonly terminal: { reason: DocumentMutationCloseReason | null };
       style: TextStylePatch;
       paragraph: ParagraphStylePatch;
       recordable: boolean;
@@ -83,11 +84,13 @@ export class TextPropertyGestureController {
       };
       return true;
     }
-    const transaction = dependencies.documentMutations.begin('text-properties');
+    const terminal = { reason: null as DocumentMutationCloseReason | null };
+    const transaction = dependencies.documentMutations.begin('text-properties', undefined,
+      reason => { terminal.reason = reason; });
     if (!transaction) return false;
     this.gesture = {
       kind: 'document', commandDocumentId: dependencies.getCommandDocumentId(),
-      documentId: document.id, layerId,
+      documentId: document.id, layerId, terminal,
       projection: new DocumentTextPropertyGestureController(transaction, {
         request: dependencies.requestFrame,
         cancel: dependencies.cancelFrame,
@@ -187,8 +190,13 @@ export class TextPropertyGestureController {
   }
 
   finishBeforeTransition(transition: () => void) {
-    const gestureKind = this.gesture?.kind ?? null;
-    if (gestureKind && !this.commit() && gestureKind === 'text') return false;
+    const gesture = this.gesture;
+    if (gesture) {
+      const changed = this.commit();
+      // A no-op commit is a valid terminal; false alone also represents stale,
+      // canceled or rejected document work and must not admit the next tab.
+      if (gesture.kind === 'document' ? gesture.terminal.reason !== 'commit' : !changed) return false;
+    }
     const editing = this.dependencies().textEditing;
     const snapshot = editing.getSnapshot();
     if (snapshot.status === 'editing' && !editing.finish()) return false;

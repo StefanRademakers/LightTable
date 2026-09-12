@@ -15,6 +15,46 @@ const idleEditing = () => ({
 }) as unknown as FlowTextEditingSessionController;
 
 describe('TextPropertyGestureController', () => {
+  it.each(['noop', 'changed', 'blocked', 'stale', 'canceled', 'failed'] as const)(
+    'admits a workspace transition only after an accepted document terminal: %s', (mode) => {
+      let document = createTextLayer(createImageDocument('Text', 320, 200, 'background'),
+        createDefaultTextLayerData(), 'Headline');
+      let blocked = false;
+      const failure = new Error('History admission failed');
+      const history = vi.fn(() => { if (mode === 'failed') throw failure; });
+      const record = vi.fn();
+      const mutations = createDocumentMutationController(() => ({
+        getDocument: () => document,
+        applySnapshot: next => { document = next; },
+        previewSnapshot: vi.fn(), discardPreview: vi.fn(),
+        pushHistoryEntry: history, isMutationBlocked: () => blocked
+      }));
+      const controller = new TextPropertyGestureController(() => ({
+        getDocument: () => document, getCommandDocumentId: () => 'source' as DocumentSessionId,
+        documentMutations: mutations, textEditing: idleEditing(), recordObservedCommand: record,
+        reportError: vi.fn(), requestFrame: () => 1, cancelFrame: vi.fn()
+      }));
+      expect(controller.begin(document.activeLayerId)).toBe(true);
+      if (mode !== 'noop') controller.queuePaint({ fontSize: 48 });
+      // Flush before rejection to prove an authored (not merely untouched) gesture.
+      controller.flushPaint();
+      if (mode === 'blocked') blocked = true;
+      if (mode === 'stale') document = { ...document, revision: document.revision + 1 };
+      if (mode === 'canceled') mutations.cancelActive();
+      const transition = vi.fn();
+      if (mode === 'failed') {
+        expect(() => controller.finishBeforeTransition(transition)).toThrow(failure);
+        expect(transition).not.toHaveBeenCalled();
+        expect(record).not.toHaveBeenCalled();
+        return;
+      }
+      const accepted = mode === 'noop' || mode === 'changed';
+      expect(controller.finishBeforeTransition(transition)).toBe(accepted);
+      expect(transition).toHaveBeenCalledTimes(accepted ? 1 : 0);
+      expect(history).toHaveBeenCalledTimes(mode === 'changed' ? 1 : 0);
+      expect(record).toHaveBeenCalledTimes(mode === 'changed' ? 1 : 0);
+    });
+
   it('coalesces document paint samples and records one terminal semantic command', () => {
     let document: ImageDocument = createTextLayer(
       createImageDocument('Text', 320, 200, 'background'),

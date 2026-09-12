@@ -1,5 +1,36 @@
 # Task 416 progress
 
+## O02d — Scoped mounted admission and text terminal truth (accepted)
+
+- MountedDocumentAdmission binds the concrete ready session, renderer/lifecycle
+  and matching canonical/projected image identity. It reuses the existing
+  InteractionTransitionCoordinator queue; queued requests check scope before
+  settlement, between awaited participants and before successor work. No
+  canonical-revision freeze: the admitted terminal may legitimately commit.
+- Current unavailable UI intents report visibly; retired callbacks do not
+  publish errors into successor documents. Strict prerequisites still reject.
+- TextPropertyGestureController now uses its exact document transaction's
+  onClose reason for transition permission. Genuine no-op commits are accepted;
+  blocked/stale/canceled/failed transactions do not admit a tab transition.
+  Existing changed boolean still controls Actions observation. Editing-text
+  semantics are unchanged; thrown failures remain visible.
+- Final interaction/adjustment/text gates pass 99 tests/8 suites; typecheck,
+  boundary/source/docs audit and final packaged build pass. Text source critic and packaged
+  run-CupUvS under tmp/text-property-transition-smoke PASS: actual Properties
+  size32->48 then tab switch gives one history entry, no-op focus/tab allowed,
+  successor pixels unchanged, exact full-PNG Undo/Redo. Screenshot inspected.
+  Final package also passes text run-oZJH2i and file-intents/run-HauzdA (pending
+  transform Save and immediate cold Type/Save with exact saved output).
+- Final critic required registration-time identity in addition to request-time
+  identity. A retained semantic callback now pins its original session, renderer
+  and scope; it cannot adopt a same-ID successor. Grade, UI and semantic
+  settlement share the owner. Boundary checks prohibit the old root mutation
+  admission bypass. Host blur remains preserve, not an implicit commit.
+- Root remains 5,873 physical lines: this slice removes admission policy but
+  adds explicit wiring, not a claimed file-size reduction. Strict rejection is
+  intentionally thrown; broader caller-owned stale error reporting and unrelated
+  command handler lifetimes remain outside this bounded acceptance.
+
 ## O07c — GenAI reference handoff (accepted)
 
 - Existing GenAI Setup remains the provider/workflow owner. Reference imports

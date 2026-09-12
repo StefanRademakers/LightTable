@@ -7,12 +7,12 @@ export type InteractionTransitionAdmission =
   | { readonly status: 'rejected'; readonly reason: string };
 
 export interface InteractionTransitionDependencies {
-  readonly settleMountedInteraction: () => Promise<void>;
+  readonly settleMountedInteraction: (isCurrent: () => boolean) => Promise<void>;
   readonly reportFailure: (message: string) => void;
 }
 
 export interface InteractionTransitionCoordinator {
-  request(policy: InteractionTransitionPolicy): Promise<InteractionTransitionAdmission>;
+  request(policy: InteractionTransitionPolicy, scope?: { isCurrent(): boolean }): Promise<InteractionTransitionAdmission>;
   retire(retireParticipants: () => void): void;
 }
 
@@ -39,21 +39,23 @@ export const createInteractionTransitionCoordinator = (
       generation += 1;
       retireParticipants();
     },
-    request: (policy) => {
+    request: (policy, scope) => {
       if (policy === 'preserve') return Promise.resolve(admitted());
 
       const requestedGeneration = generation;
+      const isCurrent = () => requestedGeneration === generation && (!scope || scope.isCurrent());
       const admission = queue.then(async () => {
-        if (requestedGeneration !== generation) {
+        if (!isCurrent()) {
           return rejected('The document interaction was retired before mutation admission.');
         }
         try {
-          await dependencies.settleMountedInteraction();
-          if (requestedGeneration !== generation) {
+          await dependencies.settleMountedInteraction(isCurrent);
+          if (!isCurrent()) {
             return rejected('The document interaction was retired during mutation admission.');
           }
           return admitted();
         } catch (cause) {
+          if (!isCurrent()) return rejected('The document interaction was retired during mutation admission.');
           const detail = cause instanceof Error ? cause.message : String(cause);
           const reason = `Could not finish the active document interaction: ${detail}`;
           dependencies.reportFailure(reason);

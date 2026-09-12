@@ -38,6 +38,7 @@ import { documentPresentationAvailability } from './composition/documents/docume
 import { useEditorHostPresentationActivity } from './composition/rendering/useEditorHostPresentationActivity';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { createInteractionTransitionCoordinator } from './application/interactions/InteractionTransitionCoordinator';
+import { MountedDocumentAdmission } from './application/interactions/MountedDocumentAdmission';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { DocumentLoadedSourceBinding } from './application/documents/DocumentLoadedSourceBinding';
@@ -681,7 +682,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
   const commitTransformPendingRef = useRef<() => Promise<void>>(async () => undefined);
-  const settlePixelInteractionRef = useRef<() => Promise<void>>(async () => undefined);
+  const settlePixelInteractionRef = useRef<(isCurrent: () => boolean) => Promise<void>>(async () => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
@@ -801,7 +802,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   >(null);
   if (!interactionTransitionCoordinatorRef.current) {
     interactionTransitionCoordinatorRef.current = createInteractionTransitionCoordinator({
-      settleMountedInteraction: () => settlePixelInteractionRef.current(),
+      settleMountedInteraction: isCurrent => settlePixelInteractionRef.current(isCurrent),
       reportFailure: (message) => reportInteractionTransitionFailureRef.current(message)
     });
   }
@@ -814,17 +815,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => currentRendererLifecycleRef.current.getSnapshot().generation
   }), []);
-  const settleMountedDocumentInteraction = async () => {
-    const admission = await interactionTransitions.request('commit-before-mutation');
-    if (admission.status === 'rejected') throw new Error(admission.reason);
-  };
-  const runAfterMountedDocumentAdmission = (
-    action: () => void
-  ) => {
-    void interactionTransitions.request('commit-before-mutation').then((admission) => {
-      if (admission.status === 'admitted') action();
-    });
-  };
+  const mountedDocumentAdmission = useMemo(() => new MountedDocumentAdmission({
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getImageDocument: () => imageDocumentRef.current,
+    captureScope: captureMountedInteractionScope, transitions: interactionTransitions,
+    reportFailure: message => reportInteractionTransitionFailureRef.current(message)
+  }), [captureMountedInteractionScope, interactionTransitions]);
+  const settleMountedDocumentInteraction = mountedDocumentAdmission.settle;
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
@@ -1967,7 +1964,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endAdjustment: endAdjustmentTransaction, cancelAdjustment: cancelAdjustmentTransaction,
     changeAdjustments } = useAdjustmentGestures(documentSession ?? workspaceDocumentId, {
     controller: adjustmentTransactionController,
-    requestAdmission: () => interactionTransitions.request('commit-before-mutation'),
+    requestAdmission: mountedDocumentAdmission.request,
     captureScope: captureMountedInteractionScope,
     getTargetIdentity: () => readAdjustmentContext()?.identity ?? null,
     reportFailure: error => setError(error instanceof Error ? error.message : String(error))
@@ -2577,28 +2574,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [hostPresentationActive]);
 
   const selectAllContent = () => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'all'
       });
     });
   };
   const clearCurrentSelection = () => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'clear'
       });
     });
   };
   const invertCurrentSelection = () => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'invert'
       });
     });
   };
   const selectSimilarColors = () => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       const document = imageDocumentRef.current;
       if (!document?.activeLayerId) return;
       try {
@@ -2620,7 +2617,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
   const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       void executeRegisteredCommand('selection.modify', {
         kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
       });
@@ -2631,7 +2628,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     amount: number,
     applyAtCanvasBounds: boolean
   ) => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       const parameters = operation === 'border'
         ? { kind: 'modify' as const, operation, width: amount }
         : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
@@ -2930,7 +2927,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const fillActiveTarget = fillCommandController.fill;
   fillActiveTargetRef.current = (color, preserveTransparency) => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       fillActiveTarget(color, preserveTransparency);
     });
   };
@@ -3701,7 +3698,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (target === 'pixel-selection') {
-      runAfterMountedDocumentAdmission(() => {
+      mountedDocumentAdmission.runAfter(() => {
         fillCommandController.clearSelection();
       });
       return;
@@ -3737,6 +3734,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (documentSession
       && imageDocument?.id !== documentSession.getSnapshot().document?.id) return;
     const registeredRenderer = engineRef.current;
+    const settleRegisteredInteraction = mountedDocumentAdmission.bindOwner(
+      documentSession, registeredRenderer, captureMountedInteractionScope()
+    );
     const { waitForPresentation, ...layerFinalizationCommands } = createLayerFinalizationCommandBinding({
       captureScope: () => captureLayerFinalizationScope(documentSession, registeredRenderer, {
         getCurrentSession: () => mountedDocumentSessionRef.current,
@@ -3759,8 +3759,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           await documentFileIntents.prepareForCommand(documentSession);
           return;
         }
-        const admission = await interactionTransitions.request('commit-before-mutation');
-        if (admission.status === 'rejected') throw new Error(admission.reason);
+        await settleRegisteredInteraction();
       },
       supportsCommand: isMountedDocumentCommand,
       resizeImage: commitImageSize,
@@ -4275,8 +4274,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [setView, setZoomMode]);
   commitTransformRef.current = transformSession.commit;
   commitTransformPendingRef.current = transformSession.commitPending;
-  settlePixelInteractionRef.current = async () => {
+  settlePixelInteractionRef.current = async isCurrent => {
     await selectionSessionController.settle();
+    if (!isCurrent()) return;
     await transformSession.commitPending();
   };
   const resetMountedTransform = transformSession.reset;
@@ -4346,7 +4346,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   activateToolRef.current = activatePersistentTool;
 
   const invertActiveLayerColors = () => {
-    runAfterMountedDocumentAdmission(() => {
+    mountedDocumentAdmission.runAfter(() => {
       const layerId = imageDocumentRef.current?.activeLayerId;
       const channel = editorSessionRef.current.activeChannel;
       if (layerId) void executeRegisteredCommand('raster.invert', { layerId, channel });
@@ -4806,7 +4806,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (layerId) setIsolatedCompositeChannel(null);
       }}
       onSelectCompositeChannel={(channel) => {
-        runAfterMountedDocumentAdmission(() => {
+        mountedDocumentAdmission.runAfter(() => {
           void selectionSessionController.selectCompositeChannel(channel);
         });
       }}

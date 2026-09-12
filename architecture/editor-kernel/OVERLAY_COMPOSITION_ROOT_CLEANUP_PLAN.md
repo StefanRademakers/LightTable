@@ -9,10 +9,10 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O07c scoped GenAI reference handoff, following O07b
-PDF export and O06f/O05f selection/mask and canvas-pick boundaries. Real packaged
-reference tests cover base snapshot toggles, file paste and inactive-tab export
-with exact pixels/bytes and unchanged document history; no paid calls.
+Latest bounded acceptance: O02d scoped mounted admission and truthful text
+property terminals, following O07c GenAI reference handoff. Real packaged
+checks cover Properties-to-tab/no-op transitions and pending transform/text
+Save with exact output/history. Provider reference proof remains recorded.
 See Task416 PROGRESS for retained failures and exact coverage. Root is
 5,873 physical lines. Remaining host/GenAI/command/guides families, cross-flow
 evidence and O09 remain open.
@@ -154,6 +154,10 @@ class names: reuse existing owners before creating a new one.
         Pending text creation currently rejects explicitly; recursive text.create
         during an already queued export would deadlock. Define a same-runner
         prerequisite contract before claiming automatic completion equivalence.
+  - [x] O02d: exact queued mounted admission across UI, Grade and semantic
+    settlement; pinned registration identity and truthful text-property terminals.
+    Critic PASS; 99 focused tests and packaged Properties/tab/no-op/Undo/Redo and
+    pending transform/cold Type Save pass. No new queue or implicit blur commit.
 - [ ] O03 — Extract document publication and lifecycle binding. Move semantic
   snapshot application policy, exact session binding, open/rebind/retire
   orchestration and disposal out of Overlay, retaining existing document,
