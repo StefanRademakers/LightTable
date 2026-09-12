@@ -80,6 +80,25 @@ const setup = (
 };
 
 describe('flow text editing session', () => {
+  it('file terminal accepts idle text and an unchanged current formatting group', () => {
+    const state = setup('abcd'); expect(() => state.controller.finishForFile()).not.toThrow();
+    state.controller.begin(state.document.activeLayerId!, 0);
+    state.controller.setSelection({ anchor: 0, focus: 2 }); state.controller.beginFormatting();
+    expect(() => state.controller.finishForFile()).not.toThrow();
+    expect(state.history).toHaveLength(0); expect(state.controller.getSnapshot().status).toBe('idle');
+  });
+  it('file terminal commits typing through the text owner with its one observation', () => {
+    const state = setup('ab'); state.controller.begin(state.document.activeLayerId!, 2); state.controller.insert('c');
+    state.controller.finishForFile(); expect(state.text()).toBe('abc'); expect(state.history).toHaveLength(1);
+  });
+  it.each([false, true])('file terminal rejects a stale text group (changed=%s), not as a no-op', changed => {
+    const state = setup('ab'); state.controller.begin(state.document.activeLayerId!, 0);
+    state.controller.setSelection({ anchor: 0, focus: 2 }); state.controller.beginFormatting();
+    if (changed) state.controller.format({ tracking: 20 });
+    state.document = { ...state.document, name: 'Externally replaced', revision: state.document.revision + 1 };
+    expect(() => state.controller.finishForFile()).toThrow('text edit did not finish');
+    expect(state.history).toHaveLength(0);
+  });
   it('keeps ordinary caret movement off the broad editor-shell subscription', () => {
     const state = setup('abcd');
     const id = state.document.activeLayerId!;

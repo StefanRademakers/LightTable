@@ -138,6 +138,14 @@ class names: reuse existing owners before creating a new one.
         removed. Critic found no blocker; packaged overlap/blur/tab proof passed.
       - [ ] Native host/target transition policy (after named O03 publication ports).
     - [ ] O02c.3: save/export prerequisite consolidation.
+      - [x] O02c.3a: scoped UI file intents, actual text/layer/adjustment terminal
+        outcomes and original-owner host delivery. Critic PASS after explicit
+        outcome/lifetime repairs. Packaged uncommitted transform/clean Save,
+        immediate Type/Save, bitmap formats and source/layered Save pass.
+      - [ ] O02c.3b: command-producing prerequisites inside Actions/MCP admission.
+        Pending text creation currently rejects explicitly; recursive text.create
+        during an already queued export would deadlock. Define a same-runner
+        prerequisite contract before claiming automatic completion equivalence.
 - [ ] O03 — Extract document publication and lifecycle binding. Move semantic
   snapshot application policy, exact session binding, open/rebind/retire
   orchestration and disposal out of Overlay, retaining existing document,

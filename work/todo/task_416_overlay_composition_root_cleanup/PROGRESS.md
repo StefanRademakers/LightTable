@@ -1,5 +1,43 @@
 # Task 416 progress
 
+## O02c.3a — File intent and terminal ownership (bounded slice accepted)
+
+- DocumentFileIntents owns request-time session/renderer admission and named
+  prerequisites. Existing pixel, adjustment, text and layer owners perform their
+  own terminal operations. Removed root artifact polling, repeated terminal lists,
+  unused quick-export ref and the unused direct PNG UI route. Codecs are unchanged.
+- A clean source with an uncommitted transform previously skipped Save; preserved
+  failing baseline: tmp/file-intents/run-EB080m/report.json. New real keyboard
+  transform -> Save and first Type click -> immediate Save prove exact saved/live
+  pixels, single transform history and retained text. Final package includes the
+  last mount-admission guard (verified in app.asar). Report:
+  tmp/file-intents/run-N9f2jt/report.json. Actual PNG/JPEG/WebP/TIFF menu exports
+  and native source-replacement/layered Save gates also pass on that package.
+- Critic repairs: text creation now exposes its actual completion; layer/text
+  terminals distinguish no-op from canceled/failed edits; Grade exposes explicit
+  applied/unchanged/rejected and committed/unchanged/rejected outcomes. File waits
+  for relevant existing admissions only. Strict prerequisite failure stops the
+  successor; explicit UI terminals report failures visibly. No new queue.
+- Lower host delivery pins original callbacks, session task/history identity,
+  renderer/generation and mount lifetime. Layout cleanup closes admission;
+  already-disposed sessions and retained callbacks cannot deliver or publish
+  notices into a successor. Same-session newer edits retain truthful saved-revision
+  reporting. Encoding, host cancellation and source replacement policies remain.
+- Independent final source critic PASS, including boundary guard updates.
+  Main combined terminal run:189 tests/10 suites; additional lower delivery/save
+  tests pass. Typecheck currently has exactly one unrelated required captureScope
+  port missing in the prepared, not-yet-integrated Smart Selection slice. This is
+  not a claim of globally green typecheck. File source adds no pointer-rate wait,
+  GPU readback or deep comparison on successful adjustment samples. Final
+  boundary/source-structure/diff checks pass. No full-suite or latency claim.
+- Explicit open boundary: UI completes command-producing text creation above
+  the command queue. In-queue file commands reject pending creation visibly;
+  recursively calling text.create there deadlocks behind the current command.
+  Automatic MCP/Actions completion needs a separately defined prerequisite-command
+  contract. This slice does not certify that behavior or all file/host transitions.
+- Root6,683 ->6,661 audit lines (physical6,660). Smart lifetime, host/target policy,
+  remaining mounted command recipes and whole-app performance/acceptance stay open.
+
 ## O06b — Scoped transactional SVG import (accepted)
 
 - Confirmed old path awaited normalization, read whichever document the live

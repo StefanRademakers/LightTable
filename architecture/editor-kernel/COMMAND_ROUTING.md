@@ -49,3 +49,11 @@ caused the handoff. Actions records that prerequisite commit and then the
 requested command. Observations produced by the requested handler itself remain
 suppressed as duplicate recordings. UI, Actions and MCP therefore share the
 same admission and ordering rules.
+
+File prerequisite implementation boundary (2026-09-12): UI file intents finish
+command-producing text creation before entering the serialized runner. Queued
+file commands can finish direct-owner edits, but currently reject a pending
+text-creation intent explicitly. Calling public text.create execution recursively
+from inside that export's settlement would deadlock behind its own queue turn.
+Automatic completion for that case remains Task416 O02c.3b; do not add a second
+queue, bypass validation/history or export stale state to conceal the gap.

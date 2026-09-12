@@ -46,9 +46,34 @@ export class LayerDocumentInteractionOwner {
   commitActive = (): boolean => {
     const binding = this.capture();
     binding.assertCurrent();
+    return this.commitBinding(binding);
+  };
+
+  private commitBinding(binding: LayerDocumentInteractionBinding): boolean {
     this.transaction = null;
     const textCommit = binding.commitTextProperties();
     return textCommit !== null ? textCommit : binding.mutations.commitActive();
+  }
+
+  /** Save/export waits for existing publication, then commits without history-reset cancellation. */
+  finishForFile = async (): Promise<void> => {
+    const binding = this.capture();
+    binding.assertCurrent();
+    const terminal = binding.mutations.observeActiveTerminal();
+    if (!terminal) return;
+    await terminal.waitForIdle();
+    binding.assertCurrent();
+    if (terminal.reason && terminal.reason !== 'commit') {
+      if (terminal.error !== null) throw terminal.error;
+      throw new Error(`The document gesture ended as ${terminal.reason} before the file operation.`);
+    }
+    if (!terminal.reason) this.commitBinding(binding);
+    await terminal.waitForIdle();
+    binding.assertCurrent();
+    if (terminal.reason !== 'commit' || binding.mutations.active) {
+      if (terminal.error !== null) throw terminal.error;
+      throw new Error(`The document gesture did not finish before the file operation (${terminal.reason ?? 'pending'}).`);
+    }
   };
 
   resetForHistory = async (): Promise<void> => {

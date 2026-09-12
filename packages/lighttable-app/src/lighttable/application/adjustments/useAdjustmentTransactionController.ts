@@ -55,7 +55,7 @@ export interface AdjustmentTransactionDependencies {
 export interface AdjustmentTransactionController {
   get active(): boolean;
   begin(): AdjustmentInteractionToken | null;
-  end(token: AdjustmentInteractionToken): void;
+  end(token: AdjustmentInteractionToken): AdjustmentTerminalResult;
   cancel(token: AdjustmentInteractionToken): void;
   reset(): void;
   change(
@@ -63,7 +63,15 @@ export interface AdjustmentTransactionController {
     domain?: AdjustmentPresentationDomain,
     token?: AdjustmentInteractionToken
   ): boolean;
+  changeResult(
+    mutate: (current: BasicAdjustments) => BasicAdjustments,
+    domain?: AdjustmentPresentationDomain,
+    token?: AdjustmentInteractionToken
+  ): AdjustmentChangeResult;
 }
+
+export type AdjustmentTerminalResult = 'committed' | 'unchanged' | 'rejected';
+export type AdjustmentChangeResult = 'applied' | 'unchanged' | 'rejected';
 
 /** Opaque ownership lease for one adjustment gesture. */
 export interface AdjustmentInteractionToken {
@@ -166,21 +174,21 @@ export const createAdjustmentTransactionController = (
     rejectedGesture = false;
   };
 
-  const endActive = () => {
+  const endActive = (): AdjustmentTerminalResult => {
     rejectedGesture = false;
     const transaction = active;
     if (!transaction) {
       setInteractiveQuality(false);
-      return;
+      return 'rejected';
     }
     if (!targetStillMatches(transaction)) {
       cancelActive();
-      return;
+      return 'rejected';
     }
     const after = cloneAdjustments(transaction.latest);
     if (adjustmentsEqual(transaction.before, after)) {
       cancelActive();
-      return;
+      return 'unchanged';
     }
     if (transaction.documentTransaction) {
       // Retire the presentation owner before canonical publication. The shared
@@ -200,7 +208,7 @@ export const createAdjustmentTransactionController = (
           dependencies.restoreStagedSnapshot(cloneAdjustments(transaction.before));
         }
         dependencies.discardPreview();
-        return;
+        return 'rejected';
       }
     } else {
       const dependencies = resolveDependencies();
@@ -223,6 +231,7 @@ export const createAdjustmentTransactionController = (
       targetLayerId: transaction.targetLayerId,
       domain: transaction.domain
     });
+    return 'committed';
   };
 
   const rejectGesture = (token: AdjustmentInteractionToken | null = null) => {
@@ -309,31 +318,31 @@ export const createAdjustmentTransactionController = (
     return token;
   };
 
-  const change = (
+  const changeResult = (
     mutate: (current: BasicAdjustments) => BasicAdjustments,
     domain: AdjustmentPresentationDomain = 'grade',
     token?: AdjustmentInteractionToken
-  ): boolean => {
+  ): AdjustmentChangeResult => {
     const dependencies = resolveDependencies();
-    if (rejectedGesture) return false;
-    if (active && token !== active.token) return false;
-    if (!active && token) return false;
+    if (rejectedGesture) return 'rejected';
+    if (active && token !== active.token) return 'rejected';
+    if (!active && token) return 'rejected';
     if (active && !targetStillMatches(active)) {
       const rejectedActiveToken = active.token;
       cancelActive();
       rejectGesture(rejectedActiveToken);
-      return false;
+      return 'rejected';
     }
     const canonical = active?.latest ?? dependencies.getCanonicalAdjustments();
-    if (!canonical) return false;
+    if (!canonical) return 'rejected';
     const before = canonical;
     // Adjustment recipes are immutable by contract. Preserving unchanged
     // references lets the delta projector skip unrelated modules at pointer rate.
     const next = mutate(before);
-    if (!active && adjustmentsEqual(before, next)) return false;
+    if (!active && adjustmentsEqual(before, next)) return 'unchanged';
     const targetLayerId = active?.targetLayerId ?? dependencies.getActiveTargetLayerId();
     const documentId = dependencies.getDocumentId();
-    if (!documentId) return false;
+    if (!documentId) return 'rejected';
 
     if (targetLayerId) {
       const applyToDocument = (document: ImageDocument) => {
@@ -353,7 +362,7 @@ export const createAdjustmentTransactionController = (
           type: 'adjustment.layer.edit',
           layerIds: [targetLayerId]
         });
-      if (!changed) return false;
+      if (!changed) return adjustmentsEqual(before, next) ? 'unchanged' : 'rejected';
       dependencies.stageEditorAdjustments(next);
     } else if (active) {
       dependencies.previewDocumentProcessing(next, domain);
@@ -389,7 +398,7 @@ export const createAdjustmentTransactionController = (
         targetLayerId, domain
       });
     }
-    return true;
+    return 'applied';
   };
 
   return {
@@ -401,9 +410,9 @@ export const createAdjustmentTransactionController = (
           rejectedGesture = false;
           rejectedToken = null;
         }
-        return;
+        return 'rejected';
       }
-      endActive();
+      return endActive();
     },
     cancel: (token) => {
       if (active?.token !== token) {
@@ -416,7 +425,8 @@ export const createAdjustmentTransactionController = (
       cancelActive();
     },
     reset: cancelActive,
-    change
+    changeResult,
+    change: (...args) => changeResult(...args) === 'applied'
   };
 };
 

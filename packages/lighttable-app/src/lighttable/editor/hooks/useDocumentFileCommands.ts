@@ -37,9 +37,7 @@ import { WasmVipsEncoder } from '../../image-io/WasmVipsEncoder';
 import { nativeBitmapFormat, type NativeBitmapFormatId } from '../../image-io/nativeBitmapFormats';
 import { exportSvgDocument } from '../../application/vectors/svgDocumentCodec';
 import { captureRendererBinding } from '../../application/rendering/rendererBindingToken';
-import {
-  deliverDocumentTaskExport
-} from '../../application/documents/documentExportDelivery';
+import { useDocumentFileDelivery } from './useDocumentFileDelivery';
 import { cleanupRecoveryAfterSave } from '../../application/documents/cleanupRecoveryAfterSave';
 
 export interface DocumentFileCommandsOptions {
@@ -99,7 +97,6 @@ export interface DocumentFileCommands {
   exportOutput(options?: ExportLightTableRuntimeOptions): Promise<ExportedLightTableDocument>;
   exportBitmapArtifact(format: NativeBitmapFormatId, signal?: AbortSignal): Promise<File>;
   save(): Promise<void>;
-  exportPng(): Promise<void>;
   exportJpeg(): Promise<void>;
   exportWebp(): Promise<void>;
   exportTiff(): Promise<void>;
@@ -149,6 +146,7 @@ export const useDocumentFileCommands = (
   }, []);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const captureDelivery = useDocumentFileDelivery(() => optionsRef.current, downloadOutput);
 
   const exportOutput = useCallback(async (runtime: ExportLightTableRuntimeOptions = {}) => {
     const current = optionsRef.current;
@@ -186,12 +184,12 @@ export const useDocumentFileCommands = (
   }, []);
 
   const deliverExportFile = useCallback(async (file: File) => {
-    const current = optionsRef.current;
-    await deliverDocumentTaskExport(file, current.onExportFile, downloadOutput);
-  }, []);
+    await captureDelivery().deliver(file);
+  }, [captureDelivery]);
 
   const save = useCallback(async () => {
     const current = optionsRef.current;
+    const delivery = captureDelivery();
     if (!current.hasMetadata || !current.effectiveSourceFileKey
       || savingRef.current) return;
     if (current.getIsDirty && !current.getIsDirty()) {
@@ -210,7 +208,7 @@ export const useDocumentFileCommands = (
         flatAdjustments: current.getFlatAdjustments(),
         documentAdjustments: current.getDocumentAdjustments()
       }).kind === 'replace-source') {
-        current.setStatus?.('No changes to save');
+        delivery.status('No changes to save');
         return;
       }
     }
@@ -223,8 +221,8 @@ export const useDocumentFileCommands = (
     });
     savingRef.current = true;
     setSaving(true);
-    current.setError(null);
-    current.setStatus?.('Saving…');
+    delivery.error(null);
+    delivery.status('Saving…');
     const transactionId = typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `save-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -237,7 +235,7 @@ export const useDocumentFileCommands = (
           documentId: String(current.commandHistory.documentId),
           revision: documentRevision,
           signal: task.signal,
-          isCurrent: () => task.isCurrent()
+          isCurrent: () => task.isCurrent() && delivery.isCurrent()
             && binding.isCurrent()
             && current.commandHistory.getSnapshot().currentStateId === historyRevision
             && (current.getDocumentRevision?.() ?? historyRevision) === documentRevision,
@@ -308,30 +306,30 @@ export const useDocumentFileCommands = (
       }
     );
     if (result.status === 'failed') {
-      current.setStatus?.(null);
-      current.setError(
+      delivery.status(null);
+      delivery.error(
         result.error.message || 'LightTable image could not be saved.'
       );
     } else if (result.status === 'canceled') {
-      current.setStatus?.('Save canceled');
+      delivery.status('Save canceled');
     } else if (result.value.outcome.status === 'failed') {
       const phase = result.value.outcome.phase ?? 'unknown';
-      current.setStatus?.(null);
-      current.setError(`Save failed during ${phase}: ${result.value.outcome.message ?? 'Unknown error'}`);
+      delivery.status(null);
+      delivery.error(`Save failed during ${phase}: ${result.value.outcome.message ?? 'Unknown error'}`);
     } else if (result.value.outcome.status === 'canceled') {
-      current.setStatus?.('Save canceled');
+      delivery.status('Save canceled');
     } else if (result.value.outcome.markedClean) {
-      current.setStatus?.(result.value.recoveryCleanupError
+      delivery.status(result.value.recoveryCleanupError
         ? 'Saved; recovery cleanup unavailable'
         : 'Saved');
     } else {
-      current.setStatus?.(result.value.recoveryCleanupError
+      delivery.status(result.value.recoveryCleanupError
         ? 'Saved revision; newer edits remain unsaved; recovery cleanup unavailable'
         : 'Saved revision; newer edits remain unsaved');
     }
     savingRef.current = false;
     setSaving(false);
-  }, [exportOutput]);
+  }, [captureDelivery, exportOutput]);
 
   const exportBitmapArtifact = useCallback(async (
     format: NativeBitmapFormatId,
@@ -368,29 +366,30 @@ export const useDocumentFileCommands = (
     label: string
   ) => {
     const current = optionsRef.current;
-    current.setError(null);
+    const delivery = captureDelivery();
+    delivery.error(null);
     const result = await current.taskRegistry.run(
       'export',
       `Export ${label}`,
       async (task) => {
         const file = await exportBitmapArtifact(format, task.signal);
         task.throwIfCanceled();
-        await deliverExportFile(file);
+        await delivery.deliver(file);
       }
     );
     if (result.status === 'failed') {
-      current.setError(result.error.message || `${label} export failed.`);
+      delivery.error(result.error.message || `${label} export failed.`);
     }
-  }, [deliverExportFile, exportBitmapArtifact]);
+  }, [captureDelivery, exportBitmapArtifact]);
 
-  const exportPng = useCallback(() => exportNativeBitmap('png', 'PNG'), [exportNativeBitmap]);
   const exportJpeg = useCallback(() => exportNativeBitmap('jpeg', 'JPEG'), [exportNativeBitmap]);
   const exportWebp = useCallback(() => exportNativeBitmap('webp', 'WebP'), [exportNativeBitmap]);
   const exportTiff = useCallback(() => exportNativeBitmap('tiff', 'TIFF'), [exportNativeBitmap]);
 
   const exportPsdWithIntent = useCallback(async (intent: PsdExportIntent) => {
     const current = optionsRef.current;
-    current.setError(null);
+    const delivery = captureDelivery();
+    delivery.error(null);
     const result = await current.taskRegistry.run(
       'export',
       'Export Photoshop document',
@@ -430,16 +429,16 @@ export const useDocumentFileCommands = (
         );
         binding.assertCurrent('PSD export');
         task.throwIfCanceled();
-        await deliverExportFile(exported.file);
+        await delivery.deliver(exported.file);
         if (exported.warnings.length) {
           console.warn('[PSD export compatibility]', ...exported.warnings);
         }
       }
     );
     if (result.status === 'failed') {
-      current.setError(result.error.message || 'Photoshop export failed.');
+      delivery.error(result.error.message || 'Photoshop export failed.');
     }
-  }, [deliverExportFile]);
+  }, [captureDelivery]);
   const exportPsd = useCallback(
     () => exportPsdWithIntent('editable'),
     [exportPsdWithIntent]
@@ -450,16 +449,17 @@ export const useDocumentFileCommands = (
   );
   const exportSvgFile = useCallback(async () => {
     const current = optionsRef.current;
-    current.setError(null);
+    const delivery = captureDelivery();
+    delivery.error(null);
     const result = await current.taskRegistry.run('export', 'Export SVG', async (task) => {
       const imageDocument = current.getDocument();
       if (!imageDocument || !current.hasMetadata) throw new Error('LightTable is not ready yet.');
       const file = exportSvgDocument(imageDocument, current.fileNameBase);
       task.throwIfCanceled();
-      await deliverExportFile(file);
+      await delivery.deliver(file);
     });
-    if (result.status === 'failed') current.setError(result.error.message || 'SVG export failed.');
-  }, [deliverExportFile]);
+    if (result.status === 'failed') delivery.error(result.error.message || 'SVG export failed.');
+  }, [captureDelivery]);
 
   const openLocalFile = useCallback(async (
     file: File | null,
@@ -543,7 +543,6 @@ export const useDocumentFileCommands = (
     exportOutput,
     exportBitmapArtifact,
     save,
-    exportPng,
     exportJpeg,
     exportWebp,
     exportTiff,

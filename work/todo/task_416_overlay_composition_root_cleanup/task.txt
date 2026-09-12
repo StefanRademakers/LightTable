@@ -37,8 +37,12 @@ O05c.1 transform frame/snap presentation and exact renderer binding accepted;
 O05d.1 Face Warp domain intents and mesh presentation accepted;
 O03c.4 canonical revision authority repaired after real preview-cache failure.
 Full app4220 tests, critic and packaged Face Warp/transform/selection pass.
-Next O06 clipboard host intents and Cut sequencing, then O05e selection bindings;
-O02c host/target/file terminal policies stay open. The renderer telemetry revision
+O06a clipboard host/Cut, O05e.1 selection host/observation and O06b transactional
+SVG import are accepted with independent review and packaged pixel/history proof.
+Current work: O02c.3 file prerequisites and truthful terminal/delivery outcomes;
+Smart Selection lifetime is prepared but not yet integrated or accepted.
+O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
+The renderer telemetry revision
 was not a render-submission stamp and was removed; O08 must add truthful frame
 correlation. waitForReadyDocument means initial readiness, not latest-pixel proof.
 Neither whole-app cleanup nor release is done.

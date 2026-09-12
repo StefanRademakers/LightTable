@@ -439,6 +439,14 @@ export class FlowTextEditingSessionController {
     return changed;
   }
 
+  finishForFile() {
+    if (this.snapshot.status === 'idle') return;
+    const unchanged = this.transaction.unchanged;
+    if (!this.finish() && !unchanged) {
+      throw new Error('The text edit did not finish before the file operation.');
+    }
+  }
+
   finish() {
     if (this.snapshot.status === 'idle') return false;
     const hadOpenGroup = this.openGroup !== null;

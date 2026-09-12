@@ -71,6 +71,7 @@ export interface TextEditTransactionDependencies {
 }
 
 export interface TextEditTransactionController {
+  readonly unchanged: boolean;
   readonly active: boolean;
   currentDocument(): ImageDocument | null;
   begin(layerId: LayerId, group: TextEditGroupKind): boolean;
@@ -107,6 +108,10 @@ export const createTextEditTransactionController = (
   };
 
   return {
+    get unchanged() {
+      return Boolean(edit && !edit.changed && edit.transaction.active
+        && resolveDependencies().getDocument() === edit.before);
+    },
     get active() {
       return edit !== null;
     },

@@ -1,10 +1,10 @@
+import type { AdjustmentInteractionController as AdjustmentTransactionController } from './AdjustmentInteractionCoordinator';
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentInteractionCoordinator as createCoordinator, type AdjustmentInteractionAdmission } from './AdjustmentInteractionCoordinator';
 import { captureInteractionScope } from '../interactions/captureInteractionScope';
 import type {
-  AdjustmentInteractionToken,
-  AdjustmentTransactionController
+  AdjustmentInteractionToken
 } from './useAdjustmentTransactionController';
 
 const token = (sequence: number): AdjustmentInteractionToken => ({ sequence });
@@ -16,10 +16,101 @@ const createAdjustmentInteractionCoordinator = (controller: AdjustmentTransactio
   }, error => { throw error; });
 
 describe('AdjustmentInteractionCoordinator', () => {
-  it.each(['change', 'end'] as const)('retires its acquired token and reports a queued %s failure', async method => {
+  it('a superseded pending gesture cannot block the replacement gesture file commit', async () => {
+    let first!: () => void; let second!: () => void;
+    const waits = [new Promise<void>(resolve => { first = resolve; }), new Promise<void>(resolve => { second = resolve; })];
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
+    const interactions = createCoordinator(controller, async () => { await waits.shift(); return { status: 'admitted' }; },
+      () => ({ isCurrent: () => true }), vi.fn());
+    interactions.begin('old');
+    const replacement = interactions.begin('replacement');
+    interactions.change(replacement, value => ({ ...value, exposureEV: 2 }));
+    const prepared = interactions.finishForFile();
+    second(); await prepared; // Old admission is deliberately still unresolved.
+    expect(controller.changeResult).toHaveBeenCalledOnce();
+    expect(controller.end).toHaveBeenCalledOnce();
+    first(); await Promise.resolve();
+    expect(controller.changeResult).toHaveBeenCalledOnce();
+  });
+
+  it.each(['reset', 'owner'] as const)('a fresh file request ignores old pending %s deliveries', async retirement => {
+    let resolve!: () => void; let identity = 'old';
+    const wait = new Promise<void>(done => { resolve = done; });
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
+    const interactions = createCoordinator(controller, async () => { await wait; return { status: 'admitted' }; },
+      () => { const opening = identity; return { isCurrent: () => opening === identity }; }, vi.fn());
+    interactions.discreteChange(value => ({ ...value, exposureEV: 2 }));
+    interactions.begin('old');
+    if (retirement === 'reset') interactions.reset(); else identity = 'new';
+    await interactions.finishForFile(); // No dependency on the retired admission.
+    expect(controller.changeResult).not.toHaveBeenCalled();
+    resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(controller.changeResult).not.toHaveBeenCalled();
+  });
+
+  it.each(['active', 'ended', 'discrete'] as const)('file completion awaits %s admission and canonical delivery', async mode => {
+    let admit!: () => void;
+    const admission = new Promise<void>(resolve => { admit = resolve; });
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
+    const interactions = createCoordinator(controller, async () => { await admission; return { status: 'admitted' }; },
+      () => ({ isCurrent: () => true }), vi.fn());
+    if (mode === 'discrete') interactions.discreteChange(value => ({ ...value, exposureEV: 2 }));
+    else {
+      const handle = interactions.begin('exposure');
+      interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+      if (mode === 'ended') interactions.end(handle);
+    }
+    let complete = false;
+    const prepared = interactions.finishForFile().then(() => { complete = true; });
+    await Promise.resolve(); expect(complete).toBe(false);
+    expect(controller.changeResult).not.toHaveBeenCalled();
+    admit(); await prepared;
+    expect(controller.changeResult).toHaveBeenCalledOnce();
+    if (mode !== 'discrete') expect(controller.end).toHaveBeenCalledExactlyOnceWith(token(1));
+    expect(controller.cancel).not.toHaveBeenCalled(); expect(controller.reset).not.toHaveBeenCalled();
+  });
+
+  it.each(['retirement', 'reset', 'rejection', 'failure'] as const)('file completion rejects pending %s', async mode => {
+    let admit!: () => void; let current = true;
+    const admission = new Promise<void>(resolve => { admit = resolve; });
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
+    if (mode === 'failure') controller.changeResult.mockImplementation(() => { throw new Error('GPU failed'); });
+    const report = vi.fn();
+    const interactions = createCoordinator(controller, async () => {
+      await admission;
+      return mode === 'rejection' ? { status: 'rejected', reason: 'Cannot settle' } : { status: 'admitted' };
+    }, () => ({ isCurrent: () => current }), report);
+    const handle = interactions.begin('exposure');
+    interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+    const prepared = expect(interactions.finishForFile()).rejects.toThrow();
+    if (mode === 'retirement') current = false;
+    if (mode === 'reset') interactions.reset();
+    admit(); await prepared;
+    if (mode !== 'failure') expect(controller.changeResult).not.toHaveBeenCalled();
+    else expect(report).toHaveBeenCalledOnce();
+  });
+
+  it('file completion preserves synchronous warm end and is a no-op without an owner or pending edit', async () => {
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
+    const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
+      () => ({ isCurrent: () => true }), vi.fn());
+    const handle = interactions.begin('exposure'); await Promise.resolve();
+    interactions.change(handle, value => ({ ...value, exposureEV: 2 }));
+    const prepared = interactions.finishForFile();
+    expect(controller.end).toHaveBeenCalledOnce(); await prepared;
+    await createCoordinator(controller, async () => ({ status: 'admitted' }), () => null, vi.fn()).finishForFile();
+    expect(controller.end).toHaveBeenCalledOnce();
+  });
+
+  it.each(['changeResult', 'end'] as const)('retires its acquired token and reports a queued %s failure', async method => {
     const failure = new Error('delivery failed');
-    const controller = { active: false, begin: vi.fn(() => token(7)), end: vi.fn(),
-      cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+    const controller = { active: false, begin: vi.fn(() => token(7)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
     controller[method].mockImplementation(() => { throw failure; });
     const report = vi.fn();
     const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
@@ -39,7 +130,7 @@ describe('AdjustmentInteractionCoordinator', () => {
       const wait = new Promise<void>(resolve => { release = resolve; });
       const state = { lifecycle: {}, renderer: {}, workspace: 'document-a', generation: 1 };
       const controller = { active: false, begin: vi.fn(() => token(1)),
-        end: vi.fn(), cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+        end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
       const interactions = createCoordinator(controller,
         async () => { await wait; return { status: 'admitted' }; },
         () => captureInteractionScope({ getWorkspaceId: () => state.workspace,
@@ -54,14 +145,14 @@ describe('AdjustmentInteractionCoordinator', () => {
       else state.generation = 2;
       release(); await wait; await Promise.resolve();
       expect(controller.begin).not.toHaveBeenCalled();
-      expect(controller.change).not.toHaveBeenCalled();
+      expect(controller.changeResult).not.toHaveBeenCalled();
     });
 
   it('reset invalidates already-ended and discrete admission without needing a retained handle', async () => {
     let release!: () => void;
     const wait = new Promise<void>(resolve => { release = resolve; });
     const controller = { active: false, begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true) };
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const) };
     const interactions = createAdjustmentInteractionCoordinator(controller,
       async () => { await wait; return { status: 'admitted' }; });
     const handle = interactions.begin('exposure');
@@ -71,32 +162,32 @@ describe('AdjustmentInteractionCoordinator', () => {
     interactions.reset();
     release(); await wait; await Promise.resolve();
     expect(controller.begin).not.toHaveBeenCalled();
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
     expect(controller.reset).toHaveBeenCalledOnce();
     // A fresh interaction remains available after a Strict Mode reconnect.
     const fresh = interactions.begin('exposure');
     interactions.change(fresh, value => ({ ...value, exposureEV: 3 }));
     interactions.end(fresh);
     await Promise.resolve(); await Promise.resolve();
-    expect(controller.change).toHaveBeenCalledOnce();
+    expect(controller.changeResult).toHaveBeenCalledOnce();
   });
 
   it('does not request admission without a canonical processing owner', () => {
-    const controller = { active: false, begin: vi.fn(), end: vi.fn(), cancel: vi.fn(),
-      reset: vi.fn(), change: vi.fn() };
+    const controller = { active: false, begin: vi.fn(), end: vi.fn(() => 'committed' as const), cancel: vi.fn(),
+      reset: vi.fn(), changeResult: vi.fn() };
     const admission = vi.fn(async () => ({ status: 'admitted' as const }));
     const interactions = createCoordinator(controller, admission, () => null, vi.fn());
     const handle = interactions.begin('exposure');
     expect(interactions.change(handle, value => value)).toBe(false);
     expect(interactions.discreteChange(value => value)).toBe(false);
     expect(admission).not.toHaveBeenCalled();
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
   });
 
   it('cancels only the opening token when owner retirement happens after admission', async () => {
     let current = true;
-    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(),
-      cancel: vi.fn(), reset: vi.fn(), change: vi.fn() };
+    const controller = { active: false, begin: vi.fn(() => token(1)), end: vi.fn(() => 'committed' as const),
+      cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn() };
     const interactions = createCoordinator(controller, async () => ({ status: 'admitted' }),
       () => ({ isCurrent: () => current }), vi.fn());
     const handle = interactions.begin('exposure'); await Promise.resolve();
@@ -115,8 +206,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => admittedToken),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -140,11 +231,11 @@ describe('AdjustmentInteractionCoordinator', () => {
     await Promise.resolve();
 
     expect(controller.begin).toHaveBeenCalledOnce();
-    expect(controller.change).toHaveBeenCalledWith(
+    expect(controller.changeResult).toHaveBeenCalledWith(
       expect.any(Function), 'grade', admittedToken
     );
-    expect(controller.change).toHaveBeenCalledOnce();
-    const latestMutation = vi.mocked(controller.change).mock.calls[0]?.[0];
+    expect(controller.changeResult).toHaveBeenCalledOnce();
+    const latestMutation = vi.mocked(controller.changeResult).mock.calls[0]?.[0];
     expect(latestMutation?.(createDefaultAdjustments()).exposureEV).toBe(2.5);
     expect(controller.end).toHaveBeenCalledWith(admittedToken);
   });
@@ -156,8 +247,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => admittedToken),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -181,7 +272,7 @@ describe('AdjustmentInteractionCoordinator', () => {
 
     expect(controller.reset).toHaveBeenCalledOnce();
     expect(controller.begin).toHaveBeenCalledOnce();
-    expect(controller.change).toHaveBeenCalledOnce();
+    expect(controller.changeResult).toHaveBeenCalledOnce();
     expect(controller.end).toHaveBeenCalledWith(admittedToken);
   });
 
@@ -192,8 +283,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -210,7 +301,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     await Promise.resolve();
 
     expect(controller.begin).not.toHaveBeenCalled();
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
   });
 
   it('drops a queued discrete change when its semantic target drifts during admission', async () => {
@@ -220,8 +311,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -235,7 +326,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     await admission;
     await Promise.resolve();
 
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
   });
 
   it('does not admit or replay a queued adjustment after cancellation', async () => {
@@ -244,8 +335,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -260,7 +351,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     await Promise.resolve();
 
     expect(controller.begin).not.toHaveBeenCalled();
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
   });
 
   it('queues a discrete reset until mutation admission succeeds', async () => {
@@ -269,8 +360,8 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -278,20 +369,20 @@ describe('AdjustmentInteractionCoordinator', () => {
     );
 
     expect(interactions.discreteChange(() => createDefaultAdjustments())).toBe(true);
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
     releaseAdmission();
     await admission;
     await Promise.resolve();
 
-    expect(controller.change).toHaveBeenCalledOnce();
+    expect(controller.changeResult).toHaveBeenCalledOnce();
   });
 
   it('drops queued continuous and discrete mutations when admission is rejected', async () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => token(1)),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(),
-      change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(),
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(
       controller,
@@ -305,7 +396,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     await Promise.resolve();
 
     expect(controller.begin).not.toHaveBeenCalled();
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
   });
 
   it('makes stale terminal callbacks from another control inert', async () => {
@@ -316,10 +407,10 @@ describe('AdjustmentInteractionCoordinator', () => {
       begin: vi.fn()
         .mockReturnValueOnce(first)
         .mockReturnValueOnce(second),
-      end: vi.fn(),
+      end: vi.fn(() => 'committed' as const),
       cancel: vi.fn(),
       reset: vi.fn(),
-      change: vi.fn(() => true)
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
@@ -332,7 +423,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     interactions.end(contrast);
 
     expect(controller.cancel).toHaveBeenCalledWith(first);
-    expect(controller.change).toHaveBeenCalledWith(expect.any(Function), 'grade', second);
+    expect(controller.changeResult).toHaveBeenCalledWith(expect.any(Function), 'grade', second);
     expect(controller.end).toHaveBeenCalledTimes(1);
     expect(controller.end).toHaveBeenCalledWith(second);
   });
@@ -345,10 +436,10 @@ describe('AdjustmentInteractionCoordinator', () => {
       begin: vi.fn()
         .mockReturnValueOnce(first)
         .mockReturnValueOnce(second),
-      end: vi.fn(),
+      end: vi.fn(() => 'committed' as const),
       cancel: vi.fn(),
       reset: vi.fn(),
-      change: vi.fn(() => true)
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
@@ -365,8 +456,8 @@ describe('AdjustmentInteractionCoordinator', () => {
       contrast,
       (current) => ({ ...current, contrast: 12 })
     )).toBe(true);
-    expect(controller.change).toHaveBeenCalledTimes(1);
-    expect(controller.change).toHaveBeenCalledWith(
+    expect(controller.changeResult).toHaveBeenCalledTimes(1);
+    expect(controller.changeResult).toHaveBeenCalledWith(
       expect.any(Function),
       'grade',
       second
@@ -377,10 +468,10 @@ describe('AdjustmentInteractionCoordinator', () => {
     const controller: AdjustmentTransactionController = {
       active: false,
       begin: vi.fn(() => null),
-      end: vi.fn(),
+      end: vi.fn(() => 'committed' as const),
       cancel: vi.fn(),
       reset: vi.fn(),
-      change: vi.fn(() => true)
+      changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
@@ -390,7 +481,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     expect(interactions.change(rejected, () => createDefaultAdjustments())).toBe(false);
     interactions.end(rejected);
 
-    expect(controller.change).not.toHaveBeenCalled();
+    expect(controller.changeResult).not.toHaveBeenCalled();
     expect(controller.reset).toHaveBeenCalledTimes(1);
   });
 
@@ -404,7 +495,7 @@ describe('AdjustmentInteractionCoordinator', () => {
         .mockReturnValueOnce(first)
         .mockReturnValueOnce(second)
         .mockReturnValueOnce(third),
-      end: vi.fn(), cancel: vi.fn(), reset: vi.fn(), change: vi.fn(() => true)
+      end: vi.fn(() => 'committed' as const), cancel: vi.fn(), reset: vi.fn(), changeResult: vi.fn(() => 'applied' as const)
     };
     const interactions = createAdjustmentInteractionCoordinator(controller);
 
@@ -414,7 +505,7 @@ describe('AdjustmentInteractionCoordinator', () => {
     await Promise.resolve();
     interactions.end(oldEnd);
     interactions.change(currentAfterEnd, (value) => value);
-    expect(controller.change).toHaveBeenLastCalledWith(
+    expect(controller.changeResult).toHaveBeenLastCalledWith(
       expect.any(Function), 'grade', second
     );
 

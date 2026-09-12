@@ -55,6 +55,8 @@ export interface DocumentMutationController {
   readonly activeOwner: string | null;
   /** Waits for an already-running asynchronous compound publication to finish. */
   waitForIdle(): Promise<void>;
+  /** Observes the current transaction only; never commits, retries or joins its successor. */
+  observeActiveTerminal(): DocumentMutationTerminalObservation | null;
   begin(
     owner: string,
     description?: DocumentMutationDescription,
@@ -72,6 +74,11 @@ export interface DocumentMutationController {
 }
 
 export type DocumentMutationCloseReason = 'commit' | 'cancel' | 'stale' | 'superseded' | 'failed';
+export interface DocumentMutationTerminalObservation {
+  readonly reason: DocumentMutationCloseReason | null;
+  readonly error: unknown;
+  waitForIdle(): Promise<void>;
+}
 export type DocumentMutationInterruption = 'commit' | 'cancel';
 
 export interface DocumentMutationDescription {
@@ -143,6 +150,8 @@ const inferDocumentMutationDescription = (
 };
 
 interface ActiveDocumentTransaction {
+  closeReason: DocumentMutationCloseReason | null;
+  closeError: unknown;
   readonly token: symbol;
   readonly documentId: ImageDocument['id'];
   readonly owner: string;
@@ -366,6 +375,7 @@ export const createDocumentMutationController = (
       active.onClose?.('commit');
       return true;
     } catch (error) {
+      active.closeError = error;
       try {
         dependencies.applySnapshot(active.before);
       } finally {
@@ -404,6 +414,7 @@ export const createDocumentMutationController = (
       if (!committed) resolveDependencies().discardPreview();
       return committed;
     } catch (error) {
+      active.closeError = error;
       active.onClose?.('failed');
       resolveDependencies().discardPreview();
       throw error;
@@ -447,6 +458,7 @@ export const createDocumentMutationController = (
       if (!committed) resolveDependencies().discardPreview();
       return committed;
     } catch (error) {
+      active.closeError = error;
       if (transaction?.token === token) transaction = null;
       active.onClose?.('failed');
       resolveDependencies().discardPreview();
@@ -516,6 +528,15 @@ export const createDocumentMutationController = (
         : null;
       if (settlement) await settlement;
     },
+    observeActiveTerminal: () => {
+      const active = transaction;
+      if (!active) return null;
+      return {
+        get reason() { return active.closeReason; },
+        get error() { return active.closeError; },
+        waitForIdle: async () => { if (active.settlement) await active.settlement; }
+      };
+    },
     begin: (owner, description, onClose, interruption = 'commit') => {
       if (!owner.trim()) throw new Error('A document transaction requires an owner.');
       if (mutationIsBlocked()) return null;
@@ -534,12 +555,14 @@ export const createDocumentMutationController = (
       const document = resolveDependencies().getDocument();
       if (!document) return null;
       const active: ActiveDocumentTransaction = {
+        closeReason: null,
+        closeError: null,
         token: Symbol('document-transaction'),
         documentId: document.id,
         owner,
         before: document,
         description,
-        onClose,
+        onClose: reason => { active.closeReason = reason; onClose?.(reason); },
         interruption,
         phase: 'previewing',
         settlement: null,

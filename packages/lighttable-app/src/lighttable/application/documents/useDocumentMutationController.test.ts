@@ -54,6 +54,31 @@ const setup = () => {
 };
 
 describe('document mutation controller', () => {
+  it('observes the exact terminal reason without replacing onClose or following a successor', async () => {
+    const state = setup(); const closed = vi.fn();
+    expect(state.controller.observeActiveTerminal()).toBeNull();
+    const transaction = state.controller.begin('file', undefined, closed)!;
+    const terminal = state.controller.observeActiveTerminal()!;
+    expect(terminal.reason).toBeNull();
+    expect(transaction.commit()).toBe(false); // Unchanged is a committed terminal.
+    await terminal.waitForIdle(); expect(terminal.reason).toBe('commit');
+    expect(closed).toHaveBeenCalledExactlyOnceWith('commit');
+    state.controller.begin('successor'); state.controller.cancelActive();
+    expect(terminal.reason).toBe('commit');
+  });
+  it.each(['blocked', 'stale', 'rollback'] as const)('observes a changed %s transaction as unsuccessful', mode => {
+    const state = setup(); const closed = vi.fn();
+    const transaction = state.controller.begin('file', undefined, closed)!;
+    transaction.change(document => renamed(document, 'Changed')); const terminal = state.controller.observeActiveTerminal()!;
+    if (mode === 'blocked') { state.setMutationBlocked(true); expect(transaction.commit()).toBe(false); }
+    else if (mode === 'stale') {
+      state.setDocument(renamed(state.document!, 'Other canonical')); expect(transaction.commit()).toBe(false);
+    } else {
+      expect(() => transaction.commitWith(() => { throw new Error('Publication rejected'); })).toThrow('Publication rejected');
+    }
+    expect(terminal.reason).toBe(mode === 'blocked' ? 'cancel' : mode === 'stale' ? 'stale' : 'failed');
+    expect(closed).toHaveBeenCalledWith(terminal.reason); expect(state.controller.active).toBe(false);
+  });
   it('records an immediate immutable document mutation', () => {
     const state = setup();
     state.controller.change((current) => renamed(current, 'Renamed'));

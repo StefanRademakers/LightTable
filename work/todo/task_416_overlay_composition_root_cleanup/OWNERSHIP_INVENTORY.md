@@ -1,5 +1,13 @@
 # Overlay ownership inventory
 
+O02c.3a accepted: DocumentFileIntents owns scoped file preparation policy;
+existing text/layer/adjustment owners expose actual terminal outcomes, not a
+second transaction queue. Lower delivery captures original host/UI callbacks
+and exact session/renderer/mount lifetime. Root polling/repeated terminal lists
+and unused direct PNG route deleted. Root6,661 audit lines; packaged pending
+transform/Type Save and format/source Save pass. Automatic queued text-creation
+prerequisites remain O02c.3b; Smart Selection root integration is next.
+
 O06b accepted: executeSvgImport owns scoped preparation and invokes the existing
 DocumentMutationController for one publication/history transaction; old split
 apply/history ports deleted. createMountedSvgImportBinding owns exact registered

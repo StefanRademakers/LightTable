@@ -4,6 +4,7 @@ import { findRasterLayer } from '../../editor/document/layerTree';
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import { createDocumentMutationController } from '../documents/useDocumentMutationController';
+import { createAdjustmentInteractionCoordinator } from './AdjustmentInteractionCoordinator';
 import {
   createAdjustmentTransactionController,
   type AdjustmentHistoryEntry,
@@ -116,6 +117,103 @@ const setup = (documentWide = false) => {
 };
 
 describe('adjustment transaction controller', () => {
+  it('reports a rejected warm UI terminal visibly without throwing from pointer-up', async () => {
+    const state = setup(); const report = vi.fn();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), report);
+    const handle = coordinator.begin('exposure'); await Promise.resolve();
+    coordinator.change(handle, value => ({ ...value, exposureEV: 2 }));
+    state.rejectAdmission();
+    expect(() => coordinator.end(handle)).not.toThrow();
+    expect(report).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: expect.stringContaining('rejected') }));
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('keeps prerequisite finish strict so a rejected edit prevents the successor command', async () => {
+    const state = setup(); const report = vi.fn(); const successor = vi.fn();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), report);
+    const handle = coordinator.begin('exposure'); await Promise.resolve();
+    coordinator.change(handle, value => ({ ...value, exposureEV: 2 }));
+    state.rejectAdmission();
+    expect(() => { coordinator.finish(); successor(); }).toThrow('rejected');
+    expect(successor).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+  });
+
+  it.each(['blocked', 'stale-target', 'canceled'] as const)('rejects file completion of a changed local edit when %s', async reason => {
+    const state = setup();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), vi.fn());
+    const handle = coordinator.begin('exposure');
+    await Promise.resolve();
+    expect(coordinator.change(handle, value => ({ ...value, exposureEV: 2 }))).toBe(true);
+    const before = state.document;
+    if (reason === 'blocked') state.rejectAdmission();
+    if (reason === 'stale-target') state.switchSubOwner();
+    if (reason === 'canceled') state.controller.reset();
+    await expect(coordinator.finishForFile()).rejects.toThrow('rejected');
+    expect(state.document).toBe(before);
+    expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
+  });
+
+  it('rejects a pending discrete change whose document mutation admission fails', async () => {
+    const state = setup();
+    const report = vi.fn();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), report);
+    coordinator.discreteChange(value => ({ ...value, exposureEV: 2 }));
+    state.rejectAdmission();
+    await expect(coordinator.finishForFile()).rejects.toThrow('rejected its discrete edit');
+    expect(state.history).toHaveLength(0);
+    expect(report).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a queued gesture sample if document admission closes after the gesture begins', async () => {
+    const state = setup();
+    const report = vi.fn();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), report);
+    const handle = coordinator.begin('exposure');
+    coordinator.change(handle, value => {
+      state.rejectAdmission();
+      return { ...value, exposureEV: 2 };
+    });
+    await expect(coordinator.finishForFile()).rejects.toThrow('rejected its pending edit');
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.active).toBe(false);
+    expect(report).toHaveBeenCalledOnce();
+  });
+
+  it('remembers rejection of an active sample until the file terminal', async () => {
+    const state = setup();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), vi.fn());
+    const handle = coordinator.begin('exposure'); await Promise.resolve();
+    state.switchSubOwner();
+    expect(coordinator.change(handle, value => ({ ...value, exposureEV: 2 }))).toBe(false);
+    await expect(coordinator.finishForFile()).rejects.toThrow('rejected its active edit');
+    expect(state.history).toHaveLength(0);
+  });
+
+  it.each(['gesture', 'discrete'] as const)('allows a legitimate %s no-op through file preparation without history', async kind => {
+    const state = setup();
+    const coordinator = createAdjustmentInteractionCoordinator(state.controller,
+      async () => ({ status: 'admitted' }), () => ({ isCurrent: () => true }), vi.fn());
+    if (kind === 'discrete') coordinator.discreteChange(value => ({ ...value }));
+    else {
+      const handle = coordinator.begin('exposure'); await Promise.resolve();
+      coordinator.change(handle, value => ({ ...value, exposureEV: 2 }));
+      coordinator.change(handle, value => ({ ...value, exposureEV: 0 }));
+    }
+    await expect(coordinator.finishForFile()).resolves.toBeUndefined();
+    expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
+    expect(state.controller.active).toBe(false);
+  });
+
   it('coalesces a layer slider gesture through one document history command', () => {
     const state = setup();
     const gesture = state.controller.begin()!;

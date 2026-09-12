@@ -162,6 +162,7 @@ import {
 import type { DocumentOpenMode } from './application/documents/documentSourceProbe';
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
+import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
 import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
@@ -374,36 +375,6 @@ const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
 const DEVICE_LOSS_RECOVERY_LIMIT = 2;
 const DEVICE_LOSS_STABILITY_WINDOW_MS = 30_000;
-const waitForCommandArtifact = (
-  service: LightTableCommandService,
-  documentId: DocumentSessionId,
-  taskId: string
-) => new Promise<File>((resolve, reject) => {
-  const startedAt = performance.now();
-  const inspect = () => {
-    const task = service.queryTask(documentId, taskId);
-    if (!task) {
-      reject(new Error('The export task was not published.'));
-      return;
-    }
-    if (task.status === 'running' || (task.status === 'completed' && !task.artifact)) {
-      if (performance.now() - startedAt >= 30_000) {
-        reject(new Error('The export did not finish within 30 seconds.'));
-      } else {
-        setTimeout(inspect, 16);
-      }
-      return;
-    }
-    if (task.status !== 'completed' || !task.artifact) {
-      reject(new Error(task.error ?? 'The export did not complete.'));
-      return;
-    }
-    const file = service.resolveArtifact(task.artifact.id);
-    if (!file) reject(new Error('The exported artifact is unavailable.'));
-    else resolve(file);
-  };
-  inspect();
-});
 const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
   'text-plan-blocked': 'the text preflight is blocked',
   'no-native-text': 'no text layer can be emitted natively',
@@ -1265,7 +1236,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
   });
   const finishTextEditingRef = useRef<() => boolean>(() => false);
-  const quickExportPngRef = useRef<() => Promise<void>>(async () => undefined);
   const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
     exportPreviewArtifactRef, exportPsdArtifactRef } = useEditorArtifactExportRefs();
   const beginAutomationGestureRef = useRef<(
@@ -2981,8 +2951,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }),
     commands: {
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
-      saveFile: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleSave(); },
-      quickExportPng: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void quickExportPngRef.current(); },
+      saveFile: () => { void documentFileIntents.save(); },
+      quickExportPng: () => { void documentFileIntents.exportPng(); },
       openImageSize: editorDialogs.openImageSize,
       openCanvasSize: editorDialogs.openCanvasSize,
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
@@ -4100,6 +4070,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         // during a transform. All semantic document commands first publish
         // presentation-owned selection/transform state through its owner.
         if (command === 'view.setZoom') return;
+        if (command === 'file.exportNative' || command === 'file.exportPng' || command === 'file.exportBitmap'
+          || command === 'file.exportPsd' || command === 'file.exportSvg') {
+          await documentFileIntents.prepareForCommand(documentSession);
+          return;
+        }
         const admission = await interactionTransitions.request('commit-before-mutation');
         if (admission.status === 'rejected') throw new Error(admission.reason);
       },
@@ -4975,7 +4950,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     exportOutput,
     exportBitmapArtifact,
     save: handleSave,
-    exportPng: handleExportPng,
     exportJpeg: handleExportJpeg,
     exportWebp: handleExportWebp,
     exportTiff: handleExportTiff,
@@ -5075,24 +5049,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return exportEditorPsdArtifact(binding.renderer, binding.document, fileNameBase, binding, signal);
   };
 
-  const exportPngThroughCommand = useCallback(async () => {
-    const execution = executeRegisteredCommand('file.exportPng', {});
-    if (!execution || !commandService) {
-      await handleExportPng();
-      return;
-    }
-    try {
-      const result = await execution;
-      if (result.status !== 'accepted') return;
-      const file = await waitForCommandArtifact(
-        commandService, workspaceDocumentId as DocumentSessionId, result.taskId
-      );
-      await deliverExportFile(file);
-    } catch (reason) {
-      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError(reason instanceof Error ? reason.message : String(reason));
-    }
-  }, [commandService, deliverExportFile, executeRegisteredCommand, handleExportPng, workspaceDocumentId]);
-  quickExportPngRef.current = exportPngThroughCommand;
+  const documentFileIntents = useDocumentFileIntents({
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => engineRef.current,
+    captureScope: captureMountedInteractionScope,
+    settlePixels: settleMountedDocumentInteraction,
+    commitAdjustments: adjustmentInteractions.finishForFile,
+    commitLayerDocument: layerDocumentInteractions.finishForFile,
+    finishTextCreation: textCreationInteraction.finishForFile,
+    assertTextCreationCommandReady: textCreationInteraction.assertFileCommandReady,
+    finishTextEditing: () => textEditingController.finishForFile(),
+    commands: commandService,
+    nextRequestId: id => `ui-${id}-${++commandRequestSequenceRef.current}`,
+    save: handleSave,
+    exportJpeg: handleExportJpeg,
+    exportWebp: handleExportWebp,
+    exportTiff: handleExportTiff,
+    exportPsd: handleExportPsd,
+    exportPsdMaximumAppearance: handleExportPsdMaximumAppearance,
+    exportSvg: handleExportSvg,
+    deliverExportFile,
+    reportError: setError
+  });
 
   const duplicateImage = useCallback(async (name: string) => {
     if (!commandService || duplicateImageBusy) return;
@@ -5162,14 +5140,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearRecentProjects: () => onClearRecentProjects?.(),
       closeProject: () => onCloseProject?.(),
       exitApplication: onExitApplication,
-      save: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleSave(); },
-      exportPng: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void exportPngThroughCommand(); },
-      exportJpeg: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportJpeg(); },
-      exportWebp: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportWebp(); },
-      exportTiff: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportTiff(); },
-      exportPsd: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportPsd(); },
-      exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportPsdMaximumAppearance(); },
-      exportSvg: () => { finishTextEditingRef.current(); textCreationInteraction.commitPoint(); textCreationInteraction.commitParagraph(); void handleExportSvg(); },
+      save: () => { void documentFileIntents.save(); },
+      exportPng: () => { void documentFileIntents.exportPng(); },
+      exportJpeg: () => { void documentFileIntents.exportJpeg(); },
+      exportWebp: () => { void documentFileIntents.exportWebp(); },
+      exportTiff: () => { void documentFileIntents.exportTiff(); },
+      exportPsd: () => { void documentFileIntents.exportPsd(); },
+      exportPsdMaximumAppearance: () => { void documentFileIntents.exportPsdMaximumAppearance(); },
+      exportSvg: () => { void documentFileIntents.exportSvg(); },
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();

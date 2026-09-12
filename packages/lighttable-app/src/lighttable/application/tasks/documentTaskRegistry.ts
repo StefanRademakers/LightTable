@@ -101,6 +101,7 @@ export class DocumentTaskRegistry {
   }
 
   getSnapshot = (): DocumentTaskRegistrySnapshot => this.snapshot;
+  get isDisposed(): boolean { return this.disposed; }
 
   subscribe = (listener: DocumentTaskRegistryListener): (() => void) => {
     this.assertUsable();
