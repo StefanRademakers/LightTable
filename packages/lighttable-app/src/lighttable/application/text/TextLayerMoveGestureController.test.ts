@@ -23,6 +23,7 @@ describe('TextLayerMoveGestureController', () => {
     const controller = new TextLayerMoveGestureController(() => ({
       getDocument: () => document,
       getEditingLayerId: () => layer.id,
+      captureScope: () => ({ isCurrent: () => true }),
       documentMutations
     }));
     expect(controller.begin(7, { x: 10, y: 20 })).toBe(true);
@@ -51,6 +52,7 @@ describe('TextLayerMoveGestureController', () => {
     }));
     const controller = new TextLayerMoveGestureController(() => ({
       getDocument: () => document, getEditingLayerId: () => layer.id,
+      captureScope: () => ({ isCurrent: () => true }),
       documentMutations
     }));
     controller.begin(1, { x: 0, y: 0 });

@@ -74,7 +74,7 @@ export class PathTextHandleController {
     const layout = layer?.type === 'text' && layer.text.source.kind === 'flow'
       && layer.text.source.layout.mode === 'path' ? layer.text.source.layout : null;
     const realization = layerId ? dependencies.getRealization(layerId) : null;
-    if (!document || !layerId || !layout || !realization) return false;
+    if (!document || !layerId || !layout || !realization?.isCurrent()) return false;
     const kind = hitTestPathTextHandle(
       pathTextHandlePresentation(layout, realization.table, realization.projection),
       realization.localToDocument,
@@ -152,6 +152,11 @@ export class PathTextHandleController {
         }
         return false;
       }
+    }
+    if (this.active !== active || !active.realization.isCurrent()) {
+      if (this.active === active) this.active = null;
+      active.transaction.cancel();
+      return false;
     }
     this.active = null;
     return active.transaction.commit();

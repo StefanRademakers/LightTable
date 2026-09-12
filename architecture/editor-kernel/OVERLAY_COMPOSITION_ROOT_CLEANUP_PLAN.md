@@ -305,6 +305,15 @@ class names: reuse existing owners before creating a new one.
     queued canonical-revision protection; actual native recovery, pending Size,
     Layer/Rasterize Type and recovered-flow/raster UndoRedo pass. Positioned
     realization itself remains explicitly unsupported O08 debt, not visual proof.
+  - [x] O05a.5: text geometry composition and exact realization lifetime.
+    Reuse move/frame/path-handle controllers; retire captured geometry before
+    document editing reset. Runtime-only replacement cancels geometry, not
+    unrelated typing/property transactions. Actual frame resize/Ctrl-move/path
+    handle baseline and fresh packaged exact history assertions pass; critic PASS.
+    Overlay5101->5039 physical lines; separate editing publication remains O05a.6.
+  - [ ] O05a.6: separate text editing/selection publication binding. Capture
+    admitted commit observation address and selection RAF identity; preserve
+    truthful committed results. Do not absorb geometry or shaping algorithms.
   - [x] O05b.1: vector/shape/gradient property projection and intents; one
     toolbar/context gradient route, creation options separate from geometry.
     Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property

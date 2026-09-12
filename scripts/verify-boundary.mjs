@@ -559,7 +559,8 @@ function verifyTextCutover(relativePath, source) {
       failures.push(`${relativePath}: missing-font preview and replacement must share one document transaction owner`);
     }
   }
-  if (normalizedPath.endsWith('/application/text/PathTextHandleController.ts')
+  if (normalizedPath.endsWith('/application/text/TextLayerMoveGestureController.ts')
+    || normalizedPath.endsWith('/application/text/PathTextHandleController.ts')
     || normalizedPath.endsWith('/application/text/ParagraphFrameResizeController.ts')) {
     if (!source.includes('isCurrent()')) {
       failures.push(`${relativePath}: renderer-derived text geometry must remain bound through terminal commit`);
@@ -569,9 +570,9 @@ function verifyTextCutover(relativePath, source) {
     if (/\bcreate(?:Point|Paragraph|Path)TextDocument\s*\(/.test(source)) {
       failures.push(`${relativePath}: Type-tool creation must not retain a direct document mutation fallback`);
     }
-    if (!source.includes('renderer?.currentTextEditingLayout(layerId)?.localToDocument')
-      || !source.includes('const editingLayout = renderer?.currentTextEditingLayout(layerId)')) {
-      failures.push(`${relativePath}: text geometry gestures must begin from exact current renderer layouts`);
+    if (!source.includes('useTextGeometryGestures(')
+      || /new (?:TextLayerMoveGestureController|ParagraphFrameResizeController|PathTextHandleController)\(/.test(source)) {
+      failures.push(`${relativePath}: text geometry construction and runtime retirement belong to their composition binding`);
     }
     if (!source.includes('new TextPropertyGestureController(')) {
       failures.push(`${relativePath}: text-property gestures must delegate their complete lifetime to the application owner`);

@@ -654,11 +654,12 @@ unchecked wider responsibility is being cut over by that extraction.
 
 ## O07 follow-up: GenAI document-reference handoff (read-only, 2026-09-12)
 
-This subsection preserves the pre-O07c source inventory. Reference handoff is
-now accepted as recorded in PROGRESS; the separate Remove Object finding remains
-open. Historical proposal wording below is not another implementation route.
-No provider generation or paid job was triggered; the races below have not yet
-been reproduced in a packaged application. Symbol anchors are preferred over
+This subsection preserves the pre-O07c/O07e source inventory. Reference handoff
+and bounded Remove Object source/submission ownership are now accepted as recorded
+in PROGRESS. The proposal and open-finding wording below describe that earlier
+checkpoint, not current tasks or another implementation route. Current production
+owners and evidence limits are listed at the top of this document and in PROGRESS.
+No live provider generation or paid job was tested. Symbol anchors are preferred over
 line numbers because the Overlay is being reduced in adjacent accepted slices.
 
 ### Existing owners and live entry points

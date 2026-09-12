@@ -1,5 +1,29 @@
 # Task 416 progress
 
+## O05a.5 — Text geometry composition and exact lifetime (accepted)
+
+- Removed root construction, realization callbacks and duplicate cancellation for
+  move, paragraph-frame and path-handle gestures. useTextGeometryGestures composes
+  the existing three controllers; captureTextGeometryRealization pins canonical
+  document, editing target and concrete renderer lifetime. Geometry retirement
+  does not reset typing or Properties. No shaping/geometry algorithm moved.
+- Guards include session, renderer, lifecycle/generation, editing/mutation owner
+  identity and editing document ID; ordinary ports rerenders and own preview
+  revisions stay valid. Stale unpublished work cancels; committed results remain
+  truthful. Critic identity findings repaired; final independent review PASS.
+- 91 focused tests/6 files, app typecheck, boundary and diff checks PASS.
+  Overlay5101->5039 physical lines; hard ceiling5040. Helper40/hook67 lines.
+- Fresh instrumented desktop package PASS, app.asar SHA256
+  52fb1584439787c64fabf287f415a8e3a20df2ac372a8f893f7a938c2e0fe7ec.
+  Actual UI frame resize, Ctrl-move and Path Text start handle with exact canonical
+  history/UndoRedo PASS: tmp/text-geometry-smoke/run-jKWYjh (baseline run-MtAudu).
+  Adjacent Properties transition PASS: tmp/text-property-transition-smoke/run-kGQCOe.
+  Final geometry screenshot inspected; no page errors. These are bounded flow
+  gates, not broad performance or whole-app stability acceptance. Path Text's blank
+  Orientation presentation was also present in the baseline and remains O08 debt.
+- Next: O05a.6 text editing/selection publication and lifecycle, separately from
+  geometry. Remaining root/panel composition and O08 mixed/performance gates open.
+
 ## O02c.3b — Captured text prerequisite in the single runner (accepted)
 
 - Replaced per-document Promise tails with one explicit execution queue. A file
@@ -66,7 +90,8 @@
   claim. Independent documentation review and architecture-docs audit PASS.
 - This is partial MD reconciliation, not O08 acceptance or deletion of every
   historical report. Any remaining valid findings must be reconciled before
-  removing their source. Runner prerequisite implementation remains unaccepted WIP.
+  removing their source. Runner prerequisites were unaccepted WIP at this checkpoint;
+  the later O02c.3b acceptance above supersedes that status.
 
 ## O07f — Independent GenAI provider binding (accepted)
 

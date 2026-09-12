@@ -188,11 +188,9 @@ import { executeSemanticFaceWarpCommand } from './application/effects/faceWarp/s
 import { useAgentActivity } from './application/commands/useAgentActivity';
 import { waitForExactCommandRender } from './application/rendering/waitForExactCommandRender';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
-import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
-import { PathTextHandleController } from './application/text/PathTextHandleController';
+import { useTextGeometryGestures } from './composition/text/useTextGeometryGestures';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
-import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
 import { type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import { resolveTextProperties } from './application/text/textPropertyPresentation';
 import { useTextPropertyCommands } from './composition/text/useTextPropertyCommands';
@@ -1593,58 +1591,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textSelectionGestureController = textSelectionGestureControllerRef.current;
-  const textLayerMoveGestureControllerRef = useRef<TextLayerMoveGestureController | null>(null);
-  textLayerMoveGestureControllerRef.current ??= new TextLayerMoveGestureController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    getEditingLayerId: () => {
-      const snapshot = textEditingController.getSnapshot();
-      return snapshot.status === 'editing' ? snapshot.layerId : null;
-    },
+  const { move: textLayerMoveGestureController, frame: paragraphFrameResizeController,
+    path: pathTextHandleController } = useTextGeometryGestures({
+    documentIdentity: workspaceDocumentId, session: documentSession, renderer: engineRef.current,
+    lifecycle: rendererLifecycle, generation: rendererSnapshot.generation
+  }, {
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocumentId: () => imageDocumentRef.current?.id ?? null,
+    editing: textEditingController, captureScope: captureMountedInteractionScope,
     documentMutations: documentMutationController
-  }));
-  const textLayerMoveGestureController = textLayerMoveGestureControllerRef.current;
-  const paragraphFrameResizeControllerRef = useRef<ParagraphFrameResizeController | null>(null);
-  paragraphFrameResizeControllerRef.current ??= new ParagraphFrameResizeController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    getEditingLayerId: () => {
-      const snapshot = textEditingController.getSnapshot();
-      return snapshot.status === 'editing' ? snapshot.layerId : null;
-    },
-    captureRealization: (layerId) => {
-      const renderer = engineRef.current;
-      const generation = rendererLifecycle.getSnapshot().generation;
-      const localToDocument = renderer?.currentTextEditingLayout(layerId)?.localToDocument;
-      return renderer && localToDocument ? {
-        localToDocument,
-        isCurrent: () => engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === generation
-      } : null;
-    },
-    documentMutations: documentMutationController
-  }));
-  const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
-  const pathTextHandleControllerRef = useRef<PathTextHandleController | null>(null);
-  pathTextHandleControllerRef.current ??= new PathTextHandleController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    getEditingLayerId: () => {
-      const snapshot = textEditingController.getSnapshot();
-      return snapshot.status === 'editing' ? snapshot.layerId : null;
-    },
-    getRealization: (layerId) => {
-      const renderer = engineRef.current;
-      const generation = rendererLifecycle.getSnapshot().generation;
-      const editingLayout = renderer?.currentTextEditingLayout(layerId);
-      return editingLayout?.path ? {
-        table: editingLayout.path.table,
-        projection: editingLayout.path.projection,
-        localToDocument: editingLayout.localToDocument,
-        isCurrent: () => engineRef.current === renderer
-          && rendererLifecycle.getSnapshot().generation === generation
-      } : null;
-    },
-    documentMutations: documentMutationController
-  }));
-  const pathTextHandleController = pathTextHandleControllerRef.current;
+  });
   const textEditing = useSyncExternalStore(
     textEditingController.subscribeShell,
     textEditingController.getShellSnapshot,
@@ -1660,28 +1616,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textSelectionGestureController.dispose();
   }, [textSelectionGestureController, workspaceDocumentId]);
 
-  useEffect(() => () => {
-    textLayerMoveGestureController.cancel();
-  }, [textLayerMoveGestureController]);
-
-  useEffect(() => () => {
-    paragraphFrameResizeController.cancel();
-  }, [paragraphFrameResizeController]);
-
-  useEffect(() => () => {
-    pathTextHandleController.cancel();
-  }, [pathTextHandleController]);
-
   useLayoutEffect(() => {
-    textLayerMoveGestureController.cancel();
-    paragraphFrameResizeController.cancel();
-    pathTextHandleController.cancel();
     textPropertyGestureController.cancel();
     textEditingController.reset();
   }, [
-    paragraphFrameResizeController,
-    pathTextHandleController,
-    textLayerMoveGestureController,
     textEditingController,
     textPropertyGestureController,
     workspaceDocumentId

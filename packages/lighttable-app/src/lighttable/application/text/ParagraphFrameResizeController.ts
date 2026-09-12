@@ -47,7 +47,7 @@ export class ParagraphFrameResizeController {
       ? layer.text.source
       : null;
     const realization = layerId ? dependencies.captureRealization(layerId) : null;
-    if (!document || !layerId || source?.layout.mode !== 'paragraph' || !realization) {
+    if (!document || !layerId || source?.layout.mode !== 'paragraph' || !realization?.isCurrent()) {
       return false;
     }
     const hit = hitTestParagraphFrameHandle(
@@ -108,7 +108,7 @@ export class ParagraphFrameResizeController {
   finish(pointerId: number, documentPoint: Vec2) {
     if (!this.owns(pointerId)) return false;
     const active = this.active!;
-    if (!this.move(pointerId, documentPoint) || this.active !== active) {
+    if (!this.move(pointerId, documentPoint) || this.active !== active || !active.realization.isCurrent()) {
       if (this.active === active) {
         this.active = null;
         active.transaction.cancel();

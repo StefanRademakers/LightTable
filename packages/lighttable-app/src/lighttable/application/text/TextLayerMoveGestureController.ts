@@ -12,6 +12,7 @@ interface Point { readonly x: number; readonly y: number }
 export interface TextLayerMoveGestureDependencies {
   getDocument(): ImageDocument | null;
   getEditingLayerId(): LayerId | null;
+  captureScope(layerId: LayerId): { isCurrent(): boolean } | null;
   documentMutations: Pick<DocumentMutationController, 'begin'>;
 }
 
@@ -20,6 +21,7 @@ interface ActiveMove {
   readonly layerId: LayerId;
   readonly start: Point;
   readonly transaction: DocumentMutationTransaction;
+  readonly scope: { isCurrent(): boolean };
 }
 
 /** Ctrl-drag move gesture used while the native Type input bridge stays active. */
@@ -37,6 +39,8 @@ export class TextLayerMoveGestureController {
     const layerId = dependencies.getEditingLayerId();
     const layer = document && layerId ? findDocumentLayer(document, layerId) : null;
     if (!document || !layerId || layer?.type !== 'text' || layerIsLocked(layer, 'position')) return false;
+    const scope = dependencies.captureScope(layerId);
+    if (!scope?.isCurrent()) return false;
     const transaction = dependencies.documentMutations.begin(
       `text-move:${layerId}`,
       { label: 'Move Text Layer', type: 'text.move' }
@@ -46,7 +50,8 @@ export class TextLayerMoveGestureController {
       pointerId,
       layerId,
       start: { ...start },
-      transaction
+      transaction,
+      scope
     };
     return true;
   }
@@ -55,7 +60,7 @@ export class TextLayerMoveGestureController {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
     const source = findDocumentLayer(active.transaction.before, active.layerId);
-    if (!active.transaction.active || source?.type !== 'text') {
+    if (!active.transaction.active || !active.scope.isCurrent() || source?.type !== 'text') {
       active.transaction.cancel();
       this.active = null;
       return false;
@@ -76,7 +81,7 @@ export class TextLayerMoveGestureController {
   finish(pointerId: number, point: Point) {
     if (!this.owns(pointerId)) return false;
     const active = this.active!;
-    if (!this.move(pointerId, point) || this.active !== active) {
+    if (!this.move(pointerId, point) || this.active !== active || !active.scope.isCurrent()) {
       if (this.active === active) {
         this.active = null;
         active.transaction.cancel();
