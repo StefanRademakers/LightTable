@@ -1,13 +1,16 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O06i Delete target accepted with critic, actual vector/pixel/
+Status: in progress. O07f independent provider binding accepted with critic and
+packaged local-fixture connect/disconnect/reject/retry/reference proof. O03c.7 hook order and closed text lifetime accepted with
+critic, baseline hook-crash reproduction, current public host and packaged text
+proof. O06i Delete target accepted with critic, actual vector/pixel/
 multilayer Delete and pending-transform/Actions/history proof. O05f tool defaults accepted with critic and packaged brush,
 selection-dimensions and Warp proof. O06h adjustment creation accepted with critic and packaged
 contextual/explicit/Actions/transform handoff and adjacent inspector proof. Positioned
 rendering remains explicitly unsupported O08 debt, not visual preservation.
-Canonical checklist below is authoritative. Overlay5,158 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Closed-presentation hook-order
-repair next, then remaining independent GenAI provider binding.
+Canonical checklist below is authoritative. Overlay5,102 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. O02c.3b captured command
+prerequisites are next; actual pending Type/export rejection is reproduced.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

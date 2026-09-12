@@ -407,6 +407,11 @@ class names: reuse existing owners before creating a new one.
     imports and explicit delivery provenance. Critic PASS after lifetime/metadata
     repairs; packaged real Select menu/export/import/tab retirement proof passes.
     Provider submit is a local fixture; generated-result placement remains untested.
+  - [x] O07f: independent provider selection/subscription/request presentation.
+    Root provider recipes deleted; no document/history/GPU dependency. Critic
+    repairs/PASS, current/retired error and event precedence proof; packaged
+    panel/menu connect/disconnect/reject/retry and reference handoff pass using
+    local provider fixtures. Real authentication and event transport untested.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

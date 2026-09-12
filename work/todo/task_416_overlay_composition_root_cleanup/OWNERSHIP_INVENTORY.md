@@ -1,9 +1,12 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,153 physical lines. O03c.7 moves the closed return after
+Current accepted root: 5,102 physical lines. O07f moves provider selection,
+subscription and request/error lifetime to the independent GenAI context;
+actual provider errors now remain visible and retryable. No document/GPU owner.
+O03c.7 moves the closed return after
 all hooks, scopes pending text/recovery and error feedback to open epochs, and
 removes root async error catches. Public-host baseline hook crash is reproduced;
-current host and adjacent packaged text gates pass. GenAI provider binding next.
+current host and adjacent packaged text gates pass. Captured command prerequisites next.
 O06i moves Delete precedence and
 settlement-target validation into DeleteTargetIntent. Canonical invocation layer/
 channel are explicit Fill arguments; post-settlement selection must remain active.
@@ -36,6 +39,50 @@ Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
+Post-O03c.7 independent rescan, provider work excluded, ordered by remaining
+authority rather than cosmetic line reduction:
+
+1. O02c.3b: command-producing text prerequisites inside the existing command
+   runner. Already-queued text.create and not-yet-dispatched creation both need
+   explicit ownership; no recursive execute or second queue. Current rejection
+   is truthful but not the finished supported flow.
+2. Text runtime construction/retirement: FlowText, Properties, selection/move/
+   frame/path-handle bindings retain root hit/range/observation/cleanup policy.
+   Reuse those owners; separate editing publication from geometry realization.
+   Verify old construction-captured rendererLifecycle vs live lifecycle refs.
+3. Grade clipboard context/artifact/LUT-source and feedback binding: reuse
+   GradeAssetCommandService and semantic clipboard, not another grade store.
+4. GenAI project panel intents: Add Reference/Recreate/reveal and project asset
+   actions. Pure lazy panel props remain valid composition, not migration debt.
+5. Viewport Exact/Fit/Actual/anchor and immediate presentation binding: reuse
+   viewport math/state; do not merge wheel/pan/transform algorithms.
+6. Three separate UI intents: selection menu, surface dialogs and Duplicate
+   Image request/dialog lifetime. No general menu callback manager.
+7. Diagnostics/warm-up/support artifacts: scoped source and async feedback;
+   reuse existing schedulers and diagnostics, no renderer-loop instrumentation.
+8. Final scattered publication/open/rebind, profile/text/batch/style command
+   completion and tool adapter policy: remove only actual authority into existing
+   owners, then perform O08 endpoint review and mixed-flow/resource proof.
+
+Named owner construction/dependency injection, view nodes, scalar-to-payload
+adapters, DOM refs and purely visual state may remain. A giant props bag or
+one replacement text/GenAI/editor manager is not an acceptable reduction.
+
+O02c.3b implementation hypothesis (not accepted): one opaque tracked text.create
+handle may be consumed as a captured file-command prerequisite by the same
+runner. Parent schema/capability/revision admission remains before mutation;
+capture exact creation/session/runtime before other terminals. Preparation may
+await fonts/drafts but not public child execution. An already queued child must
+be adopted once, its old queue position consumed; no generic executeNested or
+second queue. The explicit causal order export->other->captured-create may become
+create->export->other. Other documents remain independent. Child handler phase
+must suppress observed duplicate Actions despite the suspended parent settlement;
+record the original child result/context once. Canceled/superseded queued creation
+must not later ghost-commit. Committed child success/history survives a retired
+parent, which rejects separately. This requires integrated service+text-owner
+proof, not merely a file-preparation callback change. Baseline actual held Type
+drag->semantic PNG export rejects in text-export-prerequisite-smoke/run-7u34lM.
+
 ### Adjustment creation family — resolved O06h
 
 - Remove root applyCurves/applyAdjustment contextual/existing-local reveal,
@@ -58,7 +105,7 @@ Provider generation/result placement are outside this slice's fixture evidence.
   exact UndoRedo/Actions replay and pending pointer transform -> Ctrl+M.
   Independent critic PASS; current source/limitations are recorded in PROGRESS.
 
-### Tool settings — next bounded owner, not accepted implementation
+### Tool settings — resolved O05f; pre-extraction boundary below
 
 - Defaults belong to EditorApplicationSession via existing session adapter, not
   documentstate. Extract keyboard size/hardness/percent policy and digit buffer,

@@ -894,6 +894,11 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('removeObjectPendingRef')) {
       failures.push(`${relativePath}: Remove Object capture and submission lifetime must remain in bounded editor/GenAI owners`);
     }
+    if (!source.includes('useGenAiProviders(') || source.includes('genAiProviderSnapshots')
+      || source.includes('fallbackGenAiProvider') || source.includes('updateGenAiProviderSnapshot')
+      || /genAiService\.(getProviderSnapshots|subscribe|connectProvider|disconnectProvider)\(/.test(source)) {
+      failures.push(`${relativePath}: provider preference/status/request lifetime belongs to the independent GenAI provider owner`);
+    }
     if (!source.includes('useLayerFinalizationIntents(')
       || !source.includes('rasterizeText: layerFinalizationIntents.rasterizeText')
       || !source.includes('usePositionedTextRecovery(')

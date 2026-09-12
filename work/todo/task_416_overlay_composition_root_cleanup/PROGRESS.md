@@ -1,5 +1,36 @@
 # Task 416 progress
 
+## O07f — Independent GenAI provider binding (accepted)
+
+- Deleted Overlay Create-preference/status-cache/subscription reconciliation and
+  connect/disconnect Promise recipes. GenAiProviderController120 + hook14 are
+  provider-only; host authentication/transport and existing Setup/Jobs/References/
+  RemoveObject remain independent. Root5153->5102, ceiling5103; engine4003.
+  Actual Create-preference policy preserved, inaccurate mode-switch comment
+  removed. No document/history/GPU dependency, new queue or paid submit route.
+- Initial lists cannot overwrite newer event/request state. Exact service epoch
+  and per-provider request tokens retire stale responses. Critic repair: observed
+  terminal events beat older returned snapshots/errors; connecting is progress.
+  Request captures its initiating reporter, later requests use updated callback.
+  Service A->B->A and unmount cannot revive old continuations. Event-versus-event
+  ordering remains host-owned because events lack operation identity.
+- Final independent critic PASS;54 tests/6 files, app tsc/boundary/diff PASS.
+  Hook scheduling is simulated around real owner; packaged UI supplies real React
+  evidence. Source-structure/docs checks pass. No broad performance verdict.
+- Baseline package40691: provider/run-4phEmf normal flow PASS; reject/run-tFlOkk
+  reproduces unhandled IPC error with no panel alert. Reference/run-5cIO12 PASS.
+  Fresh package57868: provider-binding-smoke/run-Q1uAZL PASS actual panel connect,
+  AI menu disconnect/connect, visible rejected connect, explicit retry and clear
+  panel after disconnect; exact document query/history unchanged, zero submits
+  and no page errors. Reference-handoff-smoke/run-zF4fgk PASS production reference
+  export/import/tab association with local provider fixture. Final UI inspected.
+  Archive SHA256:90fb06e9fd2d0809cd0ad2a775e4d05344c38a7e316e2a81871ac902abf89b8e.
+- This does not prove OAuth, live providers, paid generation or delivery. Failed
+  harness menu selector corrected against accessible status label before baseline;
+  reports retained. Next O02c.3b runner prerequisite; actual pending Type drag ->
+  semantic export rejection reproduced, no prerequisite fix claimed yet. Remaining
+  ordered authority map is in OWNERSHIP_INVENTORY; O08/O09 still open.
+
 ## O03c.7 — Public open lifecycle and scoped text feedback (accepted)
 
 - Root closed return now follows all hooks; text Properties reveal requires open.

@@ -73,6 +73,21 @@ provider client or unrestricted filesystem capability.
 
 ## Output and panel invariants
 
+Provider presentation belongs to `GenAiProviderController` and its small React
+binding, independently of document, renderer and generation jobs. The current
+Create preference selects the panel provider; the Edit preference is separately
+available to edit intents. Changing workflow mode does not itself change provider.
+Disconnected placeholders are honest UI state, never a mutation fallback.
+
+One service binding owns the subscription and initial list. A late initial list
+cannot overwrite newer event/request information. Requests pin provider, service
+lifetime and error recipient; a newer same-provider request retires old response
+publication. A subsequently observed terminal event beats the earlier request's
+response; `connecting` is progress and still permits completion. The host event
+contract carries no operation identity, so event-versus-event ordering remains
+host-owned, not solved by this projection. Failures remain visible in the provider
+panel; explicit request failures also reach the initiating error boundary.
+
 - The setup panel owns model, prompt and provider-defined fields only.
 - Queue and history are shown in a separate Dockview panel backed by the same
   provider-neutral job store; closing either panel never stops a job.
