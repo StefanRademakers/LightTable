@@ -1,5 +1,33 @@
 # Task 416 progress
 
+## O06a — Clipboard host and Cut intent (accepted)
+
+- Removed host clipboard read/decode, target placement, artifact lifetime and
+  copy-before-clear sequencing from Overlay. ClipboardHostIntents owns host I/O;
+  CutPixelsCommand composes the existing exact-copy and synchronous fill owner.
+  createClipboardCommands captures the concrete session/renderer/generation at
+  invocation; the React hook only supplies current ports. No new queue/history,
+  persistent clipboard cache, pixel readback or per-pointer work introduced.
+- Placement uses canonical cached support, including painted/sparse selection;
+  active fully clipped coverage rejects visibly instead of acting unselected.
+  Late host/decode completion cannot dispatch into another target. Newly owned,
+  borrowed and uncertain-dispatch artifacts have explicit distinct lifetimes.
+  Live transform reservations still reach the semantic settlement gateway.
+- Independent integrated source critic PASS; no additional repair needed after
+  prepared-owner review.34 focused tests include real DocumentSession binding;
+  app typecheck, boundary and source-structure pass. Fresh instrumented desktop
+  passes actual menu Copy/Copy Merged/Paste, Actions replay and MCP with exactly
+  equal output pixels. Added menu Cut: selected alpha0, outside alpha255, one
+  history entry and exact RGBA restoration on Undo. Report:
+  tmp/pixel-clipboard-equivalence/report.json.
+- Baseline harness assumption was obsolete after O03c.4: selection publication
+  now advances canonical invalidation. Updated only that expectation; Copy's
+  unchanged revision/history checks remain. Baseline and new package both pass.
+- Overlay6,863 ->6,745 audit-counted lines. Whole-app acceptance/performance is
+  still open. Remaining selection host bindings are prepared, not accepted.
+  Next: selection pointer/observation ownership, then file-intent preparation;
+  Save currently can overtake pending text creation or active transform edits.
+
 ## O03c.4 — Canonical revision authority (accepted)
 
 - Discovered by the O05d real rebind test, not a speculative rewrite. Canonical

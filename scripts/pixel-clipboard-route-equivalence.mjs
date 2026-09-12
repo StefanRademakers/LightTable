@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import sharp from 'sharp';
 import { mcpResult } from './action-route-equivalence.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
 
@@ -65,8 +66,8 @@ export const runPixelClipboardRouteEquivalence = async ({ page, driver, mcp, out
   const afterSelection = await driver.queryDocument(documentId);
   const selectionRevision = afterSelection.canonicalRevision;
   const selectionUndoDepth = afterSelection.history.undoDepth;
-  assert.equal(selectionRevision, initial.canonicalRevision,
-    'Selection setup unexpectedly changed the canonical document revision.');
+  assert.ok(selectionRevision > initial.canonicalRevision,
+    'Selection publication did not advance canonical invalidation.');
 
   const previews = Object.fromEntries(['ui', 'actions', 'mcp'].map((route) =>
     [route, path.join(output, `pixel-clipboard-${route}.png`)]));
@@ -185,11 +186,31 @@ export const runPixelClipboardRouteEquivalence = async ({ page, driver, mcp, out
 
   await driver.execute(documentId, 'history.undo');
   await waitForLayerCount(page, documentId, initialLayers.length, selectionUndoDepth);
+  const cutPaths = Object.fromEntries(['before', 'after', 'undo'].map(name =>
+    [name, path.join(output, `pixel-cut-${name}.png`)]));
+  await writePreview(driver, documentId, cutPaths.before);
+  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await page.getByRole('menuitem', { name: 'Cut', exact: true }).click();
+  await waitForLayerCount(page, documentId, initialLayers.length, selectionUndoDepth + 1);
+  await writePreview(driver, documentId, cutPaths.after);
+  const beforeCut = await sharp(cutPaths.before).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const afterCut = await sharp(cutPaths.after).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.deepEqual(afterCut.info, beforeCut.info);
+  const alphaAt = (image, x, y) => image.data[(y * image.info.width + x) * 4 + 3];
+  assert.equal(alphaAt(beforeCut, 80, 80), 255, 'Cut fixture must start with opaque selected content.');
+  assert.equal(alphaAt(afterCut, 80, 80), 0, 'Menu Cut did not clear the selected pixels.');
+  assert.equal(alphaAt(afterCut, 8, 8), 255, 'Menu Cut cleared pixels outside selection.');
+  await driver.execute(documentId, 'history.undo');
+  await waitForLayerCount(page, documentId, initialLayers.length, selectionUndoDepth);
+  await writePreview(driver, documentId, cutPaths.undo);
+  const undoneCut = await sharp(cutPaths.undo).ensureAlpha().raw().toBuffer();
+  assert.deepEqual(undoneCut, beforeCut.data, 'Menu Cut undo did not restore exact RGBA pixels.');
   return {
     documentId,
     bounds: copied.value.bounds,
     artifacts: { activeLayer: copied.value.artifact, merged: copiedMerged.value.artifact },
     recording: recording.steps.map(({ command, parameters }) => ({ command, parameters })),
-    renderEvidence
+    renderEvidence,
+    cut: { menu: true, historyEntries: 1, selectedAlpha: 0, outsideAlpha: 255, exactUndo: true }
   };
 };

@@ -30,10 +30,7 @@ import { captureVectorTransformPreviewBinding } from './application/vectors/Vect
 import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
 import { bindDocumentGpuResourceLifetime } from './application/rendering/documentGpuResourceRegistry';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
-import {
-  centerClipboardBounds,
-  visibleDocumentBounds
-} from './application/clipboard/pastePlacement';
+import { useClipboardCommands } from './composition/clipboard/useClipboardCommands';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import {
@@ -83,7 +80,6 @@ import {
   zoomViewToScaleAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
-import { selectionOperationsBounds } from './editor/tools/transform/selectionTransform';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -3827,143 +3823,29 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSelectedLayerIds(layerIds);
   }, []);
 
-  const copyPixels = async (source: 'active-layer' | 'merged') => {
-    await settleMountedDocumentInteraction();
-    const execution = executeRegisteredCommand('selection.copyPixels', { source });
-    if (execution) await execution;
-  };
-  const copySelectedContent = () => { void copyPixels('active-layer'); };
+  const clipboardCommands = useClipboardCommands({
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => engineRef.current,
+    captureScope: captureMountedInteractionScope,
+    getPlacementView: () => ({ viewportSize, imageRect }),
+    settleInteraction: settleMountedDocumentInteraction,
+    clipboard: imageClipboard,
+    commands: commandService,
+    nextRequestId: id => `ui-${id}-${++commandRequestSequenceRef.current}`,
+    copySelected: selection => layerDocumentCommands.copySelectedContent(selection),
+    fill: fillCommandController,
+    reportError: setError,
+    reportStatus: setGradeStatus
+  });
+  const copySelectedContent = () => { void clipboardCommands.host.copy('active-layer'); };
+  const cutSelectedContent = () => { void clipboardCommands.host.cut(); };
+  const copyMergedContent = () => { void clipboardCommands.host.copy('merged'); };
+  const pasteSelectedContent = () => { void clipboardCommands.host.paste(); };
+  const layerViaCopy = () => { void clipboardCommands.host.layerViaCopy(); };
   copySelectedContentRef.current = copySelectedContent;
-
-  const cutPixels = async () => {
-    await settleMountedDocumentInteraction();
-    const document = imageDocumentRef.current;
-    const layerId = document?.activeLayerId;
-    if (!document || !layerId || editorSessionRef.current.selection.length === 0) return null;
-    const capture = await layerDocumentCommands.copySelectedContent(
-      editorSessionRef.current.selection
-    );
-    if (!capture) return null;
-    const cleared = fillCommandController.apply({
-      layerId,
-      channel: 'pixels',
-      color: '#000000',
-      preserveTransparency: false,
-      opacity: 0
-    }, { label: 'Cut', type: 'raster.cut' });
-    if (!cleared) return null;
-    setGradeStatus('Selected pixels cut to the system clipboard');
-    return capture;
-  };
-  const cutSelectedContent = () => {
-    void executeRegisteredCommand('selection.cutPixels', {});
-  };
   cutSelectedContentRef.current = cutSelectedContent;
-
-  const copyMergedContent = () => { void copyPixels('merged'); };
   copyMergedContentRef.current = copyMergedContent;
-
-  const pasteSelectedContent = () => {
-    const targetDocumentId = workspaceDocumentId;
-    void (async () => {
-      await settleMountedDocumentInteraction();
-      if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-      // Always inspect the host clipboard. A prior LightTable copy must never
-      // shadow a newer image copied from another application.
-      const clipboardImage = await imageClipboard.readImage();
-      if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-      if (!clipboardImage) {
-        setError('The system clipboard does not contain an image.');
-        return;
-      }
-      if (clipboardImage.blob.type === 'image/svg+xml'
-        && editorSessionRef.current.activeChannel !== 'mask') {
-        const svg = await clipboardImage.blob.text();
-        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-        await executeRegisteredCommand('vector.importSvg', {
-          svg, placement: 'document', layerName: 'Pasted SVG'
-        });
-        return;
-      }
-      let file = new File(
-        [clipboardImage.blob], 'Clipboard image.png',
-        { type: clipboardImage.blob.type || 'image/png' }
-      );
-      const bitmap = await createImageBitmap(file);
-      try {
-        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-        if (bitmap.width < 1 || bitmap.height < 1 || bitmap.width > 32_768
-          || bitmap.height > 32_768 || bitmap.width * bitmap.height > 268_435_456) {
-          throw new Error('Clipboard image dimensions exceed the supported resource bounds.');
-        }
-        if (file.type === 'image/svg+xml') {
-          const canvas = document.createElement('canvas');
-          canvas.width = bitmap.width;
-          canvas.height = bitmap.height;
-          const context = canvas.getContext('2d');
-          if (!context) throw new Error('The SVG clipboard image could not be rasterized for the mask.');
-          context.drawImage(bitmap, 0, 0);
-          let png: Blob;
-          try {
-            png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
-              (value) => value ? resolve(value) : reject(new Error('The SVG clipboard image could not be encoded.')),
-              'image/png'
-            ));
-          } finally {
-            canvas.width = 1;
-            canvas.height = 1;
-          }
-          if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-          file = new File([png], 'Clipboard image.png', { type: 'image/png' });
-        }
-        const artifact = clipboardImage.placement
-          ? commandService.matchingPixelClipboardCopyArtifact(
-              clipboardImage.placement.sourceDocumentId, clipboardImage.placement
-            ) ?? commandService.registerPixelClipboardArtifact(file)
-          : commandService.registerPixelClipboardArtifact(file);
-        const copied = { artifactId: artifact.id, bounds: {
-          x: clipboardImage.placement?.x ?? 0,
-          y: clipboardImage.placement?.y ?? 0,
-          width: bitmap.width,
-          height: bitmap.height
-        } };
-        const currentDocument = imageDocumentRef.current;
-        if (!currentDocument || workspaceDocumentIdRef.current !== targetDocumentId) return;
-        const selection = editorSessionRef.current.selection;
-        const targetBounds = selection.length
-          ? selectionOperationsBounds([...selection], {
-              x: 0, y: 0, width: currentDocument.width, height: currentDocument.height
-            })
-          : visibleDocumentBounds(currentDocument, viewportSize, imageRect);
-        const bounds = centerClipboardBounds({
-          width: copied.bounds.width,
-          height: copied.bounds.height
-        }, targetBounds);
-        const target = editorSessionRef.current.activeChannel === 'mask'
-          ? { channel: 'mask' as const, layerId: currentDocument.activeLayerId ?? undefined }
-          : { channel: 'pixels' as const };
-        if (workspaceDocumentIdRef.current !== targetDocumentId) return;
-        await executeRegisteredCommand('selection.pastePixels', {
-          artifactId: copied.artifactId,
-          name: 'Pasted Selection',
-          bounds,
-          target
-        });
-      } finally {
-        bitmap.close();
-      }
-    })().catch((reason) => {
-      if (workspaceDocumentIdRef.current === targetDocumentId) {
-        setError(reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.');
-      }
-    });
-  };
   pasteSelectedContentRef.current = pasteSelectedContent;
-
-  const layerViaCopy = () => {
-    const layerId = imageDocumentRef.current?.activeLayerId;
-    if (layerId) void executeRegisteredCommand('layer.copyToNewLayer', { layerId });
-  };
   layerViaCopyRef.current = layerViaCopy;
   mergeActiveLayerDownRef.current = mergeSelectionOrActiveDown;
 
@@ -4316,7 +4198,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
           : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection);
       },
-      cutPixels,
+      cutPixels: () => clipboardCommands.cut.execute(),
       pastePixels: async (file, command, fastPasteToken) => {
         return layerDocumentCommands.pastePixelArtifact(
           file, { ...command.bounds, name: command.name,

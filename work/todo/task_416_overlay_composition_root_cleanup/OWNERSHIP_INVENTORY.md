@@ -1,5 +1,14 @@
 # Overlay ownership inventory
 
+O06a accepted: ClipboardHostIntents owns host I/O/placement/artifact lifetime;
+CutPixelsCommand only sequences existing copy/fill owners. Request-time binding
+pins session, renderer and generation, reading exact canonical selection support.
+Overlay6,745 audit lines; no host clipboard/cut algorithm remains in root.
+Packaged menu/Actions/MCP equality and Cut exact undo pass. Selection host binding
+is the next unaccepted extraction. File-intent analysis also found missing
+awaitable text-creation completion and inconsistent Save/export prerequisites;
+these require their own bounded owner/critic/packaged proof, not a generic reset.
+
 Current accepted O05d.1/O03c.4: Face Warp intents/view/mesh/lifecycle are bounded
 owners; existing controllers retain transactions and inference. Property leases
 lock exact layer/face/semantic target/runtime; detection acceptance retains its

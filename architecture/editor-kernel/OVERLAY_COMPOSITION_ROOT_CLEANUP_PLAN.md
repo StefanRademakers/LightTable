@@ -254,6 +254,10 @@ class names: reuse existing owners before creating a new one.
   Move automation translate baseline/history into an application owner, not
   another adapter-local mutation implementation. Remove duplicate preparation
   or settlement in menus, keyboard handlers and automation registration.
+  - [x] O06a: clipboard host intents, exact request-time binding and mounted Cut.
+    Deleted root decode/placement/artifact/Cut policy. Canonical coverage and
+    existing pixel/history owners retained. Critic PASS;34 focused tests,
+    packaged menu/Actions/MCP exact pixels and menu Cut/exact Undo pass.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
