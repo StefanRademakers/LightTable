@@ -3,14 +3,14 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ToolOptionsContent,
-  type ToolOptionsProps
+  type ToolOptionsFeatureProjection
 } from './ToolOptionsBar';
 import { toolDefinition, type ToolDefinition } from '../tools/toolRegistry';
 import { ToolButton, toolFamilyFor } from './EditorToolbar';
 import type { ToolId } from '../session/editorSession';
 
 
-interface ToolOptionsContextMenuProps extends ToolOptionsProps {
+export interface ToolOptionsContextMenuProps extends ToolOptionsFeatureProjection {
   x: number;
   y: number;
   onClose: () => void;

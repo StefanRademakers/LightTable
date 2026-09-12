@@ -449,6 +449,12 @@ class names: reuse existing owners before creating a new one.
     repairs/PASS, current/retired error and event precedence proof; packaged
     panel/menu connect/disconnect/reject/retry and reference handoff pass using
     local provider fixtures. Real authentication and event transport untested.
+  - [x] O07g: one typed Tool Options feature projection for toolbar and context
+    menu. Shell forwards the cohesive UI contract instead of redeclaring the
+    feature family; context-only Warp reset/close and toolbar-only Gradient
+    request remain explicit. No state, lifecycle or domain policy moved. Critic
+    PASS; 502 tests/56 files, typecheck and boundary PASS. Fresh packaged Shape
+    family switching, Escape and Warp reset/close pass with zero page errors.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

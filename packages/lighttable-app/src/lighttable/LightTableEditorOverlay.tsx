@@ -166,6 +166,8 @@ import { DocumentSurfaceCommandService } from './application/documentGeometry/Do
 import { beginDocumentCrop } from './application/documentGeometry/beginDocumentCrop';
 import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/DocumentSurfaceHistoryBinding';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
+import type { ToolOptionsFeatureProjection } from './editor/ui/ToolOptionsBar';
+import { projectToolOptions } from './composition/tools/toolOptionsProjection';
 import { useTextCreation } from './composition/text/useTextCreation';
 import { useTextPointerRouter } from './composition/text/useTextPointerRouter';
 import { useTextEditingPublication } from './composition/text/useTextEditingPublication';
@@ -4310,6 +4312,94 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ) : null}
     </div>
   );
+  const toolOptionsProjection: ToolOptionsFeatureProjection = {
+    activeTool: visibleTool,
+    brush: editorSession.brush,
+    sampledBrush: editorSession.sampledBrush,
+    gradient: gradientToolSettings,
+    shape: editorSession.shape,
+    pen: editorSession.pen,
+    warp: editorSession.warp,
+    vectorStyle: editorSession.vectorStyle,
+    text: editorSession.text,
+    textFonts: selectableTextFonts,
+    textProperties: textPropertyPresentation,
+    textLayoutMode,
+    selectedVectorStyle,
+    selectedShape: selectedShapeGeometry?.settings ?? null,
+    selectedShapeKind: selectedShapeGeometry?.kind ?? null,
+    selectionPixelSnap: editorSession.selectionPixelSnap,
+    transformAutoSelectLayer: editorSession.transformAutoSelectLayer,
+    selectionCombineMode: editorSession.selectionCombineMode,
+    selectionFeather: editorSession.selectionFeather,
+    selectionAntiAlias: editorSession.selectionAntiAlias,
+    selectionMarqueeStyle: editorSession.selectionMarqueeStyle,
+    selectionMarqueeWidth: editorSession.selectionMarqueeWidth,
+    selectionMarqueeHeight: editorSession.selectionMarqueeHeight,
+    selectionRowHeight: editorSession.selectionRowHeight,
+    selectionColumnWidth: editorSession.selectionColumnWidth,
+    selectionSmooth: editorSession.selectionSmooth,
+    toneBrush: editorSession.toneBrush,
+    magicWand: editorSession.magicWand,
+    smartSelection: editorSession.smartSelection,
+    selectionPaintBrush: editorSession.selectionPaintBrush,
+    smartSelectionBackendIdentity: import.meta.env.DEV
+      ? smartSelectionBackendIdentity
+      : null,
+    smartSelectionPreparation,
+    zoomPercent: workspaceViewControls?.zoomPercent ?? activeScale * 100,
+    onBrushChange: toolSettings.brush,
+    onSampledBrushChange: toolSettings.sampledBrush,
+    onToneBrushChange: toolSettings.toneBrush,
+    onGradientChange: updateGradientSettings,
+    onShapeChange: toolSettings.shape,
+    onPenChange: toolSettings.pen,
+    onWarpChange: toolSettings.warp,
+    onVectorStyleChange: toolSettings.vectorStyle,
+    onTextChange: updateText,
+    onTextFontAssetChange: applyTextFontAsset,
+    onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
+    onTextFillChange: applyTextFill,
+    onTextFillPaintChange: applyTextFillPaint,
+    onTextFillEnabledChange: applyTextFillEnabled,
+    onTextStrokeColorChange: applyTextStrokeColor,
+    onTextStrokeWidthChange: applyTextStrokeWidth,
+    onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),
+    onTextWritingModeChange: applyTextWritingMode,
+    onTextPropertyBegin: beginTextPropertyGesture,
+    onTextPropertyCommit: commitTextPropertyGesture,
+    onTextPropertyCancel: cancelTextPropertyGesture,
+    onTextLayoutModeChange: changeTextLayoutMode,
+    onSelectedVectorStyleChange: updateSelectedVectorStyle,
+    onSelectedShapeChange: updateSelectedShapeGeometry,
+    onWarpReset: () => {
+      warpSessionController.clearActiveLayer();
+    },
+    faceWarp: faceWarpToolOptions,
+    onSelectionPixelSnapChange: (selectionPixelSnap) => toolSettings.selection({ selectionPixelSnap }),
+    onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => toolSettings.selection({ transformAutoSelectLayer }),
+    onSelectionCombineModeChange: (selectionCombineMode) => toolSettings.selection({ selectionCombineMode }),
+    onSelectionFeatherChange: (selectionFeather) => toolSettings.selection({ selectionFeather }),
+    onSelectionAntiAliasChange: (selectionAntiAlias) => toolSettings.selection({ selectionAntiAlias }),
+    onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => toolSettings.selection({ selectionMarqueeStyle }),
+    onSelectionMarqueeWidthChange: (selectionMarqueeWidth) => toolSettings.selection({ selectionMarqueeWidth }),
+    onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeHeight }),
+    onSelectionMarqueeRatioChange: (selectionMarqueeWidth, selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeWidth, selectionMarqueeHeight }),
+    onSelectionRowHeightChange: (selectionRowHeight) => toolSettings.selection({ selectionRowHeight }),
+    onSelectionColumnWidthChange: (selectionColumnWidth) => toolSettings.selection({ selectionColumnWidth }),
+    onSelectionSmoothChange: (selectionSmooth) => toolSettings.selection({ selectionSmooth }),
+    onMagicWandChange: toolSettings.magicWand,
+    onSmartSelectionChange: toolSettings.smartSelection,
+    onSelectionPaintBrushChange: toolSettings.selectionPaintBrush,
+    onSmartSelectionSelectSubject: () => {
+      void smartSelectionController.selectSubject(
+        editorSessionRef.current.selectionCombineMode
+      );
+    },
+    onZoomPreset: workspaceViewControls?.onZoomPreset ?? setExactZoom,
+    onZoomFit: workspaceViewControls?.onZoomFit ?? fitZoom
+  };
+  const toolOptions = projectToolOptions(toolOptionsProjection, gradientEditorRequest, () => setToolOptionsMenu(null));
   return (
     <DocumentPaletteProvider
       loadPalette={loadDocumentPalette}
@@ -4327,86 +4417,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
-      sampledBrush={editorSession.sampledBrush}
-      toneBrush={editorSession.toneBrush}
-      gradient={gradientToolSettings}
-      shape={editorSession.shape}
-      pen={editorSession.pen}
-      warp={editorSession.warp}
-      vectorStyle={editorSession.vectorStyle}
-      text={editorSession.text}
-      textFonts={selectableTextFonts}
-      textProperties={textPropertyPresentation}
-      textLayoutMode={textLayoutMode}
-      selectedVectorStyle={selectedVectorStyle}
-      selectedShape={selectedShapeGeometry?.settings ?? null}
-      selectedShapeKind={selectedShapeGeometry?.kind ?? null}
-      selectionPixelSnap={editorSession.selectionPixelSnap}
-      transformAutoSelectLayer={editorSession.transformAutoSelectLayer}
-      selectionCombineMode={editorSession.selectionCombineMode}
-      selectionFeather={editorSession.selectionFeather}
-      selectionAntiAlias={editorSession.selectionAntiAlias}
-      selectionMarqueeStyle={editorSession.selectionMarqueeStyle}
-      selectionMarqueeWidth={editorSession.selectionMarqueeWidth}
-      selectionMarqueeHeight={editorSession.selectionMarqueeHeight}
-      selectionRowHeight={editorSession.selectionRowHeight}
-      selectionColumnWidth={editorSession.selectionColumnWidth}
-      selectionSmooth={editorSession.selectionSmooth}
-      magicWand={editorSession.magicWand}
-      smartSelection={editorSession.smartSelection}
-      selectionPaintBrush={editorSession.selectionPaintBrush}
-      smartSelectionBackendIdentity={import.meta.env.DEV ? smartSelectionBackendIdentity : null}
-      smartSelectionPreparation={smartSelectionPreparation}
-      zoomPercent={workspaceViewControls?.zoomPercent ?? activeScale * 100}
-      gradientEditorRequest={gradientEditorRequest}
-      onBrushChange={toolSettings.brush}
-      onSampledBrushChange={toolSettings.sampledBrush}
-      onToneBrushChange={toolSettings.toneBrush}
-      onGradientChange={updateGradientSettings}
-      onShapeChange={toolSettings.shape}
-      onPenChange={toolSettings.pen}
-      onWarpChange={toolSettings.warp}
-      onVectorStyleChange={toolSettings.vectorStyle}
-      onTextChange={updateText}
-      onTextFontAssetChange={applyTextFontAsset}
-      onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
-      onTextFillChange={applyTextFill}
-      onTextFillPaintChange={applyTextFillPaint}
-      onTextFillEnabledChange={applyTextFillEnabled}
-      onTextStrokeColorChange={applyTextStrokeColor}
-      onTextStrokeWidthChange={applyTextStrokeWidth}
-      onTextAlignmentChange={(alignment) => applyDiscreteTextParagraph({ alignment })}
-      onTextWritingModeChange={applyTextWritingMode}
-      onTextPropertyBegin={beginTextPropertyGesture}
-      onTextPropertyCommit={commitTextPropertyGesture}
-      onTextPropertyCancel={cancelTextPropertyGesture}
-      onTextLayoutModeChange={changeTextLayoutMode}
-      onSelectedVectorStyleChange={updateSelectedVectorStyle}
-      onSelectedShapeChange={updateSelectedShapeGeometry}
-      onWarpReset={() => {
-        warpSessionController.clearActiveLayer();
-      }}
-      faceWarp={faceWarpToolOptions}
-      onSelectionPixelSnapChange={(selectionPixelSnap) => toolSettings.selection({ selectionPixelSnap })}
-      onTransformAutoSelectLayerChange={(transformAutoSelectLayer) => toolSettings.selection({ transformAutoSelectLayer })}
-      onSelectionCombineModeChange={(selectionCombineMode) => toolSettings.selection({ selectionCombineMode })}
-      onSelectionFeatherChange={(selectionFeather) => toolSettings.selection({ selectionFeather })}
-      onSelectionAntiAliasChange={(selectionAntiAlias) => toolSettings.selection({ selectionAntiAlias })}
-      onSelectionMarqueeStyleChange={(selectionMarqueeStyle) => toolSettings.selection({ selectionMarqueeStyle })}
-      onSelectionMarqueeWidthChange={(selectionMarqueeWidth) => toolSettings.selection({ selectionMarqueeWidth })}
-      onSelectionMarqueeHeightChange={(selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeHeight })}
-      onSelectionMarqueeRatioChange={(selectionMarqueeWidth, selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeWidth, selectionMarqueeHeight })}
-      onSelectionRowHeightChange={(selectionRowHeight) => toolSettings.selection({ selectionRowHeight })}
-      onSelectionColumnWidthChange={(selectionColumnWidth) => toolSettings.selection({ selectionColumnWidth })}
-      onSelectionSmoothChange={(selectionSmooth) => toolSettings.selection({ selectionSmooth })}
-      onMagicWandChange={toolSettings.magicWand}
-      onSmartSelectionChange={toolSettings.smartSelection}
-      onSelectionPaintBrushChange={toolSettings.selectionPaintBrush}
-      onSmartSelectionSelectSubject={() => {
-        void smartSelectionController.selectSubject(editorSessionRef.current.selectionCombineMode);
-      }}
-      onZoomPreset={workspaceViewControls?.onZoomPreset ?? setExactZoom}
-      onZoomFit={workspaceViewControls?.onZoomFit ?? fitZoom}
+      toolOptions={toolOptions.toolbar}
       onZoomActual={workspaceViewControls?.onZoomActual ?? actualZoom}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => toolSettings.brush({ color })}
@@ -4476,97 +4487,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onCreateGuide: guideInteraction.add
           }}
           toolOptions={toolOptionsMenu ? {
+            ...toolOptions.contextMenu,
             x: toolOptionsMenu.x,
             y: toolOptionsMenu.y,
-            activeTool: visibleTool,
-            brush: editorSession.brush,
-            sampledBrush: editorSession.sampledBrush,
-            gradient: gradientToolSettings,
-            shape: editorSession.shape,
-            pen: editorSession.pen,
-            warp: editorSession.warp,
-            vectorStyle: editorSession.vectorStyle,
-            text: editorSession.text,
-            textFonts: selectableTextFonts,
-            textProperties: textPropertyPresentation,
-            textLayoutMode,
-            selectedVectorStyle,
-            selectedShape: selectedShapeGeometry?.settings ?? null,
-            selectedShapeKind: selectedShapeGeometry?.kind ?? null,
-            selectionPixelSnap: editorSession.selectionPixelSnap,
-            transformAutoSelectLayer: editorSession.transformAutoSelectLayer,
-            selectionCombineMode: editorSession.selectionCombineMode,
-            selectionFeather: editorSession.selectionFeather,
-            selectionAntiAlias: editorSession.selectionAntiAlias,
-            selectionMarqueeStyle: editorSession.selectionMarqueeStyle,
-            selectionMarqueeWidth: editorSession.selectionMarqueeWidth,
-            selectionMarqueeHeight: editorSession.selectionMarqueeHeight,
-            selectionRowHeight: editorSession.selectionRowHeight,
-            selectionColumnWidth: editorSession.selectionColumnWidth,
-            selectionSmooth: editorSession.selectionSmooth,
-            toneBrush: editorSession.toneBrush,
-            magicWand: editorSession.magicWand,
-            smartSelection: editorSession.smartSelection,
-            selectionPaintBrush: editorSession.selectionPaintBrush,
-            smartSelectionBackendIdentity: import.meta.env.DEV
-              ? smartSelectionBackendIdentity
-              : null,
-            smartSelectionPreparation,
-            zoomPercent: workspaceViewControls?.zoomPercent ?? activeScale * 100,
-            onBrushChange: toolSettings.brush,
-            onSampledBrushChange: toolSettings.sampledBrush,
-            onToneBrushChange: toolSettings.toneBrush,
-            onGradientChange: updateGradientSettings,
-            onShapeChange: toolSettings.shape,
-            onPenChange: toolSettings.pen,
-            onWarpChange: toolSettings.warp,
-            onVectorStyleChange: toolSettings.vectorStyle,
-            onTextChange: updateText,
-            onTextFontAssetChange: applyTextFontAsset,
-            onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
-            onTextFillChange: applyTextFill,
-            onTextFillPaintChange: applyTextFillPaint,
-            onTextFillEnabledChange: applyTextFillEnabled,
-            onTextStrokeColorChange: applyTextStrokeColor,
-            onTextStrokeWidthChange: applyTextStrokeWidth,
-            onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),
-            onTextWritingModeChange: applyTextWritingMode,
-            onTextPropertyBegin: beginTextPropertyGesture,
-            onTextPropertyCommit: commitTextPropertyGesture,
-            onTextPropertyCancel: cancelTextPropertyGesture,
-            onTextLayoutModeChange: changeTextLayoutMode,
-            onSelectedVectorStyleChange: updateSelectedVectorStyle,
-            onSelectedShapeChange: updateSelectedShapeGeometry,
-            onWarpReset: () => {
-              warpSessionController.clearActiveLayer();
-              setToolOptionsMenu(null);
-            },
-            faceWarp: faceWarpToolOptions,
-            onSelectionPixelSnapChange: (selectionPixelSnap) => toolSettings.selection({ selectionPixelSnap }),
-            onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => toolSettings.selection({ transformAutoSelectLayer }),
             onAlignTransformAxesToDocument: transformSession.alignFrameToDocument,
-            onSelectionCombineModeChange: (selectionCombineMode) => toolSettings.selection({ selectionCombineMode }),
-            onSelectionFeatherChange: (selectionFeather) => toolSettings.selection({ selectionFeather }),
-            onSelectionAntiAliasChange: (selectionAntiAlias) => toolSettings.selection({ selectionAntiAlias }),
-            onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => toolSettings.selection({ selectionMarqueeStyle }),
-            onSelectionMarqueeWidthChange: (selectionMarqueeWidth) => toolSettings.selection({ selectionMarqueeWidth }),
-            onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeHeight }),
-            onSelectionMarqueeRatioChange: (selectionMarqueeWidth, selectionMarqueeHeight) => toolSettings.selection({ selectionMarqueeWidth, selectionMarqueeHeight }),
-            onSelectionRowHeightChange: (selectionRowHeight) => toolSettings.selection({ selectionRowHeight }),
-            onSelectionColumnWidthChange: (selectionColumnWidth) => toolSettings.selection({ selectionColumnWidth }),
-            onSelectionSmoothChange: (selectionSmooth) => toolSettings.selection({ selectionSmooth }),
-            onMagicWandChange: toolSettings.magicWand,
-            onSmartSelectionChange: toolSettings.smartSelection,
-            onSelectionPaintBrushChange: toolSettings.selectionPaintBrush,
-            onSmartSelectionSelectSubject: () => {
-              void smartSelectionController.selectSubject(
-                editorSessionRef.current.selectionCombineMode
-              );
-            },
-            onZoomPreset: workspaceViewControls?.onZoomPreset ?? setExactZoom,
-            onZoomFit: workspaceViewControls?.onZoomFit ?? fitZoom,
-            onToolChange: activatePersistentTool,
-            onClose: () => setToolOptionsMenu(null)
+            onToolChange: activatePersistentTool
           } : null}
           />
           <BackgroundRemovalDialog

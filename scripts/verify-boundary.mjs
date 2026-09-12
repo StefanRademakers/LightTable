@@ -1037,6 +1037,24 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
 
 function verifyCommandRoutingCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath.endsWith('/editor/ui/LightTableEditorShell.tsx')) {
+    if (!source.includes('toolOptions: ToolOptionsProps;')
+      || !source.includes('<ToolOptionsBar {...toolOptions} />')
+      || /\b(?:sampledBrush|selectionCombineMode|onTextSizeChange|onWarpReset)\s*[:=]/.test(source)) {
+      failures.push(`${relativePath}: Shell must forward one Tool Options projection, not redeclare feature controls`);
+    }
+  }
+  if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
+    const shellStart = source.indexOf('<LightTableEditorShell');
+    const shellProps = source.slice(shellStart, source.indexOf('overlays={', shellStart));
+    const contextStart = source.indexOf('toolOptions={toolOptionsMenu ? {');
+    const contextProps = source.slice(contextStart, source.indexOf('} : null}', contextStart));
+    if (!shellProps.includes('toolOptions={toolOptions.toolbar}')
+      || !contextProps.includes('...toolOptions.contextMenu')
+      || /\b(?:sampledBrush|onBrushChange|onTextSizeChange|onWarpReset)\s*[:=]/.test(shellProps + contextProps)) {
+      failures.push(`${relativePath}: toolbar and context menu must share the typed Tool Options projection`);
+    }
+  }
   if (normalizedPath.endsWith('/application/adjustments/createAdjustmentCommands.ts')
     && /\b(?:copyLightTableGrade|copyGrade)\b/.test(source)) {
     failures.push(`${relativePath}: Grade Copy belongs only to the validated shared clipboard command binding`);

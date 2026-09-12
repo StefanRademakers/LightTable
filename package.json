@@ -197,6 +197,8 @@
     "smoke:desktop:shape-geometry:build": "npm run package:desktop:verify && npm run smoke:desktop:shape-geometry --",
     "smoke:desktop:tool-context-menu": "node scripts/smoke-desktop-tool-context-menu.mjs",
     "smoke:desktop:tool-context-menu:build": "npm run package:desktop:verify && npm run smoke:desktop:tool-context-menu --",
+    "smoke:desktop:tool-options-composition": "node scripts/smoke-desktop-tool-options-composition.mjs",
+    "smoke:desktop:tool-options-composition:build": "npm run package:desktop:verify && npm run smoke:desktop:tool-options-composition --",
     "smoke:desktop:brush-ux": "node scripts/smoke-desktop-brush-ux.mjs",
     "smoke:desktop:raster-paint-kernel": "node scripts/smoke-desktop-raster-paint-kernel.mjs",
     "smoke:desktop:transform-kernel": "node scripts/smoke-desktop-transform-kernel.mjs",

@@ -4,19 +4,10 @@ import {
   type EditorDialogsProps
 } from '../../editor/ui/EditorDialogs';
 import {
-  ToolOptionsContextMenu
+  ToolOptionsContextMenu,
+  type ToolOptionsContextMenuProps
 } from '../../editor/ui/ToolOptionsContextMenu';
-import type {
-  ToolOptionsProps
-} from '../../editor/ui/ToolOptionsBar';
-
-export interface ToolOptionsMenuBinding extends ToolOptionsProps {
-  x: number;
-  y: number;
-  onClose: () => void;
-  onToolChange: (tool: ToolOptionsProps['activeTool']) => void;
-  onAlignTransformAxesToDocument?: () => void;
-}
+export type ToolOptionsMenuBinding = ToolOptionsContextMenuProps;
 
 export interface EditorOverlayLayerProps {
   dialogs: EditorDialogsProps;

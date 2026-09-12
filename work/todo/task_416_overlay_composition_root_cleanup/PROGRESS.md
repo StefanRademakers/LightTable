@@ -1,5 +1,27 @@
 # Task 416 progress
 
+## O07g — Tool Options UI composition (accepted)
+
+- Overlay now assembles one typed `ToolOptionsFeatureProjection`. The pure
+  18-line `projectToolOptions` helper adds only the toolbar Gradient request and
+  the context-menu close/Warp-reset wrapper. Every other state value and command
+  retains its original identity and owner; no state, queue, service or domain
+  policy was introduced.
+- `LightTableEditorShell` receives and forwards one Tool Options contract rather
+  than redeclaring the feature family. Its independent active tool, brush colors,
+  zoom-actual and visibility inputs remain explicit for the vertical toolbar.
+  `EditorOverlayLayer` aliases the actual context component contract rather than
+  duplicating it. Boundary guards reject reintroduced Shell/root prop mappings.
+- Independent critic: ACCEPT, no P0-P2. Focused run PASS: 502 tests/56 files,
+  app typecheck, boundary and diff checks. Overlay4941->4866 (ceiling4867),
+  Shell388->152 and overlay host43->34; helper18 lines.
+- Fresh instrumented package SHA256
+  `96839acf57859ed2d3552606cb922171a83f2810e96b4f61e47018a7ec7af7de`.
+  `tmp/tool-options-composition-smoke/report.json` PASS: actual PSD, Shape
+  context menu/family switch, Escape, Warp reset/close and zero page errors.
+  The older broad context-menu style harness is stale against current launcher
+  and paint-field markup; it was not changed or counted as product failure.
+
 ## O06j — Grade clipboard binding and single publication (accepted)
 
 - Reproduced the real stale-owner defect first: UI Copy A followed by semantic
@@ -23,13 +45,8 @@
   LUT strength, cross-document paste and artifact rebind. These gates establish
   this clipboard slice, not whole-editor or general performance acceptance.
 
-## Next — O07 UI/host composition (open)
+## O07 UI/host composition (open beyond accepted O07g)
 
-- First bounded candidate: create one typed ToolOptions feature projection used
-  by both toolbar and context menu, then let the Shell forward that projection.
-  Preserve toolbar-only gradient requests, context-menu close/Warp reset behavior,
-  vertical-toolbar visibility and brush/color inputs. Do not create a generic
-  editor props bag or move tool/domain policy into UI composition.
 - Remaining O07/O08 host, view, panel, mixed-flow, resource and performance gates
   remain open. WebGpuEngine remains 4,003 lines and is a separate cleanup scope.
 

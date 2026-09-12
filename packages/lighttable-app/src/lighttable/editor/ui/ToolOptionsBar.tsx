@@ -129,6 +129,9 @@ export interface ToolOptionsProps {
   onZoomFit: () => void;
 }
 
+/** Shared control state/commands. Endpoint-editor requests belong only to the toolbar. */
+export type ToolOptionsFeatureProjection = Omit<ToolOptionsProps, 'gradientEditorRequest'>;
+
 const TOOL_LABELS: Record<ToolId, string> = {
   transform: 'Transform',
   warp: 'Warp',
