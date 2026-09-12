@@ -332,7 +332,7 @@ export const useCommandLayerPanelController = ({
     createAdjustmentLayer: () => {
       const aboveLayerId = getDocument()?.activeLayerId ?? undefined;
       const created = controller.createAdjustmentLayer();
-      const layerId = getDocument()?.activeLayerId;
+      const layerId = created;
       if (created && layerId) commandService.recordObservedCommand(
         'adjustment.create', documentId,
         { kind: 'grade', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
@@ -343,7 +343,7 @@ export const useCommandLayerPanelController = ({
     createCurvesAdjustmentLayer: () => {
       const aboveLayerId = getDocument()?.activeLayerId ?? undefined;
       const created = controller.createCurvesAdjustmentLayer();
-      const layerId = getDocument()?.activeLayerId;
+      const layerId = created;
       if (created && layerId) commandService.recordObservedCommand(
         'adjustment.create', documentId,
         { kind: 'curves', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
@@ -352,18 +352,18 @@ export const useCommandLayerPanelController = ({
       return created;
     },
     createLocalProcessing: (layerId, kind) => {
-      const revision = getDocument()?.revision;
-      controller.createLocalProcessing(layerId, kind);
-      if (getDocument()?.revision !== revision) commandService.recordObservedCommand(
+      const changed = controller.createLocalProcessing(layerId, kind);
+      if (changed) commandService.recordObservedCommand(
         'adjustment.create', documentId,
         { kind, placement: 'local', layerId }, { kind, placement: 'local', layerId }
       );
+      return changed;
     },
     createGradientFillLayer: () => { void executeCommand('layer.createGradientFill', {}); },
     createLensFxLayer: () => {
       const aboveLayerId = getDocument()?.activeLayerId ?? undefined;
       const created = controller.createLensFxLayer();
-      const layerId = getDocument()?.activeLayerId;
+      const layerId = created;
       if (created && layerId) commandService.recordObservedCommand(
         'adjustment.create', documentId,
         { kind: 'lens-fx', placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}) },
@@ -373,7 +373,7 @@ export const useCommandLayerPanelController = ({
     },
     createAdjustmentLayerOfKind: (kind, aboveLayerId, settings) => {
       const created = controller.createAdjustmentLayerOfKind(kind, aboveLayerId, settings);
-      const layerId = getDocument()?.activeLayerId;
+      const layerId = created;
       if (created && layerId) commandService.recordObservedCommand(
         'adjustment.create', documentId,
         { kind, placement: 'adjustment-layer', ...(aboveLayerId ? { aboveLayerId } : {}),

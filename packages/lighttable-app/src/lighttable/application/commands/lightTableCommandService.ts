@@ -1644,8 +1644,7 @@ export class LightTableCommandService {
       case 'adjustment.create': {
         const result = await dispatchSemanticAdjustmentCreation(parameters, snapshot.document!,
           this.ports.executeAdjustmentCreation
-            ? (command) => this.ports.executeAdjustmentCreation!(request.documentId, command) : undefined,
-          () => this.document(request.documentId)?.document?.revision);
+            ? (command) => this.ports.executeAdjustmentCreation!(request.documentId, command) : undefined);
         return result.ok ? { value: result.value } : result;
       }
       case 'adjustment.setSnapshot': {

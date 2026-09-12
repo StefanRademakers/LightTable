@@ -912,6 +912,12 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('selectionSessionController.selectLayerTransparency(')) {
       failures.push(`${relativePath}: selection command mapping belongs to the scoped binding and panel transparency uses the existing semantic command`);
     }
+    if (!source.includes('useAdjustmentCreationIntents(')
+      || !source.includes('executeAdjustmentCreation: createMountedAdjustmentCreationBinding(')
+      || source.includes('applyCurvesRef') || source.includes('applyAdjustmentRef')
+      || source.includes('executeAdjustmentCreationRef') || source.includes('resolveContextualAdjustmentCreation(')) {
+      failures.push(`${relativePath}: adjustment creation placement/reveal and registered mapping belong to their scoped owners`);
+    }
     if (!source.includes('useDocumentGuideInteraction(')
       || !source.includes('useGuideGridPresentation(')
       || source.includes('setGuideDraft')

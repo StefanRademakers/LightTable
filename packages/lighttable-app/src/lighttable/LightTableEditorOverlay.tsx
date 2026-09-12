@@ -57,10 +57,6 @@ import { createAdjustmentCommands } from './application/adjustments/createAdjust
 import type { AdjustmentInteractionHandle } from './application/adjustments/AdjustmentInteractionCoordinator';
 import { useAdjustmentGestures } from './composition/adjustments/useAdjustmentGestures';
 import { createMountedAdjustmentCommandBinding } from './application/adjustments/MountedAdjustmentCommandBinding';
-import {
-  resolveContextualAdjustmentCreation,
-  type SemanticAdjustmentCreationCommand
-} from './application/commands/semanticAdjustmentCreationCommandContract';
 import { useCanvasPickers } from './composition/adjustments/useCanvasPickers';
 import type { PointColorSample } from './pointColor';
 import { useAdjustmentPresentationSelector,
@@ -88,6 +84,8 @@ import { useLayerStyleEditorController } from './application/styles/useLayerStyl
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
 import { LayerStyleEntryIntent } from './application/styles/LayerStyleEntryIntent';
 import { usePropertiesInspectorPresentation } from './composition/properties/usePropertiesInspectorPresentation';
+import { useAdjustmentCreationIntents } from './composition/properties/useAdjustmentCreationIntents';
+import { captureAdjustmentCreationFeedback, createMountedAdjustmentCreationBinding } from './application/adjustments/createMountedAdjustmentCreationBinding';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerFinalizationIntents } from './composition/workspace/useLayerFinalizationIntents';
 import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
@@ -105,14 +103,12 @@ import { resolveFilterSnapshotOwner } from './application/filters/filterSnapshot
 import { recordFilterSnapshotCheckpoint } from './application/filters/recordFilterSnapshotCheckpoint';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
-  adjustmentStackHasLocalProcessing,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import {
   attachedAdjustmentOwnerId,
   parseAttachedAdjustmentOwnerId
 } from './processing/attachedAdjustment';
-import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { useTextToShape } from './composition/text/useTextToShape';
 import { usePositionedTextRecovery } from './composition/text/usePositionedTextRecovery';
 import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
@@ -702,11 +698,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const latestGradeClipboardArtifactRef = useRef<string | null>(null);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
-  const applyCurvesRef = useRef<() => void>(() => undefined);
-  const applyAdjustmentRef = useRef<(kind: AdjustmentLayerKind) => void>(() => undefined);
-  const executeAdjustmentCreationRef = useRef<(
-    command: SemanticAdjustmentCreationCommand
-  ) => unknown>(() => null);
   const rasterizeShapeRef = useRef<(
     transaction: VectorElementCreationTransaction,
     rendererGeneration: number
@@ -932,6 +923,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         reveal: () => workspace?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties) };
     });
   const propertiesView = propertiesInspectorView(imageDocument, propertiesTarget);
+  const adjustmentCreationIntents = useAdjustmentCreationIntents({
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocument: () => imageDocumentRef.current, captureScope: captureMountedInteractionScope,
+    properties: propertiesPresentation, reportFailure: setError,
+    execute: (documentId, parameters, expectedDocumentRevision) => commandService.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId: `ui-${documentId}-${++commandRequestSequenceRef.current}`,
+      documentId, command: 'adjustment.create', parameters, expectedDocumentRevision
+    })
+  });
   // Provider/model choices belong to the project, while Image Edit dimensions
   // follow the active document identity and canvas size.
   const activeGenAiProjectId = activeProject?.id;
@@ -2586,7 +2587,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       quickExportPng: () => { void documentFileIntents.exportPng(); },
       openImageSize: editorDialogs.openImageSize,
       openCanvasSize: editorDialogs.openCanvasSize,
-      applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
+      applyAdjustment: adjustmentCreationIntents.apply,
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
@@ -3160,6 +3161,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
+    captureProcessingCreationFeedback: () => captureAdjustmentCreationFeedback({
+      session: documentSession, renderer: engineRef.current, registration: captureMountedInteractionScope(),
+      getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+      getProjectedDocument: () => imageDocumentRef.current
+    }, { setActiveChannel: (activeChannel, isCurrent) => setEditorSession(current => isCurrent() ? { ...current, activeChannel } : current),
+      setError, setStatus: setGradeStatus }),
     captureFinalizationScope: () => captureLayerFinalizationScope(documentSession, engineRef.current, {
       getCurrentSession: () => mountedDocumentSessionRef.current,
       getCurrentRenderer: () => engineRef.current,
@@ -3446,63 +3453,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     finishTextEditing: () => { textEditingController.finish(); }
   });
-  applyCurvesRef.current = () => {
-    const document = imageDocumentRef.current;
-    if (!document) return;
-    const command = resolveContextualAdjustmentCreation(document, 'curves');
-    if (command.placement === 'local') {
-      const layer = findDocumentLayer(document, command.layerId);
-      if (layer?.type === 'raster'
-        && adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'curves')) {
-        showProperties({ kind: 'processing', layerId: command.layerId, owner: 'curves' });
-        return;
-      }
-    }
-    void executeRegisteredCommand('adjustment.create', command);
-  };
-  executeAdjustmentCreationRef.current = (command) => {
-    const before = imageDocumentRef.current;
-    if (!before) return null;
-    if (command.placement === 'local') {
-      layerPanelController.createLocalProcessing(command.layerId, command.kind);
-      const after = imageDocumentRef.current;
-      if (!after || after.revision === before.revision) return null;
-      showProperties({ kind: 'processing', layerId: command.layerId, owner: command.kind });
-      return { kind: command.kind, placement: command.placement, layerId: command.layerId };
-    }
-    if (command.placement === 'attached') {
-      const adjustmentId = layerPanelController.createAttachedAdjustment(
-        command.layerId, command.kind, command.settings
-      );
-      if (!adjustmentId) return null;
-      showProperties({ kind: 'attached-processing', layerId: command.layerId, adjustmentId });
-      return { kind: command.kind, placement: command.placement,
-        layerId: command.layerId, adjustmentId };
-    }
-    if (!layerPanelController.createAdjustmentLayerOfKind(
-      command.kind, command.aboveLayerId, command.settings
-    )) {
-      return null;
-    }
-    const layerId = imageDocumentRef.current?.activeLayerId;
-    if (!layerId) return null;
-    showProperties({ kind: 'layer', layerId });
-    return { kind: command.kind, placement: command.placement, layerId };
-  };
-  applyAdjustmentRef.current = (kind) => {
-    const document = imageDocumentRef.current;
-    if (!document) return;
-    const command = resolveContextualAdjustmentCreation(document, kind);
-    if (command.placement === 'local') {
-      const layer = findDocumentLayer(document, command.layerId);
-      if (layer?.type === 'raster'
-        && adjustmentStackHasLocalProcessing(layer.adjustmentStack, command.kind)) {
-        showProperties({ kind: 'processing', layerId: command.layerId, owner: command.kind });
-        return;
-      }
-    }
-    void executeRegisteredCommand('adjustment.create', command);
-  };
   deleteActiveTargetRef.current = () => {
     const document = imageDocumentRef.current;
     if (!document) return;
@@ -3730,7 +3680,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ),
       ...adjustmentCommands,
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
-      executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
+      executeAdjustmentCreation: createMountedAdjustmentCreationBinding({
+        session: documentSession, renderer: registeredRenderer, registration: captureMountedInteractionScope(),
+        getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+        getProjectedDocument: () => imageDocumentRef.current,
+        creation: layerPanelController, properties: propertiesPresentation
+      }),
       executeRasterInvert: async (command) => {
         await settleMountedDocumentInteraction();
         return layerDocumentCommands.invertLayerColors(
@@ -4275,27 +4230,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setDuplicateImageError(null);
         editorDialogs.openDuplicateImage();
       },
-      applyCurves: () => applyCurvesRef.current(),
-      applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
-      createAdjustmentLayer: (kind) => {
-        const document = imageDocumentRef.current;
-        if (!document) return;
-        const active = findDocumentLayer(document, document.activeLayerId);
-        const command = {
-          kind,
-          placement: 'adjustment-layer' as const,
-          ...(active ? { aboveLayerId: active.id } : {})
-        };
-        void executeRegisteredCommand('adjustment.create', command);
-      },
-      attachAdjustment: (kind) => {
-        const document = imageDocumentRef.current;
-        if (!document) return;
-        const active = findDocumentLayer(document, document.activeLayerId);
-        if (active?.type !== 'raster' || layerIsLocked(active, 'pixels')) return;
-        const command = { kind, placement: 'attached' as const, layerId: active.id };
-        void executeRegisteredCommand('adjustment.create', command);
-      },
+      applyCurves: adjustmentCreationIntents.curves,
+      applyAdjustment: adjustmentCreationIntents.apply,
+      createAdjustmentLayer: adjustmentCreationIntents.standalone,
+      attachAdjustment: adjustmentCreationIntents.attach,
       assignSrgbProfile: () => {
         void executeRegisteredCommand('document.assignProfile', { profile: 'srgb' });
       }

@@ -73,7 +73,7 @@ import type {
   PixelClipboardPasteResult,
   PixelClipboardPlacement
 } from '../clipboard/pixelClipboardTypes';
-import { createLayerProcessingCreationCommands } from './layerProcessingCreationCommands';
+import { createLayerProcessingCreationCommands, type ProcessingCreationFeedback } from './layerProcessingCreationCommands';
 import { createLayerFinalizationReadiness, type LayerFinalizationScope } from './LayerFinalizationReadiness';
 
 export type FlattenRequest =
@@ -137,6 +137,7 @@ export interface LayerDocumentCommandDependencies {
   getRenderer(): LayerCommandRendererPort | null;
   getRendererGeneration(): number;
   captureFinalizationScope(): LayerFinalizationScope;
+  captureProcessingCreationFeedback(): ProcessingCreationFeedback;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
   getSelectionLease(): LightTableSelectionReadLease | null;
@@ -170,11 +171,11 @@ export interface LayerDocumentCommands {
   ): boolean;
   duplicateActiveLayer(): boolean;
   duplicateLayer(layerId: LayerId): LayerId | null;
-  createAdjustmentLayer(): boolean;
-  createCurvesAdjustmentLayer(): boolean;
-  createLensFxLayer(): boolean;
+  createAdjustmentLayer(): LayerId | null;
+  createCurvesAdjustmentLayer(): LayerId | null;
+  createLensFxLayer(): LayerId | null;
   createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
-    settings?: AdjustmentInitialSettings): boolean;
+    settings?: AdjustmentInitialSettings): LayerId | null;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
   rasterizeVectorCreation(
@@ -564,9 +565,7 @@ export const createLayerDocumentCommands = (
   const processingCreationCommands = createLayerProcessingCreationCommands({
     beginTransaction: beginDocumentTransaction,
     commitTransaction: commitDocumentTransition,
-    setActiveChannel: (channel) => dependenciesRef.current.setActiveChannel(channel),
-    setError: (message) => dependenciesRef.current.setError(message),
-    setStatus: (message) => dependenciesRef.current.setStatus(message)
+    captureFeedback: () => dependenciesRef.current.captureProcessingCreationFeedback()
   });
   const createProcessingLayer = processingCreationCommands.create;
   const createGradeAdjustmentLayer = () => createProcessingLayer('grade');

@@ -31,14 +31,19 @@ interface ProcessingCreationDependencies {
     next: ImageDocument,
     description: { readonly label: string; readonly type: string }
   ) => boolean;
-  readonly setActiveChannel: (channel: PaintChannel) => void;
-  readonly setError: (message: string | null) => void;
-  readonly setStatus: (message: string | null) => void;
+  captureFeedback(): ProcessingCreationFeedback;
+}
+
+export interface ProcessingCreationFeedback {
+  isCurrent(): boolean;
+  setActiveChannel(channel: PaintChannel): void;
+  setError(message: string | null): void;
+  setStatus(message: string | null): void;
 }
 
 export interface LayerProcessingCreationCommands {
   create(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
-    settings?: AdjustmentInitialSettings): boolean;
+    settings?: AdjustmentInitialSettings): LayerId | null;
   attach(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
 }
@@ -94,10 +99,11 @@ export const createLayerProcessingCreationCommands = (
   dependencies: ProcessingCreationDependencies
 ): LayerProcessingCreationCommands => ({
   create: (kind, aboveLayerId, settings) => {
+    const feedback = dependencies.captureFeedback();
     const definition = adjustmentLayerDefinition(kind);
     const description = { label: `New ${definition.name} Layer`, type: 'layer.adjustment.create' };
     const transaction = dependencies.beginTransaction(`layer.adjustment.create:${kind}`, description);
-    if (!transaction) return false;
+    if (!transaction) return null;
     const stack = createStack(kind, 'adjustment-layer', settings);
     const next = createAdjustmentLayer(
       transaction.before,
@@ -108,19 +114,20 @@ export const createLayerProcessingCreationCommands = (
     );
     try {
       assertFilterStackDocumentReferences(transaction.before, kind, stack);
-      if (!dependencies.commitTransaction(transaction, next, description)) return false;
+      if (!dependencies.commitTransaction(transaction, next, description)) return null;
     } catch (reason) {
       transaction.cancel();
-      dependencies.setError(
+      if (feedback.isCurrent()) feedback.setError(
         reason instanceof Error ? reason.message : `The ${definition.name} layer could not be created.`
       );
-      return false;
+      return null;
     }
-    dependencies.setActiveChannel('pixels');
-    dependencies.setError(null);
-    return true;
+    if (feedback.isCurrent()) feedback.setActiveChannel('pixels');
+    if (feedback.isCurrent()) feedback.setError(null);
+    return next.activeLayerId;
   },
   attach: (layerId, kind, settings) => {
+    const feedback = dependencies.captureFeedback();
     const definition = adjustmentLayerDefinition(kind);
     const description = { label: `Add ${definition.name}`, type: 'layer.adjustment.attach' };
     const transaction = dependencies.beginTransaction(
@@ -152,16 +159,16 @@ export const createLayerProcessingCreationCommands = (
       if (!dependencies.commitTransaction(transaction, next, description)) return null;
     } catch (reason) {
       transaction.cancel();
-      dependencies.setError(
+      if (feedback.isCurrent()) feedback.setError(
         reason instanceof Error
           ? reason.message
           : `The ${definition.name} adjustment could not be attached.`
       );
       return null;
     }
-    dependencies.setActiveChannel('pixels');
-    dependencies.setStatus(`Attached ${definition.name} to ${layer.name}`);
-    dependencies.setError(null);
+    if (feedback.isCurrent()) feedback.setActiveChannel('pixels');
+    if (feedback.isCurrent()) feedback.setStatus(`Attached ${definition.name} to ${layer.name}`);
+    if (feedback.isCurrent()) feedback.setError(null);
     return adjustmentId;
   }
 });

@@ -101,6 +101,8 @@ const setup = (initialDocument: ImageDocument) => {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
     getRendererGeneration: () => rendererGeneration,
+    captureProcessingCreationFeedback: () => ({ isCurrent: () => true,
+      setActiveChannel: dependencies.setActiveChannel, setError: dependencies.setError, setStatus: dependencies.setStatus }),
     captureFinalizationScope: () => {
       const admittedSession = sessionIdentity;
       const admittedGeneration = rendererGeneration;
@@ -934,7 +936,7 @@ describe('useLayerDocumentCommands', () => {
 
   it('duplicates an Adjustment Layer and retains its mask through GPU history', () => {
     const state = setup(createImageDocument('Adjustment duplicate', 32, 24, 'asset'));
-    expect(state.commands.createAdjustmentLayer()).toBe(true);
+    expect(state.commands.createAdjustmentLayer()).toBe(state.document().activeLayerId);
     const sourceId = state.document().activeLayerId!;
     state.historyEntries.splice(0);
 
@@ -1220,7 +1222,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     state.panelAdjustments().exposureEV = 1.25;
 
-    expect(state.commands.createAdjustmentLayer()).toBe(true);
+    expect(state.commands.createAdjustmentLayer()).toBe(state.document().activeLayerId);
 
     const grade = state.document().layers.at(-1);
     expect(grade?.type).toBe('adjustment');
@@ -1252,7 +1254,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const backgroundId = state.document().activeLayerId;
 
-    expect(state.commands.createLensFxLayer()).toBe(true);
+    expect(state.commands.createLensFxLayer()).toBe(state.document().activeLayerId);
 
     const layer = state.document().layers.at(-1);
     expect(layer?.type).toBe('adjustment');
@@ -1277,7 +1279,7 @@ describe('useLayerDocumentCommands', () => {
     document.activeLayerId = background.id;
     const state = setup(document);
 
-    expect(state.commands.createLensFxLayer()).toBe(true);
+    expect(state.commands.createLensFxLayer()).toBe(state.document().activeLayerId);
 
     expect(state.document().layers).toHaveLength(1);
     const updatedGroup = state.document().layers[0];
@@ -1293,7 +1295,7 @@ describe('useLayerDocumentCommands', () => {
   it('creates a standalone Curves node with exactly one processing module', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
-    expect(state.commands.createCurvesAdjustmentLayer()).toBe(true);
+    expect(state.commands.createCurvesAdjustmentLayer()).toBe(state.document().activeLayerId);
 
     const layer = state.document().layers.at(-1);
     expect(layer?.type).toBe('adjustment');
@@ -1312,7 +1314,7 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.commands.createAdjustmentLayerOfKind(
       'gaussian-blur', undefined, { radius: 14.5 }
-    )).toBe(true);
+    )).toBe(state.document().activeLayerId);
 
     const layer = state.document().layers.at(-1);
     if (layer?.type !== 'adjustment') throw new Error('Expected a Gaussian Blur layer.');
@@ -1356,14 +1358,14 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const rasterId = state.document().layers[0]!.id;
     const settings = { mapAssetId: 'missing-raster' };
-    expect(state.commands.createAdjustmentLayerOfKind('displace', undefined, settings)).toBe(false);
+    expect(state.commands.createAdjustmentLayerOfKind('displace', undefined, settings)).toBeNull();
     expect(state.commands.createAttachedAdjustment(rasterId, 'displace', settings)).toBeNull();
     expect(state.historyEntries).toHaveLength(0);
     expect(state.document().layers).toHaveLength(1);
 
     expect(state.commands.createAdjustmentLayerOfKind(
       'displace', undefined, { mapAssetId: rasterId }
-    )).toBe(true);
+    )).toBe(state.document().activeLayerId);
   });
 
   it.each([
@@ -1383,7 +1385,7 @@ describe('useLayerDocumentCommands', () => {
     kind, name, settings
   ) => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-    expect(state.commands.createAdjustmentLayerOfKind(kind, undefined, settings)).toBe(true);
+    expect(state.commands.createAdjustmentLayerOfKind(kind, undefined, settings)).toBe(state.document().activeLayerId);
     const filter = state.document().layers.at(-1);
     if (filter?.type !== 'adjustment') throw new Error(`Expected ${name}.`);
     expect(filter).toMatchObject({ name, adjustmentKind: kind, mask: expect.any(Object) });
@@ -1406,7 +1408,7 @@ describe('useLayerDocumentCommands', () => {
   ] as const)('creates a focused %s adjustment node', (kind, name, moduleType) => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
-    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(true);
+    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(state.document().activeLayerId);
 
     const layer = state.document().layers.at(-1);
     expect(layer?.type).toBe('adjustment');
@@ -1427,7 +1429,7 @@ describe('useLayerDocumentCommands', () => {
     'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
   ] as const)('creates %s as an independent Photoshop adjustment node', (kind) => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(true);
+    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(state.document().activeLayerId);
     const layer = state.document().layers.at(-1);
     if (layer?.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
     expect(layer.adjustmentKind).toBe(kind);
@@ -1446,7 +1448,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(document);
     const bottomId = state.document().layers.find(({ name }) => name === 'Bottom')!.id;
 
-    expect(state.commands.createAdjustmentLayerOfKind('curves', bottomId)).toBe(true);
+    expect(state.commands.createAdjustmentLayerOfKind('curves', bottomId)).toBe(state.document().activeLayerId);
 
     expect(state.document().layers.map(({ name }) => name))
       .toEqual(['Background', 'Bottom', 'Curves', 'Top']);
@@ -1458,7 +1460,7 @@ describe('useLayerDocumentCommands', () => {
     const rasterId = state.document().layers[0]!.id;
     expect(state.commands.createAdjustmentLayerOfKind(
       'posterize', undefined, { posterizeLevels: 6 }
-    )).toBe(true);
+    )).toBe(state.document().activeLayerId);
     const posterize = state.document().layers.at(-1);
     if (posterize?.type !== 'adjustment') throw new Error('Expected Posterize layer.');
     expect(posterize.adjustmentStack.modules[0]?.settings.photoshopAdjustment)
@@ -1489,7 +1491,7 @@ describe('useLayerDocumentCommands', () => {
       ],
       dither: true,
       interpolation: 'perceptual'
-    })).toBe(true);
+    })).toBe(state.document().activeLayerId);
     const layer = state.document().layers.at(-1);
     if (layer?.type !== 'adjustment') throw new Error('Expected Gradient Map layer.');
     const gradientMap = layer.adjustmentStack.modules[0]?.settings.gradientMap as
@@ -1901,7 +1903,7 @@ describe('useLayerDocumentCommands', () => {
 
   it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', async () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
-    expect(state.commands.createAdjustmentLayer()).toBe(true);
+    expect(state.commands.createAdjustmentLayer()).toBe(state.document().activeLayerId);
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
     const sourceIds = state.document().layers.map((layer) => layer.id);
     const sourceDestinationId = sourceIds[0];

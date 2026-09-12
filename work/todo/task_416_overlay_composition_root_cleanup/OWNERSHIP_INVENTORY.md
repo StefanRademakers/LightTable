@@ -1,6 +1,7 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,467 physical lines. O05a.4 removes root text-rasterize
+Current accepted root: 5,405 physical lines. O06h removes root adjustment placement,
+result inference and creation presentation. O05a.4 removes root text-rasterize
 and positioned-recovery policy; existing finalization/mutation owners retain edits.
 O06f.3 moves selection command mapping
 to a scoped binding and preserves authoritative committed results after retirement.
@@ -20,6 +21,42 @@ editor read barrier; existing GenAI command retains discovery/import/submission.
 Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
+
+### Adjustment creation family — resolved O06h
+
+- Remove root applyCurves/applyAdjustment contextual/existing-local reveal,
+  explicit standalone/attached menu placement and executeAdjustmentCreation
+  result/Properties policy. Existing contextual resolver and Properties owner
+  remain authoritative; use one UI intent owner plus registered creation binding.
+- Existing layerProcessingCreationCommands owns stack construction and canonical
+  transaction. Return its exact committed standalone ID rather than bool followed
+  by root activeLayerId inference. Local panel mutation returns actual changed
+  bool, not void followed by revision comparison. Attached already returns ID.
+- Actual mutation/history fixture exposes accepted creation followed by reentrant
+  active-layer change; lower bool is not the new ID. This is focused evidence,
+  not a packaged race claim. Scope post-commit feedback without rejecting success.
+- The existing command service checks requested revision BEFORE its own settlement;
+  preserve supported pending-transform handoff. Do not add a second queue or
+  reject that prerequisite's own commit. Adjustment-only dispatcher must trust
+  authoritative creation result, not rediscover a later session revision.
+- Baseline package37304 run-uhO8S2 and fresh package94225 run-pdsHnH pass actual
+  local/repeat shortcut/Image menu, explicit attached/standalone recording,
+  exact UndoRedo/Actions replay and pending pointer transform -> Ctrl+M.
+  Independent critic PASS; current source/limitations are recorded in PROGRESS.
+
+### Tool settings — next bounded owner, not accepted implementation
+
+- Defaults belong to EditorApplicationSession via existing session adapter, not
+  documentstate. Extract keyboard size/hardness/percent policy and digit buffer,
+  foreground/background swap/reset and shared brush/warp/selection default patches.
+- Reuse steppedBrushSize/Hardness and BrushPercentInput. Preserve Warp diameter
+  mapping, selection-paint opacity routing, 500ms digit logic and existing buffer
+  resets on document switch/blur (not a new reset on every tool switch).
+- Toolbar and settings dialog must share typed callbacks. Keep text font-derived
+  defaults, vector selected-content editing, gradients and tool activation in
+  their existing owners. No generic document setter, queue, renderer or history.
+- Packaged Brush UX, Warp and selection-dimensions are adjacent gates; add
+  settings-only no-history/revision proof and shared-control observations.
 
 ### Selection resolved O06f.3; text finalization intents resolved O05a.4
 

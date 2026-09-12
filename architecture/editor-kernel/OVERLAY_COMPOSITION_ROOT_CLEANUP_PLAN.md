@@ -9,7 +9,9 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O05a.4 text rasterize/recovery intents; real native
+Latest bounded acceptance: O06h adjustment creation intents/binding and truthful
+created IDs. Packaged contextual repeat, explicit attached/standalone Actions,
+pending transform -> Curves and adjacent inspector/style gates pass. O05a.4 text rasterize/recovery intents; real native
 recovery, pending Size -> rasterize and exact recovered-flow/raster UndoRedo pass.
 Positioned-source rendering remains explicitly unsupported; O08 records this
 separately, not as visual preservation. O06f.3 mounted selection mapping and truthful committed
@@ -18,7 +20,7 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Root is 5,467 physical lines. Remaining target/GenAI/command families, cross-flow
+Root is 5,405 physical lines. Remaining tool-settings/target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -362,6 +364,11 @@ class names: reuse existing owners before creating a new one.
     exact history pixels and focus survive three fresh-profile runs. Existing
     workspace showPanel is idempotent for already-visible selected content;
     no input delay or focus restoration. Canvas Shift adjacency also passes.
+  - [x] O06h: adjustment creation intents and scoped registered binding. Exact
+    committed ID/local changed result replace active-layer/revision inference;
+    newer Properties intent and retired feedback protected. Critic PASS; real
+    contextual repeat, explicit attached/standalone Actions, pending transform
+    -> Ctrl+M and exact UndoRedo plus adjacent inspector/style tests pass.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { addLayerMask, createRasterLayer, createTextLayer, duplicateLayer, groupLayers, renameLayer,
+import { addLayerMask, createRasterLayer, createTextLayer, duplicateLayer, ensureRasterLayerLocalProcessing, groupLayers, renameLayer,
   setLayerBlendMode, setLayerTransform } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
@@ -1812,6 +1812,28 @@ describe('LightTableCommandService registry', () => {
     expect(state.ports.executeTextRasterize).not.toHaveBeenCalled();
     expect(state.session.getSnapshot().document!.activeLayerId).toBe(layerId);
     expect(state.session.getSnapshot().history).toBe(openingHistory);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('adjustment creation revision admission permits its own prerequisite publication before creation', async () => {
+    const state = setup(), layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const expectedDocumentRevision = state.session.getSnapshot().documentRevision;
+    vi.mocked(state.ports.settleInteractionBeforeCommand).mockImplementationOnce(async () => {
+      state.session.setDocument(renameLayer(state.session.getSnapshot().document!, layerId, 'Committed transform prerequisite'));
+    });
+    const history: unknown[] = [];
+    const mutations = createDocumentMutationController(() => ({ getDocument: () => state.session.getSnapshot().document,
+      applySnapshot: document => state.session.setDocument(document), previewSnapshot: vi.fn(), discardPreview: vi.fn(),
+      pushHistoryEntry: entry => { history.push(entry); } }));
+    state.ports.executeAdjustmentCreation = vi.fn((_id, command) => {
+      if (command.placement !== 'local') throw new Error('Expected local fixture');
+      return mutations.change(document => ensureRasterLayerLocalProcessing(document, command.layerId, command.kind))
+        ? command : null;
+    });
+    expect(await state.service.execute({ ...request('adjustment.create', state.session.id,
+      { kind: 'curves', placement: 'local', layerId }), expectedDocumentRevision })).toMatchObject({ status: 'completed' });
+    expect(state.ports.executeAdjustmentCreation).toHaveBeenCalledOnce(); expect(history).toHaveLength(1);
+    expect(state.session.getSnapshot().document!.layers.find(layer => layer.id === layerId)!.name).toBe('Committed transform prerequisite');
     state.service.dispose(); state.workspace.dispose();
   });
 

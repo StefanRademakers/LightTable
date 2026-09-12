@@ -18,6 +18,7 @@ export class PropertiesInspectorPresentation {
   readonly targetRef: { current: PropertiesInspectorTarget } = { current: { kind: 'none' } };
   private listeners = new Set<() => void>();
   private epoch = 0;
+  private intentEpoch = 0;
   private mounted = false;
   private pending: number | null = null;
   constructor(private readonly ports: PropertiesPresentationPorts) {}
@@ -26,6 +27,10 @@ export class PropertiesInspectorPresentation {
   mount = () => { this.mounted = true; };
   retire = () => { this.mounted = false; this.invalidate(); };
   invalidate = () => {
+    this.intentEpoch++;
+    this.invalidateProjection();
+  };
+  private invalidateProjection = () => {
     this.epoch++;
     if (this.pending !== null) this.ports.cancel(this.pending);
     this.pending = null;
@@ -38,7 +43,14 @@ export class PropertiesInspectorPresentation {
   reconcile = (document: ImageDocument | null) => {
     const target = reconcilePropertiesTarget(document, this.targetRef.current);
     if (equalTarget(target, this.targetRef.current)) return;
-    this.invalidate(); this.publish(target);
+    this.invalidateProjection(); this.publish(target);
+  };
+  /** Synchronous canonical publication may reconcile the target, but is not a new user intent. */
+  captureMutationIntent = (): PropertiesPresentationTicket => {
+    this.invalidate();
+    const epoch = this.intentEpoch, context = this.ports.capture();
+    const isCurrent = () => this.mounted && epoch === this.intentEpoch && context.isCurrent();
+    return { isCurrent, show: target => { if (isCurrent()) this.show(target); } };
   };
   beginIntent = (): PropertiesPresentationTicket => {
     this.invalidate();

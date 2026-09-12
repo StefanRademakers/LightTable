@@ -1,5 +1,44 @@
 # Task 416 progress
 
+## O06h — Adjustment creation intents and exact committed results (accepted)
+
+- Removed root applyCurves/applyAdjustment duplicate contextual/existing-local
+  policy, standalone/attached menu placement, creation dispatch/result inference
+  and three forward refs. AdjustmentCreationIntents60 + mounted binding57 + hook12
+  physical lines replace those responsibilities; existing lower creation/mutation
+  owners keep stacks, algorithms, admission and history.
+- Actual DocumentSession/mutation fixture reproduced boolean return rather than
+  committed ID after synchronous publication changed active selection. Existing
+  creation owner now returns exact ID; local returns real changed boolean, and
+  observed wrappers use those results. Adjustment-only semantic dispatcher no
+  longer vetoes accepted results through later revision rediscovery.
+- Critic repairs: concrete feedback lifetime includes the deferred channel updater.
+  Existing Properties owner distinguishes explicit newer intent from automatic
+  reconciliation: own create may reveal, newer show/begin/invalidate/retire wins.
+  No second document authority or queue. Ordinary Properties tickets retain their
+  earlier cancellation semantics. UI revision check uses existing queue ordering
+  before its own prerequisites; no self-rejection after transform publication.
+- Source critic PASS;303 tests/8 files, app typecheck/boundary pass. Service unit
+  test simulates prerequisite publication with rename; actual transform is the
+  packaged pointer test, not a claim about that unit fixture.
+- Baseline package37304 run-uhO8S2 and fresh instrumented package94225 run-pdsHnH
+  pass real Ctrl+M initial local creation; repeated shortcut/Image menu reveal
+  without revision/history; explicit attached/standalone one Action each; exact
+  node IDs/pixels UndoRedo; standalone Action replay; pending pointer transform
+  -> immediate Ctrl+M without Enter, with two history entries and exact UndoRedo.
+  Fresh report hashes app.asar SHA256
+  08c6473efb49cda78f5d25f069c349c4e7dd7f5add3f11dbbe957157bf5aa856.
+  Adjacent processing-rebind run-arGIBl passes same-/cross-parent first Exposure
+  and tabs/history; style-entry run-bW9YdT passes real effects/locked inspector/
+  Curves history. Root inspected final UI; no page errors.
+- Two baseline harness fixes retained as failed reports: Clear is disabled when
+  recording is empty; creation reveals Properties, so Actions must be reopened
+  before Stop. Product behavior unchanged; no test retries or hidden failures.
+- Overlay5,467 ->5,405 (ceiling5,406); engine4,003. No new GPU/readback/scheduler.
+  Known existing specific+generic creation error reporting is not globally solved.
+  No neutral-Curves precision or whole-app performance certification. Next tool
+  settings owner; remaining endpoint/mixed-flow/engine work stays open.
+
 ## O05a.4 — Scoped text rasterize and positioned recovery intents (accepted)
 
 - Deleted root rasterize callback, recovery controller retention/query ownership
@@ -33,6 +72,11 @@
 - Overlay5,487 ->5,467 physical (ceiling5,468); WebGpuEngine4,003 unchanged.
   New intent60 and mounted hook43 physical lines. No added GPU work/readback,
   queue or pointer-frequency observer. Whole endpoint and O09 remain open.
+- Additional observed O08 presentation debt: recovered native Inter fixture shows
+  empty Family/Face selectors despite visible editable glyphs (run-aN2tZo final
+  UI). Recovery preserves a PostScript-name request; presentation falls back to
+  that string, while family options use family names. This is not covered by
+  the successful size/raster/history assertions and is not marked fixed.
 
 ## O06f.3 — Selection mapping and committed terminal delivery (accepted)
 

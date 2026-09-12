@@ -74,11 +74,11 @@ export interface LayerPanelControllerDependencies {
   beginDocumentTransaction(): boolean;
   endDocumentTransaction(): boolean;
   cancelDocumentTransaction(): boolean;
-  createAdjustmentLayer(): boolean;
-  createCurvesAdjustmentLayer(): boolean;
-  createLensFxLayer(): boolean;
+  createAdjustmentLayer(): LayerId | null;
+  createCurvesAdjustmentLayer(): LayerId | null;
+  createLensFxLayer(): LayerId | null;
   createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
-    settings?: AdjustmentInitialSettings): boolean;
+    settings?: AdjustmentInitialSettings): LayerId | null;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
   requestAddLayerMask(): void;
@@ -140,13 +140,13 @@ export interface LayerPanelController {
   moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
-  createAdjustmentLayer(): boolean;
-  createCurvesAdjustmentLayer(): boolean;
-  createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): void;
+  createAdjustmentLayer(): LayerId | null;
+  createCurvesAdjustmentLayer(): LayerId | null;
+  createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): boolean;
   createGradientFillLayer(): void;
-  createLensFxLayer(): boolean;
+  createLensFxLayer(): LayerId | null;
   createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
-    settings?: AdjustmentInitialSettings): boolean;
+    settings?: AdjustmentInitialSettings): LayerId | null;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
     settings?: AdjustmentInitialSettings): string | null;
   createGroup(): void;

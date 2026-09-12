@@ -42,7 +42,7 @@ export const dispatchSemanticFixedTransform = async (value: unknown, document: I
 };
 
 export const dispatchSemanticAdjustmentCreation = async (value: unknown, document: ImageDocument,
-  execute: Executor<SemanticAdjustmentCreationCommand>, revision: () => number | undefined
+  execute: Executor<SemanticAdjustmentCreationCommand>
 ): Promise<ContextualEditResult> => {
   const command = parseSemanticAdjustmentCreationCommand(value);
   if ('message' in command) return { ok: false, code: 'invalid-parameters', message: command.message };
@@ -57,9 +57,10 @@ export const dispatchSemanticAdjustmentCreation = async (value: unknown, documen
         message: 'The target raster layer is missing or pixel-locked.' };
     }
   }
-  return changedResult(command, execute, 'Adjustment creation is unavailable in this host.',
-    { code: 'execution-failed', message: 'The adjustment could not be created.' },
-    document.revision, revision);
+  if (!execute) return { ok: false, code: 'command-unavailable', message: 'Adjustment creation is unavailable in this host.' };
+  const created = await execute(command);
+  return created ? { ok: true, value: created }
+    : { ok: false, code: 'execution-failed', message: 'The adjustment could not be created.' };
 };
 
 export const dispatchSemanticRasterInvert = async (value: unknown, document: ImageDocument,
