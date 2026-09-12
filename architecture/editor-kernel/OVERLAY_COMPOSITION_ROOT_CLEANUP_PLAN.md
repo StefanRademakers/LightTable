@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O02d scoped mounted admission and truthful text
-property terminals, following O07c GenAI reference handoff. Real packaged
-checks cover Properties-to-tab/no-op transitions and pending transform/text
-Save with exact output/history. Provider reference proof remains recorded.
+Latest bounded acceptance: O02e workspace tab/close and host blur owners,
+following O02d scoped admission and O07c GenAI references. Real packaged checks
+cover Properties/tab/no-op/close Cancel/Discard and native blur preserving an
+active transform, followed by Exposure. Exact limits are recorded in PROGRESS.
 See Task416 PROGRESS for retained failures and exact coverage. Root is
-5,873 physical lines. Remaining host/GenAI/command/guides families, cross-flow
+5,864 physical lines. Remaining target/GenAI/command/guides families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -144,7 +144,10 @@ class names: reuse existing owners before creating a new one.
     - [ ] O02c.2: temporary overrides and host/target transitions.
       - [x] Temporary override state/subscription; duplicate React booleans
         removed. Critic found no blocker; packaged overlap/blur/tab proof passed.
-      - [ ] Native host/target transition policy (after named O03 publication ports).
+      - [x] Native host blur and workspace tab/close intent policy (O02e).
+        Exact text terminal/source checks; existing host recovery remains owner.
+        Packaged actual blur/refocus, tab and close Cancel/Discard pass.
+      - [ ] Remaining target-change policy outside workspace tab/close.
     - [ ] O02c.3: save/export prerequisite consolidation.
       - [x] O02c.3a: scoped UI file intents, actual text/layer/adjustment terminal
         outcomes and original-owner host delivery. Critic PASS after explicit

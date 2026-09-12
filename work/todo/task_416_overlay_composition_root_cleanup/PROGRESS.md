@@ -1,5 +1,28 @@
 # Task 416 progress
 
+## O02e — Workspace tab/close and host blur owners (accepted)
+
+- WorkspaceDocumentIntents owns synchronous text terminal admission and exact
+  source revalidation for tab activation/current close. Inactive close does not
+  finish active text. Missing workspace-close capability can only close the
+  active editor; opening/failed documents remain closable. Host retains recovery,
+  latest-activation and confirmation policy; dispatch is not terminal success.
+- HostPresentationDeactivation owns the existing preserve/viewport/adjustment/
+  raster-gradient/auto-align sequence. No general settlement, text finish or new
+  queue on blur. The existing activity hook still owns native/browser events.
+- Critic source PASS; 18 focused owner/hook tests pass (41 with adjacent text and
+  activity tests); app typecheck, boundary/source audit and packaged build pass.
+  Extended text run-i2i5kJ passes actual inactive close during property input,
+  active close Cancel/Discard and earlier exact PNG/history checks. Native input
+  blur legitimately commits the focused field once; no false claim that clicking
+  an inactive close leaves a focused input pending.
+- Full transform-kernel run-cbeb1a0703f7401fa4c93e84da2f0a81 passes actual auxiliary
+  native-window blur, retained canvas/transform/no premature history, refocus to
+  Exposure and adjacent transform/pixel/group flows. Zero page errors. Pointer
+  down happened after renderer activation; the inactive-pointer race was not
+  forced. Script timings include automation gestures and are not frame-latency
+  certification. Unique output preserves prior reports. Root 5,864 physical lines.
+
 ## O02d — Scoped mounted admission and text terminal truth (accepted)
 
 - MountedDocumentAdmission binds the concrete ready session, renderer/lifecycle

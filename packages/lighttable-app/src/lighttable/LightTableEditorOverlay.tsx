@@ -39,6 +39,8 @@ import { useEditorHostPresentationActivity } from './composition/rendering/useEd
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { createInteractionTransitionCoordinator } from './application/interactions/InteractionTransitionCoordinator';
 import { MountedDocumentAdmission } from './application/interactions/MountedDocumentAdmission';
+import { deactivateHostPresentation } from './application/interactions/HostPresentationDeactivation';
+import { useWorkspaceDocumentIntents } from './composition/workspace/useWorkspaceDocumentIntents';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { DocumentLoadedSourceBinding } from './application/documents/DocumentLoadedSourceBinding';
@@ -1687,23 +1689,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textPropertyGestureController = textPropertyGestureControllerRef.current;
-  const activateWorkspaceDocument = useCallback((documentId: string) => {
-    if (!onActivateWorkspaceDocument || documentId === workspaceDocumentId) return;
-    textPropertyGestureController.finishBeforeTransition(() => {
-      onActivateWorkspaceDocument(documentId);
-    });
-  }, [onActivateWorkspaceDocument, textPropertyGestureController, workspaceDocumentId]);
-  const closeWorkspaceDocument = useCallback((documentId: string) => {
-    const close = () => {
-      if (onCloseWorkspaceDocument) onCloseWorkspaceDocument(documentId);
-      else if (documentId === workspaceDocumentId) onClose();
-    };
-    if (documentId !== workspaceDocumentId) {
-      close();
-      return;
-    }
-    textPropertyGestureController.finishBeforeTransition(close);
-  }, [onClose, onCloseWorkspaceDocument, textPropertyGestureController, workspaceDocumentId]);
+  const workspaceDocumentIntents = useWorkspaceDocumentIntents({
+    getActiveDocumentId: () => workspaceDocumentIdRef.current,
+    getSession: () => mountedDocumentSessionRef.current, captureScope: captureMountedInteractionScope,
+    text: textPropertyGestureController, activateDocument: onActivateWorkspaceDocument,
+    closeDocument: onCloseWorkspaceDocument, closeEditor: onClose, reportFailure: setError
+  });
+  const activateWorkspaceDocument = workspaceDocumentIntents.activate;
+  const closeWorkspaceDocument = workspaceDocumentIntents.close;
   const existingTextHitControllerRef = useRef<ExistingTextHitController | null>(null);
   existingTextHitControllerRef.current ??= new ExistingTextHitController({
     getDocument: () => imageDocumentRef.current,
@@ -4295,13 +4288,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   transformActiveRef.current = transformSession.isActive;
   repeatTransformRef.current = transformSession.repeat;
   nudgeTransformRef.current = transformSession.nudge;
-  hostPresentationDeactivateRef.current = () => {
-    void interactionTransitions.request('preserve');
-    viewportInteraction.cancelActiveGesture();
-    adjustmentInteractions.reset();
-    rasterGradientController.cancel();
-    cancelAutoAlignRef.current();
-  };
+  hostPresentationDeactivateRef.current = () => deactivateHostPresentation({
+    interactions: interactionTransitions, viewport: viewportInteraction,
+    adjustments: adjustmentInteractions, rasterGradient: rasterGradientController,
+    cancelAutoAlign: cancelAutoAlignRef.current
+  });
   applyFixedTransformRef.current = async (operation) => {
     if (fixedTransformCommandRunningRef.current) return null;
     const before = imageDocumentRef.current;

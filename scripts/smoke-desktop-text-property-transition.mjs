@@ -82,9 +82,39 @@ try {
   report.observations.push({ kind: 'real Properties Size edit then tab transition', oneUndoUnit: true,
     originalSize: 32, committedSize: 48, exactUndoRedoPixels: true, successorUnaffected: true });
   report.observations.push({ kind: 'unchanged focused property then tab transition', acceptedNoOp: true, historyDelta: 0 });
+  const beforeInactiveClose = await driver.queryDocument(a);
+  await size.fill('64');
+  assert.equal((await driver.queryDocument(a)).history.undoDepth, beforeInactiveClose.history.undoDepth,
+    'The active property must be pending before clicking the inactive close control');
+  await page.getByRole('button', { name: 'Close Text property B.png', exact: true }).click();
+  await page.waitForFunction(({ a, b }) => {
+    const workspace = window.__lightTableAutomation.queryWorkspace();
+    return workspace.activeDocumentId === a && !workspace.documents.some(document => document.id === b);
+  }, { a, b });
+  const afterInactiveClose = await driver.queryDocument(a);
+  assert.equal(afterInactiveClose.history.undoDepth, beforeInactiveClose.history.undoDepth + 1,
+    'Native input blur may commit A once, but closing B must not lose or duplicate that property edit');
+  assert.ok((await driver.queryText(a, layerId)).styleRuns.every(run => run.fontSize === 64));
+  report.observations.push({ kind: 'real inactive tab close during active Size preview', closedOnlyB: true,
+    activeInputBlurCommittedOnce: true, committedSize: 64 });
+  await size.focus();
+  await page.getByRole('button', { name: 'Close Text property A.png', exact: true }).click();
+  const discard = page.getByRole('dialog', { name: 'Discard unsaved changes?' });
+  await discard.waitFor({ state: 'visible' });
+  await discard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal((await driver.queryWorkspace()).activeDocumentId, a, 'Cancel must retain the active document');
+  assert.equal((await driver.queryDocument(a)).history.undoDepth, afterInactiveClose.history.undoDepth,
+    'No-op property close and cancellation must not add history');
+  assert.equal((await driver.queryDocument(a)).canonicalRevision, afterInactiveClose.canonicalRevision);
+  await page.screenshot({ path: path.join(output, 'final-ui.png') });
+  await page.getByRole('button', { name: 'Close Text property A.png', exact: true }).click();
+  await discard.getByRole('button', { name: 'Discard', exact: true }).click();
+  await page.waitForFunction(() => window.__lightTableAutomation.queryWorkspace().documents.length === 0);
+  report.observations.push({ kind: 'active close after no-op focused property', cancelPreservesDocument: true,
+    explicitDiscardClosesFixture: true, noExtraHistory: true });
   report.scopeCoverage = 'Ordinary real UI transitions here; controlled stale/rejected admission is covered by focused owner/coordinator tests.';
   assert.deepEqual(report.pageErrors, []);
-  await page.screenshot({ path: path.join(output, 'final-ui.png') });
+  await page.screenshot({ path: path.join(output, 'after-close.png') });
   report.passed = true; console.log(`Text property transition passed: ${output}`);
 } catch (error) {
   report.passed = false; report.error = error.stack ?? String(error);

@@ -7,7 +7,9 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const output = path.join(root, 'tmp', 'transform-kernel-smoke');
+const output = process.env.LIGHTTABLE_TRANSFORM_OUTPUT
+  ? path.resolve(process.env.LIGHTTABLE_TRANSFORM_OUTPUT)
+  : path.join(root, 'tmp', 'transform-kernel-smoke');
 await mkdir(output, { recursive: true });
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });

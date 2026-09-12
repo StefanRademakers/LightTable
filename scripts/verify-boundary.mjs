@@ -576,13 +576,25 @@ function verifyTextCutover(relativePath, source) {
     if (!source.includes('new TextPropertyGestureController(')) {
       failures.push(`${relativePath}: text-property gestures must delegate their complete lifetime to the application owner`);
     }
-    if (!source.includes('textPropertyGestureController.finishBeforeTransition(')
+    if (!source.includes('useWorkspaceDocumentIntents({')
+      || !source.includes('workspaceDocumentIntents.activate')
+      || !source.includes('workspaceDocumentIntents.close')
+      || source.includes('textPropertyGestureController.finishBeforeTransition(')
       || !source.includes('onActiveDocumentChange={activateWorkspaceDocument}')
       || !source.includes('closeActiveDocument: () => closeWorkspaceDocument(workspaceDocumentId)')
       || !source.includes('closeWorkspaceDocument(workspaceDocument.id)')
       || source.includes('onActivateWorkspaceDocument(nextDocument.id)')
       || source.includes('onActivateWorkspaceDocument?.(workspaceDocument.id)')) {
       failures.push(`${relativePath}: workspace activation must cross the complete text-property terminal owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/workspace/WorkspaceDocumentIntents.ts')) {
+    if (!source.includes('ports.text.finishBeforeTransition(')
+      || !source.includes('ports.getSession() === session')
+      || !source.includes('scope.isCurrent()')
+      || !source.includes('ports.closeDocument?.(documentId)')
+      || source.includes('commit-before-mutation')) {
+      failures.push(`${relativePath}: workspace intents must retain exact text-terminal admission and leave recovery/close barriers with the host`);
     }
   }
   if (normalizedPath.endsWith('/application/text/TextPropertyGestureController.ts')) {
@@ -733,6 +745,16 @@ function verifyAdjustmentCutover(relativePath, source) {
       failures.push(`${relativePath}: mounted admission must bind the exact ready source through the existing transition queue without a second queue or revision freeze`);
     }
   }
+  if (normalizedPath.endsWith('/application/interactions/HostPresentationDeactivation.ts')) {
+    if (!source.includes("ports.interactions.request('preserve')")
+      || !source.includes('ports.viewport.cancelActiveGesture()')
+      || !source.includes('ports.adjustments.reset()')
+      || !source.includes('ports.rasterGradient.cancel()')
+      || !source.includes('ports.cancelAutoAlign()')
+      || source.includes('commit-before-mutation') || source.includes('finishBeforeTransition')) {
+      failures.push(`${relativePath}: host blur preserves edits and only cancels named presentation gestures`);
+    }
+  }
   if (normalizedPath.endsWith('/application/adjustments/commitColorLookupAssetTransaction.ts')) {
     if (!source.includes('bindingIsCurrent(): boolean')
       || (source.match(/!bindingIsCurrent\(\)/g)?.length ?? 0) < 2
@@ -856,7 +878,7 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || !source.includes('interactionTransitions.retire(')
       || !source.includes('selectionSessionController.retire();')
       || source.includes('cancelPixelInteractionRef')
-      || !source.includes("interactionTransitions.request('preserve')")) {
+      || !source.includes('deactivateHostPresentation({')) {
       failures.push(`${relativePath}: mounted-document interaction transitions must have one centralized preserve, settlement and retirement authority`);
     }
     if (!source.includes('resetAdjustmentTransactionRef.current = adjustmentInteractions.reset;')

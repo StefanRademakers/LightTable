@@ -7,6 +7,33 @@ pass; deferred races and provider-fixture limitations are explicit in PROGRESS.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
+Next layer-intent inspection anchors (after O02d; source evidence, not packaged
+defect reproduction): `mergeSelectionOrActiveDown` reads selection/document
+after strict settlement and decides sibling targets in root; move that planning
+into a captured finalization intent, retaining the clicked row semantics and
+existing `layer.merge` operation. `addLayerEffectFromMenu` observes an awaited
+command then opens Properties without an original-owner check;
+`openLayerStyleEditor` schedules panel activation with an unscoped RAF. These
+belong to a narrow effect-editor intent/presentation lifetime, not the merge
+owner or a generic command bag. `executeRegisteredCommand` retains default
+global error publication; bounded asynchronous consumers should own their
+scope-aware result/error handling, as the accepted mask bridge already does.
+
+Guide/grid next boundary (independent source inventory, not implemented):
+canonical ImageDocument.guides and guideCommands retain algorithms/history;
+LayoutGuideInteractionLayer currently owns pointer capture, original guide
+array, Alt orientation, Shift quantization and drag-out deletion. Root owns
+draft state, New/Edit/Clear recipes and renderer frame publication. Split a
+scoped guide interaction owner from a narrow guide/grid renderer binding;
+preserve canonical snapping versus draft-only display. No new semantic guide
+command or Actions/MCP equivalence is claimed (none currently found).
+Inspect before migration: old pointerdown arrays can be committed after source
+replacement; no exact-runtime cancellation; non-last unchanged guide gets
+reordered by filter/concat; pointer-up uses last move position. Presentation
+effect depends on broad document/snap identity but not renderer lifetime and
+has no captured-slot cleanup. Reuse existing frame builders, keep exact snap
+spacing separate from display coarsening, and avoid readback/per-move history.
+
 - Native host/tab transitions: `activateWorkspaceDocument`, `closeWorkspaceDocument`,
   `hostPresentationDeactivate`, `runAfterMountedDocumentAdmission`. Policy belongs
   to scoped host/document intents over the existing transition coordinator, not a
