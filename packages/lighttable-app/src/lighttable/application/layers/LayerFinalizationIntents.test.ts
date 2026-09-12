@@ -22,6 +22,7 @@ const fixture = () => {
     getProjectedDocument: () => ({ id: projectedId }),
     captureScope: () => { const opening = scopeIdentity; return { isCurrent: () => opening === scopeIdentity }; },
     getSelectedLayerIds: () => selected, text: { finishBeforeTransition: vi.fn(() => { order.push('text'); return true; }) },
+    creation: { cancelPoint: vi.fn(() => { order.push('point'); }), cancelParagraph: vi.fn(() => { order.push('paragraph'); }) },
     requestAdmission: vi.fn(async () => { order.push('admission'); return { status: 'admitted' as const }; }),
     execute: vi.fn(async () => { order.push('execute'); return { status: 'completed' }; }), reportFailure: vi.fn()
   };
@@ -112,7 +113,9 @@ it('reports merge eligibility failure without dispatch and never assumes accepte
   expect(f.ports.reportFailure).toHaveBeenCalledWith('The active layer has no layer below it to merge with.');
   vi.mocked(f.ports.execute).mockResolvedValue({ status: 'accepted' }); expect(await f.owner.flattenImage()).toBe(false);
 });
-it.each(['noop', 'blocked', 'failed'] as const)('uses the actual text/mutation terminal before reserving finalization: %s', async mode => {
+it.each((['flattenImage', 'rasterizeText'] as const).flatMap(method =>
+  (['noop', 'blocked', 'failed'] as const).map(mode => ({ method, mode }))))(
+  'uses the actual text/mutation terminal before reserving $method: $mode', async ({ method, mode }) => {
   const f = fixture(), session = f.session();
   session.setDocument(createTextLayer(session.getSnapshot().document!, createDefaultTextLayerData(), 'Text'));
   let blocked = false;
@@ -127,8 +130,34 @@ it.each(['noop', 'blocked', 'failed'] as const)('uses the actual text/mutation t
   if (mode !== 'noop') { text.queuePaint({ fontSize: 48 }); text.flushPaint(); }
   if (mode === 'blocked') blocked = true;
   f.ports.text.finishBeforeTransition = next => text.finishBeforeTransition(next);
-  expect(await f.owner.flattenImage()).toBe(mode === 'noop');
+  expect(await f.owner[method]()).toBe(mode === 'noop');
   expect(f.ports.requestAdmission).toHaveBeenCalledTimes(mode === 'noop' ? 1 : 0);
   expect(f.ports.execute).toHaveBeenCalledTimes(mode === 'noop' ? 1 : 0);
   expect(f.ports.reportFailure).toHaveBeenCalledTimes(mode === 'noop' ? 0 : 1);
+});
+
+it('Rasterize Type pins the invocation text layer, finishes text and cancels creation only before admission', async () => {
+  const f = fixture(), session = f.session();
+  session.setDocument(createTextLayer(session.getSnapshot().document!, createDefaultTextLayerData(), 'Opening text'));
+  const target = session.getSnapshot().document!.activeLayerId!;
+  vi.mocked(f.ports.requestAdmission).mockImplementation(async () => {
+    f.order.push('admission'); session.setDocument(createTextLayer(session.getSnapshot().document!, createDefaultTextLayerData(), 'Later text'));
+    return { status: 'admitted' };
+  });
+  expect(await f.owner.rasterizeText()).toBe(true);
+  expect(f.order).toEqual(['text', 'point', 'paragraph', 'admission', 'execute']);
+  expect(f.ports.execute).toHaveBeenCalledWith(session.id, 'layer.rasterize', { layerId: target }, session.getSnapshot().documentRevision);
+});
+it('Rasterize Type rejects failed text without canceling creation or dispatching', async () => {
+  const f = fixture(); vi.mocked(f.ports.text.finishBeforeTransition).mockReturnValue(false);
+  expect(await f.owner.rasterizeText()).toBe(false);
+  expect(f.ports.creation.cancelPoint).not.toHaveBeenCalled(); expect(f.ports.requestAdmission).not.toHaveBeenCalled();
+  expect(f.ports.reportFailure).toHaveBeenCalledOnce();
+});
+it('Rasterize Type rejects a removed text target rather than rasterizing the later active layer', async () => {
+  const f = fixture(), session = f.session(), base = session.getSnapshot().document!;
+  session.setDocument(createTextLayer(base, createDefaultTextLayerData(), 'Text'));
+  vi.mocked(f.ports.requestAdmission).mockImplementation(async () => { session.setDocument(base); return { status: 'admitted' }; });
+  expect(await f.owner.rasterizeText()).toBe(false); expect(f.ports.execute).not.toHaveBeenCalled();
+  expect(f.ports.reportFailure).toHaveBeenCalledWith('Select a text layer to rasterize.');
 });

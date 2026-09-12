@@ -1,9 +1,10 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O06f.3 mounted selection binding and truthful committed
-terminals accepted with actual session/service and packaged coverage/Actions proof.
-Canonical checklist below is authoritative. Overlay5,487 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Next: remaining text UI intents.
+Status: in progress. O05a.4 text rasterize/recovery intents accepted with critic
+and packaged native recovery/pending Size/rasterize/UndoRedo proof. Positioned
+rendering remains explicitly unsupported O08 debt, not visual preservation.
+Canonical checklist below is authoritative. Overlay5,467 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. Remaining owner inventory next.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

@@ -895,6 +895,10 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       failures.push(`${relativePath}: Remove Object capture and submission lifetime must remain in bounded editor/GenAI owners`);
     }
     if (!source.includes('useLayerFinalizationIntents(')
+      || !source.includes('rasterizeText: layerFinalizationIntents.rasterizeText')
+      || !source.includes('usePositionedTextRecovery(')
+      || source.includes('rasterizeActiveTextLayerCommand')
+      || source.includes('positionedTextRecoveryController')
       || !source.includes('usePropertiesInspectorPresentation(')
       || !source.includes('new LayerStyleEntryIntent(')
       || source.includes('setPropertiesTarget')

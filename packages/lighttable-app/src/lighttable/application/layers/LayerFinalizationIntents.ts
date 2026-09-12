@@ -1,10 +1,10 @@
 import type { DocumentSession, DocumentSessionId } from '../documents/documentSession';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
-import { siblingLayers } from '../../editor/document/layerTree';
+import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import type { MountedDocumentAdmission } from '../interactions/MountedDocumentAdmission';
 
-type FinalizationCommand = 'layer.merge' | 'layer.flattenGroup' | 'document.flattenImage';
-type Parameters = { layerIds: readonly LayerId[] } | { groupId: LayerId } | Record<string, never>;
+type FinalizationCommand = 'layer.merge' | 'layer.flattenGroup' | 'document.flattenImage' | 'layer.rasterize';
+type Parameters = { layerIds: readonly LayerId[] } | { groupId: LayerId } | { layerId: LayerId } | Record<string, never>;
 export interface LayerFinalizationIntentPorts {
   isMounted(): boolean;
   getSession(): DocumentSession | undefined;
@@ -13,16 +13,17 @@ export interface LayerFinalizationIntentPorts {
   captureScope(): { isCurrent(): boolean };
   getSelectedLayerIds(): readonly LayerId[];
   readonly text: { finishBeforeTransition(transition: () => void): boolean };
+  readonly creation: { cancelPoint(): void; cancelParagraph(): void };
   requestAdmission: MountedDocumentAdmission['request'];
-  execute(documentId: DocumentSessionId, command: FinalizationCommand, parameters: Parameters): Promise<{ status: string; message?: string }>;
+  execute(documentId: DocumentSessionId, command: FinalizationCommand, parameters: Parameters, expectedRevision?: number): Promise<{ status: string; message?: string }>;
   reportFailure(message: string): void;
 }
 
 /** UI target interpretation only; semantic finalization owns source preparation, GPU publication and history. */
 export class LayerFinalizationIntents {
   constructor(private readonly resolve: () => LayerFinalizationIntentPorts) {}
-  private async run(resolveCommand: (document: ImageDocument, ports: LayerFinalizationIntentPorts) =>
-    { command: FinalizationCommand; parameters: Parameters }): Promise<boolean> {
+  private async run(resolveCommand: (document: ImageDocument, ports: LayerFinalizationIntentPorts, opening: ImageDocument) =>
+    { command: FinalizationCommand; parameters: Parameters }, cancelCreation = false): Promise<boolean> {
     const ports = this.resolve(), session = ports.getSession(), renderer = ports.getRenderer(), scope = ports.captureScope();
     const ownsContext = () => ports.isMounted() && ports.getSession() === session && ports.getRenderer() === renderer
       && session?.getSnapshot().lifecycle !== 'disposed' && scope.isCurrent();
@@ -33,16 +34,21 @@ export class LayerFinalizationIntents {
         if (ownsContext()) ports.reportFailure('The document renderer is unavailable for layer finalization.');
         return false;
       }
+      const opening = session!.getSnapshot().document!;
       if (!ports.text.finishBeforeTransition(() => undefined)) {
         if (ownsContext()) ports.reportFailure('Layer finalization was stopped because the text edit could not be committed.');
         return false;
       }
       if (!isCurrent()) return false;
+      if (cancelCreation) { ports.creation.cancelPoint(); ports.creation.cancelParagraph(); }
+      if (!isCurrent()) return false;
       // UI preparation happens before semantic execution reserves its own transaction.
       const admission = await ports.requestAdmission();
       if (admission.status !== 'admitted' || !isCurrent()) return false;
-      const command = resolveCommand(session!.getSnapshot().document!, ports);
-      const result = await ports.execute(session!.id, command.command, command.parameters);
+      const command = resolveCommand(session!.getSnapshot().document!, ports, opening);
+      const result = await (cancelCreation
+        ? ports.execute(session!.id, command.command, command.parameters, session!.getSnapshot().documentRevision)
+        : ports.execute(session!.id, command.command, command.parameters));
       if (!isCurrent()) return false;
       if (result.status !== 'completed') {
         ports.reportFailure(result.message ?? 'The layer finalization command did not complete.'); return false;
@@ -69,4 +75,10 @@ export class LayerFinalizationIntents {
   };
   flattenGroup = (groupId: LayerId) => this.run(() => ({ command: 'layer.flattenGroup', parameters: { groupId } }));
   flattenImage = () => this.run(() => ({ command: 'document.flattenImage', parameters: {} }));
+  rasterizeText = () => this.run((document, _ports, opening) => {
+    const layerId = opening.activeLayerId;
+    if (!layerId || findDocumentLayer(opening, layerId)?.type !== 'text'
+      || findDocumentLayer(document, layerId)?.type !== 'text') throw new Error('Select a text layer to rasterize.');
+    return { command: 'layer.rasterize', parameters: { layerId } };
+  }, true);
 }

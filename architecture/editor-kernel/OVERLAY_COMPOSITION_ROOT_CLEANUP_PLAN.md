@@ -9,13 +9,16 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O06f.3 mounted selection mapping and truthful committed
+Latest bounded acceptance: O05a.4 text rasterize/recovery intents; real native
+recovery, pending Size -> rasterize and exact recovered-flow/raster UndoRedo pass.
+Positioned-source rendering remains explicitly unsupported; O08 records this
+separately, not as visual preservation. O06f.3 mounted selection mapping and truthful committed
 result delivery; packaged selection coverage, paint/copy/delete, history and
 marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Root is 5,487 physical lines. Remaining target/GenAI/command families, cross-flow
+Root is 5,467 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -274,7 +277,12 @@ class names: reuse existing owners before creating a new one.
     lifetime. Existing conversion transaction retained; raw latest-target dialog
     handoff removed. Critic repaired active formatting no-op terminal. Packaged
     Type Cancel/Convert, property settlement, exact UndoRedo through tabs and
-    semantic target change during confirmation pass. Other text intents remain.
+    semantic target change during confirmation pass.
+  - [x] O05a.4: text rasterize intent in existing finalization owner, scoped
+    positioned recovery offer and exact-source mutation guard. Critic PASS after
+    queued canonical-revision protection; actual native recovery, pending Size,
+    Layer/Rasterize Type and recovered-flow/raster UndoRedo pass. Positioned
+    realization itself remains explicitly unsupported O08 debt, not visual proof.
   - [x] O05b.1: vector/shape/gradient property projection and intents; one
     toolbar/context gradient route, creation options separate from geometry.
     Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property

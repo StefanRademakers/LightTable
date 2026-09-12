@@ -1789,6 +1789,32 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('rejects queued Type rasterize when an earlier command replaces the same text source', async () => {
+    const state = setup();
+    state.session.setDocument(createTextLayer(state.session.getSnapshot().document!, createDefaultTextLayerData(), 'Text'));
+    const opening = state.session.getSnapshot().document!, layerId = opening.activeLayerId!;
+    const openingHistory = state.session.getSnapshot().history;
+    const expectedDocumentRevision = state.session.getSnapshot().documentRevision;
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    vi.mocked(state.ports.settleInteractionBeforeCommand).mockImplementationOnce(() => pending);
+    state.ports.renameLayer = vi.fn(() => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, layers: current.layers.map(layer => layer.id === layerId && layer.type === 'text'
+        ? { ...layer, text: { ...layer.text, source: { ...layer.text.source } } } : layer) });
+    });
+    const first = state.service.execute(request('layer.rename', state.session.id, { layerId, name: 'Replacement' }));
+    await vi.waitFor(() => expect(state.ports.settleInteractionBeforeCommand).toHaveBeenCalledOnce());
+    const rasterize = state.service.execute({ ...request('layer.rasterize', state.session.id, { layerId }), expectedDocumentRevision });
+    release(); expect((await first).status).toBe('completed');
+    expect(await rasterize).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
+    expect(state.ports.executeLayerRasterize).not.toHaveBeenCalled();
+    expect(state.ports.executeTextRasterize).not.toHaveBeenCalled();
+    expect(state.session.getSnapshot().document!.activeLayerId).toBe(layerId);
+    expect(state.session.getSnapshot().history).toBe(openingHistory);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('advances the canonical revision after semantic mutations and committed gestures', async () => {
     const state = setup();
     const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;

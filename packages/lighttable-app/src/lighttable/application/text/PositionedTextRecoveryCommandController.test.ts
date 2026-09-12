@@ -47,7 +47,9 @@ describe('PositionedTextRecoveryCommandController', () => {
       preview: { source: { kind: 'flow', text: 'A' } }
     });
     expect(state.document()).toBe(state.opening);
-    expect(state.controller.recover(layerId)).toBe(true);
+    const source = findDocumentLayer(state.opening, layerId)!;
+    if (source.type !== 'text' || source.text.source.kind !== 'positioned') throw new Error('Expected positioned text.');
+    expect(state.controller.recover(layerId, source.text.source)).toBe(true);
     expect(state.history).toHaveLength(1);
     const recovered = state.document();
     expect(findDocumentLayer(state.document(), layerId)).toMatchObject({
@@ -69,9 +71,11 @@ describe('PositionedTextRecoveryCommandController', () => {
     const state = harness();
     const layerId = state.opening.activeLayerId!;
     const originalApply = state.controller.recover.bind(state.controller);
-    expect(originalApply(layerId)).toBe(true);
+    const source = findDocumentLayer(state.opening, layerId)!;
+    if (source.type !== 'text' || source.text.source.kind !== 'positioned') throw new Error('Expected positioned text.');
+    expect(originalApply(layerId, source.text.source)).toBe(true);
     expect(state.controller.analyze(layerId)).toBeNull();
-    expect(state.controller.recover(layerId)).toBe(false);
+    expect(state.controller.recover(layerId, source.text.source)).toBe(false);
 
     const fixture = harness();
     const positioned = findDocumentLayer(fixture.opening, fixture.opening.activeLayerId!);
@@ -87,7 +91,19 @@ describe('PositionedTextRecoveryCommandController', () => {
       'Outline text'
     ));
     expect(fixture.controller.analyze(fixture.document().activeLayerId!)).toMatchObject({ status: 'blocked' });
-    expect(fixture.controller.recover(fixture.document().activeLayerId!)).toBe(false);
+    const blocked = findDocumentLayer(fixture.document(), fixture.document().activeLayerId!);
+    if (blocked?.type !== 'text' || blocked.text.source.kind !== 'positioned') throw new Error('Expected blocked source.');
+    expect(fixture.controller.recover(blocked.id, blocked.text.source)).toBe(false);
     expect(fixture.history).toHaveLength(0);
+  });
+
+  it('rejects an equal-ID positioned source replacement inside the mutation recipe', () => {
+    const state = harness(), layer = findDocumentLayer(state.opening, state.opening.activeLayerId!);
+    if (layer?.type !== 'text' || layer.text.source.kind !== 'positioned') throw new Error('Expected positioned source.');
+    state.replaceDocument({ ...state.opening, layers: state.opening.layers.map(current => current.id === layer.id
+      ? { ...layer, text: { ...layer.text, source: { ...layer.text.source } } } : current) });
+    const before = state.document();
+    expect(state.controller.recover(layer.id, layer.text.source)).toBe(false);
+    expect(state.document()).toBe(before); expect(state.history).toHaveLength(0);
   });
 });

@@ -1,5 +1,39 @@
 # Task 416 progress
 
+## O05a.4 — Scoped text rasterize and positioned recovery intents (accepted)
+
+- Deleted root rasterize callback, recovery controller retention/query ownership
+  and unscoped recovery recipe/notices. LayerFinalizationIntents now handles the
+  existing Layer > Rasterize > Rasterize Type entry, including truthful text
+  terminal, invocation target, existing creation cancellation and admission.
+  Post-preparation canonical revision reaches the existing command queue guard.
+- Critic repair: actual command-service queued same-ID text replacement rejects
+  before rasterizer/history through expectedDocumentRevision. Recovery offer pins
+  exact positioned source and session/renderer/scope; source checked after text
+  terminal and inside existing mutation recipe. Its own successful replacement
+  does not suppress success feedback. No new renderer, mutation or history route.
+- Independent source critic PASS;164 tests/6 files, app typecheck and boundary
+  pass. Tests include actual text-property/mutation owners, no-op/failed terminal,
+  queued revision rejection, exact positioned snapshot UndoRedo and hook lifetime.
+- Baseline package44063 initially exposed explicitly unsupported positioned
+  realization: textLayout.worker rejects it before rendering. run-zau4TK retains
+  the failed original PNG attempt. Fixture is genuine production layered codec,
+  bundled Inter bytes and WASM glyph ID, not a raster-only PDF or state injection.
+  This is existing O08 rendering debt; no visual preservation claim or fallback.
+  The gate explicitly asserts initial/Undo export rejection, exact source query
+  restoration, then visible recovered flow and exact recovered/raster UndoRedo.
+- Harness correction: Rasterize Type is under Layer > Rasterize, not top-level
+  Type; failed run-h27v3R preserves mistaken selector. Baseline run-xBrnZe passes
+  corrected route. Fresh instrumented package37304 passes run-aN2tZo; real Recover
+  yields one history item, pending Size80 then Rasterize yields separate property
+  and fresh-destination raster commits, editable Undo and pixel-exact Redo pass.
+  Adjacent actual text-to-shape/cancel/stale-confirmation/tab proof run-OqnOZ0 passes.
+  No page errors; root inspected recovered/final UI. Reports under respective
+  tmp/text-finalization-intents and tmp/text-to-shape-intent-smoke run directories.
+- Overlay5,487 ->5,467 physical (ceiling5,468); WebGpuEngine4,003 unchanged.
+  New intent60 and mounted hook43 physical lines. No added GPU work/readback,
+  queue or pointer-frequency observer. Whole endpoint and O09 remain open.
+
 ## O06f.3 — Selection mapping and committed terminal delivery (accepted)
 
 - createMountedSelectionCommandBinding owns the former root protocol branches

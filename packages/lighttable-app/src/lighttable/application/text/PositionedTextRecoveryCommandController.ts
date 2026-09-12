@@ -1,6 +1,7 @@
 import {
   analyzePositionedTextRecovery,
-  type PositionedTextRecoveryAnalysis
+  type PositionedTextRecoveryAnalysis,
+  type PositionedTextSource
 } from '@lighttable/text-core';
 import { recoverPositionedTextAsFlow } from '../../editor/document/textLayerCommands';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
@@ -24,10 +25,14 @@ export class PositionedTextRecoveryCommandController {
       : null;
   }
 
-  recover(layerId: LayerId): boolean {
+  recover(layerId: LayerId, source: PositionedTextSource): boolean {
     const dependencies = this.resolveDependencies();
     return dependencies.documentMutations.change(
-      (current) => recoverPositionedTextAsFlow(current, layerId),
+      (current) => {
+        const layer = findDocumentLayer(current, layerId);
+        return layer?.type === 'text' && layer.text.source === source
+          ? recoverPositionedTextAsFlow(current, layerId) : current;
+      },
       true,
       { label: 'Recover Editable Type', type: 'text.recover', layerIds: [layerId] }
     );

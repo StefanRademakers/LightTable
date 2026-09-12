@@ -1,6 +1,8 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,487 physical lines. O06f.3 moves selection command mapping
+Current accepted root: 5,467 physical lines. O05a.4 removes root text-rasterize
+and positioned-recovery policy; existing finalization/mutation owners retain edits.
+O06f.3 moves selection command mapping
 to a scoped binding and preserves authoritative committed results after retirement.
 O06g moves mounted adjustment commands
 and queries out of root, deletes parent-value publication and scopes attached
@@ -19,7 +21,7 @@ Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
-### Selection resolved O06f.3; queued text intent slices
+### Selection resolved O06f.3; text finalization intents resolved O05a.4
 
 - Selection mapping is extracted; existing controller and kernel keep coverage,
   algorithms and history. Committed terminals remain truthful after retirement;
@@ -29,11 +31,14 @@ Provider generation/result placement are outside this slice's fixture evidence.
   to remove its duplicate UI settlement recipe; no new public schema. Existing
   direct entry already records one semantic Action in package31617: do not claim
   missing recording. Preserve that exact recipe and coverage replay on cut-over.
-- Type rasterize belongs in existing LayerFinalizationIntents. Positioned-text
-  recovery needs exact offered source/session lifetime around its existing
-  controller. Both root callbacks currently discard the text finish result;
-  use existing truthful Properties/Flow terminal admission before conversion.
-  Do not replace working vector/rasterization/recovery algorithms or add a queue.
+- Layer > Rasterize > Rasterize Type now uses LayerFinalizationIntents and the
+  existing truthful Properties/Flow terminal. Post-preparation canonical revision
+  uses the existing semantic stale-work guard. PositionedTextRecoveryIntent and
+  its mounted hook bind the offered source/session/runtime; the existing mutation
+  recipe checks source identity again. No new algorithm, history or queue.
+- Packaged native import exposes existing textLayout.worker positioned rejection.
+  Recovery/Undo restores exact canonical positioned data, NOT original rendered
+  pixels. Recovered flow and raster pixels/history pass; realization remains O08.
 
 ### Mounted adjustment command binding — resolved O06g inventory
 

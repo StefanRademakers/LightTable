@@ -17,6 +17,7 @@ it('StrictMode reconnect allows new work without reviving an old awaiting admiss
   const execute = vi.fn(async () => ({ status: 'completed' })), finishText = vi.fn(() => true);
   const ports = { getSession: () => session, getRenderer: () => renderer, getProjectedDocument: () => session.getSnapshot().document,
     captureScope: () => ({ isCurrent: () => true }), getSelectedLayerIds: () => [], text: { finishBeforeTransition: finishText },
+    creation: { cancelPoint: vi.fn(), cancelParagraph: vi.fn() },
     requestAdmission: vi.fn(async () => pending), execute, reportFailure: vi.fn() };
   const render = () => { hooks.cursor = 0; return useLayerFinalizationIntents(ports); };
   const owner = render(); expect(await owner.flattenImage()).toBe(false); expect(finishText).not.toHaveBeenCalled();

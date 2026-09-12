@@ -114,7 +114,7 @@ import {
 } from './processing/attachedAdjustment';
 import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { useTextToShape } from './composition/text/useTextToShape';
-import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
+import { usePositionedTextRecovery } from './composition/text/usePositionedTextRecovery';
 import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
 import { readGenAiDocumentContext } from './composition/genai/readGenAiDocumentContext';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
@@ -1537,12 +1537,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setCropBounds(null);
     runDocumentGeometryCommand({ operation: 'crop', bounds });
   };
-  const positionedTextRecoveryControllerRef = useRef<PositionedTextRecoveryCommandController | null>(null);
-  positionedTextRecoveryControllerRef.current ??= new PositionedTextRecoveryCommandController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    documentMutations: documentMutationController
-  }));
-  const positionedTextRecoveryController = positionedTextRecoveryControllerRef.current;
   const textEditingPortsRef = useRef({
     commandService,
     documentMutations: documentMutationController,
@@ -3232,10 +3226,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current, getProjectedDocument: () => imageDocumentRef.current,
     captureScope: captureMountedInteractionScope, getSelectedLayerIds: () => selectedLayerIdsRef.current,
     text: textPropertyGestureController,
+    creation: textCreationInteraction,
     requestAdmission: mountedDocumentAdmission.request,
-    execute: (documentId, command, parameters) => commandService.execute({
+    execute: (documentId, command, parameters, expectedRevision) => commandService.execute({
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
-      requestId: `ui-${documentId}-${++commandRequestSequenceRef.current}`, documentId, command, parameters
+      requestId: `ui-${documentId}-${++commandRequestSequenceRef.current}`, documentId, command, parameters,
+      ...(expectedRevision === undefined ? {} : { expectedDocumentRevision: expectedRevision })
     }), reportFailure: setError
   });
   const mergeSelectionOrActiveDown = layerFinalizationIntents.mergeDown;
@@ -4008,17 +4004,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
 
-  const rasterizeActiveTextLayerCommand = () => {
-    const layerId = imageDocumentRef.current?.activeLayerId;
-    if (!layerId) {
-      setError('Select a layer to rasterize.');
-      return;
-    }
-    textEditingController.finish();
-    textCreationInteraction.cancelPoint();
-    textCreationInteraction.cancelParagraph();
-    executeRegisteredCommand('layer.rasterize', { layerId });
-  };
 
   const focusActiveLayerName = () => {
     const layerId = imageDocumentRef.current?.activeLayerId;
@@ -4318,7 +4303,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layers: {
       panel: commandLayerPanelController,
       duplicate: commandLayerPanelController.duplicateActive,
-      rasterizeText: rasterizeActiveTextLayerCommand,
+      rasterizeText: layerFinalizationIntents.rasterizeText,
       convertTextToShape: () => {
         const layerId = imageDocumentRef.current?.activeLayerId;
         if (layerId) textToShape.intent.request(layerId);
@@ -4495,9 +4480,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   const { layer: activeTextPropertyLayer, model: textPropertyPresentation,
     layoutMode: textLayoutMode } = resolveTextProperties(imageDocument, textEditingController, availableFontAssets);
-  const positionedTextRecovery = activeTextPropertyLayer?.type === 'text'
-    && activeTextPropertyLayer.text.source.kind === 'positioned'
-    ? positionedTextRecoveryController.analyze(activeTextPropertyLayer.id) : null;
+  const positionedTextRecoveryIntents = usePositionedTextRecovery({
+    lifecycle: rendererLifecycle, generation: rendererSnapshot.generation,
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => engineRef.current, getProjectedDocument: () => imageDocumentRef.current,
+    captureScope: captureMountedInteractionScope,
+    documentMutations: documentMutationController, text: textPropertyGestureController,
+    status: setGradeStatus, error: setError
+  });
+  const positionedTextRecovery = positionedTextRecoveryIntents.offer(activeTextPropertyLayer?.id ?? null);
   const textPropertyCommands = useTextPropertyCommands(documentSession ?? workspaceDocumentId, {
     getDocument: () => imageDocumentRef.current,
     getTool: () => editorSessionRef.current.activeTool,
@@ -4548,18 +4539,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onCommit: commitTextPropertyGesture,
     onCancel: cancelTextPropertyGesture,
     ...(positionedTextRecovery ? {
-      recovery: {
-        analysis: positionedTextRecovery,
-        onRecover: () => {
-          const layerId = activeTextPropertyLayer?.id;
-          if (!layerId) return;
-          textEditingController.finish();
-          const recovered = positionedTextRecoveryController.recover(layerId);
-          setGradeStatus(recovered
-            ? 'Imported text recovered as editable flow text. Undo restores exact positioned glyphs.'
-            : 'Imported text could not be recovered.');
-        }
-      }
+      recovery: positionedTextRecovery
     } : {})
   } : null;
   const faceWarpToolOptions = {
