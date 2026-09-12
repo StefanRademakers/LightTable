@@ -113,8 +113,7 @@ import { useTextToShape } from './composition/text/useTextToShape';
 import { usePositionedTextRecovery } from './composition/text/usePositionedTextRecovery';
 import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
 import { readGenAiDocumentContext } from './composition/genai/readGenAiDocumentContext';
-import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
-import { textSelectionForGranularity } from './application/text/flowTextEditing';
+import { useTextSelectionGesture } from './composition/text/useTextSelectionGesture';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import type { DocumentStartupTimeline } from './application/telemetry/documentStartupTimeline';
@@ -170,7 +169,7 @@ import { DocumentSurfaceHistoryBinding } from './application/documentGeometry/Do
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import { useTextCreation } from './composition/text/useTextCreation';
 import { useTextPointerRouter } from './composition/text/useTextPointerRouter';
-import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
+import { useTextEditingPublication } from './composition/text/useTextEditingPublication';
 import { TextPropertyGestureController } from './application/text/TextPropertyGestureController';
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { useExistingTextActivation } from './composition/text/useExistingTextActivation';
@@ -190,7 +189,6 @@ import { waitForExactCommandRender } from './application/rendering/waitForExactC
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { useTextGeometryGestures } from './composition/text/useTextGeometryGestures';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
-import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import { resolveTextProperties } from './application/text/textPropertyPresentation';
 import { useTextPropertyCommands } from './composition/text/useTextPropertyCommands';
@@ -991,14 +989,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const copiedGrade = useLightTableGradeClipboard();
 
-  useEffect(() => () => {
-    textEditingControllerRef.current?.finish();
-  }, []);
-
-
   useEffect(() => {
     temporaryTool.clear();
-    textEditingControllerRef.current?.reset();
     setAltPressed(false);
   }, [workspaceDocumentId]);
 
@@ -1501,26 +1493,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentMutations: documentMutationController,
     reportError: setError
   };
-  const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
-  textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    documentMutations: textEditingPortsRef.current.documentMutations,
-    onCommitted: (entry) => {
-      const ports = textEditingPortsRef.current;
-      if (entry.semanticReplacement) {
-        ports.commandService.recordObservedCommand(
-          'text.replaceRange',
-          workspaceDocumentIdRef.current as DocumentSessionId,
-          entry.semanticReplacement,
-          { layerId: entry.semanticReplacement.layerId }
-        );
-      }
-    },
-    reportError: (message) => textEditingPortsRef.current.reportError(message),
-    requestPreviewFrame: (callback) => window.requestAnimationFrame(callback),
-    cancelPreviewFrame: (frame) => window.cancelAnimationFrame(frame)
-  }));
-  const textEditingController = textEditingControllerRef.current;
+  const textEditingController = useTextEditingPublication({
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocumentId: () => imageDocumentRef.current?.id ?? null, captureScope: captureMountedInteractionScope,
+    commandService, documentMutations: documentMutationController, reportError: setError,
+    requestFrame: callback => window.requestAnimationFrame(callback), cancelFrame: frame => window.cancelAnimationFrame(frame)
+  });
   textPropertyGestureControllerRef.current ??= new TextPropertyGestureController(() => ({
     getDocument: () => imageDocumentRef.current,
     getCommandDocumentId: () => workspaceDocumentIdRef.current as DocumentSessionId,
@@ -1565,32 +1543,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const existingTextHitController = existingTextHitControllerRef.current;
   useEffect(() => () => {
+    textEditingController.finish();
     textPropertyGestureController.dispose();
     textEditingController.reset();
   }, [textEditingController, textPropertyGestureController]);
-  const textSelectionGestureControllerRef = useRef<TextSelectionGestureController | null>(null);
-  textSelectionGestureControllerRef.current ??= new TextSelectionGestureController(() => ({
-    focusAt: (layerId, point) => {
-      const layout = engineRef.current?.textEditingLayout(layerId);
-      return layout
-        ? hitTestTextEditingLayout(layout, point, Number.POSITIVE_INFINITY)?.offset ?? null
-        : null;
-    },
-    rangeAt: (layerId, offset, granularity) => {
-      const document = imageDocumentRef.current;
-      const layer = document ? findDocumentLayer(document, layerId) : null;
-      const layout = engineRef.current?.textEditingLayout(layerId)?.layout;
-      return layer?.type === 'text' && layer.text.source.kind === 'flow' && layout
-        ? textSelectionForGranularity(layer.text.source.text, layout, offset, granularity)
-        : null;
-    },
-    publishSelection: (selection, transient) => {
-      textEditingController.setSelection(selection, { transient });
-    },
-    requestFrame: (callback) => window.requestAnimationFrame(callback),
-    cancelFrame: (frame) => window.cancelAnimationFrame(frame)
-  }));
-  const textSelectionGestureController = textSelectionGestureControllerRef.current;
+  const textSelectionGestureController = useTextSelectionGesture({
+    documentIdentity: workspaceDocumentId, session: documentSession, renderer: engineRef.current,
+    lifecycle: rendererLifecycle, generation: rendererSnapshot.generation
+  }, {
+    getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+    getProjectedDocumentId: () => imageDocumentRef.current?.id ?? null, captureScope: captureMountedInteractionScope,
+    editing: textEditingController, requestFrame: callback => window.requestAnimationFrame(callback),
+    cancelFrame: frame => window.cancelAnimationFrame(frame)
+  });
   const { move: textLayerMoveGestureController, frame: paragraphFrameResizeController,
     path: pathTextHandleController } = useTextGeometryGestures({
     documentIdentity: workspaceDocumentId, session: documentSession, renderer: engineRef.current,
@@ -1607,14 +1572,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingController.getShellSnapshot
   );
   finishTextEditingRef.current = () => textEditingController.finish();
-
-  useEffect(() => () => {
-    textSelectionGestureController.dispose();
-  }, [textSelectionGestureController]);
-
-  useEffect(() => {
-    textSelectionGestureController.dispose();
-  }, [textSelectionGestureController, workspaceDocumentId]);
 
   useLayoutEffect(() => {
     textPropertyGestureController.cancel();

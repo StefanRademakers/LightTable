@@ -87,6 +87,8 @@ interface ActiveTextEdit {
   readonly group: TextEditGroupKind;
   readonly before: ImageDocument;
   readonly transaction: DocumentMutationTransaction;
+  readonly delivery: Pick<TextEditTransactionDependencies,
+    'onCommitted' | 'reportError' | 'requestPreviewFrame' | 'cancelPreviewFrame'>;
   previewFrame: number | null;
   changed: boolean;
 }
@@ -103,7 +105,7 @@ export const createTextEditTransactionController = (
 
   const cancelPreviewFrame = (active: ActiveTextEdit) => {
     if (active.previewFrame === null) return;
-    resolveDependencies().cancelPreviewFrame(active.previewFrame);
+    active.delivery.cancelPreviewFrame(active.previewFrame);
     active.previewFrame = null;
   };
 
@@ -129,13 +131,19 @@ export const createTextEditTransactionController = (
           layerIds: [layerId]
         }
       );
-      if (!transaction || transaction.before !== document) return false;
+      if (!transaction) return false;
+      if (transaction.before !== document || dependencies.getDocument() !== document) {
+        transaction.cancel();
+        return false;
+      }
       edit = {
         documentId: document.id,
         layerId,
         group,
         before: document,
         transaction,
+        delivery: { onCommitted: dependencies.onCommitted, reportError: dependencies.reportError,
+          requestPreviewFrame: dependencies.requestPreviewFrame, cancelPreviewFrame: dependencies.cancelPreviewFrame },
         previewFrame: null,
         changed: false
       };
@@ -161,14 +169,14 @@ export const createTextEditTransactionController = (
       }
       if (edit.previewFrame === null) {
         const active = edit;
-        active.previewFrame = resolveDependencies().requestPreviewFrame(() => {
+        active.previewFrame = active.delivery.requestPreviewFrame(() => {
           if (edit !== active) return;
           active.previewFrame = null;
           try {
             if (!active.transaction.project()) edit = null;
           } catch (error) {
             edit = null;
-            resolveDependencies().reportError(error instanceof Error
+            active.delivery.reportError(error instanceof Error
               ? `The text preview failed: ${error.message}`
               : 'The text preview failed.');
           }
@@ -202,13 +210,13 @@ export const createTextEditTransactionController = (
       const committed = completed.transaction.commit();
       if (!committed) return false;
       try {
-        resolveDependencies().onCommitted({
+        completed.delivery.onCommitted({
           layerId: completed.layerId,
           group: completed.group,
           semanticReplacement
         });
       } catch (error) {
-        resolveDependencies().reportError(error instanceof Error
+        completed.delivery.reportError(error instanceof Error
           ? `The text edit committed, but command observation failed: ${error.message}`
           : 'The text edit committed, but command observation failed.');
       }

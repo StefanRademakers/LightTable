@@ -10,6 +10,7 @@ const fixture = () => {
   const publishSelection = vi.fn();
   const cancelFrame = vi.fn((frame: number) => { frames.delete(frame); });
   const controller = new TextSelectionGestureController(() => ({
+    captureScope: () => ({ isCurrent: () => true }),
     focusAt: (_layerId, point) => Math.round(point.x),
     rangeAt: (_layerId, offset, granularity) => granularity === 'word'
       ? { anchor: Math.floor(offset / 10) * 10, focus: Math.floor(offset / 10) * 10 + 10 }
@@ -26,6 +27,16 @@ const fixture = () => {
 };
 
 describe('TextSelectionGestureController', () => {
+  it('ignores a retained cancelled frame when a successor reuses the pointer id', () => {
+    const state = fixture();
+    state.controller.begin(7, layerId, { anchor: 1, focus: 1 }); state.controller.move(7, { x: 5, y: 0 });
+    const retiredFrame = [...state.frames.values()][0]!;
+    state.controller.cancel(7);
+    state.controller.begin(7, layerId, { anchor: 20, focus: 20 }); state.controller.move(7, { x: 30, y: 0 });
+    retiredFrame(); expect(state.publishSelection).not.toHaveBeenCalled();
+    [...state.frames.values()][0]!();
+    expect(state.publishSelection).toHaveBeenCalledExactlyOnceWith({ anchor: 20, focus: 30 }, true);
+  });
   it('publishes only the latest pointer focus once per animation frame', () => {
     const state = fixture();
     state.controller.begin(7, layerId, { anchor: 2, focus: 2 });

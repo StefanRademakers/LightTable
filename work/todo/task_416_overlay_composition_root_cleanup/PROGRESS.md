@@ -1,5 +1,44 @@
 # Task 416 progress
 
+## O05a.6 — Editing publication and selection lifetime (accepted)
+
+- Baseline regressions reproduced before repair: committed text observation uses
+  successor dependencies; retained canceled selection frame consumes a successor
+  with the same pointer ID; selection's prerequisite commit can reenter editing
+  and then overwrite the new caret/group. Repair stays in the existing owners.
+- Capture admitted command address and frame callbacks, retain exact selection
+  gesture/runtime/editing identity, and detach old group bookkeeping before its
+  publication. Preserve committed truth while rejecting successor UI writes.
+- Review also identified mutation admission completing preceding work before
+  returning a transaction: pinned source across that boundary and canceled a
+  rejected returned transaction. Final critic PASS;407 tests/37 files, typecheck,
+  boundary/diff PASS. Hooks51/68 lines; root5039->4996, ceiling4997.
+- Accepted predecessor package52fb1584 baseline: actual Type smoke PASS;
+  tmp/text-selection-lifetime-smoke/run-HyC9bB PASS: real mouse subset selection,
+  replacement, one history, exact text UndoRedo, pending typing->real tab click,
+  original-document Actions and unchanged second document. This is ordinary-flow
+  preservation evidence, not a forced scheduling-race or pixel-equality proof.
+- Fresh instrumented package SHA256
+  1a7f648f91dcc9757d4425a4dd12a35dfa856e62d279c786c323f284f1a7760c:
+  selection lifetime run-ZUzZsF PASS, geometry run-l8G57y PASS, text-property
+  transition run-F725FH PASS, Type Tool PASS. Selection final screenshot inspected,
+  no page errors. Preserved three harness-development failures in baseline outputs;
+  exact assertions were corrected for actual label/projection/recorder semantics,
+  not relaxed to hide a product failure. Hook lifetime fixtures simulate React;
+  actual packaged tests separately cover the user flows. Broad performance open.
+
+## Next — Grade clipboard binding (open)
+
+- Existing Grade Look packaged UI/Actions/MCP/LUT rebind/exact history baseline
+  PASS on package52fb1584. Freshness defect separately reproduced on that build:
+  tmp/grade-clipboard-freshness-smoke/run-yb2xiq. UI Copy A(+0.5), semantic Copy
+  B(-1), UI Paste restores A and adds history3->4 rather than no-op. Action points
+  at A's artifact. No page errors; no production Grade edits yet.
+- Reuse shared clipboard and existing semantic artifact/GradeAsset owners; remove
+  root's stale artifact cache. Publish copy only after complete artifact validation;
+  scope late paste feedback. Preserve intended contextual/document Grade resolution
+  and Copy-result artifact association. New freshness harness is not yet accepted.
+
 ## O05a.5 — Text geometry composition and exact lifetime (accepted)
 
 - Removed root construction, realization callbacks and duplicate cancellation for

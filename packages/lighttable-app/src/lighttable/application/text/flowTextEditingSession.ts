@@ -105,7 +105,9 @@ export class FlowTextEditingSessionController {
   };
 
   begin(layerId: LayerId, offset?: number, caretAffinity: 'upstream' | 'downstream' = 'downstream') {
+    const openingFocusSequence = this.focusSequence;
     this.finish();
+    if (this.focusSequence !== openingFocusSequence) return false;
     const document = this.transaction.currentDocument();
     const source = flowSourceFor(document, layerId);
     if (!document || !source) return false;
@@ -122,10 +124,15 @@ export class FlowTextEditingSessionController {
   setSelection(selection: TextSelectionRange, options: {
     readonly transient?: boolean;
     readonly caretAffinity?: 'upstream' | 'downstream';
+    readonly isCurrent?: () => boolean;
   } = {}) {
+    if (options.isCurrent && !options.isCurrent()) return false;
     const source = this.currentSource();
     if (!source) return false;
+    const opening = this.snapshot;
     this.commitOpenGroup();
+    if (!this.editingIsCurrent(opening)
+      || (options.isCurrent && !options.isCurrent())) return false;
     const anchor = snapTextOffset(source.text, selection.anchor);
     const focus = snapTextOffset(source.text, selection.focus);
     this.captureInsertionStyle(source, focus);
@@ -144,7 +151,7 @@ export class FlowTextEditingSessionController {
 
   paste(text: string) {
     if (!text) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     if (!this.ensureGroup('typing')) return false;
     const changed = this.replaceSelection(text);
     this.commitOpenGroup();
@@ -154,7 +161,7 @@ export class FlowTextEditingSessionController {
   delete(direction: 'backward' | 'forward', unit: 'grapheme' | 'word' = 'grapheme') {
     const signature = `${direction}:${unit}`;
     if (this.openGroup === 'delete' && this.deleteSignature !== signature) {
-      this.commitOpenGroup();
+      if (!this.commitBeforeContinuation()) return false;
     }
     if (!this.ensureGroup('delete')) return false;
     this.deleteSignature = signature;
@@ -175,7 +182,7 @@ export class FlowTextEditingSessionController {
   ) {
     const source = this.currentSource();
     if (!source) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     const selection = moveTextSelection(source.text, this.snapshot.selection, direction, options);
     this.captureInsertionStyle(source, selection.focus);
     this.publish({
@@ -194,7 +201,7 @@ export class FlowTextEditingSessionController {
     extend = false
   ) {
     if (!this.currentSource()) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     const result = moveTextSelectionInLayout(
       layout,
       this.snapshot.selection,
@@ -222,7 +229,7 @@ export class FlowTextEditingSessionController {
   ) {
     const source = this.currentSource();
     if (!source) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     const result = moveTextSelectionHorizontallyInLayout(
       layout, this.snapshot.selection, direction, extend, this.snapshot.caretAffinity
     );
@@ -240,7 +247,7 @@ export class FlowTextEditingSessionController {
   moveToBoundary(boundary: 'start' | 'end', extend = false) {
     const source = this.currentSource();
     if (!source) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     const focus = boundary === 'start' ? 0 : source.text.length;
     this.captureInsertionStyle(source, focus);
     this.publish({
@@ -256,7 +263,7 @@ export class FlowTextEditingSessionController {
   navigateLogicalLine(command: 'line-start' | 'line-end' | 'line-up' | 'line-down', extend = false) {
     const source = this.currentSource();
     if (!source) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     const text = source.text;
     const focus = this.snapshot.selection.focus;
     const lineStart = text.lastIndexOf('\n', Math.max(0, focus - 1)) + 1;
@@ -293,7 +300,7 @@ export class FlowTextEditingSessionController {
   selectAll() {
     const source = this.currentSource();
     if (!source) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     this.publish({
       ...this.snapshot,
       selection: { anchor: 0, focus: source.text.length },
@@ -305,7 +312,7 @@ export class FlowTextEditingSessionController {
 
   compositionStart() {
     if (!this.currentSource()) return false;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     if (!this.ensureGroup('composition')) return false;
     this.compositionText = '';
     this.deleteSignature = '';
@@ -344,8 +351,8 @@ export class FlowTextEditingSessionController {
   compositionEnd(text: string) {
     if (this.openGroup !== 'composition') return false;
     if (text !== this.compositionText) this.compositionUpdate(text);
-    const changed = this.commitOpenGroup();
-    this.publish({ ...this.snapshot, compositionRange: null });
+    const opening = this.snapshot, changed = this.commitOpenGroup();
+    if (this.editingIsCurrent(opening)) this.publish({ ...this.snapshot, compositionRange: null });
     return changed;
   }
 
@@ -373,7 +380,7 @@ export class FlowTextEditingSessionController {
   }
 
   beginFormatting() {
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     if (!this.ensureGroup('format')) return false;
     this.formattingInsertionBefore = {
       style: this.insertionStyle,
@@ -420,7 +427,6 @@ export class FlowTextEditingSessionController {
     if (this.openGroup !== 'format') return 'rejected';
     const unchanged = this.transaction.unchanged;
     const changed = this.commitOpenGroup();
-    this.formattingInsertionBefore = null;
     return changed ? 'committed' : unchanged ? 'unchanged' : 'rejected';
   }
 
@@ -436,9 +442,10 @@ export class FlowTextEditingSessionController {
   }
 
   checkpoint() {
+    const opening = this.snapshot;
     const wasComposing = this.openGroup === 'composition';
     const changed = this.commitOpenGroup();
-    if (wasComposing && this.snapshot.status === 'editing') {
+    if (wasComposing && this.editingIsCurrent(opening)) {
       this.publish({ ...this.snapshot, compositionRange: null });
     }
     return changed;
@@ -454,8 +461,10 @@ export class FlowTextEditingSessionController {
 
   finish() {
     if (this.snapshot.status === 'idle') return false;
+    const opening = this.snapshot;
     const hadOpenGroup = this.openGroup !== null;
     const groupCommitted = this.commitOpenGroup();
+    if (!this.editingIsCurrent(opening)) return !hadOpenGroup || groupCommitted;
     this.compositionText = '';
     this.deleteSignature = '';
     this.insertionStyle = undefined;
@@ -501,7 +510,7 @@ export class FlowTextEditingSessionController {
   private ensureGroup(group: TextEditGroupKind) {
     if (!this.currentSource()) return false;
     if (this.openGroup === group) return true;
-    this.commitOpenGroup();
+    if (!this.commitBeforeContinuation()) return false;
     if (!this.snapshot.layerId || !this.transaction.begin(this.snapshot.layerId, group)) return false;
     this.openGroup = group;
     return true;
@@ -538,18 +547,26 @@ export class FlowTextEditingSessionController {
     return changed;
   }
 
+  private editingIsCurrent(opening: FlowTextEditingSnapshot) {
+    return this.snapshot.status === 'editing' && this.snapshot.documentId === opening.documentId
+      && this.snapshot.layerId === opening.layerId && this.snapshot.focusKey === opening.focusKey;
+  }
+
+  private commitBeforeContinuation() {
+    const opening = this.snapshot;
+    this.commitOpenGroup();
+    return this.editingIsCurrent(opening);
+  }
+
   private commitOpenGroup() {
     if (!this.openGroup) return false;
-    try {
-      return this.transaction.commit();
-    } finally {
-      // A rejected history command closes the underlying transaction too.
-      // Never leave the session claiming that a now-absent group is active.
-      this.openGroup = null;
-      this.compositionText = '';
-      this.deleteSignature = '';
-      this.formattingInsertionBefore = null;
-    }
+    // Relinquish this group before publication can synchronously open a successor.
+    // Rejected commits close the underlying transaction too; no old finally may clear new work.
+    this.openGroup = null;
+    this.compositionText = '';
+    this.deleteSignature = '';
+    this.formattingInsertionBefore = null;
+    return this.transaction.commit();
   }
 
   private publish(snapshot: FlowTextEditingSnapshot, notifyShell = true) {

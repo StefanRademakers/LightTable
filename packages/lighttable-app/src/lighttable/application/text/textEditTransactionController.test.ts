@@ -1,5 +1,5 @@
 import { createDefaultFlowTextSource, createDefaultTextLayerData } from '@lighttable/text-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createTextLayer, setLayerLock } from '../../editor/document/documentCommands';
 import { createImageDocument, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
@@ -12,7 +12,7 @@ import {
   type TextEditCommitObservation
 } from './textEditTransactionController';
 
-const setup = () => {
+const setup = (onPublication: () => void = () => {}) => {
   let document: ImageDocument = createTextLayer(
     createImageDocument('Typing', 320, 200, 'background'),
     createDefaultTextLayerData(),
@@ -25,7 +25,7 @@ const setup = () => {
   let frameSequence = 0;
   const documentMutations = createDocumentMutationController(() => ({
     getDocument: () => document,
-    applySnapshot: (next) => { document = next; preview = next; },
+    applySnapshot: (next) => { document = next; preview = next; onPublication(); },
     previewSnapshot: (next) => { preview = next; },
     discardPreview: () => { preview = document; },
     pushHistoryEntry: (entry) => history.push(entry)
@@ -44,6 +44,7 @@ const setup = () => {
   };
   return {
     controller: createTextEditTransactionController(() => dependencies),
+    dependencies,
     history,
     observations,
     flushPreview: () => {
@@ -63,6 +64,15 @@ const typeText = (value: string) => (text: ReturnType<typeof createDefaultTextLa
 };
 
 describe('text edit transaction controller', () => {
+  it('keeps the admitted observer when publication replaces the live dependencies', () => {
+    const successorObserver = vi.fn();
+    const state = setup(() => { state.dependencies.onCommitted = successorObserver; });
+    state.controller.begin(state.document.activeLayerId!, 'typing');
+    state.controller.apply(typeText('Committed to the original'));
+    expect(state.controller.commit()).toBe(true);
+    expect(state.history).toHaveLength(1); expect(state.observations).toHaveLength(1);
+    expect(successorObserver).not.toHaveBeenCalled();
+  });
   it('coalesces one explicit typing group into one undoable snapshot', () => {
     const state = setup();
     const opening = state.document;

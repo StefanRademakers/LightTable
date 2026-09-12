@@ -9,7 +9,9 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O05a.5 text geometry composition and exact gesture
+Latest bounded acceptance: O05a.6 editing publication/selection lifetime; critic,
+actual text selection/replacement/Actions/tab handoff and adjacent text gates pass.
+O05a.5 text geometry composition and exact gesture
 lifetime, critic and fresh packaged frame/Ctrl-move/path plus Properties proof.
 O02c.3b captured text prerequisites in the same
 command runner; critic, actual paragraph/point export, exact UndoRedo/Actions,
@@ -34,7 +36,7 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Accepted root is 5,039 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
+Accepted root is 4,996 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -313,9 +315,12 @@ class names: reuse existing owners before creating a new one.
     unrelated typing/property transactions. Actual frame resize/Ctrl-move/path
     handle baseline and fresh packaged exact history assertions pass; critic PASS.
     Overlay5101->5039 physical lines; separate editing publication remains O05a.6.
-  - [ ] O05a.6: separate text editing/selection publication binding. Capture
+  - [x] O05a.6: separate text editing/selection publication binding. Capture
     admitted commit observation address and selection RAF identity; preserve
-    truthful committed results. Do not absorb geometry or shaping algorithms.
+    truthful committed results. No geometry or shaping algorithms absorbed.
+    Critic admission repair/PASS; fresh packaged selection/replacement/Actions,
+    typing->tab, exact text UndoRedo and Type/geometry/Properties gates pass.
+    Overlay5039->4996; wider root endpoint remains open.
   - [x] O05b.1: vector/shape/gradient property projection and intents; one
     toolbar/context gradient route, creation options separate from geometry.
     Critic PASS after arrow/fractional endpoint/no-op repairs. Packaged property

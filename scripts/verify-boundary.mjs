@@ -546,8 +546,16 @@ function verifyTextCutover(relativePath, source) {
     if (!source.includes('DocumentMutationTransaction')
       || !source.includes('.stage(')
       || !source.includes('.project()')
+      || !source.includes('completed.delivery.onCommitted(')
+      || source.includes('resolveDependencies().onCommitted(')
       || /\b(?:applyDocument|pushHistory)\s*\(/.test(source)) {
       failures.push(`${relativePath}: text input groups must stage/project/commit through one document transaction`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/text/TextSelectionGestureController.ts')) {
+    if (!source.includes('this.active !== active') || !source.includes('active.dependencies.requestFrame(')
+      || !source.includes('this.active.dependencies.cancelFrame(') || !source.includes('active.scope.isCurrent()')) {
+      failures.push(`${relativePath}: text selection frames must retain the exact gesture, runtime scope and scheduler`);
     }
   }
   if (normalizedPath.endsWith('/application/text/useMissingFontReplacementActions.ts')) {
@@ -573,6 +581,17 @@ function verifyTextCutover(relativePath, source) {
     if (!source.includes('useTextGeometryGestures(')
       || /new (?:TextLayerMoveGestureController|ParagraphFrameResizeController|PathTextHandleController)\(/.test(source)) {
       failures.push(`${relativePath}: text geometry construction and runtime retirement belong to their composition binding`);
+    }
+    if (!source.includes('useTextEditingPublication(') || !source.includes('useTextSelectionGesture(')
+      || /new (?:FlowTextEditingSessionController|TextSelectionGestureController)\(/.test(source)
+      || source.includes('textEditingControllerRef') || source.includes('textSelectionForGranularity(')) {
+      failures.push(`${relativePath}: admitted text observation and selection-frame wiring belong to their publication bindings`);
+    }
+    const textDocumentReset = /textPropertyGestureController\.cancel\(\);\s*textEditingController\.reset\(\);/.exec(source)?.index ?? -1;
+    if (textDocumentReset < source.indexOf('useTextGeometryGestures(')
+      || !/textEditingController\.finish\(\);\s*textPropertyGestureController\.dispose\(\);\s*textEditingController\.reset\(\);/.test(source)
+      || (source.match(/textEditingController\.reset\(\)/g) ?? []).length !== 2) {
+      failures.push(`${relativePath}: preserve geometry-before-document-reset and the single finish/dispose/reset unmount order`);
     }
     if (!source.includes('new TextPropertyGestureController(')) {
       failures.push(`${relativePath}: text-property gestures must delegate their complete lifetime to the application owner`);

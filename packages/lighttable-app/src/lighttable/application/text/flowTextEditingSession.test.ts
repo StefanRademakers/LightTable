@@ -80,6 +80,52 @@ const setup = (
 };
 
 describe('flow text editing session', () => {
+  it('does not overwrite a reentered editing session after committing the old selection prerequisite', () => {
+    let reentered = false;
+    const state = setup('abcd', () => {
+      if (reentered) return;
+      reentered = true;
+      state.controller.reset(); state.controller.begin(state.document.activeLayerId!, 1); state.controller.insert('Y');
+    });
+    state.controller.begin(state.document.activeLayerId!, 4); state.controller.insert('x');
+    expect(state.controller.setSelection({ anchor: 2, focus: 3 })).toBe(false);
+    expect(state.controller.getSnapshot().selection).toEqual({ anchor: 2, focus: 2 });
+    expect(state.text()).toBe('aYbcdx'); expect(state.history).toHaveLength(1);
+    expect(state.controller.finish()).toBe(true); expect(state.history).toHaveLength(2);
+  });
+  it.each(['finish', 'checkpoint', 'compositionEnd'] as const)('%s retains committed success without clearing a reentered typing group', terminal => {
+    let replaced = false;
+    const state = setup('abcd', () => {
+      if (replaced) return; replaced = true;
+      state.controller.reset(); state.controller.begin(state.document.activeLayerId!, 1); state.controller.insert('Y');
+    });
+    const original = state.document;
+    state.controller.begin(state.document.activeLayerId!, 4);
+    if (terminal === 'finish') state.controller.insert('x');
+    else { state.controller.compositionStart(); state.controller.compositionUpdate('x'); }
+    expect(terminal === 'compositionEnd' ? state.controller.compositionEnd('x') : state.controller[terminal]()).toBe(true);
+    expect(state.controller.getSnapshot()).toMatchObject({ status: 'editing', selection: { anchor: 2, focus: 2 } });
+    expect(state.text()).toBe('aYbcdx'); expect(state.history).toHaveLength(1);
+    expect(state.controller.finish()).toBe(true); expect(state.history).toHaveLength(2);
+    const final = state.document;
+    state.history[1]!.undo(); state.history[0]!.undo(); expect(state.document).toBe(original);
+    state.history[0]!.redo(); state.history[1]!.redo(); expect(state.document).toBe(final);
+  });
+  it.each(['navigate', 'selectAll', 'beginFormatting', 'paste', 'compositionStart', 'begin'] as const)
+  ('%s stops its continuation when committing old work reenters editing', action => {
+    let replaced = false;
+    const state = setup('abcd', () => {
+      if (replaced) return; replaced = true;
+      state.controller.reset(); state.controller.begin(state.document.activeLayerId!, 1); state.controller.insert('Y');
+    });
+    state.controller.begin(state.document.activeLayerId!, 4); state.controller.insert('x');
+    const result = action === 'navigate' ? state.controller.navigate('backward')
+      : action === 'paste' ? state.controller.paste('BAD') : action === 'begin' ? state.controller.begin(state.document.activeLayerId!, 4)
+        : state.controller[action]();
+    expect(result).toBe(false); expect(state.text()).toBe('aYbcdx');
+    expect(state.controller.getSnapshot().selection).toEqual({ anchor: 2, focus: 2 });
+    expect(state.controller.finish()).toBe(true); expect(state.history).toHaveLength(2);
+  });
   it('file terminal accepts idle text and an unchanged current formatting group', () => {
     const state = setup('abcd'); expect(() => state.controller.finishForFile()).not.toThrow();
     state.controller.begin(state.document.activeLayerId!, 0);

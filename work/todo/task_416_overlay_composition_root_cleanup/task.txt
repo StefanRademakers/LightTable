@@ -14,9 +14,12 @@ rendering remains explicitly unsupported O08 debt, not visual preservation.
 O05a.5 text geometry composition/lifetime accepted: critic, 91 focused tests,
 fresh packaged frame resize/Ctrl-move/path handle with exact history and adjacent
 Properties transitions. Commit ec386b4d; evidence in PROGRESS.md.
-Canonical checklist below is authoritative. Overlay5,039 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Next: O05a.6 text editing
-publication and selection gesture lifetime, separately from geometry.
+O05a.6 editing publication/selection lifetime accepted: captured original command
+address, exact gesture scheduler/runtime, reentrant successor protection and
+admission repair; critic,407 text tests and fresh packaged text/Actions/tab proof.
+Canonical checklist below is authoritative. Overlay4,996 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. Next: remaining Grade clipboard
+binding/freshness, then remaining host/view/panel composition and O08 endpoint.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

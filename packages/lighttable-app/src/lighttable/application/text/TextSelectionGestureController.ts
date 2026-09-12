@@ -11,6 +11,7 @@ export interface TextSelectionPoint {
 }
 
 export interface TextSelectionGestureDependencies {
+  captureScope(layerId: LayerId): { isCurrent(): boolean } | null;
   focusAt(layerId: LayerId, point: TextSelectionPoint): number | null;
   rangeAt(
     layerId: LayerId,
@@ -27,6 +28,8 @@ interface ActiveTextSelectionGesture {
   readonly layerId: LayerId;
   readonly anchorRange: TextSelectionRange;
   readonly granularity: TextSelectionGranularity;
+  readonly dependencies: TextSelectionGestureDependencies;
+  readonly scope: { isCurrent(): boolean };
   pendingFocus: number | null;
   frame: number | null;
 }
@@ -45,8 +48,12 @@ export class TextSelectionGestureController {
     anchorRange: TextSelectionRange,
     granularity: TextSelectionGranularity = 'character'
   ) {
-    this.cancelActiveFrame();
-    this.active = { pointerId, layerId, anchorRange, granularity, pendingFocus: null, frame: null };
+    this.dispose();
+    const dependencies = this.dependencies(), scope = dependencies.captureScope(layerId);
+    if (!scope?.isCurrent()) return false;
+    this.active = { pointerId, layerId, anchorRange: { ...anchorRange }, granularity,
+      dependencies, scope, pendingFocus: null, frame: null };
+    return true;
   }
 
   owns(pointerId: number) {
@@ -56,17 +63,20 @@ export class TextSelectionGestureController {
   move(pointerId: number, point: TextSelectionPoint) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    const focus = this.dependencies().focusAt(active.layerId, point);
+    if (!active.scope.isCurrent()) { this.dispose(); return false; }
+    const focus = active.dependencies.focusAt(active.layerId, point);
+    if (this.active !== active || !active.scope.isCurrent()) return false;
     if (focus === null) return false;
     active.pendingFocus = focus;
     if (active.frame !== null) return true;
-    active.frame = this.dependencies().requestFrame(() => {
-      const current = this.active;
-      if (!current || current.pointerId !== pointerId) return;
-      current.frame = null;
-      if (current.pendingFocus === null) return;
-      this.dependencies().publishSelection(this.selectionAt(current, current.pendingFocus), true);
-      current.pendingFocus = null;
+    active.frame = active.dependencies.requestFrame(() => {
+      if (this.active !== active) return;
+      active.frame = null;
+      if (!active.scope.isCurrent()) { this.dispose(); return; }
+      if (active.pendingFocus === null) return;
+      const selection = this.selectionAt(active, active.pendingFocus);
+      active.pendingFocus = null;
+      if (this.active === active && active.scope.isCurrent()) active.dependencies.publishSelection(selection, true);
     });
     return true;
   }
@@ -74,12 +84,15 @@ export class TextSelectionGestureController {
   finish(pointerId: number, point: TextSelectionPoint) {
     const active = this.active;
     if (!active || active.pointerId !== pointerId) return false;
-    const focus = this.dependencies().focusAt(active.layerId, point)
+    if (!active.scope.isCurrent()) { this.dispose(); return false; }
+    const focus = active.dependencies.focusAt(active.layerId, point)
       ?? active.pendingFocus
       ?? active.anchorRange.focus;
+    const selection = this.selectionAt(active, focus);
+    if (this.active !== active || !active.scope.isCurrent()) return false;
     this.cancelActiveFrame();
     this.active = null;
-    this.dependencies().publishSelection(this.selectionAt(active, focus), false);
+    active.dependencies.publishSelection(selection, false);
     return true;
   }
 
@@ -97,13 +110,13 @@ export class TextSelectionGestureController {
 
   private cancelActiveFrame() {
     if (this.active?.frame === null || this.active?.frame === undefined) return;
-    this.dependencies().cancelFrame(this.active.frame);
+    this.active.dependencies.cancelFrame(this.active.frame);
     this.active.frame = null;
   }
 
   private selectionAt(active: ActiveTextSelectionGesture, focus: number): TextSelectionRange {
     const anchor = orderedTextSelection(active.anchorRange);
-    const target = this.dependencies().rangeAt(active.layerId, focus, active.granularity)
+    const target = active.dependencies.rangeAt(active.layerId, focus, active.granularity)
       ?? { anchor: focus, focus };
     const orderedTarget = orderedTextSelection(target);
     return focus < anchor.start
