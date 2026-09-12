@@ -1,9 +1,9 @@
 # Overlay ownership inventory
 
-O07b accepted: PDF preflight owns frozen document/font/layout source and existing
-four-format recipes, with shared file prerequisites. Root 5,933 audit lines.
-Critic/59 focused tests and actual four-format PDF content plus stale-preflight
-rejection pass. Baseline stale export and test scope are retained in PROGRESS.
+O07c accepted: GenAI Setup owns scoped reference import/publication, and the
+editor reference handoff owns only document snapshot transfer. Root 5,874 audit
+lines. Two critic rounds, 84 focused tests and real packaged reference flows
+pass; deferred races and provider-fixture limitations are explicit in PROGRESS.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
@@ -11,11 +11,9 @@ rejection pass. Baseline stale export and test scope are retained in PROGRESS.
   `hostPresentationDeactivate`, `runAfterMountedDocumentAdmission`. Policy belongs
   to scoped host/document intents over the existing transition coordinator, not a
   new terminal queue. Blur preservation and tab close are different intents.
-- PDF preflight/export: four recipes and font/layout preparation belong to one
-  frozen-source preflight session; root keeps dialog visibility and delivery wiring.
-- GenAI reference handoff: export/import/preview needs exact request lifetime;
-  provider setup/jobs remain their existing owners. Pending-reference behavior
-  across document replacement still needs a demonstrated test before fixing.
+- PDF preflight/export and GenAI reference handoff are accepted bounded owners;
+  root keeps presentation and wiring. GenAI Remove Object submission authority
+  remains separate open work; provider setup/jobs retain their existing owners.
 - Layer menu/effect intents and remaining command registration: extract coherent
   domain families, not one replacement 400-line command bag. Keep semantic service
   admission and existing mutation/history ownership.
@@ -399,7 +397,9 @@ unchecked wider responsibility is being cut over by that extraction.
 
 ## O07 follow-up: GenAI document-reference handoff (read-only, 2026-09-12)
 
-This subsection records source-backed remaining ownership, not a completed slice.
+This subsection preserves the pre-O07c source inventory. Reference handoff is
+now accepted as recorded in PROGRESS; the separate Remove Object finding remains
+open. Historical proposal wording below is not another implementation route.
 No provider generation or paid job was triggered; the races below have not yet
 been reproduced in a packaged application. Symbol anchors are preferred over
 line numbers because the Overlay is being reduced in adjacent accepted slices.

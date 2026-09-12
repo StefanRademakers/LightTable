@@ -1,5 +1,35 @@
 # Task 416 progress
 
+## O07c — GenAI reference handoff (accepted)
+
+- Existing GenAI Setup remains the provider/workflow owner. Reference imports
+  now use one captured service/project/workflow lease, including deferred React
+  publication checks; durable assets are never deleted on stale attachment.
+- GenAiReferenceHandoff and its mounted binding replace root base-image and
+  tab-reference policy. They own only document/reference handoff, not providers,
+  jobs, rendering or document mutation. One current base snapshot is retained
+  across workflow changes; uncheck/recheck captures a fresh image.
+- Critic round one found three deferred-state defects: tab completion revoked
+  scheduled publication, cached workflow equality hid an expired attachment,
+  and a new project's lease could remove an old same-ID reference. All repaired
+  and exercised with actual Setup deferred-updater tests. Round two source PASS.
+- Generate delivery provenance now reads the ready canonical session at actual
+  submission instead of a possibly stale panel projection. This is separate
+  from the still-open Remove Object submission-authority audit.
+- 84 focused tests/10 suites, typecheck, boundary, source/docs audits and new
+  instrumented desktop package pass. Packaged run-UpSHdP under
+  tmp/genai-reference-handoff-smoke passes real base export/off/on, local file
+  paste with exact encoded bytes and inactive-tab reference with exact source
+  pixels. Canonical revision/history unchanged; zero page errors or submissions.
+  Final screenshot inspected. Prior failures were harness selectors (Choose
+  Unicode ellipsis and workspace radio role), retained separately.
+- Provider catalog is fixture-backed and paid submission blocked. ClipboardEvent
+  exercises UI paste, not the OS clipboard. Deferred retirement is proven by
+  controlled owner/hook tests, not forced timing races in this packaged smoke.
+- Overlay currently 5,873 physical lines (previous acceptance 5,932). Remaining
+  host transitions, command/tool families, cross-flow/performance and O09 remain
+  open; this entry is not whole-plan completion.
+
 ## O07b — Scoped PDF preflight/export (accepted)
 
 - PdfExportPreflightSession owns one frozen preflight source and the four existing

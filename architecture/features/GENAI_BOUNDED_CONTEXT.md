@@ -96,6 +96,32 @@ provider client or unrestricted filesystem capability.
 
 ## Reference publication
 
+### Editor-to-reference handoff
+
+GenAI owns workflow fields, reference assets, providers and jobs independently
+of editor state. `GenAiReferenceHandoff` is the narrow application adapter for
+document-to-reference requests; its mounted binding supplies document export
+and exact session/renderer readiness. It does not own provider discovery,
+generation, GPU resources or document mutation. The Overlay only wires it.
+
+Setup captures a reference-import lease before document export or file reads.
+That lease binds the service, project, provider, model and workflow lifetime;
+both asynchronous completions and deferred UI updaters recheck it. A retired
+attachment cannot publish into a successor context. Any already imported
+durable asset stays in its original project library.
+
+The base image is one current document/project snapshot, not a live per-frame
+mirror or a multi-document cache. Workflow changes can reattach that snapshot;
+unchecking clears its association, and checking again captures a fresh image.
+Tab-reference requests capture Setup authority before activation and capture
+the source only after the requested document's export binding is ready.
+Promise completion is not acknowledgement that deferred UI state has applied.
+
+Generate reads delivery provenance from the ready canonical document session
+at submission, separately from low-frequency panel presentation. This does
+not by itself establish paid-job lifetime safety for other entry points such
+as Remove Object; those require their own submission/delivery audit.
+
 Prompt mentions and provider references are two linked but different values.
 The renderer retains a friendly token such as `@hero`; the provider adapter
 translates it to a stable positional token such as `@image1`. The generation

@@ -7,6 +7,7 @@ import { DocumentPaletteProvider } from '../ui/DocumentPaletteContext';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService } from './application/commands/lightTableCommandService';
 import { useMountedAutomationGestures } from './composition/commands/useMountedAutomationGestures';
+import { useGenAiReferenceHandoff } from './composition/genai/useGenAiReferenceHandoff';
 import type {
   LightTableBitmapExportFormat,
   LightTableGradeClipboardCapture,
@@ -115,6 +116,7 @@ import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { usePdfExportPreflight } from './composition/documents/usePdfExportPreflight';
+import { readGenAiDocumentContext } from './composition/genai/readGenAiDocumentContext';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import { textSelectionForGranularity } from './application/text/flowTextEditing';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
@@ -957,73 +959,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     genAiService,
     genAiProvider,
     activeGenAiProjectId,
-    genAiDocumentContext
+    { presentation: genAiDocumentContext,
+      readCurrent: () => workspaceDocumentKind === 'image'
+        ? readGenAiDocumentContext(mountedDocumentSessionRef.current) : undefined }
   );
-  const [genAiBaseImageSelected, setGenAiBaseImageSelected] = useState(false);
-  const [genAiBaseImageAssetId, setGenAiBaseImageAssetId] =
-    useState<import('@lighttable/genai-core').GenAiAssetId>();
-  React.useEffect(() => {
-    setGenAiBaseImageSelected(genAiSetup.selectedMode === 'image2image');
-  }, [genAiSetup.selectedMode]);
-  const genAiBaseImageScopeRef = useRef<string | undefined>(undefined);
-  const genAiBaseImageImportPendingRef = useRef(false);
-  const importGenAiReferenceFile = React.useCallback(async (file: File) => {
-    const imported = await genAiSetup.importAssetReference(file);
-    if (imported) genAiSetup.requestAssetPreview(imported.id);
-    return imported;
-  }, [genAiSetup.importAssetReference, genAiSetup.requestAssetPreview]);
-  const importGenAiDocumentReference = React.useCallback(async (documentId: string) => {
-    if (!commandPorts) return undefined;
-    const artifact = await commandPorts.exportPngArtifact(documentId as DocumentSessionId);
-    return importGenAiReferenceFile(artifact);
-  }, [commandPorts, importGenAiReferenceFile]);
-  const [pendingTabReference, setPendingTabReference] = useState<{ id: string; origin: string } | null>(null);
-  useEffect(() => {
-    if (!pendingTabReference) return;
-    const { id, origin } = pendingTabReference;
-    if (!workspaceDocuments?.some(item => item.id === id)
-      || (workspaceDocumentId !== id && workspaceDocumentId !== origin)
-      || (workspaceDocumentId === id && rendererSnapshot.status === 'failed')) {
-      setPendingTabReference(null);
-      return;
-    }
-    if (workspaceDocumentId !== id || rendererSnapshot.status !== 'ready'
-      || !imageDocument || imageDocument.id !== documentSession?.getSnapshot().document?.id
-      || !commandPorts?.supportsPort(id as DocumentSessionId, 'exportPngArtifact')) return;
-    // Registration is a layout effect: the current document's presentation port
-    // is bound before this effect. Never export the tab we just switched away from.
-    setPendingTabReference(null);
-    void importGenAiDocumentReference(id).catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
-  }, [pendingTabReference, workspaceDocumentId, workspaceDocuments, rendererSnapshot.status,
-    imageDocument, documentSession, commandPorts, importGenAiDocumentReference]);
-  const genAiBaseImageScope = `${activeGenAiProjectId ?? 'session'}:${String(workspaceDocumentId)}`;
-  React.useEffect(() => {
-    const previousScope = genAiBaseImageScopeRef.current;
-    genAiBaseImageScopeRef.current = genAiBaseImageScope;
-    if (!previousScope || previousScope === genAiBaseImageScope || !genAiBaseImageAssetId) return;
-    genAiSetup.removeAssetReference(genAiBaseImageAssetId);
-    setGenAiBaseImageAssetId(undefined);
-  }, [genAiBaseImageAssetId, genAiBaseImageScope, genAiSetup.removeAssetReference]);
-  React.useEffect(() => {
-    if (!genAiBaseImageSelected || !genAiBaseImageAssetId
-      || genAiSetup.workflow?.mode !== 'image2image') return;
-    genAiSetup.addAssetReference(genAiBaseImageAssetId, false);
-  }, [genAiBaseImageAssetId, genAiBaseImageSelected,
-    genAiSetup.addAssetReference, genAiSetup.workflow?.id]);
-  React.useEffect(() => {
-    const imageEditWorkflowReady = genAiSetup.workflow?.mode === 'image2image'
-      && genAiSetup.workflow.fields.some(({ kind }) => kind === 'asset');
-    if (!active || !genAiBaseImageSelected || !imageEditWorkflowReady
-      || genAiBaseImageAssetId || genAiBaseImageImportPendingRef.current) return;
-    let current = true;
-    genAiBaseImageImportPendingRef.current = true;
-    void importGenAiDocumentReference(String(workspaceDocumentId)).then((asset) => {
-      if (current && asset) setGenAiBaseImageAssetId(asset.id);
-    }).finally(() => { genAiBaseImageImportPendingRef.current = false; });
-    return () => { current = false; };
-  }, [active, genAiBaseImageSelected,
-    genAiBaseImageAssetId, genAiSetup.workflow?.id,
-    importGenAiDocumentReference, workspaceDocumentId]);
+  const genAiReferences = useGenAiReferenceHandoff({
+    context: { projectId: activeGenAiProjectId, documentId: workspaceDocumentId, active,
+      selectedMode: genAiSetup.selectedMode, workflow: genAiSetup.workflow,
+      imageEditReady: genAiSetup.workflow?.mode === 'image2image'
+        && genAiSetup.workflow.fields.some(({ kind }) => kind === 'asset') },
+    workspaceDocuments: workspaceDocuments ?? [{ id: workspaceDocumentId, kind: workspaceDocumentKind }],
+    status: rendererSnapshot.status, commandPorts,
+    getSession: () => mountedDocumentSessionRef.current,
+    getRenderer: () => engineRef.current, getImageDocument: () => imageDocumentRef.current,
+    captureScope: captureMountedInteractionScope, captureImport: genAiSetup.captureAssetReferenceImport,
+    activateDocument: id => activateWorkspaceDocument(id), reportError: setError
+  });
   const genAiJobs = useGenAiJobsController(
     genAiService,
     activeGenAiProjectId,
@@ -5591,13 +5542,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   disabledReason: 'This document has no file location in this host.',
                   onClick: () => { void workspaceDocument.onReveal?.().catch(reason => setError(reason instanceof Error ? reason.message : String(reason))); } },
                 { value: 'reference', label: 'Add as reference',
-                  disabled: workspaceDocument.kind === 'video' || !genAiService || Boolean(pendingTabReference)
+                  disabled: workspaceDocument.kind === 'video' || !genAiService || genAiReferences.pendingTabReference
                     || !genAiSetup.workflow?.fields.some(field => field.kind === 'asset')
                     || !workspacePanels.some(panel => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi && panel.visible),
                   disabledReason: 'Open GenAI with a model that accepts image references.',
                   onClick: () => {
-                    setPendingTabReference({ id: workspaceDocument.id, origin: workspaceDocumentId });
-                    if (workspaceDocument.id !== workspaceDocumentId) activateWorkspaceDocument(workspaceDocument.id);
+                    genAiReferences.requestTabReference(workspaceDocument.id);
                   } }
               ],
               onClose: () => {
@@ -5864,10 +5814,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 selectedModelId: genAiSetup.selectedModelId,
                 onModelChange: genAiSetup.setModel,
                 selectedMode: genAiSetup.selectedMode,
-                onModeChange: (mode) => {
-                  setGenAiBaseImageSelected(mode === 'image2image');
-                  genAiSetup.setMode(mode);
-                },
+                onModeChange: genAiSetup.setMode,
                 loading: genAiSetup.loading,
                 setupError: genAiSetup.error,
                 values: genAiSetup.values,
@@ -5883,17 +5830,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 canGenerate: genAiSetup.canGenerate,
                 generationReadiness: genAiSetup.generationReadiness,
                 onGenerate: () => { void genAiSetup.generate(); },
-                baseImageSelected: genAiBaseImageSelected,
-                baseImageAssetId: genAiBaseImageAssetId,
-                onBaseImageSelectedChange: (selected) => {
-                  setGenAiBaseImageSelected(selected);
-                  if (!selected && genAiBaseImageAssetId) {
-                    genAiSetup.removeAssetReference(genAiBaseImageAssetId);
-                    setGenAiBaseImageAssetId(undefined);
-                  }
-                },
-                onImportReferenceFile: (file) => importGenAiReferenceFile(file),
-                onImportDocumentReference: (documentId) => importGenAiDocumentReference(documentId),
+                baseImageSelected: genAiReferences.baseImageSelected,
+                baseImageAssetId: genAiReferences.baseImageAssetId,
+                onBaseImageSelectedChange: genAiReferences.setBaseImageSelected,
+                onImportReferenceFile: genAiReferences.importReferenceFile,
+                onImportDocumentReference: genAiReferences.importDocumentReference,
                 onConnect: genAiService ? () => {
                   void genAiService.connectProvider(selectedGenAiProviderId).then(updateGenAiProviderSnapshot);
                 } : undefined

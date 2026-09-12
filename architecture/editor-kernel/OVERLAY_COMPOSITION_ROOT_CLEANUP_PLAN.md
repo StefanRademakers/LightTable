@@ -9,11 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O07b scoped PDF preflight/export, following O06f/O05f
-selection/mask and canvas-pick boundaries. Real packaged tests cover all four
-PDF variants and rejection of an old preflight after canonical grade changes.
-See Task416 PROGRESS for retained baseline failures and exact coverage. Root is
-5,932 physical lines. Remaining host/GenAI/command/guides families, cross-flow
+Latest bounded acceptance: O07c scoped GenAI reference handoff, following O07b
+PDF export and O06f/O05f selection/mask and canvas-pick boundaries. Real packaged
+reference tests cover base snapshot toggles, file paste and inactive-tab export
+with exact pixels/bytes and unchanged document history; no paid calls.
+See Task416 PROGRESS for retained failures and exact coverage. Root is
+5,873 physical lines. Remaining host/GenAI/command/guides families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
