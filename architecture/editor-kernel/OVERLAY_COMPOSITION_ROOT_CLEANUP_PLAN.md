@@ -298,6 +298,10 @@ class names: reuse existing owners before creating a new one.
   shortcuts and control behavior. Partition composition by feature, exposing
   named view models/intents rather than hundreds of mutable ports. Verify
   stable owner identity and subscriptions across React renders and rebinds.
+  - [x] O07a: viewport wheel host listeners and diagnostic budget in one bounded
+    owner; existing viewport remains pan/zoom authority. Critic PASS after hot-path
+    repair;4 tests, app typecheck/boundary and packaged renderer/native-bridge
+    events, outside targeting, workspace rebind and fresh PNG/history parity pass.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards

@@ -76,7 +76,6 @@ import { useAdjustmentPresentationSelector,
 import { createDocumentProjectionBinding } from './application/documents/documentProjectionBinding';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import {
-  resolveWheelPanDeltas,
   zoomViewToScaleAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
@@ -156,6 +155,7 @@ import { useEditorDocumentLifecycleController } from './composition/documents/us
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useDocumentScopeCanvases } from './composition/documents/useDocumentScopeCanvases';
+import { useViewportWheelBridge } from './composition/viewport/useViewportWheelBridge';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
 import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
@@ -3445,90 +3445,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onPenRubberBandChange: penPresentation.setRubberBand,
     onPenEditingOverlayChange: penPresentation.setOverlay
   });
-  const desktopHorizontalWheelRef = useRef(viewportInteraction.onHorizontalWheel);
-  desktopHorizontalWheelRef.current = viewportInteraction.onHorizontalWheel;
-  const wheelInputProbeCountRef = useRef(0);
-
-  useEffect(() => {
-    const onDesktopHorizontalWheel = (event: Event) => {
-      if (!active) return;
-      const detail = (event as CustomEvent<{
-        readonly clientX?: number;
-        readonly clientY?: number;
-        readonly deltaX?: number;
-      }>).detail;
-      const viewport = viewportRef.current;
-      if (!viewport || !detail
-        || !Number.isFinite(detail.clientX) || !Number.isFinite(detail.clientY)
-        || !Number.isFinite(detail.deltaX)) return;
-      const bounds = viewport.getBoundingClientRect();
-      if (detail.clientX! < bounds.left || detail.clientX! > bounds.right
-        || detail.clientY! < bounds.top || detail.clientY! > bounds.bottom) return;
-      if (wheelInputProbeCountRef.current < 20) {
-        wheelInputProbeCountRef.current += 1;
-        appendDebugMessage(
-          'info',
-          'Viewport input',
-          'Electron horizontal wheel bridge received.',
-          `sample=${wheelInputProbeCountRef.current} deltaX=${detail.deltaX} `
-            + `client=(${detail.clientX},${detail.clientY})`
-        );
-      }
-      desktopHorizontalWheelRef.current({ deltaX: detail.deltaX! });
-    };
-    window.addEventListener('lighttable:desktop-horizontal-wheel', onDesktopHorizontalWheel);
-    return () => window.removeEventListener(
-      'lighttable:desktop-horizontal-wheel',
-      onDesktopHorizontalWheel
-    );
-  }, [active, appendDebugMessage]);
-
-  useEffect(() => {
-    if (!active || (toolPreferences?.zoomWithScrollWheel ?? true)) return undefined;
-    const onRendererWheelCapture = (event: globalThis.WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) return;
-      const wheelDelta = resolveWheelPanDeltas({
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
-        legacyWheelDeltaX: (event as globalThis.WheelEvent & {
-          readonly wheelDeltaX?: number;
-        }).wheelDeltaX,
-        shiftKey: event.shiftKey
-      });
-      if (wheelDelta.deltaX === 0) return;
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      const bounds = viewport.getBoundingClientRect();
-      const insideViewport = event.clientX >= bounds.left && event.clientX <= bounds.right
-        && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
-      if (insideViewport && wheelInputProbeCountRef.current < 20) {
-        wheelInputProbeCountRef.current += 1;
-        const legacyWheel = event as globalThis.WheelEvent & {
-          readonly wheelDeltaX?: number;
-          readonly wheelDeltaY?: number;
-        };
-        appendDebugMessage(
-          'info',
-          'Viewport input',
-          'Renderer wheel event captured.',
-          `sample=${wheelInputProbeCountRef.current} delta=(${event.deltaX},${event.deltaY}) `
-            + `legacy=(${legacyWheel.wheelDeltaX ?? 0},${legacyWheel.wheelDeltaY ?? 0}) `
-            + `resolved=(${wheelDelta.deltaX},${wheelDelta.deltaY}) mode=${event.deltaMode} `
-            + `shift=${event.shiftKey} ctrl=${event.ctrlKey} meta=${event.metaKey} `
-            + `trusted=${event.isTrusted} target=${event.target instanceof Element
-              ? event.target.className : 'unknown'}`
-        );
-      }
-      if (!insideViewport) return;
-      event.preventDefault();
-      desktopHorizontalWheelRef.current(wheelDelta);
-    };
-    window.addEventListener('wheel', onRendererWheelCapture, {
-      capture: true,
-      passive: false
-    });
-    return () => window.removeEventListener('wheel', onRendererWheelCapture, true);
-  }, [active, appendDebugMessage, toolPreferences?.zoomWithScrollWheel]);
+  useViewportWheelBridge(() => ({
+    active, zoomWithScrollWheel: toolPreferences?.zoomWithScrollWheel ?? true,
+    viewport: viewportRef.current, pan: viewportInteraction.onHorizontalWheel,
+    report: appendDebugMessage
+  }));
 
   const applyDocumentChange = (
     change: (current: ImageDocument) => ImageDocument,

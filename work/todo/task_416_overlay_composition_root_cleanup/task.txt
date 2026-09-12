@@ -45,6 +45,7 @@ are accepted with subject/Rectangle/Actions/rebind and selection-kernel proof.
 O06c layer command adapter accepted with exact IDs, UI/Actions, history and mask proof.
 O05e.3 Smart source/inference owner and global-processing freshness accepted.
 O03c.3b scope canvas/context lifetime accepted with visible packaged remount proof.
+O07a viewport wheel host binding accepted with exact pan/rebind/fresh-output proof.
 Next: O06d finalization binding remains in progress.
 O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
 The renderer telemetry revision

@@ -1,5 +1,24 @@
 # Task 416 progress
 
+## O07a — Viewport wheel host binding (accepted)
+
+- ViewportWheelBridge owns native bridge/renderer capture listeners and the
+ 20-sample diagnostic budget. Thin mounted hook supplies current ports; existing
+  viewport controller owns pan/zoom/pending frame behavior. Root listeners/refs
+  removed; no document/renderer authority or extra readback/queue introduced.
+- Critic caught eager diagnostic formatting after budget exhaustion; lazy detail
+  generation now avoids those target/DOM reads.4 focused tests cover current ports,
+  modifiers/zoom/outside, retirement and bounded diagnostics across reconnects.
+  Final source critic, app typecheck and boundary PASS.
+- Fresh packaged gate: real viewport DOM wheel and public Electron bridge events
+  each pan exactly once by24px; outside-window-target event does not pan; workspace
+  changes retain routing. Canonical revision/history and fresh PNG exports match.
+  tmp/viewport-wheel-smoke/run-NySG9v/report.json; screenshot inspected. Harness
+  critic corrected outside-event targeting and replaced cached preview with fresh
+  output proof. This is not physical hardware wheel or input-latency acceptance.
+- Overlay6,505 ->6,426 physical lines (audit6,506 ->6,427), separate from concurrent
+  O06d edits. Broader O07 feature/menu composition remains open.
+
 ## O03c.3b — Scope canvas/context lifetime (accepted)
 
 - Follow-up proof correction: the initial unchanged-pixel check used a same-revision

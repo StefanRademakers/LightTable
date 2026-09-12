@@ -1,5 +1,10 @@
 # Overlay ownership inventory
 
+O07a accepted: ViewportWheelBridge owns only host listeners and bounded diagnostics;
+existing viewport owner retains pan/zoom/presentation. Root6,427 audit lines. Critic,
+focused tests and packaged event/rebind/fresh-output/history proof pass. Broader
+host and UI composition remain open.
+
 O03c.3b accepted: ScopeCanvasBinding owns canvas/context/theme attachment while
 WebGpuScopeEngine retains GPU analysis. DocumentScopeRuntime applies latest pending
 requests; composition hook scopes callbacks to exact renderer/session lifetime.
