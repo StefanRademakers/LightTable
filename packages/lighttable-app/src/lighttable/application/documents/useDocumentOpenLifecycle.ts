@@ -47,7 +47,7 @@ export interface DocumentOpenLifecycleOptions<
   readonly beforeOpen?: () => void;
   readonly afterClose?: () => void;
   /** Generation-local health gate for retaining an existing renderer. */
-  readonly canReuseRenderer?: () => boolean;
+  readonly canReuseRenderer: (candidate: Renderer) => boolean;
 }
 
 /**
@@ -99,7 +99,8 @@ export const useDocumentOpenLifecycle = <
       readinessFrame = null;
       beforeOpenRef.current?.();
       void controller.open(request, {
-        reuseRenderer: canReuseRendererRef.current?.() ?? true
+        reuseRenderer: true,
+        canReuseRenderer: canReuseRendererRef.current
       });
     };
     startWhenSurfaceIsReady();

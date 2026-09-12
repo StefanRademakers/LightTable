@@ -183,7 +183,12 @@ class names: reuse existing owners before creating a new one.
         Critic PASS after three repairs;26 focused tests and packaged visible
         scopes/hide/remount with unchanged document pixels/history pass. Physical
         ColorMixer/theme interaction remains outside this packaged gate.
-  - [x] O03c.4: canonical revision authority discovered through Face Warp preview
+    - [x] O03c.5: exact GPU recovery admission and retained-renderer health gate.
+      Host-wide budget/timers moved into bounded owner; canonical-only source
+      classification, no consumed replacement flag. Critic PASS;32 tests and
+      packaged actual vector loss/rebuild with fresh PNG equality plus raster
+      checkpoint-required hold pass. No automatic raster rehydration is claimed.
+    - [x] O03c.4: canonical revision authority discovered through Face Warp preview
     rebind. Session publications/history own invalidation; deleted command,
     observation and task-wrapper bumps. Dirty/save identity remains separate.
     Critic PASS, app4220 tests and packaged Face Warp/transform/selection pass.

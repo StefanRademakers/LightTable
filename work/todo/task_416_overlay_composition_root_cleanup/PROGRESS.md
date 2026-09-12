@@ -1,5 +1,35 @@
 # Task 416 progress
 
+## O03c.5 — Exact GPU recovery admission (accepted)
+
+- DocumentGpuRecoveryController owns only host-wide retry budget/timers and
+  lost-renderer identity. The existing opener still creates/hydrates resources.
+  Required canReuseRenderer(candidate) now checks its actual retained renderer,
+  not a possibly empty presentation slot or a consumed root replacement flag.
+- Exact session/lifecycle/renderer/generation guards and canonical policy recheck
+  run before delayed reopen. Attempts count only actual requests; StrictMode
+  cleanup can rearm without losing an attempt. Two retries and30s stable-ready
+  reset policy preserved. A lost candidate remains excluded even when canonical
+  raster recovery is blocked. No graph inspection on normal pointer/frame work.
+- Thin hook reads its captured DocumentSession via resolveGpuRecoverySource;
+  missing/cleared canonical ownership is unavailable, not an empty startup.
+  Root supplies only wiring and the existing reopen signal.6,390 ->6,339 physical
+  lines, audit6,391 ->6,340. No new fallback or renderer/resource authority.
+- Final integrated critic PASS;32 focused tests, app typecheck/boundary passed.
+  Fresh packaged actual device loss: vector rehydrates with exact fresh final PNG,
+  unchanged canonical layers/revision and active Vello; raster stays failed with
+  unchanged canonical layers/revision rather than showing missing pixels as recovery.
+  Reports: tmp/device-loss-o03c5-vector/ and tmp/device-loss-o03c5-raster/.
+- Initial pre-change audit failed before loss (force seam returned false); preserved
+  in tmp/device-loss-before-o03c5/. Added state diagnostics and explicit mounted
+  telemetry prerequisite; loss is invoked once in the same evaluation as its
+  prerequisite check, never retried after false. Fresh PNG baseline then passed
+  in tmp/device-loss-before-o03c5-final-png/. Exact cause of the original startup/
+  registration timing gap remains unproven, not repaired by this test condition.
+- Old preview-based pixel comparison replaced with fresh PNGs, not cache
+  invalidation. Whole-app readiness/frame-correlation and raster checkpoint
+  rehydration remain separate risks; this is not a general device-loss cure.
+
 ## O06d — Finalization binding and committed output identity (accepted)
 
 - LayerFinalizationCommandBinding owns host preparation/result adaptation;

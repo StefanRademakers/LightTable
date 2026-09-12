@@ -39,9 +39,9 @@ export interface DocumentOpenRequest<
   readonly onSettled?: () => void;
 }
 
-export interface DocumentOpenOptions {
-  readonly reuseRenderer?: boolean;
-}
+export type DocumentOpenOptions<Renderer extends DisposableDocumentRenderer> =
+  | { readonly reuseRenderer: false }
+  | { readonly reuseRenderer: true; readonly canReuseRenderer: (candidate: Renderer) => boolean };
 
 /**
  * Owns renderer startup and teardown for one document session.
@@ -75,7 +75,7 @@ export class DocumentOpenController<
 
   async open<Source = Blob>(
     request: DocumentOpenRequest<Renderer, Source>,
-    options: DocumentOpenOptions = {},
+    options: DocumentOpenOptions<Renderer> = { reuseRenderer: false },
   ): Promise<void> {
     // Reusing the presentation engine is safe only after the previous source
     // transaction has settled. A canceled decoder may still be unwinding an
@@ -88,7 +88,8 @@ export class DocumentOpenController<
     this.unsettledOpenCount += 1;
     try {
       const reusableRenderer =
-        options.reuseRenderer && !openInFlight ? this.renderer : null;
+        options.reuseRenderer && !openInFlight && this.renderer
+          && options.canReuseRenderer(this.renderer) ? this.renderer : null;
       if (reusableRenderer) this.cancelOpen();
       else this.close();
       const token = ++this.token;

@@ -31,11 +31,11 @@ const app = await electron.launch({ executablePath: launch.executablePath, args:
   cwd: root, env: environment, timeout: 30_000 });
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const preview = async (driver, documentId, revision) => {
-  const requested = await driver.requestDocumentPreview(documentId, revision, 1024);
-  const artifactId = requested?.artifact?.id ?? requested?.id;
-  const artifact = artifactId ? await driver.readArtifact(artifactId) : null;
-  assert.ok(artifact?.bytes?.length, 'Document preview bytes are unavailable.');
+const finalPixels = async (driver, documentId) => {
+  const requested = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
+  const task = await driver.waitForTask(documentId, requested.taskId);
+  const artifact = task.artifact?.id ? await driver.readArtifact(task.artifact.id) : null;
+  assert.ok(artifact?.bytes?.length, 'Fresh final-output PNG bytes are unavailable.');
   return artifact.bytes;
 };
 
@@ -55,11 +55,26 @@ try {
   const documentId = (await driver.queryWorkspace()).activeDocumentId;
   const before = await driver.waitForReadyDocument(documentId, 120_000);
   const beforeLayers = await driver.waitForLayers(documentId);
-  const beforePreview = await preview(
-    driver, documentId, before.document.canonicalRevision
-  );
+  const beforePreview = await finalPixels(driver, documentId);
 
-  assert.equal(await driver.forceDeviceLossForAutomation(documentId), true,
+  report.documentId = documentId;
+  report.before = before.document;
+  await page.waitForFunction(id => {
+    const driver = window.__lightTableAutomation;
+    return driver?.queryDocument(id)?.renderer?.status === 'ready'
+      && Boolean(driver.queryRenderTelemetry?.(id));
+  }, documentId, { timeout: 10000 });
+  const loss = await page.evaluate(id => {
+    const driver = window.__lightTableAutomation;
+    const document = driver.queryDocument(id);
+    const telemetry = driver.queryRenderTelemetry(id);
+    const eligible = document?.renderer?.status === 'ready' && Boolean(telemetry);
+    return { document, telemetry, requested: eligible && driver.forceDeviceLossForAutomation(id) };
+  }, documentId);
+  report.beforeLoss = loss.document;
+  report.beforeTelemetry = loss.telemetry;
+  report.lossRequested = loss.requested;
+  assert.equal(report.lossRequested, true,
     'The packaged renderer refused the automation-only device-loss request.');
   const failedHandle = await page.waitForFunction((id) => {
     const renderer = window.__lightTableAutomation?.queryDocument(id)?.renderer;
@@ -96,9 +111,7 @@ try {
     }, documentId, { timeout: 10_000 });
     const recovered = await driver.waitForReadyDocument(documentId, 120_000);
     const afterLayers = await driver.waitForLayers(documentId);
-    const afterPreview = await preview(
-      driver, documentId, recovered.document.canonicalRevision
-    );
+    const afterPreview = await finalPixels(driver, documentId);
     report.recovered = recovered.document;
     report.telemetry = recovered.telemetry;
     report.afterPreviewSha256 = hash(afterPreview);
@@ -112,7 +125,7 @@ try {
     ]);
     assert.equal(report.layersStable, true, 'Canonical layers changed during GPU recovery.');
     assert.equal(report.revisionStable, true, 'Canonical document revision changed during GPU recovery.');
-    assert.equal(report.previewStable, true, 'Recovered pixels differ from the pre-loss preview.');
+    assert.equal(report.previewStable, true, 'Recovered final-output pixels differ from the pre-loss PNG.');
     assert.equal(report.telemetry?.vectorBackend?.selected, 'hybrid');
     assert.equal(report.telemetry?.vectorBackend?.active, 'vello',
       `Vello did not remain active after recovery: ${report.telemetry?.vectorBackend?.velloFailure ?? 'unknown failure'}`);

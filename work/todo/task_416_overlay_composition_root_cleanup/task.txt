@@ -48,7 +48,8 @@ O03c.3b scope canvas/context lifetime accepted with visible packaged remount pro
 O07a viewport wheel host binding accepted with exact pan/rebind/fresh-output proof.
 O06d finalization binding accepted with exact output IDs, final PNG/history and
 adjacent affordance/mask proof; interactive text preview readiness remains O08.
-Next: scoped device-loss recovery and O06e automation translation remain in progress.
+O03c.5 scoped device-loss admission accepted with actual vector rebuild and raster
+checkpoint-required hold proof. Next: O06e automation translation remains in progress.
 O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
 The renderer telemetry revision
 was not a render-submission stamp and was removed; O08 must add truthful frame

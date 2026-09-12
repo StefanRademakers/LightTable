@@ -116,12 +116,12 @@ describe('DocumentOpenController', () => {
       createRenderer,
       loadSource: async () => new Blob(['first']),
       hydrate: firstHydrate
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     await controller.open({
       createRenderer,
       loadSource: async () => new Blob(['second']),
       hydrate: secondHydrate
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
 
     expect(createRenderer).toHaveBeenCalledOnce();
     expect(firstHydrate).toHaveBeenCalledOnce();
@@ -150,7 +150,7 @@ describe('DocumentOpenController', () => {
       createRenderer,
       loadSource: async () => new Blob(['initial']),
       hydrate: vi.fn()
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
 
     const overlapping = controller.open({
       createRenderer,
@@ -159,14 +159,14 @@ describe('DocumentOpenController', () => {
         hydrationStarted.resolve();
         return pendingHydration.promise;
       }
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     await hydrationStarted.promise;
 
     const newest = controller.open({
       createRenderer,
       loadSource: async () => new Blob(['newest']),
       hydrate: vi.fn()
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     pendingHydration.resolve();
     await Promise.all([overlapping, newest]);
 
@@ -202,7 +202,7 @@ describe('DocumentOpenController', () => {
       hydrate: async () => undefined,
       onRendererReady: publishReady,
       onRendererDiscarded: publishDiscard
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
 
     const canceled = controller.open({
       createRenderer,
@@ -213,7 +213,7 @@ describe('DocumentOpenController', () => {
       },
       onRendererReady: publishReady,
       onRendererDiscarded: publishDiscard
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     await hydrationStarted.promise;
     controller.cancelOpen();
 
@@ -223,7 +223,7 @@ describe('DocumentOpenController', () => {
       hydrate: async () => undefined,
       onRendererReady: publishReady,
       onRendererDiscarded: publishDiscard
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     pendingHydration.resolve();
     await Promise.all([canceled, newest]);
 
@@ -287,7 +287,7 @@ describe('DocumentOpenController', () => {
       loadSource: async () => new Blob(['corrupt']),
       hydrate: async () => { throw new Error('decode failed'); },
       onFailed
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     expect(lifecycle.getSnapshot()).toMatchObject({ status: 'failed', error: 'decode failed' });
     expect(onFailed).toHaveBeenCalledWith(expect.objectContaining({ message: 'decode failed' }));
     expect(failedRenderer.destroy).toHaveBeenCalledOnce();
@@ -296,7 +296,7 @@ describe('DocumentOpenController', () => {
       createRenderer,
       loadSource: async () => new Blob(['valid']),
       hydrate: async () => undefined
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     expect(lifecycle.getSnapshot().status).toBe('ready');
     expect(controller.getRenderer()).toBe(recoveredRenderer);
     controller.close();
@@ -318,7 +318,7 @@ describe('DocumentOpenController', () => {
       createRenderer,
       loadSource: async () => new Blob(['initial']),
       hydrate: async () => undefined
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
 
     const onRendererDiscarded = vi.fn();
     await controller.open({
@@ -326,7 +326,7 @@ describe('DocumentOpenController', () => {
       loadSource: async () => new Blob(['replacement']),
       hydrate: async () => { throw new Error('GPU allocation failed'); },
       onRendererDiscarded
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
 
     expect(controller.getRenderer()).toBeNull();
     expect(reused.destroy).toHaveBeenCalledOnce();
@@ -339,7 +339,7 @@ describe('DocumentOpenController', () => {
       createRenderer,
       loadSource: async () => new Blob(['valid']),
       hydrate: async () => undefined
-    }, { reuseRenderer: true });
+    }, { reuseRenderer: true, canReuseRenderer: () => true });
     expect(createRenderer).toHaveBeenCalledTimes(2);
     expect(controller.getRenderer()).toBe(replacement);
     controller.close();

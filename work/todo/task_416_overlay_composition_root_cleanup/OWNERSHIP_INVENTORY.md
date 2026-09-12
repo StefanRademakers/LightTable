@@ -1,5 +1,11 @@
 # Overlay ownership inventory
 
+O03c.5 accepted: bounded GPU recovery admission owns retry timers/budget and lost
+renderer identity; opener retains resource lifecycle and tests its actual candidate.
+Canonical source classification lives outside root. Critic/32 tests and packaged
+vector rebuild/fresh PNG equality plus raster checkpoint hold pass. Root6,340 audit
+lines. Unexplained initial readiness/registration timing failure remains in PROGRESS.
+
 O06d accepted: scoped finalization readiness and semantic result binding replace
 root recipes and post-commit active-layer inference. Existing transactions retain
 GPU/history ownership. Unused active-target merge route deleted. Root6,391 audit

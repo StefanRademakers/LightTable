@@ -77,7 +77,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly logTimings?: (timings: LightTableStartupTimings) => void;
   readonly beforeOpen?: () => void;
   readonly afterClose?: () => void;
-  readonly canReuseRenderer?: () => boolean;
+  readonly canReuseRenderer: (candidate: DocumentRendererPort) => boolean;
 }
 
 export interface EditorDocumentSourceLoad {

@@ -27,7 +27,7 @@ import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
 import { captureVectorTransformPreviewBinding } from './application/vectors/VectorTransformPreviewBinding';
-import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
+import { useDocumentGpuRecovery } from './composition/documents/useDocumentGpuRecovery';
 import { bindDocumentGpuResourceLifetime } from './application/rendering/documentGpuResourceRegistry';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import { useClipboardCommands } from './composition/clipboard/useClipboardCommands';
@@ -368,8 +368,6 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
-const DEVICE_LOSS_RECOVERY_LIMIT = 2;
-const DEVICE_LOSS_STABILITY_WINDOW_MS = 30_000;
 const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
   'text-plan-blocked': 'the text preflight is blocked',
   'no-native-text': 'no text layer can be emitted natively',
@@ -680,9 +678,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle.getSnapshot
   );
   const [rendererRecoverySequence, setRendererRecoverySequence] = useState(0);
-  const recoveredFailureGenerationRef = useRef<number | null>(null);
-  const consecutiveDeviceLossRecoveriesRef = useRef(0);
-  const replaceRendererOnNextOpenRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -980,53 +975,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSourceBlob(null);
     setSourceIdentity('');
   }, [setImageDocument, workspaceDocumentKind]);
-  useEffect(() => {
-    if (rendererSnapshot.status === 'ready') {
-      // A renderer that merely submitted one frame is not proof that the new
-      // device is stable. Keep the consecutive-loss budget across short
-      // recover/fail loops and only forgive it after a sustained ready period.
-      const timer = window.setTimeout(() => {
-        consecutiveDeviceLossRecoveriesRef.current = 0;
-      }, DEVICE_LOSS_STABILITY_WINDOW_MS);
-      return () => window.clearTimeout(timer);
-    }
-    if (rendererSnapshot.status !== 'failed'
-      || !/^WebGPU device lost:/u.test(rendererSnapshot.error ?? '')
-      || recoveredFailureGenerationRef.current === rendererSnapshot.generation) return undefined;
-    recoveredFailureGenerationRef.current = rendererSnapshot.generation;
-    // Recovery is a document lifecycle decision. React and tool projections
-    // may trail an in-flight commit, so consult the canonical session first.
-    const recoveryDocument = documentSession?.getSnapshot().document
-      ?? imageDocumentRef.current;
-    if (recoveryDocument) {
-      const recovery = resolveDocumentGpuRecoveryPolicy(recoveryDocument);
-      if (recovery.mode === 'checkpoint-required') {
-        setError(
-          `${rendererSnapshot.error} Automatic renderer recovery was stopped to protect `
-          + `${recovery.reasons.join(', ')}. Restore the document from its recovery checkpoint `
-          + 'or reopen the saved source; LightTable will not present missing pixels as recovered.'
-        );
-        return undefined;
-      }
-    }
-    if (consecutiveDeviceLossRecoveriesRef.current >= DEVICE_LOSS_RECOVERY_LIMIT) {
-      setError(
-        `${rendererSnapshot.error} Automatic renderer recovery was stopped after `
-        + `${DEVICE_LOSS_RECOVERY_LIMIT} consecutive device-loss recoveries. `
-        + 'Reopen the saved source or restore its recovery checkpoint.'
-      );
-      return undefined;
-    }
-    consecutiveDeviceLossRecoveriesRef.current += 1;
-    replaceRendererOnNextOpenRef.current = true;
-    const timer = window.setTimeout(() => setRendererRecoverySequence(value => value + 1), 50);
-    return () => window.clearTimeout(timer);
-  }, [
-    documentSession,
-    rendererSnapshot.error,
-    rendererSnapshot.generation,
-    rendererSnapshot.status
-  ]);
   const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
   const [propertiesTarget, setPropertiesTarget] = useState<PropertiesInspectorTarget>({
     kind: 'none'
@@ -2398,6 +2346,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentCreationSettings,
     rendererRecoverySequence
   ]);
+  const canReuseRenderer = useDocumentGpuRecovery({
+    session: documentSession, lifecycle: rendererLifecycle, renderer: engineRef,
+    snapshot: rendererSnapshot, opening: documentOpenGeneration, reportError: setError,
+    requestReopen: () => setRendererRecoverySequence(value => value + 1)
+  });
 
   const getDocumentPublicationPorts = useCallback(() => ({
     commitPublication: (publish: () => void) => {
@@ -2654,11 +2607,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? beforeExistingDocumentRebind
       : beforeDocumentOpen,
     afterClose: afterDocumentClose,
-    canReuseRenderer: () => {
-      const replace = replaceRendererOnNextOpenRef.current;
-      replaceRendererOnNextOpenRef.current = false;
-      return !replace;
-    }
+    canReuseRenderer
   });
 
   const paragraphCreationOverlay = useMemo(() => {
