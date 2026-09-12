@@ -1,7 +1,8 @@
 # Task416 current checkpoint — 2026-09-12
 
 O06j Grade clipboard binding is committed as `f1dc6ce3`. O07g Tool Options
-composition is accepted in the current worktree and awaits its checkpoint commit.
+composition is committed as `571df946`. O07h document-scopes presentation is
+accepted in the current worktree and awaits its checkpoint commit.
 Preserve unrelated untracked `work/recovered/`. No push requested.
 
 ## Accepted result
@@ -40,8 +41,13 @@ Preserve unrelated untracked `work/recovered/`. No push requested.
 
 ## Next bounded slice
 
-Re-scan the remaining O07 host/view/panel composition families and choose the
-next complete owner by authority removed, not line count. Do not create a generic
-editor props bag, service locator, fallback or replacement editor manager. O08
-still requires a final mixed-flow, performance and resource proof; WebGpuEngine
-decomposition remains separate O09 work.
+O07h removes the duplicate React/ref sources for scope settings and visibility,
+plus the root histogram scheduler. `DocumentScopesPresentation` is the one
+synchronous UI-projection owner; the renderer still owns GPU scope resources.
+Focused tests, typecheck, boundary/source audits and fresh packaged scope
+visibility/workspace wake pass. Package executable SHA256:
+`1515b88b2839b0806c22d46f4b238b60ba5c1f47bae07eebd718b9dea39581e7`.
+Overlay is 4,843 physical lines (ceiling 4,844); WebGpuEngine remains 4,003.
+
+Next, perform O08 as a bounded endpoint authority scan before any further
+extraction. Do not start WebGpuEngine decomposition under the current usage cap.

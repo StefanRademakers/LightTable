@@ -1976,3 +1976,24 @@ Implementation and retained failed evidence:
   capability equivalence passed. Final painted screenshot visually inspected.
 - This completes O03b only. Next O03c and remaining O02c; WebGpuEngine is still
   3,979 lines and neither monster-file cleanup nor the overall plan is complete.
+
+## O07h — Document scopes presentation ownership
+
+- Done/deleted: `DocumentScopesPresentation` now owns the mounted document's
+  scope settings, visibility, histogram and error projection. Overlay's duplicate
+  React state, mutable latest-value refs and private histogram scheduler are gone.
+- Ownership/performance: GPU scope resources and sampling remain renderer-owned.
+  Histogram publication still coalesces to one animation frame; document-open
+  reads the same synchronous snapshot that React subscribes to.
+- Review: focused self-review found and repaired a permanent-dispose defect that
+  would have broken React Strict Mode effect replay. Disconnect now cancels only
+  pending host work and the owner remains reusable. Per the owner's cost cap, no
+  additional critic agent was run for this view-only slice.
+- Proof: 31 focused tests/28 discovered shards, app typecheck, boundary and
+  source-structure audits pass. Fresh instrumented package and packaged scopes
+  signal/visibility/workspace-wake smoke pass. Executable SHA256
+  `1515b88b2839b0806c22d46f4b238b60ba5c1f47bae07eebd718b9dea39581e7`.
+- Hotspot: Overlay 4,866 -> 4,843 physical lines; ceiling 4,867 -> 4,844.
+  New owner is 91 lines. WebGpuEngine remains 4,003 and is not claimed fixed.
+- Next: bounded O08 endpoint authority scan; no WebGpuEngine decomposition under
+  the current usage cap.

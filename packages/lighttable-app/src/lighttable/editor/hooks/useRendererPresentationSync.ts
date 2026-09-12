@@ -75,8 +75,6 @@ interface RendererPresentationSyncOptions<
   /** Keeps shared histogram analysis alive for contextual editors such as Levels. */
   readonly histogramConsumerVisible?: boolean;
   readonly scopeSettings: ScopeSettings;
-  readonly scopeVisibilityRef: MutableRefObject<ScopeVisibility>;
-  readonly scopeSettingsRef: MutableRefObject<ScopeSettings>;
 }
 
 /**
@@ -103,9 +101,7 @@ export const useRendererPresentationSync = <
   selectionPaintOverlayColor,
   scopeVisibility,
   histogramConsumerVisible = false,
-  scopeSettings,
-  scopeVisibilityRef,
-  scopeSettingsRef
+  scopeSettings
 }: RendererPresentationSyncOptions<Renderer>): void => {
   useEffect(() => {
     rendererRef.current?.setDifference(showDifference);
@@ -160,8 +156,6 @@ export const useRendererPresentationSync = <
   ]);
 
   useEffect(() => {
-    scopeVisibilityRef.current = scopeVisibility;
-    scopeSettingsRef.current = scopeSettings;
     rendererRef.current?.setScopeOptions(
       scopeVisibility.histogram || histogramConsumerVisible,
       createScopeRendererOptions(scopeVisibility, scopeSettings)
@@ -170,9 +164,7 @@ export const useRendererPresentationSync = <
     rendererRef,
     histogramConsumerVisible,
     scopeSettings,
-    scopeSettingsRef,
-    scopeVisibility,
-    scopeVisibilityRef
+    scopeVisibility
   ]);
 };
 

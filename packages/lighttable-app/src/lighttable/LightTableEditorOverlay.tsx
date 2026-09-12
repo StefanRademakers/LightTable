@@ -136,7 +136,7 @@ import { useEditorDocumentFileController } from './composition/documents/useEdit
 import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { useDeleteTargetIntent } from './composition/input/useDeleteTargetIntent';
-import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
+import { DocumentScopesPresentation } from './application/scopes/DocumentScopesPresentation';
 import { createEditorMenuController } from './composition/menus/createEditorMenuController';
 import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
 import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePanel';
@@ -318,19 +318,12 @@ import {
 import { selectionEditingOverlayIsVisible } from './editor/selection/selectionEditingOverlay';
 import { SelectionMaskSnapshot } from './editor/selection/SelectionMaskSnapshot';
 import {
-  DEFAULT_SCOPE_SETTINGS,
-  DEFAULT_SCOPE_VISIBILITY,
-  type ScopeSettings,
-  type ScopeVisibility
-} from './scopes';
-import {
   createDefaultAdjustments,
   cloneAdjustments as cloneAllAdjustments,
   DEFAULT_BASIC_ADJUSTMENTS,
   type BasicAdjustments,
   type LightTableImageMetadata,
-  type LightTableViewState,
-  type RgbHistogram
+  type LightTableViewState
 } from './types';
 import './lighttable.css';
 
@@ -678,8 +671,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const updateSelectionContentMoveRef = useRef<(x: number, y: number) => void>(() => undefined);
   const finishSelectionContentMoveRef = useRef<(commit: boolean) => void>(() => undefined);
-  const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
-  const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
+  const scopesPresentation = useMemo(() => new DocumentScopesPresentation(), []);
+  const scopesSnapshot = useSyncExternalStore(
+    scopesPresentation.subscribe,
+    scopesPresentation.getSnapshot,
+    scopesPresentation.getSnapshot
+  );
+  useEffect(() => () => scopesPresentation.disconnect(), [scopesPresentation]);
   const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
   const [workspacePanels, setWorkspacePanels] = useState<readonly WorkspacePanelVisibility[]>([]);
@@ -696,23 +694,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(
     () => documentSession?.getSnapshot().loadedSource.metadata ?? null
   );
-  const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
-  const histogramPublicationRef = useRef<LatestFrameValueScheduler<RgbHistogram> | null>(null);
-  useEffect(() => {
-    const publication = new LatestFrameValueScheduler<RgbHistogram>(setHistogram);
-    histogramPublicationRef.current = publication;
-    return () => {
-      if (histogramPublicationRef.current === publication) histogramPublicationRef.current = null;
-      publication.dispose();
-    };
-  }, []);
-  const publishHistogram = useCallback((next: RgbHistogram) => {
-    histogramPublicationRef.current?.schedule(next);
-  }, []);
-  const resetHistogram = useCallback(() => {
-    histogramPublicationRef.current?.cancel();
-    setHistogram(null);
-  }, []);
+  const { histogram, settings: scopeSettings, visibility: scopeVisibility,
+    error: scopeError } = scopesSnapshot;
+  const publishHistogram = scopesPresentation.publishHistogram;
+  const resetHistogram = scopesPresentation.resetHistogram;
+  const setScopeError = scopesPresentation.setError;
   const {
     zoomMode,
     setZoomMode,
@@ -810,9 +796,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [shiftPressed, setShiftPressed] = useState(false);
   const [altPressed, setAltPressed] = useState(false);
   const [preciseBrushCursor, setPreciseBrushCursor] = useState(false);
-  const [scopeSettings, setScopeSettings] = useState<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
-  const [scopeVisibility, setScopeVisibility] = useState<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
-  const [scopeError, setScopeError] = useState<string | null>(null);
   const [psdImportInfo, setPsdImportInfo] = useState<PsdDecodeSuccess | null>(null);
   const [psdDifferenceMetrics, setPsdDifferenceMetrics] = useState<ReferenceDifferenceMetrics | null>(null);
   const [psdCompatibility, setPsdCompatibility] = useState<PsdImportCompatibilityEntry[]>([]);
@@ -2011,11 +1994,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setView({ scale: 1, panX: 0, panY: 0 });
         },
         resetScopes: (settings, visibility) => {
-          scopeSettingsRef.current = settings;
-          scopeVisibilityRef.current = visibility;
-          setScopeSettings(settings);
-          setScopeVisibility(visibility);
-          resetHistogram();
+          scopesPresentation.reset(settings, visibility);
         },
         resetDiagnostics: () => {
           setError(null);
@@ -2078,12 +2057,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ]);
 
   const getDocumentOpenScopeOptions = useCallback(() => ({
-    histogramVisible: scopeVisibilityRef.current.histogram,
+    histogramVisible: scopesPresentation.getSnapshot().visibility.histogram,
     options: createScopeRendererOptions(
-      scopeVisibilityRef.current,
-      scopeSettingsRef.current
+      scopesPresentation.getSnapshot().visibility,
+      scopesPresentation.getSnapshot().settings
     )
-  }), []);
+  }), [scopesPresentation]);
 
   const existingDocumentForRebind = documentSession?.getSnapshot().document ?? null;
   const existingMetadataForRebind = documentSession?.getSnapshot().loadedSource.metadata ?? null;
@@ -2230,9 +2209,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     histogramConsumerVisible: propertiesView === 'grade'
       || propertiesView === 'levels'
       || propertiesView === 'curves',
-    scopeSettings,
-    scopeVisibilityRef,
-    scopeSettingsRef
+    scopeSettings
   });
 
   useEffect(() => {
@@ -4570,9 +4547,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onCanvasesReady: handleDocumentSurfaceReady,
                 error: scopeError,
                 onVisibilityChange: (scope, visible) => {
-                  setScopeVisibility((current) => ({ ...current, [scope]: visible }));
+                  scopesPresentation.setVisibility(scope, visible);
                 },
-                onSettingsChange: setScopeSettings
+                onSettingsChange: scopesPresentation.setSettings
               },
               layers: layersPanel,
               channels: channelsPanel,

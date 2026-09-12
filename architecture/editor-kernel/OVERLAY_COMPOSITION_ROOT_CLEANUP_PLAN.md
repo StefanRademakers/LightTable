@@ -455,6 +455,15 @@ class names: reuse existing owners before creating a new one.
     request remain explicit. No state, lifecycle or domain policy moved. Critic
     PASS; 502 tests/56 files, typecheck and boundary PASS. Fresh packaged Shape
     family switching, Escape and Warp reset/close pass with zero page errors.
+  - [x] O07h: one document-scopes presentation owner for settings, visibility,
+    histogram and error projection. Duplicate React state/mutable refs and the
+    root histogram scheduler are deleted; document-open and renderer setup read
+    the same synchronous snapshot while histogram delivery remains frame-
+    coalesced. A Strict Mode-style disconnect/reconnect remains usable. Focused
+    tests, app typecheck, boundary/source audits and a fresh packaged scopes
+    visibility/workspace-wake smoke pass. Per the owner's 2026-09-12 cost cap,
+    this view-only extraction used focused self-review instead of another agent;
+    mutation/resource slices still require independent review.
 - [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards
