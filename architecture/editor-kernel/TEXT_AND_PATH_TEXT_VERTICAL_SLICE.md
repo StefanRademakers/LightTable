@@ -97,7 +97,8 @@ hand-off remain open.
 
 1. Focused text, path dependency, transform and finalization tests.
 2. Independent read-only architecture critic.
-3. At most two evidence-backed repair passes.
+3. Evidence-backed repair/re-review passes under the current Task416 loop;
+   do not stop solely at an iteration count or accept unresolved blockers.
 4. Packaged Type and Path Text browser acceptance with generated fixtures.
 5. Relevant boundary/typecheck suite; full verification at the slice checkpoint.
 

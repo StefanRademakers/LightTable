@@ -11,9 +11,12 @@ multilayer Delete and pending-transform/Actions/history proof. O05f tool default
 selection-dimensions and Warp proof. O06h adjustment creation accepted with critic and packaged
 contextual/explicit/Actions/transform handoff and adjacent inspector proof. Positioned
 rendering remains explicitly unsupported O08 debt, not visual preservation.
-Canonical checklist below is authoritative. Overlay5,101 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Next: text geometry
-composition/realization lifetime; editing publication remains a separate slice.
+O05a.5 text geometry composition/lifetime accepted: critic, 91 focused tests,
+fresh packaged frame resize/Ctrl-move/path handle with exact history and adjacent
+Properties transitions. Commit ec386b4d; evidence in PROGRESS.md.
+Canonical checklist below is authoritative. Overlay5,039 physical lines;
+WebGpuEngine4,003. Neither endpoint is complete. Next: O05a.6 text editing
+publication and selection gesture lifetime, separately from geometry.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:
