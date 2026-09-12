@@ -6,6 +6,8 @@ import { AdjustmentPresentationSynchronizer } from '../adjustments/AdjustmentPre
 import { projectAdjustmentSnapshot } from '../adjustments/projectAdjustmentSnapshot';
 import type { PropertiesInspectorTarget } from '../properties/propertiesInspectorTarget';
 import { createDocumentProjectionBinding } from './documentProjectionBinding';
+import { addLayerMask, addRasterLayerAttachedAdjustment } from '../../editor/document/documentCommands';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 
 const setup = () => {
   let document = createImageDocument('Projection', 32, 24, 'one');
@@ -38,6 +40,41 @@ const setup = () => {
 };
 
 describe('document projection binding', () => {
+  it('projects processing into the current exact attached owner rather than its parent or another attachment', () => {
+    const state = setup(), layerId = state.document.activeLayerId!;
+    let document = state.document;
+    for (const [id, exposureEV] of [['first', 7], ['second', 9]] as const) {
+      document = addRasterLayerAttachedAdjustment(document, layerId, {
+        id, name: id, adjustmentKind: 'grade', enabled: true, revision: 0,
+        adjustmentStack: createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV })
+      });
+    }
+    state.rebind(document);
+    for (const [adjustmentId, exposureEV] of [['first', 7], ['second', 9]] as const) {
+      state.setTarget({ kind: 'attached-processing', layerId, adjustmentId });
+      state.controller.presentDocumentProcessing(document, { ...state.adjustments, exposureEV: 2 });
+      expect(state.publish).toHaveBeenLastCalledWith(expect.objectContaining({ exposureEV }), 'all');
+    }
+    state.setTarget({ kind: 'processing', layerId, owner: 'grade' });
+    state.controller.presentDocumentProcessing(document, { ...state.adjustments, exposureEV: 2 });
+    expect(state.publish).toHaveBeenLastCalledWith(expect.objectContaining({ exposureEV: 0 }), 'all');
+    expect(state.adjustments.exposureEV).toBe(0); // Presentation never republishes canonical processing.
+  });
+  it.each(['mask', 'style-stack'] as const)('does not overwrite %s presentation with global processing', kind => {
+    const state = setup();
+    if (kind === 'mask') state.rebind(addLayerMask(state.document, state.document.activeLayerId!));
+    state.setTarget({ kind, layerId: state.document.activeLayerId! });
+    state.controller.presentDocumentProcessing(state.document, { ...state.adjustments, exposureEV: 2 });
+    expect(state.publish).not.toHaveBeenCalled(); expect(state.adjustments.exposureEV).toBe(0);
+  });
+  it('reads the current document Grade versus Lens Fx owner when presenting processing', () => {
+    const state = setup();
+    for (const [owner, domain] of [['grade', 'grade'], ['lens-fx', 'lens-fx']] as const) {
+      state.setTarget({ kind: 'document-processing', owner });
+      state.controller.presentDocumentProcessing(state.document, state.adjustments);
+      expect(state.publish.mock.lastCall?.[1]).toBe(domain);
+    }
+  });
   it('retires only active preview before canonical publication; does not cancel pending successor ownership', () => {
     const state = setup();
     // No broad reset port exists. The mounted adapter binds the active-only

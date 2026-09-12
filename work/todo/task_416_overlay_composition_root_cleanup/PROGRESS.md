@@ -1,5 +1,66 @@
 # Task 416 progress
 
+## O06g — Mounted adjustment command binding and inspector ownership (accepted)
+
+Final acceptance: source critic PASS after the two exposed interaction repairs.
+Package31617 passes three fresh-profile processing-rebind runs: run-vhBxLX,
+run-tySrRX and run-ZLghp3. Each checks canonical query clocks, inactive command
+rejection without mutation, real tab/global/local history with exact PNG pixels,
+and immediate attached Exposure0.01 in UI AND canonical attachment for same-parent
+and cross-parent activation. Parent/sibling unchanged; attached bypass/UndoRedo
+pixels exact. Final focus traces show ArrowRight on the Exposure INPUT, not BODY.
+Root inspected final UI. Canvas-pick run-uVqJQg passes actual Shift add/remove,
+transparent-layer skipping, zoom adjacency, zero history delta and exact PNG.
+
+565 wider adjustment/layer/command/projection tests and72 workspace/Properties/
+panel tests pass, plus final44 controller tests, app typecheck and boundary.
+These overlapping counts are not a unique whole-suite total. The Dockview source
+test exercises installed openPanel with a synthetic container; real focus proof
+is the packaged test above. No whole-app or performance certification implied.
+No additional GPU work/readback or artificial interaction delay was introduced.
+
+Overlay5,658 ->5,555 physical lines (ceiling5,556); WebGpuEngine stays4,003.
+Deleted orphan adjustmentTargetIsPresented and its test, obsolete parent-value
+materialization and root attached recipe; recoverable in Git. Next: selection
+command mapping and truthful post-commit terminal delivery. The whole plan is open.
+
+Implementation and retained failed evidence:
+
+- Basic/Detail/Snapshot/Structure command adapters and two queries moved from
+  Overlay into MountedAdjustmentCommandBinding. Canonical document, processing
+  and query clock come from one registered DocumentSession snapshot. Existing
+  executors, command queue, history allocator and resource pruning are retained.
+- Actual busy/reserved history tests exposed processing publication followed by
+  compensation before admission. Changed edits now check admission before their
+  first publication; genuine no-ops remain valid. Existing downstream failure
+  compensation remains; this is not a claim of universal publication atomicity.
+- Captured-session history projects only the currently mounted matching session
+  through the existing contextual synchronizer, without another canonical write.
+  Inactive semantic Undo is deliberately unavailable: the packaged test now
+  checks rejection/no mutation and real UndoRedo after activation. Direct inactive
+  captured-session replay is unit-test evidence only, not an exposed capability.
+- Package3623 passes packaging. Old package55631 run-bpx8CG exposed query clock
+  0 versus canonical3. Fresh package passes that query and global/local tab/history
+  pixel checks, but attached Grade first-interaction remains a blocking failure.
+  run-hCqGDc records parent Exposure -0.5 still presented after attached selection;
+  a subsequent delayed run-EEmKvo passed the former pixel-toggle assertion while
+  incorrectly editing from parent -0.5 to -0.49. That run is NOT acceptance.
+- Strengthened immediate-interaction gate requires attached Exposure 0.01 in both
+  UI and canonical attachment, with unchanged parent/sibling and exact UndoRedo.
+  Source investigation confirms asynchronous layer selection republishes parent
+  settings after attached inspection. Bounded owner repair and critic review are
+  completed through admitted parent selection and the existing live-target
+  synchronizer; no artificial UI delay, fallback or capability expansion added.
+- The scoped attached-inspector repair passed source review and565 broader tests.
+  Package11018 first passed the same-parent assertion but repeat run-3Jcfpx lost
+  the first key entirely: Exposure focusin -> focusout -> ArrowRight on BODY.
+  This is not accepted as a flaky test. Deferred Properties reveal invokes
+  workspace.showPanel on an already-active panel; installed Dockview reattaches
+  its content DOM on that repeated activation. Workspace-owner idempotency is
+  now repaired, including cross-parent packaged proof above. A separate
+  harness-only unsupported layer.createRaster name parameter was corrected to
+  the existing empty parameters and returned layerId; no capability was added.
+
 ## O05a.3 — Text-to-shape intent and concrete source lifetime (accepted)
 
 - TextToShapeIntent owns confirmation token, exact post-text-terminal target and

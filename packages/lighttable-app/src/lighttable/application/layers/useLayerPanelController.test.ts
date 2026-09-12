@@ -12,6 +12,9 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { AdjustmentPresentationSynchronizer } from '../adjustments/AdjustmentPresentationSynchronizer';
+import type { PropertiesInspectorTarget } from '../properties/propertiesInspectorTarget';
+import { PropertiesInspectorPresentation } from '../properties/PropertiesInspectorPresentation';
 import {
   adjustmentStackForOwner,
   adjustmentStackHasLocalProcessing,
@@ -33,6 +36,16 @@ const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
   const documentAdjustments = createDefaultAdjustments();
   let panelAdjustments = createDefaultAdjustments();
+  let scopeCurrent = true;
+  const properties = new PropertiesInspectorPresentation({
+    capture: () => ({ isCurrent: () => scopeCurrent, reveal: vi.fn() }),
+    schedule: () => 1, cancel: vi.fn()
+  });
+  properties.mount();
+  properties.show({ kind: 'layer', layerId: document.activeLayerId! });
+  const publish = vi.fn((next: BasicAdjustments) => { panelAdjustments = cloneAdjustments(next); });
+  const presentation = new AdjustmentPresentationSynchronizer(publish);
+  const synchronize = vi.spyOn(presentation, 'synchronize');
   const dependencies: LayerPanelControllerDependencies = {
     getDocument: () => document,
     getDocumentAdjustments: () => documentAdjustments,
@@ -41,9 +54,11 @@ const setup = (initialDocument: ImageDocument) => {
       document = mutate(document);
       return document !== before;
     }),
-    publishPanelAdjustments: vi.fn((next: BasicAdjustments) => {
-      panelAdjustments = cloneAdjustments(next);
-    }),
+    presentation,
+    getPropertiesTarget: properties.getSnapshot,
+    captureSelectionScope: () => ({ isCurrent: () => scopeCurrent }),
+    properties,
+    reportError: vi.fn(),
     setPaintTarget: vi.fn(),
     beginDocumentTransaction: vi.fn(() => true),
     endDocumentTransaction: vi.fn(() => true),
@@ -79,6 +94,13 @@ const setup = (initialDocument: ImageDocument) => {
   return {
     controller,
     dependencies,
+    synchronize,
+    properties,
+    inspect: (next: PropertiesInspectorTarget) => {
+      properties.show(next);
+      presentation.synchronize(document, documentAdjustments, next);
+    },
+    retire: () => { scopeCurrent = false; },
     document: () => document,
     panelAdjustments: () => panelAdjustments
   };
@@ -277,6 +299,142 @@ describe('createLayerPanelController', () => {
     expect(harness.document().activeLayerId).toBe(secondLayerId);
   });
 
+  it('keeps the exact child inspector baseline when parent selection finishes after the child opened', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const layerId = base.activeLayerId!;
+    let document = setRasterLayerAdjustmentStack(base, layerId,
+      createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV: -0.5 }));
+    for (const [id, exposureEV] of [['first', 0], ['second', 2]] as const) {
+      document = addRasterLayerAttachedAdjustment(document, layerId, {
+        id, name: id, adjustmentKind: 'grade', enabled: true, revision: 0,
+        adjustmentStack: createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV })
+      });
+    }
+    const state = setup(document);
+    let release!: () => void;
+    state.dependencies.prepareActiveLayerChange = () => new Promise<void>(resolve => { release = resolve; });
+    state.inspect({ kind: 'layer', layerId });
+    expect(state.panelAdjustments().exposureEV).toBe(-0.5);
+    const selecting = state.controller.select(layerId);
+    state.inspect({ kind: 'attached-processing', layerId, adjustmentId: 'first' });
+    expect(state.panelAdjustments().exposureEV).toBe(0);
+    release(); await selecting;
+    expect(state.panelAdjustments().exposureEV).toBe(0);
+
+    const siblingSelection = state.controller.select(layerId);
+    state.inspect({ kind: 'attached-processing', layerId, adjustmentId: 'second' });
+    release(); await siblingSelection;
+    expect(state.panelAdjustments().exposureEV).toBe(2);
+
+    const parentSelection = state.controller.select(layerId);
+    state.inspect({ kind: 'layer', layerId });
+    release(); await parentSelection;
+    expect(state.panelAdjustments().exposureEV).toBe(-0.5);
+  });
+
+  it('does not let an ordinary delayed panel selection publish into a retired same-ID context', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const state = setup(createRasterLayer(base, 'Second'));
+    let release!: () => void;
+    state.dependencies.prepareActiveLayerChange = () => new Promise<void>(resolve => { release = resolve; });
+    const pending = state.controller.select(base.activeLayerId!);
+    state.retire();
+    release(); await pending;
+    expect(state.document().activeLayerId).not.toBe(base.activeLayerId);
+    expect(state.dependencies.mutateDocument).not.toHaveBeenCalled();
+    expect(state.synchronize).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('opens an attached inspector only at admitted parent selection (different parent: %s)', async differentParent => {
+    let document = createImageDocument('test', 100, 100, 'asset');
+    const layerId = document.activeLayerId!;
+    document = setRasterLayerAdjustmentStack(document, layerId,
+      createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV: -0.5 }));
+    document = addRasterLayerAttachedAdjustment(document, layerId, {
+      id: 'neutral', name: 'Grade', adjustmentKind: 'grade', enabled: true, revision: 0,
+      adjustmentStack: createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments())
+    });
+    if (differentParent) {
+      document = createRasterLayer(document, 'Other');
+      document = setRasterLayerAdjustmentStack(document, document.activeLayerId!,
+        createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV: 3 }));
+    }
+    const state = setup(document), openingTarget = state.properties.getSnapshot();
+    state.inspect(openingTarget);
+    let release!: () => void;
+    state.dependencies.prepareActiveLayerChange = () => new Promise<void>(resolve => { release = resolve; });
+    const pending = state.controller.inspectAttachedAdjustment(layerId, 'neutral');
+    expect(state.properties.getSnapshot()).toEqual(openingTarget);
+    expect(state.panelAdjustments().exposureEV).toBe(differentParent ? 3 : -0.5);
+    release(); await pending;
+    expect(state.document().activeLayerId).toBe(layerId);
+    expect(state.properties.getSnapshot()).toEqual({ kind: 'attached-processing', layerId, adjustmentId: 'neutral' });
+    expect(state.panelAdjustments().exposureEV).toBe(0);
+    expect(state.dependencies.setPaintTarget).toHaveBeenCalledExactlyOnceWith('pixels');
+    expect(state.dependencies.reportError).not.toHaveBeenCalled();
+  });
+
+  it.each(['sibling', 'row', 'canvas', 'retired'] as const)('does not reopen an attached inspector after a newer %s intent', async next => {
+    let document = createImageDocument('test', 100, 100, 'asset');
+    const layerId = document.activeLayerId!;
+    for (const [id, exposureEV] of [['first', 0], ['second', 2]] as const) {
+      document = addRasterLayerAttachedAdjustment(document, layerId, {
+        id, name: id, adjustmentKind: 'grade', enabled: true, revision: 0,
+        adjustmentStack: createAdjustmentStackFromBasicAdjustments({ ...createDefaultAdjustments(), exposureEV })
+      });
+    }
+    const state = setup(createRasterLayer(document, 'Other'));
+    const otherId = state.document().activeLayerId!;
+    const releases: (() => void)[] = [];
+    state.dependencies.prepareActiveLayerChange = () => new Promise<void>(resolve => { releases.push(resolve); });
+    const first = state.controller.inspectAttachedAdjustment(layerId, 'first');
+    let second: Promise<void> | undefined;
+    if (next === 'sibling') second = state.controller.inspectAttachedAdjustment(layerId, 'second');
+    else if (next === 'row') {
+      second = state.controller.select(otherId);
+      state.inspect({ kind: 'layer', layerId: otherId });
+    } else if (next === 'canvas') second = state.controller.select(otherId);
+    else state.retire();
+    releases[0]!(); await first;
+    expect(state.document().activeLayerId).toBe(otherId);
+    expect(state.properties.getSnapshot()).toEqual({ kind: 'layer', layerId: otherId });
+    if (second) { releases[1]!(); await second; }
+    expect(state.properties.getSnapshot()).toEqual(next === 'sibling'
+      ? { kind: 'attached-processing', layerId, adjustmentId: 'second' }
+      : { kind: 'layer', layerId: otherId });
+    expect(state.dependencies.reportError).not.toHaveBeenCalled();
+  });
+
+  it('reports rejected attached selection without showing its target or publishing its values', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const withChild = addRasterLayerAttachedAdjustment(base, base.activeLayerId!, {
+      id: 'child', name: 'Grade', adjustmentKind: 'grade', enabled: true, revision: 0,
+      adjustmentStack: createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments())
+    });
+    const state = setup(createRasterLayer(withChild, 'Other'));
+    const opening = state.properties.getSnapshot();
+    state.dependencies.mutateDocument = () => false;
+    await state.controller.inspectAttachedAdjustment(base.activeLayerId!, 'child');
+    expect(state.properties.getSnapshot()).toEqual(opening);
+    expect(state.synchronize).not.toHaveBeenCalled();
+    expect(state.dependencies.reportError).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an attachment removed during preparation before selecting its parent', async () => {
+    const base = createImageDocument('test', 100, 100, 'asset'), layerId = base.activeLayerId!;
+    const withChild = addRasterLayerAttachedAdjustment(base, layerId, {
+      id: 'removed', name: 'Grade', adjustmentKind: 'grade', enabled: true, revision: 0,
+      adjustmentStack: createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments())
+    });
+    const state = setup(createRasterLayer(withChild, 'Other')), otherId = state.document().activeLayerId;
+    state.dependencies.prepareActiveLayerChange = async () => { state.controller.removeAttachedAdjustment(layerId, 'removed'); };
+    const pending = state.controller.inspectAttachedAdjustment(layerId, 'removed');
+    await pending;
+    expect(state.document().activeLayerId).toBe(otherId);
+    expect(state.synchronize).not.toHaveBeenCalled();
+    expect(state.dependencies.reportError).toHaveBeenCalledOnce();
+  });
+
   it('does not replace the active layer until asynchronous preparation completes', async () => {
     let document = createImageDocument('test', 100, 100, 'asset');
     const firstLayerId = document.activeLayerId!;
@@ -311,9 +469,9 @@ describe('createLayerPanelController', () => {
     vi.mocked(harness.dependencies.mutateDocument).mockClear();
     release();
     expect(await pending).toBe(false);
-    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(next.activeLayerId, guard);
+    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(next.activeLayerId, expect.any(Function));
     expect(harness.dependencies.mutateDocument).not.toHaveBeenCalled();
-    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(harness.synchronize).not.toHaveBeenCalled();
     expect(harness.document().activeLayerId).toBe(base.activeLayerId);
     expect(onSelected).not.toHaveBeenCalled();
   });
@@ -328,7 +486,7 @@ describe('createLayerPanelController', () => {
     const onSelected = vi.fn();
     expect(await harness.controller.selectIfCurrent(next.activeLayerId!, () => current, onSelected)).toBe(false);
     expect(harness.document().activeLayerId).toBe(base.activeLayerId);
-    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(harness.synchronize).not.toHaveBeenCalled();
     expect(onSelected).not.toHaveBeenCalled();
   });
 
@@ -340,10 +498,10 @@ describe('createLayerPanelController', () => {
     const onSelected = vi.fn();
     expect(await harness.controller.selectIfCurrent(next.activeLayerId!, () => true, onSelected)).toBe(false);
     expect(onSelected).not.toHaveBeenCalled();
-    expect(harness.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(harness.synchronize).not.toHaveBeenCalled();
     expect(await harness.controller.selectIfCurrent(base.activeLayerId!, () => true, onSelected)).toBe(true);
     expect(onSelected).toHaveBeenCalledOnce();
-    expect(harness.dependencies.publishPanelAdjustments).toHaveBeenCalledOnce();
+    expect(harness.synchronize).toHaveBeenCalledOnce();
   });
 
   it('preserves the document revision committed by selection preparation', async () => {

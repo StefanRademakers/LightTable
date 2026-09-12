@@ -1,4 +1,6 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import type { BasicAdjustments } from '../../types';
+import { applyGroupVisibility } from '../adjustments/groupVisibility';
 import type { AdjustmentPresentationDomain } from '../adjustments/adjustmentPresentationStore';
 import type { AdjustmentPresentationSynchronizer } from '../adjustments/AdjustmentPresentationSynchronizer';
 import type { ColorLookupCanonicalProjection } from '../adjustments/commitColorLookupAssetTransaction';
@@ -20,6 +22,11 @@ export const createDocumentProjectionBinding = (port: DocumentProjectionBindingP
   const projection = createDocumentProjectionController(port);
   return {
     ...projection,
+    /** History already published the captured session; project only its current mounted view. */
+    presentDocumentProcessing: (document: ImageDocument, adjustments: BasicAdjustments): void => {
+      port.publishRendererAdjustments(applyGroupVisibility(adjustments, port.getGroupVisibility()));
+      port.presentation.synchronize(document, adjustments, port.getPropertiesTarget());
+    },
     applyDocumentSnapshot: (document: ImageDocument): void => {
       port.resetActiveAdjustmentPreview();
       projection.applyDocumentSnapshot(document);

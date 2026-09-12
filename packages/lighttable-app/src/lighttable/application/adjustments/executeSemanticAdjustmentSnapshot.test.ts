@@ -48,6 +48,7 @@ const harness = (initial: ImageDocument) => {
     get document() { return document; },
     options: (target: Parameters<typeof executeSemanticAdjustmentSnapshot>[0]['target'], snapshot: ReturnType<typeof createDefaultAdjustments>) => ({
       document,
+      assertMutationAllowed: vi.fn(),
       documentAdjustments: createDefaultAdjustments(),
       target,
       snapshot,

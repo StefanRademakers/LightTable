@@ -2,7 +2,9 @@ import { useMemo, useRef } from 'react';
 import { applyLayerCreation } from './applyLayerCreation';
 import type { BasicAdjustments } from '../../types';
 import { isFilterKind } from '@lighttable/filter-core';
-import { cloneAdjustments, createDefaultAdjustments } from '../../types';
+import type { AdjustmentPresentationSynchronizer } from '../adjustments/AdjustmentPresentationSynchronizer';
+import type { PropertiesInspectorTarget } from '../properties/propertiesInspectorTarget';
+import type { PropertiesInspectorPresentation } from '../properties/PropertiesInspectorPresentation';
 import type { BlendMode } from '../../editor/document/blendModes';
 import type {
   ImageDocument,
@@ -40,7 +42,6 @@ import {
 } from '../../editor/document/layerTree';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
-import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 import type { GradeModuleGroup } from '../../processing/adjustmentStack';
 import type {
@@ -64,7 +65,11 @@ export interface LayerPanelControllerDependencies {
     mutate: (current: ImageDocument) => ImageDocument,
     recordHistory?: boolean
   ): boolean;
-  publishPanelAdjustments(adjustments: BasicAdjustments): void;
+  readonly presentation: Pick<AdjustmentPresentationSynchronizer, 'synchronize'>;
+  getPropertiesTarget(): PropertiesInspectorTarget;
+  captureSelectionScope(): { isCurrent(): boolean };
+  readonly properties: Pick<PropertiesInspectorPresentation, 'beginIntent'>;
+  reportError(message: string): void;
   setPaintTarget(channel: PaintChannel, brushColor?: string): void;
   beginDocumentTransaction(): boolean;
   endDocumentTransaction(): boolean;
@@ -179,6 +184,7 @@ export interface LayerPanelController {
 export interface LayerPanelMutationController extends LayerPanelController {
   /** Guarded canvas selection uses the same terminal as an ordinary panel selection. */
   selectIfCurrent(layerId: LayerId, isCurrent: () => boolean, onSelected: () => void): Promise<boolean>;
+  inspectAttachedAdjustment(layerId: LayerId, adjustmentId: string): Promise<void>;
   createGradientFillLayer(): LayerId | null;
   createGroup(): LayerId | null;
   groupSelection(layerIds: LayerId[]): LayerId | null;
@@ -190,6 +196,7 @@ export const createLayerPanelController = (
   let soloVisibility: LayerVisibilitySnapshot | null = null;
   let visibilityInteractionActive = false;
   let opacityInteractionActive = false;
+  let selectionRequest = 0;
   const mutate = (
     change: (current: ImageDocument) => ImageDocument,
     recordHistory = true
@@ -203,9 +210,14 @@ export const createLayerPanelController = (
     ));
   };
 
-  const selectIfCurrent = async (layerId: LayerId, isCurrent: () => boolean, onSelected: () => void): Promise<boolean> => {
-    if (!isCurrent()) return false;
+  const selectIfCurrent = async (layerId: LayerId, requestIsCurrent: () => boolean, onSelected: () => void): Promise<boolean> => {
+    if (!requestIsCurrent()) return false;
     const dependencies = resolveDependencies();
+    const scope = dependencies.captureSelectionScope();
+    if (!scope.isCurrent()) return false;
+    const request = ++selectionRequest;
+    const isCurrent = () => request === selectionRequest && requestIsCurrent() && scope.isCurrent();
+    if (!isCurrent()) return false;
     const current = dependencies.getDocument();
     const layer = current ? findDocumentLayer(current, layerId) : null;
     if (!current || !layer) return false;
@@ -233,17 +245,40 @@ export const createLayerPanelController = (
     // This callback never runs for rejected admission and owns no document/history mutation.
     onSelected();
     if (!isCurrent()) return false;
-    const panelAdjustments = (
-      preparedLayer.type === 'adjustment'
-      || (preparedLayer.type === 'raster' && preparedLayer.adjustmentStack)
-    )
-      // Bypassed Grade and Lens Fx modules still expose their authored values.
-      ? materializeBasicAdjustments(preparedLayer.adjustmentStack!, undefined, undefined, true)
-      : createDefaultAdjustments();
-    dependencies.publishPanelAdjustments(cloneAdjustments(panelAdjustments));
+    // A child inspector can have opened while selection admission was pending.
+    // The current Properties owner, not its parent row, owns these values.
+    dependencies.presentation.synchronize(selectedDocument,
+      dependencies.getDocumentAdjustments(), dependencies.getPropertiesTarget());
     return true;
   };
   const select = async (layerId: LayerId) => { await selectIfCurrent(layerId, () => true, () => undefined); };
+  const inspectAttachedAdjustment = async (layerId: LayerId, adjustmentId: string): Promise<void> => {
+    const dependencies = resolveDependencies(), ticket = dependencies.properties.beginIntent();
+    const scope = dependencies.captureSelectionScope();
+    const isCurrent = () => scope.isCurrent() && ticket.isCurrent();
+    const hasTarget = () => {
+      const document = dependencies.getDocument(), layer = document ? findDocumentLayer(document, layerId) : null;
+      return layer?.type === 'raster' && Boolean(layer.attachedAdjustments?.some(({ id }) => id === adjustmentId));
+    };
+    let request = selectionRequest;
+    try {
+      if (!isCurrent()) return;
+      if (!hasTarget()) throw new Error('The attached adjustment is unavailable.');
+      const pending = selectIfCurrent(layerId, () => isCurrent() && hasTarget(), () => {
+        dependencies.setPaintTarget('pixels');
+        ticket.show({ kind: 'attached-processing', layerId, adjustmentId });
+      });
+      request = selectionRequest;
+      const selected = await pending;
+      if (!selected && request === selectionRequest && isCurrent()) {
+        throw new Error('The adjustment layer selection was not admitted.');
+      }
+    } catch (error) {
+      if (request === selectionRequest && isCurrent()) {
+        dependencies.reportError(error instanceof Error ? error.message : String(error));
+      }
+    }
+  };
 
   const usePixelChannel = (
     change: (current: ImageDocument) => ImageDocument
@@ -275,6 +310,7 @@ export const createLayerPanelController = (
   return {
     select,
     selectIfCurrent,
+    inspectAttachedAdjustment,
     changeChannel: (channel) => resolveDependencies().setPaintTarget(channel),
     setVisibility: (layerIds, visible) => {
       soloVisibility = null;

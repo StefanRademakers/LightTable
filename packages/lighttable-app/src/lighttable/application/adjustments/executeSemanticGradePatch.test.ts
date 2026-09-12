@@ -33,6 +33,7 @@ describe('semantic Grade patch executor', () => {
     const publish = vi.fn();
     const history = vi.fn();
     const execute = (sharpeningAmount: number) => executeSemanticGradePatch({
+      assertMutationAllowed: vi.fn(),
       document: state.document,
       documentAdjustments: state.documentAdjustments,
       target: { kind: 'document' },
@@ -59,6 +60,7 @@ describe('semantic Grade patch executor', () => {
     const state = setup();
     let published = state.documentAdjustments;
     expect(() => executeSemanticGradePatch({
+      assertMutationAllowed: vi.fn(),
       document: state.document,
       documentAdjustments: state.documentAdjustments,
       target: { kind: 'document' },
@@ -81,6 +83,7 @@ describe('semantic Grade patch executor', () => {
     const processingPublish = vi.fn();
     const processingHistory = vi.fn();
     const result = executeSemanticGradePatch({
+      assertMutationAllowed: vi.fn(),
       document: state.document,
       documentAdjustments: state.documentAdjustments,
       target: { kind: 'layer', layerId },

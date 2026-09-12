@@ -675,9 +675,16 @@ function verifyWarpCutover(relativePath, source) {
 function verifyAdjustmentCutover(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
   if (normalizedPath.endsWith('/lighttable/LightTableEditorOverlay.tsx')) {
-    if (!/executeProcessingStructure:\s*\(command\)\s*=>\s*\{[\s\S]{0,200}adjustmentInteractions\.finish\(\);[\s\S]{0,120}commitLayerDocumentTransaction\(\);/.test(source)) {
-      failures.push(`${relativePath}: processing structure commands must settle mounted adjustment and layer-panel gestures before mutation`);
+    if (!source.includes('createMountedAdjustmentCommandBinding({') || !source.includes('...adjustmentCommands')) {
+      failures.push(`${relativePath}: mounted adjustment commands must use their bound adapter`);
     }
+  }
+  if (normalizedPath.endsWith('/application/adjustments/MountedAdjustmentCommandBinding.ts')
+    && (!source.includes('ports.adjustments.finish(); read();')
+      || !source.includes('ports.structure.commit(); read();')
+      || !source.includes('begin(true); return executeSemanticProcessingStructure')
+      || !source.includes('state.documentRevision') || source.includes('presented ='))) {
+    failures.push(`${relativePath}: processing commands require scoped terminals, canonical query clocks and live presentation`);
   }
   if (normalizedPath.endsWith('/application/adjustments/executeSemanticProcessingStructure.ts')
     && !source.includes('return { ...command, changed }')) {
@@ -817,6 +824,10 @@ function verifyStyleAndFilterCutover(relativePath, source) {
     && (/finishStyleEditing\?\s*\(/.test(source)
       || /setAttachedFilterEnabled\?\s*\(/.test(source))) {
     failures.push(`${relativePath}: kernel lifecycle ports must be required and fail closed`);
+  }
+  if (normalizedPath.endsWith('/editor/workspace/LightTableDockWorkspace.tsx')
+    && !source.includes('if (workspacePanelIsShown(panel)) return;')) {
+    failures.push(`${relativePath}: showing an already presented workspace panel must not reactivate and reparent focused controls`);
   }
   if (normalizedPath.endsWith('/application/commands/documentSessionCommandPorts.ts')
     && (!source.includes("'executeLayerStyleSnapshot'")
@@ -982,6 +993,11 @@ function verifyCommandRoutingCutover(relativePath, source) {
       'function requestTextToShape(',
       'function commitTextToShape(',
       'new TextToShapeCommandController(',
+      'executeSemanticGradePatch(',
+      'executeSemanticAdjustmentSnapshot(',
+      'executeSemanticProcessingStructure(',
+      'projectAdjustmentQuery(',
+      'resolveBasicAdjustmentTarget(',
       'execution ?? textToShapeController.convert'
     ];
     for (const owner of forbiddenFallbackOwners) {

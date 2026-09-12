@@ -1,6 +1,10 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,658 physical lines. O05a.3 moves text-to-shape confirmation
+Current accepted root: 5,555 physical lines. O06g moves mounted adjustment commands
+and queries out of root, deletes parent-value publication and scopes attached
+inspection to admitted selection. Workspace repeated reveal preserves input focus.
+Exact source and packaged acceptance/failure evidence are in PROGRESS.
+O05a.3 moves text-to-shape confirmation
 and mounted source lifetime into its bounded owners; existing semantic conversion
 transaction and vector algorithms are unchanged. O03c.6 moves text presentation/trace
 coalescing and reset into its bounded owner; document-opening guards retire at
@@ -13,29 +17,42 @@ Provider generation/result placement are outside this slice's fixture evidence.
 
 ## Remaining owner map (read-only inventory, not accepted implementation)
 
-### Next mounted adjustment command binding
+### Queued selection and text intent slices
 
-Text-to-shape is accepted. Next extract the Basic/Detail/Snapshot/Structure adapters
-and two adjustment queries into one bounded binding, not another transaction
-controller. Root currently repeats target/Properties presentation policy and
-terminal orchestration. Retain existing semantic executors and projectors.
+- Selection: extract the existing semantic mapping only; existing controller and
+  kernel keep coverage, algorithms and history. commitSnapshot, Similar and Wand
+  currently reinterpret a completed commit as false after retirement. Preserve
+  the authoritative terminal while suppressing stale presentation feedback;
+  reject requests retired before dispatch. Prove with real DocumentSession and
+  SelectionShapeCommandService plus deferred result delivery, not only mock true.
+- Route panel Load Transparency through existing selection.modify/load-transparency
+  so it uses normal semantic command observation/Actions; no new public schema.
+- Type rasterize belongs in existing LayerFinalizationIntents. Positioned-text
+  recovery needs exact offered source/session lifetime around its existing
+  controller. Both root callbacks currently discard the text finish result;
+  use existing truthful Properties/Flow terminal admission before conversion.
+  Do not replace working vector/rasterization/recovery algorithms or add a queue.
+
+### Mounted adjustment command binding — resolved O06g inventory
+
+Basic/Detail/Snapshot/Structure adapters and two adjustment queries now use one
+bounded binding, not another transaction controller. Existing executors and
+projectors remain authoritative; detailed evidence and failed baselines are in
+PROGRESS.
 
 - Outer protection is real: command service serializes validation, settlement
   and dispatch; mounted admission pins registered session/renderer/scope. Missing
   local checks alone do not establish an admission bypass.
-- Source-confirmed query clock mismatch: root queries stamp ImageDocument.revision
-  while expectedDocumentRevision uses DocumentSession.documentRevision. Processing-
-  only changes can advance just the latter. Read document, processing and query
-  stamp from one current snapshot of the registered session; retain distinct
-  authored layer/attachment revision semantics.
-- Basic/Detail/Snapshot history publishers currently retain the initial
-  `presented` choice. Replay must resolve current Properties ownership through
-  the existing synchronizer, not overwrite a later contextual panel because
-  it was visible at command time. History must remain valid after renderer rebind.
-- Still requires proof, not a claimed reproduced bug: global processing publishes
-  before history.record, outside document-mutation change. Exercise actual busy
-  history/reservation before choosing a repair. Never block legitimate undo/redo
-  by adding admission to the general processing publisher.
+- Query document/processing/stamp now use one registered session snapshot;
+  authored layer/attachment revisions remain distinct from the session clock.
+- Durable history retains its session, not the initial Properties choice or
+  renderer. Presentation resolves the live inspector through the synchronizer.
+- Actual busy/reserved history reproduced publication before failed record.
+  Changed semantic processing now checks admission before publication; replay
+  remains legal through busy history and genuine no-op commands remain valid.
+- Attached inspection publishes its requested child through admitted parent
+  selection, not an eager UI recipe competing with delayed parent values.
+  Workspace showPanel leaves already-visible selected content mounted.
 
 Scope excludes other command families and inactive capability expansion. No
 new queue, GPU work or pointer-frequency subscription is needed for this binding.

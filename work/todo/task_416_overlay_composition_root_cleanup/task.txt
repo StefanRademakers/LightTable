@@ -1,9 +1,9 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O05a.3 text-to-shape confirmation/runtime lifetime accepted;
-untouched active flow-formatting terminal repaired and packaged UI proof passed.
-Canonical checklist below is authoritative. Overlay5,658 physical lines;
-WebGpuEngine4,003. Neither endpoint is complete. Next: mounted adjustment commands.
+Status: in progress. O06g mounted adjustment commands and admitted attached
+inspector accepted, including workspace reveal focus-loss repair and repeated
+packaged proof. Canonical checklist below is authoritative. Overlay5,555 physical
+lines; WebGpuEngine4,003. Neither endpoint is complete. Next: selection commands.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
 
 Canonical checklist and execution contract:

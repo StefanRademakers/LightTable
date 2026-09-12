@@ -8,18 +8,19 @@ import { verifyAttachedGradeInspector } from './processing-rebind-attached-grade
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const output = path.join(root, 'tmp', 'processing-rebind');
-await mkdir(output, { recursive: true });
+const directory = path.join(root, 'tmp', 'processing-rebind');
+await mkdir(directory, { recursive: true });
+const output = await mkdtemp(path.join(directory, 'run-'));
 const profile = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: profile };
 delete environment.ELECTRON_RUN_AS_NODE;
-const report = { status: 'running', pageErrors: [], checks: [], timings: [] };
-let app;
+const report = { status: 'running', executablePath: launch.executablePath, pageErrors: [], checks: [], timings: [] };
+let app, page;
 try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: environment, timeout: 30_000 });
-  const page = await app.firstWindow();
+  page = await app.firstWindow();
   await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.show(); window.focus(); });
   page.on('pageerror', error => report.pageErrors.push(error.message));
   await waitForDesktopLauncher({ app, page, outputDirectory: output, sourceFile: null,
@@ -70,18 +71,44 @@ try {
   const a = await create('Processing A', '#805030');
   const originalA = await pixels(a);
   await driver.execute(a, 'grade.setBasic', { target: { kind: 'document' }, values: { exposureEV: 1 } });
+  const queryCurrentGrade = async (id, target) => {
+    const state = await driver.queryDocument(id);
+    const query = await driver.queryAdjustment(id, target, state.canonicalRevision);
+    assert.equal(query?.status, 'completed', JSON.stringify(query));
+    assert.equal(query.documentRevision, state.canonicalRevision,
+      'Adjustment queries must report the canonical session clock used for admission, including processing-only edits.');
+    return query;
+  };
+  const globalQuery = await queryCurrentGrade(a, { kind: 'document', owner: 'grade' });
+  report.checks.push({ kind: 'processing-only edit query clock', documentRevision: globalQuery.documentRevision });
   const documentGradeA = await pixels(a);
   assert.notDeepEqual(documentGradeA, originalA);
+  const b = await create('Processing B', '#206080');
+  await driver.execute(b, 'grade.setBasic', { target: { kind: 'document' }, values: { exposureEV: -1 } });
+  const gradedB = await pixels(b), beforeInactiveReplayB = await driver.queryDocument(b);
+  const beforeInactiveReplayA = await driver.queryDocument(a);
+  await assert.rejects(() => driver.execute(a, 'history.undo', {}), /unavailable through the current document owner/);
+  assert.equal((await driver.queryWorkspace()).activeDocumentId, b, 'Inactive history must not steal the active tab');
+  assert.deepEqual((await driver.queryDocument(a)).history, beforeInactiveReplayA.history);
+  assert.equal((await driver.queryDocument(a)).canonicalRevision, beforeInactiveReplayA.canonicalRevision);
+  assert.deepEqual((await driver.queryDocument(b)).history, beforeInactiveReplayB.history);
+  assert.equal((await driver.queryDocument(b)).canonicalRevision, beforeInactiveReplayB.canonicalRevision);
+  assert.deepEqual(await pixels(b), gradedB);
+  await activate(a);
+  assert.deepEqual(await pixels(a), documentGradeA, 'Rejected inactive replay must preserve exact pixels on rebind');
+  await driver.execute(a, 'history.undo', {});
+  assert.deepEqual(await pixels(a), originalA);
+  await driver.execute(a, 'history.redo', {});
+  assert.deepEqual(await pixels(a), documentGradeA);
+  report.checks.push('Inactive semantic Undo rejects without changing A/B; mounted Undo/Redo restores exact global processing after rebind.');
   const layer = (await driver.queryLayers(a))[0];
   await driver.execute(a, 'grade.setBasic', { target: { kind: 'layer', layerId: layer.id }, values: { exposureEV: -0.5 } });
   const combinedA = await pixels(a);
   assert.notDeepEqual(combinedA, documentGradeA);
-  const b = await create('Processing B', '#206080');
-  await driver.execute(b, 'grade.setBasic', { target: { kind: 'document' }, values: { exposureEV: -1 } });
-  const gradedB = await pixels(b);
   for (const id of [a, b, a, b, a]) {
     await activate(id);
     assert.deepEqual(await pixels(id), id === a ? combinedA : gradedB, 'Rebind changed processing pixels.');
+    await queryCurrentGrade(id, { kind: 'document', owner: 'grade' });
   }
   report.checks.push('Document/global and raster-local Grade remain isolated across real tab transitions.');
   await driver.execute(a, 'history.undo', {});
@@ -92,6 +119,8 @@ try {
   assert.deepEqual(await pixels(a), documentGradeA);
   await driver.execute(a, 'history.redo', {});
   assert.deepEqual(await pixels(a), combinedA);
+  await queryCurrentGrade(a, { kind: 'document', owner: 'grade' });
+  await queryCurrentGrade(a, { kind: 'layer', layerId: layer.id });
   report.checks.push('Retained processing history replays exact pixels after same-mounted-editor tab rebind.');
   // Local inspector must also follow the restored history, not an old binding's store.
   await page.getByRole('treeitem', { name: /Background/ }).click();
@@ -104,13 +133,22 @@ try {
   await page.waitForFunction(() => Number(document.querySelector('input[aria-label="Exposure"]')?.value) === -0.5);
   report.checks.push('Current local Exposure control follows undo/redo after rebind.');
   await page.getByRole('tab', { name: 'Properties', exact: true }).click();
-  report.checks.push(await verifyAttachedGradeInspector({ page, driver, documentId: a, layerId: layer.id, pixels }));
+  report.attachedDiagnostics = [];
+  report.checks.push(await verifyAttachedGradeInspector({ page, driver, documentId: a, layerId: layer.id, pixels,
+    diagnostics: report.attachedDiagnostics }));
+  const c = await create('Cross-parent inspector', '#805030');
+  const cLayer = (await driver.queryLayers(c))[0];
+  await driver.execute(c, 'grade.setBasic', { target: { kind: 'layer', layerId: cLayer.id }, values: { exposureEV: -0.5 } });
+  report.checks.push(await verifyAttachedGradeInspector({ page, driver, documentId: c, layerId: cLayer.id, pixels,
+    diagnostics: report.attachedDiagnostics, activateFromOtherLayer: true }));
   await page.screenshot({ path: path.join(output, 'final.png') });
   assert.deepEqual(report.pageErrors, []);
   report.status = 'passed';
   console.log(`Packaged processing rebind passed: ${output}`);
 } catch (error) {
-  report.status = 'failed'; report.error = error.stack ?? String(error); throw error;
+  report.status = 'failed'; report.error = error.stack ?? String(error);
+  if (page) await page.screenshot({ path: path.join(output, 'failure.png') });
+  throw error;
 } finally {
   await writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
   if (app) await app.close();

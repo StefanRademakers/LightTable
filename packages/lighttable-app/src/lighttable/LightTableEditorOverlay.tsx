@@ -56,13 +56,7 @@ import { GradeAssetCommandService } from './application/adjustments/GradeAssetCo
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import type { AdjustmentInteractionHandle } from './application/adjustments/AdjustmentInteractionCoordinator';
 import { useAdjustmentGestures } from './composition/adjustments/useAdjustmentGestures';
-import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
-import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
-import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
-import { executeSemanticGradePatch } from './application/adjustments/executeSemanticGradePatch';
-import { executeSemanticAdjustmentSnapshot } from './application/adjustments/executeSemanticAdjustmentSnapshot';
-import { executeSemanticProcessingStructure } from './application/adjustments/executeSemanticProcessingStructure';
-import { adjustmentTargetIsPresented } from './application/adjustments/adjustmentTargetIsPresented';
+import { createMountedAdjustmentCommandBinding } from './application/adjustments/MountedAdjustmentCommandBinding';
 import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
@@ -3346,8 +3340,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => processingBinding.getDocumentAdjustments(),
     mutateDocument: applyDocumentChange,
-    publishPanelAdjustments: (next) => {
-      publishAdjustmentPresentation(cloneAdjustments(next));
+    presentation: adjustmentPresentation,
+    getPropertiesTarget: () => propertiesTargetRef.current,
+    properties: propertiesPresentation,
+    reportError: setError,
+    captureSelectionScope: () => {
+      const session = documentSession, renderer = engineRef.current, scope = captureMountedInteractionScope();
+      return { isCurrent: () => Boolean(renderer && session && mountedDocumentSessionRef.current === session
+        && session.getSnapshot().lifecycle === 'ready' && scope.isCurrent()
+        && imageDocumentRef.current?.id === session.getSnapshot().document?.id) };
     },
     setPaintTarget: (activeChannel, brushColor) => {
       setEditorSession((current) => ({
@@ -3570,6 +3571,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const settleRegisteredInteraction = mountedDocumentAdmission.bindOwner(
       documentSession, registeredRenderer, captureMountedInteractionScope()
     );
+    const adjustmentCommands = createMountedAdjustmentCommandBinding({
+      session: documentSession, renderer: registeredRenderer, registration: captureMountedInteractionScope(),
+      getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
+      getProjectedDocument: () => imageDocumentRef.current,
+      isRendererReady: () => currentRendererLifecycleRef.current.getSnapshot().status === 'ready',
+      adjustments: adjustmentInteractions, structure: layerDocumentInteractions,
+      mutations: documentMutationController, projection: documentProjectionController, history: documentHistoryController
+    });
     const { waitForPresentation, ...layerFinalizationCommands } = createLayerFinalizationCommandBinding({
       captureScope: () => captureLayerFinalizationScope(documentSession, registeredRenderer, {
         getCurrentSession: () => mountedDocumentSessionRef.current,
@@ -3791,76 +3800,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeSubjectSelection: (command, signal, report) => (
         smartSelectionController.executeSubjectSelection(command, signal, report)
       ),
-      executeBasicAdjustmentCommand: (command) => {
-        adjustmentInteractions.finish();
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        const currentPropertiesTarget = propertiesTargetRef.current;
-        const presented = command.target.kind === 'document'
-          ? currentPropertiesTarget.kind === 'document-processing'
-            && currentPropertiesTarget.owner === 'grade'
-          : 'layerId' in currentPropertiesTarget
-            && currentPropertiesTarget.layerId === command.target.layerId
-            && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
-        return executeSemanticGradePatch({
-          document, documentAdjustments: processingBinding.getDocumentAdjustments(),
-          target: command.target, values: command.values,
-          historyType: 'adjustment.basic', historyLabel: 'Set Basic Grade',
-          mutate: (snapshot, values) => Object.assign(snapshot, values),
-          changeDocument: documentMutationController.change,
-          publishDocumentProcessing: (snapshot) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, null, 'grade', presented),
-          pushProcessingHistoryEntry: pushHistoryEntry
-        });
-      },
-      executeDetailAdjustmentCommand: (command) => {
-        adjustmentInteractions.finish();
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        const currentPropertiesTarget = propertiesTargetRef.current;
-        const presented = command.target.kind === 'document'
-          ? currentPropertiesTarget.kind === 'document-processing'
-            && currentPropertiesTarget.owner === 'grade'
-          : 'layerId' in currentPropertiesTarget
-            && currentPropertiesTarget.layerId === command.target.layerId
-            && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
-        return executeSemanticGradePatch({
-          document, documentAdjustments: processingBinding.getDocumentAdjustments(),
-          target: command.target, values: command.values,
-          historyType: 'adjustment.detail', historyLabel: 'Set Detail',
-          mutate: (snapshot, values) => Object.assign(snapshot.detail, values),
-          changeDocument: documentMutationController.change,
-          publishDocumentProcessing: (snapshot) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, null, 'grade', presented),
-          pushProcessingHistoryEntry: pushHistoryEntry
-        });
-      },
+      ...adjustmentCommands,
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
-      executeAdjustmentSnapshot: (command) => {
-        adjustmentInteractions.finish();
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        const currentTarget = propertiesTargetRef.current;
-        const presented = adjustmentTargetIsPresented(command.target, currentTarget);
-        return executeSemanticAdjustmentSnapshot({
-          document,
-          documentAdjustments: processingBinding.getDocumentAdjustments(),
-          target: command.target,
-          snapshot: command.snapshot,
-          changeDocument: documentMutationController.change,
-          publishDocumentProcessing: (snapshot, domain) => documentProjectionController
-            .applyAdjustmentSnapshot(snapshot, null, domain, presented),
-          pushProcessingHistoryEntry: pushHistoryEntry
-        });
-      },
-      executeProcessingStructure: (command) => {
-        adjustmentInteractions.finish();
-        commitLayerDocumentTransaction();
-        return executeSemanticProcessingStructure(command, {
-          changeDocument: documentMutationController.change
-        });
-      },
       executeRasterInvert: async (command) => {
         await settleMountedDocumentInteraction();
         return layerDocumentCommands.invertLayerColors(
@@ -3883,32 +3825,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         );
       },
       executeAutoAlign: (command, signal) => autoAlignController.execute(command, signal),
-      queryBasicAdjustments: (target) => {
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        const resolved = resolveBasicAdjustmentTarget(
-          document,
-          processingBinding.getDocumentAdjustments(),
-          target,
-          { allowLocked: true }
-        );
-        if ('message' in resolved) throw new Error(resolved.message);
-        const layer = resolved.targetLayerId
-          ? findDocumentLayer(document, resolved.targetLayerId)
-          : null;
-        return {
-          target,
-          documentRevision: document.revision,
-          targetRevision: layer?.revision ?? document.revision,
-          values: projectBasicAdjustmentValues(resolved.adjustments)
-        };
-      },
-      queryAdjustments: (target) => {
-        const document = imageDocumentRef.current;
-        if (!document) return null;
-        return projectAdjustmentQuery(workspaceDocumentId, document,
-          processingBinding.getDocumentAdjustments(), document.revision, target);
-      },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
           fontRegistry: textFontRegistry, documentMutations: documentMutationController,
@@ -4583,26 +4499,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onInspectProcessing={(layerId, owner) => {
         showProperties({ kind: 'processing', layerId, owner });
       }}
-      onInspectAttachedAdjustment={(layerId, adjustmentId) => {
-        const currentDocument = imageDocumentRef.current;
-        const layer = currentDocument
-          ? findDocumentLayer(currentDocument, layerId)
-          : null;
-        const adjustment = layer?.type === 'raster'
-          ? (layer.attachedAdjustments ?? []).find(({ id }) => id === adjustmentId)
-          : null;
-        if (adjustment) {
-          publishAdjustmentPresentation(
-            materializeBasicAdjustments(
-              adjustment.adjustmentStack,
-              undefined,
-              undefined,
-              true
-            )
-          );
-        }
-        showProperties({ kind: 'attached-processing', layerId, adjustmentId });
-      }}
+      onInspectAttachedAdjustment={layerPanelController.inspectAttachedAdjustment}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
         if (layerId) setIsolatedCompositeChannel(null);

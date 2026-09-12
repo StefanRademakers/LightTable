@@ -13,6 +13,7 @@ import React, {
   useState
 } from 'react';
 import { writeLightTableDocumentDrag } from './documentTabDrag';
+import { workspacePanelIsShown } from './workspacePanelIsShown';
 import {
   DockviewReact,
   type DockviewApi,
@@ -1133,6 +1134,9 @@ export const LightTableDockWorkspace = forwardRef<
     const api = apiRef.current;
     if (!api) return;
     let panel = api.getPanel(panelId);
+    // Dockview reattaches content on redundant setActive(), which drops a
+    // control focused after the inspector intent but before its deferred reveal.
+    if (workspacePanelIsShown(panel)) return;
     if (panel && !panel.group.api.isVisible) panel.group.api.setVisible(true);
     if (!panel) {
       const registration = panelsRef.current.find((candidate) => candidate.id === panelId);

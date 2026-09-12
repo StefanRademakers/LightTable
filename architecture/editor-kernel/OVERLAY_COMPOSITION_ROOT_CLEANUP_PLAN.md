@@ -9,12 +9,12 @@ not a new kernel migration or a rewrite of working domain algorithms. The
 [previous cut-over ledger](KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md) records
 earlier evidence; its checked boxes do not establish this plan's completion.
 
-Latest bounded acceptance: O05a.3 scoped text-to-shape confirmation and exact
-renderer lifetime, including truthful untouched flow-formatting terminal. Real
-Type menu/conversion/history and obsolete confirmation rejection pass. O07e
-Remove Object remains accepted with local-provider-fixture limits. Style-export
-repair and neutral-Curves precision debt remain recorded in Task416 PROGRESS.
-Root is 5,658 physical lines. Remaining target/GenAI/command families, cross-flow
+Latest bounded acceptance: O06g mounted adjustment commands and admitted attached
+inspector; repeated packaged immediate input, cross-parent, history and focus
+proof passes after workspace reveal idempotency repair. O05a.3 text conversion
+and O07e Remove Object remain accepted with their recorded evidence limits.
+Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
+Root is 5,555 physical lines. Remaining target/GenAI/command families, cross-flow
 evidence and O09 remain open.
 
 ## Result, scope and non-goals
@@ -340,6 +340,14 @@ class names: reuse existing owners before creating a new one.
     - [x] O06f.2: four finalization UI intents own text/admission/command outcomes;
       exact mounted source, supplied targets and existing contextual-row behavior.
       Critic PASS; real merge/flatten entries and exact PNG/history UndoRedo pass.
+  - [x] O06g: mounted adjustment command/query binding with canonical session
+    clocks, pre-publication busy admission and retained contextual history.
+    Removed parent-value writer and eager attached-inspector recipe. Scoped
+    attached parent selection publishes its child inspector at admission.
+    Critic PASS after repairs; packaged immediate same/cross-parent Exposure,
+    exact history pixels and focus survive three fresh-profile runs. Existing
+    workspace showPanel is idempotent for already-visible selected content;
+    no input delay or focus restoration. Canvas Shift adjacency also passes.
 - [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing

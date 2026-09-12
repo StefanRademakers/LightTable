@@ -22,6 +22,7 @@ export interface SemanticGradePatchOptions<TValues extends object> {
   readonly historyType: string;
   readonly historyLabel: string;
   readonly mutate: (snapshot: BasicAdjustments, values: TValues) => void;
+  readonly assertMutationAllowed: () => void;
   readonly changeDocument: DocumentMutationController['change'];
   readonly publishDocumentProcessing: (snapshot: BasicAdjustments) => void;
   readonly pushProcessingHistoryEntry: (entry: SemanticGradePatchHistoryEntry) => void;
@@ -36,6 +37,7 @@ export const executeSemanticGradePatch = <TValues extends object>({
   historyType,
   historyLabel,
   mutate,
+  assertMutationAllowed,
   changeDocument,
   publishDocumentProcessing,
   pushProcessingHistoryEntry
@@ -47,6 +49,7 @@ export const executeSemanticGradePatch = <TValues extends object>({
   const after = cloneAdjustments(before);
   mutate(after, values);
   if (JSON.stringify(before) === JSON.stringify(after)) return { target, values, changed: false };
+  assertMutationAllowed();
   if (resolved.targetLayerId) {
     const changed = changeDocument((currentDocument) => {
       const current = resolveBasicAdjustmentTarget(

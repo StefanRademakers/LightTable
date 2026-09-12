@@ -1475,21 +1475,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   : undefined}
                 onEnabled={onAttachedAdjustmentEnabled}
                 onActivate={(adjustmentId) => {
-                  onSelect(layer.id);
-                  onChannelChange('pixels');
                   onInspectAttachedAdjustment(layer.id, adjustmentId);
                 }}
                 onContextMenu={(event, adjustmentId) => {
-                  onSelect(layer.id);
-                  onChannelChange('pixels');
                   onInspectAttachedAdjustment(layer.id, adjustmentId);
                   openSubtargetMenu(event, {
                     kind: 'attached-processing', layerId: layer.id, adjustmentId
                   });
                 }}
                 onDragStart={(event, adjustmentId, label) => {
-                  onSelect(layer.id);
-                  onChannelChange('pixels');
                   onInspectAttachedAdjustment(layer.id, adjustmentId);
                   beginSubtargetDrag(
                     event,

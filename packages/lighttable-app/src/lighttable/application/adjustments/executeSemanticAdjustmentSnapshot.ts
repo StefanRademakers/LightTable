@@ -132,6 +132,7 @@ export const executeSemanticAdjustmentSnapshot = (options: {
   readonly documentAdjustments: BasicAdjustments;
   readonly target: AdjustmentQueryTarget;
   readonly snapshot: BasicAdjustments;
+  readonly assertMutationAllowed: () => void;
   readonly changeDocument: DocumentMutationController['change'];
   readonly publishDocumentProcessing: (
     snapshot: BasicAdjustments,
@@ -161,6 +162,7 @@ export const executeSemanticAdjustmentSnapshot = (options: {
   if (JSON.stringify(before) === JSON.stringify(after)) {
     return { target: options.target, changed: false };
   }
+  options.assertMutationAllowed();
   if (options.target.kind !== 'document') {
     const changed = options.changeDocument((currentDocument) => {
       const current = resolveOwner(
