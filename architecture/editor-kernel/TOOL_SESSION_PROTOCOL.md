@@ -12,8 +12,12 @@ history or GPU resources.
 2. Pointer movement emits monotonic preview values in document coordinates.
 3. Renderer projection displays the latest accepted preview directly; React is
    not in the pointer-frequency loop.
-4. Pointer-up requests one commit derived from baseline plus final intent.
-5. Escape, capture loss, document close or rejected revision requests cancel.
+4. The tool's declared terminal requests one commit from baseline plus final
+   intent. Ordinary strokes/shapes finish on pointer-up; Free Transform only
+   checkpoints its gizmo on pointer-up and commits on Enter or accepted tool exit.
+5. Escape, pointer cancellation, document retirement and rejected admission
+   follow the named owner's cancel/compensation protocol. OS blur alone is not
+   document retirement and must not silently discard a checkpointed transform.
 
 Auto-pan changes the viewport projection while the authored pointer continues
 in document space. Snapping evaluates stable candidates excluding the selected

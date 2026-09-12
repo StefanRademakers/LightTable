@@ -1,5 +1,18 @@
 # Task 416 progress
 
+## O08 — Bounded guidance correction (whole gate remains open)
+
+- Removed obsolete active-contract permission for legacy/kernel feature switches
+  and wording that an unprepared operation remains legacy. Only supported owners
+  may publish; unavailable operations fail explicitly.
+- Distinguished the public request/execution context from internal kernel
+  transaction envelopes. Corrected generic pointer-up/blur guidance to respect
+  Free Transform checkpoints and named terminal policies. Marked the S02 mask
+  ownership table explicitly historical, not current fallback guidance.
+- Independent documentation critic PASS after schema wording repair;
+  architecture documentation audit passed. No production code changed in this
+  correction. This is not the complete MD audit, source enforcement or O08 gate.
+
 ## O06c — Mounted layer command adapter (accepted)
 
 - Removed17-kind dispatch/settlement recipes from Overlay; named adapter invokes

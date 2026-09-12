@@ -28,9 +28,14 @@ fresh-destination finalization lifecycle; the menu is disabled and semantic
 UI/Action/MCP execution fails closed before allocating GPU work until that route
 is integrated without reintroducing two owners.
 
-## Current ownership map
+## Historical ownership map at S02 baseline
 
-| Concern | Current owner(s) | S02 target |
+This table records the starting defects, not supported extension paths. The
+kernel cut-over removed direct panel mutation fallbacks; current callers use
+the registered mask route. Follow the cut-over ledger and Task416 for current
+implementation evidence and remaining owner decomposition.
+
+| Concern | Baseline owner(s) | S02 target |
 | --- | --- | --- |
 | UI input | `LayerPanel`, editor menus, `BackgroundRemovalDialog` | input adaptation only |
 | semantic routing | `LightTableCommandService`, overlay command ports, plus direct panel fallbacks | one registered semantic route |

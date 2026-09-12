@@ -31,4 +31,5 @@ delta, never from the previously clipped preview.
 Canonical state changes only in the commit phase of one admitted semantic
 command. Projection callbacks may report measurement or execution results, but
 cannot directly publish document state or history. If an operation cannot
-prepare its complete document/history/resource effect, it remains legacy.
+prepare its complete document/history/resource effect, it is unavailable and
+must fail explicitly. There is no supported legacy mutation route.
