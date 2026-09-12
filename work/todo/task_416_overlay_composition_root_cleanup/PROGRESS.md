@@ -1,5 +1,45 @@
 # Task 416 progress
 
+## O05e.2 — Smart Selection lifetime (bounded slice accepted)
+
+- Prepared binding removes root backend/controller refs, deferred destruction
+  timer and independent invalidation effects. Exact session/renderer lifetime
+  is captured before source readback/inference; old requests cannot regain
+  authority after rebind. Root6,661 ->6,603 audit lines; ceiling lowered.
+- Focused tests/typecheck/source review passed, but actual packaged Select
+  Subject FAILED: inference produced a high-confidence opaque candidate, then
+  commit was rejected and no committed overlay appeared. Evidence retained in
+  tmp/object-selection-smoke/kernel-subject-report.json. This failed run was
+  retained and investigated before acceptance.
+- Diagnostic rerun proved a mixed-clock check in WebGpuEngine: source and renderer
+  ImageDocument revisions were compared against the kernel's DocumentSession
+  invalidation stamp. The source now compares with the actual image revision;
+  exact renderer and kernel address guards remain. Actual service/engine guard
+  regression uses different clocks and preserves stale-content rejection. Final
+  packaged Select Subject/Actions/undo/replay, Rectangle and selection-kernel gates
+  pass. Correct contours visually inspected. Reports under object-selection-smoke:
+  kernel-subject-fixed, kernel-subject-lifetime, kernel-rectangle-control. Original
+  failed and diagnostic reports retained separately; no silent retry.
+- Lifetime gate starts selection then immediately changes tool/tab. Both documents
+  retain their baseline revision/history during the5s observed aftermath; secondary
+  still matches after the entire subsequent inference/Actions replay. This is real
+  timing, not a forced race; deferred races are covered in source tests. Cold
+  Select Subject13.25s and rebound warm2.23s include inference/model costs, not UI
+  input latency. Rectangle's old native-select harness was updated to the actual
+  shared combobox; no product control change.
+- Final source critic PASS, main32 focused controller/binding/actual-engine-guard
+  tests, boundary and structure checks pass. GPU regression belongs under GPU
+  tests, not an application-layer engine import. Temporary diagnostics removed.
+  Typecheck passed at Smart integration; current sole error is the separately
+  prepared layer adapter's required boolean return, to be integrated next.
+- Critic sizing decision: retain the existing605-line tool controller under an
+  explicit no-growth limit for this cutover. It owns one async tool interaction,
+  not UI/document/history. Next genuine decomposition is the complete source/
+  inference session (readback, prepared embedding, deduplication and disposal),
+  coupled to global-processing source freshness—not arbitrary helper splitting.
+- Global-processing source-key freshness remains a separate known gap; no
+  claim of complete Smart Selection correctness from lifetime guards alone.
+
 ## O02c.3a — File intent and terminal ownership (bounded slice accepted)
 
 - DocumentFileIntents owns request-time session/renderer admission and named

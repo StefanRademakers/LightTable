@@ -1513,12 +1513,13 @@ export class WebGpuEngine {
   ) {
     return this.prepareSelectionProjection(
       'shape', (renderer) => {
-        const [address, , intent] = parameters;
+        const [, , intent] = parameters;
         if ('mask' in intent) {
           const source = intent.provenance.source;
+          // Provenance follows ImageDocument content revision. The kernel address
+          // carries the independent session invalidation clock, checked by its owner.
           if (source?.kind !== 'object-selection'
-            || source.documentRevision !== address.revision
-            || this.imageDocument?.revision !== address.revision) {
+            || source.documentRevision !== this.imageDocument?.revision) {
             throw new Error('The Object Selection result is no longer current.');
           }
         }

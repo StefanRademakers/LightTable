@@ -261,6 +261,13 @@ class names: reuse existing owners before creating a new one.
     observation. Deleted duplicate canonical publication port. Exact canonical
     activity fixes painted-selection Delete routing. Critic PASS after disposal
     guard;57 tests and packaged selection/Delete/real-marquee Actions replay pass.
+  - [x] O05e.2: Smart Selection exact runtime/request lifetime and thin root
+    binding. Critic PASS; actual Select Subject exposed a mixed revision-domain
+    WebGPU guard, repaired with distinct-clock regression. Packaged subject,
+    Actions/undo/replay, tool/tab retirement, Rectangle and selection-kernel pass.
+  - [ ] O05e.3: complete Smart source/inference owner with render-content cache
+    freshness, including global processing. Current605-line controller has an
+    explicit no-growth exception; extract ownership, not arbitrary helpers.
 - [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not

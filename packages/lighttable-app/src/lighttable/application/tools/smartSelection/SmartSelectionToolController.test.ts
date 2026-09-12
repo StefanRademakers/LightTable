@@ -36,22 +36,152 @@ const harness = () => {
   };
   const options = createDefaultSmartSelectionOptions();
   const setDraft = vi.fn();
+  const setStatus = vi.fn();
+  const onPreparationChange = vi.fn();
+  let runtime = {};
   const onSelectionCommitted = vi.fn();
   const controller = new SmartSelectionToolController({
+    captureScope: () => {
+      const opening = runtime;
+      return { isCurrent: () => runtime === opening };
+    },
     getDocument: () => document,
     getRenderer: () => renderer,
     isRendererReady: () => true,
     getOptions: () => options,
     selection: { rasterMask } as unknown as SelectionSessionController,
-    setStatus: vi.fn(),
+    setStatus,
+    onPreparationChange,
     setDraft,
     onSelectionCommitted
   }, backend);
   return { backend, controller, document, options, rasterMask, renderer, setDraft,
-    onSelectionCommitted };
+    onSelectionCommitted, setStatus, onPreparationChange,
+    replaceRuntime: () => { runtime = {}; } };
 };
 
 describe('SmartSelectionToolController', () => {
+  it.each(['subject', 'hover', 'point'] as const)('suppresses obsolete %s worker failures after a document revision changes', async kind => {
+    const host = harness();
+    let reject!: (reason: unknown) => void;
+    const inference = kind === 'subject' ? host.backend.selectSubject! : host.backend.selectPrompt;
+    vi.mocked(inference).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const pending = kind === 'subject' ? host.controller.selectSubject() : null;
+    if (kind === 'hover') host.controller.hover({ x: 3, y: 2 });
+    if (kind === 'point') host.controller.selectPoint({ x: 3, y: 2 }, 'replace');
+    await vi.waitFor(() => expect(inference).toHaveBeenCalledOnce());
+    host.document.revision += 1; host.setStatus.mockClear();
+    reject(new Error('Old inference failure'));
+    if (pending) await expect(pending).resolves.toBe(false);
+    else { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
+    expect(host.setStatus).not.toHaveBeenCalled();
+    expect(host.rasterMask).not.toHaveBeenCalled();
+  });
+
+  it('suppresses interactive target-switch failure without constraining explicit semantic targets', async () => {
+    const host = harness();
+    let reject!: (reason: unknown) => void;
+    vi.mocked(host.backend.selectPrompt).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    host.controller.hover({ x: 3, y: 2 });
+    await vi.waitFor(() => expect(host.backend.selectPrompt).toHaveBeenCalledOnce());
+    host.document.activeLayerId = null; host.setStatus.mockClear();
+    reject(new Error('Old target failure'));
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(host.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('rechecks source revision after worker preparation before publishing readiness', async () => {
+    const host = harness();
+    let release!: (value: Awaited<ReturnType<SmartSelectionBackend['prepare']>>) => void;
+    vi.mocked(host.backend.prepare).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const pending = host.controller.prepare();
+    await vi.waitFor(() => expect(host.backend.prepare).toHaveBeenCalledOnce());
+    const source = vi.mocked(host.backend.prepare).mock.calls[0]![0];
+    host.document.revision += 1; host.onPreparationChange.mockClear();
+    release({ id: 'old', sourceKey: source.key, documentRevision: source.documentRevision,
+      width: source.width, height: source.height });
+    await expect(pending).resolves.toBe(false);
+    expect(host.onPreparationChange).not.toHaveBeenCalled();
+  });
+
+  it('rejects hover feedback when pixels change during inference before effect invalidation', async () => {
+    const host = harness();
+    let release!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(host.backend.selectPrompt).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    host.controller.hover({ x: 3, y: 2 });
+    await vi.waitFor(() => expect(host.backend.selectPrompt).toHaveBeenCalledOnce());
+    host.document.revision += 1;
+    release([{ id: 'old', score: 1, mask }]);
+    await Promise.resolve(); await Promise.resolve();
+    expect(host.renderer.setSmartSelectionPreview).not.toHaveBeenCalled();
+    expect(host.rasterMask).not.toHaveBeenCalled();
+  });
+
+  it.each(['invalidate', 'runtime'] as const)('rejects %s retirement before readback can enter the worker gate', async (kind) => {
+    const host = harness();
+    let release!: (value: Blob) => void;
+    host.renderer.exportPng.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const pending = host.controller.prepare();
+    if (kind === 'invalidate') host.controller.invalidate();
+    else host.replaceRuntime();
+    host.setStatus.mockClear(); host.onPreparationChange.mockClear();
+    release(new Blob(['old']));
+    await expect(pending).resolves.toBe(false);
+    expect(host.backend.prepare).not.toHaveBeenCalled();
+    expect(host.onPreparationChange).not.toHaveBeenCalled();
+    expect(host.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not publish retired readback failures or clear a newer equal-key preparation', async () => {
+    const host = harness();
+    let rejectOld!: (reason: unknown) => void;
+    let releaseNew!: (value: Blob) => void;
+    host.renderer.exportPng.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+    const old = host.controller.prepare();
+    host.controller.invalidate();
+    host.renderer.exportPng.mockImplementationOnce(() => new Promise(resolve => { releaseNew = resolve; }));
+    const current = host.controller.prepare();
+    host.setStatus.mockClear(); host.onPreparationChange.mockClear();
+    rejectOld(new Error('Retired GPU readback'));
+    await expect(old).resolves.toBe(false);
+    const joined = host.controller.prepare();
+    expect(host.renderer.exportPng).toHaveBeenCalledTimes(2);
+    expect(host.setStatus).not.toHaveBeenCalled();
+    expect(host.onPreparationChange).not.toHaveBeenCalled();
+    releaseNew(new Blob(['new']));
+    await expect(current).resolves.toBe(true);
+    await expect(joined).resolves.toBe(true);
+    expect(host.backend.prepare).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an equal-ID runtime successor during inference without preview, commit or observation', async () => {
+    const host = harness();
+    let release!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(host.backend.selectSubject!).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const pending = host.controller.selectSubject();
+    await vi.waitFor(() => expect(host.backend.selectSubject).toHaveBeenCalledOnce());
+    host.replaceRuntime(); host.setStatus.mockClear();
+    release([{ id: 'old', score: 1, mask }]);
+    await expect(pending).resolves.toBe(false);
+    expect(host.renderer.setSmartSelectionPreview).not.toHaveBeenCalled();
+    expect(host.rasterMask).not.toHaveBeenCalled();
+    expect(host.onSelectionCommitted).not.toHaveBeenCalled();
+    expect(host.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not release a committed preview through a retired renderer', async () => {
+    const host = harness();
+    let release!: (value: boolean) => void;
+    host.rasterMask.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const pending = host.controller.selectSubject();
+    await vi.waitFor(() => expect(host.rasterMask).toHaveBeenCalledOnce());
+    host.replaceRuntime(); host.renderer.setSmartSelectionPreview.mockClear();
+    release(true);
+    await expect(pending).resolves.toBe(false);
+    expect(host.renderer.setSmartSelectionPreview).not.toHaveBeenCalled();
+    expect(host.onSelectionCommitted).not.toHaveBeenCalled();
+  });
+
   it('keeps an Object Finder point interaction local to the tool owner', async () => {
     const { backend, controller, rasterMask, renderer, onSelectionCommitted } = harness();
     expect(controller.selectPoint({ x: 3, y: 2 }, 'add')).toBe(true);

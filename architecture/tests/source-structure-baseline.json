@@ -6,12 +6,21 @@
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
       "baselineLines": 9023,
-      "maxLines": 6661,
+      "maxLines": 6603,
       "classification": "mixed-authority",
       "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
       "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],
       "productRisk": "high",
       "decision": "C14 moved Layers-panel command/gesture lifetime and Text-properties transaction/preview lifetime to dedicated application owners. The remaining high-risk composition root has a lower hard ceiling; every touched family must continue removing a complete owner."
+    },
+    "packages/lighttable-app/src/lighttable/application/tools/smartSelection/SmartSelectionToolController.ts": {
+      "baselineLines": 549,
+      "maxLines": 605,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["Smart Selection interaction", "source/inference request lifetime", "scoped candidate preview and selection commit"],
+      "lifecycleOwners": ["mounted tool runtime", "exact inference request", "source preparation and candidate preview lease"],
+      "productRisk": "high",
+      "decision": "Task416 O05e.2 critic-reviewed soft-limit exception: added exact lifetime guards do not add UI/document/history authority. No further growth. Next coherent decomposition moves the complete source/inference lifetime with global-processing freshness; do not mechanically split prepareSource away from shared invalidation/disposal."
     },
     "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": {
       "baselineLines": 3921,

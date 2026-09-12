@@ -3,6 +3,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2]
@@ -10,6 +11,7 @@ const sourceFile = path.resolve(process.argv[2]
 const interactionMode = process.argv.includes('--subject') ? 'subject'
   : process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
 const refineNegative = process.argv.includes('--negative');
+const lifetimeMode = process.argv.includes('--lifetime');
 const optionValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
@@ -82,28 +84,88 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
 
+  const enterObjectSelection = async () => {
+    const group = page.locator('[data-tool-group="Smart selection tools"]');
+    await group.locator(':scope > button').click();
+    await group.locator('.ui-toolbar__flyout').getByRole('button', { name: /^Object Selection/ }).click();
+    await page.locator('[aria-label="Object Selection settings"]:visible').waitFor();
+  };
+  let lifetimeEvidence;
+  if (lifetimeMode) {
+    const driver = await attachLightTableAutomation(page, 'object-selection-lifetime');
+    const originalId = (await driver.queryWorkspace()).activeDocumentId;
+    if (!originalId) throw new Error('Lifetime probe has no opening document.');
+    const secondary = await driver.executeWorkspace('document.create', {
+      name: 'Object Selection lifetime secondary', width: 64, height: 64, resolutionPpi: 72,
+      bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
+    });
+    const secondaryId = secondary.value?.documentId;
+    if (!secondaryId) throw new Error(`Lifetime secondary failed: ${JSON.stringify(secondary)}`);
+    await driver.waitForReadyDocument(secondaryId);
+    const activateTab = async id => {
+      const workspace = await driver.queryWorkspace();
+      const index = workspace.documents.findIndex(document => document.id === id);
+      if (index < 0) throw new Error(`Lifetime tab ${id} is unavailable.`);
+      await page.locator('.ui-document-tabs__tab').nth(index).locator('.ui-document-tabs__title').click();
+      await driver.waitForReadyDocument(id);
+    };
+    await activateTab(originalId);
+    await enterObjectSelection();
+    const subject = page.locator('[aria-label="Object Selection settings"]:visible')
+      .getByRole('button', { name: 'Select Subject' });
+    await subject.waitFor({ state: 'visible', timeout: 120_000 });
+    const before = { original: await driver.queryDocument(originalId),
+      secondary: await driver.queryDocument(secondaryId) };
+    await page.evaluate(() => {
+      globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ = [];
+      globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__ = [];
+    });
+    await subject.click();
+    await page.getByRole('button', { name: 'Transform (V)', exact: true }).click();
+    await activateTab(secondaryId);
+    // Real UI timing, not a forced backend race. Deferred races are separately
+    // covered by owner tests; this checks the retired result's visible aftermath.
+    const observationWindowMs = 5_000;
+    await page.waitForTimeout(observationWindowMs);
+    const after = { original: await driver.queryDocument(originalId),
+      secondary: await driver.queryDocument(secondaryId) };
+    const trace = await page.evaluate(() => ({
+      smart: globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__,
+      overlay: globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__
+    }));
+    for (const name of ['original', 'secondary']) {
+      if (after[name].canonicalRevision !== before[name].canonicalRevision
+        || after[name].history.currentStateId !== before[name].history.currentStateId
+        || after[name].history.undoDepth !== before[name].history.undoDepth) {
+        throw new Error(`Retired Select Subject mutated ${name}: ${JSON.stringify({ before, after, trace })}`);
+      }
+    }
+    if (trace.smart.some(entry => entry.event === 'committed')
+      || trace.overlay.some(entry => entry.maskActive && entry.sourceKind === 'object-selection')) {
+      throw new Error(`Retired Select Subject published a selection: ${JSON.stringify(trace)}`);
+    }
+    lifetimeEvidence = { before, after, trace, observationWindowMs, forcedDelay: false };
+    await activateTab(originalId);
+    await page.getByRole('button', { name: 'Transform (V)', exact: true }).click();
+    // Continue the ordinary inference/Actions/undo/replay proof on the rebound original.
+  }
+
   await page.getByRole('menuitem', { name: 'View' }).click();
   await page.getByRole('menuitem', { name: 'Actions panel' }).click();
   const actionsPanel = page.getByRole('complementary', { name: 'Actions' });
   const recorder = actionsPanel.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
 
-  const smartSelectionGroup = page.locator('[data-tool-group="Smart selection tools"]');
-  await smartSelectionGroup.locator(':scope > button').click();
-  const objectButton = smartSelectionGroup.locator('.ui-toolbar__flyout')
-    .getByRole('button', { name: /^Object Selection/ });
-  await objectButton.waitFor({ state: 'visible' });
-  await objectButton.click();
+  await enterObjectSelection();
   const objectSelectionSettings = page.locator('[aria-label="Object Selection settings"]:visible');
   await objectSelectionSettings.waitFor({ state: 'visible' });
   if (interactionMode === 'rectangle') {
     const modeSelect = objectSelectionSettings.getByLabel('Object Selection mode');
-    await modeSelect.selectOption('rectangle');
-    await modeSelect.evaluate((select) => {
-      if (!(select instanceof HTMLSelectElement) || select.value !== 'rectangle') {
-        throw new Error('The visible Object Selection mode control did not enter Rectangle mode.');
-      }
-    });
+    await modeSelect.click();
+    await page.getByRole('option', { name: 'Rectangle', exact: true }).click();
+    if (!(await modeSelect.textContent())?.includes('Rectangle')) {
+      throw new Error('The visible Object Selection mode control did not enter Rectangle mode.');
+    }
     await page.waitForTimeout(250);
   }
 
@@ -257,7 +319,19 @@ try {
       `Object Selection produced an excessively translucent mask: ${JSON.stringify(finalCoverage)}`
     );
   }
+  if (lifetimeEvidence) {
+    const driver = await attachLightTableAutomation(page, 'object-selection-lifetime-final');
+    const before = lifetimeEvidence.before.secondary;
+    const after = await driver.queryDocument(before.id);
+    if (!after || after.canonicalRevision !== before.canonicalRevision
+      || after.history.currentStateId !== before.history.currentStateId
+      || after.history.undoDepth !== before.history.undoDepth) {
+      throw new Error(`Retired Select Subject mutated the secondary during fresh inference/replay: ${JSON.stringify({ before, after })}`);
+    }
+    lifetimeEvidence.afterNormalInferenceAndReplay = { secondary: after };
+  }
   const report = {
+    passed: true, lifetimeEvidence,
     caseName, sourceFile, backendProfile, observedModelIds,
     interactionMode, refineNegative, clickXRatio, clickYRatio,
     visibleCommitMs, finalCoverage, selectionTrace, smartSelectionTrace, pageErrors,
@@ -276,6 +350,7 @@ try {
     backendProfile,
     interactionMode,
     refineNegative,
+    lifetimeMode,
     clickXRatio,
     clickYRatio,
     passed: false,

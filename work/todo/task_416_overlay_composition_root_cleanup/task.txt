@@ -39,8 +39,11 @@ O03c.4 canonical revision authority repaired after real preview-cache failure.
 Full app4220 tests, critic and packaged Face Warp/transform/selection pass.
 O06a clipboard host/Cut, O05e.1 selection host/observation and O06b transactional
 SVG import are accepted with independent review and packaged pixel/history proof.
-Current work: O02c.3 file prerequisites and truthful terminal/delivery outcomes;
-Smart Selection lifetime is prepared but not yet integrated or accepted.
+O02c.3a file prerequisites and truthful terminal/delivery outcomes are accepted.
+O05e.2 Smart Selection lifetime and the exposed GPU revision-domain guard repair
+are accepted with subject/Rectangle/Actions/rebind and selection-kernel proof.
+Next: prepared O06c layer command adapter; O05e.3 complete source/inference owner
+and global-processing source freshness remain open.
 O02c host/target policy and wider O03/O05/O06/O07/O08 remain open.
 The renderer telemetry revision
 was not a render-submission stamp and was removed; O08 must add truthful frame

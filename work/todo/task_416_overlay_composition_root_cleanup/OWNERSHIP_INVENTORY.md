@@ -1,5 +1,13 @@
 # Overlay ownership inventory
 
+O05e.2 accepted: Smart tool source/inference requests and preview leases pin exact
+session/renderer/lifecycle before async work. Thin hook owns mounted subscription/
+StrictMode disposal; old root refs/timer/invalidation deleted. Real subject commit
+exposed and repaired the GPU's comparison of unrelated revision clocks. Root6,603
+audit lines, source critic and packaged subject/Rectangle/Actions/rebind/selection
+pass. Explicit605-line controller ceiling: next extraction owns complete source/
+inference lifetime together with global-processing freshness (O05e.3).
+
 O02c.3a accepted: DocumentFileIntents owns scoped file preparation policy;
 existing text/layer/adjustment owners expose actual terminal outcomes, not a
 second transaction queue. Lower delivery captures original host/UI callbacks

@@ -93,15 +93,7 @@ import { useLayerDocumentInteractionOwner } from './application/layers/useLayerD
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import type { PaintBrushStrokePlan } from './editor/tools/paint/sampledBrushTypes';
-import { SmartSelectionToolController } from './application/tools/smartSelection/SmartSelectionToolController';
-import type {
-  SmartSelectionBackendIdentity,
-  SmartSelectionPreparationState
-} from './application/tools/smartSelection/SmartSelectionBackend';
-import {
-  configuredSmartSelectionBackendProfile,
-  createSmartSelectionBackend
-} from './application/tools/smartSelection/smartSelectionBackendFactory';
+import { useSmartSelectionBinding } from './composition/selection/useSmartSelectionBinding';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { layerStyleSnapshot } from './application/styles/completeLayerStyleSnapshot';
 import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
@@ -2091,69 +2083,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onMagicWandCommitted: selectionHost.observation.magicWand,
     onPaintCommitted: selectionHost.observation.paint
   }, selectionGestureRef.current);
-  const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
-  const smartSelectionBackendRef = useRef<ReturnType<typeof createSmartSelectionBackend> | null>(null);
-  smartSelectionBackendRef.current ??= createSmartSelectionBackend(configuredSmartSelectionBackendProfile());
-  const [smartSelectionBackendIdentity, setSmartSelectionBackendIdentity] =
-    useState<SmartSelectionBackendIdentity>(smartSelectionBackendRef.current.identity);
-  const [smartSelectionPreparation, setSmartSelectionPreparation] =
-    useState<SmartSelectionPreparationState>({ phase: 'idle' });
-  smartSelectionControllerRef.current ??= new SmartSelectionToolController({
-    getDocument: () => imageDocumentRef.current,
-    getRenderer: () => engineRef.current,
-    isRendererReady: () => rendererLifecycle.getSnapshot().status === 'ready',
+  const { controller: smartSelectionController, backendIdentity: smartSelectionBackendIdentity,
+    preparation: smartSelectionPreparation } = useSmartSelectionBinding({
+    session: documentSession, renderer: engineRef.current, lifecycle: rendererLifecycle,
+    generation: rendererSnapshot.generation, ready: rendererSnapshot.status === 'ready',
+    sourceReady: Boolean(imageDocument && thumbnailDocumentReadyId === imageDocument.id),
+    enabled: editorSession.activeTool === 'select-object', document: imageDocument,
+    sampleAllLayers: editorSession.smartSelection.sampleAllLayers
+  }, {
+    selection: selectionSessionController, commands: commandService,
     getOptions: () => editorSessionRef.current.smartSelection,
-    selection: selectionSessionController,
-    setStatus: setGradeStatus,
-    setDraft: setSelectionDraft,
-    onBackendIdentityChange: setSmartSelectionBackendIdentity,
-    onPreparationChange: setSmartSelectionPreparation,
-    onSelectionCommitted: (parameters, result) => commandService.recordObservedCommand(
-      'selection.selectSubject',
-      workspaceDocumentId as DocumentSessionId,
-      parameters,
-      result
-    ) ?? false
-  }, smartSelectionBackendRef.current);
-  const smartSelectionController = smartSelectionControllerRef.current;
-  const smartSelectionDisposeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    // React development strict effects run setup -> cleanup -> setup without
-    // recreating this ref-owned controller. Defer disposal by one task so the
-    // second setup can retain the live worker; a real unmount still disposes it.
-    if (smartSelectionDisposeTimerRef.current) {
-      clearTimeout(smartSelectionDisposeTimerRef.current);
-      smartSelectionDisposeTimerRef.current = null;
-    }
-    return () => {
-      smartSelectionDisposeTimerRef.current = setTimeout(() => {
-        smartSelectionController.dispose();
-        smartSelectionDisposeTimerRef.current = null;
-      }, 0);
-    };
-  }, [smartSelectionController]);
-  useEffect(() => {
-    smartSelectionController.invalidate();
-    if (editorSession.activeTool !== 'select-object') return;
-    setSmartSelectionPreparation({
-      phase: 'preparing',
-      message: 'Loading Object Selection model…'
-    });
-    if (rendererSnapshot.status !== 'ready'
-      || !imageDocument
-      || thumbnailDocumentReadyId !== imageDocument.id) return;
-    void smartSelectionController.prepare();
-    return () => smartSelectionController.clearPreview();
-  }, [
-    editorSession.activeTool,
-    editorSession.smartSelection.sampleAllLayers,
-    imageDocument?.activeLayerId,
-    imageDocument?.id,
-    imageDocument?.revision,
-    rendererSnapshot.status,
-    smartSelectionController,
-    thumbnailDocumentReadyId
-  ]);
+    setStatus: setGradeStatus, setDraft: setSelectionDraft,
+    captureRendererScope: captureMountedInteractionScope
+  });
 
   const readAdjustmentContext = (document: ImageDocument | null = imageDocumentRef.current,
     target: PropertiesInspectorTarget = propertiesTargetRef.current) =>
