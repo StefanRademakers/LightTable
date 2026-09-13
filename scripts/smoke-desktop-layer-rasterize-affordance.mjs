@@ -47,21 +47,29 @@ try {
   if (!sourceLayer) throw new Error('The fixture has no raster layer.');
 
   const observations = [];
-  const footerPlacement = await page.locator('.lighttable-layers-panel').evaluate((panel) => {
+  const readFooterPlacement = () => page.locator('.lighttable-layers-panel').evaluate((panel) => {
     const footer = panel.querySelector('.lighttable-layers__footer');
     if (!(footer instanceof HTMLElement)) throw new Error('Layers footer is unavailable.');
+    const host = panel.closest('.dv-content-container');
+    if (!(host instanceof HTMLElement)) throw new Error('Layers Dockview host is unavailable.');
     const panelBounds = panel.getBoundingClientRect();
+    const hostBounds = host.getBoundingClientRect();
     const footerBounds = footer.getBoundingClientRect();
     return {
+      hostBottom: hostBounds.bottom,
       panelBottom: panelBounds.bottom,
       footerBottom: footerBounds.bottom,
-      bottomGap: panelBounds.bottom - footerBounds.bottom
+      bottomGap: hostBounds.bottom - footerBounds.bottom
     };
   });
-  observations.push({ label: 'footer-bottom-alignment', ...footerPlacement });
-  if (Math.abs(footerPlacement.bottomGap) > 1) {
-    throw new Error(`Layers footer is not bottom-aligned: ${JSON.stringify(footerPlacement)}`);
-  }
+  const assertFooterPlacement = async (label) => {
+    const footerPlacement = await readFooterPlacement();
+    observations.push({ label, ...footerPlacement });
+    if (Math.abs(footerPlacement.bottomGap) > 1) {
+      throw new Error(`Layers footer is not bottom-aligned: ${JSON.stringify(footerPlacement)}`);
+    }
+  };
+  await assertFooterPlacement('footer-bottom-alignment');
   const canvas = page.locator('.lighttable-viewport__canvas');
   const comparePixels = async (before, after) => {
     const left = await sharp(before).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -428,6 +436,7 @@ try {
     restoredLayerTypes: [restoredBase.type, restoredAdjustment.type]
   });
 
+  await assertFooterPlacement('footer-bottom-alignment-after-layer-growth');
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(reportPath, `${JSON.stringify({
     sourceFile,

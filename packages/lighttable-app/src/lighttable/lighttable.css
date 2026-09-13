@@ -762,6 +762,14 @@
   min-height: 0;
 }
 
+/* Dockview gives dv-react-part the available height, but its anonymous React
+ * mount element remains content-sized. Bridge that host only for Layers; the
+ * shared UI PanelFooter stays feature-agnostic. */
+.lighttable-dock-workspace .dv-react-part:has(.lighttable-layers-panel) > div {
+  height: 100%;
+  min-height: 0;
+}
+
 /*
  * A centre drop on the document surface detaches a panel. Keep Dockview's
  * hit-testing untouched, but present that action as a compact floating-panel
