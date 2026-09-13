@@ -165,7 +165,6 @@ export interface EditorMenuCommands {
   showAiHistoryPanel?: () => void;
   connectOpenArtProvider?: () => void;
   disconnectOpenArtProvider?: () => void;
-  openStyleGuide?: () => void;
   reloadUi?: () => void;
   toggleDeveloperTools?: () => void;
   resetWorkspaceLayout: () => void;
@@ -965,9 +964,7 @@ export const createEditorMenuOptions = (
       { value: 'toggle-developer-tools', label: 'Toggle Developer Tools',
         onClick: commands.toggleDeveloperTools, disabled: !commands.toggleDeveloperTools },
       { value: 'show-debug-panel', label: 'Open Debug panel', separatorBefore: true,
-        onClick: commands.showDebugPanel },
-      { value: 'ui-style-guide', label: 'Open UI Style Guide',
-        onClick: commands.openStyleGuide, disabled: !commands.openStyleGuide }
+        onClick: commands.showDebugPanel }
     ];
   }
 
@@ -1091,11 +1088,6 @@ export const createEditorMenuOptions = (
       value: 'show-debug-panel',
       label: 'Debug panel',
       onClick: commands.showDebugPanel
-    }]),
-    ...(commands.openStyleGuide ? [{
-      value: 'ui-style-guide',
-      label: 'UI Style Guide...',
-      onClick: commands.openStyleGuide
-    }] : [])
+    }])
   ];
 };

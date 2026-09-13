@@ -543,9 +543,10 @@ Relevant code:
 
 ## Control, binding and evaluator gap audit
 
-The Style Guide specimens prove that LightTable can compose the visible shape
-of every current Photoshop adjustment from shared controls. That is different
-from having a production editor and an exact evaluator. Use these terms:
+The retired embedded specimens established that shared controls could compose
+the visible shape of every current Photoshop adjustment. They are no longer a
+current acceptance oracle: the production app is the binding/integration truth
+and `apps/ui-demo` catalogs only reusable package primitives. Use these terms:
 
 - **Control**: a reusable visual primitive already exists.
 - **Binding**: a production panel reads/writes a typed stack module with
@@ -584,7 +585,7 @@ Assessment:
   controls, not new primitives.
 - Roughly half the families can already produce a useful native LightTable
   result, but only Curves and Gradient Map currently approach a complete
-  type-specific editing path. A Style Guide specimen is not a production
+  type-specific editing path. A package component specimen is not a production
   binding.
 - The largest parity gap is evaluator semantics and edited PSD export, not CSS
   or control availability.
@@ -758,7 +759,7 @@ Curves
 
 Reuse `AdjustmentSlider`, `CurvesEditor`, `GradientAssetEditor`,
 `SegmentedControl`, standard selects, switches and color swatches. Add new
-controls to the UI Style Guide before using them in an adjustment panel.
+controls to the standalone package catalog before using them in an adjustment panel.
 
 ## Necessary enabling work
 

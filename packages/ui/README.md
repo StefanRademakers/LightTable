@@ -37,6 +37,15 @@ does not fix the document root size; user font scaling and browser zoom remain a
 - Apps choose variant, weight and tone. Do not override typography with local
   font-size/weight/family declarations. App CSS may arrange components, not skin them.
 - `data-ui-theme="dark"` or `"light"` defines a scoped theme. Nested scopes work.
+
+Editor chrome is also package-owned. `EditorChrome`, `EditorChromeHeader`,
+`EditorMenuBarSurface`, `EditorToolOptionsBar`, `EditorChromeBody` and the
+`EditorStatus*` family define reusable photo/video/layout shell geometry and
+theme surfaces. `EditorPanelSurface` supplies the common full-height surface
+for docked and floating accessory panels. Hosts supply menus, tools, panels, workspace choices and status
+values; the package never imports a document, command, renderer or docking
+model. A docking adapter may map its own variables to the editor tokens, but
+must not create another palette.
   On the document root it supplies tokens only, leaving the host's root font
   size and unmigrated UI untouched. LightTable uses this root scope for its
   View > Theme preference, including controls mounted through portals.

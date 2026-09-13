@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { Menu, PanelFooter } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter } from '@lighttable/ui';
 import type { DocumentCommandHistorySnapshot } from '../../../application/commands/documentCommandHistory';
 import {
   PanelStackButtonRow,
@@ -47,12 +47,12 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         aria-label="Delete current history state"
         title="Delete current history state and later states"
         disabled={history.busy || !current || current.position === 0}
-        onClick={() => current && onDeleteFrom(current.position)}><img
-          src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+        onClick={() => current && onDeleteFrom(current.position)}><MaskIcon
+          src={lightTableIcon('layer_trash.png')} mode="luminance" /></ButtonBase>
       <ButtonBase type="button"
         aria-label="History menu" title="History menu"
-        onClick={(event) => setMenu({ x: event.clientX, y: event.clientY })}><img
-          src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
+        onClick={(event) => setMenu({ x: event.clientX, y: event.clientY })}><MaskIcon
+          src={lightTableIcon('more_menu.png')} mode="luminance" /></ButtonBase>
     </PanelFooter>
     <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       width={170} onClose={() => setMenu(null)} options={[{

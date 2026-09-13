@@ -1,4 +1,4 @@
-import { Button, Checkbox, MaskIcon, SegmentedControl } from '@lighttable/ui';
+import { Button, Checkbox, EditorToolOptionsBar, MaskIcon, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { resolveTextToolFont } from '../../application/text/pointTextCreation';
@@ -1090,9 +1090,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
 };
 
 export const ToolOptionsBar: React.FC<ToolOptionsProps> = (props) => (
-  <section className="lighttable-tool-options" aria-label="Tool settings">
+  <EditorToolOptionsBar className="lighttable-tool-options" aria-label="Tool settings">
     <ToolOptionsContent {...props} />
-  </section>
+  </EditorToolOptionsBar>
 );
 
 /**
@@ -1103,7 +1103,7 @@ export const ToolOptionsBar: React.FC<ToolOptionsProps> = (props) => (
 export const EmptyToolOptionsBar: React.FC<{
   readonly documentKind: 'image' | 'video' | 'model-3d';
 }> = ({ documentKind }) => (
-  <section
+  <EditorToolOptionsBar
     className="lighttable-tool-options"
     aria-hidden="true"
     data-document-kind={documentKind}

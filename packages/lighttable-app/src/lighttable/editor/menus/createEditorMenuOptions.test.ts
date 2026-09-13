@@ -675,10 +675,6 @@ describe('createEditorMenuOptions', () => {
     expect(options.find((option) => option.value === 'show-original')).toBeUndefined();
     expect(findMenuOption(options, 'toggle-screen-mode'))
       .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });
-    expect(options.find((option) => option.value === 'ui-style-guide'))
-      .toMatchObject({ label: 'UI Style Guide...' });
-    options.find((option) => option.value === 'ui-style-guide')?.onClick?.();
-    expect(menuCommands.openStyleGuide).toHaveBeenCalledOnce();
     expect(options.map(({ value }) => value).slice(0, 10)).toEqual([
       'fit',
       'actual-size',
@@ -691,13 +687,6 @@ describe('createEditorMenuOptions', () => {
       'snap-to',
       'guides'
     ]);
-  });
-
-  it('omits the optional UI devtools contribution from the base View menu', () => {
-    const menuCommands = commands();
-    menuCommands.openStyleGuide = undefined;
-    const options = createEditorMenuOptions('view', state(), labels, menuCommands);
-    expect(options.some((option) => option.value === 'ui-style-guide')).toBe(false);
   });
 
   it('exposes concise third-party license information from Help', () => {

@@ -1639,7 +1639,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title={selectedIds.length ? 'Group selected layers' : 'New group'}
           aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
-        ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('add_group.png')} mode="luminance" /></ButtonBase>
         <ButtonBase
           type="button"
           onClick={onAddMask}
@@ -1651,7 +1651,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }
           title="Add layer mask"
           aria-label="Add layer mask"
-        ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('add_mask.png')} mode="luminance" /></ButtonBase>
         <ButtonBase
           ref={styleMenuTriggerRef}
           type="button"
@@ -1669,7 +1669,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           aria-label="Add layer style"
           aria-haspopup="menu"
           aria-expanded={styleMenuOpen}
-        ><img src={lightTableIcon('layer_effects.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('layer_effects.png')} mode="luminance" /></ButtonBase>
         <div
           className="lighttable-layers__create-menu"
         >
@@ -1685,7 +1685,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             aria-label="New fill or processing layer"
             aria-haspopup="menu"
             aria-expanded={createLayerMenuOpen}
-          ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
+          ><MaskIcon src={lightTableIcon('add_adjustment_layer.png')} mode="luminance" /></ButtonBase>
           {createLayerMenuOpen ? (
             <Menu data-editor-native-tab-navigation open modal={false}
               anchor={createLayerMenuTriggerRef}
@@ -1761,7 +1761,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title="New raster layer"
           aria-label="New raster layer"
-        ><img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('add_layer.png')} mode="luminance" /></ButtonBase>
         <ButtonBase
           type="button"
           className={trashDropActive ? 'lighttable-layers__trash--drop-active' : undefined}
@@ -1823,7 +1823,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title="Delete selected layer item"
           aria-label="Delete selected layer item"
-        ><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('layer_trash.png')} mode="luminance" /></ButtonBase>
         <ButtonBase
           type="button"
           onClick={(event) => {
@@ -1838,7 +1838,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title="Layers menu"
           aria-label="Layers menu"
-        ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ><MaskIcon src={lightTableIcon('more_menu.png')} mode="luminance" /></ButtonBase>
       </PanelFooter>
       <Menu data-editor-native-tab-navigation
         open={moreMenu.open}

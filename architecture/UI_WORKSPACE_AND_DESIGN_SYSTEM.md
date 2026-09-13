@@ -13,21 +13,11 @@ canonical production primitives. A feature-specific implementation is allowed
 only when its interaction really differs; visual similarity alone is a reason
 to reuse an existing primitive.
 
-The Style Guide is the living visual catalog for those real production
-components. Stable metadata connects each rendered control to its canonical
-identity, usage count and source locations. This supports a bidirectional
-workflow: inspect a control in the running application to find its definition
-and status, or select a catalog entry to reveal its mounted instances in the
-application. Unregistered interactive elements are shown separately as cleanup
-candidates, so established good controls remain distinguishable from accidental
-one-off implementations.
-
-Inspection is optional development tooling, not application architecture. It
-reads DOM metadata and draws temporary overlays but has no access to documents,
-layers, tools, rendering or editor state. Normal web and desktop builds omit
-the inspector runtime and its UX entirely; an explicit UI-devtools build adds
-the catalog and two-way inspection host. This keeps UI governance strict without
-making the production application depend on the governance tools.
+The standalone `@lighttable/ui` demo started by `UI.bat` is the living catalog
+for those production components. It is deliberately outside LightTable: the
+package and its catalog define reusable presentation, while the running app is
+the integration truth for real editor composition and interaction. The app must
+not grow a second specimen catalog, inspector runtime or guide-only CSS.
 
 ## Workspace
 
@@ -128,13 +118,22 @@ use one 28-pixel height; the old regular/control/compact variants and local
 ActionButton/SegmentedControl implementations and skins are removed. Icon-only
 buttons, menu/list rows, tabs and disclosures are not text action buttons and
 remain distinct controls.
-View > Theme > Light / Dark sets a persisted document-root package theme scope;
-old panel styling is unchanged. Individual migrated controls inherit this scope,
+View > Theme > Light / Dark sets a persisted document-root package theme scope.
+The package now also owns the generic editor chrome: root/body geometry,
+menu and tool-options surfaces, status/workspace bar, document tabs and panel
+header/footer primitives. Individual migrated controls inherit this scope,
 including in portals, and must not force a local dark theme. Component geometry
 is not overridden by app CSS. The suite
 demo remains the new controls' catalog. Generic UI icons belong to the library
 as needed; domain/tool icons stay app-owned. Controls own icon geometry, not
 the app. New controls default out of the Tab sequence; dialogs may opt in.
+
+Docking remains a host adapter because Dockview is not a suite dependency.
+That adapter must select the current package theme and map Dockview variables
+to `--ui-editor-*`; it may own drag, resize and persistence policy but not a
+parallel palette. Product panels retain their document-specific content and
+commands. This lets photo, video and future MediaVibe tools share the same
+chrome without importing each other's domain state.
 
 Shared visual meaning uses LightTable-owned tokens for surfaces, headers, tab
 strips, active tabs, borders, text hierarchy, selection, focus, sliders,
@@ -149,7 +148,7 @@ Component CSS owns internal geometry under the component's own root class.
 Containers may define flow, available width, clipping and placement, but must
 not silently restyle a descendant component. A genuine contextual geometry
 change is an explicit component variant, such as `AdjustmentSlider`'s
-`layer-row`, `tool-bar` and `tool-panel` layouts. The Style Guide follows the same rule: specimen wrappers
+`layer-row`, `tool-bar` and `tool-panel` layouts. The package catalog follows the same rule: specimen wrappers
 provide available space but do not repair or fork component internals. Run
 `npm run audit:ui-boundary` to enforce the source boundary and reject every
 feature stylesheet that reaches into a UI-owned component root.
@@ -242,18 +241,11 @@ foreground/background chips remain a distinct 17px variant. A chevron field
 is one editor-opener button; a pipette field has two distinct buttons. All
 skins and transparency colors come from the package, including light theme.
 
-In a UI-devtools build, the live catalog is available from **View > UI Style
-Guide...**. It uses the
-production components themselves and groups them into Foundations, Actions,
-Fields, Selection, Sliders, Paint & color, Gradients, Lists & navigation,
-Containers, Layout & geometry, Coverage & usage, Feedback, Adjustment dialogs
-and Dialogs. Actions execute commands;
-persistent choices such as checkboxes, switches and segmented controls belong
-to Selection. Every new shared control or canonical dialog
-composition must be added there. The catalog is also a visual regression target:
-it documents heading/body/help/error hierarchy, control states, keyboard focus,
-and the standard dialog order of header, content, then right-aligned secondary
-and primary actions.
+The live catalog is the standalone `apps/ui-demo` application, launched through
+`UI.bat`. It imports production components directly from `@lighttable/ui` and
+contains no LightTable document, command, renderer or panel-domain code. Every
+new shared control or canonical editor-chrome composition must be added there.
+The catalog is also a visual regression target for both dark and light themes.
 
 ### Canonical identity and customness audit
 
@@ -266,13 +258,9 @@ IDs, families, public symbols, CSS roots and current extraction state live in
 `src/ui/uiComponentManifest.json`.
 
 `npm run generate:ui-inventory` scans product source and regenerates the
-deterministic `generatedUiUsageInventory.json`. The Style Guide's **Coverage &
-usage** page combines that static inventory with a runtime DOM scan outside the
-guide. It reports production usages, mounted canonical instances, source
-contexts, external CSS overrides and visible interactive elements without a
-canonical compound-control owner. A compound control may own its native
-internal buttons or inputs; a panel, dialog or layout container never hides
-unregistered descendants from the scan.
+deterministic `generatedUiUsageInventory.json`. The inventory reports production
+usages, source contexts and external CSS overrides without requiring an
+inspection runtime inside the product.
 
 `npm run audit:ui-boundary` verifies manifest runtime metadata, checks that the
 generated inventory is current and applies `uiAuditBaseline.json`. Existing raw
@@ -286,49 +274,10 @@ Usage count alone never makes a specialized control wrong. The strong
 customness signal is low reuse combined with local styling, raw native markup,
 new deep cascade or visual similarity to an existing canonical family.
 
-Inspection is bidirectional and remains outside application state. On Windows,
-Ctrl+Shift+Alt-clicking a visible interactive element opens **Coverage & usage**
-at its canonical identity; macOS uses Cmd+Shift+Option-click. Registered
-controls resolve through `data-suite-*` metadata, while a private interactive
-element is explicitly reported as unregistered. **Show in app** closes the
-catalog, outlines the current live instance and provides previous/next
-navigation across the other mounted instances. The inspector host observes the
-DOM and applies temporary overlay attributes only: it must never import or
-mutate document, layer, tool, panel or editor state. Opening the catalog from a
-product menu uses the same generic DOM event so the host remains replaceable.
-
-### Optional devtools build boundary
-
-Temporary owner decision (2026-08-31): while controls move to `@lighttable/ui`,
-both web and desktop hosts include **View > UI Style Guide...** by default in
-development and release builds. The separate entry point remains intact.
-`LIGHTTABLE_UI_DEVTOOLS=0` explicitly opts out for boundary verification; absence
-checks must use that opt-out instead of assuming a normal build omits the guide.
-Return to opt-in after the migration, when the owner requests removal. This
-temporarily overrides the default-build exclusion described below.
-
-The Style Guide, coverage scanner and bidirectional inspector are host-provided
-development tools. `@lighttable/app` exposes them only through the separate
-`@lighttable/app/ui-devtools` entry point. The base `LightTableStandaloneApp`
-does not import, mount or initialize that entry point and merely accepts an
-optional `onOpenStyleGuide` contribution. Without that contribution the View
-menu does not expose the Style Guide command.
-
-Normal desktop and web builds leave `LIGHTTABLE_UI_DEVTOOLS` unset and must not
-contain the inspector runtime. Use `npm run dev:desktop:ui-devtools`,
-`npm run dev:web:ui-devtools`, `npm run package:desktop:ui-devtools` or
-`npm run build:web:ui-devtools` only when inspection is wanted. The build
-boundary verifier checks both directions: inspector signatures must be absent
-from normal bundles and present in devtools bundles. The desktop base smoke test
-also verifies at runtime that neither the View command nor the modifier-click
-gesture exists. Product, document, renderer and editor-domain code must never
-import the devtools entry point.
-
-The current modal is LightTable's embedded host, not the long-term owner of the
-catalog. Package extraction creates one standalone suite Style Guide next to
-the shared controls. LightTable and future products keep only thin embedded
-inspection adapters that consume that catalog and contribute runtime usage
-data; they never maintain product-local copies of specimens.
+The retired in-app catalog, modifier-click inspector, `ui-devtools` entry point
+and build variants were removed on 2026-09-13. They must not be reintroduced.
+Package tests, the standalone catalog, the static usage inventory and real-app
+browser/desktop checks are the supported governance loop.
 
 `SegmentedControl` from `@lighttable/ui` also owns workspace switching. All
 segments use the same selected/disabled styling and content-fit geometry;

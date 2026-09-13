@@ -36,6 +36,9 @@ export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from
 export { Menu, type MenuProps, type MenuOption } from './Menu';
 export { MenuBar, type MenuBarProps, type MenuBarItem } from './MenuBar';
 export { Toolbar, ToolButton, ToolStrip, type ToolbarProps, type ToolbarTool, type ToolbarGroup, type ToolButtonProps } from './Toolbar';
+export { EditorChrome, EditorChromeHeader, EditorMenuBarSurface, EditorToolOptionsBar, EditorChromeBody, EditorPanelSurface,
+  EditorStatusBar, EditorStatusText, EditorStatusMeta, EditorStatusSpacer,
+  type EditorStatusBarProps, type EditorStatusTextProps, type EditorStatusMetaProps } from './EditorChrome';
 export { numericIncrement, parseBoundedNumber } from './numericExpression';
 export { Select, type SelectProps, type SelectOption } from './Select';
 export { PaintField, type PaintFieldProps } from './PaintField';

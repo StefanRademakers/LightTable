@@ -2,6 +2,80 @@
   "schema": 1,
   "components": [
     {
+      "id": "editor-chrome",
+      "metadataDeclared": true,
+      "productionUsageCount": 4,
+      "internalUsageCount": 0,
+      "contextCount": 2,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/EditorMenuBar.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LightTableEditorShell.tsx",
+          "count": 3,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "editor-tool-options",
+      "metadataDeclared": true,
+      "productionUsageCount": 2,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
+          "count": 2,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "editor-status-bar",
+      "metadataDeclared": true,
+      "productionUsageCount": 4,
+      "internalUsageCount": 0,
+      "contextCount": 2,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/EditorStatusBar.tsx",
+          "count": 3,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/workspace/LightTableDockWorkspace.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "editor-panel-surface",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/workspace/LightTableDockWorkspace.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
       "id": "document-tabs",
       "metadataDeclared": true,
       "productionUsageCount": 1,
@@ -89,7 +163,7 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 121,
+      "productionUsageCount": 118,
       "internalUsageCount": 4,
       "contextCount": 36,
       "overrideCount": 0,
@@ -201,7 +275,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 4,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -290,9 +364,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 81,
+      "productionUsageCount": 77,
       "internalUsageCount": 0,
-      "contextCount": 21,
+      "contextCount": 20,
       "overrideCount": 0,
       "locations": [
         {
@@ -317,7 +391,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 6,
+          "count": 7,
           "kind": "product"
         },
         {
@@ -358,11 +432,6 @@
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
           "count": 19,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 5,
           "kind": "product"
         },
         {
@@ -483,7 +552,7 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 36,
+      "productionUsageCount": 35,
       "internalUsageCount": 0,
       "contextCount": 19,
       "overrideCount": 0,
@@ -550,7 +619,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -702,7 +771,7 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "path": "lighttable/editor/ui/LayerStyleEffectControls.tsx",
           "count": 14,
           "kind": "product"
         },
@@ -775,9 +844,9 @@
     {
       "id": "panel-checkbox",
       "metadataDeclared": true,
-      "productionUsageCount": 44,
+      "productionUsageCount": 42,
       "internalUsageCount": 2,
-      "contextCount": 17,
+      "contextCount": 16,
       "overrideCount": 0,
       "locations": [
         {
@@ -833,11 +902,6 @@
         {
           "path": "lighttable/editor/ui/ImageSizeDialog.tsx",
           "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 2,
           "kind": "product"
         },
         {
@@ -903,7 +967,7 @@
       "overrideCount": 0,
       "locations": [
         {
-          "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
+          "path": "lighttable/editor/ui/LayerStyleEffectControls.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -1274,7 +1338,7 @@
       "metadataDeclared": true,
       "productionUsageCount": 27,
       "internalUsageCount": 0,
-      "contextCount": 17,
+      "contextCount": 18,
       "overrideCount": 0,
       "locations": [
         {
@@ -1349,7 +1413,12 @@
         },
         {
           "path": "lighttable/editor/ui/LayerStyleEditor.tsx",
-          "count": 4,
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LayerStyleEffectControls.tsx",
+          "count": 3,
           "kind": "product"
         },
         {

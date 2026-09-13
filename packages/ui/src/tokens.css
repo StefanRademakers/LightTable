@@ -20,6 +20,11 @@
   --ui-document-checker-dark: #1d1d1d;
   --ui-document-checker-light: #2b2b2b;
   --ui-document-checker-pattern-size: 24px;
+  --ui-editor-menubar-height: 36px;
+  --ui-editor-tool-options-height: 38px;
+  --ui-editor-document-tabs-height: 30px;
+  --ui-editor-statusbar-height: 32px;
+  --ui-editor-tool-rail-width: 38px;
 }
 
 /* A document-root scope supplies tokens only; it must not resize rem units
@@ -59,6 +64,43 @@
   --ui-slider-track: #414346;
   --ui-slider-fill: #62666b;
   --ui-slider-thumb: #96999d;
+  --ui-editor-app-surface: #101215;
+  --ui-editor-menubar-surface: #3a3c3e;
+  --ui-editor-toolbar-surface: var(--ui-surface-panel);
+  --ui-editor-workspace-surface: #161718;
+  --ui-editor-statusbar-surface: #14171b;
+  --ui-editor-panel-subtle-surface: #171a1f;
+  --ui-editor-panel-raised-surface: #1b1f25;
+  --ui-editor-section-surface: #1c2026;
+  --ui-editor-collapsible-surface: #222528;
+  --ui-editor-inset-surface: #0c0f13;
+  --ui-editor-plot-surface: #05070a;
+  --ui-editor-tabstrip-surface: #212224;
+  --ui-editor-tab-active-surface: #313539;
+  --ui-editor-tab-inactive-surface: #1f2124;
+  --ui-editor-control-surface: #1b1f25;
+  --ui-editor-control-hover-surface: #252a31;
+  --ui-editor-border-subtle: #252a30;
+  --ui-editor-border: #30343a;
+  --ui-editor-border-strong: #3a414a;
+  --ui-editor-workspace-border: #1a1e23;
+  --ui-editor-text-subtle: #77818e;
+  --ui-editor-text-primary: #eef2f7;
+  --ui-editor-text-secondary: #dce1e8;
+  --ui-editor-text-muted: #aab2bd;
+  --ui-editor-text-disabled: #747e8a;
+  --ui-editor-accent: #568be0;
+  --ui-editor-accent-hover: #72a2ef;
+  --ui-editor-accent-strong: #2456a3;
+  --ui-editor-accent-selected: #26344a;
+  --ui-editor-accent-selected-subtle: #202a39;
+  --ui-editor-control-border: rgb(226 231 232 / 24%);
+  --ui-editor-control-text: rgb(226 231 232 / 86%);
+  --ui-editor-range-track: #444141;
+  --ui-editor-range-fill: #606264;
+  --ui-editor-range-thumb: #919294;
+  --ui-editor-range-thumb-hover: #b5b8bb;
+  --ui-editor-floating-shadow: 0 8px 24px rgb(0 0 0 / 38%);
 }
 
 [data-ui-theme='light'] {
@@ -86,6 +128,43 @@
   --ui-slider-track: var(--ui-button-active);
   --ui-slider-fill: var(--ui-button-border);
   --ui-slider-thumb: var(--ui-surface-panel);
+  --ui-editor-app-surface: #e7e9ed;
+  --ui-editor-menubar-surface: #f4f5f7;
+  --ui-editor-toolbar-surface: #f7f8fa;
+  --ui-editor-workspace-surface: #d9dde3;
+  --ui-editor-statusbar-surface: #f4f5f7;
+  --ui-editor-panel-subtle-surface: #f4f5f7;
+  --ui-editor-panel-raised-surface: #ffffff;
+  --ui-editor-section-surface: #f7f8fa;
+  --ui-editor-collapsible-surface: #f4f5f7;
+  --ui-editor-inset-surface: #eef1f5;
+  --ui-editor-plot-surface: #ffffff;
+  --ui-editor-tabstrip-surface: #e9edf2;
+  --ui-editor-tab-active-surface: #ffffff;
+  --ui-editor-tab-inactive-surface: #e9edf2;
+  --ui-editor-control-surface: #ffffff;
+  --ui-editor-control-hover-surface: #e7ebf0;
+  --ui-editor-border-subtle: #d7dce3;
+  --ui-editor-border: #c9cfd7;
+  --ui-editor-border-strong: #aeb6c1;
+  --ui-editor-workspace-border: #c9cfd7;
+  --ui-editor-text-subtle: #697381;
+  --ui-editor-text-primary: #20252c;
+  --ui-editor-text-secondary: #343b45;
+  --ui-editor-text-muted: #58616e;
+  --ui-editor-text-disabled: #949aa3;
+  --ui-editor-accent: #245ba3;
+  --ui-editor-accent-hover: #3972ba;
+  --ui-editor-accent-strong: #19477f;
+  --ui-editor-accent-selected: #d9e6f6;
+  --ui-editor-accent-selected-subtle: #e8eff8;
+  --ui-editor-control-border: #aeb6c1;
+  --ui-editor-control-text: #343b45;
+  --ui-editor-range-track: #dde3ea;
+  --ui-editor-range-fill: #8b95a1;
+  --ui-editor-range-thumb: #ffffff;
+  --ui-editor-range-thumb-hover: #f4f5f7;
+  --ui-editor-floating-shadow: 0 8px 24px rgb(32 37 44 / 22%);
 }
 
 [data-ui-theme='dark']:not(:root) { color-scheme: dark; }

@@ -1,4 +1,4 @@
-import { MenuBar, type MenuOption, type MenuBarItem } from '@lighttable/ui';
+import { EditorMenuBarSurface, MenuBar, type MenuOption, type MenuBarItem } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import { lightTableIcon } from '../../../assets/icons';
@@ -24,7 +24,7 @@ const MENU_ITEMS: readonly MenuBarItem<EditorMenuId>[] = [
 /** Document capabilities stay in LightTable; the package owns menu interaction. */
 export const EditorMenuBar = ({ optionsFor, projectName, onRevealProject,
   enabledFor = () => true }: EditorMenuBarProps) => (
-  <div className="shots-app-menu lighttable__app-menu">
+  <EditorMenuBarSurface className="shots-app-menu lighttable__app-menu">
     <span className="lighttable__window-icon" aria-hidden="true" />
     <MenuBar label="LightTable menu" data-editor-native-tab-navigation
       items={MENU_ITEMS.map(item => ({ ...item, disabled: item.value !== 'view' && !enabledFor(item.value) }))}
@@ -44,5 +44,5 @@ export const EditorMenuBar = ({ optionsFor, projectName, onRevealProject,
       <img src={lightTableIcon('folder.png')} alt="" aria-hidden />
       <span>{projectName}</span>
     </ButtonBase> : null}
-  </div>
+  </EditorMenuBarSurface>
 );

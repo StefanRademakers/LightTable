@@ -39,5 +39,7 @@ describe('VideoControlsPanel', () => {
     expect(markup).toContain('aria-label="Next frame"');
     expect(markup).toContain('aria-label="Video volume"');
     expect(markup).toContain('aria-label="Video time"');
+    expect(markup.match(/ui-mask-icon/g)).toHaveLength(4);
+    expect(markup).not.toContain('<img');
   });
 });

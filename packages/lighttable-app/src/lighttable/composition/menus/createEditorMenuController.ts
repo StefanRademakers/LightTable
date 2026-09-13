@@ -122,7 +122,6 @@ export interface EditorMenuControllerOptions {
     showAiHistoryPanel?(): void;
     connectOpenArtProvider?(): void;
     disconnectOpenArtProvider?(): void;
-    openStyleGuide?(): void;
     reloadUi?(): void;
     toggleDeveloperTools?(): void;
     toggleScreenMode(): void;
@@ -336,7 +335,6 @@ export const createEditorMenuController = ({
       showAiHistoryPanel: workspace.showAiHistoryPanel,
       connectOpenArtProvider: workspace.connectOpenArtProvider,
       disconnectOpenArtProvider: workspace.disconnectOpenArtProvider,
-      openStyleGuide: workspace.openStyleGuide,
       reloadUi: workspace.reloadUi,
       toggleDeveloperTools: workspace.toggleDeveloperTools,
       toggleScreenMode: workspace.toggleScreenMode,

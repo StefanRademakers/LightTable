@@ -1,4 +1,4 @@
-import { SegmentedControl } from '@lighttable/ui';
+import { EditorStatusBar as StatusBar, EditorStatusMeta, EditorStatusSpacer, EditorStatusText, MaskIcon, SegmentedControl } from '@lighttable/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
@@ -58,7 +58,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   workspacePreset = 'default',
   onWorkspacePresetChange
 }) => (
-  <footer className="lighttable-toolbar">
+  <StatusBar className="lighttable-toolbar">
     <ButtonBase
       className="lighttable-toolbar__dock-toggle"
       type="button"
@@ -68,9 +68,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
       title={`${leftDockVisible ? 'Hide' : 'Show'} left panels`}
       onClick={onToggleLeftDock}
     >
-      <img
+      <MaskIcon
         src={lightTableIcon(`column_left_${leftDockVisible ? 'active' : 'inactive'}.png`)}
-        alt=""
+        mode="luminance"
       />
     </ButtonBase>
     <SegmentedControl
@@ -82,19 +82,21 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
       options={WORKSPACE_SWITCHES.map(({ preset, label, icon }) => ({
         value: preset,
         label,
-        icon: <img src={lightTableIcon(icon)} alt="" aria-hidden="true" />,
+        icon: <MaskIcon src={lightTableIcon(icon)} mode="luminance" />,
         ariaLabel: `Switch to ${label} workspace`,
         title: `${label} workspace`
       }))}
     />
-    <div
+    <EditorStatusText
       className={`lighttable-toolbar__status${error ? ' lighttable-toolbar__status--error' : ''}`}
+      tone={error ? 'error' : 'normal'}
       title={status || undefined}
     >
       {status}
-    </div>
-    <div
+    </EditorStatusText>
+    <EditorStatusMeta
       className={`lighttable-toolbar__meta${reportAvailable ? ' lighttable-toolbar__meta--report' : ''}`}
+      interactive={reportAvailable}
       role={reportAvailable ? 'button' : undefined}
       tabIndex={-1}
       onClick={reportAvailable ? onOpenReport : undefined}
@@ -106,8 +108,8 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
       title={metaTitle}
     >
       {meta}
-    </div>
-    <div aria-hidden="true" />
+    </EditorStatusMeta>
+    <EditorStatusSpacer />
     <ButtonBase
       className="lighttable-toolbar__dock-toggle"
       type="button"
@@ -117,10 +119,10 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
       title={`${rightDockVisible ? 'Hide' : 'Show'} right panels`}
       onClick={onToggleRightDock}
     >
-      <img
+      <MaskIcon
         src={lightTableIcon(`column_right_${rightDockVisible ? 'active' : 'inactive'}.png`)}
-        alt=""
+        mode="luminance"
       />
     </ButtonBase>
-  </footer>
+  </StatusBar>
 );

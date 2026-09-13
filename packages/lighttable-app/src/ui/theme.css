@@ -12,53 +12,53 @@
    */
 
   /* Application and workspace surfaces */
-  --lt-surface-app: #101215;
-  --lt-surface-menubar: #3a3c3e;
-  --lt-surface-workspace: #161718;
-  --lt-surface-statusbar: #14171b;
-  --lt-surface-panel: #313539;
-  --lt-surface-panel-subtle: #171a1f;
-  --lt-surface-panel-raised: #1b1f25;
-  --lt-surface-section: #1c2026;
-  --lt-surface-collapsible-content: #222528;
-  --lt-surface-collapsible-header: #313539;
-  --lt-surface-panel-tab-strip: #212224;
-  --lt-surface-panel-tab-active: #313539;
-  --lt-surface-panel-tab-inactive: #1f2124;
-  --lt-surface-tab: #1a1e23;
-  --lt-surface-tab-visible: #20242a;
-  --lt-surface-tab-active: #252a31;
-  --lt-surface-control: #1b1f25;
-  --lt-surface-control-hover: #252a31;
-  --lt-surface-layer-row: #292d32;
+  --lt-surface-app: var(--ui-editor-app-surface);
+  --lt-surface-menubar: var(--ui-editor-menubar-surface);
+  --lt-surface-workspace: var(--ui-editor-workspace-surface);
+  --lt-surface-statusbar: var(--ui-editor-statusbar-surface);
+  --lt-surface-panel: var(--ui-surface-panel);
+  --lt-surface-panel-subtle: var(--ui-editor-panel-subtle-surface);
+  --lt-surface-panel-raised: var(--ui-editor-panel-raised-surface);
+  --lt-surface-section: var(--ui-editor-section-surface);
+  --lt-surface-collapsible-content: var(--ui-editor-collapsible-surface);
+  --lt-surface-collapsible-header: var(--ui-surface-panel);
+  --lt-surface-panel-tab-strip: var(--ui-editor-tabstrip-surface);
+  --lt-surface-panel-tab-active: var(--ui-editor-tab-active-surface);
+  --lt-surface-panel-tab-inactive: var(--ui-editor-tab-inactive-surface);
+  --lt-surface-tab: var(--ui-editor-tab-inactive-surface);
+  --lt-surface-tab-visible: var(--ui-button-active);
+  --lt-surface-tab-active: var(--ui-editor-control-hover-surface);
+  --lt-surface-control: var(--ui-editor-control-surface);
+  --lt-surface-control-hover: var(--ui-editor-control-hover-surface);
+  --lt-surface-layer-row: var(--ui-surface-inset);
   --lt-surface-layer-row-hover: var(--lt-surface-control-hover);
   /* Multi-selection stays quiet; the primary active row matches the active tool treatment. */
   --lt-surface-layer-row-selected: #28497c;
   --lt-surface-layer-row-active: var(--ui-selection-surface);
   --lt-border-layer-row: transparent;
   --lt-border-layer-row-active: var(--ui-accent);
-  --lt-surface-inset: #0c0f13;
-  --lt-surface-plot: #05070a;
+  --lt-surface-inset: var(--ui-editor-inset-surface);
+  --lt-surface-plot: var(--ui-editor-plot-surface);
   --lt-surface-overlay: rgb(0 0 0 / 62%);
   --lt-surface-info: #18202a;
-  --lt-surface-floating: var(--lt-surface-panel);
-  --lt-shadow-floating: 0 8px 24px rgb(0 0 0 / 38%);
+  --lt-surface-floating: var(--ui-surface-panel);
+  --lt-shadow-floating: var(--ui-editor-floating-shadow);
 
   /* Borders and separators */
-  --lt-border-subtle: #252a30;
-  --lt-border: #30343a;
-  --lt-border-strong: #3a414a;
-  --lt-border-workspace: #1a1e23;
+  --lt-border-subtle: var(--ui-editor-border-subtle);
+  --lt-border: var(--ui-editor-border);
+  --lt-border-strong: var(--ui-editor-border-strong);
+  --lt-border-workspace: var(--ui-editor-workspace-border);
   --lt-border-overlay: rgb(255 255 255 / 14%);
   --lt-grid-line: rgb(255 255 255 / 10%);
 
   /* Typography */
-  --lt-text-primary: #eef2f7;
-  --lt-text-secondary: #dce1e8;
-  --lt-text-muted: #aab2bd;
-  --lt-text-subtle: #77818e;
-  --lt-text-disabled: #747e8a;
-  --lt-text-on-accent: #fff;
+  --lt-text-primary: var(--ui-editor-text-primary);
+  --lt-text-secondary: var(--ui-editor-text-secondary);
+  --lt-text-muted: var(--ui-editor-text-muted);
+  --lt-text-subtle: var(--ui-editor-text-subtle);
+  --lt-text-disabled: var(--ui-editor-text-disabled);
+  --lt-text-on-accent: var(--ui-selection-text);
 
   /* Typography roles */
   --lt-font-ui: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -85,13 +85,13 @@
   --lt-space-10: 24px;
 
   /* Interaction */
-  --lt-accent: #568be0;
-  --lt-accent-hover: #72a2ef;
-  --lt-accent-strong: #2456a3;
-  --lt-accent-selected: #26344a;
-  --lt-accent-selected-subtle: #202a39;
+  --lt-accent: var(--ui-editor-accent);
+  --lt-accent-hover: var(--ui-editor-accent-hover);
+  --lt-accent-strong: var(--ui-editor-accent-strong);
+  --lt-accent-selected: var(--ui-editor-accent-selected);
+  --lt-accent-selected-subtle: var(--ui-editor-accent-selected-subtle);
   --lt-accent-drop: rgb(66 116 196 / 28%);
-  --lt-focus-ring: #73a5f4;
+  --lt-focus-ring: var(--ui-accent);
   --lt-clipping-hover: #f0a45d;
 
   /* Feedback */
@@ -121,8 +121,8 @@
   --lt-menu-item-gap: 2px;
   --lt-menu-item-padding: 7px;
   --lt-menu-icon-size: 20px;
-  --lt-control-border: rgb(226 231 232 / 24%);
-  --lt-control-text: rgb(226 231 232 / 86%);
+  --lt-control-border: var(--ui-editor-control-border);
+  --lt-control-text: var(--ui-editor-control-text);
   --lt-tool-options-separator: var(--lt-border-strong);
   --lt-toolbox-width: 38px;
 
@@ -141,15 +141,15 @@
   --lt-layout-panel-wide: 320px;
   --lt-layout-tool-popover-width: 248px;
   --lt-layout-section-padding: 7px 14px 12px;
-  --lt-range-track: #444141;
-  --lt-range-track-fill: #606264;
-  --lt-range-thumb: #919294;
-  --lt-range-thumb-hover: #b5b8bb;
+  --lt-range-track: var(--ui-editor-range-track);
+  --lt-range-track-fill: var(--ui-editor-range-fill);
+  --lt-range-thumb: var(--ui-editor-range-thumb);
+  --lt-range-thumb-hover: var(--ui-editor-range-thumb-hover);
   --lt-range-track-height: 14px;
   --lt-range-thumb-size: 18px;
   --lt-scrollbar-track: transparent;
-  --lt-scrollbar-thumb: #4a515b;
-  --lt-scrollbar-thumb-hover: #626b78;
+  --lt-scrollbar-thumb: var(--ui-button-border);
+  --lt-scrollbar-thumb-hover: var(--ui-text-muted);
   --lt-scrollbar-size: 10px;
 
   /* Transitional control alias. */
@@ -188,4 +188,8 @@
   --lighttable-border: var(--lt-border);
   --lighttable-text: var(--lt-text-primary);
   --lighttable-muted: var(--lt-text-muted);
+}
+
+:root[data-ui-theme='light'] {
+  color-scheme: light;
 }

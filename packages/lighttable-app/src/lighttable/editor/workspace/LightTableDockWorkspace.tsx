@@ -1,5 +1,5 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
-import { DocumentTabs, PanelTab, type MenuOption, type DocumentPreviewBounds } from '@lighttable/ui';
+import { DocumentTabs, EditorPanelSurface, PanelTab, type MenuOption, type DocumentPreviewBounds } from '@lighttable/ui';
 import React, {
   createContext,
   forwardRef,
@@ -12,10 +12,13 @@ import React, {
   useRef,
   useState
 } from 'react';
+import { getAppTheme, subscribeAppTheme } from '../../../ui/appTheme';
 import { writeLightTableDocumentDrag } from './documentTabDrag';
 import { workspacePanelIsShown } from './workspacePanelIsShown';
 import {
   DockviewReact,
+  themeDark,
+  themeLight,
   type DockviewApi,
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
@@ -184,7 +187,9 @@ const WorkspaceContentContext = createContext<WorkspaceContent | null>(null);
 const WorkspacePanel: React.FC<IDockviewPanelProps<{ contentKey: WorkspaceContentKey }>> = ({ params }) => {
   const content = useContext(WorkspaceContentContext);
   if (!content) return null;
-  return <>{content[params.contentKey]}</>;
+  return params.contentKey === 'documentHost'
+    ? <>{content[params.contentKey]}</>
+    : <EditorPanelSurface data-workspace-content={params.contentKey}>{content[params.contentKey]}</EditorPanelSurface>;
 };
 
 const PersistentPanelTab: React.FC<IDockviewPanelHeaderProps> = ({ api }) => {
@@ -598,6 +603,8 @@ export const LightTableDockWorkspace = forwardRef<
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
   const [tabFloatingPanelsHidden, setTabFloatingPanelsHidden] = useState(false);
   const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
+  const [appTheme, setAppTheme] = useState(getAppTheme);
+  useEffect(() => subscribeAppTheme(setAppTheme), []);
 
   const publishPanelVisibility = useCallback((api = apiRef.current) => {
     if (!api) return;
@@ -1460,11 +1467,12 @@ export const LightTableDockWorkspace = forwardRef<
       <div className="lighttable-dock-workspace-shell">
         <div
           ref={workspaceElementRef}
-          className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${tabFloatingPanelsHidden ? ' lighttable-dock-workspace--floating-panels-hidden' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
+          className={`lighttable-dock-workspace dockview-theme-${appTheme}${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${tabFloatingPanelsHidden ? ' lighttable-dock-workspace--floating-panels-hidden' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
         >
           <DockviewReact
             components={components}
             tabComponents={tabComponents}
+            theme={appTheme === 'light' ? themeLight : themeDark}
             onReady={onReady}
             dndEdges={{
               activationSize: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' },

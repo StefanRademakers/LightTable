@@ -17,20 +17,6 @@
   max-width: 100vw;
   height: 100vh;
   max-height: 100vh;
-  padding: 0;
-  gap: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--lt-surface-app);
-  color: var(--lt-text-primary);
-  font-family: var(--lt-font-ui);
-  font-size: var(--lt-type-regular);
-  line-height: var(--lt-leading-ui);
-  border: 0;
-  border-radius: 0;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 /*
@@ -147,26 +133,6 @@
     border: 1px solid Highlight;
     forced-color-adjust: auto;
   }
-}
-
-.lighttable__header {
-  flex: 0 0 var(--lt-layout-menubar-height);
-  width: 100%;
-  height: var(--lt-layout-menubar-height);
-  min-height: var(--lt-layout-menubar-height);
-  padding: 0;
-  border-bottom: 1px solid var(--lt-border-subtle);
-  background: var(--lt-surface-menubar);
-}
-
-.lighttable-tool-options {
-  min-width: 0;
-  min-height: var(--lt-layout-toolbar-height);
-  flex: 0 0 var(--lt-layout-toolbar-height);
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-bottom: 1px solid var(--lt-tool-options-separator);
-  background: var(--lt-surface-panel);
 }
 
 .lighttable-tool-options__content {
@@ -452,13 +418,6 @@
   align-items: center;
 }
 
-.lighttable__app-menu {
-  flex: 0 0 auto;
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-}
-
 .lighttable__project-name {
   align-self: center;
   margin-left: 8px;
@@ -524,21 +483,9 @@
   font-size: var(--lt-type-small);
 }
 
-.lighttable__body {
-  min-height: 0;
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: var(--lt-toolbox-width) minmax(0, 1fr);
-  border-top: 1px solid var(--lt-border-workspace);
-}
-
 /* Canvas-only screen mode is a presentation state, not a second workspace.
  * Keep Dockview and every panel mounted so their layout and runtime state are
  * preserved, while the document group temporarily owns the complete editor. */
-.lighttable--canvas-only .lighttable__body {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 /* Dockview's native maximized-group state lets the document own the full grid
  * without unmounting panels or retaining their grid columns. Floating panels
  * remain mounted as well, but do not cover the canvas presentation. */
@@ -561,11 +508,18 @@
   display: none;
 }
 
-.lighttable-dock-workspace.dockview-theme-dark {
+.lighttable-dock-workspace:is(.dockview-theme-dark, .dockview-theme-light) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+/* Dockview mounts its own themed dv-shell below the host element. Keep the
+ * library responsible for mechanics, but make suite editor tokens the single
+ * palette authority for docked and floating groups. */
+.lighttable-dock-workspace .dv-shell:is(.dockview-theme-dark, .dockview-theme-light) {
   --dv-background-color: var(--lt-surface-collapsible-content);
+  --dv-group-view-background-color: var(--lt-surface-panel);
   --dv-paneview-header-border-color: var(--lt-border);
   --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel-tab-strip);
   --dv-tabs-and-actions-container-height: 30px;
@@ -578,6 +532,13 @@
   --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel-tab-inactive);
   --dv-tab-divider-color: var(--lt-border);
   --dv-separator-border: var(--lt-border-workspace);
+  --dv-activegroup-visiblepanel-tab-color: var(--lt-text-primary);
+  --dv-activegroup-hiddenpanel-tab-color: var(--lt-text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--lt-text-secondary);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--lt-text-subtle);
+  --dv-icon-hover-background-color: var(--lt-surface-control-hover);
+  --dv-floating-box-shadow: var(--lt-shadow-floating);
+  --dv-floating-border: 1px solid var(--lt-border);
   --dv-active-sash-color: var(--lt-accent);
   --dv-drag-over-background-color: var(--lt-accent-drop);
   --dv-drag-over-border-color: var(--lt-accent);
@@ -759,14 +720,6 @@
 
 .lighttable-dock-workspace .dv-content-container {
   min-width: 0;
-  min-height: 0;
-}
-
-/* Dockview gives dv-react-part the available height, but its anonymous React
- * mount element remains content-sized. Bridge that host only for Layers; the
- * shared UI PanelFooter stays feature-agnostic. */
-.lighttable-dock-workspace .dv-react-part:has(.lighttable-layers-panel) > div {
-  height: 100%;
   min-height: 0;
 }
 
@@ -1420,18 +1373,6 @@
   user-select: text;
 }
 
-.lighttable-toolbar {
-  flex: 0 0 auto;
-  min-height: var(--lt-layout-statusbar-height);
-  display: grid;
-  grid-template-columns: 28px auto minmax(0, 1fr) auto minmax(0, 1fr) 28px;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border-top: 1px solid var(--lt-border);
-  background: var(--lt-surface-statusbar);
-}
-
 .lighttable-toolbar__dock-toggle {
   width: 28px;
   height: 24px;
@@ -1454,42 +1395,16 @@
   cursor: default;
 }
 
-.lighttable-toolbar__dock-toggle img {
+.lighttable-toolbar__dock-toggle :is(img, .ui-mask-icon) {
   width: 20px;
   height: 20px;
-  object-fit: contain;
   pointer-events: none;
 }
 
+.lighttable-toolbar__dock-toggle img { object-fit: contain; }
+
 .lighttable-toolbar__workspace-switches {
   align-self: center;
-}
-
-.lighttable-toolbar__status {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--lt-text-muted);
-  font-size: var(--lt-type-small);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lighttable-toolbar__status--error {
-  color: var(--lt-danger);
-}
-
-.lighttable-toolbar__meta {
-  color: var(--lt-text-subtle);
-  font-size: var(--lt-type-regular);
-  white-space: nowrap;
-}
-
-.lighttable-toolbar__meta--report {
-  cursor: pointer;
-}
-
-.lighttable-toolbar__meta--report:hover {
-  color: var(--text-primary);
 }
 
 .lighttable-psd-report__content {
@@ -2514,7 +2429,7 @@
 }
 
 .lighttable-layers-panel .lighttable-layers {
-  height: auto;
+  height: 100%;
   min-height: 0;
   flex: 1 1 auto;
   max-height: none;
@@ -4356,17 +4271,6 @@
 .lighttable-lens-blur__visualization-point--focus { left: var(--focus-distance); width: 5px; height: 5px; background: var(--color-tab-active); }
 .lighttable-lens-blur__visualization-point--high { left: 84%; }
 
-
-@media (max-width: 900px) {
-  .lighttable__body {
-    grid-template-columns: 40px minmax(0, 1fr);
-  }
-
-  .lighttable-toolbar__meta {
-    display: none;
-  }
-
-}
 
 .lighttable-debug-panel {
   display: flex;

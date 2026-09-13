@@ -10,7 +10,6 @@
     ".": "./src/index.ts",
     "./standalone": "./src/standalone.ts",
     "./bitmap-formats": "./src/lighttable/image-io/nativeBitmapFormats.ts",
-    "./ui-devtools": "./src/ui-devtools.ts",
     "./project-manifest": "./src/lighttable/application/projects/projectManifest.ts"
   },
   "scripts": {

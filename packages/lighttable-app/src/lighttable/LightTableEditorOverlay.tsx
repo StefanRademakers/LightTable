@@ -403,7 +403,6 @@ export interface LightTableEditorOverlayProps {
   onRequestNewWorkspaceDocument?: () => void;
   onStartGuidedSample?: () => void;
   onOpenSettings?: () => void;
-  onOpenStyleGuide?: () => void;
   onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
   onRequestPlaceWorkspaceArtifact?: (documentId: string) => Promise<void> | void;
   recentFiles?: readonly LightTableRecentFile[];
@@ -493,7 +492,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onRequestNewWorkspaceDocument,
   onStartGuidedSample,
   onOpenSettings,
-  onOpenStyleGuide,
   onRequestOpenWorkspaceDocument,
   onRequestPlaceWorkspaceArtifact,
   recentFiles = [],
@@ -3581,7 +3579,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         void genAiProviders.connectOpenArt();
       },
       disconnectOpenArtProvider: genAiProviders.disconnectOpenArt,
-      openStyleGuide: onOpenStyleGuide,
       reloadUi: developerService?.reloadUi,
       toggleDeveloperTools: developerService?.toggleDeveloperTools,
       toggleScreenMode,

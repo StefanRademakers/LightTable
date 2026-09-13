@@ -56,10 +56,10 @@ If conversation context disappeared, retain these facts before touching code:
     adjustment layer affecting the lower composite, or an ordered adjustment
     attached to one raster layer. Stack order affects output; never reorder or
     fuse nodes without a proved semantic equivalence.
-11. Shared controls own their internal CSS and geometry under `src/ui`.
+11. Shared controls own their internal CSS and geometry under `packages/ui`.
     Containers only supply flow, available space, clipping and placement;
     contextual differences use named variants and appear identically in the
-    live UI Style Guide.
+    standalone package catalog launched by `UI.bat`.
 12. Local Codex practice is product-owned in the packaged desktop:
     **Preferences > Agent Access > Local test mode > Allow agent connections >
     Connect Codex**. A fresh/reloaded Codex session is required after first
@@ -346,28 +346,28 @@ not reach into a renderer, host or unrelated React state.
 
 Shared visual language lives in:
 
-- [`theme.css`](../packages/lighttable-app/src/ui/theme.css): color, type,
-  spacing, focus, control and semantic tokens;
-- [`primitives.css`](../packages/lighttable-app/src/ui/primitives.css): shared
-  control implementations;
-- [`src/ui`](../packages/lighttable-app/src/ui): buttons, form fields, color
-  and gradient fields, segmented controls, switches, numeric expressions,
-  menus, dialogs, sections, search, `AdjustmentSlider` and reusable panel
-  compositions;
+- [`packages/ui`](../packages/ui): reusable controls, editor chrome, canonical
+  tokens and component-owned CSS;
+- [`theme.css`](../packages/lighttable-app/src/ui/theme.css): temporary
+  LightTable aliases onto package tokens plus app-domain semantic roles;
+- [`primitives.css`](../packages/lighttable-app/src/ui/primitives.css): remaining
+  app compositions only; reusable skins must migrate to `packages/ui`;
+- [`src/ui`](../packages/lighttable-app/src/ui): LightTable-aware adapters that
+  need app services or domain callbacks, not a second general UI library;
 - [`PanelControls.tsx`](../packages/lighttable-app/src/ui/PanelControls.tsx):
   shared property fields and disclosures;
 - [`ToolOptionControls.tsx`](../packages/lighttable-app/src/lighttable/editor/ui/ToolOptionControls.tsx):
   editor-specific property-bar compositions of those primitives;
-- View > UI Style Guide: a live catalogue of shared production controls plus
-  explicitly labelled prototypes; prototypes are exploration, not canonical
-  reusable UI.
+- [`apps/ui-demo`](../apps/ui-demo): the standalone catalog for production
+  `@lighttable/ui` components, launched through `UI.bat`. The app contains no
+  embedded style guide or guide-only CSS.
 
 Feature CSS belongs with the feature, but must consume shared tokens. A shared
 component owns its internal geometry and states; a container may only arrange
 it or constrain available space. Use an explicit variant such as
 `AdjustmentSlider`'s `tool-bar`, `tool-panel` or `layer-row` rather than an
 ancestor selector. `npm run audit:ui-boundary` rejects editor-domain imports
-from `src/ui` and feature stylesheets that reach into protected UI roots. Do
+across the shared boundary and feature stylesheets that reach into protected UI roots. Do
 not invent a near-duplicate slider, select, swatch or popup because a panel
 needs a minor variation. Dockview theme mapping and editor geometry live in
 [`lighttable.css`](../packages/lighttable-app/src/lighttable/lighttable.css).
@@ -851,7 +851,7 @@ before changing representation or blend math.
 | open documents, activation, tab lifetime | workspace/session controllers |
 | panel placement or preset | workspace panel registry/Dockview layer |
 | panel behavior | feature model/controller, then projected panel |
-| reusable control/style | `src/ui`, tokens and UI Style Guide |
+| reusable control/style | `packages/ui`, its tokens and `apps/ui-demo` |
 | tool discovery/shortcut | tool registry and input router |
 | pointer gesture semantics | application tool state + active-session-bound tool controller |
 | editable state or transform | canonical document/scene operation + history |
@@ -881,7 +881,7 @@ release-candidate checkouts under `tmp/` when counting tests.
   export geometry tests.
 - Render change: shader/unit tests, dirty-only telemetry and desktop render-
   engine audit; verify no CPU pixel roundtrip or unnecessary full pass.
-- UI change: component test, live UI Style Guide and relevant desktop smoke;
+- UI change: component test, standalone UI catalog and relevant app smoke;
   check keyboard/focus and floating/docked states.
 - Format change: fixture import/export, representability preflight, roundtrip
   corpus and visual oracle where parity is claimed. Photoshop references are

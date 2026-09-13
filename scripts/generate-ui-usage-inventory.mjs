@@ -18,14 +18,13 @@ const walk = async (directory) => (await Promise.all((await readdir(directory, {
 const slash = (value) => value.split(path.sep).join('/');
 const relativeSourcePath = (file) => slash(path.relative(sourceRoot, file));
 const isTest = (file) => /(?:\.test|\.spec)\.[cm]?[jt]sx?$/.test(file);
-const isCatalogSpecimen = (file) => /standalone\/(?:UiStyleGuideDialog|UiSystemSpecimens|UiColorPickerPrototype|UiCoverageSpecimen|UiInspectorHost|AdjustmentDialogSpecimens)\.tsx$/.test(file);
 const countMatches = (source, expression) => [...source.matchAll(expression)].length;
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
 const files = await walk(sourceRoot);
 const sourceFiles = files.filter((file) => /\.[cm]?[jt]sx?$/.test(file) && !isTest(file));
-const productionFiles = sourceFiles.filter((file) => !isCatalogSpecimen(relativeSourcePath(file)));
+const productionFiles = sourceFiles;
 const cssFiles = files.filter((file) => file.endsWith('.css'));
 const sourceCache = new Map(await Promise.all([...new Set([...productionFiles, ...cssFiles])]
   .map(async (file) => [file, await readFile(file, 'utf8')])));

@@ -13,8 +13,7 @@ const result = spawnSync(command, args, {
   cwd: workspaceRoot,
   env: {
     ...process.env,
-    LIGHTTABLE_STATIC_BUILD: '1',
-    LIGHTTABLE_UI_DEVTOOLS: '0'
+    LIGHTTABLE_STATIC_BUILD: '1'
   },
   stdio: 'inherit'
 });

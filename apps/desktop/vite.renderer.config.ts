@@ -10,7 +10,6 @@ const isolationHeaders = {
 };
 
 // Temporarily default on in every build during the shared-control migration.
-const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS !== '0';
 const vectorDetailedProfiling = process.env.LIGHTTABLE_VECTOR_PROFILE === '1';
 const renderTelemetryEnabled = process.env.LIGHTTABLE_RENDER_TELEMETRY === '1';
 const debugBuild = process.env.LIGHTTABLE_BUILD_PROFILE === 'debug';
@@ -21,7 +20,6 @@ export default defineConfig({
     minify: debugBuild ? false : undefined
   },
   define: {
-    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_EXPERIMENTAL_TOOLS': JSON.stringify(debugBuild ? 'true' : 'false')
@@ -36,9 +34,6 @@ export default defineConfig({
       ),
       '@lighttable/app/standalone': fileURLToPath(
         new URL('../../packages/lighttable-app/src/standalone.ts', import.meta.url)
-      ),
-      '@lighttable/app/ui-devtools': fileURLToPath(
-        new URL('../../packages/lighttable-app/src/ui-devtools.ts', import.meta.url)
       ),
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)

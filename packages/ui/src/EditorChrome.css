@@ -1,0 +1,137 @@
+.ui-editor-chrome {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--ui-editor-app-surface);
+  color: var(--ui-text);
+  font: var(--ui-font-weight-normal) var(--ui-font-size-regular)/var(--ui-line-height-regular) var(--ui-font-family);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ui-editor-chrome__header {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--ui-editor-menubar-height);
+  min-height: var(--ui-editor-menubar-height);
+  flex: 0 0 var(--ui-editor-menubar-height);
+  padding: 0;
+  border-bottom: 1px solid var(--ui-editor-border-subtle);
+  background: var(--ui-editor-menubar-surface);
+  color: var(--ui-text);
+}
+
+.ui-editor-menu-surface {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  background: var(--ui-editor-menubar-surface);
+  color: var(--ui-text);
+}
+
+.ui-editor-tool-options {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--ui-editor-tool-options-height);
+  flex: 0 0 var(--ui-editor-tool-options-height);
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--ui-editor-border-strong);
+  background: var(--ui-editor-toolbar-surface);
+  color: var(--ui-text);
+}
+
+.ui-editor-chrome__body {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: var(--ui-editor-tool-rail-width) minmax(0, 1fr);
+  border-top: 1px solid var(--ui-editor-workspace-border);
+  background: var(--ui-editor-workspace-surface);
+}
+
+.ui-editor-chrome__body[data-canvas-only] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ui-editor-panel-surface {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ui-surface-panel);
+  color: var(--ui-text);
+}
+
+/* Dock hosts commonly insert one anonymous mount node around panel content.
+ * The surface owns that geometry: every panel root receives the full available
+ * body so its own scroll region and footer can divide the height correctly. */
+.ui-editor-panel-surface > :only-child {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ui-editor-status-bar {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--ui-editor-statusbar-height);
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--ui-editor-border);
+  background: var(--ui-editor-statusbar-surface);
+  color: var(--ui-text);
+}
+
+.ui-editor-status-bar__text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-size-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-editor-status-bar__text[data-tone='error'] { color: var(--ui-danger-text); }
+
+.ui-editor-status-bar__meta {
+  min-width: 0;
+  color: var(--ui-editor-text-subtle);
+  font-size: var(--ui-font-size-regular);
+  white-space: nowrap;
+}
+
+.ui-editor-status-bar__meta[data-interactive] { cursor: pointer; }
+.ui-editor-status-bar__meta[data-interactive]:hover { color: var(--ui-text); }
+.ui-editor-status-bar__spacer { min-width: 0; }
+
+@media (max-width: 900px) {
+  .ui-editor-chrome__body:not([data-canvas-only]) {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .ui-editor-status-bar__meta { display: none; }
+}

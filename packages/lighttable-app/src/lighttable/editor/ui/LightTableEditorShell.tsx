@@ -1,5 +1,5 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
-import { IconButton, type MenuOption } from '@lighttable/ui';
+import { EditorChrome, EditorChromeBody, EditorChromeHeader, IconButton, type MenuOption } from '@lighttable/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import type { EditorSession, ToolId } from '../session/editorSession';
@@ -83,11 +83,11 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
     className={`modal-backdrop lighttable-backdrop${active ? '' : ' lighttable-backdrop--inactive'}`}
     aria-hidden={!active}
   >
-    <div
+    <EditorChrome
       className={`lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}
       onClick={(event) => event.stopPropagation()}
     >
-      {screenMode !== 'canvas-only' ? <div className="modal__header concept-art-editor__header lighttable__header">
+      {screenMode !== 'canvas-only' ? <EditorChromeHeader className="modal__header concept-art-editor__header lighttable__header">
         <div className="lighttable__header-left">
           <EditorMenuBar optionsFor={menuOptionsFor} projectName={projectName}
             enabledFor={(menuId) => editorMenuEnabledForDocumentKind(workspaceDocumentKind, menuId)}
@@ -101,7 +101,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
           aria-label="Close editor"
           icon={<img src={lightTableIcon('close.png')} alt="" aria-hidden />}
         />
-      </div> : null}
+      </EditorChromeHeader> : null}
 
       {screenMode !== 'canvas-only' && (
         workspaceDocumentKind === 'image'
@@ -131,7 +131,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onChange={onPrecisionFileChange}
       />
 
-      <div className="lighttable__body">
+      <EditorChromeBody className="lighttable__body" data-canvas-only={screenMode === 'canvas-only' || undefined}>
         {screenMode !== 'canvas-only' ? <EditorToolbar
           documentKind={workspaceDocumentKind}
           activeTool={activeTool}
@@ -145,8 +145,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
           onResetColors={onResetColors}
         /> : null}
         {children}
-      </div>
-    </div>
+      </EditorChromeBody>
+    </EditorChrome>
     {overlays}
   </div>
 );

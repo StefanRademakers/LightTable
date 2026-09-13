@@ -25,5 +25,7 @@ describe('EditorStatusBar', () => {
     expect(markup).toContain('add_adjustment_layer.png');
     expect(markup).toContain('photo.png');
     expect(markup).toContain('media_video.png');
+    expect(markup.match(/ui-mask-icon/g)).toHaveLength(6);
+    expect(markup).not.toContain('<img');
   });
 });

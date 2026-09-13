@@ -117,7 +117,6 @@
     { "id": "transform-rotate-180", "classification": "command", "command": "transform.applyFixed" },
     { "id": "transform-rotate-clockwise-90", "classification": "command", "command": "transform.applyFixed" },
     { "id": "transform-rotate-counter-clockwise-90", "classification": "command", "command": "transform.applyFixed" },
-    { "id": "ui-style-guide", "classification": "presentation", "reason": "Opens the developer UI style guide." },
     { "id": "workspace-ai-generation", "classification": "presentation", "reason": "Applies a local workspace layout preset." },
     { "id": "workspace-grading", "classification": "presentation", "reason": "Applies a local workspace layout preset." },
     { "id": "workspace-photo-edit", "classification": "presentation", "reason": "Applies a local workspace layout preset." },

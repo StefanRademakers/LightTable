@@ -104,8 +104,6 @@ const deferredSurface = (content: ReactNode) => (
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
-  /** Optional host contribution; omitted builds contain no UI inspection runtime. */
-  onOpenStyleGuide?: () => void;
   /** Ask the browser to confirm before unloading while a document is dirty. */
   warnBeforeBrowserUnload?: boolean;
 }
@@ -170,7 +168,6 @@ const waitForReadyDocument = (
  */
 export function LightTableStandaloneApp({
   host: suppliedHost,
-  onOpenStyleGuide,
   warnBeforeBrowserUnload = false
 }: LightTableStandaloneAppProps) {
   const host = useMemo(() => suppliedHost ?? createBrowserHost(), [suppliedHost]);
@@ -1344,7 +1341,6 @@ export function LightTableStandaloneApp({
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenStyleGuide={onOpenStyleGuide}
           preferences={preferences}
           onOpen={async (file, decodeMode) => {
             const opened = await openWorkspaceFileSafely(file, decodeMode);

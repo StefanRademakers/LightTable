@@ -13,6 +13,7 @@ import { SelectionDemo } from './SelectionDemo';
 import { FieldsDemo } from './FieldsDemo';
 import { ScopesDemo } from './ScopesDemo';
 import { DialogsDemo } from './DialogsDemo';
+import { EditorChromeDemo } from './EditorChromeDemo';
 
 const variants: { variant: TextVariant; label: string; usage: string }[] = [
   { variant: 'large', label: 'Large', usage: 'Titles and headings' },
@@ -28,7 +29,7 @@ const catalog = [
     { id: 'menus', label: 'Menus & navigation' },
     { id: 'document-tabs', label: 'Document tabs' }
   ] },
-  { label: 'Containers', pages: [{ id: 'panels', label: 'Panel sections' }, { id: 'dialogs', label: 'Dialogs' }] },
+  { label: 'Containers', pages: [{ id: 'panels', label: 'Panel sections' }, { id: 'editor-chrome', label: 'Editor chrome' }, { id: 'dialogs', label: 'Dialogs' }] },
   { label: 'Visualization', pages: [{ id: 'scopes', label: 'Scopes' }] }
 ] as const;
 const catalogPages = catalog.flatMap(group => [...group.pages]);
@@ -79,7 +80,7 @@ function App() {
       </React.Fragment>)}
     </nav>
     <main className="demo-content">
-      {page === 'dialogs' ? <DialogsDemo /> : page === 'document-tabs' ? <DocumentTabsDemo /> : page === 'scopes' ? <ScopesDemo /> : page === 'fields' ? <FieldsDemo /> : page === 'selection' ? <SelectionDemo /> : page === 'panels' ? <PanelsDemo /> : page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
+      {page === 'dialogs' ? <DialogsDemo /> : page === 'editor-chrome' ? <EditorChromeDemo /> : page === 'document-tabs' ? <DocumentTabsDemo /> : page === 'scopes' ? <ScopesDemo /> : page === 'fields' ? <FieldsDemo /> : page === 'selection' ? <SelectionDemo /> : page === 'panels' ? <PanelsDemo /> : page === 'color-picker' ? <ColorPickerDemo /> : page === 'sliders' ? <SlidersDemo /> : page === 'menus' ? <MenusDemo /> : page === 'typography' ? <>
       <header className="demo-intro">
         <Text as="h1" variant="large" weight="bold">Typography</Text>
         <Text as="p" tone="muted">Inter. Three sizes, two weights. One shared type system for every app.</Text>

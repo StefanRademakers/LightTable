@@ -7,7 +7,6 @@ if (!['release', 'instrumented', 'debug'].includes(profile) || !command) {
 }
 
 const env = { ...process.env };
-// Preserve an explicit opt-out for UI-boundary checks while the guide defaults on.
 delete env.LIGHTTABLE_VECTOR_PROFILE;
 delete env.LIGHTTABLE_RENDER_TELEMETRY;
 delete env.LIGHTTABLE_BUILD_PROFILE;
@@ -16,10 +15,7 @@ env.LIGHTTABLE_BUILD_PROFILE = profile;
 if (profile !== 'release') {
   env.LIGHTTABLE_RENDER_TELEMETRY = '1';
 }
-if (profile === 'debug') {
-  env.LIGHTTABLE_UI_DEVTOOLS = '1';
-  env.LIGHTTABLE_VECTOR_PROFILE = '1';
-}
+if (profile === 'debug') env.LIGHTTABLE_VECTOR_PROFILE = '1';
 
 const result = spawnSync(command, args, {
   cwd: process.cwd(),

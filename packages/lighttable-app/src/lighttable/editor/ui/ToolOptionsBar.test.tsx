@@ -116,7 +116,8 @@ const renderOptions = (
 describe('tool options workspace geometry', () => {
   it('keeps an empty structural bar for document kinds without tool controls', () => {
     const markup = renderToStaticMarkup(<EmptyToolOptionsBar documentKind="video" />);
-    expect(markup).toContain('class="lighttable-tool-options"');
+    expect(markup).toContain('class="ui-editor-tool-options lighttable-tool-options"');
+    expect(markup).toContain('data-suite-control="editor-tool-options"');
     expect(markup).toContain('data-document-kind="video"');
     expect(markup).toContain('aria-hidden="true"');
   });

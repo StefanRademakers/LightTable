@@ -17,24 +17,8 @@ window.addEventListener('wheel', (event) => {
   if (event.ctrlKey) event.preventDefault();
 }, { capture: true, passive: false });
 
-const uiDevtoolsEnabled = import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS === 'true';
-const UiInspectorHost = uiDevtoolsEnabled
-  ? React.lazy(() => import('@lighttable/app/ui-devtools').then((module) => ({
-      default: module.UiInspectorHost
-    })))
-  : null;
-const openUiStyleGuide = uiDevtoolsEnabled
-  ? () => { void import('@lighttable/app/ui-devtools').then((module) => module.requestUiStyleGuide()); }
-  : undefined;
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <LightTableStandaloneApp
-      onOpenStyleGuide={openUiStyleGuide}
-      warnBeforeBrowserUnload
-    />
-    {UiInspectorHost ? (
-      <React.Suspense fallback={null}><UiInspectorHost /></React.Suspense>
-    ) : null}
+    <LightTableStandaloneApp warnBeforeBrowserUnload />
   </React.StrictMode>
 );

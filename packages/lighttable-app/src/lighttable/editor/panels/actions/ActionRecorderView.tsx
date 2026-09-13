@@ -7,7 +7,7 @@ import {
 import { lightTableIcon } from '../../../../assets/icons';
 import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
@@ -418,26 +418,26 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       <ButtonBase type="button" aria-label="Play" onClick={props.onPlay}
         disabled={busy || recording.status === 'recording'
           || !actionHierarchyEnabled
-          || !recording.steps.some((step) => step.replayable && step.enabled !== false)}><img
-          src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></ButtonBase>
+          || !recording.steps.some((step) => step.replayable && step.enabled !== false)}><MaskIcon
+          src={lightTableIcon('play.png')} mode="luminance" /></ButtonBase>
       <ButtonBase type="button" aria-label="Clear" onClick={props.onClear}
-        disabled={busy || recording.status === 'recording' || recording.steps.length === 0}><img
-          src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+        disabled={busy || recording.status === 'recording' || recording.steps.length === 0}><MaskIcon
+          src={lightTableIcon('layer_trash.png')} mode="luminance" /></ButtonBase>
       <span className="lighttable-action-recorder__footer-spacer" />
       <ButtonBase type="button" aria-label="New Action Set"
         disabled={treeLocked}
-        onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })}><img
-          src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
+        onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })}><MaskIcon
+          src={lightTableIcon('add_group.png')} mode="luminance" /></ButtonBase>
       <ButtonBase type="button" aria-label="New Action"
         disabled={treeLocked}
-        onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })}><img
-          src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
+        onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })}><MaskIcon
+          src={lightTableIcon('add_layer.png')} mode="luminance" /></ButtonBase>
       <ButtonBase type="button" aria-label="Delete selected" disabled={!canDeleteSelection || treeLocked}
         onClick={() => {
           if (selection?.kind === 'set') props.onDeleteSet(selection.id);
           if (selection?.kind === 'action') props.onDelete(selection.id);
           if (selection?.kind === 'step' && selection.sequence) edit(props.onDeleteStep(selection.sequence));
-        }}><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+        }}><MaskIcon src={lightTableIcon('layer_trash.png')} mode="luminance" /></ButtonBase>
     </PanelFooter>
 
     <Menu data-editor-native-tab-navigation open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}

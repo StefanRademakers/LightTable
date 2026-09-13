@@ -1,4 +1,8 @@
 [
+  { "id": "editor-chrome", "name": "Editor Chrome", "family": "Layout & geometry", "symbols": ["EditorChrome", "EditorChromeHeader", "EditorMenuBarSurface", "EditorChromeBody"], "roots": ["ui-editor-chrome"], "packageStatus": "ready" },
+  { "id": "editor-tool-options", "name": "Tool Options Bar", "family": "Layout & geometry", "symbols": ["EditorToolOptionsBar"], "roots": ["ui-editor-tool-options"], "packageStatus": "ready" },
+  { "id": "editor-status-bar", "name": "Editor Status Bar", "family": "Layout & geometry", "symbols": ["EditorStatusBar", "EditorStatusText", "EditorStatusMeta", "EditorStatusSpacer"], "roots": ["ui-editor-status-bar"], "packageStatus": "ready" },
+  { "id": "editor-panel-surface", "name": "Editor Panel Surface", "family": "Containers", "symbols": ["EditorPanelSurface"], "roots": ["ui-editor-panel-surface"], "packageStatus": "ready" },
   { "id": "document-tabs", "name": "Document Tabs", "family": "Lists & navigation", "symbols": ["DocumentTabs"], "roots": ["ui-document-tabs"], "packageStatus": "ready" },
   { "id": "tree-row", "name": "Tree Row", "family": "Lists & navigation", "symbols": ["TreeRow", "TreeButtonRow", "TreeDisclosure"], "roots": ["ui-tree-row", "ui-tree-disclosure"], "packageStatus": "ready" },
   { "id": "color-wheel", "name": "Color Wheel", "family": "Paint & color", "symbols": ["ColorWheel"], "roots": ["ui-color-wheel"], "packageStatus": "ready" },

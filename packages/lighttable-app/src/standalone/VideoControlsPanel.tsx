@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { VideoDocumentSession } from '@lighttable/video-core';
-import { IconButton } from '@lighttable/ui';
+import { IconButton, MaskIcon } from '@lighttable/ui';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from '../ui/AdjustmentSlider';
 
@@ -40,7 +40,7 @@ const TransportButton = ({
 }) => (
   <IconButton
     variant="quiet"
-    icon={<img src={lightTableIcon(icon)} alt="" aria-hidden />}
+    icon={<MaskIcon src={lightTableIcon(icon)} mode="luminance" />}
     aria-label={label}
     title={label}
     disabled={disabled}

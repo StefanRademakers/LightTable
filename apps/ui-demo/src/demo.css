@@ -53,3 +53,9 @@ body { margin: 0; }
 .demo-document-tabs-size { width: 620px; max-width: 100%; min-width: 180px; padding-bottom: 16px; resize: horizontal; overflow: hidden; }
 .demo-document-overview-surface { position: relative; height: 420px; display: grid; place-items: center; background: var(--ui-surface-inset); }
 .demo-document-overview-surface > img { max-width: 94%; max-height: 94%; width: 94%; height: 94%; object-fit: contain; }
+.demo-editor-chrome-frame { height: 560px; min-width: 680px; overflow: auto; border: 1px solid var(--ui-border); }
+.demo-editor-tool-options { height: 100%; display: flex; align-items: center; gap: 12px; padding-inline: 10px; }
+.demo-editor-tool-rail { background: var(--ui-surface-panel); border-right: 1px solid var(--ui-editor-border); }
+.demo-editor-workspace { position: relative; display: grid; place-items: center; background: var(--ui-editor-workspace-surface); }
+.demo-editor-floating-panel { position: absolute; top: 40px; right: 40px; width: 260px; min-height: 280px; display: flex; flex-direction: column; border: 1px solid var(--ui-editor-border); background: var(--ui-surface-panel); box-shadow: var(--ui-editor-floating-shadow); }
+.demo-editor-panel-content { flex: 1 1 auto; padding: 12px; }

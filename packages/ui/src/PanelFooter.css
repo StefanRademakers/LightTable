@@ -37,8 +37,13 @@
   cursor: default;
 }
 
-.ui-panel-footer img {
+.ui-panel-footer img,
+.ui-panel-footer .ui-mask-icon {
   width: 17px;
   height: 17px;
+  flex: 0 0 17px;
+}
+
+.ui-panel-footer img {
   object-fit: contain;
 }
