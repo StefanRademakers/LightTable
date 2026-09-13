@@ -47,6 +47,21 @@ try {
   if (!sourceLayer) throw new Error('The fixture has no raster layer.');
 
   const observations = [];
+  const footerPlacement = await page.locator('.lighttable-layers-panel').evaluate((panel) => {
+    const footer = panel.querySelector('.lighttable-layers__footer');
+    if (!(footer instanceof HTMLElement)) throw new Error('Layers footer is unavailable.');
+    const panelBounds = panel.getBoundingClientRect();
+    const footerBounds = footer.getBoundingClientRect();
+    return {
+      panelBottom: panelBounds.bottom,
+      footerBottom: footerBounds.bottom,
+      bottomGap: panelBounds.bottom - footerBounds.bottom
+    };
+  });
+  observations.push({ label: 'footer-bottom-alignment', ...footerPlacement });
+  if (Math.abs(footerPlacement.bottomGap) > 1) {
+    throw new Error(`Layers footer is not bottom-aligned: ${JSON.stringify(footerPlacement)}`);
+  }
   const canvas = page.locator('.lighttable-viewport__canvas');
   const comparePixels = async (before, after) => {
     const left = await sharp(before).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
