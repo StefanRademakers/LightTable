@@ -113,6 +113,7 @@ try {
     report.steps.push({ pasted: pasted.value });
     const pastedPixels = await visiblePixels(pasted.value.layerId);
     const pastedVisiblePixels = pastedPixels.count;
+    let prePaintPixels = pastedPixels;
     assert.ok(pastedVisiblePixels > 100, 'Paste must contain visible pixels');
     if (process.env.LIGHTTABLE_PAINT_TRANSFORM === '1') {
       await page.keyboard.press('Control+t');
@@ -130,6 +131,10 @@ try {
       await page.mouse.move(sliderBounds.x + sliderBounds.width * 0.7, sliderBounds.y + sliderBounds.height / 2, { steps: 8 });
       await page.mouse.up();
       await page.waitForTimeout(200);
+      prePaintPixels = await visiblePixels(pasted.value.layerId);
+      report.steps.push({ afterTransformAndAdjustmentVisiblePixels: prePaintPixels.count });
+      assert.ok(prePaintPixels.count >= pastedVisiblePixels * 0.99,
+        `Transform and adjustment lost pasted content: ${pastedVisiblePixels} -> ${prePaintPixels.count}`);
     }
     await page.keyboard.press('b');
     const viewport = await page.locator('.lighttable-viewport').boundingBox();
@@ -163,15 +168,15 @@ try {
     const paintedPixels = await visiblePixels(pasted.value.layerId);
     const paintedVisiblePixels = paintedPixels.count;
     report.steps.push({ pastedVisiblePixels, paintedVisiblePixels });
-    assert.ok(paintedVisiblePixels >= pastedVisiblePixels * 0.99,
-      `Painting lost pasted content: ${pastedVisiblePixels} -> ${paintedVisiblePixels}`);
-    assert.equal(paintedPixels.pixels.equals(pastedPixels.pixels), false, 'Brush must actually change pixels');
+    assert.ok(paintedVisiblePixels >= prePaintPixels.count * 0.99,
+      `Painting lost pasted content: ${prePaintPixels.count} -> ${paintedVisiblePixels}`);
+    assert.equal(paintedPixels.pixels.equals(prePaintPixels.pixels), false, 'Brush must actually change pixels');
     const committed = report.consoleErrors.filter((line) => line.startsWith('[Recovery] Checkpoint committed')).length;
     await page.waitForTimeout(6000);
     assert.ok(report.consoleErrors.filter((line) => line.startsWith('[Recovery] Checkpoint committed')).length > committed,
       'The new painted revision must produce a real recovery checkpoint');
     await driver.execute(id, 'history.undo', {});
-    assert.deepEqual((await visiblePixels(pasted.value.layerId)).pixels, pastedPixels.pixels,
+    assert.deepEqual((await visiblePixels(pasted.value.layerId)).pixels, prePaintPixels.pixels,
       'Undo must restore the exact pasted pixels after recovery');
     await driver.execute(id, 'history.redo', {});
     assert.deepEqual((await visiblePixels(pasted.value.layerId)).pixels, paintedPixels.pixels,

@@ -1,62 +1,38 @@
-# Task416 current checkpoint — 2026-09-12
+# Task 416 current checkpoint — O08 accepted 2026-09-13
 
-O06j Grade clipboard binding is committed as `f1dc6ce3`. O07g Tool Options
-composition is committed as `571df946`. O07h document-scopes presentation is
-accepted in the current worktree and awaits its checkpoint commit.
-Preserve unrelated untracked `work/recovered/`. No push requested.
+The Overlay composition-root milestone is complete and verified. Preserve
+unrelated untracked `work/recovered/`.
 
-## Accepted result
+## Accepted endpoint
 
-- One route: UI/Actions/MCP `grade.copy` prepares an exact mounted capture; the
-  semantic handler validates complete LUT ownership and registers the artifact;
-  only then does the binding publish the shared browser clipboard.
-- UI Paste reads the current shared capture at invocation. It may reuse only a
-  live artifact owned by the same handler. Evicted/persisted/foreign captures are
-  registered without creating another Copy event. A clipboard-replacement race
-  releases its unpublished artifact and does not dispatch Paste.
-- Root `latestGradeClipboardArtifactRef`, inline capture/apply policy and the
-  orphan `createAdjustmentCommands.copyGrade` route are deleted. Boundary checks
-  forbid their return. `GradeAssetCommandService` remains mutation/import owner.
-- Independent final critic: ACCEPT, no P0-P2 findings. Focused run PASS:
-  1,003 tests/58 files, app typecheck, boundary and diff checks.
-- Fresh instrumented package SHA256:
-  `962af9c887214209d34c1aa38215dfb702d6997f084c83e081406c65c832d6ef`.
-  Freshness smoke `tmp/grade-clipboard-freshness-smoke/run-fqtM2s` PASS with no
-  page errors. Existing full Grade Look UI/Actions/MCP/LUT/rebind smoke PASS.
-- Overlay 4,996 -> 4,941 physical lines; hard ceiling becomes 4,942.
-  WebGpuEngine remains 4,003. Whole O07/O08 and whole-app acceptance remain open.
+- `LightTableEditorOverlay.tsx` is the React composition root: UI-local state,
+  owner construction, explicit ports/subscriptions and view assembly.
+- Document-open ordering, mounted command admission/families, history navigation,
+  active-layer and mounted-interaction settlement, fixed-transform completion,
+  processing settlement/observation, layer-panel/selection intents, viewport zoom
+  and text/rendering lifetimes have named owners outside the root.
+- No legacy fallback, catch-and-continue, shadow route or optional mutation path
+  was added. Boundary checks prevent the removed authorities from returning.
+- Overlay is 4,456 physical lines (from 9,090 at the Task416 baseline; 4,841 at
+  the previous checkpoint). The audit ceiling is 4,456. WebGpuEngine remains
+  approximately 4,003 lines and is explicitly O09, not part of this acceptance.
 
-## O07g accepted result
+## Final proof
 
-- Overlay assembles one typed Tool Options feature projection. A pure 18-line
-  helper adds only toolbar Gradient request and context-menu close/Warp reset.
-  Shell forwards that contract and retains its independent vertical-toolbar
-  inputs. No state, lifecycle, queue, service or domain policy was added.
-- Critic ACCEPT, no P0-P2. 502 tests/56 files, typecheck, boundary and diff PASS.
-  Fresh packaged PSD Shape family switch, Escape and Warp reset/close PASS with
-  zero page errors: `tmp/tool-options-composition-smoke/report.json`.
-- Package SHA256:
-  `96839acf57859ed2d3552606cb922171a83f2810e96b4f61e47018a7ec7af7de`.
-  Overlay 4,941 -> 4,866 (ceiling 4,867), Shell 388 -> 152, overlay host 43 -> 34.
+- Independent architecture critic: ACCEPT after two focused repair rounds.
+- App typecheck, boundary/source-structure/diff checks pass.
+- Focused changed-owner tests: 95 tests across 8 files pass.
+- Fresh instrumented desktop package, distribution and render-telemetry gates pass.
+- Packaged flows pass: selection kernel, transform kernel, processing rebind,
+  scopes focus/workspace wake, Type Tool, tight merge, rasterize affordance with
+  local Grade/effects, and pasted transform -> Exposure -> paint -> exact
+  undo/redo.
+- Twenty typed document switches: 67 ms median, 75 ms maximum, zero DOM node
+  growth and zero listener tail/overall growth.
 
-## Next bounded slice
+## Next
 
-O07h removes the duplicate React/ref sources for scope settings and visibility,
-plus the root histogram scheduler. `DocumentScopesPresentation` is the one
-synchronous UI-projection owner; the renderer still owns GPU scope resources.
-Focused tests, typecheck, boundary/source audits and fresh packaged scope
-visibility/workspace wake pass. Package executable SHA256:
-`1515b88b2839b0806c22d46f4b238b60ba5c1f47bae07eebd718b9dea39581e7`.
-Overlay is 4,843 physical lines (ceiling 4,844); WebGpuEngine remains 4,003.
-
-Next, perform O08 as a bounded endpoint authority scan before any further
-extraction. Do not start WebGpuEngine decomposition under the current usage cap.
-
-The O08 typed-switch failure is repaired in Task 417. `smoke-desktop-multi-document`
-now retains zero DOM nodes and zero tail listeners over 20 typed switches after
-forced GC (66 ms median, 79 ms maximum); the separate Scopes wake smoke passes.
-The first Video Controls-only hypothesis was reverted. The accepted repair binds
-the whole image-panel/Properties presentation lifetime without a fallback.
-Overlay is 4,841 physical lines (audit ceiling 4,842); O08's other endpoint gates
-and O09 remain open. Final instrumented executable SHA256:
-`2eef1682de7aa01bc4a6ca26006ab9c3b9e1e17ab67b378e11ad3cad817b2276`.
+Commit/push this cohesive O08 endpoint. Then perform owner manual visual/feel
+testing. Treat any defect as a bug in its named owner; do not restore root policy
+or fallback code. If further structural work is desired, begin the separately
+scoped O09 WebGpuEngine inventory—do not reopen Task416 by default.

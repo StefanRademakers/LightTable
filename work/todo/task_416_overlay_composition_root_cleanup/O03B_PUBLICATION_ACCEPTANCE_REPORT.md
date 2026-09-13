@@ -1,5 +1,9 @@
 # O03b: document/selection publication — bounded acceptance
 
+Historical sub-slice report. Its acceptance and failures remain evidence, but
+all forward-looking checklist statements here are superseded by the accepted
+O08 endpoint in `resume.md` and the canonical cleanup plan.
+
 Date: 2026-09-11. Previous accepted baseline: `5e36a503` on main.
 O03b is accepted after an explicitly authorized additional repair round. This
 report accompanies the milestone commit; no push was requested. This is **not

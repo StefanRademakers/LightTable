@@ -2018,3 +2018,32 @@ Implementation and retained failed evidence:
   Task 417 is complete.
 - Consequence: this closes the typed-switch part of O08, not every remaining O08
   endpoint gate or O09 WebGpuEngine decomposition.
+
+## O08 — accepted composition-root endpoint (2026-09-13)
+
+- Done/deleted: remaining inline document-open ordering, history prerequisites,
+  active-layer settlement, fixed-transform completion inference, adjustment
+  observation/settlement recipes, layer-panel/selection menu policy, command
+  family bodies, viewport command closures and text/rendering lifecycle effects.
+- Ownership: these routes now live in small named application/composition owners;
+  Overlay constructs and connects them. No alternate route, catch-and-continue,
+  optional mutation port or silent fallback was added.
+- Size: Overlay 4,841 -> 4,456 physical lines. The audit ceiling is ratcheted to
+  4,456. New production modules remain below the plan's 350-line target.
+- Focused proof: app typecheck; 95 tests/8 files; boundary, source-structure and
+  diff checks pass. Source audit reports 2,399 handwritten files and zero
+  accountable generated artifacts.
+- Packaged proof: instrumented build/distribution/telemetry gates pass. Selection,
+  transform, processing-rebind, scopes focus/workspace wake, Type, tight merge,
+  rasterize affordance/local-grade/effects and pasted transform -> Exposure ->
+  paint -> exact undo/redo pass. The combined paint test now captures its expected
+  pre-paint state after Exposure instead of incorrectly comparing undo with the
+  pre-adjustment pixels.
+- Performance/resources: 20 typed image/video switches pass at 67 ms median and
+  75 ms maximum with zero DOM-node growth and zero listener tail/overall growth.
+- Critic: final independent review ACCEPT after fixing exact fixed-transform,
+  adjustment/layer, mounted-interaction, stable viewport and renderer-fixture
+  lifetimes. A packaged run then exposed and removed an unowned development-only
+  renderer retirement; the owner now retires only a fixture it actually enabled.
+- Open: O09 WebGpuEngine decomposition is separate. O08 does not claim the whole
+  application bug-free or replace the owner's manual visual/feel acceptance.

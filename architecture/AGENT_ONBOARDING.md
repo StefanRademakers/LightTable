@@ -60,13 +60,16 @@ before editing. Use the
 [kernel cut-over and codebase cleanup plan](editor-kernel/KERNEL_CUTOVER_AND_CODEBASE_CLEANUP_PLAN.md)
 for earlier cut-over evidence. The owner-requested follow-up is now
 [Overlay composition-root cleanup](editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md)
-(Task 416, checkpoint `df000cc5`). That ledger governs integration-root cleanup;
-earlier checked migration boxes do not prove it complete. Do not invent another
+(Task 416, checkpoint `df000cc5`). Its O08 composition-root milestone was
+accepted on 2026-09-13: Overlay is explicit React composition/wiring while named
+owners retain workflow, history and resource policy. O09 WebGpuEngine work is
+separate and remains open. Do not invent another
 parallel checklist or skip its independent critic, evidence-driven repair loops
 and packaged real-app proof. The owner explicitly authorized continued work on
 2026-09-11: re-review after two or three rounds as needed, self-resolve further
 bounded findings and proceed; do not stop solely at an iteration count. Overlay must end as UI composition and explicit
-wiring only, without moving its authority into a replacement god object.
+wiring only, without moving its authority into a replacement god object. New
+feature work must extend the named owner; it may not put policy back in Overlay.
 
 The continuation rules are strict:
 

@@ -17,6 +17,12 @@ import { commandDocumentTarget } from './application/commands/commandRequestScop
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import { automationPaintOperatorFromPlan } from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
+import { HistoryNavigationIntent } from './application/commands/HistoryNavigationIntent';
+import { MountedCommandSettlement } from './application/commands/MountedCommandSettlement';
+import { createDocumentViewCommandPorts } from './application/commands/createDocumentViewCommandPorts';
+import { createRasterAuthoringCommandPorts } from './application/commands/createRasterAuthoringCommandPorts';
+import { createVectorWarpCommandPorts } from './application/commands/createVectorWarpCommandPorts';
+import { createAutomationCommandPorts } from './application/commands/createAutomationCommandPorts';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import type { EditorApplicationSession } from './application/workspace/editorApplicationSession';
 import { createActionsPanelCallbacks } from './composition/workspace/createActionsPanelCallbacks';
@@ -29,23 +35,28 @@ import { bindDocumentGpuResourceLifetime } from './application/rendering/documen
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import { useClipboardCommands } from './composition/clipboard/useClipboardCommands';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
-import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { useWorkspaceDocumentPresentation } from './composition/documents/useWorkspaceDocumentPresentation';
+import { useDocumentKindPresentationLifecycle } from './composition/documents/useDocumentKindPresentationLifecycle';
 import { documentPresentationAvailability } from './composition/documents/documentPresentationAvailability';
 import { useEditorHostPresentationActivity } from './composition/rendering/useEditorHostPresentationActivity';
+import { useDevelopmentTextFixture } from './composition/rendering/useDevelopmentTextFixture';
 import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { createInteractionTransitionCoordinator } from './application/interactions/InteractionTransitionCoordinator';
 import { MountedDocumentAdmission } from './application/interactions/MountedDocumentAdmission';
+import { MountedInteractionLifecycle } from './application/interactions/MountedInteractionLifecycle';
+import { ProcessingInteractionSettlement } from './application/interactions/ProcessingInteractionSettlement';
 import { deactivateHostPresentation } from './application/interactions/HostPresentationDeactivation';
 import { useWorkspaceDocumentIntents } from './composition/workspace/useWorkspaceDocumentIntents';
 import { exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { DocumentLoadedSourceBinding } from './application/documents/DocumentLoadedSourceBinding';
 import { DocumentInteractionResetPolicy } from './application/documents/DocumentInteractionResetPolicy';
+import { DocumentOpenTransitionBinding } from './application/documents/DocumentOpenTransitionBinding';
 import { useEditorDocumentFonts } from './composition/documents/useEditorDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
+import { createAdjustmentSnapshotObserver } from './application/adjustments/createAdjustmentSnapshotObserver';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { resolveAdjustmentContext } from './application/adjustments/resolveAdjustmentContext';
 import { GradeInspectorController, projectGradeInspector } from './application/adjustments/GradeInspectorController';
@@ -63,16 +74,14 @@ import { useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionBinding } from './application/documents/documentProjectionBinding';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
-import {
-  zoomViewToScaleAtPoint
-} from './editor/tools/pointer/viewportCoordinates';
-import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
+import { steppedZoomPercent } from './editor/tools/zoom/zoomLevels';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { useEditorNotifications } from './editor/notifications/useEditorNotifications';
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { PersistentToolActivationOwner, applyPersistentToolPreference } from './application/tools/PersistentToolActivationOwner';
+import { useRendererToolPreparation } from './composition/tools/useRendererToolPreparation';
 import { cancelActiveEditorOperation } from './application/interactions/cancelActiveEditorOperation';
 import { captureInteractionScope } from './application/interactions/captureInteractionScope';
 import { settleHistoryInteractions } from './application/interactions/settleHistoryInteractions';
@@ -91,24 +100,24 @@ import { useLayerDocumentCommands } from './application/layers/useLayerDocumentC
 import { useLayerFinalizationIntents } from './composition/workspace/useLayerFinalizationIntents';
 import { createMountedLayerCommandBinding } from './application/layers/createMountedLayerCommandBinding';
 import { createMountedSelectionCommandBinding } from './application/tools/selection/createMountedSelectionCommandBinding';
+import { SelectionMenuIntents } from './application/tools/selection/SelectionMenuIntents';
 import { createLayerFinalizationCommandBinding } from './application/layers/LayerFinalizationCommandBinding';
 import { captureLayerFinalizationScope } from './application/layers/captureLayerFinalizationScope';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useBackgroundRemovalTaskBridge } from './application/backgroundRemoval/useBackgroundRemovalTaskBridge';
 import { useLayerPanelController, type LayerPanelController } from './application/layers/useLayerPanelController';
+import { ActiveLayerChangeSettlement } from './application/layers/ActiveLayerChangeSettlement';
+import { LayerPanelCommandIntents } from './application/layers/LayerPanelCommandIntents';
 import { useCommandLayerPanelController } from './application/layers/useCommandLayerPanelController';
 import { createLayerMaskCommandBridge } from './application/layers/createLayerMaskCommandBridge';
 import { useP0FilterController } from './application/filters/useP0FilterController';
-import { executeSemanticFilterSnapshot } from './application/filters/executeSemanticFilterSnapshot';
-import { resolveFilterSnapshotOwner } from './application/filters/filterSnapshotOwner';
 import { recordFilterSnapshotCheckpoint } from './application/filters/recordFilterSnapshotCheckpoint';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import {
-  attachedAdjustmentOwnerId,
-  parseAttachedAdjustmentOwnerId
+  attachedAdjustmentOwnerId
 } from './processing/attachedAdjustment';
 import { useTextToShape } from './composition/text/useTextToShape';
 import { usePositionedTextRecovery } from './composition/text/usePositionedTextRecovery';
@@ -133,6 +142,7 @@ import type { DocumentOpenMode } from './application/documents/documentSourcePro
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
 import { useDocumentScopeCanvases } from './composition/documents/useDocumentScopeCanvases';
 import { useViewportWheelBridge } from './composition/viewport/useViewportWheelBridge';
+import { useViewportZoomCommands } from './composition/viewport/useViewportZoomCommands';
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useDocumentFileIntents } from './composition/documents/useDocumentFileIntents';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
@@ -176,20 +186,18 @@ import { TextPropertyGestureController } from './application/text/TextPropertyGe
 import { ExistingTextHitController } from './application/text/ExistingTextHitController';
 import { useExistingTextActivation } from './composition/text/useExistingTextActivation';
 import { useTextEditingEntry } from './composition/text/useTextEditingEntry';
-import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
-import { exportSvgDocument } from './application/vectors/svgDocumentCodec';
+import { createArtifactCommandPorts } from './composition/commands/createArtifactCommandPorts';
+import { createClipboardCommandPorts } from './composition/commands/createClipboardCommandPorts';
 import { createMountedSvgImportBinding } from './application/vectors/createMountedSvgImportBinding';
-import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
 import { VectorCommitPublisher } from './application/vectors/VectorCommitPublisher';
 import { usePenPresentation } from './composition/vectors/usePenPresentation';
-import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
-import { executeSemanticLayerStyleSnapshot } from './application/styles/executeSemanticLayerStyleSnapshot';
-import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
-import { executeSemanticFaceWarpCommand } from './application/effects/faceWarp/semanticFaceWarpCommandExecutor';
+import { createLayerProcessingCommandPorts } from './application/commands/createLayerProcessingCommandPorts';
 import { useAgentActivity } from './application/commands/useAgentActivity';
 import { waitForExactCommandRender } from './application/rendering/waitForExactCommandRender';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { useTextGeometryGestures } from './composition/text/useTextGeometryGestures';
+import { useTextEditingLifecycle } from './composition/text/useTextEditingLifecycle';
+import { useTextEditingRendererPresentation } from './composition/text/useTextEditingRendererPresentation';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import { resolveTextProperties } from './application/text/textPropertyPresentation';
@@ -197,11 +205,11 @@ import { useTextPropertyCommands } from './composition/text/useTextPropertyComma
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import {
   BUNDLED_TEXT_FONT_CATALOG,
-  registerBundledTextFontsForDocument,
   registerBundledTextFontByAssetId,
   registerBundledTextFontForSettings
 } from './text/fonts/bundledTextFont';
-import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES, documentNeedsFlowFontFallback } from './text/fonts/flowFontSelection';
+import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES } from './text/fonts/flowFontSelection';
+import { useTextFontLifecycle } from './composition/text/useTextFontLifecycle';
 import { bindRendererTextFontRuntime } from './composition/documents/bindRendererTextFontRuntime';
 import {
   LightTableDockWorkspace,
@@ -254,6 +262,7 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { SelectionShapeCommandService } from './application/tools/selection/SelectionShapeCommandService';
 import { DocumentSelectionStateStore } from './application/tools/selection/DocumentSelectionStateStore';
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
+import { FixedTransformCommandBinding } from './application/tools/transform/FixedTransformCommandBinding';
 import { useTransformCanvasPickIntent } from './composition/transforms/useTransformCanvasPickIntent';
 import { useTransformPresentation } from './composition/transforms/useTransformPresentation';
 import { useGuideGridPresentation } from './composition/transforms/useGuideGridPresentation';
@@ -306,7 +315,6 @@ import {
   replaceVectorElement,
 } from './editor/document/documentCommands';
 import {
-  isPaintTool,
   isWarpTool
 } from './editor/tools/toolCapabilities';
 import { useEditorToolSettings } from './composition/input/useEditorToolSettings';
@@ -624,7 +632,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyFixedTransformRef = useRef<(operation: FixedTransformOperation) => Promise<unknown>>(
     async () => null
   );
-  const fixedTransformCommandRunningRef = useRef(false);
+  const applyFixedTransformOperationRef = useRef<
+    (operation: FixedTransformOperation) => Promise<import('./application/tools/transform/useTransformSessionController').FixedTransformTarget | null>
+  >(async () => { throw new Error('The fixed transform owner is not mounted.'); });
+  const fixedTransformCommand = useMemo(() => new FixedTransformCommandBinding({
+    getSession: () => mountedDocumentSessionRef.current,
+    applyFixed: operation => applyFixedTransformOperationRef.current(operation),
+    recordCommitted: (layerId, transform) => commandService.recordObservedCommand(
+      'layer.setTransform', workspaceDocumentId as DocumentSessionId,
+      { layerId, transform }, { layerId, transform }
+    )
+  }), [commandService, workspaceDocumentId]);
+  applyFixedTransformRef.current = fixedTransformCommand.execute;
   const finishPenPathRef = useRef<() => void>(() => undefined);
   const cancelPenPathRef = useRef<() => boolean>(() => false);
   const undoPenAnchorRef = useRef<() => boolean>(() => false);
@@ -831,18 +850,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     lifecycle: rendererLifecycle, surfaceRevision: documentSurfaceRevision,
     captureScope: captureMountedInteractionScope, reportError: setScopeError
   });
-  useEffect(() => {
-    if (workspaceDocumentKind === 'image') return;
-    // The application shell is retained across document kinds, but image
-    // presentation must not leak into a video/model binding. Canonical image
-    // data remains owned by its DocumentSession and is rebound when its tab
-    // becomes active again.
-    imageDocumentRef.current = null;
-    setImageDocument(null);
-    setMetadata(null);
-    setSourceBlob(null);
-    setSourceIdentity('');
-  }, [setImageDocument, workspaceDocumentKind]);
+  useDocumentKindPresentationLifecycle(workspaceDocumentId, workspaceDocumentKind, {
+    clearImageDocument: () => {
+      imageDocumentRef.current = null;
+      setImageDocument(null);
+    },
+    clearImageMetadata: () => { setMetadata(null); },
+    clearImageSource: () => { setSourceBlob(null); setSourceIdentity(''); },
+    clearTemporaryTool: temporaryTool.clear,
+    clearTransientModifiers: () => { setAltPressed(false); }
+  });
   const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
   const { owner: propertiesPresentation, target: propertiesTarget,
     targetRef: propertiesTargetRef, show: showProperties } = usePropertiesInspectorPresentation(
@@ -970,11 +987,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const copiedGrade = useLightTableGradeClipboard();
 
-  useEffect(() => {
-    temporaryTool.clear();
-    setAltPressed(false);
-  }, [workspaceDocumentId]);
-
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
   // do not have one, but still need a stable provenance identifier so recipes
   // and layered saves are valid. This key is metadata only; it does not embed
@@ -1098,115 +1110,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
   useTextRenderPresentationDiagnostics(textRenderPresentationOwner, appendDebugMessage);
-  useEffect(() => {
-    let activeRegistration = true;
-    const typeToolActive = editorSession.activeTool === 'text-point'
-      || editorSession.activeTool === 'text-vertical';
-    if (!thumbnailDocumentReadyId && !typeToolActive) return undefined;
-    void textEngineDiagnostic.probe().catch((reason: unknown) => {
-      if (activeRegistration && typeToolActive) {
-        setError(reason instanceof Error
-          ? reason.message
-          : 'The bundled text engine could not be prepared.');
-      }
+  useTextFontLifecycle({
+    activeTool: editorSession.activeTool,
+    sourceReadyId: thumbnailDocumentReadyId,
+    document: imageDocument,
+    hydrationPending: fontHydrationPending,
+    availableAssets: availableFontAssets,
+    diagnostics: fontDiagnostics,
+    registry: textFontRegistry,
+    probeEngine: textEngineDiagnostic.probe,
+    reportError: setError,
+    appendDiagnostic: appendDebugMessage
+  });
+  useRendererToolPreparation({
+    activeTool: editorSession.activeTool,
+    sourceReadyId: thumbnailDocumentReadyId,
+    getRenderer: () => engineRef.current,
+    reportError: setError
+  });
+  const { snapshot: developmentTextFixture, setEnabled: changeDevelopmentTextFixture } =
+    useDevelopmentTextFixture({
+      getRenderer: () => engineRef.current,
+      rendererIdentity: `${workspaceDocumentId}:${rendererSnapshot.generation}`,
+      report: appendDebugMessage
     });
-    return () => { activeRegistration = false; };
-  }, [editorSession.activeTool, textEngineDiagnostic.probe, textFontRegistry, thumbnailDocumentReadyId]);
-  useEffect(() => {
-    if (!isPaintTool(editorSession.activeTool)) return;
-    try {
-      engineRef.current?.preparePaintTool();
-    } catch (reason) {
-      setError(reason instanceof Error
-        ? `The paint engine could not be prepared: ${reason.message}`
-        : 'The paint engine could not be prepared.');
-    }
-  }, [editorSession.activeTool, thumbnailDocumentReadyId]);
-  useEffect(() => {
-    if (editorSession.activeTool !== 'select-magic-wand') return;
-    let current = true;
-    void engineRef.current?.prepareMagicWandTool().catch((reason) => {
-      if (!current) return;
-      setError(reason instanceof Error
-        ? `The Magic Wand engine could not be prepared: ${reason.message}`
-        : 'The Magic Wand engine could not be prepared.');
-    });
-    return () => { current = false; };
-  }, [editorSession.activeTool, thumbnailDocumentReadyId]);
-  const [developmentTextFixture, setDevelopmentTextFixture] = useState<{
-    enabled: boolean;
-    status: 'off' | 'preparing' | 'ready' | 'error';
-    error: string | null;
-  }>({ enabled: false, status: 'off', error: null });
-  const developmentTextFixtureGenerationRef = useRef(0);
-  const changeDevelopmentTextFixture = useCallback((enabled: boolean) => {
-    const generation = ++developmentTextFixtureGenerationRef.current;
-    const renderer = engineRef.current;
-    if (!enabled) {
-      setDevelopmentTextFixture({ enabled: false, status: 'off', error: null });
-      if (renderer) void renderer.setDevelopmentTextFixtureEnabled(false);
-      appendDebugMessage('info', 'GPU text canvas fixture', 'Disabled.');
-      return;
-    }
-    if (!import.meta.env.DEV || !renderer) {
-      const error = !import.meta.env.DEV
-        ? 'The canvas text fixture is available only in development builds.'
-        : 'Open a document before enabling the canvas text fixture.';
-      setDevelopmentTextFixture({ enabled: false, status: 'error', error });
-      appendDebugMessage('error', 'GPU text canvas fixture', error);
-      return;
-    }
-    setDevelopmentTextFixture({ enabled: true, status: 'preparing', error: null });
-    void renderer.setDevelopmentTextFixtureEnabled(true).then((snapshot) => {
-      if (generation !== developmentTextFixtureGenerationRef.current) return;
-      setDevelopmentTextFixture({
-        enabled: snapshot.enabled,
-        status: snapshot.status,
-        error: snapshot.error
-      });
-      appendDebugMessage('info', 'GPU text canvas fixture', 'Ready on the real rgba16float canvas path.');
-    }).catch((reason: unknown) => {
-      if (generation !== developmentTextFixtureGenerationRef.current) return;
-      const error = reason instanceof Error ? reason.message : 'The canvas text fixture could not be prepared.';
-      setDevelopmentTextFixture({ enabled: false, status: 'error', error });
-      appendDebugMessage('error', 'GPU text canvas fixture', error);
-    });
-  }, [appendDebugMessage]);
-  const reportedFontDiagnosticsRef = useRef('');
-  useEffect(() => {
-    if (!imageDocument || fontHydrationPending) return;
-    if (!documentNeedsFlowFontFallback(imageDocument, availableFontAssets)) return;
-    let cancelled = false;
-    void registerBundledTextFontsForDocument(textFontRegistry, imageDocument).catch((reason: unknown) => {
-      if (cancelled) return;
-      appendDebugMessage(
-        'error',
-        'Text fonts',
-        reason instanceof Error ? reason.message : 'The bundled fallback font could not be loaded.'
-      );
-    });
-    return () => { cancelled = true; };
-  }, [
-    appendDebugMessage,
-    availableFontAssets,
-    fontDiagnostics,
-    fontHydrationPending,
-    imageDocument,
-    textFontRegistry
-  ]);
-  useEffect(() => {
-    const signature = `${imageDocument?.id ?? 'no-document'}:${JSON.stringify(fontDiagnostics)}`;
-    if (signature === reportedFontDiagnosticsRef.current) return;
-    reportedFontDiagnosticsRef.current = signature;
-    fontDiagnostics.forEach(({ layerId, layerName, status }) => {
-      appendDebugMessage(
-        'warning',
-        'Text fonts',
-        `${status.label}: ${layerName}`,
-        `layer=${layerId}; ${status.detail}`
-      );
-    });
-  }, [appendDebugMessage, fontDiagnostics, imageDocument?.id]);
   const documentProjectionController = useMemo(
     () => createDocumentProjectionBinding({
       presentation: adjustmentPresentation,
@@ -1523,11 +1450,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     reportFailure: reason => setError(reason instanceof Error ? reason.message : String(reason))
   });
   const existingTextHitController = existingTextHitControllerRef.current;
-  useEffect(() => () => {
-    textEditingController.finish();
-    textPropertyGestureController.dispose();
-    textEditingController.reset();
-  }, [textEditingController, textPropertyGestureController]);
   const textSelectionGestureController = useTextSelectionGesture({
     documentIdentity: workspaceDocumentId, session: documentSession, renderer: engineRef.current,
     lifecycle: rendererLifecycle, generation: rendererSnapshot.generation
@@ -1554,19 +1476,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   finishTextEditingRef.current = () => textEditingController.finish();
 
-  useLayoutEffect(() => {
-    textPropertyGestureController.cancel();
-    textEditingController.reset();
-  }, [
-    textEditingController,
-    textPropertyGestureController,
-    workspaceDocumentId
-  ]);
-
-  useEffect(() => {
-    textPropertyGestureController.finishIfEditingLayerChanged(imageDocument?.activeLayerId ?? null);
-  }, [imageDocument?.activeLayerId, textEditing.layerId, textEditing.status,
-    textPropertyGestureController]);
+  useTextEditingLifecycle({
+    documentId: workspaceDocumentId,
+    activeLayerId: imageDocument?.activeLayerId ?? null,
+    editingLayerId: textEditing.layerId,
+    editingStatus: textEditing.status,
+    editing: textEditingController,
+    properties: textPropertyGestureController
+  });
 
   const selectionShapeCommandService = useMemo(() => documentSession
     ? new SelectionShapeCommandService(
@@ -1668,24 +1585,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     discardPreview: documentProjectionController.discardAdjustmentPreview,
     pushProcessingHistoryEntry: pushHistoryEntry,
-    onCommitted: ({ after, targetLayerId, domain }) => {
-      const attached = targetLayerId
-        ? parseAttachedAdjustmentOwnerId(targetLayerId)
-        : null;
-      const target = attached
-        ? { kind: 'attached' as const, layerId: attached.layerId,
-          adjustmentId: attached.adjustmentId }
-        : targetLayerId
-          ? { kind: 'layer' as const, layerId: targetLayerId }
-          : { kind: 'document' as const,
-            owner: domain === 'lens-fx' ? 'lens-fx' as const : 'grade' as const };
-      commandService.recordObservedCommand(
-        'adjustment.setSnapshot',
-        workspaceDocumentId as DocumentSessionId,
-        { target, snapshot: after },
-        { target, changed: true }
-      );
-    }
+    onCommitted: createAdjustmentSnapshotObserver(
+      commandService,
+      () => workspaceDocumentId as DocumentSessionId
+    )
   });
   const { interactions: adjustmentInteractions, beginAdjustment: beginAdjustmentTransaction,
     endAdjustment: endAdjustmentTransaction, cancelAdjustment: cancelAdjustmentTransaction,
@@ -1846,20 +1749,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const { copyCurrentGrade, pasteCurrentGrade } = gradeClipboard;
 
-  const applyUndoEditor = useCallback(async () => {
-    endAdjustmentTransaction();
-    commitActiveDocumentTransaction();
-    // An active transform remains one transaction across pointer gestures.
-    // Confirm it before navigating history so the renderer cannot keep a stale
-    // transform source while the document moves to another revision.
-    return documentHistoryController.undo();
-  }, [documentHistoryController, endAdjustmentTransaction, commitActiveDocumentTransaction]);
-
-  const applyRedoEditor = useCallback(async () => {
-    endAdjustmentTransaction();
-    commitActiveDocumentTransaction();
-    return documentHistoryController.redo();
-  }, [documentHistoryController, endAdjustmentTransaction, commitActiveDocumentTransaction]);
+  const historyNavigation = useMemo(() => new HistoryNavigationIntent({
+    finishAdjustment: endAdjustmentTransaction,
+    finishDocumentTransaction: commitActiveDocumentTransaction,
+    history: documentHistoryController
+  }), [commitActiveDocumentTransaction, documentHistoryController, endAdjustmentTransaction]);
 
   const undoEditor = useCallback(() => {
     void executeRegisteredCommand('history.undo', {});
@@ -1905,154 +1799,99 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     requestReopen: () => setRendererRecoverySequence(value => value + 1)
   });
 
-  const getDocumentPublicationPorts = useCallback(() => ({
-    commitPublication: (publish: () => void) => {
-      if (documentSession) documentSession.runPublication(publish);
-      else publish();
+  const documentOpenTransition = useMemo(() => new DocumentOpenTransitionBinding({
+    generation: documentOpenGeneration,
+    initialAdjustments: initialRecipe?.settings,
+    initialGlobalGradeStrength: initialRecipe?.globalGradeStrength ?? 100,
+    sourceName: fileNameBase,
+    processing: processingBinding,
+    interactions: documentInteractionReset,
+    loadedSource: loadedSourceBinding,
+    resetFontsForOpen: resetDocumentFontsForOpen,
+    getExistingDocument: () => documentSession?.getSnapshot().document ?? null,
+    getPropertiesTarget: () => propertiesTargetRef.current,
+    publishExistingDocument: (document) => {
+      imageDocumentRef.current = document;
+      setImageDocument(document);
+      setThumbnailDocumentReadyId(document.id);
     },
-    mergeStartupTimings: (timings: LightTableStartupTimings) => {
-      startupTelemetryRef.current.merge(timings);
-      // PSD/PDF source-stage timings arrive after the embedded preview's first
-      // frame. Publish the merged snapshot as well as retaining it, otherwise
-      // the toolbar only exposes the earlier WebGPU/download/first-frame slice.
-      setStartupTimings(startupTelemetryRef.current.snapshot());
+    clearRebindStatus: () => {
+      setError(null);
+      setScopeError(null);
+      setGradeStatus(null);
     },
-    publishDocument: (nextDocument: ImageDocument) => {
-      imageDocumentRef.current = nextDocument;
-      setImageDocument(nextDocument);
-      setThumbnailDocumentReadyId(nextDocument.id);
-    },
-    publishMetadata: loadedSourceBinding.publishMetadata,
-    publishBinaryAssets: loadedSourceBinding.publishBinaryAssets,
-    publishPsdImport: setPsdImportInfo,
-    publishPsdCompatibility: (entries: readonly PsdImportCompatibilityEntry[]) =>
-      setPsdCompatibility([...entries]),
-    publishPsdDifference: setPsdDifferenceMetrics,
-    publishSource: loadedSourceBinding.publishSource,
-    resetDocumentInteraction: () => {
-      documentInteractionReset.sourcePublished();
-      clearEditorHistory();
-      resetHistogram();
-      setZoomMode('fit');
-      setView({ scale: 1, panX: 0, panY: 0 });
-    },
-    publishAdjustments: (nextAdjustments: BasicAdjustments) => {
-      processingBinding.publishLoadedProcessing(documentOpenGeneration, nextAdjustments);
-    },
-    publishStatus: setGradeStatus,
-    reportDifferenceFailure: (failure: unknown) => {
-      console.warn('LightTable PSD difference measurement failed', failure);
-    },
-    reportPsdWarnings: (warnings: readonly string[]) => {
-      console.warn('LightTable PSD semantic import warnings', warnings);
-    }
-  }), [
-    clearEditorHistory,
-    documentSession,
-    loadedSourceBinding,
-    documentInteractionReset,
-    processingBinding,
-    documentOpenGeneration,
-    resetHistogram,
-    resetLensBlurDepth,
-    setEditorSession,
-    setImageDocument,
-    setView,
-    setZoomMode
-  ]);
-
-  const beforeDocumentOpen = useCallback(() => {
-    processingBinding.prepareNewSource(documentOpenGeneration, initialRecipe?.globalGradeStrength ?? 100);
-    documentInteractionReset.prepareNewSource();
-    resetDocumentFontsForOpen();
-    resetDocumentOpenPresentation({
-      initialAdjustments: initialRecipe?.settings,
-      port: {
-        resetTelemetry: () => {
-          startupTelemetryRef.current.begin(startupTimeline);
-          setStartupTimings(null);
-          setLoading(true);
-        },
-        resetSource: () => loadedSourceBinding.resetPresentation(fileNameBase),
-        resetDocument: () => {
-          imageDocumentRef.current = null;
-          setImageDocument(null);
-          setThumbnailDocumentReadyId(null);
-        },
-        resetSelection: documentInteractionReset.initializeNewSelection,
-        resetLensBlur: documentInteractionReset.initializeLensBlur,
-        publishAdjustments: (startingAdjustments) => {
-          publishAdjustmentPresentation(startingAdjustments);
-        },
-        resetHistory: clearEditorHistory,
-        resetViewport: () => {
-          setIsolatedMaskLayerId(null);
-          setIsolatedCompositeChannel(null);
-          setShowDifference(false);
-          setView({ scale: 1, panX: 0, panY: 0 });
-        },
-        resetScopes: (settings, visibility) => {
-          scopesPresentation.reset(settings, visibility);
-        },
-        resetDiagnostics: () => {
-          setError(null);
-          setScopeError(null);
-          setGradeStatus(null);
-          setGpuMemoryBytes(0);
-          textRenderPresentationOwner.reset();
-          setPsdImportInfo(null);
-          setPsdDifferenceMetrics(null);
-          setPsdCompatibility([]);
-          editorDialogs.reset();
-        },
-        publishGroupVisibility: (visibility) => {
-          processingBinding.stageOpeningVisibility(documentOpenGeneration, visibility);
-        }
+    cancelAutoAlign: () => cancelAutoAlignRef.current(),
+    resetPresentation: {
+      resetTelemetry: () => {
+        startupTelemetryRef.current.begin(startupTimeline);
+        setStartupTimings(null);
+        setLoading(true);
+      },
+      resetDocument: () => {
+        imageDocumentRef.current = null;
+        setImageDocument(null);
+        setThumbnailDocumentReadyId(null);
+      },
+      publishAdjustments: publishAdjustmentPresentation,
+      resetHistory: clearEditorHistory,
+      resetViewport: () => {
+        setIsolatedMaskLayerId(null);
+        setIsolatedCompositeChannel(null);
+        setShowDifference(false);
+        setView({ scale: 1, panX: 0, panY: 0 });
+      },
+      resetScopes: scopesPresentation.reset,
+      resetDiagnostics: () => {
+        setError(null);
+        setScopeError(null);
+        setGradeStatus(null);
+        setGpuMemoryBytes(0);
+        textRenderPresentationOwner.reset();
+        setPsdImportInfo(null);
+        setPsdDifferenceMetrics(null);
+        setPsdCompatibility([]);
+        editorDialogs.reset();
       }
-    });
-  }, [
-    clearEditorHistory,
-    documentSession,
-    fileNameBase,
-    initialRecipe,
-    processingBinding,
-    documentOpenGeneration,
-    loadedSourceBinding,
-    documentInteractionReset,
-    resetDocumentFontsForOpen,
-    resetHistogram,
-    resetLensBlurDepth,
-    textRenderPresentationOwner,
-    setEditorSession,
-    setImageDocument,
-    setView,
-    startupTimeline
-  ]);
-
-  const beforeExistingDocumentRebind = useCallback(() => {
-    const snapshot = documentSession?.getSnapshot();
-    const existingDocument = snapshot?.document;
-    if (!snapshot || !existingDocument) return;
-
-    documentInteractionReset.rebindExisting();
-    setError(null);
-    setScopeError(null);
-    setGradeStatus(null);
-
-    loadedSourceBinding.presentExisting();
-
-    processingBinding.presentExisting(documentOpenGeneration, existingDocument, propertiesTargetRef.current);
-    imageDocumentRef.current = existingDocument;
-    setImageDocument(existingDocument);
-    setThumbnailDocumentReadyId(existingDocument.id);
-  }, [
-    documentSession,
-    loadedSourceBinding,
-    documentInteractionReset,
-    processingBinding,
-    documentOpenGeneration,
-    setImageDocument
-  ]);
+    },
+    publication: {
+      commitPublication: (publish) => {
+        if (documentSession) documentSession.runPublication(publish);
+        else publish();
+      },
+      mergeStartupTimings: (timings: LightTableStartupTimings) => {
+        startupTelemetryRef.current.merge(timings);
+        setStartupTimings(startupTelemetryRef.current.snapshot());
+      },
+      publishDocument: (document) => {
+        imageDocumentRef.current = document;
+        setImageDocument(document);
+        setThumbnailDocumentReadyId(document.id);
+      },
+      publishMetadata: loadedSourceBinding.publishMetadata,
+      publishBinaryAssets: loadedSourceBinding.publishBinaryAssets,
+      publishPsdImport: setPsdImportInfo,
+      publishPsdCompatibility: (entries: readonly PsdImportCompatibilityEntry[]) =>
+        setPsdCompatibility([...entries]),
+      publishPsdDifference: setPsdDifferenceMetrics,
+      publishSource: loadedSourceBinding.publishSource,
+      resetPublishedInteraction: () => {
+        clearEditorHistory();
+        resetHistogram();
+        setZoomMode('fit');
+        setView({ scale: 1, panX: 0, panY: 0 });
+      },
+      publishStatus: setGradeStatus,
+      reportDifferenceFailure: (failure) => {
+        console.warn('LightTable PSD difference measurement failed', failure);
+      },
+      reportPsdWarnings: (warnings) => {
+        console.warn('LightTable PSD semantic import warnings', warnings);
+      }
+    }
+  }), [documentOpenGeneration, documentInteractionReset, documentSession, editorDialogs,
+    fileNameBase, initialRecipe, loadedSourceBinding, processingBinding,
+    publishAdjustmentPresentation, resetDocumentFontsForOpen, scopesPresentation,
+    startupTimeline, textRenderPresentationOwner]);
 
   const getDocumentOpenScopeOptions = useCallback(() => ({
     histogramVisible: scopesPresentation.getSnapshot().visibility.histogram,
@@ -2064,11 +1903,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const existingDocumentForRebind = documentSession?.getSnapshot().document ?? null;
   const existingMetadataForRebind = documentSession?.getSnapshot().loadedSource.metadata ?? null;
-
-  const afterDocumentClose = useCallback(() => {
-    processingBinding.retireOpening(documentOpenGeneration);
-    cancelAutoAlignRef.current();
-  }, [processingBinding, documentOpenGeneration]);
 
   const restoreDocumentSelectionState = useCallback(async (
     renderer: DocumentRendererPort
@@ -2111,7 +1945,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       existingMetadata: existingMetadataForRebind
     },
     getGroupVisibility: () => processingBinding.getGroupVisibility(),
-    getPublicationPorts: getDocumentPublicationPorts,
+    getPublicationPorts: () => documentOpenTransition.publicationPorts,
     projectProcessing: processingBinding.projectReadyRenderer,
     getScopeOptions: getDocumentOpenScopeOptions,
     publishHistogram,
@@ -2134,9 +1968,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishLoading: setLoading,
     logTimings: (timings) => console.info('[LightTable startup]', timings),
     beforeOpen: existingDocumentForRebind
-      ? beforeExistingDocumentRebind
-      : beforeDocumentOpen,
-    afterClose: afterDocumentClose,
+      ? documentOpenTransition.beforeExistingRebind
+      : documentOpenTransition.beforeOpen,
+    afterClose: documentOpenTransition.afterClose,
     canReuseRenderer
   });
 
@@ -2157,26 +1991,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }, [paragraphTextCreation]);
 
-  useEffect(() => {
-    const layerId = textEditing.status === 'editing' ? textEditing.layerId : null;
-    if (!layerId) return undefined;
-    const renderer = engineRef.current;
-    renderer?.setTextLayerInteraction(layerId, true);
-    return () => {
-      renderer?.setTextLayerInteraction(layerId, false);
-    };
-  }, [textEditing.layerId, textEditing.status]);
-
-  useEffect(() => {
-    const renderer = engineRef.current;
-    if (textEditing.status === 'editing') return undefined;
-    if (!renderer || !active || !paragraphCreationOverlay) {
-      renderer?.setTextEditingOverlay(null);
-      return undefined;
-    }
-    renderer.setTextEditingOverlay(paragraphCreationOverlay, true);
-    return () => renderer.setTextEditingOverlay(null);
-  }, [active, paragraphCreationOverlay, textEditing.status]);
+  useTextEditingRendererPresentation({
+    renderer: engineRef.current,
+    active,
+    editingLayerId: textEditing.layerId,
+    editingStatus: textEditing.status,
+    paragraphDraft: paragraphCreationOverlay
+  });
 
   const lensBlurDepthVisualizationOwnerId = propertiesView === 'lens-fx'
     ? propertiesTarget.kind === 'attached-processing'
@@ -2222,123 +2043,47 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current?.setActive(hostPresentationActive);
   }, [hostPresentationActive]);
 
-  const selectAllContent = () => {
-    mountedDocumentAdmission.runAfter(() => {
-      void executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'all'
-      });
-    });
-  };
-  const clearCurrentSelection = () => {
-    mountedDocumentAdmission.runAfter(() => {
-      void executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'clear'
-      });
-    });
-  };
-  const invertCurrentSelection = () => {
-    mountedDocumentAdmission.runAfter(() => {
-      void executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'invert'
-      });
-    });
-  };
-  const selectSimilarColors = () => {
-    mountedDocumentAdmission.runAfter(() => {
-      const document = imageDocumentRef.current;
-      if (!document?.activeLayerId) return;
-      try {
-        if (!selectionHost.hasActiveSelection()) return;
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'The current selection is unavailable.');
-        return;
-      }
-      const magicWand = editorSessionRef.current.magicWand;
-      const parameters = {
-        kind: 'modify' as const,
-        operation: 'similar' as const,
-        layerId: document.activeLayerId,
-        tolerance: magicWand.tolerance,
-        antiAlias: magicWand.antiAlias,
-        sampleAllLayers: magicWand.sampleAllLayers
-      };
-      void executeRegisteredCommand('selection.modify', parameters);
-    });
-  };
-  const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
-    mountedDocumentAdmission.runAfter(() => {
-      void executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
-      });
-    });
-  };
-  const modifyCurrentSelection = (
-    operation: 'border' | 'smooth' | 'expand' | 'contract',
-    amount: number,
-    applyAtCanvasBounds: boolean
+  const selectionMenuIntents = useMemo(() => new SelectionMenuIntents({
+    runAfterAdmission: mountedDocumentAdmission.runAfter,
+    execute: parameters => { void executeRegisteredCommand('selection.modify', parameters); },
+    getDocument: () => imageDocumentRef.current,
+    hasActiveSelection: selectionHost.hasActiveSelection,
+    getMagicWand: () => editorSessionRef.current.magicWand,
+    reportError: setError
+  }), [executeRegisteredCommand, mountedDocumentAdmission, selectionHost.hasActiveSelection, setError]);
+  const selectAllContent = selectionMenuIntents.selectAll;
+  const clearCurrentSelection = selectionMenuIntents.clear;
+  const invertCurrentSelection = selectionMenuIntents.invert;
+  const selectSimilarColors = selectionMenuIntents.selectSimilar;
+  const featherCurrentSelection = selectionMenuIntents.feather;
+  const modifyCurrentSelection = selectionMenuIntents.modify;
+  const resizeViewportImmediately = useCallback((
+    ...parameters: Parameters<DocumentRendererPort['resizeViewport']>
   ) => {
-    mountedDocumentAdmission.runAfter(() => {
-      const parameters = operation === 'border'
-        ? { kind: 'modify' as const, operation, width: amount }
-        : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
-      void executeRegisteredCommand('selection.modify', parameters);
-    });
-  };
-  const presentViewportImmediately = useCallback((
-    scale: number,
-    panX: number,
-    panY: number
-  ) => {
-    if (!viewportMetadata) return;
-    engineRef.current?.resizeViewport(
-      viewportSize.width,
-      viewportSize.height,
-      Math.max(1, window.devicePixelRatio || 1),
-      resolveViewportImageRect(
-        viewportMetadata.width,
-        viewportMetadata.height,
-        viewportSize.width,
-        viewportSize.height,
-        scale,
-        panX,
-        panY
-      )
-    );
-  }, [viewportMetadata, viewportSize.height, viewportSize.width]);
-  const applyExactZoom = useCallback((percent: number) => {
-    const nextView = zoomViewToScaleAtPoint({
-      cursor: {
-        x: viewportSize.width / 2,
-        y: viewportSize.height / 2
-      },
-      viewport: viewportSize,
-      view: { scale: activeScale, panX: view.panX, panY: view.panY },
-      scale: zoomPercentToScale(percent)
-    });
-    presentViewportImmediately(nextView.scale, nextView.panX, nextView.panY);
-    setViewport((current) => ({ ...current, zoomMode: 'custom', ...nextView }));
-  }, [activeScale, presentViewportImmediately, setViewport, view.panX, view.panY, viewportSize]);
-  const applyFitZoom = useCallback(() => {
-    presentViewportImmediately(fitScale, 0, 0);
-    setViewport((current) => ({
-      ...current, zoomMode: 'fit', scale: 1, panX: 0, panY: 0
-    }));
-  }, [fitScale, presentViewportImmediately, setViewport]);
-  const applyActualZoom = useCallback(() => {
-    presentViewportImmediately(1, 0, 0);
-    setViewport((current) => ({
-      ...current, zoomMode: '100', scale: 1, panX: 0, panY: 0
-    }));
-  }, [presentViewportImmediately, setViewport]);
-  const setExactZoom = useCallback((percent: number) => {
-    void executeRegisteredCommand('view.setZoom', { mode: 'custom', percent });
+    engineRef.current?.resizeViewport(...parameters);
+  }, []);
+  const requestViewportZoom = useCallback((parameters: {
+    readonly mode: 'fit' | '100' | 'custom';
+    readonly percent?: number;
+  }) => {
+    void executeRegisteredCommand('view.setZoom', parameters);
   }, [executeRegisteredCommand]);
-  const fitZoom = useCallback(() => {
-    void executeRegisteredCommand('view.setZoom', { mode: 'fit' });
-  }, [executeRegisteredCommand]);
-  const actualZoom = useCallback(() => {
-    void executeRegisteredCommand('view.setZoom', { mode: '100' });
-  }, [executeRegisteredCommand]);
+  const {
+    applyExact: applyExactZoom,
+    applyFit: applyFitZoom,
+    applyActual: applyActualZoom,
+    requestExact: setExactZoom,
+    requestFit: fitZoom,
+    requestActual: actualZoom
+  } = useViewportZoomCommands({
+    metadata: viewportMetadata,
+    viewportSize,
+    activeScale,
+    view,
+    resizeViewport: resizeViewportImmediately,
+    setViewport,
+    execute: requestViewportZoom
+  });
 
   useEditorKeyboardController({
     enabled: open && active,
@@ -3023,6 +2768,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       reportFailure: setError };
   }), [documentSession, captureMountedInteractionScope, propertiesPresentation, layerStyleEditor.open, executeRegisteredCommand]);
   const openLayerStyleEditor = styleEntry.open, addLayerEffectFromMenu = styleEntry.add;
+  const activeLayerChangeSettlement = useMemo(() => new ActiveLayerChangeSettlement({
+    hasPendingTransform: () => transformActiveRef.current(),
+    settleTransform: () => commitTransformPendingRef.current(),
+    getEditingTextLayerId: () => textEditingController.getSnapshot().layerId,
+    finishTextEditing: () => { textEditingController.finish(); },
+    prepareVectorTarget: (layerId) => { vectorToolSessionController.prepareActiveLayerChange(layerId); }
+  }), [textEditingController, vectorToolSessionController]);
+  const layerPanelCommandIntents = useMemo(() => new LayerPanelCommandIntents({
+    getDocument: () => imageDocumentRef.current,
+    execute: (command, parameters) => executeRegisteredCommand(command, parameters),
+    reportError: setError
+  }), [executeRegisteredCommand, setError]);
+  const processingInteractionSettlement = useMemo(() => new ProcessingInteractionSettlement({
+    finishAdjustment: endAdjustmentTransaction,
+    finishDocumentTransaction: commitLayerDocumentTransaction
+  }), [endAdjustmentTransaction, commitLayerDocumentTransaction]);
   const layerMaskCommandBridge = useMemo(() => createLayerMaskCommandBridge(() => {
     const scope = captureMountedInteractionScope();
     const session = documentSession;
@@ -3072,86 +2833,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
     createAdjustmentLayerOfKind: layerDocumentCommands.createAdjustmentLayerOfKind,
     createAttachedAdjustment: layerDocumentCommands.createAttachedAdjustment,
-    setAttachedFilterEnabled: (layerId, adjustmentId, enabled) => {
-      const document = imageDocumentRef.current;
-      const target = { kind: 'attached' as const, layerId, adjustmentId };
-      const owner = document ? resolveFilterSnapshotOwner(document, target) : null;
-      return Boolean(owner && executeRegisteredCommand('filter.setSnapshot', {
-        target,
-        snapshot: { ...owner.snapshot, enabled }
-      }));
-    },
+    setAttachedFilterEnabled: layerPanelCommandIntents.setAttachedFilterEnabled,
     requestAddLayerMask: layerMaskCommandBridge.add,
     requestToggleLayerMask: layerMaskCommandBridge.toggle,
     requestSetLayerMaskLinked: layerMaskCommandBridge.setLinked,
     requestRemoveLayerMask: layerMaskCommandBridge.remove,
     duplicateActiveLayer,
-    rasterizeActiveLayer: async () => {
-      const layerId = imageDocumentRef.current?.activeLayerId;
-      const execution = layerId
-        ? executeRegisteredCommand('layer.rasterize', { layerId })
-        : null;
-      if (!execution) {
-        setError('Select a layer to rasterize.');
-        return false;
-      }
-      try {
-        return (await execution).status === 'completed';
-      } catch {
-        return false;
-      }
-    },
-    loadLayerMaskSelection: async (layerId) => {
-      await executeRegisteredCommand('layer.setMask', {
-        layerId, operation: 'load-selection'
-      });
-    },
-    loadLayerTransparencySelection: async (layerId) => {
-      await executeRegisteredCommand('selection.modify', {
-        kind: 'modify', operation: 'load-transparency', layerId
-      });
-    },
+    rasterizeActiveLayer: layerPanelCommandIntents.rasterizeActiveLayer,
+    loadLayerMaskSelection: layerPanelCommandIntents.loadMaskSelection,
+    loadLayerTransparencySelection: layerPanelCommandIntents.loadTransparencySelection,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedLayers: layerFinalizationIntents.mergeSelected,
     flattenGroup: layerFinalizationIntents.flattenGroup,
     flattenImage: layerFinalizationIntents.flattenImage,
     editStyles: openLayerStyleEditor,
-    setStyleStackEnabled: (layerId, enabled) => {
-      void executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled });
-    },
-    setStyleEnabled: (layerId, effectId, enabled) => {
-      void executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled });
-    },
-    removeStyle: (layerId, effectId) => {
-      void executeRegisteredCommand('layer.effect.remove', { layerId, effectId });
-    },
-    clearStyles: (layerId) => {
-      const document = imageDocumentRef.current;
-      const layer = document ? findDocumentLayer(document, layerId) : null;
-      if (!layer) {
-        setError('The layer is unavailable.');
-        return;
-      }
-      void executeRegisteredCommand('layer.style.setSnapshot', {
-        layerId, snapshot: { ...layerStyleSnapshot(layer.styleStack), effects: [] }
-      });
-    },
+    setStyleStackEnabled: layerPanelCommandIntents.setStyleStackEnabled,
+    setStyleEnabled: layerPanelCommandIntents.setStyleEnabled,
+    removeStyle: layerPanelCommandIntents.removeStyle,
+    clearStyles: layerPanelCommandIntents.clearStyles,
     finishStyleEditing: layerStyleEditor.commit,
-    finishProcessingEditing: () => {
-      endAdjustmentTransaction();
-      commitLayerDocumentTransaction();
-    },
-    prepareActiveLayerChange: async (layerId, isCurrent) => {
-      // Finish the active document transaction before changing its target.
-      // The transform tool owns only a disposable preview; committing after
-      // setActiveLayer() would make that preview race a newer document revision.
-      if (transformActiveRef.current()) await commitTransformPendingRef.current();
-      if (!isCurrent()) return;
-      if (textEditingController.getSnapshot().layerId !== layerId) {
-        textEditingController.finish();
-      }
-      vectorToolSessionController.prepareActiveLayerChange(layerId);
-    },
+    finishProcessingEditing: processingInteractionSettlement.finish,
+    prepareActiveLayerChange: activeLayerChangeSettlement.prepare,
     finishTextEditing: () => { textEditingController.finish(); }
   });
   const deleteTargetIntent = useDeleteTargetIntent({
@@ -3188,6 +2890,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const settleRegisteredInteraction = mountedDocumentAdmission.bindOwner(
       documentSession, registeredRenderer, captureMountedInteractionScope()
     );
+    const mountedCommandSettlement = new MountedCommandSettlement({
+      session: documentSession,
+      files: documentFileIntents,
+      settleInteraction: settleRegisteredInteraction
+    });
     const adjustmentCommands = createMountedAdjustmentCommandBinding({
       session: documentSession, renderer: registeredRenderer, registration: captureMountedInteractionScope(),
       getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
@@ -3207,80 +2914,85 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       settlePixels: settleMountedDocumentInteraction,
       commands: layerDocumentCommands
     });
-    return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
-      settleInteractionBeforeCommand: async (command, textPrerequisite) => {
-        // Zoom does not change canonical content and may remain available
-        // during a transform. All semantic document commands first publish
-        // presentation-owned selection/transform state through its owner.
-        if (command === 'view.setZoom') return;
-        if (command === 'file.exportNative' || command === 'file.exportPng' || command === 'file.exportBitmap'
-          || command === 'file.exportPsd' || command === 'file.exportSvg') {
-          if (!textPrerequisite) throw new Error('The file command runner did not supply its text prerequisite ownership.');
-          await documentFileIntents.prepareForCommand(documentSession, textPrerequisite);
-          return;
-        }
-        await settleRegisteredInteraction();
-      },
-      supportsCommand: isMountedDocumentCommand,
+    const documentViewCommands = createDocumentViewCommandPorts({
       resizeImage: commitImageSize,
       applyDocumentGeometry: commitDocumentGeometry,
-      assignDocumentProfile: ({ profile }) => {
-        const changed = documentMutationController.change((document) => (
-          document.colorSettings.workingProfile === profile
-            && document.colorSettings.profileState === 'assigned'
-            ? document
-            : {
-                ...document,
-                colorSettings: {
-                  ...document.colorSettings,
-                  workingProfile: profile,
-                  profileState: 'assigned'
-                },
-                revision: document.revision + 1,
-                modifiedAt: Date.now()
-              }
-        ));
-        return { profile, profileState: 'assigned', changed };
-      },
-      setZoom: (viewport) => {
-        if (viewport.zoomMode === 'fit') applyFitZoom();
-        else if (viewport.zoomMode === '100') applyActualZoom();
-        else applyExactZoom(viewport.scale * 100);
-      },
-      createRasterLayer: layerPanelController.createRasterLayer,
-      copyPixels: async (source) => {
-        await settleMountedDocumentInteraction();
-        return source === 'active-layer'
-          ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
-          : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection);
-      },
-      cutPixels: () => clipboardCommands.cut.execute(),
-      pastePixels: async (file, command, fastPasteToken) => {
-        return layerDocumentCommands.pastePixelArtifact(
-          file, { ...command.bounds, name: command.name,
-            target: command.target ? { ...command.target,
-              layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
-        );
-      },
+      changeDocument: documentMutationController.change,
+      fitZoom: applyFitZoom,
+      actualZoom: applyActualZoom,
+      exactZoom: applyExactZoom
+    });
+    const layerProcessingCommands = createLayerProcessingCommandPorts({
+      getDocument: () => imageDocumentRef.current,
+      changeDocument: documentMutationController.change
+    });
+    const artifactCommands = createArtifactCommandPorts({
+      getRenderer: () => engineRef.current,
+      getDocument: () => imageDocumentRef.current,
+      fileName: fileNameBase,
+      exportNativeArtifact: () => exportNativeArtifactRef.current(),
+      exportPngArtifact: () => exportPngArtifactRef.current(),
+      exportBitmapArtifact: (format) => exportBitmapArtifactRef.current(format),
+      exportPreviewArtifact: (maxEdge, encoding, region) =>
+        exportPreviewArtifactRef.current(maxEdge, encoding, region),
+      getDocumentPalette: loadDocumentPalette,
+      getLayerPalette: loadLayerPalette,
+      exportPsdArtifact: (signal) => exportPsdArtifactRef.current(signal)
+    });
+    const rasterAuthoringCommands = createRasterAuthoringCommandPorts({
+      settle: settleMountedDocumentInteraction,
+      fill: command => fillCommandController.apply(command),
+      gradient: command => rasterGradientController.apply(command),
+      invert: layerDocumentCommands.invertLayerColors
+    });
+    const vectorWarpCommands = createVectorWarpCommandPorts({
+      getDocument: () => imageDocumentRef.current,
+      changeDocument: documentMutationController.change
+    });
+    const automationCommands = createAutomationCommandPorts({
+      executeBackgroundRemoval: async (command, signal, report) => (
+        backgroundRemovalController.removeBackgroundFromLayer(
+          command.layerId,
+          command.mode,
+          { signal, onProgress: progress => report(
+            Math.max(0, Math.min(1, (progress.percent ?? 0) / 100)), progress.message
+          ) }
+        )
+      ),
+      executeAutoAlign: (command, signal) => autoAlignController.execute(command, signal),
+      fontRegistry: textFontRegistry,
+      documentMutations: documentMutationController,
+      getTextSettings: () => editorSessionRef.current.text,
+      getForegroundColor: () => editorSessionRef.current.brush.color,
+      waitForExactRender: signal => waitForExactCommandRender(engineRef.current, signal),
+      reportPendingRender: () => console.warn(
+        '[LightTable render] Batch committed while an exact render source is still pending.'
+      )
+    });
+    const clipboardCommandPorts = createClipboardCommandPorts({
+      settle: settleMountedDocumentInteraction,
+      copyActive: () => layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection),
+      copyMerged: () => layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection),
+      cut: () => clipboardCommands.cut.execute(),
+      paste: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
+        file,
+        { ...command.bounds, name: command.name, target: command.target },
+        fastPasteToken
+      ),
       copyGrade: gradeClipboard.prepareCopy,
       pasteGrade: gradeClipboard.paste,
-      placeArtifact: layerDocumentCommands.placeImageArtifact,
+      placeArtifact: layerDocumentCommands.placeImageArtifact
+    });
+    return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
+      settleInteractionBeforeCommand: mountedCommandSettlement.settle,
+      supportsCommand: isMountedDocumentCommand,
+      ...documentViewCommands,
+      createRasterLayer: layerPanelController.createRasterLayer,
+      ...clipboardCommandPorts,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,
       setLayerFillOpacity: layerPanelController.setFillOpacity,
-      setLayerStyleEnabled: (layerId, enabled) => {
-        const document = imageDocumentRef.current;
-        const layer = document ? findDocumentLayer(document, layerId) : null;
-        if (!layer) throw new Error('The Layer Style owner does not exist.');
-        void executeSemanticLayerStyleSnapshot({
-          layerId,
-          snapshot: { ...layerStyleSnapshot(layer.styleStack), enabled }
-        }, { changeDocument: documentMutationController.change });
-      },
-      setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
-        { kind: 'toggle', layerId, effectId, enabled }, {
-          changeDocument: documentMutationController.change
-        }),
+      ...layerProcessingCommands,
       executeTextCommand: createMountedTextCommandBinding<DocumentRendererPort>(documentSession, registeredRenderer, {
         getSession: () => mountedDocumentSessionRef.current, getRenderer: () => engineRef.current,
         captureScope: captureMountedInteractionScope, waitForExactRender: waitForExactCommandRender,
@@ -3291,40 +3003,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
         changeDocument: documentMutationController.change
       }),
-      executeVectorCommand: (command) => executeSemanticVectorCommand(command, {
-        changeDocument: documentMutationController.change
-      }),
+      ...vectorWarpCommands,
       executeSvgImport: createMountedSvgImportBinding(documentSession, {
         getCurrentSession: () => mountedDocumentSessionRef.current,
         captureRendererScope: captureMountedInteractionScope,
         changeDocument: documentMutationController.change
       }),
-      executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
-        getDocument: () => imageDocumentRef.current,
-        changeDocument: documentMutationController.change,
-        createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`,
-      }),
-      executeFillCommand: async (command) => {
-        await settleMountedDocumentInteraction();
-        return fillCommandController.apply(command);
-      },
-      executeRasterGradientCommand: async (command) => {
-        await settleMountedDocumentInteraction();
-        return rasterGradientController.apply(command);
-      },
-      executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, {
-        changeDocument: documentMutationController.change
-      }),
-      executeLayerStyleSnapshot: (command) => executeSemanticLayerStyleSnapshot(command, {
-        changeDocument: documentMutationController.change
-      }),
-      executeFilterSnapshot: (command) => executeSemanticFilterSnapshot(command, {
-        changeDocument: documentMutationController.change
-      }),
-      executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
-        getDocument: () => imageDocumentRef.current,
-        changeDocument: documentMutationController.change
-      }),
+      ...rasterAuthoringCommands,
       executeLayerCommand: createMountedLayerCommandBinding(documentSession, engineRef.current, {
         getCurrentSession: () => mountedDocumentSessionRef.current,
         getCurrentRenderer: () => engineRef.current,
@@ -3353,70 +3038,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         getProjectedDocument: () => imageDocumentRef.current,
         creation: layerPanelController, properties: propertiesPresentation
       }),
-      executeRasterInvert: async (command) => {
-        await settleMountedDocumentInteraction();
-        return layerDocumentCommands.invertLayerColors(
-          command.layerId, command.channel
-        ) ? command : null;
-      },
       ...layerFinalizationCommands,
       executeTextToShape: async (command) => (
         await textToShape.command.convert(command.layerId)
           ? { layerId: command.layerId, outputType: 'vector' as const }
           : null
       ),
-      executeBackgroundRemoval: async (command, signal, report) => {
-        return await backgroundRemovalController.removeBackgroundFromLayer(
-          command.layerId,
-          command.mode,
-          { signal, onProgress: (progress) => report(
-            Math.max(0, Math.min(1, (progress.percent ?? 0) / 100)), progress.message
-          ) }
-        );
-      },
-      executeAutoAlign: (command, signal) => autoAlignController.execute(command, signal),
-      executeAtomicBatch: async (batch, signal, report) => {
-        const result = await executeAtomicCommandBatch(batch, {
-          fontRegistry: textFontRegistry, documentMutations: documentMutationController,
-          getTextSettings: () => editorSessionRef.current.text,
-          getForegroundColor: () => editorSessionRef.current.brush.color
-        }, signal, report);
-        if (!await waitForExactCommandRender(engineRef.current, signal)) {
-          console.warn('[LightTable render] Batch committed while an exact render source is still pending.');
-        }
-        return result;
-      },
-      exportNativeArtifact: () => exportNativeArtifactRef.current(),
-      exportPngArtifact: () => exportPngArtifactRef.current(),
-      exportBitmapArtifact: (format) => exportBitmapArtifactRef.current(format),
-      exportPreviewArtifact: async (maxEdge, encoding, region) => {
-        return exportPreviewArtifactRef.current(maxEdge, encoding, region);
-      },
-      getDocumentPalette: (colorCount) => loadDocumentPalette(colorCount),
-      getLayerPalette: (layerId, colorCount) => loadLayerPalette(layerId, colorCount),
-      exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
-        const preview = await engineRef.current?.exportLayerThumbnail(
-          layerId, channel === 'mask', maxEdge, maxEdge, encoding
-        );
-        if (!preview) throw new Error(`Layer ${layerId} has no renderable ${channel} content.`);
-        const mediaType = encoding.format === 'webp' ? 'image/webp' : 'image/png';
-        return { file: new File([preview.blob], `layer-${channel}.${encoding.format}`, { type: mediaType }),
-          width: preview.width, height: preview.height, sourceToOutput: preview.sourceToOutput };
-      },
-      exportPsdArtifact: (signal) => exportPsdArtifactRef.current(signal),
-      exportSvgArtifact: () => {
-        const document = imageDocumentRef.current;
-        if (!document) throw new Error('The SVG export document is unavailable.');
-        return exportSvgDocument(document, fileNameBase);
-      },
+      ...automationCommands,
+      ...artifactCommands,
       ...automationGestures,
-      undo: applyUndoEditor,
-      redo: applyRedoEditor,
+      undo: historyNavigation.undo,
+      redo: historyNavigation.redo,
       queryRenderTelemetry: () => engineRef.current?.renderTelemetrySnapshot() ?? null,
       resetRenderTelemetry: () => engineRef.current?.resetRenderTelemetry(),
       forceDeviceLossForAutomation: () => engineRef.current?.forceDeviceLossForAutomation() ?? false
     });
-  }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
+  }, [applyActualZoom, applyExactZoom, applyFitZoom, historyNavigation,
     automationGestures, commandPorts, documentSession, imageDocument?.id, layerDocumentCommands,
     layerPanelController, rendererSnapshot.status, workspaceDocumentId,
     workspaceDocumentKind]);
@@ -3501,14 +3138,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError,
     setStatus: setGradeStatus,
     transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
-    onLayerTransformCommitted: (layerId, transform) => {
-      if (!fixedTransformCommandRunningRef.current) {
-        commandService.recordObservedCommand(
-          'layer.setTransform', workspaceDocumentId as DocumentSessionId,
-          { layerId, transform }, { layerId, transform }
-        );
-      }
-    }
+    onLayerTransformCommitted: fixedTransformCommand.observeCommitted
   });
   beginSelectionContentMoveRef.current = (duplicate) =>
     transformSession.beginTemporaryMove(duplicate);
@@ -3548,22 +3178,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [setView, setZoomMode]);
   commitTransformRef.current = transformSession.commit;
   commitTransformPendingRef.current = transformSession.commitPending;
-  settlePixelInteractionRef.current = async isCurrent => {
-    await selectionSessionController.settle();
-    if (!isCurrent()) return;
-    await transformSession.commitPending();
-  };
   const resetMountedTransform = transformSession.reset;
+  const mountedInteractionLifecycle = useMemo(() => new MountedInteractionLifecycle({
+    settleSelection: selectionSessionController.settle,
+    settleTransform: transformSession.commitPending,
+    retireToolActivation: () => persistentToolActivationRef.current.retire(),
+    retireTransitions: interactionTransitions.retire,
+    retireSelection: selectionSessionController.retire,
+    resetTransform: resetMountedTransform
+  }), [selectionSessionController, transformSession.commitPending, interactionTransitions,
+    resetMountedTransform]);
+  settlePixelInteractionRef.current = mountedInteractionLifecycle.settlePixels;
   useLayoutEffect(() => {
-    const toolActivation = persistentToolActivationRef.current;
-    return () => {
-      toolActivation.retire();
-      interactionTransitions.retire(() => {
-        selectionSessionController.retire();
-        resetMountedTransform();
-      });
-    };
-  }, [interactionTransitions, selectionSessionController, resetMountedTransform, workspaceDocumentId, documentSession]);
+    return mountedInteractionLifecycle.retire;
+  }, [mountedInteractionLifecycle, workspaceDocumentId, documentSession]);
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
@@ -3574,21 +3202,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     adjustments: adjustmentInteractions, rasterGradient: rasterGradientController,
     cancelAutoAlign: cancelAutoAlignRef.current
   });
-  applyFixedTransformRef.current = async (operation) => {
-    if (fixedTransformCommandRunningRef.current) return null;
-    const before = imageDocumentRef.current;
-    if (!before) return null;
-    fixedTransformCommandRunningRef.current = true;
-    try {
-      const target = await transformSession.applyFixed(operation);
-      const after = imageDocumentRef.current;
-      return target && after && after.id === before.id && after.revision !== before.revision
-        ? { operation, target, documentRevision: after.revision }
-        : null;
-    } finally {
-      fixedTransformCommandRunningRef.current = false;
-    }
-  };
+  applyFixedTransformOperationRef.current = transformSession.applyFixed;
 
   const activatePersistentTool = (requestedTool: ToolId, afterActivation?: () => void) => {
     const scope = captureMountedInteractionScope();

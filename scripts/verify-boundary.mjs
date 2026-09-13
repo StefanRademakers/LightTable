@@ -409,6 +409,25 @@ function verifyLayerMaskCutover(relativePath, source) {
     for (const port of requiredMaskPorts) {
       if (!source.includes(port)) failures.push(`${relativePath}: missing required mask port ${port}`);
     }
+    if (source.includes('prepareActiveLayerChange?')
+      || !source.includes('await dependencies.prepareActiveLayerChange(layerId, isCurrent)')) {
+      failures.push(`${relativePath}: active-layer changes require one mandatory settlement owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/layers/ActiveLayerChangeSettlement.ts')) {
+    const transform = source.indexOf('await this.participants.settleTransform()');
+    const text = source.indexOf('this.participants.finishTextEditing()');
+    const vector = source.indexOf('this.participants.prepareVectorTarget(layerId)');
+    if (transform < 0 || text < transform || vector < text
+      || (source.match(/if \(!isCurrent\(\)\) return;/g) ?? []).length < 2) {
+      failures.push(`${relativePath}: target settlement must preserve transform -> current -> text -> current -> vector order`);
+    }
+  }
+  if (normalizedPath.endsWith('/LightTableEditorOverlay.tsx')) {
+    if (source.includes('prepareActiveLayerChange: async')
+      || !source.includes('prepareActiveLayerChange: activeLayerChangeSettlement.prepare')) {
+      failures.push(`${relativePath}: active-layer transition policy must remain in its settlement owner`);
+    }
   }
   if (normalizedPath.endsWith('/application/backgroundRemoval/useBackgroundRemovalController.ts')) {
     if (/\b(?:startTask|cancelTask)\?:/.test(source)) {
@@ -587,11 +606,9 @@ function verifyTextCutover(relativePath, source) {
       || source.includes('textEditingControllerRef') || source.includes('textSelectionForGranularity(')) {
       failures.push(`${relativePath}: admitted text observation and selection-frame wiring belong to their publication bindings`);
     }
-    const textDocumentReset = /textPropertyGestureController\.cancel\(\);\s*textEditingController\.reset\(\);/.exec(source)?.index ?? -1;
-    if (textDocumentReset < source.indexOf('useTextGeometryGestures(')
-      || !/textEditingController\.finish\(\);\s*textPropertyGestureController\.dispose\(\);\s*textEditingController\.reset\(\);/.test(source)
-      || (source.match(/textEditingController\.reset\(\)/g) ?? []).length !== 2) {
-      failures.push(`${relativePath}: preserve geometry-before-document-reset and the single finish/dispose/reset unmount order`);
+    if (!source.includes('useTextEditingLifecycle({')
+      || source.includes('textPropertyGestureController.dispose()')) {
+      failures.push(`${relativePath}: text editing retirement must remain in its composition lifecycle owner`);
     }
     if (!source.includes('new TextPropertyGestureController(')) {
       failures.push(`${relativePath}: text-property gestures must delegate their complete lifetime to the application owner`);
@@ -606,6 +623,13 @@ function verifyTextCutover(relativePath, source) {
       || source.includes('onActivateWorkspaceDocument(nextDocument.id)')
       || source.includes('onActivateWorkspaceDocument?.(workspaceDocument.id)')) {
       failures.push(`${relativePath}: workspace activation must cross the complete text-property terminal owner`);
+    }
+  }
+  if (normalizedPath.endsWith('/composition/text/useTextEditingLifecycle.ts')) {
+    if (!/editing\.finish\(\);\s*properties\.dispose\(\);\s*editing\.reset\(\);/.test(source)
+      || !/properties\.cancel\(\);\s*editing\.reset\(\);/.test(source)
+      || !source.includes('properties.finishIfEditingLayerChanged(activeLayerId);')) {
+      failures.push(`${relativePath}: preserve text finish/dispose/reset, document reset and layer-target terminal order`);
     }
   }
   if (normalizedPath.endsWith('/application/workspace/WorkspaceDocumentIntents.ts')) {
@@ -892,6 +916,12 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || source.includes('createResizePlan(') || source.includes('createDocumentGeometryPlan(')) {
       failures.push(`${relativePath}: document-wide geometry policy belongs only to DocumentSurfaceCommandService`);
     }
+    if (!source.includes('new DocumentOpenTransitionBinding({')
+      || source.includes('const beforeDocumentOpen =')
+      || source.includes('const beforeExistingDocumentRebind =')
+      || source.includes('resetDocumentOpenPresentation({')) {
+      failures.push(`${relativePath}: new-source/rebind/close policy belongs to DocumentOpenTransitionBinding`);
+    }
     const directPixelSettlements = source.match(/settlePixelInteractionRef\.current\(/g)?.length ?? 0;
     if (!source.includes('useTransformPresentation(')
       || source.includes('buildTransformEditingFrame(')
@@ -983,9 +1013,10 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || !source.includes('new MountedDocumentAdmission(')
       || !source.includes('mountedDocumentAdmission.runAfter')
       || !source.includes('settlePixelInteractionRef.current(isCurrent)')
+      || !source.includes('new MountedInteractionLifecycle({')
+      || !source.includes('settlePixelInteractionRef.current = mountedInteractionLifecycle.settlePixels;')
+      || !source.includes('return mountedInteractionLifecycle.retire;')
       || source.includes("interactionTransitions.request('commit-before-mutation'")
-      || !source.includes('interactionTransitions.retire(')
-      || !source.includes('selectionSessionController.retire();')
       || source.includes('cancelPixelInteractionRef')
       || !source.includes('deactivateHostPresentation({')) {
       failures.push(`${relativePath}: mounted-document interaction transitions must have one centralized preserve, settlement and retirement authority`);
@@ -995,6 +1026,16 @@ function verifyDocumentLifecycleCutover(relativePath, source) {
       || !source.includes('resetActiveAdjustmentPreview: () => resetActiveAdjustmentTransactionRef.current()')
       || !source.includes('const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;')) {
       failures.push(`${relativePath}: canonical publication must retire an active adjustment preview without cancelling the successor gesture waiting for interaction admission`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/documents/DocumentOpenTransitionBinding.ts')) {
+    if (!source.includes('options.processing.prepareNewSource(')
+      || !source.includes('options.interactions.prepareNewSource()')
+      || !source.includes('resetDocumentOpenPresentation({')
+      || !source.includes('this.options.interactions.rebindExisting()')
+      || !source.includes('this.options.loadedSource.presentExisting()')
+      || !source.includes('this.options.processing.retireOpening(this.options.generation)')) {
+      failures.push(`${relativePath}: document transition binding must retain complete open/rebind/close ordering`);
     }
   }
   if (normalizedPath.endsWith('/application/documents/documentProjectionBinding.ts')) {
@@ -1053,6 +1094,59 @@ function verifyCommandRoutingCutover(relativePath, source) {
       || !contextProps.includes('...toolOptions.contextMenu')
       || /\b(?:sampledBrush|onBrushChange|onTextSizeChange|onWarpReset)\s*[:=]/.test(shellProps + contextProps)) {
       failures.push(`${relativePath}: toolbar and context menu must share the typed Tool Options projection`);
+    }
+    if (!source.includes('new HistoryNavigationIntent({')
+      || source.includes('const applyUndoEditor =')
+      || source.includes('const applyRedoEditor =')) {
+      failures.push(`${relativePath}: history navigation prerequisites belong to HistoryNavigationIntent`);
+    }
+    if (!source.includes('new MountedCommandSettlement({')
+      || !source.includes('settleInteractionBeforeCommand: mountedCommandSettlement.settle')
+      || source.includes("if (command === 'view.setZoom')")
+      || source.includes('documentFileIntents.prepareForCommand(documentSession, textPrerequisite)')) {
+      failures.push(`${relativePath}: mounted semantic command admission belongs to MountedCommandSettlement`);
+    }
+    for (const factory of ['createDocumentViewCommandPorts({', 'createLayerProcessingCommandPorts({',
+      'createRasterAuthoringCommandPorts({', 'createVectorWarpCommandPorts({',
+      'createAutomationCommandPorts({', 'createArtifactCommandPorts({',
+      'createClipboardCommandPorts({']) {
+      if (!source.includes(factory)) {
+        failures.push(`${relativePath}: mounted command family must remain in ${factory.slice(0, -2)}`);
+      }
+    }
+    for (const owner of ['new FixedTransformCommandBinding({', 'createAdjustmentSnapshotObserver(',
+      'new LayerPanelCommandIntents({', 'new MountedInteractionLifecycle({',
+      'new ProcessingInteractionSettlement({']) {
+      if (!source.includes(owner)) {
+        failures.push(`${relativePath}: cross-system workflow authority must remain in ${owner.slice(0, -2)}`);
+      }
+    }
+    if (!source.includes('resizeViewport: resizeViewportImmediately')
+      || !source.includes('execute: requestViewportZoom')
+      || source.includes('fixedTransformCommandRunningRef')) {
+      failures.push(`${relativePath}: viewport command bridges must be stable and fixed-transform authority must not return to the root`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/commands/MountedCommandSettlement.ts')) {
+    if (!source.includes("if (command === 'view.setZoom') return")
+      || !source.includes('FILE_COMMANDS.has(command)')
+      || !source.includes('await this.participants.files.prepareForCommand(')
+      || !source.includes('await this.participants.settleInteraction()')) {
+      failures.push(`${relativePath}: mounted command settlement must preserve viewport, file and document admission classes`);
+    }
+  }
+  if (normalizedPath.endsWith('/application/commands/HistoryNavigationIntent.ts')) {
+    const adjustment = source.indexOf('this.participants.finishAdjustment()');
+    const document = source.indexOf('this.participants.finishDocumentTransaction()');
+    if (adjustment < 0 || document < adjustment) {
+      failures.push(`${relativePath}: history navigation must finish adjustment then document transactions`);
+    }
+  }
+  if (normalizedPath.endsWith('/composition/rendering/useDevelopmentTextFixture.ts')) {
+    if (!source.includes('useLayoutEffect(() => {')
+      || !source.includes("setSnapshot({ enabled: false, status: 'off', error: null })")
+      || (source.match(/generationRef\.current \+= 1/g)?.length ?? 0) < 2) {
+      failures.push(`${relativePath}: renderer fixture lifetime must invalidate before paint and retire to off`);
     }
   }
   if (normalizedPath.endsWith('/application/adjustments/createAdjustmentCommands.ts')

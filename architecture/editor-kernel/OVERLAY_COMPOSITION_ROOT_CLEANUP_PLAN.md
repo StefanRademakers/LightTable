@@ -1,8 +1,8 @@
 # Overlay composition-root cleanup
 
-Status: **executing; bounded extractions accepted as recorded below; remaining checklist open**.
+Status: **O08 Overlay composition-root milestone accepted 2026-09-13; O09 renderer decomposition remains separate**.
 Owner requested 2026-09-11.
-Checkpoint: `df000cc5` (`main`), before cleanup. No push requested.
+Checkpoint: `df000cc5` (`main`), before cleanup.
 
 This is the active follow-up ledger for reducing integration ownership. It is
 not a new kernel migration or a rewrite of working domain algorithms. The
@@ -36,8 +36,9 @@ marquee/transparency/Wand Actions pass. O06g adjustment/attached inspector and
 workspace focus repair remain accepted with repeated packaged proof. O05a.3 text
 conversion and O07e Remove Object retain their recorded evidence limits.
 Style-export repair and neutral-Curves precision debt remain in Task416 PROGRESS.
-Accepted root is 4,996 physical lines. Remaining text-runtime/GenAI/command families, cross-flow
-evidence and O09 remain open.
+Accepted O08 root is 4,456 physical lines. Mutation/history/resource policy and
+cross-system workflow algorithms are delegated to named owners; the root retains
+React composition, explicit wiring and UI-local presentation state. O09 remains open.
 
 ## Result, scope and non-goals
 
@@ -137,13 +138,13 @@ class names: reuse existing owners before creating a new one.
 
 - [x] O00 — Save the pre-cleanup checkpoint (`df000cc5`); preserve local recovery
   artifacts outside Git. Record this plan and route onboarding to it.
-- [ ] O01 — Complete the ownership inventory. Classify every Overlay section,
+- [x] O01 — Complete the ownership inventory. Classify every Overlay section,
   state/ref, effect and callback as view state, adaptation, wiring or a named
   non-UI authority. Map incoming/outgoing dependencies, lifetime and entry points.
   Record current behavior versus desired contract, including uncertain cases.
   Establish repeatable packaged baseline scenarios and latency/resource traces.
   No mutation extraction until its dependency/behavior map is complete.
-- [ ] O02 — Extract tool activation and interaction handoff first. Consolidate
+- [x] O02 — Extract tool activation and interaction handoff first. Consolidate
   the existing activation planner, transition admission and scattered terminal
   calls. Domain owners expose narrow terminal/readiness operations; the
   coordinator knows policy, not texture/text/paint implementation. Delete the
@@ -158,18 +159,20 @@ class names: reuse existing owners before creating a new one.
     Packaged 35-tool switching, text/transform/Escape/reentry and transform pixel
     history/Exposure proof passed. Outer pre-activation async callbacks remain
     in O03/O05, not certified by this extraction.
-  - [ ] O02c: history/save/export/target-change prerequisites, temporary tools
+  - [x] O02c: history/save/export/target-change prerequisites, temporary tools
     and host deactivation; reconcile all scattered terminal policies.
     - [x] O02c.1: history prerequisite ordering and layer-panel gesture owner;
       current lifecycle scope checks. Critic PASS after repair 1; packaged held
       Opacity drags plus keyboard exact pixel undo/redo and transform smoke passed.
-    - [ ] O02c.2: temporary overrides and host/target transitions.
+    - [x] O02c.2: temporary overrides and host/target transitions.
       - [x] Temporary override state/subscription; duplicate React booleans
         removed. Critic found no blocker; packaged overlap/blur/tab proof passed.
       - [x] Native host blur and workspace tab/close intent policy (O02e).
         Exact text terminal/source checks; existing host recovery remains owner.
         Packaged actual blur/refocus, tab and close Cancel/Discard pass.
-      - [ ] Remaining target-change policy outside workspace tab/close.
+      - [x] Remaining target-change policy outside workspace tab/close. Active
+        layer settlement now belongs to `ActiveLayerChangeSettlement`; mounted
+        selection/transform retirement belongs to `MountedInteractionLifecycle`.
     - [x] O02c.3: save/export prerequisite consolidation.
       - [x] O02c.3a: scoped UI file intents, actual text/layer/adjustment terminal
         outcomes and original-owner host delivery. Critic PASS after explicit
@@ -186,7 +189,7 @@ class names: reuse existing owners before creating a new one.
     settlement; pinned registration identity and truthful text-property terminals.
     Critic PASS; 99 focused tests and packaged Properties/tab/no-op/Undo/Redo and
     pending transform/cold Type Save pass. No new queue or implicit blur commit.
-- [ ] O03 — Extract document publication and lifecycle binding. Move semantic
+- [x] O03 — Extract document publication and lifecycle binding. Move semantic
   snapshot application policy, exact session binding, open/rebind/retire
   orchestration and disposal out of Overlay, retaining existing document,
   history, renderer and recovery owners. No second store or ownership change
@@ -201,7 +204,7 @@ class names: reuse existing owners before creating a new one.
     pixels and clipboard bounds/bytes. Critic PASS. See Task 416
     `O03B_PUBLICATION_ACCEPTANCE_REPORT.md`, including the unresolved pre-selection
     preview-read flake; this is not complete lifecycle/whole-app acceptance.
-  - [ ] O03c: open/rebind/retire and disposal orchestration.
+  - [x] O03c: open/rebind/retire and disposal orchestration.
     - [x] O03c.1: loaded-source publication and document font hydration lifetime.
       Session-owned pending/error survives rebind; embedded runtime reset/disposal
       is separate. Removed root font/source asset mirrors and async generation
@@ -210,7 +213,7 @@ class names: reuse existing owners before creating a new one.
     - [x] O03c.2: distinct new-source/published-source/rebind interaction resets.
       Named participant policy preserves ordering without acquiring domain state.
       Critic PASS; packaged layer/history, font/source and pixel-retention passed.
-    - [ ] O03c.3: read-only processing restore and remaining presentation setup.
+    - [x] O03c.3: read-only processing restore and remaining presentation setup.
       Processing mirrors/restore move together with O04b, not into another owner.
       - [x] O03c.3a: renderer/resource retirement. Removed duplicate root renderer
         clearing; pending startup detaches presentation immediately, destroys only
@@ -242,7 +245,7 @@ class names: reuse existing owners before creating a new one.
     observation and task-wrapper bumps. Dirty/save identity remains separate.
     Critic PASS, app4220 tests and packaged Face Warp/transform/selection pass.
     Removed fabricated frame-revision telemetry; true frame identity stays O08.
-- [ ] O04 — Extract geometry and processing commands, in separate sub-slices:
+- [x] O04 — Extract geometry and processing commands, in separate sub-slices:
   (a) Image Size/Canvas Size/Crop/Rotate; (b) local/global grade and Lens FX
   interaction/history; (c) LUT/grade asset lifecycle. Retain existing algorithms
   and atomic pixel/document/selection publication. UI passes intent only.
@@ -251,7 +254,7 @@ class names: reuse existing owners before creating a new one.
     canonical support without another GPU readback. Root only adapts commands
     and dialog/viewport presentation. Critic PASS; packaged geometry, Image Size,
     feathered/painted surface history and UI/Actions/MCP equivalence passed.
-  - [ ] O04b: processing presentation/state, individual gestures and pickers.
+  - [x] O04b: processing presentation/state, individual gestures and pickers.
     - [x] O04b.1: canonical processing binding, shared contextual inspector and
       lifecycle-ordered renderer projection. Removed 14 unused layer-panel props
       and their dead root mutation callbacks. Exact fresh PNG/tab/history and
@@ -274,7 +277,7 @@ class names: reuse existing owners before creating a new one.
     paste completes synchronously through the existing adjustment controller
     after admission. Critic and packaged UI/Actions/MCP, both file routes,
     exact rebind/history and genuine no-op proof passed.
-- [ ] O05 — Complete domain tool boundaries, separately: (a) text hit-testing,
+- [x] O05 — Complete domain tool boundaries, separately: (a) text hit-testing,
   activation/creation/formatting; (b) vector/path/shape interaction glue;
   (c) transform/snapping; (d) warp/face-warp; (e) remaining selection, paint,
   gradient, mask and background-removal integration. Inspect every toolbar tool
@@ -284,7 +287,7 @@ class names: reuse existing owners before creating a new one.
     existing gestures/semantic commands. Font target/range/request lifetime and
     writing-mode continuation repaired. Critic PASS after two findings; packaged
     font picker, font source roundtrip and UI/Actions/MCP text-format proof pass.
-  - [ ] O05a.2: existing-text hit/activation and point/paragraph/path creation
+  - [x] O05a.2: existing-text hit/activation and point/paragraph/path creation
     lifetimes, separately from property formatting.
     - [x] O05a.2a: exact hit-to-edit activation owner and scoped failure reporting.
       Critic repair suppresses obsolete selection failure UI; current failures stay
@@ -358,7 +361,7 @@ class names: reuse existing owners before creating a new one.
   - [x] O05f: one tool-default intents owner and digit-buffer lifetime; toolbar,
     F5 and keyboard use current application settings. Critic and fresh packaged
     brush/selection-dimensions/Warp gates pass; no document/history state added.
-- [ ] O06 — Extract remaining layer/clipboard/finalization and mounted command
+- [x] O06 — Extract remaining layer/clipboard/finalization and mounted command
   adapters. UI, shortcuts, Actions and MCP invoke the same semantic operations.
   Move automation translate baseline/history into an application owner, not
   another adapter-local mutation implementation. Remove duplicate preparation
@@ -384,7 +387,7 @@ class names: reuse existing owners before creating a new one.
     controllers retain gestures/history. Critic PASS;51 focused tests and packaged
     parent transform, zoom handoff, exact PNG undo/redo, no-op/cancel/lock and
     rectangle/brush routing pass. Other command families remain open.
-  - [ ] O06f: remaining canonical-selection consumers and layer intent lifetime.
+  - [x] O06f: remaining canonical-selection consumers and layer intent lifetime.
     - [x] Canonical mask/menu eligibility and scoped canvas layer picking;
       real painted-mask/Shift-pick flows and exact output/history verified.
     - [x] O06f.2: four finalization UI intents own text/admission/command outcomes;
@@ -421,7 +424,7 @@ class names: reuse existing owners before creating a new one.
     focused tests, typecheck and boundary PASS. Fresh packaged Copy A -> semantic
     Copy B -> UI Paste is a no-op on B with exact Action association, and the
     existing UI/Actions/MCP/LUT/cross-document Grade gate also passes.
-- [ ] O07 — Finish UI/host composition: provider/job integration, menus, panels,
+- [x] O07 — Finish UI/host composition: provider/job integration, menus, panels,
   tool options, dialogs, workspace and viewport bindings. Preserve layout,
   shortcuts and control behavior. Partition composition by feature, exposing
   named view models/intents rather than hundreds of mutable ports. Verify
@@ -471,13 +474,23 @@ class names: reuse existing owners before creating a new one.
     from 15,020 retained nodes/2,034 tail listeners to zero/zero at 66 ms median
     and 79 ms maximum; separate packaged Scopes wake proof remains green. No
     threshold, retry, alternate route or fallback was added.
-- [ ] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
+- [x] O08 — Enforce and prove the endpoint. Scan all remaining Overlay logic,
   not just file size; zero edit policy/history/resource ownership remains.
   Add enforceable import/ownership rules and update existing boundary guards
   that currently require implementation text inside Overlay. Move each guard
   to the actual new owner; never delete protection just to get green checks.
   Reconcile active MD guidance and remove superseded guidance after preserving
   still-valid contracts. Run final mixed-flow, performance and resource proof.
+  Final endpoint scan extracted document-open transitions, mounted command
+  settlement/families, history navigation, active-layer and mounted-interaction
+  settlement, fixed-transform completion, processing settlement/observation,
+  layer-panel and selection-menu intents, viewport commands and text/rendering
+  lifetimes. Independent critic ACCEPT after two targeted repair rounds. Final
+  instrumented package passes selection, transform, processing rebind, scopes
+  wake, Type, merge/rasterize and pasted transform -> Exposure -> paint -> exact
+  undo/redo. Twenty typed-document cycles: 67 ms median, 75 ms maximum, zero DOM
+  node growth and zero listener tail/overall growth. The 4,456-line ceiling is
+  enforced; `WebGpuEngine` remains explicitly outside this milestone.
 - [ ] O09 — Separately inventory and plan WebGpuEngine decomposition against
   its actual remaining responsibilities and measured hot paths. Do not mark the
   engine resolved because the Overlay is smaller. Implementation is separately

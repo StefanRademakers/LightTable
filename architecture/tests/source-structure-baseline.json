@@ -6,12 +6,12 @@
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
       "baselineLines": 9023,
-      "maxLines": 4842,
+      "maxLines": 4456,
       "classification": "mixed-authority",
       "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
       "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],
       "productRisk": "high",
-      "decision": "Task416 O07i preserves one mounted image-panel and Properties projection across temporary typed-document presentation, eliminating repeated retained Grade/Scopes DOM and listener graphs. The remaining high-risk composition root has a lower hard ceiling; every touched family must continue removing a complete owner."
+      "decision": "Task416 O08 leaves this file as the React composition root and explicit system wiring surface. Workflow admission, history navigation, document transitions, transform completion, adjustment observation, layer-panel intents and mounted interaction settlement have named owners. Preserve this ratcheted ceiling; feature policy and lifecycle algorithms may not return here."
     },
     "packages/lighttable-app/src/lighttable/application/tools/smartSelection/SmartSelectionToolController.ts": {
       "baselineLines": 549,

@@ -101,7 +101,7 @@ export interface LayerPanelControllerDependencies {
   finishStyleEditing(): void;
   finishProcessingEditing?(): void;
   setAttachedFilterEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): boolean;
-  prepareActiveLayerChange?(layerId: LayerId, isCurrent: () => boolean): void | Promise<void>;
+  prepareActiveLayerChange(layerId: LayerId, isCurrent: () => boolean): void | Promise<void>;
   finishTextEditing?(): void;
 }
 
@@ -222,7 +222,7 @@ export const createLayerPanelController = (
     const layer = current ? findDocumentLayer(current, layerId) : null;
     if (!current || !layer) return false;
 
-    await dependencies.prepareActiveLayerChange?.(layerId, isCurrent);
+    await dependencies.prepareActiveLayerChange(layerId, isCurrent);
     if (!isCurrent()) return false;
 
     // The preparation step may asynchronously commit a renderer-owned

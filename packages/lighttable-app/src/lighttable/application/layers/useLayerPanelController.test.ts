@@ -88,6 +88,7 @@ const setup = (initialDocument: ImageDocument) => {
     clearStyles: vi.fn(),
     finishStyleEditing: vi.fn(),
     finishProcessingEditing: vi.fn(),
+    prepareActiveLayerChange: vi.fn(),
     finishTextEditing: vi.fn()
   };
   const controller = createLayerPanelController(() => dependencies);

@@ -1,6 +1,9 @@
 # Overlay ownership inventory
 
-Current accepted root: 5,101 physical lines. O02c.3b replaces command tails with
+Status: historical inventory plus accepted O08 endpoint map. The earlier
+"remaining" sections below preserve audit evidence; they are not the active queue.
+
+Current accepted root: 4,456 physical lines. O02c.3b replaces command tails with
 one explicit runner capable of consuming its exact captured text prerequisite.
 Text submission mapping and exact mounted publication lifetime live in text
 composition; root no longer executes the text handler/render terminal itself.
@@ -41,7 +44,15 @@ Remove Object intent owns request retirement; source capture owns the short
 editor read barrier; existing GenAI command retains discovery/import/submission.
 Provider generation/result placement are outside this slice's fixture evidence.
 
-## Remaining owner map (read-only inventory, not accepted implementation)
+O08 endpoint result: the remaining cross-system algorithms now live in named
+owners for document-open transitions, mounted command admission/families,
+history navigation, active-layer/mounted-interaction settlement, fixed transform,
+processing settlement/observation, layer-panel/selection intents, viewport zoom
+and text/rendering lifetimes. Overlay retains explicit construction, dependency
+wiring and UI-local presentation. The separate WebGpuEngine O09 inventory remains
+open and is not covered by this acceptance.
+
+## Historical pre-O08 owner map (read-only inventory, now superseded)
 
 Post-O03c.7 independent rescan, provider work excluded, ordered by remaining
 authority rather than cosmetic line reduction:

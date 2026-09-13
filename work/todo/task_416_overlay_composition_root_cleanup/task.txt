@@ -1,6 +1,8 @@
 Task 416 - Controlled Overlay composition-root cleanup
 
-Status: in progress. O02c.3b same-runner text prerequisites accepted with critic,
+Status: O08 Overlay composition-root milestone accepted 2026-09-13. The detailed
+historical ledger below is retained as evidence; its old "next" statements are
+superseded by the canonical plan and resume checkpoint. O02c.3b same-runner text prerequisites accepted with critic,
 real paragraph/point export/Actions/exact UndoRedo, Save and Path Text Actions.
 Adjacent native edge-pan receiver defect reproduced and repaired with critic
 and actual edge-drag proof. O07f independent provider binding accepted with critic and
@@ -24,6 +26,11 @@ Canonical checklist below is authoritative. Overlay4,866 physical lines;
 WebGpuEngine4,003. Neither endpoint is complete. Next: remaining host/view/panel
 composition, then O08 endpoint.
 Owner requested 2026-09-11. Pre-cleanup checkpoint: df000cc5.
+
+Final accepted root: 4,456 physical lines. Independent critic ACCEPT; focused
+typecheck/tests/boundaries and fresh packaged selection, transform, processing,
+scopes, Type, merge/rasterize and pasted transform/Exposure/paint/history flows
+pass. O09 WebGpuEngine decomposition remains separate.
 
 Canonical checklist and execution contract:
 architecture/editor-kernel/OVERLAY_COMPOSITION_ROOT_CLEANUP_PLAN.md
