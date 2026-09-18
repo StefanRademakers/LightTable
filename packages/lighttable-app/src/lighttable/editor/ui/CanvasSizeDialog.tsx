@@ -1,4 +1,4 @@
-import { AnchorGrid, Button, Checkbox, Dialog, FieldRow, LinkedFields, MaskIcon, NumberField, Select, Text } from '@lighttable/ui';
+import { AnchorGrid, Button, Checkbox, Dialog, FieldRow, LinkedFields, MaskIcon, NumberField, Select, Text } from '@mediavibe/ui';
 import { useLayoutEffect, useState } from 'react';
 
 import { lightTableIcon } from '../../../assets/icons';

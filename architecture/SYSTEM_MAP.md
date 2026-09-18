@@ -5,13 +5,13 @@
 ```text
 apps/web                 Browser host and bootstrap
 apps/desktop             Electron main, preload and renderer host
-apps/ui-demo             Interactive catalog for shared UI primitives and composites
+../MediaVibeUI/apps/ui-demo  Interactive catalog for shared UI primitives and composites
 apps/local-ai-provider   Managed desktop local-inference process
 apps/mcp-server          Remote MCP/OAuth adapter over semantic commands
 packages/command-contract Machine-readable semantic command and exposure profiles
 packages/editor-kernel    Target semantic transaction, ownership and projection contracts
 packages/lighttable-app  Shared application, editor, UI and WebGPU engine
-packages/ui              Themeable shared UI primitives and reusable composites
+../MediaVibeUI/packages/ui   Themeable shared UI primitives and reusable composites
 packages/genai-core      Provider-neutral GenAI models, workflows, jobs and presentation contracts
 packages/genai-higgsfield Higgsfield adapter, normalization and provider fixtures
 packages/genai-local     Host-neutral local-provider protocol and contracts
@@ -27,7 +27,7 @@ packages/text-core       Serializable text model and layout contracts
 packages/text-layout-wasm Rust/Wasm shaping and paragraph runtime
 packages/text-rendering  Backend-neutral text realization and caches
 packages/text-webgpu     WebGPU glyph/vector text backends
-packages/video-core      Host-neutral video documents, playback state and frame artifacts
+../MediaVibePackages/packages/video-core Host-neutral video documents, playback state and frame artifacts
 packages/vector-core     Serializable vector model, geometry and editing
 packages/vector-rendering Backend-neutral realization and revision caches
 packages/vector-svg      Bounded editable SVG import/export codec over vector-core
@@ -92,7 +92,7 @@ clipboard and optional media browsing. Hosts do not contain editor logic.
 
 The application workspace owns ordered typed documents and exactly one active
 document. The current image `WorkspaceSession` and `DocumentWorkspaceController`
-pair image sessions with opaque source payloads; `@lighttable/video-core` owns
+pair image sessions with opaque source payloads; `@mediavibe/video-core` owns
 the separate read-only video session contract. One application
 editor/canvas/Dockview runtime binds to the active typed adapter; inactive
 sessions retain canonical or presentation state, not duplicate mounted editor

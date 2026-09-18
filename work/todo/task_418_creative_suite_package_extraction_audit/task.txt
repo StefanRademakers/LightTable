@@ -1,0 +1,124 @@
+Task 418 - Audit and plan the LightTable-to-MediaVibe creative-suite engine extraction
+
+Status: actionable research and architecture task. Do not begin bulk package
+moves until this audit has established the actual dependency and ownership
+boundaries.
+
+Owner intent
+
+LightTable already contains substantial working creative-engine capability.
+Establish how its layered graphics, vector/SVG, grading, scopes, text rendering,
+effects and GPU infrastructure can become reusable MediaVibePackages for a
+complete creative-software suite: LightTable, Wavenux/NLE, podcast editing,
+motion/compositing, publishing/design and future hosts. Preserve LightTable as
+the current reference implementation; do not redesign proven systems merely to
+make them appear generic.
+
+Durable context
+
+- `architecture/MEDIAVIBE_PACKAGE_EXTRACTION_ROADMAP_2026-09-16.md`
+- `architecture/QUICKSTART.md`
+- `architecture/SYSTEM_MAP.md`
+- `architecture/UI_WORKSPACE_AND_DESIGN_SYSTEM.md`
+- sibling repositories `../MediaVibePackages` and `../MediaVibeUI`
+
+Required investigation
+
+1. Inventory the current implementation and tests for:
+   - layered scene/document and layer-tree semantics;
+   - compositor, masks, blend modes, adjustment layers and effect stacks;
+   - paint, vector editing/rendering, SVG and Vello/WebGPU backends;
+   - text model, shaping/Wasm, font assets, rendering and editing overlays;
+   - color math, profiles, grading models, LUTs and GPU realization;
+   - histogram, parade, vectorscope, hue distribution and scope presentation;
+   - filters/effects, GPU kernels and effect catalogs;
+   - animation property addressing and scene-node integration;
+   - GPU device/resource ownership, caching, recovery and dirty invalidation;
+   - transactions/history needed by more than one product;
+   - import/export adapters including PSD, PDF and SVG.
+2. For every subsystem, distinguish:
+   - already host-neutral and package-ready;
+   - reusable implementation currently trapped in `lighttable-app`;
+   - LightTable/Photoshop-specific policy that must remain local or become an
+     adapter;
+   - UI/presentation that belongs in MediaVibeUI;
+   - missing contract required by a second suite product.
+3. Produce the real dependency graph, including forbidden dependency
+   directions. Pay special attention to React/DOM/Electron, WebGPU, codecs,
+   product command catalogs, Photoshop metadata and application state.
+4. Inspect Wavenux, LightAudio and other available MediaVibe consumers. Name a
+   real second consumer and concrete integration seam for every proposed shared
+   package. Do not justify a move with a hypothetical consumer alone.
+5. Compare the existing code to the likely package families below. Rename,
+   combine or reject them where the code and ownership evidence require it:
+   - `@mediavibe/paint-core`
+   - `@mediavibe/scene-core`
+   - `@mediavibe/compositor-core` and `compositor-webgpu`
+   - vector/SVG core, rendering and backend packages
+   - text core, layout-Wasm, rendering and backend packages
+   - `color-core`, `grading-core` and `grading-webgpu`
+   - `scopes-core` and `scopes-webgpu`
+   - `effects-core` and `effects-webgpu`
+   - a broadened but bounded GPU runtime
+   - narrow transaction/history primitives
+   - format/provider adapters
+6. Identify canonical-state hazards. Extraction must not create a parallel
+   scene, animation, grade, history or GPU-resource model beside the one already
+   used by LightTable.
+7. Identify performance hazards for interactive editing: React publication on
+   hot paths, CPU readback, duplicated textures, full-frame reevaluation,
+   repeated shader compilation, unbounded scope work and cross-package resource
+   lifetime ambiguity.
+
+Required deliverables
+
+Create one evidence-backed report in this task package containing:
+
+- a source/test ownership inventory with exact paths;
+- a current dependency graph and proposed target graph;
+- a capability matrix for LightTable and each credible suite consumer;
+- proposed package names, public contracts and dependency direction;
+- for each candidate, a disposition of `move`, `extract`, `split`, `keep local`
+  or `defer`, with reasoning;
+- an ordered migration plan made of small vertical slices;
+- the first recommended extraction slice with exact files, consumers, tests,
+  rollback boundary and expected user/product benefit;
+- risks, unresolved decisions and any required owner choices;
+- an explicit list of things that must not be ported wholesale.
+
+The report must separate proven facts, interpretation and recommendations. Line
+counts and package counts are orientation only; they are not evidence of reuse.
+
+Acceptance criteria
+
+- Every named capability is traced to current source and tests; do not describe
+  existing LightTable features as greenfield work.
+- Every proposed MediaVibe package has one clear responsibility, a bounded API,
+  an allowed dependency list and at least one named second-consumer seam.
+- The plan preserves LightTable behavior, canonical state, history semantics,
+  GPU resource ownership and hot-path performance.
+- Product-specific Photoshop compatibility, application commands, panels and
+  workflows are explicitly separated from reusable engine behavior.
+- The migration order is executable without a flag day and leaves no duplicate
+  mutable implementation after each completed slice.
+- Verification gates cover MediaVibePackages plus LightTable and the named
+  second consumer. Manual visual/performance validation is marked where tests
+  cannot prove the outcome.
+- The owner can make a go/no-go decision on the first extraction slice from the
+  report without additional repository archaeology.
+
+Non-goals
+
+- Do not move packages or rename imports as part of this research task.
+- Do not rewrite the LightTable renderer or document model.
+- Do not generalize LightTable command IDs, Photoshop policy or UI workflows
+  without demonstrated cross-product semantics.
+- Do not claim the complete suite engine is ready because individual packages
+  already exist.
+
+Completion
+
+This task is done when the report and target package graph satisfy the criteria
+above and have been reconciled against current code in all relevant
+repositories. Implementation begins in separately scoped follow-up tasks, one
+verified vertical extraction slice at a time.

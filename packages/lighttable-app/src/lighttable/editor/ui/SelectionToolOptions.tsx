@@ -1,4 +1,4 @@
-import { Checkbox, NumberField, Select } from '@lighttable/ui';
+import { Checkbox, NumberField, Select } from '@mediavibe/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../ui/AdjustmentSlider';
 import type { EditorSession, ToolId } from '../session/editorSession';

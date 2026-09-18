@@ -15,7 +15,7 @@ const violations = [];
 for (const file of await sourceFiles(uiRoot)) {
   if (!/\.(?:ts|tsx)$/.test(file)) continue;
   const source = await readFile(file, 'utf8');
-  if (/from\s+['"](?!@lighttable\/ui(?:['"/]))[^'"]*lighttable\//.test(source)) {
+  if (/from\s+['"](?!@mediavibe\/ui(?:['"/]))[^'"]*lighttable\//.test(source)) {
     violations.push(`${path.relative(root, file)} imports the LightTable editor domain`);
   }
 }

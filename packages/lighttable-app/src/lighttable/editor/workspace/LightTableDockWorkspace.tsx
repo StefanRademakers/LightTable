@@ -1,5 +1,12 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
-import { DocumentTabs, EditorPanelSurface, PanelTab, type MenuOption, type DocumentPreviewBounds } from '@lighttable/ui';
+import {
+  DocumentTabs,
+  EditorPanelSurface,
+  PanelTab,
+  WorkspaceDropPreview,
+  type DocumentPreviewBounds,
+  type MenuOption
+} from '@mediavibe/ui';
 import React, {
   createContext,
   forwardRef,
@@ -46,6 +53,10 @@ import {
 } from '../ui/EditorStatusBar';
 import { EditorToastViewport } from '../ui/EditorToastViewport';
 import type { EditorNotification } from '../notifications/useEditorNotifications';
+import {
+  calculateWorkspaceFloatingPlacement,
+  type WorkspaceFloatingPlacement
+} from './workspaceFloatingPlacement';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
@@ -84,6 +95,23 @@ type FloatingFrameBounds = {
   top: number;
   width: number;
   height: number;
+};
+
+interface FloatingDropPreviewState {
+  readonly panelId: string;
+  readonly title: string;
+  readonly bounds: WorkspaceFloatingPlacement;
+}
+
+const applyFloatingDropPreviewBounds = (
+  element: HTMLDivElement | null,
+  bounds: WorkspaceFloatingPlacement
+) => {
+  if (!element) return;
+  element.style.left = `${bounds.x}px`;
+  element.style.top = `${bounds.y}px`;
+  element.style.width = `${bounds.width}px`;
+  element.style.height = `${bounds.height}px`;
 };
 
 type DockviewFloatingGroupBridge = {
@@ -550,6 +578,8 @@ export const LightTableDockWorkspace = forwardRef<
   const layoutListenerRef = useRef<{ dispose: () => void } | null>(null);
   const dropListenerRef = useRef<{ dispose: () => void } | null>(null);
   const dropOverlayListenerRef = useRef<{ dispose: () => void } | null>(null);
+  const floatingDropPreviewElementRef = useRef<HTMLDivElement | null>(null);
+  const floatingDropPreviewStateRef = useRef<FloatingDropPreviewState | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const presetFinalizeTimerRef = useRef<number | null>(null);
   const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
@@ -600,11 +630,52 @@ export const LightTableDockWorkspace = forwardRef<
     ].join(':'))
     .join('|');
   const [ready, setReady] = useState(false);
+  const [floatingDropPreview, setFloatingDropPreview] = useState<FloatingDropPreviewState | null>(null);
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
   const [tabFloatingPanelsHidden, setTabFloatingPanelsHidden] = useState(false);
   const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
   const [appTheme, setAppTheme] = useState(getAppTheme);
   useEffect(() => subscribeAppTheme(setAppTheme), []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'lighttable-workspace-float-preview-active',
+      Boolean(floatingDropPreview)
+    );
+    return () => document.documentElement.classList.remove('lighttable-workspace-float-preview-active');
+  }, [floatingDropPreview]);
+
+  const hideFloatingDropPreview = useCallback(() => {
+    if (!floatingDropPreviewStateRef.current) return;
+    floatingDropPreviewStateRef.current = null;
+    setFloatingDropPreview(null);
+  }, []);
+
+  const showFloatingDropPreview = useCallback((next: FloatingDropPreviewState) => {
+    const current = floatingDropPreviewStateRef.current;
+    floatingDropPreviewStateRef.current = next;
+    if (current?.panelId === next.panelId && current.title === next.title) {
+      applyFloatingDropPreviewBounds(floatingDropPreviewElementRef.current, next.bounds);
+      return;
+    }
+    setFloatingDropPreview(next);
+  }, []);
+
+  useEffect(() => {
+    const finishDrag = () => hideFloatingDropPreview();
+    window.addEventListener('dragend', finishDrag, true);
+    window.addEventListener('drop', finishDrag, true);
+    window.addEventListener('pointerup', finishDrag, true);
+    window.addEventListener('pointercancel', finishDrag, true);
+    window.addEventListener('blur', finishDrag);
+    return () => {
+      window.removeEventListener('dragend', finishDrag, true);
+      window.removeEventListener('drop', finishDrag, true);
+      window.removeEventListener('pointerup', finishDrag, true);
+      window.removeEventListener('pointercancel', finishDrag, true);
+      window.removeEventListener('blur', finishDrag);
+    };
+  }, [hideFloatingDropPreview]);
 
   const publishPanelVisibility = useCallback((api = apiRef.current) => {
     if (!api) return;
@@ -807,15 +878,61 @@ export const LightTableDockWorkspace = forwardRef<
     dropListenerRef.current?.dispose();
     dropOverlayListenerRef.current?.dispose();
     dropOverlayListenerRef.current = event.api.onWillShowOverlay((overlayEvent) => {
-      if (!allowsWorkspaceDockTarget(
+      const allowed = allowsWorkspaceDockTarget(
         workspaceElementRef.current,
         overlayEvent.kind,
         overlayEvent.position,
         overlayEvent.group,
         overlayEvent.nativeEvent.clientX
-      )) overlayEvent.preventDefault();
+      );
+      if (!allowed) {
+        hideFloatingDropPreview();
+        overlayEvent.preventDefault();
+        return;
+      }
+
+      const targetIsDocument = overlayEvent.group?.panels.some(
+        (panel) => panel.id === DOCUMENT_HOST_PANEL_ID
+      );
+      if (
+        !targetIsDocument
+        || overlayEvent.kind !== 'content'
+        || overlayEvent.position !== 'center'
+      ) {
+        hideFloatingDropPreview();
+        return;
+      }
+
+      const transfer = overlayEvent.getData();
+      const sourceGroup = transfer?.groupId
+        ? event.api.getGroup(transfer.groupId)
+        : undefined;
+      const item = transfer?.panelId
+        ? event.api.getPanel(transfer.panelId)
+        : sourceGroup?.activePanel;
+      const workspaceElement = workspaceElementRef.current;
+      if (!transfer || !item || item.id === DOCUMENT_HOST_PANEL_ID || !workspaceElement) {
+        hideFloatingDropPreview();
+        return;
+      }
+
+      const workspaceBounds = workspaceElement.getBoundingClientRect();
+      const bounds = calculateWorkspaceFloatingPlacement({
+        workspaceWidth: workspaceBounds.width,
+        workspaceHeight: workspaceBounds.height,
+        requestedWidth: item.group.api.width,
+        pointerX: overlayEvent.nativeEvent.clientX - workspaceBounds.left,
+        pointerY: overlayEvent.nativeEvent.clientY - workspaceBounds.top,
+        minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
+        maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
+      });
+      const title = panelsRef.current.find((panel) => panel.id === item.id)?.title
+        ?? item.title
+        ?? 'Panel';
+      showFloatingDropPreview({ panelId: item.id, title, bounds });
     });
     dropListenerRef.current = event.api.onWillDrop((dropEvent) => {
+      hideFloatingDropPreview();
       const transfer = dropEvent.getData();
       if (!transfer || transfer.viewId !== event.api.id) return;
       if (transfer.panelId === DOCUMENT_HOST_PANEL_ID) return;
@@ -900,21 +1017,15 @@ export const LightTableDockWorkspace = forwardRef<
 
       dropEvent.preventDefault();
       const rootBounds = workspaceElement.getBoundingClientRect();
-      const width = Math.min(
-        Math.max(item.group.api.width || 320, 250),
-        ACCESSORY_PANEL_MAXIMUM_WIDTH,
-        Math.max(250, rootBounds.width - 24)
-      );
-      // Docked columns are normally workspace-height. Starting a floating
-      // panel at that same height makes it awkward to grab and resize.
-      const height = Math.min(
-        Math.max(Math.round(rootBounds.height * 0.6), 240),
-        Math.max(240, rootBounds.height - 24)
-      );
-      const relativeX = dropEvent.nativeEvent.clientX - rootBounds.left;
-      const relativeY = dropEvent.nativeEvent.clientY - rootBounds.top;
-      const x = Math.max(0, Math.min(relativeX - 40, rootBounds.width - width));
-      const y = Math.max(0, Math.min(relativeY - 15, rootBounds.height - height));
+      const { x, y, width, height } = calculateWorkspaceFloatingPlacement({
+        workspaceWidth: rootBounds.width,
+        workspaceHeight: rootBounds.height,
+        requestedWidth: item.group.api.width,
+        pointerX: dropEvent.nativeEvent.clientX - rootBounds.left,
+        pointerY: dropEvent.nativeEvent.clientY - rootBounds.top,
+        minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
+        maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
+      });
 
       // Cancel Dockview's normal centre docking. Mutate the layout after the
       // current drop handler has unwound so the source group remains valid.
@@ -934,10 +1045,12 @@ export const LightTableDockWorkspace = forwardRef<
     schedulePresetTransactionFinalization(event.api);
   }, [
     accessoryWidthConstraintsEnabled,
+    hideFloatingDropPreview,
     saveLayout,
     publishPanelVisibility,
     scheduleDockColumnRefresh,
-    schedulePresetTransactionFinalization
+    schedulePresetTransactionFinalization,
+    showFloatingDropPreview
   ]);
 
   const resetLayout = useCallback(() => {
@@ -1467,7 +1580,7 @@ export const LightTableDockWorkspace = forwardRef<
       <div className="lighttable-dock-workspace-shell">
         <div
           ref={workspaceElementRef}
-          className={`lighttable-dock-workspace dockview-theme-${appTheme}${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${tabFloatingPanelsHidden ? ' lighttable-dock-workspace--floating-panels-hidden' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
+          className={`lighttable-dock-workspace dockview-theme-${appTheme}${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${tabFloatingPanelsHidden ? ' lighttable-dock-workspace--floating-panels-hidden' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}${floatingDropPreview ? ' lighttable-dock-workspace--floating-drop-preview' : ''}`}
         >
           <DockviewReact
             components={components}
@@ -1486,6 +1599,18 @@ export const LightTableDockWorkspace = forwardRef<
             floatingGroupDragHandle="tabbar"
           />
         </div>
+        {floatingDropPreview ? (
+          <WorkspaceDropPreview
+            ref={floatingDropPreviewElementRef}
+            title={floatingDropPreview.title}
+            style={{
+              left: floatingDropPreview.bounds.x,
+              top: floatingDropPreview.bounds.y,
+              width: floatingDropPreview.bounds.width,
+              height: floatingDropPreview.bounds.height
+            }}
+          />
+        ) : null}
         <EditorToastViewport
           notifications={notifications}
           onDismiss={onDismissNotification}

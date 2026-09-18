@@ -5,7 +5,7 @@ export interface DesktopOpenDialogFilter {
 
 const DOCUMENT_EXTENSIONS = [
   ...NATIVE_BITMAP_FORMATS.flatMap((format) => format.extensions.map((value) => value.slice(1))),
-  'svg', 'psd', 'psb', 'pdf', 'mp4', 'webm', 'lighttable.png'
+  'svg', 'psd', 'psb', 'pdf', 'mp4', 'webm', 'wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'lighttable.png'
 ] as const;
 
 /** Keeps PDF visible as its own Windows file-type choice as well as in All supported files. */
@@ -18,6 +18,7 @@ export const createDesktopOpenDialogFilters = (): DesktopOpenDialogFilter[] => [
   { name: 'SVG documents', extensions: ['svg'] },
   { name: 'Photoshop documents', extensions: ['psd', 'psb'] },
   { name: 'Video files', extensions: ['mp4', 'webm'] },
+  { name: 'Audio files', extensions: ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus'] },
   { name: 'All files', extensions: ['*'] }
 ];
 
@@ -27,7 +28,14 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   pdf: 'application/pdf',
   svg: 'image/svg+xml',
   mp4: 'video/mp4',
-  webm: 'video/webm'
+  webm: 'video/webm',
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg'
 };
 
 export const desktopMediaTypeForFileName = (fileName: string): string => {

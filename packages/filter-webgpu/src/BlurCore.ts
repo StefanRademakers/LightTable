@@ -1,4 +1,5 @@
 import type { P0FilterSettingsMap } from '@lighttable/filter-core';
+import { VisualEffectPipelineProvider } from '@mediavibe/effects-webgpu';
 import { FilterTargetPool } from './FilterTargetPool';
 import { releaseInactiveFilterRuntimes } from './FilterRuntimeCache';
 import { BLUR_CORE_WGSL, FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
@@ -94,10 +95,12 @@ export class BlurCore {
   private readonly pool: FilterTargetPool;
   private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, BlurRuntime>();
+  private readonly shared: VisualEffectPipelineProvider;
 
   constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
     this.pool = pool ?? new FilterTargetPool(device);
     this.ownsPool = pool === undefined;
+    this.shared = new VisualEffectPipelineProvider(device);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -105,6 +108,7 @@ export class BlurCore {
     this.height = height;
     this.sampler = sampler;
     this.pool.configure(width, height);
+    this.shared.configure(width, height, sampler);
   }
 
   encode<K extends BlurCoreMode>(
@@ -117,6 +121,12 @@ export class BlurCore {
     }
     const params = parameters(request.mode, request.settings);
     if (params.radius <= 0) return source;
+    if (request.mode === 'gaussian-blur') {
+      return this.shared.encode(encoder, source, {
+        key: request.key, revision: request.revision, id: 'mediavibe.gaussian-blur',
+        parameters: { radius: params.radius }
+      }, this.pool);
+    }
     const pipeline = pipelineFor(this.device);
     const runtime = this.runtimeFor(request.key);
     if (runtime.revision !== request.revision) {
@@ -166,6 +176,7 @@ export class BlurCore {
   }
 
   releaseInactive(activeKeys: ReadonlySet<string>): void {
+    this.shared.releaseInactive(activeKeys);
     releaseInactiveFilterRuntimes(this.runtimes, activeKeys, (runtime) => {
       runtime.horizontal.destroy();
       runtime.vertical.destroy();
@@ -183,6 +194,7 @@ export class BlurCore {
       runtime.vertical.destroy();
     }
     this.runtimes.clear();
+    this.shared.destroy();
     this.sampler = null;
     this.width = 0;
     this.height = 0;

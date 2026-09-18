@@ -56,10 +56,10 @@ If conversation context disappeared, retain these facts before touching code:
     adjustment layer affecting the lower composite, or an ordered adjustment
     attached to one raster layer. Stack order affects output; never reorder or
     fuse nodes without a proved semantic equivalence.
-11. Shared controls own their internal CSS and geometry under `packages/ui`.
+11. Shared controls own their internal CSS and geometry in sibling workspace `MediaVibeUI/packages/ui`.
     Containers only supply flow, available space, clipping and placement;
     contextual differences use named variants and appear identically in the
-    standalone package catalog launched by `UI.bat`.
+    standalone package catalog launched by `D:\mediavibe\MediaVibeUI\UI.bat`.
 12. Local Codex practice is product-owned in the packaged desktop:
     **Preferences > Agent Access > Local test mode > Allow agent connections >
     Connect Codex**. A fresh/reloaded Codex session is required after first
@@ -346,20 +346,20 @@ not reach into a renderer, host or unrelated React state.
 
 Shared visual language lives in:
 
-- [`packages/ui`](../packages/ui): reusable controls, editor chrome, canonical
+- `D:\mediavibe\MediaVibeUI\packages\ui`: reusable controls, editor chrome, canonical
   tokens and component-owned CSS;
 - [`theme.css`](../packages/lighttable-app/src/ui/theme.css): temporary
   LightTable aliases onto package tokens plus app-domain semantic roles;
 - [`primitives.css`](../packages/lighttable-app/src/ui/primitives.css): remaining
-  app compositions only; reusable skins must migrate to `packages/ui`;
+  app compositions only; reusable skins must migrate to `MediaVibeUI/packages/ui`;
 - [`src/ui`](../packages/lighttable-app/src/ui): LightTable-aware adapters that
   need app services or domain callbacks, not a second general UI library;
 - [`PanelControls.tsx`](../packages/lighttable-app/src/ui/PanelControls.tsx):
   shared property fields and disclosures;
 - [`ToolOptionControls.tsx`](../packages/lighttable-app/src/lighttable/editor/ui/ToolOptionControls.tsx):
   editor-specific property-bar compositions of those primitives;
-- [`apps/ui-demo`](../apps/ui-demo): the standalone catalog for production
-  `@lighttable/ui` components, launched through `UI.bat`. The app contains no
+- `D:\mediavibe\MediaVibeUI\apps\ui-demo`: the standalone catalog for production
+  `@mediavibe/ui` components, launched through the sibling `UI.bat`. The app contains no
   embedded style guide or guide-only CSS.
 
 Feature CSS belongs with the feature, but must consume shared tokens. A shared
@@ -851,7 +851,7 @@ before changing representation or blend math.
 | open documents, activation, tab lifetime | workspace/session controllers |
 | panel placement or preset | workspace panel registry/Dockview layer |
 | panel behavior | feature model/controller, then projected panel |
-| reusable control/style | `packages/ui`, its tokens and `apps/ui-demo` |
+| reusable control/style | sibling `MediaVibeUI/packages/ui`, its tokens and UI guide |
 | tool discovery/shortcut | tool registry and input router |
 | pointer gesture semantics | application tool state + active-session-bound tool controller |
 | editable state or transform | canonical document/scene operation + history |

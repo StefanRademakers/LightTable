@@ -1,4 +1,4 @@
-import { Button, Dialog, FieldRow, NumberField } from '@lighttable/ui';
+import { Button, Dialog, FieldRow, NumberField } from '@mediavibe/ui';
 import { useLayoutEffect, useState } from 'react';
 
 export interface ArbitraryRotationDialogProps {

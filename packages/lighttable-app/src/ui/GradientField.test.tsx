@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { GradientField, gradientFieldBackground, type GradientFieldValue } from '@lighttable/ui';
+import { GradientField, gradientFieldBackground, type GradientFieldValue } from '@mediavibe/ui';
 
 const gradient: GradientFieldValue = {
   colorStops: [

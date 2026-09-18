@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button } from '@mediavibe/ui';
 import { ButtonBase } from '../ui/ButtonBase';
 import React, { useState } from 'react';
 import type { DocumentSessionId } from '../lighttable/application/documents/documentSession';

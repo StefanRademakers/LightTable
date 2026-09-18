@@ -1,4 +1,4 @@
-import { Button, Dialog, FieldRow, NumberField, Select } from '@lighttable/ui';
+import { Button, Dialog, FieldRow, NumberField, Select } from '@mediavibe/ui';
 import { useEffect, useState } from 'react';
 import type { DocumentGuide } from '../document/documentTypes';
 

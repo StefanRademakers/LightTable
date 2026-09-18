@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="204" viewBox="99 74 164 203">
+  <defs>
+    <linearGradient id="v" x1="106" y1="73" x2="158" y2="279" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".45" stop-color="#fbfbff"/>
+      <stop offset="1" stop-color="#c9ddff"/>
+    </linearGradient>
+    <linearGradient id="h" x1="161" y1="219" x2="262" y2="277" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#148bd4"/>
+      <stop offset=".4" stop-color="#16c5e7"/>
+      <stop offset="1" stop-color="#5af2e9"/>
+    </linearGradient>
+    <linearGradient id="b" x1="160" y1="156" x2="230" y2="219" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06213f" stop-opacity=".26"/>
+      <stop offset=".5" stop-color="#006b9d" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#1be8ed" stop-opacity=".98"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M160 153 L231 219 L160 219 Z" fill="url(#b)"/>
+
+  <path d="M99 74
+           C133 74 160 98 160 131
+           L160 277
+           L134 277
+           C114 277 99 262 99 241
+           Z"
+        fill="url(#v)"/>
+
+  <path d="M160 219
+           L221 219
+           C245 219 263 237 263 261
+           L263 277
+           L160 277
+           Z"
+        fill="url(#h)"/>
+</svg>

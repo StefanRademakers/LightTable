@@ -1,4 +1,5 @@
 import type { P1FilterSettingsMap } from "@lighttable/filter-core";
+import { VisualEffectPipelineProvider } from "@mediavibe/effects-webgpu";
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from "./filterShaders";
 import { FilterTargetPool } from "./FilterTargetPool";
 import { releaseInactiveFilterRuntimes } from "./FilterRuntimeCache";
@@ -105,16 +106,19 @@ export class VariableBlurCore {
   private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
   private sampler: GPUSampler | null = null;
+  private readonly shared: VisualEffectPipelineProvider;
   constructor(
     private readonly device: GPUDevice,
     pool?: FilterTargetPool,
   ) {
     this.pool = pool ?? new FilterTargetPool(device, 3);
     this.ownsPool = !pool;
+    this.shared = new VisualEffectPipelineProvider(device);
   }
   configure(width: number, height: number, sampler: GPUSampler) {
     this.pool.configure(width, height);
     this.sampler = sampler;
+    this.shared.configure(width, height, sampler);
   }
   encode<K extends VariableBlurMode>(
     encoder: GPUCommandEncoder,
@@ -127,6 +131,14 @@ export class VariableBlurCore {
     },
   ): GPUTexture {
     if (!this.sampler) return source;
+    if (request.mode === "radial-blur") {
+      const value = request.settings as P1FilterSettingsMap["radial-blur"];
+      return this.shared.encode(encoder, source, {
+        key: request.key, revision: request.revision, id: 'mediavibe.radial-blur',
+        parameters: { amount: value.amount, method: value.method, quality: value.quality,
+          centerX: value.center.x, centerY: value.center.y }
+      }, this.pool);
+    }
     let runtime = this.runtimes.get(request.key);
     if (!runtime) {
       const create = (axis: string) =>
@@ -245,6 +257,7 @@ export class VariableBlurCore {
     return output;
   }
   releaseInactive(keys: ReadonlySet<string>) {
+    this.shared.releaseInactive(keys);
     releaseInactiveFilterRuntimes(this.runtimes, keys, (r) => {
       r.horizontal.destroy();
       r.vertical.destroy();
@@ -260,6 +273,7 @@ export class VariableBlurCore {
       r.vertical.destroy();
     }
     this.runtimes.clear();
+    this.shared.destroy();
     this.sampler = null;
   }
 }

@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@lighttable/filter-core": "0.0.1"
+    "@lighttable/filter-core": "0.0.1",
+    "@mediavibe/effects-webgpu": "file:../../../MediaVibePackages/packages/effects-webgpu",
+    "@mediavibe/visual-effects-core": "file:../../../MediaVibePackages/packages/visual-effects-core"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.69",

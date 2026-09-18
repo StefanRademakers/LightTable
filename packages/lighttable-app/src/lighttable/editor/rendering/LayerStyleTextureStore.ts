@@ -1,3 +1,4 @@
+import { RetainedEffectFieldStore } from '@mediavibe/effects-webgpu';
 import type { LayerId, Rect } from '../document/documentTypes';
 
 export interface LayerStyleWorkTextures {
@@ -36,12 +37,6 @@ export interface CachedBevelGeometry {
   precision: 'half' | 'float';
 }
 
-export interface CachedEffectField {
-  key: string;
-  texture: GPUTexture;
-  bounds: Rect;
-}
-
 export interface LayerStyleTextureStoreOptions {
   createTexture: (label: string) => GPUTexture;
   createTextureSized: (label: string, width: number, height: number) => GPUTexture;
@@ -64,10 +59,17 @@ export class LayerStyleTextureStore {
   private bevelFieldTextures: LayerStyleBevelFieldTextures | null = null;
   private readonly cache = new Map<LayerId, CachedStyleTexture>();
   private readonly bevelGeometryCache = new Map<string, CachedBevelGeometry>();
-  private readonly effectFieldCache = new Map<string, CachedEffectField>();
+  private readonly effectFields: RetainedEffectFieldStore;
   private readonly persistentOwners = new Set<LayerId>();
 
-  constructor(private readonly options: LayerStyleTextureStoreOptions) {}
+  constructor(private readonly options: LayerStyleTextureStoreOptions) {
+    this.effectFields = new RetainedEffectFieldStore({
+      createTexture: options.createTextureSized,
+      retireTexture: (texture) => this.retire(texture),
+      labelPrefix: 'LightTable retained Layer Style field',
+      bytesPerPixel: 8
+    });
+  }
 
   private retire(texture: GPUTexture) {
     (this.options.retireTexture ?? ((target) => target.destroy()))(texture);
@@ -243,8 +245,7 @@ export class LayerStyleTextureStore {
   }
 
   cachedEffectField(layerId: LayerId, effectId: string, key: string) {
-    const cached = this.effectFieldCache.get(`${layerId}:${effectId}`);
-    return cached?.key === key ? cached : null;
+    return this.effectFields.cached(layerId, effectId, key);
   }
 
   writeEffectField(
@@ -255,31 +256,7 @@ export class LayerStyleTextureStore {
     source: GPUTexture,
     bounds: Rect
   ) {
-    this.persistentOwners.add(layerId);
-    const cacheId = `${layerId}:${effectId}`;
-    let destination = this.effectFieldCache.get(cacheId);
-    if (
-      !destination
-      || destination.bounds.width !== bounds.width
-      || destination.bounds.height !== bounds.height
-    ) {
-      if (destination) this.retire(destination.texture);
-      destination = {
-        key,
-        texture: this.options.createTextureSized(
-          `LightTable retained Layer Style field: ${effectId}`, bounds.width, bounds.height
-        ),
-        bounds
-      };
-      this.effectFieldCache.set(cacheId, destination);
-    } else {
-      destination.key = key;
-      destination.bounds = bounds;
-    }
-    encoder.copyTextureToTexture(
-      { texture: source }, { texture: destination.texture }, [bounds.width, bounds.height]
-    );
-    return destination;
+    return this.effectFields.write(encoder, layerId, effectId, key, source, bounds);
   }
 
   writeCache(
@@ -331,11 +308,7 @@ export class LayerStyleTextureStore {
       this.retire(geometry.texture);
       this.bevelGeometryCache.delete(key);
     }
-    for (const [key, field] of this.effectFieldCache) {
-      if (!key.startsWith(prefix)) continue;
-      this.retire(field.texture);
-      this.effectFieldCache.delete(key);
-    }
+    this.effectFields.invalidateOwner(layerId);
     this.persistentOwners.delete(layerId);
   }
 
@@ -344,6 +317,7 @@ export class LayerStyleTextureStore {
     for (const layerId of [...this.persistentOwners]) {
       if (!activeOwners.has(layerId)) this.invalidate(layerId);
     }
+    this.effectFields.syncOwners(activeOwners);
   }
 
   releaseCache() {
@@ -351,8 +325,7 @@ export class LayerStyleTextureStore {
     this.cache.clear();
     this.bevelGeometryCache.forEach(({ texture }) => this.retire(texture));
     this.bevelGeometryCache.clear();
-    this.effectFieldCache.forEach(({ texture }) => this.retire(texture));
-    this.effectFieldCache.clear();
+    this.effectFields.release();
     this.persistentOwners.clear();
   }
 
@@ -402,10 +375,7 @@ export class LayerStyleTextureStore {
         + bounds.width * bounds.height * (precision === 'float' ? 16 : 8),
       0
     );
-    const retainedEffectBytes = [...this.effectFieldCache.values()].reduce(
-      (bytes, { bounds }) => bytes + bounds.width * bounds.height * 8,
-      0
-    );
+    const retainedEffectBytes = this.effectFields.estimatedTextureBytes();
     return cacheBytes + blurBytes + bevelBytes + bevelHeightBytes + retainedBevelBytes
       + retainedEffectBytes
       + (this.workTextures ? 3 * bytesPerWorkTexture : 0);

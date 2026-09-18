@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button } from '@mediavibe/ui';
 import {
   Component,
   Fragment,

@@ -1,4 +1,4 @@
-import { Button, Dialog, Text } from '@lighttable/ui';
+import { Button, Dialog, Text } from '@mediavibe/ui';
 import React from 'react';
 
 import type { BackgroundRemovalControllerState, BackgroundRemovalMaskMode }

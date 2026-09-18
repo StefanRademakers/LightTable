@@ -28,7 +28,7 @@ state, S3 details or application routes.
 - Photoshop-family adjustment descriptors now round-trip for the supported
   set. Color Lookup can load a 3D `.cube` file, retain its exact bytes as a
   LightTable document asset and embed it in supported PSD interchange.
-- Shared UI lives under `packages/ui`; `UI.bat` starts its standalone catalog.
+- Shared UI lives in the sibling `D:\mediavibe\MediaVibeUI` workspace; its `UI.bat` starts the standalone catalog.
   Production screens consume the same package components, and contextual
   geometry is an explicit variant rather than CSS inherited from a container.
 
@@ -51,10 +51,11 @@ application; use `make:desktop` or `build.bat` when an installer is required.
 
 Vite hot-updates the standalone web editor. Electron Forge hot-updates renderer
 code and CSS; changes to Electron main/preload or packaging require restarting
-the desktop process. Both dev hosts resolve `@lighttable/app` and
-`@lighttable/ui` directly to workspace source, so package component CSS, app
-theme aliases, `primitives.css`, `lighttable.css` and host CSS update without
-rebuilding or recreating the open document.
+the desktop process. Both dev hosts resolve `@lighttable/app` to workspace
+source and consume compiled `@mediavibe/ui` plus the required MediaVibe core
+packages from sibling workspaces. Root dev, typecheck and build commands rebuild
+those shared packages first; app theme aliases, `primitives.css`, `lighttable.css`
+and host CSS remain in LightTable's live HMR graph.
 After changing a Vite config itself, restart that dev host once.
 
 During the extraction, run `npm run dev:lighttable` from

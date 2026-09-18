@@ -1,4 +1,4 @@
-import { Button, Dialog, Text } from '@lighttable/ui';
+import { Button, Dialog, Text } from '@mediavibe/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';

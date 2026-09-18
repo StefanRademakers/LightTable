@@ -1,4 +1,4 @@
-import { observeScopeTheme, type ScopeTheme } from '@lighttable/ui/scopeRendering';
+import { observeScopeTheme, type ScopeTheme } from '@mediavibe/ui/scopeRendering';
 import type { DocumentRendererScopeCanvases } from '../application/rendering/rendererTypes';
 
 const roles = ['hueDistribution', 'colorMixerHueDistribution', 'parade', 'vectorscope'] as const;

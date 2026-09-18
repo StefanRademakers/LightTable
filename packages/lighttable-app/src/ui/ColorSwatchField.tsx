@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { PaintField } from '@lighttable/ui';
+import { PaintField } from '@mediavibe/ui';
 import { ColorPicker, colorPickerHex, colorPickerParseHex } from './ColorPicker';
 import { sampleScreenColor } from './colorSampling';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { gradientPreview, type GradientValue } from '@lighttable/ui';
+import { gradientPreview, type GradientValue } from '@mediavibe/ui';
 import {
   GradientAssetEditor,
   gradientMidpointPosition,

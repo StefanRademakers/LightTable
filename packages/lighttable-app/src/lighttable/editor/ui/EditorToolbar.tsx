@@ -1,6 +1,6 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
-import { MaskIcon, Toolbar, ToolButton as PackageToolButton, type ToolbarTool, type ToolbarGroup } from '@lighttable/ui';
+import { MaskIcon, Toolbar, ToolButton as PackageToolButton, type ToolbarTool, type ToolbarGroup } from '@mediavibe/ui';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';

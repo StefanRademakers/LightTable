@@ -679,7 +679,6 @@
 .lighttable-agent-settings__activity { display: grid; gap: 8px; margin: 12px 0; padding: 10px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-recessed); }
 .lighttable-agent-settings__activity > span { display: flex; justify-content: space-between; gap: 12px; }
 .lighttable-agent-settings__activity small { color: var(--color-text-muted); }
-.lighttable-agent-settings__activity progress { width: 100%; }
 .lighttable-agent-settings__results { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .lighttable-agent-settings__results li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; color: var(--color-text-muted); }
 .lighttable-agent-settings__results span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -701,11 +700,6 @@
 .lighttable-agent-settings__card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .lighttable-agent-settings__card-heading h3 { margin: 0; font-size: var(--lt-type-regular); }
 .lighttable-agent-settings__card-heading p { margin: 4px 0 0; color: var(--color-text-muted); line-height: 1.4; }
-.lighttable-agent-settings__status { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--lt-border-subtle); border-radius: 999px; color: var(--color-text-muted); background: var(--lt-surface-recessed); font-size: var(--lt-type-small); text-transform: capitalize; }
-.lighttable-agent-settings__status.is-running,
-.lighttable-agent-settings__status.is-connected { color: var(--lt-success, #79b98c); }
-.lighttable-agent-settings__status.is-error,
-.lighttable-agent-settings__status.is-revoked { color: var(--color-danger); }
 .lighttable-agent-settings__empty { margin-bottom: 0; }
 .lighttable-agent-settings__advanced-block { margin: 16px 0; padding: 12px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-recessed); }
 .lighttable-agent-settings__advanced-block h4 { margin: 0; font-size: var(--lt-type-regular); }
@@ -782,14 +776,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--lt-layout-property-stack-gap);
-}
-.lighttable-style-notice {
-  padding: 8px 9px;
-  border-left: 2px solid #59779f;
-  color: var(--lt-text-muted);
-  background: var(--lt-surface-info);
-  font-size: var(--lt-type-small);
-  line-height: 1.45;
 }
 .opacity-slider {
   width: 100%;

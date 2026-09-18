@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button } from '@mediavibe/ui';
 import React from 'react';
 import type {
   GenAiAssetId,
@@ -9,7 +9,7 @@ import type {
 
 import { EditorMenuBar } from '../lighttable/editor/ui/EditorMenuBar';
 import type { EditorMenuId } from '../lighttable/editor/menus/createEditorMenuOptions';
-import type { MenuOption } from '@lighttable/ui';
+import type { MenuOption } from '@mediavibe/ui';
 import { ProjectAssetBrowser } from '../genai/ui/ProjectAssetBrowser';
 import type {
   LightTableGenAiService,
@@ -160,6 +160,9 @@ export const ProjectHomeSurface = ({
           error={catalogError}
           previews={previews}
           onRequestPreview={requestPreview}
+          onRequestMediaSource={service?.loadProjectAssetMediaSource
+            ? (asset) => service.loadProjectAssetMediaSource!(project.id, asset.id)
+            : undefined}
           onOpenAsset={onOpenAsset}
           onRevealAsset={service ? (asset) => service.revealProjectAsset(project.id, asset.id) : undefined}
           onRenameAsset={service ? (asset, name) => service.renameProjectAsset(project.id, asset.id, name) : undefined}

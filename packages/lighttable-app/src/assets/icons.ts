@@ -1,5 +1,5 @@
 import folderIcon from './icons/folder.png?url';
-import { pipetteIconUrl, sectionOpenIconUrl, sectionClosedIconUrl, resetIconUrl, trashIconUrl, searchIconUrl, closeIconUrl } from '@lighttable/ui';
+import { pipetteIconUrl, sectionOpenIconUrl, sectionClosedIconUrl, resetIconUrl, trashIconUrl, searchIconUrl, closeIconUrl } from '@mediavibe/ui';
 
 const icons = {
   ...import.meta.glob('./icons/*.png', {

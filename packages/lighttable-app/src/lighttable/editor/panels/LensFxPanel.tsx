@@ -1,8 +1,8 @@
-import { Button, PanelSection, SegmentedControl } from '@lighttable/ui';
+import { Button, PanelSection, SegmentedControl } from '@mediavibe/ui';
 import React, { useState } from 'react';
 
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 import {
   DEFAULT_CHROMATIC_ABERRATION_SETTINGS

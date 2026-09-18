@@ -1,4 +1,4 @@
-import { Button, Dialog, Text } from '@lighttable/ui';
+import { Button, Dialog, Text } from '@mediavibe/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import type { LightTableAgentAccessService, LightTableAgentTunnelStatus } from '../platform/LightTableHost';
 

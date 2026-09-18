@@ -128,6 +128,20 @@ const desktopHost: LightTableHost = {
     refreshProjectAssets: (projectId) => window.lightTableDesktop.refreshGenAiProjectAssets(projectId),
     loadProjectAssetPreview: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAssetPreview(projectId, assetId),
+    loadProjectAssetMediaSource: async (projectId, assetId) => {
+      const source = await window.lightTableDesktop.loadGenAiProjectAssetMediaSource(projectId, assetId);
+      if (!source) return null;
+      let released = false;
+      return {
+        url: source.url,
+        byteLength: source.byteLength,
+        release: () => {
+          if (released) return;
+          released = true;
+          void window.lightTableDesktop.releaseMediaSource(source.id);
+        }
+      };
+    },
     loadProjectAsset: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAsset(projectId, assetId),
     importProjectAsset: (projectId, asset) =>

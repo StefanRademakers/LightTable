@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FILTER_DEFINITIONS } from '@lighttable/filter-core';
-import type { MenuOption } from '@lighttable/ui';
+import type { MenuOption } from '@mediavibe/ui';
 import {
   createEditorMenuOptions,
   type EditorMenuCommands,

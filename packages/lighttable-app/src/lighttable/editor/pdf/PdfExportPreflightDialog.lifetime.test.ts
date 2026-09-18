@@ -6,7 +6,7 @@ vi.mock('react', async importOriginal => ({
   useState: (initial: unknown) => { const setter = vi.fn(); state.setters.push(setter); return [initial, setter]; },
   useRef: (current: unknown) => ({ current }), useEffect: () => {}
 }));
-vi.mock('@lighttable/ui', () => ({ Button: 'button', Dialog: 'dialog' }));
+vi.mock('@mediavibe/ui', () => ({ Button: 'button', Dialog: 'dialog' }));
 beforeEach(() => { state.setters = []; });
 type Element = { props?: { children?: unknown; onClick?: () => void } };
 const visit = (node: unknown): (() => void) | undefined => {

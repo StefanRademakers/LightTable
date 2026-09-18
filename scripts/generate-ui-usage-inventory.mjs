@@ -1,5 +1,6 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.join(root, 'packages', 'lighttable-app', 'src');
@@ -28,8 +29,9 @@ const productionFiles = sourceFiles;
 const cssFiles = files.filter((file) => file.endsWith('.css'));
 const sourceCache = new Map(await Promise.all([...new Set([...productionFiles, ...cssFiles])]
   .map(async (file) => [file, await readFile(file, 'utf8')])));
-const packageUiFiles = (await walk(path.join(root, 'packages', 'ui', 'src')))
-  .filter((file) => /\.tsx?$/.test(file) && !isTest(file));
+const packageEntry = fileURLToPath(import.meta.resolve('@mediavibe/ui'));
+const packageUiFiles = (await walk(path.dirname(packageEntry)))
+  .filter((file) => /\.(?:js|mjs)$/.test(file));
 const uiSource = sourceFiles.filter((file) => file.startsWith(`${uiRoot}${path.sep}`))
   .map((file) => sourceCache.get(file) ?? '')
   .concat(await Promise.all(packageUiFiles.map((file) => readFile(file, 'utf8'))))

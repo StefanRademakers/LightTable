@@ -29,7 +29,7 @@ import { prepareSharedWebGpuDevice } from '../lighttable/gpu/sharedWebGpuDevice'
 import {
   VideoDocumentSession,
   isSupportedVideoDocument
-} from '@lighttable/video-core';
+} from '@mediavibe/video-core';
 import type { Result } from '../lighttable/application/shared/result';
 import type { WorkspaceError } from '../lighttable/application/workspace/workspaceSession';
 import { releaseExternalMediaSource, sourceByteLengthFor } from './externalMediaSource';

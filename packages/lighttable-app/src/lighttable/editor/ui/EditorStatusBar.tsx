@@ -1,4 +1,4 @@
-import { EditorStatusBar as StatusBar, EditorStatusMeta, EditorStatusSpacer, EditorStatusText, MaskIcon, SegmentedControl } from '@lighttable/ui';
+import { EditorStatusBar as StatusBar, EditorStatusMeta, EditorStatusSpacer, EditorStatusText, MaskIcon, SegmentedControl } from '@mediavibe/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';

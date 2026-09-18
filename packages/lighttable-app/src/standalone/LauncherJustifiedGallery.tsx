@@ -1,6 +1,6 @@
 import React from 'react';
 import { ButtonBase } from '../ui/ButtonBase';
-import { Menu, type MenuOption } from '@lighttable/ui';
+import { Menu, type MenuOption } from '@mediavibe/ui';
 
 export interface LauncherGalleryItem {
   readonly id: string;

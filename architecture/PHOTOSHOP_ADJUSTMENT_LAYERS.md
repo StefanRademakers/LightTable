@@ -546,7 +546,7 @@ Relevant code:
 The retired embedded specimens established that shared controls could compose
 the visible shape of every current Photoshop adjustment. They are no longer a
 current acceptance oracle: the production app is the binding/integration truth
-and `apps/ui-demo` catalogs only reusable package primitives. Use these terms:
+and the sibling `MediaVibeUI/apps/ui-demo` catalogs only reusable package primitives. Use these terms:
 
 - **Control**: a reusable visual primitive already exists.
 - **Binding**: a production panel reads/writes a typed stack module with

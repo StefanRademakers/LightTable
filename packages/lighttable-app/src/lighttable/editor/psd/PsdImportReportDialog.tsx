@@ -1,4 +1,4 @@
-import { Button, Dialog, PanelSection, SegmentedControl } from '@lighttable/ui';
+import { Button, Dialog, PanelSection, SegmentedControl } from '@mediavibe/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import type {

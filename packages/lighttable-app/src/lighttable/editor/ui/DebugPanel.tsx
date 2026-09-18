@@ -1,4 +1,4 @@
-import { Checkbox, Button, PanelSection } from '@lighttable/ui';
+import { Checkbox, Button, PanelSection } from '@mediavibe/ui';
 import React, { useMemo, useState } from 'react';
 import {
   formatLightTableDebugLog,
@@ -10,7 +10,7 @@ import type { TextRenderPresentationSnapshot } from '../../application/rendering
 import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
 import type { WebGpuSupportTier } from '../../gpu/webGpuSupportTier';
 import { useLocalBetaDiagnostics } from '../hooks/useLocalBetaDiagnostics';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];

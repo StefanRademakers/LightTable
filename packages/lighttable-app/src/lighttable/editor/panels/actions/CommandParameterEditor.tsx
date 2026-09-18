@@ -1,4 +1,4 @@
-import { Checkbox, Button, TextInput, NumberField } from '@lighttable/ui';
+import { Checkbox, Button, TextInput, NumberField } from '@mediavibe/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   formatSchemaValidationIssues,
@@ -6,7 +6,7 @@ import {
   type LightTableJsonSchema
 } from '@lighttable/command-contract';
 
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 
 
 const record = (value: unknown): value is Readonly<Record<string, unknown>> => (

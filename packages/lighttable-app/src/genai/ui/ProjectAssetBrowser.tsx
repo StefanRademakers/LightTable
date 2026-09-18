@@ -1,13 +1,16 @@
-import { IconButton, MaskIcon, Menu, type MenuOption, PanelSection, SearchField } from '@lighttable/ui';
+import { GridView, GridViewItem, IconButton, MaskIcon, Menu, type MenuOption, PanelFooter, PanelSection,
+  SearchField, Spinner, type GridViewSize } from '@mediavibe/ui';
 import React from 'react';
 import type { GenAiAssetId, GenAiAssetReference, GenAiGenerationJob, GenAiProjectAssetSection } from '@lighttable/genai-core';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
+import { ButtonBase } from '../../ui/ButtonBase';
 
 import { TextInputDialog } from '../../ui/TextInputDialog';
 
 import { buildJustifiedLayout } from './justifiedLayout';
 import { writeProjectAssetDrag } from './projectAssetDrag';
 import { lightTableIcon } from '../../assets/icons';
+import { ProjectAssetPreview, projectAssetPreviewBadge, type ProjectAssetMediaSource } from './ProjectAssetPreview';
 
 
 export interface ProjectAssetBrowserProps {
@@ -18,6 +21,9 @@ export interface ProjectAssetBrowserProps {
   readonly error?: string;
   readonly previews?: Readonly<Record<string, string>>;
   readonly onRequestPreview?: (assetId: GenAiAssetId) => void;
+  readonly viewMode?: ProjectAssetBrowserViewMode;
+  readonly gridSize?: GridViewSize;
+  readonly onRequestMediaSource?: (asset: GenAiAssetReference) => Promise<ProjectAssetMediaSource | null>;
   readonly onOpenResult?: (job: GenAiGenerationJob) => void | Promise<unknown>;
   readonly onOpenAsset?: (asset: GenAiAssetReference) => void;
   /** Restores persisted generation settings into the editor; it never submits. */
@@ -29,6 +35,8 @@ export interface ProjectAssetBrowserProps {
   readonly onDeleteJob?: (job: GenAiGenerationJob) => Promise<void> | void;
   readonly onRefreshAssets?: () => Promise<void> | void;
 }
+
+export type ProjectAssetBrowserViewMode = 'grid' | 'justified';
 
 interface MenuState { readonly x: number; readonly y: number; readonly asset?: GenAiAssetReference; readonly job?: GenAiGenerationJob }
 const GAP = 3;
@@ -89,11 +97,30 @@ type GalleryTile =
   | { readonly key: string; readonly kind: 'asset'; readonly asset: GenAiAssetReference; readonly aspectRatio: number }
   | { readonly key: string; readonly kind: 'pending'; readonly job: GenAiGenerationJob; readonly aspectRatio: number };
 
-const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, onOpen, onContextMenu, onJobContextMenu }: {
+const requestMissingPreviews = (
+  assets: readonly GenAiAssetReference[],
+  previews: Readonly<Record<string, string>>,
+  onRequestPreview: ((assetId: GenAiAssetId) => void) | undefined,
+  requested: Set<GenAiAssetId>
+) => {
+  const visibleIds = new Set(assets.map(({ id }) => id));
+  for (const requestedId of requested) {
+    if (!visibleIds.has(requestedId)) requested.delete(requestedId);
+  }
+  assets.forEach((asset) => {
+    if (previews[asset.id] || requested.has(asset.id)) return;
+    requested.add(asset.id);
+    onRequestPreview?.(asset.id);
+  });
+};
+
+const JustifiedAssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, onRequestMediaSource,
+  onOpen, onContextMenu, onJobContextMenu }: {
   readonly assets: readonly GenAiAssetReference[];
   readonly pendingJobs?: readonly GenAiGenerationJob[];
   readonly previews: Readonly<Record<string, string>>;
   readonly onRequestPreview?: (assetId: GenAiAssetId) => void;
+  readonly onRequestMediaSource?: (asset: GenAiAssetReference) => Promise<ProjectAssetMediaSource | null>;
   readonly onOpen?: (asset: GenAiAssetReference) => void;
   readonly onContextMenu: (event: React.MouseEvent, asset: GenAiAssetReference) => void;
   readonly onJobContextMenu: (event: React.MouseEvent, job: GenAiGenerationJob) => void;
@@ -121,15 +148,7 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
     };
   }, [element]);
   React.useEffect(() => {
-    const visibleIds = new Set(assets.map(({ id }) => id));
-    for (const requestedId of requestedPreviews.current) {
-      if (!visibleIds.has(requestedId)) requestedPreviews.current.delete(requestedId);
-    }
-    assets.forEach((asset) => {
-      if (previews[asset.id] || requestedPreviews.current.has(asset.id)) return;
-      requestedPreviews.current.add(asset.id);
-      onRequestPreview?.(asset.id);
-    });
+    requestMissingPreviews(assets, previews, onRequestPreview, requestedPreviews.current);
   }, [assets, onRequestPreview, previews]);
   const tiles: GalleryTile[] = [
     ...pendingJobs.map((job): GalleryTile => ({
@@ -155,7 +174,7 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
           transform: `translate(${item.x}px, ${item.y}px)`, width: item.width, height: item.height + FOOTER
         }} onContextMenu={(event) => onJobContextMenu(event, tile.job)}>
           <div className="genai-history__preview genai-history__preview--pending" style={{ height: item.height }}>
-            <span className="genai-history__spinner" aria-hidden="true" />
+            <Spinner />
             <strong>{state}</strong>
           </div>
           <div className="genai-history__footer" title={tile.job.request.prompt}>
@@ -170,7 +189,8 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
         onDoubleClick={() => onOpen?.(asset)}
         onContextMenu={(event) => onContextMenu(event, asset)}>
         <div className="genai-history__preview" style={{ height: item.height }}>
-          {preview ? <img className="genai-history__thumbnail" src={preview} alt="" draggable={false} onLoad={(event) => {
+          <ProjectAssetPreview asset={asset} thumbnail={preview} requestMediaSource={onRequestMediaSource} />
+          {preview ? <img className="genai-history__thumbnail-probe" src={preview} alt="" aria-hidden onLoad={(event) => {
             const image = event.currentTarget;
             if (image.naturalHeight) {
               const nextRatio = image.naturalWidth / image.naturalHeight;
@@ -178,7 +198,7 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
                 ? current
                 : { ...current, [asset.id]: nextRatio });
             }
-          }} /> : <span>Image</span>}
+          }} /> : null}
         </div>
         <div className="genai-history__footer" title={asset.label}><span aria-hidden="true">▧</span><strong>{asset.label}</strong></div>
       </article>;
@@ -186,12 +206,50 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
   </div>;
 };
 
+const GridAssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, onRequestMediaSource,
+  onOpen, onContextMenu, onJobContextMenu, size }: {
+  readonly assets: readonly GenAiAssetReference[];
+  readonly pendingJobs?: readonly GenAiGenerationJob[];
+  readonly previews: Readonly<Record<string, string>>;
+  readonly onRequestPreview?: (assetId: GenAiAssetId) => void;
+  readonly onRequestMediaSource?: (asset: GenAiAssetReference) => Promise<ProjectAssetMediaSource | null>;
+  readonly onOpen?: (asset: GenAiAssetReference) => void;
+  readonly onContextMenu: (event: React.MouseEvent, asset: GenAiAssetReference) => void;
+  readonly onJobContextMenu: (event: React.MouseEvent, job: GenAiGenerationJob) => void;
+  readonly size: GridViewSize;
+}) => {
+  const requestedPreviews = React.useRef(new Set<GenAiAssetId>());
+  React.useEffect(() => {
+    requestMissingPreviews(assets, previews, onRequestPreview, requestedPreviews.current);
+  }, [assets, onRequestPreview, previews]);
+  return <GridView size={size} aria-label="Project media">
+    {pendingJobs.map((job) => {
+      const state = job.status === 'queued' ? 'Queued' : job.status === 'preparing-inputs' ? 'Preparing media'
+        : job.status === 'ready-to-submit' ? 'Ready' : job.status === 'submitting' ? 'Submitting'
+          : job.status === 'unknown-submit' ? 'Needs review' : job.status === 'succeeded' ? 'Finalizing' : 'Running';
+      return <GridViewItem key={`pending:${job.id}`} label={state} badge="AI"
+        preview={<div className="genai-history__preview genai-history__preview--pending"><Spinner /></div>}
+        onContextMenu={(event) => onJobContextMenu(event, job)} />;
+    })}
+    {assets.map((asset) => <GridViewItem key={asset.id} draggable label={asset.label}
+      badge={projectAssetPreviewBadge(asset.mediaType)}
+      preview={<ProjectAssetPreview asset={asset} thumbnail={previews[asset.id as string]}
+        requestMediaSource={onRequestMediaSource} />}
+      onDragStart={(event) => writeProjectAssetDrag(event.dataTransfer, asset.id, asset.label)}
+      onActivate={() => onOpen?.(asset)}
+      onContextMenu={(event) => onContextMenu(event, asset)} />)}
+  </GridView>;
+};
+
 const AI_HISTORY_SECTION_ID = 'AI/History';
 const AI_HISTORY_SECTION_LABEL = 'History';
 
 export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = false, error, previews = {}, onRequestPreview,
+  viewMode: requestedViewMode = 'grid', gridSize = 'small', onRequestMediaSource,
   onOpenResult, onOpenAsset, onRecreate, onAddReference, onRevealAsset, onRenameAsset, onDeleteAsset,
   onDeleteJob, onRefreshAssets }: ProjectAssetBrowserProps) => {
+  const [viewMode, setViewMode] = React.useState<ProjectAssetBrowserViewMode>(requestedViewMode);
+  const [viewMenuOpen, setViewMenuOpen] = React.useState(false);
   const [openSections, setOpenSections] = React.useState<ReadonlySet<string>>(new Set([AI_HISTORY_SECTION_LABEL]));
   const [menu, setMenu] = React.useState<MenuState>();
   const [renameAsset, setRenameAsset] = React.useState<GenAiAssetReference>();
@@ -199,6 +257,8 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
   const [actionError, setActionError] = React.useState<string>();
   const [searchQuery, setSearchQuery] = React.useState('');
   const searchInput = React.useRef<HTMLInputElement>(null);
+  const viewMenuButton = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => setViewMode(requestedViewMode), [requestedViewMode]);
   const normalizedQuery = normalizeSearchText(searchQuery);
   const searching = normalizedQuery.length > 0;
   const historySectionLabel = sections.find(({ id }) => id === AI_HISTORY_SECTION_ID)?.label
@@ -264,7 +324,10 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
       onClick: () => setDeleteTarget({ asset: menu.asset, job: menu.job }) }
   ] : [];
 
-  return <aside className="lighttable-panel" aria-label="Project assets">
+  const activeViewIcon = lightTableIcon(viewMode === 'grid' ? 'view_grid.png' : 'view_list.png');
+  const activeViewLabel = viewMode === 'grid' ? 'Grid view' : 'Justified view';
+
+  return <aside className="lighttable-panel project-asset-browser" aria-label="Assets">
     <header className="project-asset-browser__header">
       <SearchField ref={searchInput} aria-label="Search project assets" placeholder="Search assets"
         value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)}
@@ -294,18 +357,47 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
           const next = new Set(current); if (nextExpanded) next.add(name); else next.delete(name); return next;
         })}>
           {displayedAssets.length || (name === historySectionLabel && pendingJobs.length)
-            ? <AssetGallery assets={displayedAssets} pendingJobs={name === historySectionLabel ? pendingJobs : []}
-              previews={previews} onRequestPreview={onRequestPreview} onOpen={onOpenAsset} onContextMenu={context}
-              onJobContextMenu={(event, job) => {
-                event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, job });
-              }} />
-            : <p className="lighttable-panel__empty">No images in this folder.</p>}
+            ? viewMode === 'grid'
+              ? <GridAssetGallery size={gridSize} assets={displayedAssets}
+                pendingJobs={name === historySectionLabel ? pendingJobs : []}
+                previews={previews} onRequestPreview={onRequestPreview} onRequestMediaSource={onRequestMediaSource}
+                onOpen={onOpenAsset} onContextMenu={context} onJobContextMenu={(event, job) => {
+                  event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, job });
+                }} />
+              : <JustifiedAssetGallery assets={displayedAssets} pendingJobs={name === historySectionLabel ? pendingJobs : []}
+                previews={previews} onRequestPreview={onRequestPreview} onRequestMediaSource={onRequestMediaSource}
+                onOpen={onOpenAsset} onContextMenu={context}
+                onJobContextMenu={(event, job) => {
+                  event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, job });
+                }} />
+            : <p className="lighttable-panel__empty">No media in this folder.</p>}
         </PanelSection>;
       })}
       {!orderedSections.length && !loading ? <div className="lighttable-panel__empty">
-        {searching ? `No assets match “${searchQuery.trim()}”.` : 'Project images will appear here.'}
+        {searching ? `No assets match “${searchQuery.trim()}”.` : 'Project media will appear here.'}
       </div> : null}
     </div>
+    <PanelFooter className="project-asset-browser__footer" aria-label="Asset view controls">
+      <ButtonBase ref={viewMenuButton} type="button" aria-label={`Asset view: ${activeViewLabel}`}
+        title={`Asset view: ${activeViewLabel}`} aria-haspopup="menu" aria-expanded={viewMenuOpen}
+        onClick={() => setViewMenuOpen((open) => !open)}>
+        <MaskIcon src={activeViewIcon} mode="luminance" />
+      </ButtonBase>
+    </PanelFooter>
+    <Menu data-editor-native-tab-navigation open={viewMenuOpen} modal={false}
+      anchor={viewMenuButton} placement="above" align="end" gap={6} width={180}
+      label="Asset view" onClose={() => setViewMenuOpen(false)} options={[
+        {
+          value: 'grid', label: 'Grid view',
+          icon: <MaskIcon src={lightTableIcon('view_grid.png')} mode="luminance" />,
+          onClick: () => setViewMode('grid')
+        },
+        {
+          value: 'justified', label: 'Justified view',
+          icon: <MaskIcon src={lightTableIcon('view_list.png')} mode="luminance" />,
+          onClick: () => setViewMode('justified')
+        }
+      ]} />
     <Menu data-editor-native-tab-navigation open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} onClose={() => setMenu(undefined)} options={menuOptions} />
     <TextInputDialog open={Boolean(renameAsset)} compact title="Rename file" initialValue={renameAsset ? withoutExtension(renameAsset.label) : ''}
       selectAllOnOpen onCancel={() => setRenameAsset(undefined)} onConfirm={async (name) => {

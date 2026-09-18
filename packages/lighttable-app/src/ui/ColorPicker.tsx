@@ -1,10 +1,10 @@
 import React from 'react';
-import { ColorPicker as SharedColorPicker, type ColorPickerProps as SharedColorPickerProps } from '@lighttable/ui';
+import { ColorPicker as SharedColorPicker, type ColorPickerProps as SharedColorPickerProps } from '@mediavibe/ui';
 import { sampleScreenColor } from './colorSampling';
 import { useDocumentPaletteLoader, useDocumentPaletteRevision, type DocumentPaletteColor } from './DocumentPaletteContext';
 
 export { colorPickerHex, colorPickerParseHex, colorPickerRgbToHsv, colorPickerHsvToRgb,
-  colorPickerRgbToHsl, colorPickerHslToRgb, colorPickerHsvFromValue, type ColorPickerColor } from '@lighttable/ui';
+  colorPickerRgbToHsl, colorPickerHslToRgb, colorPickerHsvFromValue, type ColorPickerColor } from '@mediavibe/ui';
 export type ColorPickerProps = Pick<SharedColorPickerProps, 'value' | 'onChange' | 'opacity' | 'onOpacityChange' | 'variant'>;
 
 const USER_PALETTE_STORAGE_KEY = 'lighttable.color-picker.palette';

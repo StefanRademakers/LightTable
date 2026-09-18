@@ -1,4 +1,4 @@
-import { type SegmentOption } from '@lighttable/ui';
+import { type SegmentOption } from '@mediavibe/ui';
 import type { AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import type {
   NumericAdjustmentKey

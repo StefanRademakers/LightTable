@@ -1,4 +1,4 @@
-import { Checkbox } from '@lighttable/ui';
+import { Checkbox } from '@mediavibe/ui';
 import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorSwatchField } from './ColorSwatchField';
@@ -90,4 +90,4 @@ export const PanelNumberSlider: React.FC<{
     onInteractionCancel={onInteractionCancel} />
 );
 
-export { AngleControl as PanelAngleControl } from '@lighttable/ui';
+export { AngleControl as PanelAngleControl } from '@mediavibe/ui';

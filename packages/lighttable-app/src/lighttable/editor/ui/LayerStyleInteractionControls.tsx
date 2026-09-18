@@ -2,7 +2,7 @@ import {
   AngleControl as BaseAngleField,
   SelectField as BaseSelectField,
   SwitchControl as BaseSwitchControl
-} from '@lighttable/ui';
+} from '@mediavibe/ui';
 import React from 'react';
 import {
   PanelCheckboxField as BaseToggleField,

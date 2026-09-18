@@ -25,7 +25,7 @@ describe('ColorSwatchField', () => {
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('linear-gradient(#123456, #123456)');
     expect(markup).toContain('aria-label="Sample fill color"');
-    expect(markup).toContain('pipette.png');
+    expect(markup).toContain('class="ui-mask-icon"');
   });
 
   it('can reuse the picker with a dropdown chevron instead of the sampler', () => {
@@ -37,7 +37,7 @@ describe('ColorSwatchField', () => {
     expect(markup).toContain('class="ui-paint-field__chevron"');
     expect(markup).toContain('aria-label="Fill color"');
     expect(markup).not.toContain('aria-label="Sample fill color"');
-    expect(markup).not.toContain('pipette.png');
+    expect(markup).not.toContain('class="ui-mask-icon"');
   });
 
   it('keeps the picker inside the viewport and away from the trigger where possible', () => {

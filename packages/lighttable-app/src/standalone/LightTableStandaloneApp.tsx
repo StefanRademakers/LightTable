@@ -36,7 +36,7 @@ import {
   imagePickerAccept,
   isSupportedImageFile
 } from '../lighttable/image-io/supportedImageFormats';
-import { isSupportedVideoDocument } from '@lighttable/video-core';
+import { isSupportedVideoDocument } from '@mediavibe/video-core';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
 import { LauncherJustifiedGallery } from './LauncherJustifiedGallery';

@@ -1,4 +1,4 @@
-import { HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@lighttable/ui/scopeRendering';
+import { HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@mediavibe/ui/scopeRendering';
 import { ScopeCanvasBinding } from './ScopeCanvasBinding';
 import type { DocumentRendererScopeCanvases as ScopeCanvases } from '../application/rendering/rendererTypes';
 import type { LightTableImageMetadata } from '../types';

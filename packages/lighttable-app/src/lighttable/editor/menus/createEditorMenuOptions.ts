@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { MenuOption } from '@lighttable/ui';
+import type { MenuOption } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';

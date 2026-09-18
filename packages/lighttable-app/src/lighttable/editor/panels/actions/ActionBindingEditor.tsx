@@ -1,6 +1,6 @@
-import { Button, TextInput } from '@lighttable/ui';
+import { Button, TextInput } from '@mediavibe/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import {
   isActionResultReference,
   isActionVariableReference,

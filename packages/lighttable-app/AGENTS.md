@@ -11,7 +11,7 @@ belong to the current collaboration unless proven otherwise.
 
 Before changing visible UI, read
 `../../architecture/UI_WORKSPACE_AND_DESIGN_SYSTEM.md` and inspect the existing
-components under `../ui/src`, plus the app adapters in `src/ui`,
+components under `D:\mediavibe\MediaVibeUI\packages\ui\src`, plus the app adapters in `src/ui`,
 `src/lighttable/editor/ui/ToolOptionControls.tsx` and
 `src/lighttable/editor/ui/PanelControls.tsx`.
 
@@ -22,7 +22,7 @@ interaction design. Do not invent a new control language, layout convention,
 gesture or visual treatment when an existing LightTable pattern or supplied
 reference covers the need. Consistency takes priority over local novelty.
 
-The standalone `@lighttable/ui` demo started by `UI.bat` is the canonical live
+The standalone `@mediavibe/ui` guide started by `D:\mediavibe\MediaVibeUI\UI.bat` is the canonical live
 catalog. Inspect its relevant page, production precedents and the applicable
 `architecture/ux/` material before implementing visible UI. The LightTable app
 is the production integration oracle; it must not contain a second embedded
@@ -30,7 +30,7 @@ style guide or guide-only CSS. If those sources and an owner-supplied reference
 still leave a product decision open, ask the owner instead of silently
 improvising. Any deliberately provisional treatment must be called out plainly
 at handoff and requested for review; never present guesswork as finished design.
-A new shared pattern or materially new state belongs in `packages/ui`, its demo
+A new shared pattern or materially new state belongs in the sibling `MediaVibeUI/packages/ui`, its guide
 page and package tests in the same change.
 
 - Reuse the canonical control for buttons, selects, sliders, switches, numeric
@@ -38,9 +38,9 @@ page and package tests in the same change.
 - Feature CSS may arrange controls, but must not redefine their sizing, border,
   radius, typography, focus, hover, active or disabled language.
 - If a required reusable control does not exist, add one generic primitive under
-  `packages/ui`, test its relevant states, and use that primitive from the feature.
+  `MediaVibeUI/packages/ui`, test its relevant states, and use that primitive from the feature.
 - A new shared control or canonical dialog composition must also be represented
-  in the standalone package catalog opened through `UI.bat`.
+  in the standalone package catalog opened through `D:\mediavibe\MediaVibeUI\UI.bat`.
 - Do not add a raw private `input[type=range]`, dropdown, button skin, switch or
   paint field when an existing LightTable primitive covers the interaction.
 - Validate UI changes with the relevant desktop smoke/audit at production

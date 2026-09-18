@@ -1,4 +1,4 @@
-import { Checkbox, PanelSection, Button, TextInput, NumberField, Radio, SwitchControl } from '@lighttable/ui';
+import { Badge, Checkbox, PanelSection, ProgressBar, Button, TextInput, NumberField, Radio, SwitchControl, type FeedbackTone } from '@mediavibe/ui';
 import React, { useEffect, useState } from 'react';
 import type {
   LightTableAgentAccessService,
@@ -27,6 +27,13 @@ const scopesLabel = (scopes: readonly LightTableAgentClientScope[]) => scopes.in
   ? 'Read and edit documents' : 'Read documents';
 const reportAgentAccessFailure = (reason: unknown) => {
   console.warn('[LightTable agent access] Operation failed.', reason);
+};
+const connectionTone = (state: string): FeedbackTone => {
+  if (state === 'running' || state === 'connected') return 'success';
+  if (state === 'error' || state === 'revoked') return 'error';
+  if (state === 'starting' || state === 'authorizing' || state === 'pairing' || state === 'connecting') return 'info';
+  if (state === 'degraded') return 'warning';
+  return 'neutral';
 };
 
 export const AgentAccessSettingsPanel: React.FC<{
@@ -124,7 +131,7 @@ export const AgentAccessSettingsPanel: React.FC<{
           <div className="lighttable-agent-settings__card-heading">
             <div><h3 id="local-agent-heading">Local Codex</h3>
               <p>{localActive ? 'Ready for local MCP requests.' : 'Turn on agent connections to start the local MCP service.'}</p></div>
-            <span className={`lighttable-agent-settings__status is-${localMcp.state}`}>{localMcp.state}</span>
+            <Badge tone={connectionTone(localMcp.state)}>{localMcp.state}</Badge>
           </div>
           {localMcp.message ? <p role="status">{localMcp.message}</p> : null}
           {localMcp.error ? <p className="lighttable-agent-settings__error" role="alert">{localMcp.error}</p> : null}
@@ -137,7 +144,7 @@ export const AgentAccessSettingsPanel: React.FC<{
           <div className="lighttable-agent-settings__card-heading">
             <div><h3 id="online-agent-heading">Online MCP server</h3>
               <p>LightTable connects outward; no public port is opened on this computer.</p></div>
-            <span className={`lighttable-agent-settings__status is-${tunnel.state}`}>{tunnel.state}</span>
+            <Badge tone={connectionTone(tunnel.state)}>{tunnel.state}</Badge>
           </div>
           {!onlinePaired ? <>
             <label>Server URL<TextInput tabIndex={0} type="url" placeholder="https://mcp.example.com" value={serverUrl}
@@ -197,7 +204,7 @@ export const AgentAccessSettingsPanel: React.FC<{
 
         {tunnel.activity ? <div className="lighttable-agent-settings__activity" aria-label="Current Agent action">
           <span><strong>{tunnel.activity.name}</strong><small>{tunnel.activity.status}</small></span>
-          <progress max={1} value={tunnel.activity.progress}>{Math.round(tunnel.activity.progress * 100)}%</progress>
+          <ProgressBar label={`${tunnel.activity.name} progress`} value={tunnel.activity.progress} />
           {tunnel.activity.results?.length ? <ul className="lighttable-agent-settings__results" aria-label="Agent action results">
             {tunnel.activity.results.map((result) => <li key={result.id}>
               <strong>{result.mediaType === 'image/png' ? 'Preview' : 'Export'}</strong><span>{result.name}</span>

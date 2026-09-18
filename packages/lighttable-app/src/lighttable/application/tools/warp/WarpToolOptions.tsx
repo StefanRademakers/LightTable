@@ -1,7 +1,7 @@
-import { Checkbox, Button } from '@lighttable/ui';
+import { Checkbox, Button } from '@mediavibe/ui';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import type { EditorSession } from '../../../editor/session/editorSession';
 import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
 import { MAX_STROKE_SMOOTH } from '../../../editor/tools/brush/strokeSmoother';

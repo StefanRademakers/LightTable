@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { menuPosition } from '../../../ui/src/menuPosition';
+import { menuPosition } from '@mediavibe/ui';
 
 describe('package menu positioning', () => {
   it('opens above a footer trigger and clamps to the viewport', () => {

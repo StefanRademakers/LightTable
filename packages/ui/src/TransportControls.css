@@ -1,0 +1,21 @@
+.ui-transport-controls {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ui-text-muted);
+}
+.ui-transport-controls > .ui-icon-button {
+  flex-basis: 28px;
+  border-radius: 3px;
+}
+.ui-transport-controls > .ui-icon-button > .ui-mask-icon {
+  width: 18px;
+  height: 18px;
+}
+.ui-transport-controls > .ui-icon-button:hover:not(:disabled),
+.ui-transport-controls > .ui-icon-button:focus-visible,
+.ui-transport-controls > .ui-icon-button[data-active] {
+  color: var(--ui-text);
+}

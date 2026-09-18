@@ -16,6 +16,7 @@ import type {
   ProjectUserStorageLocation
 } from '../lighttable/application/projects/projectManifest';
 import type {
+  GenAiAssetId,
   GenAiHostPort,
   GenAiProviderSnapshot
 } from '@lighttable/genai-core';
@@ -222,6 +223,11 @@ export interface LightTableAgentAccessService {
 }
 
 export interface LightTableGenAiService extends GenAiHostPort {
+  loadProjectAssetMediaSource?(projectId: string, assetId: GenAiAssetId): Promise<{
+    readonly url: string;
+    readonly byteLength: number;
+    release(): void;
+  } | null>;
   subscribe(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
   subscribeProjectAssets(projectId: string, listener: () => void): () => void;
   subscribeJobs(

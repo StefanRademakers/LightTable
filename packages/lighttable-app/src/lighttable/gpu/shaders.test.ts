@@ -3,6 +3,10 @@ import {
   BLUR_CORE_WGSL, MORPHOLOGY_WGSL, MOTION_BLUR_WGSL, OFFSET_WGSL,
   WAVELET_DENOISE_HORIZONTAL_WGSL, WAVELET_DENOISE_VERTICAL_WGSL
 } from '@lighttable/filter-webgpu';
+import {
+  DENSE_ALPHA_GAUSSIAN_BLUR_WGSL as LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL,
+  SAMPLED_ALPHA_GAUSSIAN_BLUR_WGSL as LAYER_STYLE_GAUSSIAN_BLUR_WGSL
+} from '@mediavibe/effects-webgpu';
 // The package's ESM entry is not exposed through package exports, so tests import it directly.
 // @ts-expect-error The public declaration belongs to the package root and describes this same class.
 import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
@@ -65,7 +69,7 @@ import {
   PARADE_SCOPE_ANALYSIS_WGSL,
   VECTOR_SCOPE_ANALYSIS_WGSL
 } from './scopeShaders';
-import { HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@lighttable/ui/scopeRendering';
+import { HUE_DISTRIBUTION_DISPLAY_WGSL, PARADE_SCOPE_DISPLAY_WGSL, VECTOR_SCOPE_DISPLAY_WGSL } from '@mediavibe/ui/scopeRendering';
 import {
   ADJUSTMENT_LAYER_MIX_WGSL,
   BLUR_BRUSH_DAB_WGSL,
@@ -76,7 +80,6 @@ import {
   LAYER_INVERT_COLORS_WGSL,
   MASK_CLIPBOARD_PASTE_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
-  LAYER_STYLE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
   SAMPLED_BRUSH_DAB_WGSL,
   TONE_BRUSH_DAB_WGSL,
@@ -135,7 +138,8 @@ const renderShaders = [
   ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],
   ['warp', WARP_RENDER_WGSL],
   ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL],
-  ['layer style Gaussian blur', LAYER_STYLE_GAUSSIAN_BLUR_WGSL]
+  ['layer style Gaussian blur', LAYER_STYLE_GAUSSIAN_BLUR_WGSL],
+  ['layer style dense Gaussian blur', LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL]
 ] as const;
 
 describe('LightTable WGSL modules', () => {

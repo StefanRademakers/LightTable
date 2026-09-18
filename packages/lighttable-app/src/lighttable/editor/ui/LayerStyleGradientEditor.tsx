@@ -1,9 +1,9 @@
 import React from 'react';
-import { GradientEditor, type GradientEditorProps, type LocalInteractionSession } from '@lighttable/ui';
+import { GradientEditor, type GradientEditorProps, type LocalInteractionSession } from '@mediavibe/ui';
 import type { LayerStyleGradient } from '../styles/layerStyleTypes';
 import { PanelColorSwatch } from '../../../ui/PanelControls';
 
-export { gradientStopPosition, gradientMidpointPosition, gradientMidpointValue, removableGradientStops } from '@lighttable/ui';
+export { gradientStopPosition, gradientMidpointPosition, gradientMidpointValue, removableGradientStops } from '@mediavibe/ui';
 
 /** The app contributes its color picker and preserves the asset's non-UI metadata. */
 export const GradientAssetEditor = ({ value, onChange, ...props }: Omit<GradientEditorProps, 'value' | 'onChange'> & {

@@ -512,7 +512,7 @@ reports:
 
 - **Typed document foundation, 2026-08-26:** the workspace surface contract
   distinguishes image, video and the reserved future `model-3d` kind.
-  `@lighttable/video-core` owns read-only video lifecycle, playback/view state
+  sibling package `@mediavibe/video-core` owns read-only video lifecycle, playback/view state
   and extracted-frame artifacts. MP4/WebM now open in the same persistent
   workspace shell through a seekable desktop capability URL (or a browser Blob
   URL). The toolbar rail and panel graph stay mounted; only their contents and

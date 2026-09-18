@@ -1,4 +1,4 @@
-import { FileField as PanelFileField, PanelSection, SelectField as PanelSelectField } from '@lighttable/ui';
+import { FileField as PanelFileField, PanelSection, SelectField as PanelSelectField } from '@mediavibe/ui';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {

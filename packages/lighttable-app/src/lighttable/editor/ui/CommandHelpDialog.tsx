@@ -1,4 +1,4 @@
-import { Button, Dialog, SearchField } from '@lighttable/ui';
+import { Button, Dialog, SearchField } from '@mediavibe/ui';
 import React, { useMemo, useState } from 'react';
 
 export const LIGHTTABLE_COMMAND_HELP = [

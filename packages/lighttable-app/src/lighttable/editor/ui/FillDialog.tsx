@@ -1,4 +1,4 @@
-import { Checkbox } from '@lighttable/ui';
+import { Checkbox } from '@mediavibe/ui';
 import React from 'react';
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { ToolOptionSelect } from './ToolOptionControls';

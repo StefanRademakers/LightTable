@@ -1,4 +1,4 @@
-import { Button, Dialog } from '@lighttable/ui';
+import { Button, Dialog } from '@mediavibe/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import type {
   PdfExportFontDisposition,

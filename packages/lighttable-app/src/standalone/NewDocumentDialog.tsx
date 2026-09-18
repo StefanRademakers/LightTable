@@ -1,9 +1,9 @@
-import { Button, Dialog, TextInput, NumberField } from '@lighttable/ui';
+import { Button, Dialog, TextInput, NumberField } from '@mediavibe/ui';
 import { useEffect, useRef, useState } from 'react';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 
 
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
 import {

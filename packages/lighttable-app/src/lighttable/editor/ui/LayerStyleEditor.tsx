@@ -1,8 +1,8 @@
 import { IconButton, MaskIcon,
-  PanelSectionHeader, Button } from '@lighttable/ui';
+  PanelSectionHeader, Button } from '@mediavibe/ui';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 import {
   createDefaultLayerStyle,

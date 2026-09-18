@@ -1,5 +1,5 @@
 import { FileField as PanelFileField, IconButton, MaskIcon, PanelSectionHeader,
-  SelectField as PanelSelectField } from '@lighttable/ui';
+  SelectField as PanelSelectField } from '@mediavibe/ui';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';

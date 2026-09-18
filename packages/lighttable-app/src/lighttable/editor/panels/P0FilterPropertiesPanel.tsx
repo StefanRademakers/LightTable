@@ -1,9 +1,9 @@
-import { IconButton, MaskIcon, PanelSectionHeader, SelectField as PanelSelectField } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader, SelectField as PanelSelectField } from '@mediavibe/ui';
 import React from 'react';
 import { filterDefinition } from '@lighttable/filter-core';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 
-import { SwitchControl } from '@lighttable/ui';
+import { SwitchControl } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type {
   FilterInteractionAdmission,

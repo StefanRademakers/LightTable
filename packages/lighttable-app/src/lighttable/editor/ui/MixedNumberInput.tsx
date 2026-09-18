@@ -1,4 +1,4 @@
-import { NumberField } from '@lighttable/ui';
+import { NumberField } from '@mediavibe/ui';
 import type { MixedValue } from '../../application/text/flowTextFormatting';
 
 export interface MixedNumberInputProps {

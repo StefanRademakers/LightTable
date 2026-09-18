@@ -1,4 +1,4 @@
-import { Button, Dialog, TextInput } from '@lighttable/ui';
+import { Button, Dialog, TextInput } from '@mediavibe/ui';
 import { useEffect, useRef, useState } from 'react';
 import {
   duplicateDocumentDefaultName,

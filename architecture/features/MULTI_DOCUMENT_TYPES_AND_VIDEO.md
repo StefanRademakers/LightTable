@@ -13,7 +13,7 @@ that GLB import or presentation exists.
 
 The existing `ImageDocument`, image `DocumentSession`, history, compositor and
 tools remain image-owned. Video is never represented by an empty image, a fake
-pixel layer or a special image codec. `@lighttable/video-core` owns the
+pixel layer or a special image codec. Sibling package `@mediavibe/video-core` owns the
 host-neutral video source, metadata, lifecycle, playback/view state and frame
 artifact contracts. A future 3D package will own equivalent model semantics.
 
@@ -122,7 +122,7 @@ reported once with accepted/skipped counts rather than failing the whole drop.
 
 ## Delivery status
 
-Implemented: typed workspace surfaces and `@lighttable/video-core`; one
+Implemented: typed workspace surfaces and `@mediavibe/video-core`; one
 shared-shell document adapter; secure seekable desktop media sources; unified
 File Open, OS launch and file-drop routing; a read-only video viewer; contextual
 panels, stable toolbar geometry, shared Pan/Zoom tools and viewport math, the

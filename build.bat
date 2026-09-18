@@ -41,14 +41,10 @@ if /I "%LIGHTTABLE_BUILD_KIND%"=="debug" (
   set "LIGHTTABLE_PACKAGE_OUT=out-debug"
   call npm run package:desktop:debug
   if errorlevel 1 goto :failed
-  call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
-  if errorlevel 1 goto :failed
 ) else (
-  echo [LightTable] Creating an optimized package with the temporary UI Style Guide...
+  echo [LightTable] Creating an optimized release package...
   set "LIGHTTABLE_PACKAGE_OUT=out-release"
   call npm run package:desktop
-  if errorlevel 1 goto :failed
-  call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
   if errorlevel 1 goto :failed
 )
 

@@ -1,4 +1,4 @@
-import { Button, TextArea } from '@lighttable/ui';
+import { Button, TextArea } from '@mediavibe/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 

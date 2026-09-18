@@ -121,6 +121,21 @@ describe('project asset save indexing', () => {
     await expect(readProjectAsset(project.manifestPath, '../outside')).rejects.toThrow('identifier');
   });
 
+  it('indexes audio assets even when they have no derived bitmap thumbnail yet', async () => {
+    const { project } = await fixture();
+    const audioPath = path.join(project.rootPath, 'Props', 'dialogue.wav');
+    await writeFile(audioPath, new Uint8Array([82, 73, 70, 70]));
+    expect(await recordSavedProjectAsset({
+      manifestPath: project.manifestPath,
+      filePath: audioPath,
+      thumbnailPng: async () => { throw new Error('Audio thumbnail is renderer-owned for now.'); }
+    })).toBe(true);
+    expect((await readIndex(project.rootPath)).assets).toContainEqual(expect.objectContaining({
+      path: 'Props/dialogue.wav',
+      thumbnailStatus: 'unavailable'
+    }));
+  });
+
   it('scans custom project folders and removes deleted assets without indexing Trash', async () => {
     const { project, filePath } = await fixture();
     const customDirectory = path.join(project.rootPath, 'My Custom References');

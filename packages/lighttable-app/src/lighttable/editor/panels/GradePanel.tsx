@@ -1,12 +1,12 @@
 import { FileField as PanelFileField, IconButton, MaskIcon, PanelSectionHeader, PanelSection,
-  SegmentedControl, SelectField as PanelSelectField, SwitchControl } from '@lighttable/ui';
+  SegmentedControl, SelectField as PanelSelectField, SwitchControl } from '@mediavibe/ui';
 import { EffectPanel } from '../../effects/EffectPanel';
 
 import React, { useEffect, useRef, useState } from 'react';
 
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { ColorWheel, Select } from '@lighttable/ui';
+import { ColorWheel, Select } from '@mediavibe/ui';
 import {
   COLOR_GRADING_ZONE_LABELS,
   colorGradingZoneIndex,

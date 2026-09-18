@@ -1,4 +1,4 @@
-import { Button, TextInput } from '@lighttable/ui';
+import { Button, TextInput } from '@mediavibe/ui';
 import { ButtonBase } from '../ui/ButtonBase';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,8 +9,8 @@ import type {
 } from '../platform/LightTableHost';
 
 
-import { Select } from '@lighttable/ui';
-import { SwitchControl } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
+import { SwitchControl } from '@mediavibe/ui';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
 import {

@@ -1,18 +1,15 @@
+import { GaussianBlurPipelineProvider } from '@mediavibe/effects-webgpu';
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import {
   LAYER_STYLE_BEVEL_BLUR_WGSL,
   LAYER_STYLE_BEVEL_FLOOD_WGSL,
   LAYER_STYLE_BEVEL_SEED_WGSL,
-  LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL,
-  LAYER_STYLE_EFFECT_WGSL,
-  LAYER_STYLE_GAUSSIAN_BLUR_WGSL
+  LAYER_STYLE_EFFECT_WGSL
 } from './layerShaders';
 
 interface LayerStylePipelineEntry {
   modules: readonly GPUShaderModule[];
   effect: Promise<GPURenderPipeline>;
-  blur: Promise<GPURenderPipeline>;
-  denseBlur: Promise<GPURenderPipeline>;
   bevelBlur: Promise<GPURenderPipeline>;
   bevelSeed: Promise<GPURenderPipeline>;
   bevelFlood: Promise<GPURenderPipeline>;
@@ -26,6 +23,7 @@ const cache = new WeakMap<GPUDevice, LayerStylePipelineEntry>();
  * baseline document pipelines remain independent.
  */
 export class LayerStylePipelineProvider {
+  private readonly gaussianBlurProvider: GaussianBlurPipelineProvider;
   private pipelineValue: GPURenderPipeline | null = null;
   private blurPipelineValue: GPURenderPipeline | null = null;
   private denseBlurPipelineValue: GPURenderPipeline | null = null;
@@ -37,7 +35,15 @@ export class LayerStylePipelineProvider {
   constructor(
     private readonly device: GPUDevice,
     private readonly fullscreenModule: GPUShaderModule
-  ) {}
+  ) {
+    this.gaussianBlurProvider = new GaussianBlurPipelineProvider({
+      device,
+      fullscreenModule,
+      fullscreenVertexWgsl: FULLSCREEN_VERTEX_WGSL,
+      targetFormat: 'rgba16float',
+      labelPrefix: 'LightTable Layer Style'
+    });
+  }
 
   get pipeline() {
     return this.pipelineValue;
@@ -63,17 +69,9 @@ export class LayerStylePipelineProvider {
         label: 'LightTable Layer Style effect shader',
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_EFFECT_WGSL}`
       });
-      const blurModule = this.device.createShaderModule({
-        label: 'LightTable Layer Style Gaussian blur shader',
-        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_GAUSSIAN_BLUR_WGSL}`
-      });
       const bevelBlurModule = this.device.createShaderModule({
         label: 'LightTable Bevel dense Gaussian blur shader',
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_BLUR_WGSL}`
-      });
-      const denseBlurModule = this.device.createShaderModule({
-        label: 'LightTable Layer Style dense Gaussian blur shader',
-        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL}`
       });
       const bevelSeedModule = this.device.createShaderModule({
         label: 'LightTable Bevel seed shader',
@@ -84,35 +82,13 @@ export class LayerStylePipelineProvider {
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_FLOOD_WGSL}`
       });
       entry = {
-        modules: [effectModule, blurModule, denseBlurModule, bevelBlurModule, bevelSeedModule, bevelFloodModule],
+        modules: [effectModule, bevelBlurModule, bevelSeedModule, bevelFloodModule],
         effect: this.device.createRenderPipelineAsync({
           label: 'LightTable Layer Style effect',
           layout: 'auto',
           vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
           fragment: {
             module: effectModule,
-            entryPoint: 'main',
-            targets: [{ format: 'rgba16float' }]
-          },
-          primitive: { topology: 'triangle-list' }
-        }),
-        blur: this.device.createRenderPipelineAsync({
-          label: 'LightTable Layer Style Gaussian blur',
-          layout: 'auto',
-          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
-          fragment: {
-            module: blurModule,
-            entryPoint: 'main',
-            targets: [{ format: 'rgba16float' }]
-          },
-          primitive: { topology: 'triangle-list' }
-        }),
-        denseBlur: this.device.createRenderPipelineAsync({
-          label: 'LightTable Layer Style dense Gaussian blur',
-          layout: 'auto',
-          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
-          fragment: {
-            module: denseBlurModule,
             entryPoint: 'main',
             targets: [{ format: 'rgba16float' }]
           },
@@ -156,25 +132,30 @@ export class LayerStylePipelineProvider {
     }
     this.moduleValues = entry.modules;
     try {
-      [
-        this.pipelineValue,
-        this.blurPipelineValue,
-        this.denseBlurPipelineValue,
-        this.bevelBlurPipelineValue,
-        this.bevelSeedPipelineValue,
-        this.bevelFloodPipelineValue
+      const [
+        pipeline,
+        bevelBlurPipeline,
+        bevelSeedPipeline,
+        bevelFloodPipeline,
+        blurPipeline
       ] = await Promise.all([
         entry.effect,
-        entry.blur,
-        entry.denseBlur,
         entry.bevelBlur,
         entry.bevelSeed,
-        entry.bevelFlood
+        entry.bevelFlood,
+        this.gaussianBlurProvider.initialize()
       ]);
+      this.pipelineValue = pipeline;
+      this.bevelBlurPipelineValue = bevelBlurPipeline;
+      this.bevelSeedPipelineValue = bevelSeedPipeline;
+      this.bevelFloodPipelineValue = bevelFloodPipeline;
+      this.blurPipelineValue = blurPipeline;
+      this.denseBlurPipelineValue = this.gaussianBlurProvider.densePipeline;
       return this.pipelineValue;
     } catch (reason) {
       cache.delete(this.device);
       this.moduleValues = [];
+      this.pipelineValue = null;
       this.blurPipelineValue = null;
       this.denseBlurPipelineValue = null;
       this.bevelBlurPipelineValue = null;
@@ -185,16 +166,17 @@ export class LayerStylePipelineProvider {
   }
 
   async shaderErrors() {
-    const compilations = await Promise.all(
-      this.moduleValues.map((module) => module.getCompilationInfo())
-    );
-    return [...new Set(compilations.flatMap((compilation) => compilation.messages)
+    const [compilations, gaussianErrors] = await Promise.all([
+      Promise.all(this.moduleValues.map((module) => module.getCompilationInfo())),
+      this.gaussianBlurProvider.shaderErrors()
+    ]);
+    return [...new Set([...compilations.flatMap((compilation) => compilation.messages)
       .filter((message) => message.type === 'error')
       .map((message) => {
         const location = message.lineNum
           ? `:${message.lineNum}:${message.linePos ?? 0}`
           : '';
         return `${location} ${message.message}`.trim();
-      }))];
+      }), ...gaussianErrors])];
   }
 }

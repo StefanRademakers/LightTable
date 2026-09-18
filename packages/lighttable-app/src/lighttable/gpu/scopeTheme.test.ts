@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { observeScopeTheme, type ScopeTheme } from '@lighttable/ui/scopeRendering';
+import { observeScopeTheme, type ScopeTheme } from '@mediavibe/ui/scopeRendering';
 
 afterEach(() => vi.unstubAllGlobals());
 

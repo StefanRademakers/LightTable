@@ -1,5 +1,5 @@
-import { IconButton, MaskIcon, PanelSectionHeader, RangeSlider, SelectField as PanelSelectField } from '@lighttable/ui';
-import { NumberField } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader, RangeSlider, SelectField as PanelSelectField } from '@mediavibe/ui';
+import { NumberField } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';

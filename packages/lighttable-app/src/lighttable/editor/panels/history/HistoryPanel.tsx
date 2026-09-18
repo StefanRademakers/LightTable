@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { MaskIcon, Menu, PanelFooter } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter } from '@mediavibe/ui';
 import type { DocumentCommandHistorySnapshot } from '../../../application/commands/documentCommandHistory';
 import {
   PanelStackButtonRow,
@@ -42,7 +42,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
         <span>{state.position === 0 ? documentName || state.label : state.label}</span>
       </PanelStackButtonRow>)}
     </div>
-    <PanelFooter className="lighttable-history-panel__footer" aria-label="History controls">
+    <PanelFooter bleed className="lighttable-history-panel__footer" aria-label="History controls">
       <ButtonBase type="button"
         aria-label="Delete current history state"
         title="Delete current history state and later states"

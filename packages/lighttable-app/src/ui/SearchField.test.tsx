@@ -1,4 +1,4 @@
-import { SearchField } from '@lighttable/ui';
+import { SearchField } from '@mediavibe/ui';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +10,6 @@ describe('SearchField', () => {
     const populated = renderToStaticMarkup(<SearchField value="portrait" onClear={() => undefined} />);
     expect(empty).not.toContain('Clear search');
     expect(populated).toContain('Clear search');
-    expect(populated).toContain('close.png');
+    expect(populated).toContain('class="ui-mask-icon"');
   });
 });

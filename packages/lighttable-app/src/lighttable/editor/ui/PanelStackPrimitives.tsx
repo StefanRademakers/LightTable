@@ -5,7 +5,7 @@ import {
   TreeDisclosure,
   TreeRow,
   handleTreeCollectionNavigation
-} from '@lighttable/ui';
+} from '@mediavibe/ui';
 
 export const PanelStackRow = TreeRow;
 export const PanelStackButtonRow = TreeButtonRow;

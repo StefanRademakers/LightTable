@@ -36,5 +36,12 @@
   { "id": "context-menu", "name": "Menu", "family": "Lists & navigation", "symbols": ["Menu"], "roots": ["ui-menu"], "packageStatus": "ready" },
   { "id": "menu-bar", "name": "Menu Bar", "family": "Lists & navigation", "symbols": ["MenuBar"], "roots": ["ui-menu-bar"], "packageStatus": "ready" },
   { "id": "toolbar", "name": "Toolbar", "family": "Lists & navigation", "symbols": ["Toolbar"], "roots": ["ui-toolbar"], "packageStatus": "ready" },
-  { "id": "dialog", "name": "Dialog", "family": "Dialogs", "symbols": ["Dialog", "ConfirmDialog", "TextInputDialog"], "roots": ["ui-dialog"], "packageStatus": "ready" }
+  { "id": "dialog", "name": "Dialog", "family": "Dialogs", "symbols": ["Dialog", "ConfirmDialog", "TextInputDialog"], "roots": ["ui-dialog"], "packageStatus": "ready" },
+  { "id": "inline-message", "name": "Notice", "family": "Feedback", "symbols": ["Notice"], "roots": ["ui-notice"], "packageStatus": "ready" },
+  { "id": "status-badge", "name": "Badge", "family": "Feedback", "symbols": ["Badge"], "roots": ["ui-badge"], "packageStatus": "ready" },
+  { "id": "progress-bar", "name": "Progress Bar", "family": "Feedback", "symbols": ["ProgressBar"], "roots": ["ui-progress"], "packageStatus": "ready" },
+  { "id": "busy-indicator", "name": "Spinner", "family": "Feedback", "symbols": ["Spinner"], "roots": ["ui-spinner"], "packageStatus": "ready" },
+  { "id": "toast-viewport", "name": "Toast Viewport", "family": "Feedback", "symbols": ["ToastViewport"], "roots": ["ui-toast-viewport", "ui-toast"], "packageStatus": "ready" },
+  { "id": "anchored-popover", "name": "Anchored Popover", "family": "Containers", "symbols": ["AnchoredPopover"], "roots": ["ui-anchored-popover"], "packageStatus": "ready" },
+  { "id": "workspace-drop-preview", "name": "Workspace Drop Preview", "family": "Layout & geometry", "symbols": ["WorkspaceDropPreview"], "roots": ["ui-workspace-drop-preview"], "packageStatus": "ready" }
 ]

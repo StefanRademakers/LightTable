@@ -1,4 +1,4 @@
-import { Checkbox, PanelSection, Button, SegmentedControl, Menu, TextInput, NumberField, SelectField as PanelSelectField } from '@lighttable/ui';
+import { Checkbox, Notice, PanelSection, Button, SegmentedControl, Menu, TextInput, NumberField, SelectField as PanelSelectField } from '@mediavibe/ui';
 import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -14,9 +14,9 @@ import type {
 import { genAiFieldPlacement } from '@lighttable/genai-core';
 
 
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 
-import { SwitchControl } from '@lighttable/ui';
+import { SwitchControl } from '@mediavibe/ui';
 import { PanelNumberSlider } from '../../ui/PanelControls';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
 import { containsProjectAssetDrag, readProjectAssetDrag } from './projectAssetDrag';
@@ -414,9 +414,9 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   update={(value) => onFieldChange?.(field.key, value)} />
               ))}</div>
             </PanelSection> : null}
-            {!projectName ? <p className="genai-panel__notice">Open a project to generate and retain output history.</p> : null}
+            {!projectName ? <Notice>Open a project to generate and retain output history.</Notice> : null}
             {generalGenerationError ? <p className="genai-panel__error" role="alert">{generalGenerationError}</p> : null}
-            {referenceIssue ? <p className="genai-panel__notice" role="status">{referenceIssue}</p> : null}
+            {referenceIssue ? <Notice role="status">{referenceIssue}</Notice> : null}
             {submission ? <div className="genai-panel__result" role="status">
               {submission.result && assetPreviews[submission.result.assetId]
                 ? <img src={assetPreviews[submission.result.assetId]} alt="Generated result" /> : null}

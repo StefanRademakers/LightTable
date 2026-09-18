@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button, ProgressBar } from '@mediavibe/ui';
 import React from 'react';
 import type { AutomationTaskEvent } from '../../application/commands/automationTaskEventStore';
 
@@ -20,7 +20,8 @@ export const AgentActivityPanel: React.FC<AgentActivityPanelProps> = ({ events, 
             <span>{event.message ?? event.taskId}</span>
             <span>{event.status}</span>
           </div>
-          {event.progress !== null && <progress max={1} value={event.progress} aria-label="Agent progress" />}
+          {event.progress !== null && <ProgressBar className="lighttable-agent-activity__progress"
+            value={event.progress} label="Agent progress" />}
           {event.operationId && <div className="lighttable-agent-activity__hint">Current: {event.operationId}</div>}
           {event.status === 'running' || event.status === 'progress'
             ? <Button type="button" onClick={() => onCancel(event.taskId)}>Cancel</Button>

@@ -1,4 +1,4 @@
-import { Button, Checkbox, EditorToolOptionsBar, MaskIcon, SegmentedControl } from '@lighttable/ui';
+import { Button, Checkbox, EditorToolOptionsBar, MaskIcon, SegmentedControl } from '@mediavibe/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { resolveTextToolFont } from '../../application/text/pointTextCreation';
@@ -30,9 +30,9 @@ import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
-import { GradientField } from '@lighttable/ui';
+import { GradientField } from '@mediavibe/ui';
 
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import type { TextPaint } from '@lighttable/text-core';
 import {
   BRUSH_PRESETS,

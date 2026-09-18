@@ -11,7 +11,7 @@ import type {
 import type {
   StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
-import type { VideoDocumentSession } from '@lighttable/video-core';
+import type { VideoDocumentSession } from '@mediavibe/video-core';
 
 export interface StandaloneImageWorkspaceDocument {
   readonly id: DocumentSessionId;

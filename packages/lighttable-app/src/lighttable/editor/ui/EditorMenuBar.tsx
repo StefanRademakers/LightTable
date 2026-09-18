@@ -1,4 +1,4 @@
-import { EditorMenuBarSurface, MenuBar, type MenuOption, type MenuBarItem } from '@lighttable/ui';
+import { EditorMenuBarSurface, MenuBar, type MenuOption, type MenuBarItem } from '@mediavibe/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import { lightTableIcon } from '../../../assets/icons';

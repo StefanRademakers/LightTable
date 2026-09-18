@@ -1,10 +1,10 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { PanelStackDisclosure, PanelStackRow } from './PanelStackPrimitives';
-import { MaskIcon, Menu, PanelFooter, TextInput, type MenuOption } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter, TextInput, type MenuOption } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import {
   layerSupportsContentCompositing,
   layerSupportsLayerStyles
@@ -1580,7 +1580,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
         })}
       </div>
-      <PanelFooter className="lighttable-layers__footer">
+      <PanelFooter bleed className="lighttable-layers__footer">
         {styleMenuOpen ? (
           <Menu data-editor-native-tab-navigation open modal={false}
             anchor={styleMenuTriggerRef}

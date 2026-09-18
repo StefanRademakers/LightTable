@@ -19,6 +19,8 @@ describe('desktop file formats', () => {
     expect(desktopMediaTypeForFileName('logo.SVG')).toBe('image/svg+xml');
     expect(desktopMediaTypeForFileName('generated-video.MP4')).toBe('video/mp4');
     expect(desktopMediaTypeForFileName('generated-video.webm')).toBe('video/webm');
+    expect(desktopMediaTypeForFileName('dialogue.WAV')).toBe('audio/wav');
+    expect(desktopMediaTypeForFileName('music.mp3')).toBe('audio/mpeg');
     expect(desktopMediaTypeForFileName('unknown.bin')).toBe('');
   });
 });

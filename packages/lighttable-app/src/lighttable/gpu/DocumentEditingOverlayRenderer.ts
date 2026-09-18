@@ -9,6 +9,7 @@ import {
   type VectorEditingOverlayTheme
 } from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay } from '@lighttable/vector-rendering';
+import { EditingOverlayWebGpuBackend } from '@mediavibe/editing-overlay-webgpu';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 import {
   buildBrushCursorEditingOverlay,
@@ -63,6 +64,7 @@ interface EditingOverlayEncodeInput {
 
 export class DocumentEditingOverlayRenderer {
   private vectorBackend: VectorEditingOverlayBackend | null = null;
+  private transformBackend: EditingOverlayWebGpuBackend | null = null;
   private textBackend: TextEditingOverlayBackend | null = null;
   private selectionContourBackend: SelectionContourOverlayBackend | null = null;
   private selectionPaintBackend: SelectionPaintOverlayBackend | null = null;
@@ -89,11 +91,13 @@ export class DocumentEditingOverlayRenderer {
 
   notifySubmitted(): void {
     void this.vectorBackend?.notifySubmitted();
+    void this.transformBackend?.notifySubmitted();
     void this.textBackend?.notifySubmitted();
   }
 
   estimatedBytes(): number {
-    return this.vectorBackend?.cacheMetrics().bytes ?? 0;
+    return (this.vectorBackend?.cacheMetrics().bytes ?? 0)
+      + (this.transformBackend?.cacheMetrics().bytes ?? 0);
   }
 
   dispose(): void {
@@ -102,11 +106,13 @@ export class DocumentEditingOverlayRenderer {
       try { operation(); } catch (reason) { failures.push(reason); }
     };
     dispose(() => this.vectorBackend?.dispose());
+    dispose(() => this.transformBackend?.dispose());
     dispose(() => this.textBackend?.dispose());
     dispose(() => this.selectionContourBackend?.dispose());
     dispose(() => this.selectionPaintBackend?.dispose());
     dispose(() => this.smartSelectionBackend?.dispose());
     this.vectorBackend = null;
+    this.transformBackend = null;
     this.textBackend = null;
     this.selectionContourBackend = null;
     this.selectionPaintBackend = null;
@@ -231,7 +237,8 @@ export class DocumentEditingOverlayRenderer {
       this.vectorBackend.encodeSelectionFrame(encoder, overlayScene.selectionFrame, target);
     }
     if (state.transformFrame) {
-      this.vectorBackend.encodeTransformFrame(encoder, state.transformFrame, target);
+      this.transformBackend ??= new EditingOverlayWebGpuBackend(this.device);
+      this.transformBackend.encodeFrame(encoder, state.transformFrame, target);
     }
     if (state.smartGuideFrame) {
       this.vectorBackend.encodeSmartGuideFrame(encoder, state.smartGuideFrame, target);

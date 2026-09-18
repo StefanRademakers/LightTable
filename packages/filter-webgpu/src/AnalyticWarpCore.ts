@@ -2,6 +2,7 @@ import type {
   P1FilterKind,
   P1FilterSettingsMap,
 } from "@lighttable/filter-core";
+import { VisualEffectPipelineProvider } from "@mediavibe/effects-webgpu";
 import { FILTER_FULLSCREEN_VERTEX_WGSL } from "./filterShaders";
 import { FilterTargetPool } from "./FilterTargetPool";
 import { releaseInactiveFilterRuntimes } from "./FilterRuntimeCache";
@@ -99,16 +100,19 @@ export class AnalyticWarpCore {
   private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
   private sampler: GPUSampler | null = null;
+  private readonly shared: VisualEffectPipelineProvider;
   constructor(
     private readonly device: GPUDevice,
     pool?: FilterTargetPool,
   ) {
     this.pool = pool ?? new FilterTargetPool(device, 1);
     this.ownsPool = !pool;
+    this.shared = new VisualEffectPipelineProvider(device);
   }
   configure(width: number, height: number, sampler: GPUSampler) {
     this.pool.configure(width, height);
     this.sampler = sampler;
+    this.shared.configure(width, height, sampler);
   }
   encode<K extends AnalyticWarpMode>(
     encoder: GPUCommandEncoder,
@@ -121,6 +125,22 @@ export class AnalyticWarpCore {
     },
   ): GPUTexture {
     if (!this.sampler) return source;
+    if (request.mode === "wave") {
+      const value = request.settings as P1FilterSettingsMap["wave"];
+      return this.shared.encode(encoder, source, {
+        key: request.key, revision: request.revision, id: 'mediavibe.wave',
+        parameters: { amount: value.amount, wavelength: value.wavelength, phase: value.phase,
+          waveType: value.waveType, edgeMode: value.edgeMode }
+      }, this.pool);
+    }
+    if (request.mode === "spherize") {
+      const value = request.settings as P1FilterSettingsMap["spherize"];
+      return this.shared.encode(encoder, source, {
+        key: request.key, revision: request.revision, id: 'mediavibe.spherize',
+        parameters: { amount: value.amount, mode: value.mode,
+          centerX: value.center.x, centerY: value.center.y }
+      }, this.pool);
+    }
     let runtime = this.runtimes.get(request.key);
     if (!runtime) {
       runtime = {
@@ -205,6 +225,7 @@ export class AnalyticWarpCore {
     return target;
   }
   releaseInactive(keys: ReadonlySet<string>) {
+    this.shared.releaseInactive(keys);
     releaseInactiveFilterRuntimes(this.runtimes, keys, (r) =>
       r.uniforms.destroy(),
     );
@@ -216,6 +237,7 @@ export class AnalyticWarpCore {
     if (this.ownsPool) this.pool.destroy();
     for (const r of this.runtimes.values()) r.uniforms.destroy();
     this.runtimes.clear();
+    this.shared.destroy();
     this.sampler = null;
   }
 }

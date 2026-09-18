@@ -55,8 +55,8 @@ export const useEditorRecoveryJournal = ({
     };
   } : undefined,
   exportOutput,
-  onStatus: (status, message) => {
-    if (status === 'failed') console.warn(`[Recovery] ${message}`);
-    setStatus(status === 'failed' ? 'Recovery checkpoint unavailable' : message);
+  onError: (message) => {
+    console.warn(`[Recovery] ${message}`);
+    setStatus('Recovery checkpoint unavailable');
   }
 });

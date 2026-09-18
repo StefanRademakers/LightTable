@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { Button } from '@lighttable/ui';
+import { Button } from '@mediavibe/ui';
 
 describe('package Button', () => {
   it('uses one control for app, dialog, disabled and destructive actions', () => {

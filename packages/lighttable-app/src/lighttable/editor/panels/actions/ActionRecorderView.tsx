@@ -1,4 +1,4 @@
-import { Button } from '@lighttable/ui';
+import { Button } from '@mediavibe/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
@@ -7,7 +7,7 @@ import {
 import { lightTableIcon } from '../../../../assets/icons';
 import { LayerNameRenameGestureController } from '../../../application/layers/layerSelectionModel';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@lighttable/ui';
+import { MaskIcon, Menu, PanelFooter, type MenuOption } from '@mediavibe/ui';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
@@ -408,7 +408,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
     </p> : null}
 
-    <PanelFooter className="lighttable-action-recorder__footer" aria-label="Action controls">
+    <PanelFooter bleed className="lighttable-action-recorder__footer" aria-label="Action controls">
       <ButtonBase type="button" aria-label="Stop"
         onClick={busy ? props.onStopPlayback : props.onStop}
         disabled={!busy && recording.status !== 'recording'}><span className="lighttable-action-recorder__stop" /></ButtonBase>

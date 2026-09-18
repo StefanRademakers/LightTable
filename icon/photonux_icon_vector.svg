@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="354" height="347" viewBox="0 0 354 347">
+  <defs>
+    <!-- Tile -->
+    <linearGradient id="tileBase" x1="28" y1="14" x2="330" y2="333" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#171238"/>
+      <stop offset="0.42" stop-color="#081330"/>
+      <stop offset="0.72" stop-color="#05213a"/>
+      <stop offset="1" stop-color="#00475a"/>
+    </linearGradient>
+
+    <radialGradient id="magentaGlow" cx="0" cy="0" r="1"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(19 26) rotate(43) scale(175 145)">
+      <stop offset="0" stop-color="#ff13ad" stop-opacity="1"/>
+      <stop offset="0.34" stop-color="#e50b9d" stop-opacity=".72"/>
+      <stop offset="0.72" stop-color="#80106f" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#68105f" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cyanGlow" cx="0" cy="0" r="1"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(321 310) rotate(-132) scale(180 170)">
+      <stop offset="0" stop-color="#00ffe9" stop-opacity="1"/>
+      <stop offset="0.38" stop-color="#00e9e4" stop-opacity=".84"/>
+      <stop offset="0.73" stop-color="#00a6c9" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#006c8e" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="blueGlow" cx="0" cy="0" r="1"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(301 46) rotate(125) scale(150 120)">
+      <stop offset="0" stop-color="#008fd7" stop-opacity=".48"/>
+      <stop offset="1" stop-color="#008fd7" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="centerShade" cx="0" cy="0" r="1"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(172 168) scale(190 176)">
+      <stop offset="0" stop-color="#000818" stop-opacity=".04"/>
+      <stop offset=".55" stop-color="#000818" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#00040c" stop-opacity=".36"/>
+    </radialGradient>
+
+    <linearGradient id="edgeStroke" x1="34" y1="20" x2="330" y2="326" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff50ca"/>
+      <stop offset=".34" stop-color="#7b7eff"/>
+      <stop offset=".63" stop-color="#009ddb"/>
+      <stop offset="1" stop-color="#00ffee"/>
+    </linearGradient>
+
+    <!-- Logo mark -->
+    <linearGradient id="verticalMark" x1="106" y1="73" x2="158" y2="279" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".35" stop-color="#fbfbff"/>
+      <stop offset=".73" stop-color="#eef3ff"/>
+      <stop offset="1" stop-color="#c9ddff"/>
+    </linearGradient>
+
+    <linearGradient id="footMark" x1="161" y1="219" x2="262" y2="277" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#148bd4"/>
+      <stop offset=".38" stop-color="#16c5e7"/>
+      <stop offset=".78" stop-color="#35e9eb"/>
+      <stop offset="1" stop-color="#5af2e9"/>
+    </linearGradient>
+
+    <linearGradient id="beamMark" x1="160" y1="156" x2="230" y2="219" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06213f" stop-opacity=".26"/>
+      <stop offset=".46" stop-color="#006b9d" stop-opacity=".62"/>
+      <stop offset=".82" stop-color="#00cce5" stop-opacity=".93"/>
+      <stop offset="1" stop-color="#1be8ed" stop-opacity=".98"/>
+    </linearGradient>
+
+    <linearGradient id="markSheen" x1="107" y1="83" x2="243" y2="270" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset=".48" stop-color="#ffffff" stop-opacity=".05"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="tileGlow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+
+    <filter id="markShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="blur"/>
+      <feOffset dx="0" dy="7" result="off"/>
+      <feColorMatrix in="off" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0.05
+                0 0 0 0 0.13
+                0 0 0 .42 0" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <clipPath id="tileClip">
+      <path d="M84 4
+               C36 4 4 37 4 85
+               L4 262
+               C4 309 36 340 84 340
+               L273 340
+               C320 340 350 309 350 262
+               L350 86
+               C350 38 319 4 271 4
+               Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- transparent outside the rounded tile -->
+
+  <!-- soft exterior glow -->
+  <path d="M84 4
+           C36 4 4 37 4 85
+           L4 262
+           C4 309 36 340 84 340
+           L273 340
+           C320 340 350 309 350 262
+           L350 86
+           C350 38 319 4 271 4
+           Z"
+        fill="none" stroke="url(#edgeStroke)" stroke-width="4" opacity=".30"
+        filter="url(#tileGlow)"/>
+
+  <!-- tile -->
+  <g clip-path="url(#tileClip)">
+    <rect width="354" height="347" fill="url(#tileBase)"/>
+    <rect width="354" height="347" fill="url(#magentaGlow)"/>
+    <rect width="354" height="347" fill="url(#blueGlow)"/>
+    <rect width="354" height="347" fill="url(#cyanGlow)"/>
+    <rect width="354" height="347" fill="url(#centerShade)"/>
+
+    <!-- subtle lower-right luminous bloom -->
+    <ellipse cx="298" cy="309" rx="86" ry="72" fill="#00f2e6" opacity=".13"
+             filter="url(#tileGlow)"/>
+  </g>
+
+  <!-- crisp perimeter -->
+  <path d="M84 4
+           C36 4 4 37 4 85
+           L4 262
+           C4 309 36 340 84 340
+           L273 340
+           C320 340 350 309 350 262
+           L350 86
+           C350 38 319 4 271 4
+           Z"
+        fill="none" stroke="url(#edgeStroke)" stroke-width="1.1" opacity=".92"/>
+
+  <!-- vector logo -->
+  <g filter="url(#markShadow)">
+    <!-- diagonal light wedge, behind the L -->
+    <path d="M160 153 L231 219 L160 219 Z" fill="url(#beamMark)"/>
+
+    <!-- vertical blade -->
+    <path d="M99 74
+             C133 74 160 98 160 131
+             L160 277
+             L134 277
+             C114 277 99 262 99 241
+             Z"
+          fill="url(#verticalMark)"/>
+
+    <!-- horizontal foot -->
+    <path d="M160 219
+             L221 219
+             C245 219 263 237 263 261
+             L263 277
+             L160 277
+             Z"
+          fill="url(#footMark)"/>
+
+    <!-- very subtle sheen -->
+    <path d="M99 74
+             C133 74 160 98 160 131
+             L160 219
+             L221 219
+             C245 219 263 237 263 261
+             L263 277
+             L134 277
+             C114 277 99 262 99 241
+             Z"
+          fill="url(#markSheen)" opacity=".28"/>
+  </g>
+</svg>

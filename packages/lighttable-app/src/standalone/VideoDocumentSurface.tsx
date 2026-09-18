@@ -12,7 +12,7 @@ import {
   type VideoDocumentSession,
   type VideoPlaybackQualitySample,
   type VideoPresentationState
-} from '@lighttable/video-core';
+} from '@mediavibe/video-core';
 import type { ToolId } from '../lighttable/editor/session/editorSession';
 import { resolveViewportImageRect } from '../lighttable/application/rendering/viewportRenderState';
 import {

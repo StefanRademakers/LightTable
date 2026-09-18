@@ -269,6 +269,9 @@ export interface LightTableDesktopBridge {
   loadGenAiProjectAssetCatalog(projectId: string): Promise<GenAiProjectAssetCatalog>;
   refreshGenAiProjectAssets(projectId: string): Promise<void>;
   loadGenAiProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
+  loadGenAiProjectAssetMediaSource(projectId: string, assetId: GenAiAssetId): Promise<{
+    readonly id: string; readonly url: string; readonly byteLength: number;
+  } | null>;
   loadGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<import('@lighttable/genai-core').GenAiAssetPayload | null>;
   importGenAiProjectAsset(projectId: string, asset: import('@lighttable/genai-core').GenAiAssetPayload): Promise<GenAiAssetReference>;
   revealGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;

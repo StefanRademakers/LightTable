@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { NonePaintField } from '@lighttable/ui';
+import { NonePaintField } from '@mediavibe/ui';
 
 describe('NonePaintField', () => {
   it('uses the canonical regular paint-field shape', () => {

@@ -1,4 +1,4 @@
-import { Button, Dialog } from '@lighttable/ui';
+import { Button, Dialog } from '@mediavibe/ui';
 import React from 'react';
 import {
   LIGHTTABLE_FORMAT_CAPABILITIES,

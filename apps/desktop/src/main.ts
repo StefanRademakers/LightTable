@@ -1745,6 +1745,21 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const bytes = await readProjectAssetPreview(activeProjectManifestPath, assetId);
     return bytes ? `data:image/png;base64,${Buffer.from(bytes).toString('base64')}` : null;
   });
+  ipcMain.handle('lighttable:genai-project-asset-media-source', async (
+    event,
+    projectId: unknown,
+    assetId: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { manifestPath } = await activeGenAiProject(projectId);
+    if (typeof assetId !== 'string') throw new Error('Invalid project asset.');
+    const filePath = await resolveProjectAssetPath(manifestPath, assetId);
+    const mediaType = desktopMediaTypeForFileName(filePath);
+    if (!mediaType.startsWith('video/') && !mediaType.startsWith('audio/')) return null;
+    const sourceStats = await stat(filePath);
+    if (!sourceStats.isFile() || sourceStats.size < 1) return null;
+    return desktopMediaSources.authorize(filePath, mediaType, sourceStats.size);
+  });
   ipcMain.handle('lighttable:genai-project-asset-load', async (
     event,
     projectId: unknown,

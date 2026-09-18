@@ -1,4 +1,4 @@
-import { PanelSection } from '@lighttable/ui';
+import { Notice, PanelSection } from '@mediavibe/ui';
 import React from 'react';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import { createDefaultLayerStyleGradient } from '../styles/layerStyleDefaults';
@@ -305,10 +305,10 @@ const StrokeControls: React.FC<{
         <LayerStyleGradientEditor value={effect.fill.gradient}
           onChange={(gradient) => gradientFill && patch({ fill: { ...gradientFill, gradient } })} />
       ) : (
-        <div className="lighttable-style-notice">
+        <Notice>
           Pattern Stroke is preserved but remains inactive until its asset is
           resolved by the document registry.
-        </div>
+        </Notice>
       )}
       <NumberSlider label="Opacity" value={effect.opacity * 100} min={0} max={100}
         suffix="%" resetValue={100} onChange={(opacity) => patch({ opacity: opacity / 100 })} />
@@ -454,13 +454,13 @@ export const EffectControls: React.FC<{
             onChange={(invert) => patch({ texture: { ...effect.texture, invert } })} />
           <ToggleField label="Link with layer" checked={effect.texture.linkWithLayer}
             onChange={(linkWithLayer) => patch({ texture: { ...effect.texture, linkWithLayer } })} />
-          <div className="lighttable-style-notice">
+          <Notice>
             {effect.texture.pattern?.assetId
               ? `Resolved pattern: ${effect.texture.pattern.name}`
               : effect.texture.pattern
                 ? `Preserved unresolved pattern: ${effect.texture.pattern.name}`
                 : 'No texture pattern selected.'}
-          </div>
+          </Notice>
         </div>
       </>;
     case 'pattern-overlay':
@@ -471,14 +471,12 @@ export const EffectControls: React.FC<{
           suffix="%" resetValue={100} onChange={(scale) => patch({ scale: scale / 100 })} />
         <ToggleField label="Link with layer" checked={effect.linkWithLayer}
           onChange={(linkWithLayer) => patch({ linkWithLayer })} />
-        <div className="lighttable-style-notice">
+        <Notice>
           {effect.pattern
             ? `Preserved unresolved pattern: ${effect.pattern.name}`
             : 'Choose a pattern after the document asset registry is available.'}
           {' '}The renderer does not substitute a fake pattern.
-        </div>
+        </Notice>
       </div></>;
   }
 };
-
-

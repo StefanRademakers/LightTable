@@ -1,4 +1,4 @@
-import { Checkbox, SegmentedControl } from '@lighttable/ui';
+import { Checkbox, SegmentedControl } from '@mediavibe/ui';
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
@@ -9,8 +9,8 @@ import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import { ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { ColorPicker, colorPickerHex, colorPickerParseHex } from '../../../ui/ColorPicker';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
-import { GradientField } from '@lighttable/ui';
-import { NonePaintField } from '@lighttable/ui';
+import { GradientField } from '@mediavibe/ui';
+import { NonePaintField } from '@mediavibe/ui';
 
 
 type PaintType = 'none' | 'color' | 'gradient';

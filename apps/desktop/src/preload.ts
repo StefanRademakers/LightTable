@@ -182,6 +182,8 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:genai-project-assets-refresh', projectId),
   loadGenAiProjectAssetPreview: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-preview', projectId, assetId),
+  loadGenAiProjectAssetMediaSource: (projectId, assetId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-media-source', projectId, assetId),
   loadGenAiProjectAsset: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-load', projectId, assetId),
   importGenAiProjectAsset: (projectId, asset) =>

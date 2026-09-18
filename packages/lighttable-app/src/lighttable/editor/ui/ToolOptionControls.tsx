@@ -1,7 +1,7 @@
-import { Checkbox, NumberField, type NumberFieldProps, type SelectProps } from '@lighttable/ui';
+import { Checkbox, NumberField, type NumberFieldProps, type SelectProps } from '@mediavibe/ui';
 import React from 'react';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 
 export interface ToolOptionSelectProps
   extends Omit<SelectProps, 'children'> {

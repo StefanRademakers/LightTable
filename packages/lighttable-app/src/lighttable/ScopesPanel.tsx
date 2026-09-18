@@ -1,4 +1,4 @@
-import { ScopesPanel as ScopeViews, type ScopesPanelProps as ScopeViewsProps } from '@lighttable/ui';
+import { ScopesPanel as ScopeViews, type ScopesPanelProps as ScopeViewsProps } from '@mediavibe/ui';
 import React from 'react';
 import { skinToneReferenceEnd, vectorscopeTargetPositions, type ScopeSettings } from './scopes';
 

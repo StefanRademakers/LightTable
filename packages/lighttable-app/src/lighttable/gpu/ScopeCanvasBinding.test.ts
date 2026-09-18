@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ScopeCanvasBinding } from './ScopeCanvasBinding';
-import type { ScopeTheme } from '@lighttable/ui/scopeRendering';
+import type { ScopeTheme } from '@mediavibe/ui/scopeRendering';
 
 const theme = vi.hoisted(() => ({ observe: vi.fn() }));
-vi.mock('@lighttable/ui/scopeRendering', () => ({ observeScopeTheme: theme.observe }));
+vi.mock('@mediavibe/ui/scopeRendering', () => ({ observeScopeTheme: theme.observe }));
 beforeEach(() => { theme.observe.mockReset().mockImplementation((_canvas, publish) => {
   publish({ light: false, background: [0, 0, 0] });
   return vi.fn();

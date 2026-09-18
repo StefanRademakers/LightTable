@@ -1,5 +1,5 @@
 import React from 'react';
-import { SliderField } from '@lighttable/ui';
+import { SliderField } from '@mediavibe/ui';
 
 export const OpacitySlider: React.FC<{
   value: number;

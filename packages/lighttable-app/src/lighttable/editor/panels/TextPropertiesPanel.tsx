@@ -1,4 +1,4 @@
-import { Checkbox, PanelSectionHeader, Button } from '@lighttable/ui';
+import { Checkbox, PanelSectionHeader, Button } from '@mediavibe/ui';
 import React from 'react';
 import type { PositionedTextRecoveryAnalysis } from '@lighttable/text-core';
 

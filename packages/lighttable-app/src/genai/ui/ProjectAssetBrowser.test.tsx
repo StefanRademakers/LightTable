@@ -15,8 +15,9 @@ describe('ProjectAssetBrowser', () => {
     expect(markup).toContain('Characters');
     expect(markup).toContain('ExtraFolder');
     expect(markup.match(/ui-panel-section__header/g)).toHaveLength(3);
-    expect(markup).toContain('area_open.png');
-    expect(markup).toContain('area_closed.png');
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup.match(/aria-expanded="false" aria-controls=/g)).toHaveLength(2);
+    expect(markup.match(/ui-panel-section__chevron/g)).toHaveLength(3);
   });
 
   it('retains the requested output aspect for an unfinished generation tile', () => {
@@ -37,6 +38,26 @@ describe('ProjectAssetBrowser', () => {
     expect(markup).toContain('project-asset-browser__header');
     expect(markup).toContain('Search project assets');
     expect(markup).toContain('Search assets');
+  });
+
+  it('keeps grid and justified asset views as separate selectable projections', () => {
+    const assets = [
+      { id: 'image', projectId: 'project', label: 'still.png', mediaType: 'image/png', section: 'History' },
+      { id: 'video', projectId: 'project', label: 'clip.mp4', mediaType: 'video/mp4', section: 'History' },
+      { id: 'audio', projectId: 'project', label: 'dialogue.wav', mediaType: 'audio/wav', section: 'History' }
+    ] as unknown as GenAiAssetReference[];
+    const grid = renderToStaticMarkup(<ProjectAssetBrowser jobs={[]} assets={assets} gridSize="small" />);
+    expect(grid).toContain('data-suite-control="grid-view"');
+    expect(grid).toContain('data-suite-variant="small"');
+    expect(grid).toContain('aria-label="Assets"');
+    expect(grid).toContain('aria-label="Asset view controls"');
+    expect(grid).toContain('Asset view: Grid view');
+    expect(grid).toContain('project-asset-preview--video');
+    expect(grid).toContain('project-asset-preview--audio');
+    const justified = renderToStaticMarkup(<ProjectAssetBrowser jobs={[]} assets={assets} viewMode="justified" />);
+    expect(justified).toContain('genai-history__grid');
+    expect(justified).not.toContain('data-suite-control="grid-view"');
+    expect(justified).toContain('Asset view: Justified view');
   });
 
   it('matches asset names, paths and generation metadata without case or accent sensitivity', () => {

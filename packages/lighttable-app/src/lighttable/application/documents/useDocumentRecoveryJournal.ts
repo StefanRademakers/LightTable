@@ -34,7 +34,7 @@ export interface DocumentRecoveryJournalOptions {
     readonly dirty: boolean;
   };
   readonly exportOutput: (options?: ExportLightTableRuntimeOptions) => Promise<ExportedLightTableDocument>;
-  readonly onStatus?: (status: 'available' | 'failed', message: string) => void;
+  readonly onError?: (message: string) => void;
 }
 
 export interface DocumentRecoveryJournalHandle {
@@ -62,7 +62,7 @@ export const useDocumentRecoveryJournal = ({
   commandHistory,
   getCanonicalRevision,
   exportOutput,
-  onStatus,
+  onError,
   subscribe,
   getRevision,
   canCaptureSnapshot
@@ -74,7 +74,7 @@ export const useDocumentRecoveryJournal = ({
   const currentRef = useRef({
     getCanonicalRevision,
     exportOutput,
-    onStatus,
+    onError,
     sourceName,
     sourceMediaType,
     sourcePath,
@@ -86,7 +86,7 @@ export const useDocumentRecoveryJournal = ({
   currentRef.current = {
     getCanonicalRevision,
     exportOutput,
-    onStatus,
+    onError,
     sourceName,
     sourceMediaType,
     sourcePath,
@@ -169,11 +169,10 @@ export const useDocumentRecoveryJournal = ({
             + `prepare ${(preparedAt - startedAt).toFixed(1)} ms; `
             + `persist ${(finishedAt - preparedAt).toFixed(1)} ms.`
           );
-          currentRef.current.onStatus?.('available', 'Recovery checkpoint available');
         }
       },
       onError(error) {
-        currentRef.current.onStatus?.('failed', error.message);
+        currentRef.current.onError?.(error.message);
       }
     });
     schedulerRef.current = scheduler;

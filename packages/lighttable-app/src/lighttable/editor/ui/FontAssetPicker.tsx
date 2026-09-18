@@ -1,4 +1,4 @@
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import { useMemo } from 'react';
 import type { DocumentFontAsset } from '../document/documentTypes';
 

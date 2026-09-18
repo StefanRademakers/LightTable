@@ -1,5 +1,5 @@
 import React from 'react';
-import { Slider, SliderField, sliderValueAtPosition, type SliderProps } from '@lighttable/ui';
+import { Slider, SliderField, sliderValueAtPosition, type SliderProps } from '@mediavibe/ui';
 
 export type AdjustmentSliderTrack =
   | 'luminance'

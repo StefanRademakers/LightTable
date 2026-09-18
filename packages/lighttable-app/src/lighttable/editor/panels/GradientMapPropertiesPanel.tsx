@@ -1,6 +1,6 @@
-import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
-import { SwitchControl } from '@lighttable/ui';
+import { SwitchControl } from '@mediavibe/ui';
 import { useGradePresentation } from '../../application/adjustments/adjustmentPresentationStore';
 import { GradientAssetEditor } from '../ui/LayerStyleGradientEditor';
 import type { LayerStyleGradient } from '../styles/layerStyleTypes';

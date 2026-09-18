@@ -35,7 +35,7 @@ describe('LayerStyleEditor', () => {
     expect(markup).not.toContain('>OK<');
     expect(markup).toContain('aria-label="Disable Drop Shadow"');
     expect(markup).toContain('aria-label="Remove Drop Shadow"');
-    expect(markup).toContain('layer_trash.png');
+    expect(markup).toContain('class="ui-mask-icon"');
     expect(markup).not.toContain('lighttable-style-editor__effect-list');
     expect(markup).not.toContain('title="Scale effects"');
     expect(markup).not.toContain('>Enabled<');

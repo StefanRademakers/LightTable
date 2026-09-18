@@ -1,1 +1,1 @@
-export { Histogram, type HistogramChannel } from '@lighttable/ui';
+export { Histogram, type HistogramChannel } from '@mediavibe/ui';

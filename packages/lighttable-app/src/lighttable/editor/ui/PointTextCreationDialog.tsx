@@ -1,4 +1,4 @@
-import { Button, Dialog, FieldRow, TextInput } from '@lighttable/ui';
+import { Button, Dialog, FieldRow, TextInput } from '@mediavibe/ui';
 import React, { useRef } from 'react';
 
 interface PointTextCreationDialogProps {

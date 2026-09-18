@@ -1,9 +1,9 @@
-import { Checkbox, Button, SegmentedControl } from '@lighttable/ui';
+import { Checkbox, Button, SegmentedControl } from '@mediavibe/ui';
 import React, { useState } from 'react';
 
 
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
-import { Select } from '@lighttable/ui';
+import { Select } from '@mediavibe/ui';
 import type {
   FaceWarpFace,
   FaceWarpFeatureSide,

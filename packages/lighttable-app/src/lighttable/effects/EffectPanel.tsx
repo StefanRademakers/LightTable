@@ -1,8 +1,8 @@
-import { IconButton, MaskIcon, PanelSection } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSection } from '@mediavibe/ui';
 import React from 'react';
 import { lightTableIcon } from '../../assets/icons';
 
-import { SwitchControl } from '@lighttable/ui';
+import { SwitchControl } from '@mediavibe/ui';
 
 interface EffectPanelProps {
   label: string;

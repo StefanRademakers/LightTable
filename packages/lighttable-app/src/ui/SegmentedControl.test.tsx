@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { SegmentedControl } from '@lighttable/ui';
+import { SegmentedControl } from '@mediavibe/ui';
 
 describe('SegmentedControl', () => {
   it('projects workspace choices through the package with app-owned icons', () => {

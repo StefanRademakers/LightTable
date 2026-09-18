@@ -6,14 +6,14 @@ asset dependency. The same shared UI runs in web and Electron.
 
 ## High-level UI governance decision
 
-The UI is treated as a product feature and a future reusable suite library, not
+The UI is treated as a product feature and a reusable MediaVibe suite library, not
 as styling added independently by feature screens. Buttons, selectors, sliders,
 fields, lists, paint controls and containers should compose a small set of
 canonical production primitives. A feature-specific implementation is allowed
 only when its interaction really differs; visual similarity alone is a reason
 to reuse an existing primitive.
 
-The standalone `@lighttable/ui` demo started by `UI.bat` is the living catalog
+The standalone `@mediavibe/ui` guide started by `D:\mediavibe\MediaVibeUI\UI.bat` is the living catalog
 for those production components. It is deliberately outside LightTable: the
 package and its catalog define reusable presentation, while the running app is
 the integration truth for real editor composition and interaction. The app must
@@ -99,10 +99,10 @@ than manufacturing a layout from document data.
 ### Clean suite-library rebuild (2026-08-30)
 
 The owner requested a component-by-component rebuild beside the existing UI,
-not a bulk CSS extraction or immediate LightTable migration. `packages/ui`
-(`@lighttable/ui`) owns the first independent typography slice; `apps/ui-demo`
-is its standalone consumer (`npm run dev:ui`). The existing embedded guide
-remains the reference for production controls until they are explicitly migrated.
+not a bulk CSS extraction. The sibling `MediaVibeUI/packages/ui` (`@mediavibe/ui`) is the canonical
+implementation for migrated controls; its `apps/ui-demo`, started with its own `UI.bat`, is
+its standalone living catalog. The running LightTable app is the integration
+truth. The retired embedded guide is not a reference and must not be restored.
 
 The new `Text` primitive renders one semantic element, with small/regular/large
 variants and normal/bold weights. Apps select types rather than declaring font
@@ -110,10 +110,10 @@ sizes. Typography metrics and locally bundled Inter fonts belong to the library;
 dark/light semantic colors are scoped through `data-ui-theme`. No editor imports,
 global CSS reset, theme context or wrapper tree is required. Light-theme colors
 and demo-shell controls are initial review surfaces, not a migrated app theme or
-finished button family. See `packages/ui/README.md` for the initial contract.
+finished button family. See `D:\mediavibe\MediaVibeUI\packages\ui\README.md` for the contract.
 
 All segmented controls and standard text action buttons now consume
-`@lighttable/ui` directly, retaining existing state and commands. Text buttons
+`@mediavibe/ui` directly, retaining existing state and commands. Text buttons
 use one 28-pixel height; the old regular/control/compact variants and local
 ActionButton/SegmentedControl implementations and skins are removed. Icon-only
 buttons, menu/list rows, tabs and disclosures are not text action buttons and
@@ -201,7 +201,7 @@ action. Layer-local attached Grade does not synthesize a separate layer mask.
 
 Panels use these primitives rather than feature-local visual copies:
 
-- `Button` from `@lighttable/ui` for labelled actions, always 28 pixels high;
+- `Button` from `@mediavibe/ui` for labelled actions, always 28 pixels high;
   disabled and destructive are states/intent, not additional button families.
   `fullWidth` changes only layout participation. `SquareIconButton` remains
   the icon-only action;
@@ -232,7 +232,7 @@ domain-specific ramp and draggable stops; its buttons, colors and numeric
 controls compose `Button`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
 
-`@lighttable/ui` now owns one `PaintField` base for color, gradient and no-paint
+`@mediavibe/ui` now owns one `PaintField` base for color, gradient and no-paint
 previews. `GradientField` and `NonePaintField` compose it; the app's
 `ColorSwatchField` retains only picker positioning, document-palette access,
 screen sampling and transaction callbacks. All fields are 72×28px;
@@ -241,8 +241,8 @@ foreground/background chips remain a distinct 17px variant. A chevron field
 is one editor-opener button; a pipette field has two distinct buttons. All
 skins and transparency colors come from the package, including light theme.
 
-The live catalog is the standalone `apps/ui-demo` application, launched through
-`UI.bat`. It imports production components directly from `@lighttable/ui` and
+The live catalog is the standalone sibling `MediaVibeUI/apps/ui-demo` application, launched through
+`D:\mediavibe\MediaVibeUI\UI.bat`. It imports production components directly from `@mediavibe/ui` and
 contains no LightTable document, command, renderer or panel-domain code. Every
 new shared control or canonical editor-chrome composition must be added there.
 The catalog is also a visual regression target for both dark and light themes.
@@ -279,7 +279,7 @@ and build variants were removed on 2026-09-13. They must not be reintroduced.
 Package tests, the standalone catalog, the static usage inventory and real-app
 browser/desktop checks are the supported governance loop.
 
-`SegmentedControl` from `@lighttable/ui` also owns workspace switching. All
+`SegmentedControl` from `@mediavibe/ui` also owns workspace switching. All
 segments use the same selected/disabled styling and content-fit geometry;
 the former `low-attention` variant no longer exists. Workspace icons are
 app-supplied; icon geometry and spacing are library-owned.
@@ -291,12 +291,13 @@ pass must rationalize those roles and then audit existing screens against the
 catalog; feature-local font-size or font-weight fixes are not an acceptable
 substitute.
 
-The app-wide inventory, convergence rules and package boundary are
-recorded in `architecture/research/LIGHTTABLE_UI_SYSTEM_AUDIT.md`. Extraction to
-a separate UI package is deliberately gated on removing editor-domain imports
-from primitives and co-locating their tokens, CSS and tests. A package boundary
-must follow the component contract; it must not be used to disguise duplicate
-controls.
+The current package coverage, missing-control inventory and controlled
+extraction gates are recorded in
+`architecture/MEDIAVIBE_UI_PACKAGE_EXTRACTION_AUDIT_2026-09-13.md`. The package
+currently has no editor-domain imports; physical extraction is gated on a
+compiled distribution, public-entry tests and proof in a second clean consumer.
+A package boundary must follow the component contract; it must not be used to
+disguise duplicate controls.
 
 The repeatable `npm run audit:desktop:panel-language:build` matrix checks compact
 and wide windows at 100% and 200% device scale against a nested PSD. It asserts
@@ -306,7 +307,7 @@ writes screenshots plus JSON evidence under `tmp/panel-language-audit/`.
 
 ## Interaction contract
 
-`@lighttable/ui` owns `PanelSection` and its standalone `PanelSectionHeader`.
+`@mediavibe/ui` owns `PanelSection` and its standalone `PanelSectionHeader`.
 All migrated section headers are 34px high, sharing the toolbar-row token.
 Grade, Lens FX, layer effects, Assets, Scopes, fixed adjustment/property titles
 and their Advanced disclosures compose this system; Layers/Actions/History trees
@@ -323,7 +324,7 @@ Section switches and the app's `PanelCheckboxField` use them without local skins
 both reuse existing selection/control colors. Inline Advanced disclosures have no
 header surface or added horizontal padding; revealed content stays aligned.
 
-The shared `@lighttable/ui` package owns `Slider`, `SliderField`, `RangeSlider`
+The shared `@mediavibe/ui` package owns `Slider`, `SliderField`, `RangeSlider`
 and `GradientEditor` styling and interaction scheduling. `AdjustmentSlider`
 is now a thin app adapter for existing domain tracks/layout choices, and the
 gradient adapter only supplies the app color picker and asset metadata. Levels
@@ -344,7 +345,7 @@ When another document is chosen, the host binds it behind the overview and only
 dismisses the overlay after that renderer generation reports a presented
 composite. An initializing or stale canvas therefore never becomes the transition.
 
-The color picker also lives in `@lighttable/ui`, composing exported `ColorArea`,
+The color picker also lives in `@mediavibe/ui`, composing exported `ColorArea`,
 `ColorSwatches`, `TextInput` and `IconButton` with the existing sliders and segments.
 The app adapter retains deferred document-palette analysis, user-palette persistence
 and OS sampling. Recent Colors is removed. Popup/panel geometry is an explicit

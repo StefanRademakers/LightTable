@@ -628,90 +628,6 @@
   overflow: hidden;
 }
 
-.lighttable-toast-viewport {
-  position: absolute;
-  z-index: 40;
-  right: 18px;
-  bottom: calc(var(--lt-layout-statusbar-height) + 14px);
-  width: min(420px, calc(100% - 36px));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.lighttable-toast {
-  min-height: 46px;
-  display: grid;
-  grid-template-columns: 4px minmax(0, 1fr) 28px;
-  align-items: center;
-  gap: 11px;
-  overflow: hidden;
-  padding: 0 8px 0 0;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-md);
-  color: var(--lt-text-primary);
-  background: color-mix(in srgb, var(--lt-surface-floating) 94%, transparent);
-  box-shadow: var(--lt-shadow-floating);
-  pointer-events: auto;
-  animation: lighttable-toast-enter 140ms ease-out;
-}
-
-.lighttable-toast__indicator {
-  align-self: stretch;
-  background: var(--lt-accent);
-}
-
-.lighttable-toast--success .lighttable-toast__indicator { background: var(--lt-success); }
-.lighttable-toast--warning .lighttable-toast__indicator { background: var(--lt-warning); }
-.lighttable-toast--error .lighttable-toast__indicator { background: var(--lt-danger); }
-
-.lighttable-toast--progress .lighttable-toast__indicator {
-  background: linear-gradient(180deg, var(--lt-accent), var(--lt-accent-strong), var(--lt-accent));
-  background-size: 100% 200%;
-  animation: lighttable-toast-progress 1.1s linear infinite;
-}
-
-.lighttable-toast__message {
-  min-width: 0;
-  padding: 10px 0;
-  font-size: var(--lt-type-regular);
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.lighttable-toast__close {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--lt-control-radius);
-  color: var(--lt-text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.lighttable-toast__close:hover {
-  color: var(--lt-text-primary);
-  background: var(--lt-surface-control-hover);
-}
-
-@keyframes lighttable-toast-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes lighttable-toast-progress {
-  to { background-position-y: 200%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lighttable-toast,
-  .lighttable-toast--progress .lighttable-toast__indicator {
-    animation: none;
-  }
-}
-
 .lighttable-dock-workspace,
 .lighttable-dock-workspace > .dv-dockview {
   width: 100%;
@@ -723,29 +639,25 @@
   min-height: 0;
 }
 
-/*
- * A centre drop on the document surface detaches a panel. Keep Dockview's
- * hit-testing untouched, but present that action as a compact floating-panel
- * destination instead of making the complete canvas look replaceable.
- */
-.lighttable-dock-workspace
-  .dv-groupview:has(.lighttable-document-host)
-  :is(
-    .dv-drop-target-selection.dv-drop-target-center,
-    .dv-drop-target-anchor.dv-drop-target-center
-  ) {
-  position: absolute !important;
-  top: 50% !important;
-  left: 50% !important;
-  width: min(34%, 320px) !important;
-  height: min(28%, 220px) !important;
-  min-width: 150px;
-  min-height: 110px;
-  border: 1px solid var(--dv-drag-over-border-color);
-  border-radius: var(--lt-radius-md);
-  transform: translate(-50%, -50%) !important;
-  background: color-mix(in srgb, var(--lt-accent) 22%, transparent);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.3);
+/* While WorkspaceDropPreview owns the floating destination feedback, Dockview
+ * keeps handling hit-testing and drop state but must not paint a second blue
+ * workspace veil. The modifier is removed for edge docking, where Dockview's
+ * directional overlay remains useful. */
+.lighttable-dock-workspace--floating-drop-preview
+  :is(.dv-drop-target-selection, .dv-drop-target-anchor) {
+  opacity: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+/* Dockview's pointer backend appends a cloned tab to document.body. Once the
+ * full destination preview is active that chip duplicates the preview tab and
+ * obscures the result. Keep it for ordinary docking, but suppress it only
+ * while the workspace owns the float destination feedback. */
+.lighttable-workspace-float-preview-active .dv-tab-ghost-drag {
+  opacity: 0 !important;
 }
 
 /*
@@ -1877,7 +1789,6 @@
   white-space: nowrap;
 }
 
-.genai-panel__notice,
 .genai-panel__status,
 .genai-panel__footer > span {
   color: var(--lt-text-subtle);
@@ -2154,6 +2065,66 @@
   object-fit: cover;
 }
 
+.project-asset-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--lt-text-muted);
+  background: var(--lt-surface-deep);
+}
+
+.project-asset-preview > img,
+.project-asset-preview > video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.project-asset-preview > audio { display: none; }
+
+.project-asset-preview__waveform {
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.project-asset-preview__waveform i {
+  min-width: 1px;
+  flex: 1 1 0;
+  border-radius: 1px;
+  background: var(--lt-success);
+  opacity: .72;
+}
+
+.project-asset-preview__playhead {
+  position: absolute;
+  z-index: 1;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--lt-danger);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.project-asset-preview:hover .project-asset-preview__playhead { opacity: 1; }
+
+.genai-history__thumbnail-probe {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .genai-history {
   flex: 1 1 auto;
   min-height: 0;
@@ -2207,17 +2178,6 @@
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-regular);
 }
-
-.genai-history__spinner {
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--lt-border-strong);
-  border-top-color: var(--lt-accent);
-  border-radius: 50%;
-  animation: genai-history-spin 900ms linear infinite;
-}
-
-@keyframes genai-history-spin { to { transform: rotate(360deg); } }
 
 .genai-history__status {
   min-width: 0;
@@ -2274,8 +2234,7 @@
   gap: 8px;
 }
 
-.lighttable-agent-activity progress {
-  width: 100%;
+.lighttable-agent-activity__progress {
   margin: 8px 0;
 }
 
@@ -3595,14 +3554,8 @@
   font: inherit;
 }
 .lighttable-tool-options__gradient-popover {
-  position: fixed;
-  z-index: 10030;
   width: 340px;
   padding: 12px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-panel);
-  box-shadow: var(--lt-shadow-dialog);
 }
 .lighttable-tool-options__line-style-popover { width: 260px; }
 .lighttable-tool-options__geometry-popover { width: 280px; }

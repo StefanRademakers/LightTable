@@ -1,4 +1,4 @@
-import { Checkbox, Button, Dialog, TextInput } from '@lighttable/ui';
+import { Checkbox, Button, Dialog, TextInput } from '@mediavibe/ui';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface TextInputDialogProps {

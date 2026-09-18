@@ -1,5 +1,5 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
-import { EditorChrome, EditorChromeBody, EditorChromeHeader, IconButton, type MenuOption } from '@lighttable/ui';
+import { EditorChrome, EditorChromeBody, EditorChromeHeader, IconButton, type MenuOption } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import type { EditorSession, ToolId } from '../session/editorSession';

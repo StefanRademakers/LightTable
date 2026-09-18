@@ -1,4 +1,4 @@
-import { Button, Dialog, PathField, Text } from '@lighttable/ui';
+import { Button, Dialog, PathField, Text } from '@mediavibe/ui';
 import type { LightTableProjectLocation } from '../platform/LightTableHost';
 
 interface NewProjectDialogProps {

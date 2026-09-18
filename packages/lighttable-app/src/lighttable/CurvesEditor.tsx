@@ -1,6 +1,6 @@
 import { ButtonBase } from '../ui/ButtonBase';
 import React, { useMemo, useRef } from 'react';
-import { SegmentedControl, type SegmentOption } from '@lighttable/ui';
+import { SegmentedControl, type SegmentOption } from '@mediavibe/ui';
 import { lightTableIcon } from '../assets/icons';
 import {
   evaluateToneCurve,

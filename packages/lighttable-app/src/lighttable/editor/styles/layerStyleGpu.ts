@@ -1,3 +1,4 @@
+import { planAdaptiveGaussianBlur } from '@mediavibe/effects-webgpu';
 import { blendModeGpuValue } from '../document/blendModes';
 import type {
   LayerStyleGradient,
@@ -183,21 +184,10 @@ export const layerStyleGaussianBlurPlan = (
   // adaptive working space used to keep interaction cost predictable.
   if (effect.kind === 'drop-shadow' || effect.kind === 'inner-shadow'
     || effect.kind === 'outer-glow' || effect.kind === 'inner-glow' || effect.kind === 'satin') {
-    const pixelsPerWorkingRadius = quality === 'interactive' ? 12 : 16;
     const hardening = effect.kind === 'drop-shadow'
       ? effect.spread
       : effect.kind === 'satin' ? 0 : effect.choke;
-    const spreadScaleLimit = hardening >= 0.35 ? 2 : 8;
-    const scale = Math.max(1, Math.min(
-      spreadScaleLimit,
-      Math.ceil(radius / pixelsPerWorkingRadius)
-    ));
-    return {
-      scale,
-      workingWidth: Math.max(1, Math.ceil(width / scale)),
-      workingHeight: Math.max(1, Math.ceil(height / scale)),
-      workingRadius: radius / scale
-    };
+    return planAdaptiveGaussianBlur({ radius, width, height, quality, hardening });
   }
   if (radius <= 8) return null;
   const pixelsPerWorkingRadius = quality === 'interactive' ? 6 : 8;

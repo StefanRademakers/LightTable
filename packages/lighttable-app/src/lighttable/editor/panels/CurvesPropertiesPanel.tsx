@@ -1,4 +1,4 @@
-import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@mediavibe/ui';
 import { useState } from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { CurvesEditor } from '../../CurvesEditor';

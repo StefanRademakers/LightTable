@@ -1,4 +1,4 @@
-import { IconButton, MaskIcon, PanelSectionHeader } from '@lighttable/ui';
+import { IconButton, MaskIcon, PanelSectionHeader } from '@mediavibe/ui';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { useLensFxPresentation } from '../../application/adjustments/adjustmentPresentationStore';

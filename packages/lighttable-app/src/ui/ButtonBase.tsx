@@ -1,1 +1,1 @@
-export { ButtonBase, type ButtonBaseProps } from '@lighttable/ui';
+export { ButtonBase, type ButtonBaseProps } from '@mediavibe/ui';

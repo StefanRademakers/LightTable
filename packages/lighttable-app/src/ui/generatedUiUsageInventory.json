@@ -364,9 +364,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 77,
+      "productionUsageCount": 76,
       "internalUsageCount": 0,
-      "contextCount": 20,
+      "contextCount": 19,
       "overrideCount": 0,
       "locations": [
         {
@@ -412,11 +412,6 @@
         {
           "path": "lighttable/editor/ui/EditorStatusBar.tsx",
           "count": 2,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/ui/EditorToastViewport.tsx",
-          "count": 1,
           "kind": "product"
         },
         {
@@ -1642,6 +1637,128 @@
         }
       ],
       "overrides": []
+    },
+    {
+      "id": "inline-message",
+      "metadataDeclared": true,
+      "productionUsageCount": 5,
+      "internalUsageCount": 0,
+      "contextCount": 2,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "genai/ui/GenAiPanel.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/LayerStyleEffectControls.tsx",
+          "count": 3,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "status-badge",
+      "metadataDeclared": true,
+      "productionUsageCount": 2,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "progress-bar",
+      "metadataDeclared": true,
+      "productionUsageCount": 2,
+      "internalUsageCount": 0,
+      "contextCount": 2,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/panels/AgentActivityPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "busy-indicator",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "genai/ui/ProjectAssetBrowser.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "toast-viewport",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/EditorToastViewport.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "anchored-popover",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/ui/AnchoredGradientPopover.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
+    },
+    {
+      "id": "workspace-drop-preview",
+      "metadataDeclared": true,
+      "productionUsageCount": 1,
+      "internalUsageCount": 0,
+      "contextCount": 1,
+      "overrideCount": 0,
+      "locations": [
+        {
+          "path": "lighttable/editor/workspace/LightTableDockWorkspace.tsx",
+          "count": 1,
+          "kind": "product"
+        }
+      ],
+      "overrides": []
     }
   ],
   "nativeCandidates": [
@@ -1679,7 +1796,7 @@
       "locations": []
     }
   ],
-  "deepSelectorCount": 8,
+  "deepSelectorCount": 7,
   "deepestSelectors": [
     {
       "path": "lighttable/lighttable.css",
@@ -1690,11 +1807,6 @@
       "path": "lighttable/lighttable.css",
       "selector": ".lighttable-dock-workspace\n  .dv-groupview\n  > .dv-tabs-and-actions-container\n  .dv-tabs-container\n  > .dv-tab.dv-inactive-tab",
       "depth": 5
-    },
-    {
-      "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\n  .dv-groupview:has(.lighttable-document-host)\n  :is(\n    .dv-drop-target-selection.dv-drop-target-center",
-      "depth": 4
     },
     {
       "path": "lighttable/lighttable.css",

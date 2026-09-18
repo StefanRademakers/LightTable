@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import type { VideoDocumentSession } from '@lighttable/video-core';
-import { IconButton, MaskIcon } from '@lighttable/ui';
+import type { VideoDocumentSession } from '@mediavibe/video-core';
+import { IconButton, MaskIcon } from '@mediavibe/ui';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from '../ui/AdjustmentSlider';
 

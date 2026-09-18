@@ -4424,6 +4424,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 sections: genAiSetup.assetSections,
                 previews: genAiSetup.assetPreviews,
                 onRequestPreview: genAiSetup.requestAssetPreview,
+                onRequestMediaSource: genAiService?.loadProjectAssetMediaSource && activeGenAiProjectId
+                  ? (asset) => genAiService.loadProjectAssetMediaSource!(activeGenAiProjectId, asset.id)
+                  : undefined,
                 onRefreshAssets: genAiSetup.refreshAssets,
                 onOpenResult: onGenAiOpenResult,
                 onOpenAsset: onGenAiOpenAsset,
